@@ -97,45 +97,41 @@ class OutputFormat(Protocol):
 
     def url_for(self, document: Document) -> str:
         """
-        Get the canonical URL where this document will be served.
+        Returns the canonical URL for this document.
 
-        Pure query - doesn't modify anything.
-        Internally uses self.url_convention.canonical_url()
-        """
-        ...
+        GUARANTEES: The returned URL will be valid/servable.
 
-    def ensure_served(self, document: Document) -> None:
-        """
-        Ensure document is available at url_for(document).
-
-        Does whatever is necessary:
+        Internally does whatever is necessary to make that guarantee:
         - Write file to disk (MkDocs)
         - Save to database (HeadlessDB)
         - Upload to S3 (S3Storage)
+        - Queue for batch processing
         - Post to CMS API (HeadlessCMS)
+        - Or any other strategy
 
-        Idempotency is INTERNAL - format decides how to handle duplicates.
-        Core doesn't know or care about created/updated/noop status.
+        Idempotency, collision handling, versioning - all INTERNAL.
+        Core never knows HOW it's done, only gets the URL.
+
+        The format decides when/how to persist (sync, async, batch, lazy).
         """
         ...
 ```
 
-**That's it. No publish(), no status, no options, no result object.**
+**That's it. Just 1 method + 1 property. Absolute minimum interface.**
 
-### 3. Core Responsibilities (Super Simple)
+### 3. Core Responsibilities (Absolute Minimum)
 
 ```python
-# Core flow - minimal and clean
-def publish_document(document: Document, output_format: OutputFormat):
-    # 1. Ask for URL (pure query)
+# Core flow - cannot be simpler
+def publish_document(document: Document, output_format: OutputFormat) -> str:
+    # Get URL (format handles persistence internally)
     url = output_format.url_for(document)
 
-    # 2. Ensure it's served (idempotent action)
-    output_format.ensure_served(document)
-
-    # 3. Use URL in content, cross-refs, etc.
+    # Use URL in content, cross-refs, etc.
     return url
 ```
+
+**That's it. One method call.**
 
 **Core does NOT:**
 - Know if document was created or updated
@@ -143,11 +139,12 @@ def publish_document(document: Document, output_format: OutputFormat):
 - Deal with collisions (format's job)
 - Calculate paths (format's job)
 - Know about storage (format's job)
+- Trigger persistence (format's job)
+- Wait for writes (format's job)
 
 **Core ONLY:**
 - Generates Documents (validation, privacy, enrichment)
 - Asks for URLs
-- Requests availability
 - Uses URLs
 
 ## Implementation Examples
@@ -170,45 +167,50 @@ class MkDocsOutputFormat:
         return self._url_convention
 
     def url_for(self, document: Document) -> str:
-        """Get canonical URL using convention."""
-        return self._url_convention.canonical_url(document, self._ctx)
+        """
+        Get canonical URL and ensure document is served.
 
-    def ensure_served(self, document: Document) -> None:
-        """Write document to filesystem."""
-        # 1. Get URL (for logging/debugging)
-        url = self.url_for(document)
+        All persistence logic happens here, internally.
+        Core never sees how it's done.
+        """
+        # 1. Calculate URL using convention
+        url = self._url_convention.canonical_url(document, self._ctx)
 
-        # 2. Convert URL to local path (INTERNAL detail)
+        # 2. Ensure document is served at that URL (INTERNAL)
+        self._ensure_served_internal(url, document)
+
+        # 3. Return URL (guaranteed valid)
+        return url
+
+    def _ensure_served_internal(self, url: str, document: Document) -> None:
+        """Internal persistence logic - core never calls this."""
+        # Convert URL to local path
         path = self._url_to_path(url, document.type)
 
-        # 3. Check if already served with same content (INTERNAL idempotency)
+        # Check if already served with same content (idempotency)
         if self._is_already_served(path, document):
             return  # No-op
 
-        # 4. Write atomically
+        # Write atomically
         path.parent.mkdir(parents=True, exist_ok=True)
         content = self._format_content(document)
         atomic_write(path, content)
 
-        # 5. Post-write hooks (format-specific)
+        # Post-write hooks (format-specific)
         if document.type == DocumentType.PROFILE:
             self._update_authors_yml(document)
 
     def _url_to_path(self, url: str, doc_type: DocumentType) -> Path:
         """Convert canonical URL to filesystem path (internal)."""
-        # Strip base_url, convert to relative path
         rel_url = url.removeprefix(self._ctx.base_url).strip("/")
-        # Add .md extension for markdown docs
         if doc_type in (DocumentType.POST, DocumentType.PROFILE, DocumentType.JOURNAL):
             rel_url = f"{rel_url}.md" if not rel_url.endswith(".md") else rel_url
         return self.base_path / rel_url
 
     def _is_already_served(self, path: Path, document: Document) -> bool:
-        """Check if document is already served with same content (internal idempotency)."""
+        """Check if document is already served with same content (internal)."""
         if not path.exists():
             return False
-
-        # Compare content hash (stored in file metadata or comment)
         existing_hash = self._extract_doc_id(path)
         return existing_hash == document.document_id
 
@@ -218,7 +220,6 @@ class MkDocsOutputFormat:
             frontmatter = self._generate_frontmatter(document)
             return f"{frontmatter}\n\n{document.content}"
         else:
-            # Embed doc_id in HTML comment for idempotency
             return f"<!-- doc_id: {document.document_id} -->\n{document.content}"
 ```
 
@@ -238,13 +239,18 @@ class HeadlessDBOutputFormat:
         return self._url_convention
 
     def url_for(self, document: Document) -> str:
-        """Get canonical URL using convention."""
-        return self._url_convention.canonical_url(document, self._ctx)
+        """Get canonical URL and persist to database."""
+        # 1. Calculate URL using convention
+        url = self._url_convention.canonical_url(document, self._ctx)
 
-    def ensure_served(self, document: Document) -> None:
-        """Save document to database."""
-        url = self.url_for(document)
+        # 2. Persist to database (INTERNAL - core never sees this)
+        self._persist_internal(url, document)
 
+        # 3. Return URL (guaranteed valid)
+        return url
+
+    def _persist_internal(self, url: str, document: Document) -> None:
+        """Internal persistence logic - core never calls this."""
         # Check if already exists with same content (idempotency)
         existing = self.db.query(
             "SELECT doc_id FROM documents WHERE canonical_url = ?",
@@ -342,15 +348,14 @@ media_doc = Document(
     ...
 )
 
-# Same flow as posts
-url = output_format.url_for(media_doc)  # /media/abc123.jpg
-output_format.ensure_served(media_doc)
+# Same flow as posts - just get URL
+url = output_format.url_for(media_doc)  # /media/abc123.jpg (persisted internally)
 
 # Use URL in post content
 post_content = f"![Photo]({url})"
 ```
 
-**Benefit**: Uniform treatment. No separate asset pipeline.
+**Benefit**: Uniform treatment. No separate asset pipeline. Single method call.
 
 ## Testing: Conformance Kit
 
@@ -366,25 +371,20 @@ def test_url_determinism(output_format: OutputFormat, sample_doc: Document):
     assert url1.startswith("http") or url1.startswith("/")
 
 def test_idempotency(output_format: OutputFormat, sample_doc: Document):
-    """Multiple ensure_served calls are safe no-ops."""
-    url = output_format.url_for(sample_doc)
-
+    """Multiple url_for calls are safe (idempotent persistence)."""
     # First call
-    output_format.ensure_served(sample_doc)
+    url1 = output_format.url_for(sample_doc)
 
-    # Second call should be no-op (no error, no duplicate)
-    output_format.ensure_served(sample_doc)
+    # Second call should return same URL (no error, no duplicate)
+    url2 = output_format.url_for(sample_doc)
 
-    # Verify document is available (format-specific check)
-    assert output_format.url_for(sample_doc) == url
+    assert url1 == url2
 
 def test_url_stability(output_format: OutputFormat, sample_doc: Document):
-    """URL doesn't change after ensure_served."""
+    """URL doesn't change across multiple calls."""
     url_before = output_format.url_for(sample_doc)
-
-    output_format.ensure_served(sample_doc)
-
     url_after = output_format.url_for(sample_doc)
+
     assert url_after == url_before
 
 def test_different_documents_different_urls(output_format: OutputFormat):
@@ -400,12 +400,15 @@ def test_different_documents_different_urls(output_format: OutputFormat):
 def test_url_convention_consistency(output_format: OutputFormat, sample_doc: Document):
     """url_for() uses the declared convention."""
     url_from_format = output_format.url_for(sample_doc)
+
+    # Convention should generate same URL
     url_from_convention = output_format.url_convention.canonical_url(
         sample_doc,
-        UrlContext(base_url=output_format._ctx.base_url)  # Format-specific context
+        UrlContext(base_url="")  # Match format's context
     )
 
-    assert url_from_format == url_from_convention
+    # URLs should match (accounting for base_url differences)
+    assert url_from_convention in url_from_format
 
 def test_media_documents(output_format: OutputFormat):
     """Media documents work same as other documents."""
@@ -418,9 +421,15 @@ def test_media_documents(output_format: OutputFormat):
 
     url = output_format.url_for(media)
     assert ".jpg" in url or "photo" in url
-
-    output_format.ensure_served(media)
     # No error - media treated like any other document
+
+def test_url_validity_guarantee(output_format: OutputFormat, sample_doc: Document):
+    """url_for() guarantees URL will be valid/servable."""
+    url = output_format.url_for(sample_doc)
+
+    # Format-specific check that document is actually served
+    # (e.g., file exists for MkDocs, DB entry exists for HeadlessDB)
+    assert output_format._is_served(url)  # Format implements this helper
 ```
 
 ## Migration Plan
@@ -436,7 +445,7 @@ def test_media_documents(output_format: OutputFormat):
 
 **Steps:**
 1. Define `UrlConvention` protocol
-2. Define `OutputFormat` protocol (url_for + ensure_served)
+2. Define `OutputFormat` protocol (just url_for + url_convention property)
 3. Implement `LegacyMkDocsUrlConvention` with current rules
 4. Write conformance tests
 
@@ -449,17 +458,19 @@ def test_media_documents(output_format: OutputFormat):
 
 **Steps:**
 1. Extract path logic from current `MkDocsDocumentStorage`
-2. Implement `url_for()` using `LegacyMkDocsUrlConvention`
-3. Implement `ensure_served()` with idempotency checking
-4. Move format-specific logic (frontmatter, .authors.yml) into format
-5. Run conformance tests
+2. Implement `url_for()` that:
+   - Uses `LegacyMkDocsUrlConvention` to calculate URL
+   - Internally handles persistence (write file, idempotency check, etc.)
+   - Returns URL
+3. Move format-specific logic (frontmatter, .authors.yml) into internal methods
+4. Run conformance tests
 
 **Deliverable:** Working `MkDocsOutputFormat` passing all tests.
 
 ### Phase 3: Update Core
 
 **Files to modify:**
-- `src/egregora/agents/writer/writer_agent.py` - Use url_for + ensure_served
+- `src/egregora/agents/writer/writer_agent.py` - Use url_for only
 - `src/egregora/cli.py` - Inject OutputFormat
 - Agent tools - Use URLs from url_for()
 
@@ -467,13 +478,12 @@ def test_media_documents(output_format: OutputFormat):
 1. Replace storage calls with:
    ```python
    url = output_format.url_for(document)
-   output_format.ensure_served(document)
    ```
 2. Remove status handling (created/updated/noop)
 3. Remove idempotency_key calculation (format's job now)
 4. Update agent tools to use URLs
 
-**Deliverable:** Core using new OutputFormat, simpler code.
+**Deliverable:** Core using new OutputFormat, radically simpler code.
 
 ### Phase 4: Remove Legacy Storage
 
@@ -514,15 +524,15 @@ output:
 
 ## Why This Design is Superior
 
-### 1. **Radical Simplicity**
-- Core: 2 method calls (`url_for`, `ensure_served`)
-- No publish(), no status, no options, no result objects
-- ~60% less interface surface area
+### 1. **Absolute Minimum Interface**
+- Core: **1 method call** (`url_for`)
+- No publish(), no ensure_served(), no status, no options, no result objects
+- ~75% less interface surface area than original proposal
 
-### 2. **Clear Separation**
+### 2. **Perfect Separation**
 - **UrlConvention**: URL policy (pure, testable, swappable)
-- **OutputFormat**: Persistence (side effects, but minimal interface)
-- **Core**: Orchestration (asks, ensures, uses)
+- **OutputFormat**: Persistence (internal, opaque to core)
+- **Core**: Orchestration (asks, uses - that's it)
 
 ### 3. **Backend-Agnostic (For Real)**
 - OutputFormat can use ANY backend
@@ -573,25 +583,24 @@ _determine_journal_path()
 ### After (New - ~200 lines)
 
 ```python
-# Minimal interface
+# Absolute minimum interface
 output_format = MkDocsOutputFormat(base_path)
 
-url = output_format.url_for(document)        # Pure query
-output_format.ensure_served(document)        # Idempotent action
+url = output_format.url_for(document)        # Get URL (persistence internal)
 
-# That's it. Core never sees paths or status.
+# That's it. Core never sees paths, status, or persistence.
 # All complexity internal to format.
 ```
 
-**Reduction: ~250 lines + massive conceptual simplification.**
+**Reduction: ~250 lines + radical conceptual simplification (1 method call).**
 
 ## Success Criteria
 
 - [ ] `UrlConvention` protocol defined
-- [ ] `OutputFormat` protocol with only `url_for()` + `ensure_served()`
+- [ ] `OutputFormat` protocol with **only `url_for()` + `url_convention` property**
 - [ ] `LegacyMkDocsUrlConvention` maintains exact current URLs
 - [ ] `MkDocsOutputFormat` passes conformance tests
-- [ ] Core uses `url_for()` + `ensure_served()` (no status handling)
+- [ ] Core uses **only `url_for()`** (no status handling, no ensure_served)
 - [ ] Legacy `MkDocsDocumentStorage` removed (457 lines)
 - [ ] All tests pass (unit, integration, E2E)
 - [ ] No URL changes (agents continue to work)
