@@ -177,6 +177,154 @@ class MkDocsOutputFormat:
 
         logger.debug("Served document %s at %s", doc_id, path)
 
+    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
+        """Read document by type and primary identifier.
+
+        Phase 6: Enables reading documents without direct filesystem access.
+
+        Args:
+            doc_type: Type of document (POST, PROFILE, JOURNAL, etc.)
+            identifier: Primary identifier (UUID for profiles, slug for posts, etc.)
+
+        Returns:
+            Document if found, None if not found
+
+        """
+        # Determine path based on document type
+        path: Path | None = None
+
+        if doc_type == DocumentType.PROFILE:
+            # Profiles: identifier is author UUID
+            path = self.profiles_dir / f"{identifier}.md"
+
+        elif doc_type == DocumentType.POST:
+            # Posts: identifier is slug (search for most recent with that slug)
+            # For simplicity, we'll look for any post with that slug
+            matching_posts = list(self.posts_dir.glob(f"*-{identifier}.md"))
+            if matching_posts:
+                # Return most recently modified
+                path = max(matching_posts, key=lambda p: p.stat().st_mtime)
+
+        elif doc_type == DocumentType.JOURNAL:
+            # Journals: identifier is window label, sanitized to filename
+            # Window labels like "2025-01-11 10:00 to 12:00" → "journal_2025-01-11_10-00_to_12-00.md"
+            safe_label = identifier.replace(" ", "_").replace(":", "-")
+            path = self.journal_dir / f"journal_{safe_label}.md"
+
+        elif doc_type == DocumentType.ENRICHMENT_URL:
+            # URL enrichments: identifier is likely a slug or hash
+            path = self.urls_dir / f"{identifier}.md"
+
+        elif doc_type == DocumentType.ENRICHMENT_MEDIA:
+            # Media enrichments: stored next to media with .md extension
+            path = self.media_dir / f"{identifier}.md"
+
+        elif doc_type == DocumentType.MEDIA:
+            # Media files: direct filename lookup
+            path = self.media_dir / identifier
+
+        if path is None or not path.exists():
+            logger.debug("Document not found: %s/%s", doc_type.value, identifier)
+            return None
+
+        # Read file content
+        try:
+            content = path.read_text(encoding="utf-8")
+        except Exception:
+            logger.exception("Failed to read document at %s", path)
+            return None
+
+        # Parse frontmatter to extract metadata (if present)
+        metadata: dict = {}
+        actual_content = content
+
+        if content.startswith("---\n"):
+            # Has YAML frontmatter
+            try:
+                import yaml
+
+                parts = content.split("---\n", 2)
+                if len(parts) >= 3:
+                    frontmatter_yaml = parts[1]
+                    actual_content = parts[2].strip()
+                    metadata = yaml.safe_load(frontmatter_yaml) or {}
+            except Exception:
+                logger.warning("Failed to parse frontmatter for %s", path)
+
+        # Reconstruct Document (note: document_id will be recalculated from content)
+        from egregora.core.document import Document
+
+        return Document(content=actual_content, type=doc_type, metadata=metadata)
+
+    def list_documents(self, doc_type: DocumentType | None = None) -> list[Document]:
+        """List all documents, optionally filtered by type.
+
+        Phase 6: Enables listing documents without direct filesystem access.
+
+        Args:
+            doc_type: Optional document type filter
+
+        Returns:
+            List of documents
+
+        """
+        from egregora.core.document import Document
+
+        documents: list[Document] = []
+
+        # Helper to read all files from a directory with a specific type
+        def read_dir(directory: Path, dtype: DocumentType, pattern: str = "*.md") -> None:
+            if not directory.exists():
+                return
+            for file_path in directory.glob(pattern):
+                # Extract identifier from path
+                identifier = file_path.stem
+                if dtype == DocumentType.POST:
+                    # Extract slug from filename like "2025-01-11-my-post.md"
+                    parts = identifier.split("-", 3)
+                    if len(parts) >= 4:
+                        identifier = parts[3]  # slug
+                    else:
+                        identifier = identifier
+                doc = self.read_document(dtype, identifier)
+                if doc:
+                    documents.append(doc)
+
+        # Read based on filter
+        if doc_type is None:
+            # Read all types
+            read_dir(self.profiles_dir, DocumentType.PROFILE)
+            read_dir(self.posts_dir, DocumentType.POST)
+            read_dir(self.journal_dir, DocumentType.JOURNAL)
+            read_dir(self.urls_dir, DocumentType.ENRICHMENT_URL)
+            # Note: MEDIA and ENRICHMENT_MEDIA not included in default list
+        elif doc_type == DocumentType.PROFILE:
+            read_dir(self.profiles_dir, DocumentType.PROFILE)
+        elif doc_type == DocumentType.POST:
+            read_dir(self.posts_dir, DocumentType.POST)
+        elif doc_type == DocumentType.JOURNAL:
+            read_dir(self.journal_dir, DocumentType.JOURNAL)
+        elif doc_type == DocumentType.ENRICHMENT_URL:
+            read_dir(self.urls_dir, DocumentType.ENRICHMENT_URL)
+        elif doc_type == DocumentType.ENRICHMENT_MEDIA:
+            read_dir(self.media_dir, DocumentType.ENRICHMENT_MEDIA, "*.md")
+        elif doc_type == DocumentType.MEDIA:
+            # Read all non-markdown files in media_dir
+            if self.media_dir.exists():
+                for file_path in self.media_dir.iterdir():
+                    if file_path.is_file() and not file_path.suffix == ".md":
+                        try:
+                            content = file_path.read_bytes()
+                            documents.append(
+                                Document(
+                                    content=content.decode("utf-8", errors="ignore"), type=DocumentType.MEDIA
+                                )
+                            )
+                        except Exception:
+                            logger.warning("Failed to read media file %s", file_path)
+
+        return documents
+
     def _url_to_path(self, url: str, document: Document) -> Path:
         """Convert URL to filesystem path.
 

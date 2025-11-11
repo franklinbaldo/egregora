@@ -300,3 +300,91 @@ class TestMkDocsOutputFormatSpecific:
         # Content should be preserved
         content = new_path.read_text()
         assert "Same content" in content
+
+    def test_read_profile_document(self, output_format, tmp_path):
+        """Test reading a profile document."""
+        # Create a profile
+        doc = Document(
+            content="Profile content",
+            type=DocumentType.PROFILE,
+            metadata={"uuid": "test-uuid-123", "name": "Test User"},
+        )
+        output_format.serve(doc)
+
+        # Read the profile back
+        read_doc = output_format.read_document(DocumentType.PROFILE, "test-uuid-123")
+
+        assert read_doc is not None
+        assert read_doc.content == "Profile content"
+        assert read_doc.type == DocumentType.PROFILE
+        assert "uuid" in read_doc.metadata
+        assert read_doc.metadata["uuid"] == "test-uuid-123"
+
+    def test_read_nonexistent_document(self, output_format):
+        """Test reading a document that doesn't exist."""
+        doc = output_format.read_document(DocumentType.PROFILE, "nonexistent-uuid")
+        assert doc is None
+
+    def test_read_post_document(self, output_format, tmp_path):
+        """Test reading a post document."""
+        # Create a post
+        doc = Document(
+            content="Post content",
+            type=DocumentType.POST,
+            metadata={"slug": "test-post", "date": datetime(2025, 1, 11), "title": "Test Post"},
+        )
+        output_format.serve(doc)
+
+        # Read the post back by slug
+        read_doc = output_format.read_document(DocumentType.POST, "test-post")
+
+        assert read_doc is not None
+        assert read_doc.content == "Post content"
+        assert read_doc.type == DocumentType.POST
+
+    def test_list_documents_profiles(self, output_format, tmp_path):
+        """Test listing profile documents."""
+        # Create multiple profiles
+        for i in range(3):
+            doc = Document(
+                content=f"Profile {i}",
+                type=DocumentType.PROFILE,
+                metadata={"uuid": f"uuid-{i}", "name": f"User {i}"},
+            )
+            output_format.serve(doc)
+
+        # List profiles
+        profiles = output_format.list_documents(DocumentType.PROFILE)
+
+        assert len(profiles) == 3
+        assert all(doc.type == DocumentType.PROFILE for doc in profiles)
+
+    def test_list_documents_all_types(self, output_format, tmp_path):
+        """Test listing all documents (no filter)."""
+        # Create documents of different types
+        profile = Document(
+            content="Profile",
+            type=DocumentType.PROFILE,
+            metadata={"uuid": "test-uuid"},
+        )
+        post = Document(
+            content="Post",
+            type=DocumentType.POST,
+            metadata={"slug": "test-post", "date": datetime(2025, 1, 11)},
+        )
+
+        output_format.serve(profile)
+        output_format.serve(post)
+
+        # List all documents
+        all_docs = output_format.list_documents()
+
+        assert len(all_docs) >= 2  # At least the ones we created
+        types = {doc.type for doc in all_docs}
+        assert DocumentType.PROFILE in types
+        assert DocumentType.POST in types
+
+    def test_list_documents_empty(self, output_format):
+        """Test listing documents when there are none."""
+        docs = output_format.list_documents(DocumentType.JOURNAL)
+        assert docs == []

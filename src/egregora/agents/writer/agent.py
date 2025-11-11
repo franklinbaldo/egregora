@@ -84,18 +84,18 @@ class WriterRuntimeContext:
     Windows are identified by (start_time, end_time) tuple, not artificial IDs.
     This makes them stable across config changes and more meaningful for logging.
 
-    Architecture (Phase 5 - Simplified):
+    Architecture (Phase 5 - Simplified, Phase 6 - Read Support):
     - Core calculates URLs using url_convention directly
     - Core requests persistence via output_format.serve(document)
+    - Core reads documents via output_format.read_document()
     - Single abstraction (OutputFormat) replaces all storage protocols
-    - Reading profiles uses direct filesystem access via profiles_dir
     """
 
     # Time window
     start_time: datetime
     end_time: datetime
 
-    # MODERN Phase 4: Backend-agnostic publishing (single abstraction)
+    # MODERN Phase 4+6: Backend-agnostic publishing (single abstraction)
     url_convention: UrlConvention
     url_context: UrlContext
     output_format: OutputFormat
@@ -110,15 +110,11 @@ class WriterRuntimeContext:
     # Prompt templates directory (resolved by caller, not constructed here)
     prompts_dir: Path | None = None
 
-    # Deprecated paths (kept for read operations and backward compatibility)
-    # TODO Phase 6: Add read methods to OutputFormat, remove these paths
-    output_dir: Path | None = None
-    profiles_dir: Path | None = None
-    rag_dir: Path | None = None
-    site_root: Path | None = None
-
-    # DEPRECATED Phase 5: Replaced by output_format
-    document_storage: DocumentStorage | None = None
+    # Paths still needed for specific features (non-document persistence)
+    # TODO: Further refactoring could inject specialized handlers instead
+    output_dir: Path | None = None  # Used for banner generation fallback
+    rag_dir: Path | None = None  # Used for RAG queries
+    site_root: Path | None = None  # Used for banner generation
 
 
 class PostMetadata(BaseModel):
@@ -184,6 +180,7 @@ class WriterAgentState(BaseModel):
     MODERN (Phase 1): This is now frozen to prevent mutation in tools.
     MODERN (Phase 4): Uses OutputFormat for all document persistence.
     MODERN (Phase 5): Removed redundant storage protocols in favor of OutputFormat.
+    MODERN (Phase 6): OutputFormat now supports reading documents.
     Results are extracted from the agent's message history instead of being
     tracked via mutation.
     """
@@ -193,11 +190,11 @@ class WriterAgentState(BaseModel):
     # Window identification
     window_id: str
 
-    # MODERN Phase 4: Backend-agnostic publishing (single abstraction)
+    # MODERN Phase 4+6: Backend-agnostic publishing (single abstraction with read support)
     # Note: Using Any for protocol types since Pydantic can't validate Protocols
     url_convention: Any  # UrlConvention protocol
     url_context: Any  # UrlContext dataclass
-    output_format: Any  # OutputFormat protocol
+    output_format: Any  # OutputFormat protocol (read + write)
 
     # Pre-constructed stores
     rag_store: Any  # VectorStore
@@ -212,15 +209,10 @@ class WriterAgentState(BaseModel):
     retrieval_nprobe: int | None
     retrieval_overfetch: int | None
 
-    # Deprecated paths (kept for read operations)
-    # TODO Phase 6: Add read methods to OutputFormat, remove these paths
-    output_dir: Path | None = None
-    profiles_dir: Path | None = None
-    rag_dir: Path | None = None
-    site_root: Path | None = None
-
-    # DEPRECATED Phase 5: Replaced by output_format
-    document_storage: Any | None = None  # DocumentStorage
+    # Paths still needed for specific features (non-document persistence)
+    output_dir: Path | None = None  # Used for banner generation fallback
+    rag_dir: Path | None = None  # Used for RAG queries
+    site_root: Path | None = None  # Used for banner generation
 
 
 def _extract_thinking_content(messages: Any) -> list[str]:
@@ -626,14 +618,10 @@ def _register_writer_tools(
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterAgentState], author_uuid: str) -> ReadProfileResult:
-        # Read profile directly from filesystem
-        # (OutputFormat is for writing only, read operations use direct access)
-        if ctx.deps.profiles_dir:
-            profile_path = ctx.deps.profiles_dir / f"{author_uuid}.md"
-            if profile_path.exists():
-                content = profile_path.read_text(encoding="utf-8")
-            else:
-                content = "No profile exists yet."
+        # MODERN Phase 6: Read via OutputFormat (backend-agnostic)
+        doc = ctx.deps.output_format.read_document(DocumentType.PROFILE, author_uuid)
+        if doc:
+            content = doc.content
         else:
             content = "No profile exists yet."
         return ReadProfileResult(content=content)
@@ -769,7 +757,7 @@ def _setup_agent_and_state(
     # Build execution state
     state = WriterAgentState(
         window_id=window_label,
-        # MODERN Phase 5: Single OutputFormat abstraction
+        # MODERN Phase 6: OutputFormat with read support
         url_convention=context.url_convention,
         url_context=context.url_context,
         output_format=context.output_format,
@@ -783,13 +771,10 @@ def _setup_agent_and_state(
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
-        # Deprecated paths (for read operations)
+        # Paths for non-document features
         output_dir=context.output_dir,
-        profiles_dir=context.profiles_dir,
         rag_dir=context.rag_dir,
         site_root=context.site_root,
-        # Deprecated document_storage
-        document_storage=context.document_storage,
     )
 
     return agent, state, window_label
@@ -1132,7 +1117,7 @@ async def write_posts_with_pydantic_agent_stream(
 
     state = WriterAgentState(
         window_id=window_label,
-        # MODERN Phase 5: Single OutputFormat abstraction
+        # MODERN Phase 6: OutputFormat with read support
         url_convention=context.url_convention,
         url_context=context.url_context,
         output_format=context.output_format,
@@ -1146,12 +1131,9 @@ async def write_posts_with_pydantic_agent_stream(
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
-        # Deprecated paths (for read operations)
+        # Paths for non-document features
         output_dir=context.output_dir,
-        profiles_dir=context.profiles_dir,
         rag_dir=context.rag_dir,
         site_root=context.site_root,
-        # Deprecated document_storage
-        document_storage=context.document_storage,
     )
     return WriterStreamResult(agent, state, prompt, context, model_name)

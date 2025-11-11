@@ -504,11 +504,11 @@ def _write_posts_for_window_pydantic(
             mkdocs_output_format.url_convention.name,
         )
 
-    # Create runtime context for writer agent (MODERN Phase 5: OutputFormat only)
+    # Create runtime context for writer agent (MODERN Phase 6: OutputFormat with read support)
     runtime_context = WriterRuntimeContext(
         start_time=start_time,
         end_time=end_time,
-        # Backend-agnostic publishing (MODERN Phase 4)
+        # Backend-agnostic publishing (MODERN Phase 4+6)
         url_convention=url_convention,
         url_context=url_context,
         output_format=mkdocs_output_format,
@@ -519,13 +519,10 @@ def _write_posts_for_window_pydantic(
         client=client,
         # Prompt templates directory
         prompts_dir=prompts_dir,
-        # Deprecated (kept for backward compatibility)
+        # Paths for non-document features
         output_dir=config.output_dir,
-        profiles_dir=config.profiles_dir,
         rag_dir=config.rag_dir,
         site_root=site_root,
-        # Deprecated document_storage (Phase 5)
-        document_storage=document_storage,
     )
 
     # Format timestamps for LLM prompt (human-readable)

@@ -5,6 +5,8 @@ They adopt a UrlConvention (shared with Core) and ensure documents are served
 at those URLs.
 
 Backend-agnostic: can use filesystem, S3, DB, CMS, or any other storage.
+
+Phase 6: Added read methods to complete the abstraction (previously write-only).
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from egregora.core.document import Document
+    from egregora.core.document import Document, DocumentType
     from egregora.storage.url_convention import UrlConvention
 
 
@@ -28,6 +30,8 @@ class OutputFormat(Protocol):
 
     Key design: Format does NOT return URLs to Core. Core calculates URLs
     independently using the same convention. This achieves perfect separation.
+
+    Phase 6: Now supports reading documents in addition to writing.
     """
 
     @property
@@ -76,6 +80,70 @@ class OutputFormat(Protocol):
         Note:
             This method should be idempotent: calling it multiple times with the
             same document should be a safe no-op (no errors, no duplicates).
+
+        """
+        ...
+
+    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
+        """Read document by type and primary identifier.
+
+        Phase 6: Added to enable reading documents without direct filesystem access.
+
+        Args:
+            doc_type: Type of document (POST, PROFILE, JOURNAL, etc.)
+            identifier: Primary identifier for the document:
+                - PROFILE: author UUID (e.g., "abc-123-uuid")
+                - POST: slug (e.g., "my-post")
+                - JOURNAL: window label (e.g., "2025-01-11 10:00 to 12:00")
+                - ENRICHMENT_URL: URL or slug
+                - ENRICHMENT_MEDIA: media filename
+                - MEDIA: media filename
+
+        Returns:
+            Document if found, None if not found
+
+        Examples:
+            >>> # Read profile by UUID
+            >>> doc = output_format.read_document(DocumentType.PROFILE, "abc-123-uuid")
+            >>> if doc:
+            ...     print(doc.content)
+            ...     print(doc.metadata)
+
+            >>> # Read post by slug
+            >>> doc = output_format.read_document(DocumentType.POST, "my-post")
+
+        Note:
+            For documents identified by multiple fields (e.g., posts by slug+date),
+            implementations may need to use heuristics (e.g., return most recent post
+            with that slug). For precise lookups, consider using read_by_url() if added.
+
+        """
+        ...
+
+    def list_documents(self, doc_type: DocumentType | None = None) -> list[Document]:
+        """List all documents, optionally filtered by type.
+
+        Phase 6: Added to enable listing documents without direct filesystem access.
+
+        Args:
+            doc_type: Optional document type filter. If None, returns all documents.
+
+        Returns:
+            List of documents, may be empty if no documents found.
+
+        Examples:
+            >>> # List all profiles
+            >>> profiles = output_format.list_documents(DocumentType.PROFILE)
+            >>> for profile in profiles:
+            ...     print(f"{profile.metadata.get('uuid')}: {profile.metadata.get('name')}")
+
+            >>> # List all documents
+            >>> all_docs = output_format.list_documents()
+            >>> print(f"Total documents: {len(all_docs)}")
+
+        Note:
+            This method may be expensive for large document sets.
+            Implementations should consider caching or pagination if needed.
 
         """
         ...
