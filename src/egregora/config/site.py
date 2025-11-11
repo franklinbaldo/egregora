@@ -131,16 +131,33 @@ def load_mkdocs_config(
     return (config, mkdocs_path)
 
 
-def _resolve_docs_dir(site_root: Path, config: dict[str, Any]) -> Path:
-    """Return the absolute docs directory based on MkDocs config."""
+def _resolve_docs_dir(mkdocs_path: Path | None, config: dict[str, Any]) -> Path:
+    """Return the absolute docs directory based on MkDocs config.
+
+    Args:
+        mkdocs_path: Path to mkdocs.yml (used as base for relative paths)
+        config: Parsed mkdocs.yml dictionary
+
+    Returns:
+        Absolute path to docs directory
+
+    Note:
+        docs_dir is resolved relative to mkdocs.yml location (same as MkDocs behavior)
+
+    """
     docs_setting = config.get("docs_dir", DEFAULT_DOCS_DIR)
     docs_setting = "." if docs_setting in ("./", "") else docs_setting
+
+    # If mkdocs_path not provided, fall back to current directory
+    base_dir = mkdocs_path.parent if mkdocs_path else Path.cwd()
+
     if docs_setting in (".", None):
-        return site_root
+        return base_dir
     docs_path = Path(str(docs_setting))
     if docs_path.is_absolute():
         return docs_path
-    return (site_root / docs_path).resolve()
+    # CRITICAL: Resolve relative to mkdocs.yml location, not site_root
+    return (base_dir / docs_path).resolve()
 
 
 def _extract_blog_dir(config: dict[str, Any]) -> str | None:
@@ -230,9 +247,10 @@ def resolve_site_paths(start: Annotated[Path, "The starting directory for path r
     rag_dir = egregora_dir / "rag"
     cache_dir = egregora_dir / ".cache"
 
-    # Content directories (at root, not in docs/)
-    # docs_dir is site_root for new structure (MkDocs will use docs_dir: ".")
-    docs_dir = site_root
+    # Content directories - resolve docs_dir from mkdocs.yml
+    # CRITICAL: docs_dir is resolved relative to mkdocs.yml location (same as MkDocs)
+    # Example: .egregora/mkdocs.yml with docs_dir: ".." → resolves to site root
+    docs_dir = _resolve_docs_dir(mkdocs_path, _config)
     blog_dir = DEFAULT_BLOG_DIR
     posts_dir = (site_root / "posts").resolve()
     profiles_dir = (site_root / PROFILES_DIR_NAME).resolve()
