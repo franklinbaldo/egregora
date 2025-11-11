@@ -5,8 +5,9 @@ from pathlib import Path
 
 import pytest
 
+from egregora.ingestion import input_registry  # Import from ingestion to trigger registration
 from egregora.rendering.base import OutputFormat, output_registry
-from egregora.sources.base import InputSource, input_registry
+from egregora.sources.base import InputSource
 
 
 class TestInputRegistry:
@@ -103,8 +104,10 @@ class TestMkDocsOutputFormat:
 
     def test_detect_mkdocs_site(self, tmp_path):
         """Test auto-detection of MkDocs site."""
-        # Create mock mkdocs.yml
-        mkdocs_yml = tmp_path / "mkdocs.yml"
+        # Create mock mkdocs.yml in .egregora/ (MODERN location)
+        egregora_dir = tmp_path / ".egregora"
+        egregora_dir.mkdir()
+        mkdocs_yml = egregora_dir / "mkdocs.yml"
         mkdocs_yml.write_text("site_name: Test\n")
 
         output = output_registry.get_format("mkdocs")
@@ -126,11 +129,50 @@ class TestMkDocsOutputFormat:
         assert config_path.exists()
         assert config_path.name == "mkdocs.yml"
 
-        # Check directory structure
-        assert (site_root / "docs").exists()
-        assert (site_root / "docs" / "posts").exists()
-        assert (site_root / "docs" / "profiles").exists()
-        assert (site_root / "docs" / "media").exists()
+        # Check directory structure (MODERN: content at root level, not in docs/)
+        assert (site_root / "posts").exists()
+        assert (site_root / "profiles").exists()
+        assert (site_root / "media").exists()
+        assert (site_root / ".egregora").exists()
+        assert (site_root / ".egregora" / "mkdocs.yml").exists()
+
+    def test_scaffold_refuses_if_egregora_mkdocs_exists(self, tmp_path):
+        """Test that scaffold refuses to init if .egregora/mkdocs.yml exists."""
+        output = output_registry.get_format("mkdocs")
+        site_root = tmp_path / "test-site"
+        site_root.mkdir(parents=True)
+
+        # Create existing .egregora/mkdocs.yml
+        egregora_dir = site_root / ".egregora"
+        egregora_dir.mkdir()
+        existing_config = egregora_dir / "mkdocs.yml"
+        existing_config.write_text("site_name: Existing Site\n")
+
+        # Try to scaffold - should refuse
+        config_path, created = output.scaffold_site(site_root, "New Site")
+
+        assert not created
+        assert config_path == existing_config
+        # Should NOT have created posts/ directories
+        assert not (site_root / "posts").exists()
+
+    def test_scaffold_refuses_if_root_mkdocs_exists(self, tmp_path):
+        """Test that scaffold refuses to init if mkdocs.yml exists at root."""
+        output = output_registry.get_format("mkdocs")
+        site_root = tmp_path / "test-site"
+        site_root.mkdir(parents=True)
+
+        # Create existing mkdocs.yml at root
+        existing_config = site_root / "mkdocs.yml"
+        existing_config.write_text("site_name: Existing Site\n")
+
+        # Try to scaffold - should refuse
+        config_path, created = output.scaffold_site(site_root, "New Site")
+
+        assert not created
+        assert config_path == existing_config
+        # Should NOT have created .egregora/ directory
+        assert not (site_root / ".egregora").exists()
 
     def test_resolve_paths(self, tmp_path):
         """Test path resolution for MkDocs site."""
@@ -144,10 +186,95 @@ class TestMkDocsOutputFormat:
         config = output.resolve_paths(site_root)
 
         assert config.site_root == site_root
-        assert config.docs_dir == site_root / "docs"
+        # MODERN: docs_dir is site root (mkdocs.yml in .egregora/ with docs_dir: ..)
+        assert config.docs_dir == site_root
         assert config.posts_dir.exists()
         assert config.profiles_dir.exists()
         assert config.media_dir.exists()
+
+    def test_custom_mkdocs_config_path(self, tmp_path):
+        """Test that custom mkdocs_config_path in .egregora/config.yml is respected."""
+        from egregora.rendering.mkdocs_site import resolve_site_paths
+
+        site_root = tmp_path / "test-site"
+        site_root.mkdir(parents=True)
+
+        # Create custom mkdocs.yml at custom location
+        custom_config_dir = site_root / "config"
+        custom_config_dir.mkdir()
+        custom_mkdocs = custom_config_dir / "mkdocs.yml"
+        custom_mkdocs.write_text("site_name: Custom Location\n")
+
+        # Create .egregora/config.yml with custom path
+        egregora_dir = site_root / ".egregora"
+        egregora_dir.mkdir()
+        config_yml = egregora_dir / "config.yml"
+        config_yml.write_text("""
+output:
+  format: mkdocs
+  mkdocs_config_path: config/mkdocs.yml
+""")
+
+        # Resolve paths - should find the custom mkdocs.yml
+        site_paths = resolve_site_paths(site_root)
+
+        # Should have found the custom mkdocs.yml
+        assert site_paths.mkdocs_path == custom_mkdocs
+
+    def test_supports_site_with_custom_mkdocs_path(self, tmp_path):
+        """Test that supports_site() detects sites with custom mkdocs_config_path.
+
+        Regression test for P1 badge: load_mkdocs_config() now respects
+        output.mkdocs_config_path from .egregora/config.yml.
+        """
+        output = output_registry.get_format("mkdocs")
+        site_root = tmp_path / "test-site"
+        site_root.mkdir(parents=True)
+
+        # Create custom mkdocs.yml at non-standard location
+        custom_config_dir = site_root / "build-configs"
+        custom_config_dir.mkdir()
+        custom_mkdocs = custom_config_dir / "mkdocs.yml"
+        custom_mkdocs.write_text("site_name: Custom Config Location\n")
+
+        # Create .egregora/config.yml with custom path
+        egregora_dir = site_root / ".egregora"
+        egregora_dir.mkdir()
+        config_yml = egregora_dir / "config.yml"
+        config_yml.write_text("""
+output:
+  format: mkdocs
+  mkdocs_config_path: build-configs/mkdocs.yml
+""")
+
+        # supports_site() should return True even with custom path
+        assert output.supports_site(site_root) is True
+
+        # Also verify detect_format() works
+        detected = output_registry.detect_format(site_root)
+        assert detected is not None
+        assert detected.format_type == "mkdocs"
+
+    def test_docs_dir_resolved_relative_to_mkdocs(self, tmp_path):
+        """Test that docs_dir is resolved relative to mkdocs.yml location, not site root."""
+        from egregora.rendering.mkdocs_site import resolve_site_paths
+
+        site_root = tmp_path / "test-site"
+        site_root.mkdir(parents=True)
+
+        # Create mkdocs.yml in .egregora/ with docs_dir: '..'
+        egregora_dir = site_root / ".egregora"
+        egregora_dir.mkdir()
+        mkdocs_yml = egregora_dir / "mkdocs.yml"
+        mkdocs_yml.write_text("site_name: Test\ndocs_dir: ..\n")
+
+        # Resolve paths
+        site_paths = resolve_site_paths(site_root)
+
+        # docs_dir should be site_root (because .egregora/../ = site root)
+        # NOT the parent of site_root (which would happen if resolved relative to site_root)
+        assert site_paths.docs_dir == site_root
+        assert site_paths.docs_dir != site_root.parent
 
     def test_write_post(self, tmp_path):
         """Test writing a blog post."""
@@ -224,10 +351,12 @@ class TestIntegration:
         with zipfile.ZipFile(zip_path, "w") as zf:
             zf.writestr("_chat.txt", "Test")
 
-        # Create MkDocs site
+        # Create MkDocs site (MODERN: mkdocs.yml in .egregora/)
         site_root = tmp_path / "site"
         site_root.mkdir(parents=True, exist_ok=True)
-        (site_root / "mkdocs.yml").write_text("site_name: Test\n")
+        egregora_dir = site_root / ".egregora"
+        egregora_dir.mkdir()
+        (egregora_dir / "mkdocs.yml").write_text("site_name: Test\n")
 
         # Auto-detect
         source = input_registry.detect_source(zip_path)

@@ -53,6 +53,7 @@ class AvatarContext:
     """Context for avatar processing operations - simplified."""
 
     docs_dir: Path
+    media_dir: Path
     profiles_dir: Path
     vision_model: str  # For enrichment
     cache: EnrichmentCache | None = None  # Optional cache for enrichment
@@ -175,7 +176,7 @@ def _download_avatar_from_command(
     url = urls[0]
     # Download and save to media/images/ (same as regular media)
     # UUID is based on content only - global deduplication across all groups
-    _avatar_uuid, avatar_path = download_avatar_from_url(url=url, docs_dir=context.docs_dir)
+    _avatar_uuid, avatar_path = download_avatar_from_url(url=url, media_dir=context.media_dir)
 
     # Enrich with regular media enrichment pipeline
     _enrich_avatar(avatar_path, author_uuid, timestamp, context)

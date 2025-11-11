@@ -172,8 +172,10 @@ class WhatsAppInputSource(InputSource):
         if not media_filenames:
             return {}
         # UUID generation is content-based only (global deduplication)
+        # Compute media_dir from output_dir (MkDocs convention: media/ subdirectory)
+        media_dir = output_dir / "media"
         extracted = extract_media_from_zip(
-            zip_path=source_path, filenames=media_filenames, docs_dir=output_dir
+            zip_path=source_path, filenames=media_filenames, media_dir=media_dir
         )
         result = {}
         for original, absolute_path in extracted.items():

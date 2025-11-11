@@ -40,7 +40,73 @@ class OutputFormat(ABC):
     3. Managing author profiles
     4. Resolving site paths and configuration
     5. Generating any format-specific files (config, templates, etc.)
+
+    Directory Structure Properties:
+        These properties define the conventional directory names for this format.
+        Subclasses should override these to match their format's conventions.
+        For example, Hugo might use "static" instead of "media", "authors" instead of "profiles".
     """
+
+    @property
+    def docs_dir_name(self) -> str:
+        """Default name for the documentation directory."""
+        return "docs"
+
+    @property
+    def blog_dir_name(self) -> str:
+        """Default name for the blog directory (relative to docs_dir)."""
+        return "."
+
+    @property
+    def profiles_dir_name(self) -> str:
+        """Name for the author profiles directory."""
+        return "profiles"
+
+    @property
+    def media_dir_name(self) -> str:
+        """Name for the media/assets directory."""
+        return "media"
+
+    def get_media_url_path(self, media_file: Path, site_root: Path) -> str:
+        """Get the relative URL path for a media file in the generated site.
+
+        Args:
+            media_file: Absolute path to the media file
+            site_root: Root directory of the site
+
+        Returns:
+            Relative path string for use in HTML/markdown links
+            Example: "media/images/abc123.jpg"
+
+        """
+        site_config = self.resolve_paths(site_root)
+        return str(media_file.relative_to(site_config.docs_dir))
+
+    def get_profile_url_path(self, profile_slug: str) -> str:
+        """Get the relative URL path for a profile page.
+
+        Args:
+            profile_slug: Slug/identifier for the profile
+
+        Returns:
+            Relative path string for use in HTML/markdown links
+            Example: "profiles/author-name/"
+
+        """
+        return f"{self.profiles_dir_name}/{profile_slug}/"
+
+    def get_post_url_path(self, post_slug: str) -> str:
+        """Get the relative URL path for a blog post.
+
+        Args:
+            post_slug: Slug/identifier for the post
+
+        Returns:
+            Relative path string for use in HTML/markdown links
+            Example: "posts/my-post/"
+
+        """
+        return f"posts/{post_slug}/"
 
     @abstractmethod
     def scaffold_site(self, site_root: Path, site_name: str, **kwargs: object) -> tuple[Path, bool]:

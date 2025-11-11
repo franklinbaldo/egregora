@@ -119,10 +119,10 @@ def test_egregora_config_forbids_extra_fields():
 
 def test_find_egregora_config_upward_search(tmp_path):
     """Test upward search for .egregora/config.yml."""
-    # Create directory structure
+    # Create directory structure (MODERN: posts at root level)
     site_root = tmp_path / "site"
     egregora_dir = site_root / ".egregora"
-    nested = site_root / "docs" / "posts" / "deep"
+    nested = site_root / "posts" / "journal" / "deep"
 
     egregora_dir.mkdir(parents=True)
     (egregora_dir / "config.yml").write_text("models: {}")

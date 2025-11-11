@@ -56,6 +56,12 @@ pipeline:
   max_prompt_tokens: 100000     # Maximum tokens per prompt (cost control)
   use_full_context_window: false # Use full model context (overrides cap)
 
+# Output configuration
+output:
+  format: mkdocs                # Output format: 'mkdocs', 'hugo', etc.
+  # mkdocs_config_path: "mkdocs.yml"  # Path to mkdocs.yml (relative to site root)
+                                # If not set, defaults to '.egregora/mkdocs.yml'
+
 # Feature flags
 features:
   ranking_enabled: false        # Elo-based post ranking

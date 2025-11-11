@@ -37,7 +37,7 @@ def test_write_posts_with_test_model(writer_dirs: tuple[Path, Path, Path]) -> No
     prompt = 'You reviewed an empty conversation. Respond with JSON {"summary": "No posts", "notes": "N/A"}.'
 
     # MODERN (Phase 2): Create config and context
-    site_root = posts_dir.parent.parent  # Go up from docs/posts to site root
+    site_root = posts_dir.parent  # MODERN: posts is at site root (not docs/posts)
     config = create_default_config(site_root)
     config = config.model_copy(
         deep=True,

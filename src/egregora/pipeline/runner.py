@@ -24,7 +24,7 @@ from egregora.adapters import get_adapter
 from egregora.agents.shared.profiler import filter_opted_out_authors, process_commands
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
-from egregora.config import ModelConfig, resolve_site_paths
+from egregora.config import ModelConfig
 from egregora.config.schema import EgregoraConfig
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
@@ -34,6 +34,7 @@ from egregora.pipeline import create_windows, load_checkpoint, save_checkpoint
 from egregora.pipeline.media import process_media_for_window
 from egregora.pipeline.tracking import fingerprint_window, record_run
 from egregora.pipeline.validation import validate_ir_schema
+from egregora.rendering.mkdocs_site import resolve_site_paths
 from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.telemetry import get_current_trace_id

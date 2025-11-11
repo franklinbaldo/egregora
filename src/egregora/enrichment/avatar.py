@@ -18,8 +18,6 @@ from urllib.parse import urljoin, urlparse
 import httpx
 from PIL import Image
 
-from egregora.config import MEDIA_DIR_NAME
-
 logger = logging.getLogger(__name__)
 SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
@@ -54,12 +52,19 @@ class AvatarProcessingError(Exception):
     """Error during avatar processing."""
 
 
-def _get_avatar_directory(docs_dir: Path) -> Path:
+def _get_avatar_directory(media_dir: Path) -> Path:
     """Get or create the images directory for avatars.
 
     Simplified: avatars are just regular images, saved to media/images/ like all other images.
+
+    Args:
+        media_dir: Root media directory (e.g., site_root/media)
+
+    Returns:
+        Path to avatar images directory
+
     """
-    avatar_dir = docs_dir / MEDIA_DIR_NAME / "images"
+    avatar_dir = media_dir / "images"
     avatar_dir.mkdir(parents=True, exist_ok=True)
     return avatar_dir
 
@@ -345,20 +350,20 @@ def _follow_redirects(client: httpx.Client, url: str) -> tuple[bytes, str]:
     raise AvatarProcessingError(msg)
 
 
-def _save_avatar_file(content: bytes, avatar_uuid: uuid.UUID, ext: str, docs_dir: Path) -> Path:
+def _save_avatar_file(content: bytes, avatar_uuid: uuid.UUID, ext: str, media_dir: Path) -> Path:
     """Save avatar content to file.
 
     Args:
         content: Avatar image content
         avatar_uuid: UUID for the avatar
         ext: File extension
-        docs_dir: MkDocs docs directory
+        media_dir: Root media directory (e.g., site_root/media)
 
     Returns:
         Path to saved avatar file
 
     """
-    avatar_dir = _get_avatar_directory(docs_dir)
+    avatar_dir = _get_avatar_directory(media_dir)
     avatar_path = avatar_dir / f"{avatar_uuid}{ext}"
 
     if avatar_path.exists():
@@ -376,13 +381,13 @@ def _save_avatar_file(content: bytes, avatar_uuid: uuid.UUID, ext: str, docs_dir
 
 
 def download_avatar_from_url(
-    url: str, docs_dir: Path, timeout: float = DEFAULT_DOWNLOAD_TIMEOUT
+    url: str, media_dir: Path, timeout: float = DEFAULT_DOWNLOAD_TIMEOUT
 ) -> tuple[uuid.UUID, Path]:
     """Download avatar from URL and save to avatars directory.
 
     Args:
         url: URL of the avatar image
-        docs_dir: MkDocs docs directory
+        media_dir: Root media directory (e.g., site_root/media)
         timeout: HTTP timeout in seconds
 
     Returns:
@@ -403,7 +408,7 @@ def download_avatar_from_url(
 
         ext = _get_extension_from_mime_type(content_type, url)
         avatar_uuid = _generate_avatar_uuid(content)
-        avatar_path = _save_avatar_file(content, avatar_uuid, ext, docs_dir)
+        avatar_path = _save_avatar_file(content, avatar_uuid, ext, media_dir)
     except httpx.HTTPError as e:
         logger.debug("HTTP error details: %s", e)
         msg = "Failed to download avatar. Please check the URL and try again."

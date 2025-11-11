@@ -14,11 +14,12 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 import yaml
+from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
 from egregora.agents.shared.profiler import write_profile as write_profile_content
-from egregora.config.site import load_mkdocs_config, resolve_site_paths
-from egregora.init.scaffolding import ensure_mkdocs_project
+from egregora.config.loader import create_default_config
 from egregora.rendering.base import OutputFormat, SiteConfiguration
+from egregora.rendering.mkdocs_site import load_mkdocs_config, resolve_site_paths
 from egregora.utils.paths import slugify
 from egregora.utils.write_post import write_post as write_mkdocs_post
 
@@ -594,8 +595,16 @@ class MkDocsOutputFormat(OutputFormat):
         _config, mkdocs_path_found = load_mkdocs_config(site_root)
         return mkdocs_path_found is not None
 
-    def scaffold_site(self, site_root: Path, _site_name: str, **_kwargs: object) -> tuple[Path, bool]:
+    def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure.
+
+        Creates a comprehensive MkDocs site with:
+        - .egregora/mkdocs.yml configuration
+        - .egregora/config.yml (Egregora configuration)
+        - .egregora/prompts/ (custom prompt overrides)
+        - posts/, profiles/, media/ directories
+        - index.md, about.md, and other starter pages
+        - .gitignore files
 
         Args:
             site_root: Root directory for the site
@@ -610,13 +619,256 @@ class MkDocsOutputFormat(OutputFormat):
 
         """
         site_root = site_root.expanduser().resolve()
+        site_root.mkdir(parents=True, exist_ok=True)
+
+        # Check if mkdocs.yml already exists ANYWHERE (including custom paths)
+        # Prevents duplicate configs - refuse to init if ANY mkdocs.yml exists
+        # resolve_site_paths() checks:
+        #   1. Custom path from .egregora/config.yml (if configured)
+        #   2. .egregora/mkdocs.yml (default new location)
+        #   3. mkdocs.yml at root (legacy location)
+        site_paths = resolve_site_paths(site_root)
+
+        if site_paths.mkdocs_path and site_paths.mkdocs_path.exists():
+            logger.info("MkDocs site already exists at %s (config: %s)", site_root, site_paths.mkdocs_path)
+            return (site_paths.mkdocs_path, False)
+
+        # Site doesn't exist - create it
         try:
-            _docs_dir, created = ensure_mkdocs_project(site_root)
+            # Set up Jinja2 environment for templates
+            templates_dir = Path(__file__).resolve().parent.parent / "rendering" / "templates" / "site"
+            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
+
+            # Render context
+            # NOTE: docs_dir is relative to mkdocs.yml location (.egregora/)
+            # Since content is in site root, use ".." to point one directory up
+            context = {
+                "site_name": site_name or site_root.name or "Egregora Archive",
+                "blog_dir": "posts",
+                "docs_dir": "..",  # Relative to .egregora/mkdocs.yml -> points to site root
+                "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
+            }
+
+            # Create mkdocs.yml in .egregora/ (default location)
+            mkdocs_template = env.get_template("mkdocs.yml.jinja")
+            mkdocs_content = mkdocs_template.render(**context)
+            new_mkdocs_path = site_paths.mkdocs_config_path  # Default: .egregora/mkdocs.yml
+            new_mkdocs_path.parent.mkdir(parents=True, exist_ok=True)
+            new_mkdocs_path.write_text(mkdocs_content, encoding="utf-8")
+            logger.info("Created .egregora/mkdocs.yml")
+
+            # Create site structure
+            self._create_site_structure(site_paths, env, context)
         except Exception as e:
             msg = f"Failed to scaffold MkDocs site: {e}"
             raise RuntimeError(msg) from e
-        mkdocs_path = site_root / "mkdocs.yml"
-        return (mkdocs_path, created)
+        else:
+            logger.info("MkDocs site scaffold created at %s", site_root)
+            return (new_mkdocs_path, True)
+
+    def _create_site_structure(self, site_paths: Any, env: Any, context: dict[str, Any]) -> None:
+        """Create essential directories and index files for the blog structure.
+
+        Args:
+            site_paths: SitePaths configuration object
+            env: Jinja2 environment for rendering templates
+            context: Template rendering context
+
+        """
+        # Create .egregora/ structure
+        self._create_egregora_structure(site_paths, env)
+
+        # Create content directories
+        self._create_content_directories(site_paths)
+
+        # Create template files
+        self._create_template_files(site_paths, env, context)
+
+        # Create .egregora/config.yml
+        self._create_egregora_config(site_paths, env)
+
+    def _create_content_directories(self, site_paths: Any) -> None:
+        """Create main content directories for the site.
+
+        Args:
+            site_paths: SitePaths configuration object
+
+        """
+        posts_dir = site_paths.posts_dir
+        profiles_dir = site_paths.profiles_dir
+        media_dir = site_paths.media_dir
+
+        # Create main content directories at root
+        for directory in (posts_dir, profiles_dir, media_dir):
+            directory.mkdir(parents=True, exist_ok=True)
+
+        # Create media subdirectories with .gitkeep
+        for subdir in ["images", "videos", "audio", "documents"]:
+            media_subdir = media_dir / subdir
+            media_subdir.mkdir(exist_ok=True)
+            (media_subdir / ".gitkeep").touch()
+
+        # Create journal directory for agent logs
+        journal_dir = posts_dir / "journal"
+        journal_dir.mkdir(exist_ok=True)
+        (journal_dir / ".gitkeep").touch()
+
+    def _create_template_files(self, site_paths: Any, env: Any, context: dict[str, Any]) -> None:
+        """Create starter template files from Jinja2 templates.
+
+        Args:
+            site_paths: SitePaths configuration object
+            env: Jinja2 environment for rendering templates
+            context: Template rendering context
+
+        """
+        site_root = site_paths.site_root
+        profiles_dir = site_paths.profiles_dir
+        media_dir = site_paths.media_dir
+
+        # Define templates to render
+        templates_to_render = [
+            (site_root / "README.md", "README.md.jinja"),
+            (site_root / ".gitignore", ".gitignore.jinja"),
+            (site_root / "index.md", "docs/index.md.jinja"),
+            (site_root / "about.md", "docs/about.md.jinja"),
+            (profiles_dir / "index.md", "docs/profiles/index.md.jinja"),
+            (media_dir / "index.md", "docs/media/index.md.jinja"),
+        ]
+
+        # Render each template
+        for target_path, template_name in templates_to_render:
+            if not target_path.exists():
+                template = env.get_template(template_name)
+                content = template.render(**context)
+                target_path.write_text(content, encoding="utf-8")
+
+    def _create_egregora_config(self, site_paths: Any, env: Any) -> None:
+        """Create .egregora/config.yml from template.
+
+        Args:
+            site_paths: SitePaths configuration object
+            env: Jinja2 environment for rendering templates
+
+        """
+        config_path = site_paths.config_path
+        if not config_path.exists():
+            try:
+                config_template = env.get_template(".egregora/config.yml.jinja")
+                config_content = config_template.render()
+                config_path.write_text(config_content, encoding="utf-8")
+                logger.info("Created .egregora/config.yml from template")
+            except (OSError, TemplateError) as e:
+                # Fallback to Pydantic default if template fails
+                logger.warning("Failed to render config template: %s. Using Pydantic default.", e)
+                create_default_config(site_paths.site_root)
+
+    def _create_egregora_structure(self, site_paths: Any, env: Any | None = None) -> None:
+        """Create .egregora/ directory structure with templates.
+
+        Creates:
+        - .egregora/config.yml (from template with comments)
+        - .egregora/prompts/ (for custom prompt overrides + default copies)
+        - .egregora/prompts/system/ (writer, editor prompts)
+        - .egregora/prompts/enrichment/ (URL, media prompts)
+        - .egregora/prompts/README.md (usage guide)
+        - .egregora/.gitignore (ignore ephemeral data)
+
+        Args:
+            site_paths: SitePaths configuration object
+            env: Jinja2 environment (optional, will be created if not provided)
+
+        """
+        egregora_dir = site_paths.egregora_dir
+        egregora_dir.mkdir(parents=True, exist_ok=True)
+
+        # Use template environment if not provided
+        if env is None:
+            templates_dir = Path(__file__).resolve().parent.parent / "rendering" / "templates" / "site"
+            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
+
+        # Create prompts directory structure
+        prompts_dir = site_paths.prompts_dir
+        prompts_dir.mkdir(exist_ok=True)
+
+        # Create subdirectories for prompt categories
+        (prompts_dir / "system").mkdir(exist_ok=True)
+        (prompts_dir / "enrichment").mkdir(exist_ok=True)
+
+        # Copy default prompts from package to site (version pinning strategy)
+        self._copy_default_prompts(prompts_dir)
+
+        # Create prompts README from template
+        prompts_readme = prompts_dir / "README.md"
+        if not prompts_readme.exists():
+            try:
+                readme_template = env.get_template(".egregora/prompts/README.md.jinja")
+                readme_content = readme_template.render()
+                prompts_readme.write_text(readme_content, encoding="utf-8")
+                logger.info("Created .egregora/prompts/README.md")
+            except (OSError, TemplateError) as e:
+                # Fallback to simple README if template fails
+                logger.warning("Failed to render prompts README template: %s. Using simple version.", e)
+                prompts_readme.write_text(
+                    "# Custom Prompts\n\n"
+                    "Place custom prompt overrides here with same structure as package defaults.\n\n"
+                    "See https://docs.egregora.ai for more information.\n",
+                    encoding="utf-8",
+                )
+
+        # Create .gitignore
+        gitignore = egregora_dir / ".gitignore"
+        if not gitignore.exists():
+            gitignore.write_text(
+                "# Ephemeral data (regenerated on each run)\n"
+                ".cache/\n"
+                "rag/*.duckdb\n"
+                "rag/*.parquet\n"
+                "rag/*.duckdb.wal\n"
+                "\n"
+                "# Python cache\n"
+                "__pycache__/\n"
+                "*.pyc\n",
+                encoding="utf-8",
+            )
+            logger.info("Created .egregora/.gitignore")
+
+    def _copy_default_prompts(self, target_prompts_dir: Path) -> None:
+        """Copy default prompt templates from package to site.
+
+        This implements the "version pinning" strategy: prompts are copied once during
+        init and become site-specific. Users can customize without losing changes,
+        and Egregora can update defaults without breaking existing sites.
+
+        Args:
+            target_prompts_dir: Destination directory (.egregora/prompts/)
+
+        """
+        # Find source prompts directory in package
+        package_prompts_dir = Path(__file__).resolve().parent.parent / "prompts"
+
+        if not package_prompts_dir.exists():
+            logger.warning("Package prompts directory not found: %s", package_prompts_dir)
+            return
+
+        # Copy all .jinja files from package to site
+        prompt_files_copied = 0
+        for source_file in package_prompts_dir.rglob("*.jinja"):
+            # Compute relative path to preserve directory structure
+            rel_path = source_file.relative_to(package_prompts_dir)
+            target_file = target_prompts_dir / rel_path
+
+            # Only copy if target doesn't exist (don't overwrite customizations)
+            if not target_file.exists():
+                target_file.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    target_file.write_text(source_file.read_text(encoding="utf-8"), encoding="utf-8")
+                    prompt_files_copied += 1
+                except (OSError, UnicodeDecodeError) as e:
+                    logger.warning("Failed to copy prompt %s: %s", source_file.name, e)
+
+        if prompt_files_copied > 0:
+            logger.info("Copied %d default prompt templates to %s", prompt_files_copied, target_prompts_dir)
 
     def resolve_paths(self, site_root: Path) -> SiteConfiguration:
         """Resolve all paths for an existing MkDocs site.

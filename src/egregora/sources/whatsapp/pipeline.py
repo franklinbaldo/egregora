@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from google import genai
 
-from egregora.config import resolve_site_paths
+from egregora.rendering.mkdocs_site import resolve_site_paths
 
 logger = logging.getLogger(__name__)
 

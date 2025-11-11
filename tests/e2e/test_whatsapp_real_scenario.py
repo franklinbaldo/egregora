@@ -27,18 +27,21 @@ def create_export_from_fixture(fixture: WhatsAppFixture):
 
 
 def _bootstrap_site(tmp_path: Path) -> Path:
+    """Bootstrap a test site with MODERN structure (content at root level)."""
     site_root = tmp_path / "site"
-    docs_dir = site_root / "docs"
-    posts_dir = docs_dir / "posts"
-    profiles_dir = docs_dir / "profiles"
-    media_dir = docs_dir / "media"
+    posts_dir = site_root / "posts"
+    profiles_dir = site_root / "profiles"
+    media_dir = site_root / "media"
 
     posts_dir.mkdir(parents=True)
     profiles_dir.mkdir(parents=True)
     media_dir.mkdir(parents=True)
 
-    mkdocs_path = site_root / "mkdocs.yml"
-    mkdocs_path.write_text("site_name: Test Suite\n", encoding="utf-8")
+    # MODERN: mkdocs.yml in .egregora/ with docs_dir: ..
+    egregora_dir = site_root / ".egregora"
+    egregora_dir.mkdir(parents=True)
+    mkdocs_path = egregora_dir / "mkdocs.yml"
+    mkdocs_path.write_text("site_name: Test Suite\ndocs_dir: ..\n", encoding="utf-8")
     return site_root
 
 
@@ -330,10 +333,10 @@ def test_pipeline_creates_expected_directory_structure(
         gemini_api_key=gemini_api_key,
     )
 
-    docs_dir = site_root / "docs"
-    assert (docs_dir / "posts").exists()
-    assert (docs_dir / "profiles").exists()
-    assert (docs_dir / "media").exists()
+    # MODERN: content at root level, not in docs/
+    assert (site_root / "posts").exists()
+    assert (site_root / "profiles").exists()
+    assert (site_root / "media").exists()
     assert (site_root / ".egregora").exists()
 
 

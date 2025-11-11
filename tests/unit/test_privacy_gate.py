@@ -182,11 +182,11 @@ class TestPrivacyGate:
         assert len(author) == 8  # UUID hex format (8 chars)
 
     def test_privacy_gate_fails_with_empty_tenant_id(self):
-        """PrivacyGate.run() raises ValueError if tenant_id is empty."""
+        """PrivacyConfig raises ValueError if tenant_id is empty."""
         table = ibis.memtable([{"author": ["test"]}])
-        config = PrivacyConfig(tenant_id="")
 
         with pytest.raises(ValueError, match="tenant_id cannot be empty"):
+            config = PrivacyConfig(tenant_id="")
             PrivacyGate.run(table, config, "run-1")
 
     def test_privacy_gate_fails_with_empty_run_id(self):
