@@ -228,12 +228,14 @@ class MkDocsPostStorage:
 
 
 class MkDocsProfileStorage:
-    """Filesystem-based profile storage.
+    """Filesystem-based profile storage with YAML frontmatter and .authors.yml support.
 
     Structure:
         site_root/profiles/{uuid}.md
+        site_root/.authors.yml
 
-    Profiles are stored as plain markdown files (no frontmatter).
+    Profiles are stored with YAML frontmatter containing metadata (name, alias, avatar, bio, social).
+    The .authors.yml file is automatically updated for MkDocs blog plugin compatibility.
     """
 
     def __init__(self, site_root: Path):
@@ -251,19 +253,27 @@ class MkDocsProfileStorage:
         self.profiles_dir.mkdir(parents=True, exist_ok=True)
 
     def write(self, author_uuid: str, content: str) -> str:
-        """Write profile to filesystem.
+        """Write profile to filesystem with YAML frontmatter and .authors.yml update.
+
+        Preserves existing profile metadata (alias, avatar, bio, social) by extracting
+        it from the existing profile file before writing the new content. Updates
+        .authors.yml for MkDocs blog plugin compatibility.
 
         Args:
             author_uuid: Anonymized author UUID
-            content: Markdown profile content
+            content: Markdown profile content (without frontmatter)
 
         Returns:
             Relative path string (e.g., "profiles/abc-123.md")
 
+        Side Effects:
+            - Writes profile with YAML frontmatter
+            - Updates .authors.yml in site root
+
         """
-        path = self.profiles_dir / f"{author_uuid}.md"
-        path.write_text(content, encoding="utf-8")
-        return str(path.relative_to(self.site_root))
+        # Use write_profile_content to ensure proper YAML frontmatter and .authors.yml update
+        absolute_path = write_profile_content(author_uuid, content, self.profiles_dir)
+        return str(Path(absolute_path).relative_to(self.site_root))
 
     def read(self, author_uuid: str) -> str | None:
         """Read profile from filesystem.
