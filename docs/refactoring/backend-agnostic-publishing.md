@@ -43,11 +43,14 @@ Core:     Uses URL in content, cross-references, etc.
 ```python
 from typing import Protocol
 from dataclasses import dataclass
+from pathlib import Path
 
 @dataclass(frozen=True)
 class UrlContext:
     """Context for URL generation."""
     base_url: str = ""
+    site_prefix: str = ""
+    base_path: Path | None = None
     locale: str | None = None
 
 class UrlConvention(Protocol):
@@ -55,7 +58,19 @@ class UrlConvention(Protocol):
 
     Pure function: same document -> same URL (deterministic, stable).
     No I/O, no side effects - just URL calculation.
+
+    Conventions are identified by name/version for compatibility checking.
     """
+
+    @property
+    def name(self) -> str:
+        """Convention identifier (e.g., 'legacy-mkdocs')."""
+        ...
+
+    @property
+    def version(self) -> str:
+        """Convention version (e.g., 'v1', '2024-01')."""
+        ...
 
     def canonical_url(self, document: Document, ctx: UrlContext) -> str:
         """
@@ -81,10 +96,10 @@ Nothing changes externally. Agents continue to get identical URLs.
 
 ```python
 class OutputFormat(Protocol):
-    """Handles document persistence and serves documents at URLs.
+    """Handles document persistence at URLs defined by convention.
 
-    Adopts a UrlConvention and guarantees documents are available
-    at the URLs that convention generates.
+    Adopts a UrlConvention (shared with Core) and ensures documents
+    are served at the URLs that convention generates.
 
     Backend-agnostic: can use filesystem, S3, DB, CMS - whatever.
     Core never sees implementation details.
@@ -92,60 +107,83 @@ class OutputFormat(Protocol):
 
     @property
     def url_convention(self) -> UrlConvention:
-        """The URL convention this format uses."""
+        """
+        The URL convention this format uses.
+
+        Must match Core's convention (verified by name/version).
+        """
         ...
 
-    def url_for(self, document: Document) -> str:
+    def serve(self, document: Document) -> None:
         """
-        Returns the canonical URL for this document.
+        Ensures document is served at the URL defined by url_convention.
 
-        GUARANTEES: The returned URL will be valid/servable.
+        Does NOT return URL (Core calculates URL independently).
+        Does NOT return status (idempotency internal).
 
-        Internally does whatever is necessary to make that guarantee:
-        - Write file to disk (MkDocs)
-        - Save to database (HeadlessDB)
-        - Upload to S3 (S3Storage)
-        - Queue for batch processing
-        - Post to CMS API (HeadlessCMS)
-        - Or any other strategy
+        Internally:
+        - Calculates URL using self.url_convention.canonical_url()
+        - Converts URL to backend-specific location (path, key, ID, etc.)
+        - Persists document (write file, save to DB, upload, queue, etc.)
+        - Handles idempotency, collisions, versioning internally
 
-        Idempotency, collision handling, versioning - all INTERNAL.
-        Core never knows HOW it's done, only gets the URL.
-
-        The format decides when/how to persist (sync, async, batch, lazy).
+        Strategy (sync/async/batch/lazy) is format's choice.
         """
         ...
 ```
 
-**That's it. Just 1 method + 1 property. Absolute minimum interface.**
+**That's it. Just 1 method + 1 property. Zero coupling to Core.**
 
-### 3. Core Responsibilities (Absolute Minimum)
+### 3. Core Responsibilities (Perfect Separation)
 
 ```python
-# Core flow - cannot be simpler
-def publish_document(document: Document, output_format: OutputFormat) -> str:
-    # Get URL (format handles persistence internally)
-    url = output_format.url_for(document)
+# Core flow - perfect separation of concerns
+def publish_document(
+    document: Document,
+    url_convention: UrlConvention,
+    output_format: OutputFormat,
+    ctx: UrlContext
+) -> str:
+    # Verify format uses same convention (safety check)
+    assert output_format.url_convention.name == url_convention.name, \
+        f"Format uses {output_format.url_convention.name}, expected {url_convention.name}"
 
-    # Use URL in content, cross-refs, etc.
+    # 1. Core calculates URL directly from convention
+    url = url_convention.canonical_url(document, ctx)
+
+    # 2. Request format to serve document (format calculates same URL internally)
+    output_format.serve(document)
+
+    # 3. Use URL in content, cross-refs, etc.
     return url
 ```
 
-**That's it. One method call.**
+**That's it. Two independent operations using shared convention.**
 
 **Core does NOT:**
-- Know if document was created or updated
+- Know if document was created or updated (format's job)
 - Handle idempotency (format's job)
 - Deal with collisions (format's job)
 - Calculate paths (format's job)
 - Know about storage (format's job)
-- Trigger persistence (format's job)
-- Wait for writes (format's job)
+- Ask format for URLs (calculates independently)
+- Wait for persistence confirmation (fire-and-forget)
 
 **Core ONLY:**
 - Generates Documents (validation, privacy, enrichment)
-- Asks for URLs
+- Calculates URLs from convention
+- Requests serving (delegates to format)
 - Uses URLs
+
+**OutputFormat does NOT:**
+- Return URLs to Core (Core calculates independently)
+- Return status (idempotency internal)
+- Expose paths, IDs, or backend details
+
+**OutputFormat ONLY:**
+- Receives documents
+- Calculates URLs from same convention
+- Persists documents at those URLs
 
 ## Implementation Examples
 
@@ -160,43 +198,36 @@ class MkDocsOutputFormat:
     def __init__(self, base_path: Path, base_url: str = ""):
         self.base_path = base_path
         self._url_convention = LegacyMkDocsUrlConvention()
-        self._ctx = UrlContext(base_url=base_url)
+        self._ctx = UrlContext(base_url=base_url, base_path=base_path)
 
     @property
     def url_convention(self) -> UrlConvention:
+        """Returns the convention this format uses."""
         return self._url_convention
 
-    def url_for(self, document: Document) -> str:
+    def serve(self, document: Document) -> None:
         """
-        Get canonical URL and ensure document is served.
+        Ensures document is served at URL defined by convention.
 
-        All persistence logic happens here, internally.
-        Core never sees how it's done.
+        Does NOT return URL (Core calculates independently).
+        All persistence logic is internal.
         """
-        # 1. Calculate URL using convention
+        # 1. Calculate URL using convention (same as Core)
         url = self._url_convention.canonical_url(document, self._ctx)
 
-        # 2. Ensure document is served at that URL (INTERNAL)
-        self._ensure_served_internal(url, document)
-
-        # 3. Return URL (guaranteed valid)
-        return url
-
-    def _ensure_served_internal(self, url: str, document: Document) -> None:
-        """Internal persistence logic - core never calls this."""
-        # Convert URL to local path
+        # 2. Convert URL to local path (INTERNAL detail)
         path = self._url_to_path(url, document.type)
 
-        # Check if already served with same content (idempotency)
+        # 3. Check if already served with same content (idempotency)
         if self._is_already_served(path, document):
             return  # No-op
 
-        # Write atomically
+        # 4. Write atomically
         path.parent.mkdir(parents=True, exist_ok=True)
         content = self._format_content(document)
         atomic_write(path, content)
 
-        # Post-write hooks (format-specific)
+        # 5. Post-write hooks (format-specific)
         if document.type == DocumentType.PROFILE:
             self._update_authors_yml(document)
 
@@ -236,22 +267,20 @@ class HeadlessDBOutputFormat:
 
     @property
     def url_convention(self) -> UrlConvention:
+        """Returns the convention this format uses."""
         return self._url_convention
 
-    def url_for(self, document: Document) -> str:
-        """Get canonical URL and persist to database."""
-        # 1. Calculate URL using convention
+    def serve(self, document: Document) -> None:
+        """
+        Ensures document is served at URL defined by convention.
+
+        Does NOT return URL (Core calculates independently).
+        All persistence logic is internal.
+        """
+        # 1. Calculate URL using convention (same as Core)
         url = self._url_convention.canonical_url(document, self._ctx)
 
-        # 2. Persist to database (INTERNAL - core never sees this)
-        self._persist_internal(url, document)
-
-        # 3. Return URL (guaranteed valid)
-        return url
-
-    def _persist_internal(self, url: str, document: Document) -> None:
-        """Internal persistence logic - core never calls this."""
-        # Check if already exists with same content (idempotency)
+        # 2. Check if already exists with same content (idempotency)
         existing = self.db.query(
             "SELECT doc_id FROM documents WHERE canonical_url = ?",
             (url,)
@@ -260,7 +289,7 @@ class HeadlessDBOutputFormat:
         if existing and existing[0]["doc_id"] == document.document_id:
             return  # Already served with same content
 
-        # Upsert document
+        # 3. Upsert document
         self.db.execute(
             """
             INSERT INTO documents (canonical_url, doc_id, type, content, metadata, updated_at)
@@ -292,6 +321,14 @@ class LegacyMkDocsUrlConvention:
     Maintains exact same URLs as current implementation.
     Agents continue to get identical URLs for cross-references.
     """
+
+    @property
+    def name(self) -> str:
+        return "legacy-mkdocs"
+
+    @property
+    def version(self) -> str:
+        return "v1"
 
     def canonical_url(self, document: Document, ctx: UrlContext) -> str:
         """Generate URL using legacy MkDocs rules."""
@@ -348,69 +385,77 @@ media_doc = Document(
     ...
 )
 
-# Same flow as posts - just get URL
-url = output_format.url_for(media_doc)  # /media/abc123.jpg (persisted internally)
+# Same flow as posts
+url = url_convention.canonical_url(media_doc, ctx)  # /media/abc123.jpg
+output_format.serve(media_doc)  # Persisted internally
 
 # Use URL in post content
 post_content = f"![Photo]({url})"
 ```
 
-**Benefit**: Uniform treatment. No separate asset pipeline. Single method call.
+**Benefit**: Uniform treatment. No separate asset pipeline. Core and format both use convention.
 
 ## Testing: Conformance Kit
 
 ```python
 # tests/unit/storage/test_output_format_conformance.py
 
-def test_url_determinism(output_format: OutputFormat, sample_doc: Document):
-    """Same document always returns same URL."""
-    url1 = output_format.url_for(sample_doc)
-    url2 = output_format.url_for(sample_doc)
+def test_convention_name_and_version(output_format: OutputFormat):
+    """OutputFormat exposes convention name and version."""
+    assert output_format.url_convention.name
+    assert output_format.url_convention.version
+    # e.g., "legacy-mkdocs" and "v1"
+
+def test_url_determinism(url_convention: UrlConvention, ctx: UrlContext, sample_doc: Document):
+    """Same document always returns same URL from convention."""
+    url1 = url_convention.canonical_url(sample_doc, ctx)
+    url2 = url_convention.canonical_url(sample_doc, ctx)
 
     assert url1 == url2
     assert url1.startswith("http") or url1.startswith("/")
 
 def test_idempotency(output_format: OutputFormat, sample_doc: Document):
-    """Multiple url_for calls are safe (idempotent persistence)."""
+    """Multiple serve() calls are safe no-ops."""
     # First call
-    url1 = output_format.url_for(sample_doc)
+    output_format.serve(sample_doc)
 
-    # Second call should return same URL (no error, no duplicate)
-    url2 = output_format.url_for(sample_doc)
+    # Second call should be no-op (no error, no duplicate)
+    output_format.serve(sample_doc)
 
-    assert url1 == url2
+    # Format-specific check that document is actually served
+    convention = output_format.url_convention
+    ctx = UrlContext()  # Format-specific context
+    url = convention.canonical_url(sample_doc, ctx)
+    assert output_format._is_served(url)  # Format implements this helper
 
-def test_url_stability(output_format: OutputFormat, sample_doc: Document):
-    """URL doesn't change across multiple calls."""
-    url_before = output_format.url_for(sample_doc)
-    url_after = output_format.url_for(sample_doc)
-
-    assert url_after == url_before
-
-def test_different_documents_different_urls(output_format: OutputFormat):
+def test_different_documents_different_urls(url_convention: UrlConvention, ctx: UrlContext):
     """Different documents get different URLs."""
     doc1 = Document(content="A", type=DocumentType.POST, metadata={"title": "A"}, ...)
     doc2 = Document(content="B", type=DocumentType.POST, metadata={"title": "B"}, ...)
 
-    url1 = output_format.url_for(doc1)
-    url2 = output_format.url_for(doc2)
+    url1 = url_convention.canonical_url(doc1, ctx)
+    url2 = url_convention.canonical_url(doc2, ctx)
 
     assert url1 != url2
 
-def test_url_convention_consistency(output_format: OutputFormat, sample_doc: Document):
-    """url_for() uses the declared convention."""
-    url_from_format = output_format.url_for(sample_doc)
+def test_core_and_format_use_same_convention(
+    url_convention: UrlConvention,
+    output_format: OutputFormat,
+    sample_doc: Document,
+    ctx: UrlContext
+):
+    """Core and format calculate same URL from same convention."""
+    # Core calculates URL
+    url_from_core = url_convention.canonical_url(sample_doc, ctx)
 
-    # Convention should generate same URL
-    url_from_convention = output_format.url_convention.canonical_url(
-        sample_doc,
-        UrlContext(base_url="")  # Match format's context
-    )
+    # Format calculates URL (internally)
+    output_format.serve(sample_doc)
 
-    # URLs should match (accounting for base_url differences)
-    assert url_from_convention in url_from_format
+    # Both should result in same URL
+    url_from_format = output_format.url_convention.canonical_url(sample_doc, ctx)
+    assert url_from_core == url_from_format
 
-def test_media_documents(output_format: OutputFormat):
+def test_media_documents(url_convention: UrlConvention, output_format: OutputFormat, ctx: UrlContext):
     """Media documents work same as other documents."""
     media = Document(
         content=b"fake-image-data",
@@ -419,16 +464,23 @@ def test_media_documents(output_format: OutputFormat):
         ...
     )
 
-    url = output_format.url_for(media)
+    # Core calculates URL
+    url = url_convention.canonical_url(media, ctx)
     assert ".jpg" in url or "photo" in url
+
+    # Format serves document
+    output_format.serve(media)
     # No error - media treated like any other document
 
-def test_url_validity_guarantee(output_format: OutputFormat, sample_doc: Document):
-    """url_for() guarantees URL will be valid/servable."""
-    url = output_format.url_for(sample_doc)
+def test_serve_makes_document_available(output_format: OutputFormat, sample_doc: Document):
+    """serve() ensures document is available at convention URL."""
+    output_format.serve(sample_doc)
 
     # Format-specific check that document is actually served
     # (e.g., file exists for MkDocs, DB entry exists for HeadlessDB)
+    convention = output_format.url_convention
+    ctx = UrlContext()  # Format-specific context
+    url = convention.canonical_url(sample_doc, ctx)
     assert output_format._is_served(url)  # Format implements this helper
 ```
 
@@ -444,8 +496,8 @@ def test_url_validity_guarantee(output_format: OutputFormat, sample_doc: Documen
 - `tests/unit/storage/test_output_format_conformance.py` - Conformance tests
 
 **Steps:**
-1. Define `UrlConvention` protocol
-2. Define `OutputFormat` protocol (just url_for + url_convention property)
+1. Define `UrlConvention` protocol (with name/version properties)
+2. Define `OutputFormat` protocol (just serve() + url_convention property)
 3. Implement `LegacyMkDocsUrlConvention` with current rules
 4. Write conformance tests
 
@@ -458,10 +510,11 @@ def test_url_validity_guarantee(output_format: OutputFormat, sample_doc: Documen
 
 **Steps:**
 1. Extract path logic from current `MkDocsDocumentStorage`
-2. Implement `url_for()` that:
-   - Uses `LegacyMkDocsUrlConvention` to calculate URL
-   - Internally handles persistence (write file, idempotency check, etc.)
-   - Returns URL
+2. Implement `serve()` that:
+   - Uses `LegacyMkDocsUrlConvention` to calculate URL internally
+   - Converts URL to path
+   - Handles persistence (write file, idempotency check, etc.)
+   - Returns nothing (void)
 3. Move format-specific logic (frontmatter, .authors.yml) into internal methods
 4. Run conformance tests
 
@@ -470,20 +523,27 @@ def test_url_validity_guarantee(output_format: OutputFormat, sample_doc: Documen
 ### Phase 3: Update Core
 
 **Files to modify:**
-- `src/egregora/agents/writer/writer_agent.py` - Use url_for only
-- `src/egregora/cli.py` - Inject OutputFormat
-- Agent tools - Use URLs from url_for()
+- `src/egregora/agents/writer/writer_agent.py` - Use convention + serve()
+- `src/egregora/cli.py` - Inject UrlConvention + OutputFormat
+- Agent tools - Use URLs from convention
 
 **Steps:**
 1. Replace storage calls with:
    ```python
-   url = output_format.url_for(document)
+   # Verify format uses expected convention
+   assert output_format.url_convention.name == "legacy-mkdocs"
+
+   # Calculate URL from convention
+   url = url_convention.canonical_url(document, ctx)
+
+   # Request serving
+   output_format.serve(document)
    ```
 2. Remove status handling (created/updated/noop)
 3. Remove idempotency_key calculation (format's job now)
-4. Update agent tools to use URLs
+4. Update agent tools to calculate URLs from convention
 
-**Deliverable:** Core using new OutputFormat, radically simpler code.
+**Deliverable:** Core using new architecture, perfect separation.
 
 ### Phase 4: Remove Legacy Storage
 
@@ -524,15 +584,18 @@ output:
 
 ## Why This Design is Superior
 
-### 1. **Absolute Minimum Interface**
-- Core: **1 method call** (`url_for`)
-- No publish(), no ensure_served(), no status, no options, no result objects
-- ~75% less interface surface area than original proposal
+### 1. **Perfect Separation of Concerns**
+- **UrlConvention**: URL policy (pure, deterministic, versionable)
+- **OutputFormat**: Persistence (internal, format-specific, opaque)
+- **Core**: Orchestration (calculates URLs, requests serving, uses URLs)
+- Core and Format both use convention, but independently
+- No coupling between Core and Format - only via shared convention
 
-### 2. **Perfect Separation**
-- **UrlConvention**: URL policy (pure, testable, swappable)
-- **OutputFormat**: Persistence (internal, opaque to core)
-- **Core**: Orchestration (asks, uses - that's it)
+### 2. **Absolute Minimum Interface**
+- Core: **2 independent operations** (calculate URL, request serving)
+- OutputFormat: **1 method** (`serve`) + **1 property** (`url_convention`)
+- No publish(), no url_for(), no status, no options, no result objects
+- ~80% less interface surface area than original proposal
 
 ### 3. **Backend-Agnostic (For Real)**
 - OutputFormat can use ANY backend
@@ -583,24 +646,34 @@ _determine_journal_path()
 ### After (New - ~200 lines)
 
 ```python
-# Absolute minimum interface
+# Perfect separation - Core and Format both use convention
+url_convention = LegacyMkDocsUrlConvention()
 output_format = MkDocsOutputFormat(base_path)
 
-url = output_format.url_for(document)        # Get URL (persistence internal)
+# Verify compatibility
+assert output_format.url_convention.name == url_convention.name
+
+# Core calculates URL from convention
+url = url_convention.canonical_url(document, ctx)
+
+# Format serves document (calculates same URL internally)
+output_format.serve(document)
 
 # That's it. Core never sees paths, status, or persistence.
-# All complexity internal to format.
+# Format never returns URLs to Core.
 ```
 
-**Reduction: ~250 lines + radical conceptual simplification (1 method call).**
+**Reduction: ~250 lines + perfect decoupling (Core and Format independent).**
 
 ## Success Criteria
 
-- [ ] `UrlConvention` protocol defined
-- [ ] `OutputFormat` protocol with **only `url_for()` + `url_convention` property**
+- [ ] `UrlConvention` protocol defined (with name/version properties)
+- [ ] `OutputFormat` protocol with **only `serve()` + `url_convention` property**
 - [ ] `LegacyMkDocsUrlConvention` maintains exact current URLs
 - [ ] `MkDocsOutputFormat` passes conformance tests
-- [ ] Core uses **only `url_for()`** (no status handling, no ensure_served)
+- [ ] Core calculates URLs **directly from convention** (not from format)
+- [ ] Core uses **only `url_convention.canonical_url()` + `output_format.serve()`**
+- [ ] Convention compatibility check at startup
 - [ ] Legacy `MkDocsDocumentStorage` removed (457 lines)
 - [ ] All tests pass (unit, integration, E2E)
 - [ ] No URL changes (agents continue to work)
