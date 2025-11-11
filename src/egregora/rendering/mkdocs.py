@@ -1163,7 +1163,7 @@ All media filenames use content-based UUIDs for deterministic naming.
 Tags automatically create taxonomy pages where readers can browse posts by topic. Use consistent, meaningful tags across posts to build a useful taxonomy.
 """
 
-    def list_documents(self) -> Table:  # noqa: C901, PLR0912
+    def list_documents(self) -> Table:
         """List all MkDocs documents (posts, profiles, media enrichments) as Ibis table.
 
         Returns Ibis table with storage identifiers (relative paths) and modification times.

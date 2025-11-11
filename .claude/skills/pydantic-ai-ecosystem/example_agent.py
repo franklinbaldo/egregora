@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""
-Example Pydantic AI agent with tools and structured output.
-"""
+"""Example Pydantic AI agent with tools and structured output."""
 
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
@@ -9,6 +7,7 @@ from pydantic_ai import Agent, RunContext
 
 class CityInfo(BaseModel):
     """Structured output for city information."""
+
     name: str
     country: str
     population: int
@@ -35,15 +34,10 @@ async def search_population(ctx: RunContext, city: str) -> str:
     return f"Population of {city}: {populations.get(city.lower(), 'unknown'):,}"
 
 
-async def main():
+async def main() -> None:
     """Run example agent queries."""
-    result = await agent.run('Tell me about Tokyo')
-    city: CityInfo = result.output
+    await agent.run('Tell me about Tokyo')
 
-    print(f"\n{city.name}, {city.country}")
-    print(f"Population: {city.population:,}")
-    print(f"Famous for: {', '.join(city.famous_for)}")
-    print(f"\nTokens used: {result.usage().total_tokens}")
 
 
 if __name__ == '__main__':

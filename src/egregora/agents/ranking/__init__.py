@@ -13,4 +13,10 @@ from egregora.agents.ranking.agent import run_comparison_with_pydantic_agent as 
 from egregora.agents.ranking.elo import calculate_elo_update, initialize_ratings, update_ratings
 from egregora.agents.ranking.store import RankingStore
 
-__all__ = ["RankingStore", "calculate_elo_update", "initialize_ratings", "update_ratings"]
+__all__ = [
+    "RankingStore",
+    "calculate_elo_update",
+    "initialize_ratings",
+    "run_comparison",
+    "update_ratings",
+]

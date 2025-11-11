@@ -22,6 +22,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+# Constants
+MIN_API_KEY_LENGTH_FOR_MASKING = 12  # Minimum length to safely mask API key (8 + 4 chars)
+
 
 class HealthStatus(str, Enum):
     """Health check status levels."""
@@ -109,7 +112,7 @@ def check_api_key() -> DiagnosticResult:
 
     if api_key:
         # Mask the key for security
-        masked = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+        masked = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > MIN_API_KEY_LENGTH_FOR_MASKING else "***"
         return DiagnosticResult(
             check="API Key",
             status=HealthStatus.OK,

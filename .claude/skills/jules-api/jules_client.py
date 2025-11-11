@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""
-Jules API Client Helper
+"""Jules API Client Helper
 A simple Python client for interacting with Google's Jules API.
 """
 
 import argparse
-import json
 import os
 import subprocess
 import sys
@@ -17,9 +15,8 @@ import requests
 class JulesClient:
     """Client for Google Jules API."""
 
-    def __init__(self, api_key: str | None = None, base_url: str | None = None):
-        """
-        Initialize the Jules client.
+    def __init__(self, api_key: str | None = None, base_url: str | None = None) -> None:
+        """Initialize the Jules client.
 
         Args:
             api_key: Jules API key. If not provided, will check JULES_API_KEY
@@ -27,6 +24,7 @@ class JulesClient:
             base_url: The base URL for the Jules API. If not provided, will
                       check JULES_BASE_URL environment variable, then fall back
                       to the default production URL.
+
         """
         self.api_key = api_key or os.environ.get("JULES_API_KEY")
         self.base_url = base_url or os.environ.get("JULES_BASE_URL", "https://jules.googleapis.com/v1alpha")
@@ -49,10 +47,13 @@ class JulesClient:
                     )
                     self.access_token = result.stdout.strip()
                 except subprocess.CalledProcessError as e:
-                    raise Exception(
+                    msg = (
                         "Failed to get access token. Make sure you either:\n"
                         "1. Set JULES_API_KEY environment variable, or\n"
                         "2. Authenticate with gcloud: gcloud auth login"
+                    )
+                    raise Exception(
+                        msg
                     ) from e
             headers["Authorization"] = f"Bearer {self.access_token}"
         return headers
@@ -67,8 +68,7 @@ class JulesClient:
         require_plan_approval: bool = False,
         automation_mode: str = "AUTO_CREATE_PR",
     ) -> dict[str, Any]:
-        """
-        Create a new Jules session.
+        """Create a new Jules session.
 
         Args:
             prompt: The task description
@@ -81,6 +81,7 @@ class JulesClient:
 
         Returns:
             Session object with id, state, etc.
+
         """
         url = f"{self.base_url}/sessions"
         data = {
@@ -103,14 +104,14 @@ class JulesClient:
         return response.json()
 
     def get_session(self, session_id: str) -> dict[str, Any]:
-        """
-        Get details of a specific session.
+        """Get details of a specific session.
 
         Args:
             session_id: The session ID
 
         Returns:
             Session object
+
         """
         url = f"{self.base_url}/sessions/{session_id}"
         response = requests.get(url, headers=self._get_headers())
@@ -118,11 +119,11 @@ class JulesClient:
         return response.json()
 
     def list_sessions(self) -> dict[str, Any]:
-        """
-        List all sessions.
+        """List all sessions.
 
         Returns:
             List of session objects
+
         """
         url = f"{self.base_url}/sessions"
         response = requests.get(url, headers=self._get_headers())
@@ -130,8 +131,7 @@ class JulesClient:
         return response.json()
 
     def send_message(self, session_id: str, message: str) -> dict[str, Any]:
-        """
-        Send a message to an active session.
+        """Send a message to an active session.
 
         Args:
             session_id: The session ID
@@ -139,6 +139,7 @@ class JulesClient:
 
         Returns:
             Updated session object
+
         """
         url = f"{self.base_url}/sessions/{session_id}:sendMessage"
         data = {"message": message}
@@ -147,14 +148,14 @@ class JulesClient:
         return response.json()
 
     def approve_plan(self, session_id: str) -> dict[str, Any]:
-        """
-        Approve a plan for a session.
+        """Approve a plan for a session.
 
         Args:
             session_id: The session ID
 
         Returns:
             Updated session object
+
         """
         url = f"{self.base_url}/sessions/{session_id}:approvePlan"
         response = requests.post(url, headers=self._get_headers())
@@ -162,14 +163,14 @@ class JulesClient:
         return response.json()
 
     def get_activities(self, session_id: str) -> dict[str, Any]:
-        """
-        Get activities for a session.
+        """Get activities for a session.
 
         Args:
             session_id: The session ID
 
         Returns:
             List of activity objects
+
         """
         url = f"{self.base_url}/sessions/{session_id}/activities"
         response = requests.get(url, headers=self._get_headers())
@@ -223,7 +224,7 @@ def main(argv: list[str] | None = None) -> None:
 
     try:
         if args.command == "create":
-            result = client.create_session(
+            client.create_session(
                 prompt=args.prompt,
                 owner=args.owner,
                 repo=args.repo,
@@ -233,23 +234,21 @@ def main(argv: list[str] | None = None) -> None:
                 automation_mode=args.automation_mode,
             )
         elif args.command == "get":
-            result = client.get_session(args.session_id)
+            client.get_session(args.session_id)
         elif args.command == "list":
-            result = client.list_sessions()
+            client.list_sessions()
         elif args.command == "message":
-            result = client.send_message(args.session_id, " ".join(args.message))
+            client.send_message(args.session_id, " ".join(args.message))
         elif args.command == "approve-plan":
-            result = client.approve_plan(args.session_id)
+            client.approve_plan(args.session_id)
         elif args.command == "activities":
-            result = client.get_activities(args.session_id)
+            client.get_activities(args.session_id)
         else:
             parser.print_help()
             sys.exit(1)
 
-        print(json.dumps(result, indent=2))
 
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+    except Exception:
         sys.exit(1)
 
 

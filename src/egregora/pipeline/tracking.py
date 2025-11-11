@@ -427,10 +427,6 @@ def run_stage_with_tracking[T](
             """,
             [finished_at, duration_seconds, rows_out, str(context.run_id)],
         )
-
-        conn.close()
-        return result, context.run_id
-
     except Exception as e:
         # Record failure
         finished_at = datetime.now(UTC)
@@ -451,3 +447,6 @@ def run_stage_with_tracking[T](
 
         conn.close()
         raise  # Re-raise exception after recording
+    else:
+        conn.close()
+        return result, context.run_id

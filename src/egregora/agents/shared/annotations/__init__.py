@@ -198,7 +198,7 @@ class AnnotationStore:
         self._backend.raw_sql(
             f"\n            CREATE INDEX IF NOT EXISTS idx_annotations_parent_created\n            ON {ANNOTATIONS_TABLE} (parent_id, parent_type, created_at)\n            "
         )
-        max_id_row = self._connection.execute(f"SELECT MAX(id) FROM {ANNOTATIONS_TABLE}").fetchone()
+        max_id_row = self._connection.execute(f"SELECT MAX(id) FROM {ANNOTATIONS_TABLE}").fetchone()  # nosec B608 - ANNOTATIONS_TABLE is module constant
         if max_id_row and max_id_row[0] is not None:
             max_id = int(max_id_row[0])
             sequence_state = self._connection.execute(
@@ -263,7 +263,7 @@ class AnnotationStore:
                 msg = f"parent annotation with id {sanitized_parent_id} does not exist"
                 raise ValueError(msg)
         cursor = self._connection.execute(
-            f"\n            INSERT INTO {ANNOTATIONS_TABLE} (parent_id, parent_type, author, commentary, created_at)\n            VALUES (?, ?, ?, ?, ?)\n            RETURNING id\n            ",
+            f"\n            INSERT INTO {ANNOTATIONS_TABLE} (parent_id, parent_type, author, commentary, created_at)\n            VALUES (?, ?, ?, ?, ?)\n            RETURNING id\n            ",  # nosec B608 - ANNOTATIONS_TABLE is module constant
             [sanitized_parent_id, sanitized_parent_type, ANNOTATION_AUTHOR, sanitized_commentary, created_at],
         )
         row = cursor.fetchone()
@@ -290,7 +290,7 @@ class AnnotationStore:
         if not sanitized_msg_id:
             return []
         records = self._fetch_records(
-            f"\n            SELECT id, parent_id, parent_type, author, commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at ASC, id ASC\n            ",
+            f"\n            SELECT id, parent_id, parent_type, author, commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at ASC, id ASC\n            ",  # nosec B608 - ANNOTATIONS_TABLE is module constant
             [sanitized_msg_id],
         )
         return [self._row_to_annotation(row) for row in records]
@@ -301,7 +301,7 @@ class AnnotationStore:
         if not sanitized_msg_id:
             return None
         cursor = self._connection.execute(
-            f"\n            SELECT id FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at DESC, id DESC\n            LIMIT 1\n            ",
+            f"\n            SELECT id FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at DESC, id DESC\n            LIMIT 1\n            ",  # nosec B608 - ANNOTATIONS_TABLE is module constant
             [sanitized_msg_id],
         )
         row = cursor.fetchone()
@@ -310,7 +310,7 @@ class AnnotationStore:
     def iter_all_annotations(self) -> Iterable[Annotation]:
         """Yield all annotations sorted by insertion order."""
         records = self._fetch_records(
-            f"\n            SELECT id, parent_id, parent_type, author, commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            ORDER BY created_at ASC, id ASC\n            "
+            f"\n            SELECT id, parent_id, parent_type, author, commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            ORDER BY created_at ASC, id ASC\n            "  # nosec B608 - ANNOTATIONS_TABLE is module constant
         )
         for row in records:
             yield self._row_to_annotation(row)

@@ -322,7 +322,7 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
 
 
 @app.command()
-def write(  # noqa: PLR0913 - CLI commands naturally have many parameters
+def write(
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     source: Annotated[str, typer.Option(help="Source type: 'whatsapp' or 'slack'")] = "whatsapp",
@@ -425,7 +425,7 @@ def write(  # noqa: PLR0913 - CLI commands naturally have many parameters
 
 
 @app.command()
-def edit(  # noqa: PLR0913 - CLI commands naturally have many parameters
+def edit(
     post_path: Annotated[Path, typer.Argument(help="Path to the post markdown file")],
     *,
     site_dir: Annotated[
@@ -587,7 +587,7 @@ def agents_lint(site_dir: Annotated[Path, typer.Option(help="Site directory")] =
         raise typer.Exit(1)
 
 
-def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: C901, PLR0915 - Complex due to nested command registration
+def _register_ranking_cli(app: typer.Typer) -> None:
     """Register ranking commands when the optional extra is installed."""
     try:
         ranking_agent = importlib.import_module("egregora.agents.ranking")
@@ -624,7 +624,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: C901, PLR0915 - Co
         logger.debug("Ranking extra unavailable: %s", missing)
         return
 
-    def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None) -> None:  # noqa: C901, PLR0915 - Complex ranking loop with error handling
+    def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None) -> None:
         if config.debug:
             logging.getLogger().setLevel(logging.DEBUG)
         site_path = config.site_dir.resolve()
@@ -676,7 +676,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: C901, PLR0915 - Co
                 default_profile.parent.mkdir(parents=True, exist_ok=True)
                 default_profile.write_text("---\nuuid: judge\nalias: Judge\n---\nA fair and balanced judge.")
                 profile_files = [default_profile]
-            profile_path = random.choice(profile_files)  # noqa: S311 - Not cryptographic, just selecting a judge
+            profile_path = random.choice(profile_files)
             # Resolve prompts directory
             prompts_dir = (
                 site_path / ".egregora" / "prompts"
@@ -713,7 +713,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: C901, PLR0915 - Co
         )
 
     @app.command()
-    def rank(  # noqa: PLR0913 - CLI commands naturally have many parameters
+    def rank(
         site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
         *,
         comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
@@ -847,7 +847,7 @@ def _filter_messages_by_date(
 
 
 @app.command()
-def group(  # noqa: PLR0913
+def group(
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file from parse stage")],
     step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
     step_unit: Annotated[str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days'")] = "days",
@@ -913,7 +913,7 @@ def group(  # noqa: PLR0913
 
 
 @app.command()
-def enrich(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and statements
+def enrich(
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file (from parse or group stage)")],
     *,
     zip_file: Annotated[Path, typer.Option(help="Original WhatsApp ZIP file (for media extraction)")],
@@ -1020,7 +1020,7 @@ def enrich(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and sta
 
 
 @app.command()
-def gather_context(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and statements
+def gather_context(
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     *,
     window_id: Annotated[str, typer.Option(help="Window identifier (e.g., 2025-01-01 or custom label)")],
@@ -1131,7 +1131,7 @@ def gather_context(  # noqa: PLR0913, PLR0915 - CLI command with many parameters
 
 
 @app.command()
-def write_posts(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and statements
+def write_posts(
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     *,
     window_id: Annotated[str, typer.Option(help="Window identifier (e.g., 2025-01-01 or custom label)")],
@@ -1241,6 +1241,7 @@ _register_ranking_cli(app)
 
 @app.command(name="doctor")
 def doctor(
+    *,
     verbose: Annotated[
         bool, typer.Option("--verbose", "-v", help="Show detailed diagnostic information")
     ] = False,
@@ -1361,6 +1362,7 @@ def cache_stats(
 
 @cache_app.command(name="clear")
 def cache_clear(
+    *,
     stage: Annotated[str | None, typer.Option(help="Stage to clear (clears all if not specified)")] = None,
     cache_dir: Annotated[Path, typer.Option(help="Checkpoint cache directory")] = Path(
         ".egregora-cache/checkpoints"
@@ -1474,7 +1476,7 @@ def cache_gc(
         except ValueError:
             console.print(f"[red]Error: Invalid size format '{max_size}'[/red]")
             console.print("Valid formats: '10GB', '500MB', '1KB', or raw bytes")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
         console.print(f"[cyan]Garbage collecting checkpoints (max size: {max_size})...[/cyan]")
         count = gc_checkpoints_by_size(max_size_bytes=max_size_bytes, cache_dir=cache_dir)
@@ -1547,6 +1549,7 @@ def views_list(
 @views_app.command(name="create")
 def views_create(
     db_path: Annotated[Path, typer.Argument(help="Database file path")],
+    *,
     table_name: Annotated[str, typer.Option(help="Name of the messages table")] = "messages",
     force: Annotated[bool, typer.Option("--force", "-f", help="Drop existing views before creating")] = False,
 ) -> None:
@@ -1569,16 +1572,17 @@ def views_create(
     # Connect to database
     conn = duckdb.connect(str(db_path))
 
+    # Verify table exists
+    tables = conn.execute("SELECT table_name FROM information_schema.tables").fetchall()
+    table_names = [t[0] for t in tables]
+
+    if table_name not in table_names:
+        conn.close()
+        console.print(f"[red]Error: Table '{table_name}' not found in database[/red]")
+        console.print(f"Available tables: {', '.join(table_names)}")
+        raise typer.Exit(1)
+
     try:
-        # Verify table exists
-        tables = conn.execute("SELECT table_name FROM information_schema.tables").fetchall()
-        table_names = [t[0] for t in tables]
-
-        if table_name not in table_names:
-            console.print(f"[red]Error: Table '{table_name}' not found in database[/red]")
-            console.print(f"Available tables: {', '.join(table_names)}")
-            raise typer.Exit(1)
-
         # Create registry and register common views
         registry = ViewRegistry(conn)
         register_common_views(registry, table_name=table_name)
@@ -1591,7 +1595,7 @@ def views_create(
 
     except Exception as e:
         console.print(f"[red]Error creating views: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     finally:
         conn.close()
@@ -1623,23 +1627,27 @@ def views_refresh(
     # Connect to database
     conn = duckdb.connect(str(db_path))
 
-    try:
-        # Create registry and register common views
-        registry = ViewRegistry(conn)
-        register_common_views(registry, table_name=table_name)
+    # Create registry and register common views
+    registry = ViewRegistry(conn)
+    register_common_views(registry, table_name=table_name)
 
+    if view_name:
+        # Validate specific view
+        if view_name not in registry.list_views():
+            conn.close()
+            console.print(f"[red]Error: View '{view_name}' not registered[/red]")
+            console.print(f"Available views: {', '.join(registry.list_views())}")
+            raise typer.Exit(1)
+
+        view = registry.get_view(view_name)
+        if not view.materialized:
+            conn.close()
+            console.print(f"[yellow]Warning: '{view_name}' is not materialized (cannot refresh)[/yellow]")
+            raise typer.Exit(1)
+
+    try:
         if view_name:
             # Refresh specific view
-            if view_name not in registry.list_views():
-                console.print(f"[red]Error: View '{view_name}' not registered[/red]")
-                console.print(f"Available views: {', '.join(registry.list_views())}")
-                raise typer.Exit(1)
-
-            view = registry.get_view(view_name)
-            if not view.materialized:
-                console.print(f"[yellow]Warning: '{view_name}' is not materialized (cannot refresh)[/yellow]")
-                raise typer.Exit(1)
-
             console.print(f"[cyan]Refreshing view: {view_name}...[/cyan]")
             registry.refresh(view_name)
             console.print(f"[green]✅ Refreshed {view_name}[/green]")
@@ -1658,7 +1666,7 @@ def views_refresh(
 
     except Exception as e:
         console.print(f"[red]Error refreshing views: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     finally:
         conn.close()
@@ -1667,6 +1675,7 @@ def views_refresh(
 @views_app.command(name="drop")
 def views_drop(
     db_path: Annotated[Path, typer.Argument(help="Database file path")],
+    *,
     view_name: Annotated[
         str | None, typer.Option(help="Specific view to drop (drops all if not specified)")
     ] = None,
@@ -1692,51 +1701,58 @@ def views_drop(
     # Connect to database
     conn = duckdb.connect(str(db_path))
 
-    try:
-        # Create registry and register common views
-        registry = ViewRegistry(conn)
-        register_common_views(registry, table_name=table_name)
+    # Create registry and register common views
+    registry = ViewRegistry(conn)
+    register_common_views(registry, table_name=table_name)
 
+    if view_name:
+        # Validate specific view
+        if view_name not in registry.list_views():
+            conn.close()
+            console.print(f"[red]Error: View '{view_name}' not registered[/red]")
+            console.print(f"Available views: {', '.join(registry.list_views())}")
+            raise typer.Exit(1)
+
+        # Confirm before dropping (unless --force)
+        if not force:
+            console.print(f"[yellow]About to drop view: {view_name}[/yellow]")
+            confirm = typer.confirm("Continue?")
+            if not confirm:
+                conn.close()
+                console.print("[cyan]Cancelled[/cyan]")
+                raise typer.Exit(0)
+    else:
+        # Check if there are views to drop
+        view_count = len(registry.list_views())
+
+        if view_count == 0:
+            conn.close()
+            console.print("[yellow]No views to drop[/yellow]")
+            return
+
+        # Confirm before dropping (unless --force)
+        if not force:
+            console.print(f"[yellow]About to drop {view_count} views[/yellow]")
+            confirm = typer.confirm("Continue?")
+            if not confirm:
+                conn.close()
+                console.print("[cyan]Cancelled[/cyan]")
+                raise typer.Exit(0)
+
+    try:
         if view_name:
             # Drop specific view
-            if view_name not in registry.list_views():
-                console.print(f"[red]Error: View '{view_name}' not registered[/red]")
-                console.print(f"Available views: {', '.join(registry.list_views())}")
-                raise typer.Exit(1)
-
-            # Confirm before dropping (unless --force)
-            if not force:
-                console.print(f"[yellow]About to drop view: {view_name}[/yellow]")
-                confirm = typer.confirm("Continue?")
-                if not confirm:
-                    console.print("[cyan]Cancelled[/cyan]")
-                    raise typer.Exit(0)
-
             registry.drop(view_name)
             console.print(f"[green]✅ Dropped {view_name}[/green]")
-
         else:
             # Drop all views
             view_count = len(registry.list_views())
-
-            if view_count == 0:
-                console.print("[yellow]No views to drop[/yellow]")
-                return
-
-            # Confirm before dropping (unless --force)
-            if not force:
-                console.print(f"[yellow]About to drop {view_count} views[/yellow]")
-                confirm = typer.confirm("Continue?")
-                if not confirm:
-                    console.print("[cyan]Cancelled[/cyan]")
-                    raise typer.Exit(0)
-
             registry.drop_all()
             console.print(f"[green]✅ Dropped {view_count} views[/green]")
 
     except Exception as e:
         console.print(f"[red]Error dropping views: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     finally:
         conn.close()
@@ -1848,6 +1864,123 @@ def runs_tail(
         conn.close()
 
 
+def _format_status(status: str) -> str:
+    """Return color-coded status string."""
+    if status == "completed":
+        return f"[green]{status}[/green]"
+    if status == "failed":
+        return f"[red]{status}[/red]"
+    if status == "running":
+        return f"[yellow]{status}[/yellow]"
+    return status
+
+
+def _format_run_header(
+    lines: list[str], run_id: str, tenant_id: str | None, stage: str, status_display: str
+) -> None:
+    """Append run header section to lines."""
+    lines.append(f"[bold cyan]Run ID:[/bold cyan] {run_id}")
+    if tenant_id:
+        lines.append(f"[bold cyan]Tenant:[/bold cyan] {tenant_id}")
+    lines.append(f"[bold cyan]Stage:[/bold cyan] {stage}")
+    lines.append(f"[bold cyan]Status:[/bold cyan] {status_display}")
+    lines.append("")
+
+
+def _format_timestamps(
+    lines: list[str], started_at: str, finished_at: str | None, duration_seconds: float | None
+) -> None:
+    """Append timestamps section to lines."""
+    lines.append("[bold]Timestamps:[/bold]")
+    lines.append(f"  Started:  {started_at}")
+    if finished_at:
+        lines.append(f"  Finished: {finished_at}")
+    if duration_seconds:
+        lines.append(f"  Duration: {duration_seconds:.2f}s")
+    lines.append("")
+
+
+def _format_metrics(
+    lines: list[str], rows_in: int | None, rows_out: int | None, llm_calls: int | None, tokens: int | None
+) -> None:
+    """Append metrics section to lines if any metrics exist."""
+    if not (rows_in is not None or rows_out is not None or llm_calls or tokens):
+        return
+    lines.append("[bold]Metrics:[/bold]")
+    if rows_in is not None:
+        lines.append(f"  Rows In:   {rows_in:,}")
+    if rows_out is not None:
+        lines.append(f"  Rows Out:  {rows_out:,}")
+    if llm_calls:
+        lines.append(f"  LLM Calls: {llm_calls:,}")
+    if tokens:
+        lines.append(f"  Tokens:    {tokens:,}")
+    lines.append("")
+
+
+def _format_fingerprints(
+    lines: list[str], input_fingerprint: str | None, code_ref: str | None, config_hash: str | None
+) -> None:
+    """Append fingerprints section to lines if any fingerprints exist."""
+    if not (input_fingerprint or code_ref or config_hash):
+        return
+    lines.append("[bold]Fingerprints:[/bold]")
+    if input_fingerprint:
+        lines.append(f"  Input:  {input_fingerprint[:32]}...")
+    if code_ref:
+        lines.append(f"  Code:   {code_ref}")
+    if config_hash:
+        lines.append(f"  Config: {config_hash[:32]}...")
+    lines.append("")
+
+
+def _format_error(lines: list[str], error: str | None) -> None:
+    """Append error section to lines if error exists."""
+    if not error:
+        return
+    lines.append("[bold red]Error:[/bold red]")
+    lines.append(f"  {error}")
+    lines.append("")
+
+
+def _format_observability(lines: list[str], trace_id: str | None) -> None:
+    """Append observability section to lines if trace_id exists."""
+    if not trace_id:
+        return
+    lines.append("[bold]Observability:[/bold]")
+    lines.append(f"  Trace ID: {trace_id}")
+
+
+def _build_run_panel_content(
+    run_id: str,
+    tenant_id: str | None,
+    stage: str,
+    status: str,
+    error: str | None,
+    input_fingerprint: str | None,
+    code_ref: str | None,
+    config_hash: str | None,
+    started_at: str,
+    finished_at: str | None,
+    duration_seconds: float | None,
+    rows_in: int | None,
+    rows_out: int | None,
+    llm_calls: int | None,
+    tokens: int | None,
+    trace_id: str | None,
+) -> str:
+    """Build formatted panel content from run data."""
+    lines: list[str] = []
+    status_display = _format_status(status)
+    _format_run_header(lines, run_id, tenant_id, stage, status_display)
+    _format_timestamps(lines, started_at, finished_at, duration_seconds)
+    _format_metrics(lines, rows_in, rows_out, llm_calls, tokens)
+    _format_fingerprints(lines, input_fingerprint, code_ref, config_hash)
+    _format_error(lines, error)
+    _format_observability(lines, trace_id)
+    return "\n".join(lines)
+
+
 @runs_app.command(name="show")
 def runs_show(
     run_id: Annotated[str, typer.Argument(help="Run ID to show (full UUID or prefix)")],
@@ -1867,11 +2000,9 @@ def runs_show(
         console.print(f"[red]No runs database found at {db_path}[/red]")
         raise typer.Exit(1)
 
-    # Connect to runs database
     conn = duckdb.connect(str(db_path), read_only=True)
 
     try:
-        # Query run by ID (support prefix matching)
         result = conn.execute(
             """
             SELECT
@@ -1891,7 +2022,6 @@ def runs_show(
             console.print(f"[red]Run not found: {run_id}[/red]")
             raise typer.Exit(1)
 
-        # Unpack result
         (
             run_id_full,
             tenant_id,
@@ -1911,76 +2041,26 @@ def runs_show(
             trace_id,
         ) = result
 
-        # Build panel content
-        lines = []
-
-        # Color-code status
-        if status == "completed":
-            status_display = f"[green]{status}[/green]"
-        elif status == "failed":
-            status_display = f"[red]{status}[/red]"
-        elif status == "running":
-            status_display = f"[yellow]{status}[/yellow]"
-        else:
-            status_display = status
-
-        lines.append(f"[bold cyan]Run ID:[/bold cyan] {run_id_full}")
-        if tenant_id:
-            lines.append(f"[bold cyan]Tenant:[/bold cyan] {tenant_id}")
-        lines.append(f"[bold cyan]Stage:[/bold cyan] {stage}")
-        lines.append(f"[bold cyan]Status:[/bold cyan] {status_display}")
-        lines.append("")
-
-        # Timestamps
-        lines.append("[bold]Timestamps:[/bold]")
-        lines.append(f"  Started:  {started_at}")
-        if finished_at:
-            lines.append(f"  Finished: {finished_at}")
-        if duration_seconds:
-            lines.append(f"  Duration: {duration_seconds:.2f}s")
-        lines.append("")
-
-        # Metrics
-        if rows_in is not None or rows_out is not None or llm_calls or tokens:
-            lines.append("[bold]Metrics:[/bold]")
-            if rows_in is not None:
-                lines.append(f"  Rows In:   {rows_in:,}")
-            if rows_out is not None:
-                lines.append(f"  Rows Out:  {rows_out:,}")
-            if llm_calls:
-                lines.append(f"  LLM Calls: {llm_calls:,}")
-            if tokens:
-                lines.append(f"  Tokens:    {tokens:,}")
-            lines.append("")
-
-        # Fingerprints
-        if input_fingerprint or code_ref or config_hash:
-            lines.append("[bold]Fingerprints:[/bold]")
-            if input_fingerprint:
-                lines.append(f"  Input:  {input_fingerprint[:32]}...")
-            if code_ref:
-                lines.append(f"  Code:   {code_ref}")
-            if config_hash:
-                lines.append(f"  Config: {config_hash[:32]}...")
-            lines.append("")
-
-        # Error (if failed)
-        if error:
-            lines.append("[bold red]Error:[/bold red]")
-            lines.append(f"  {error}")
-            lines.append("")
-
-        # Observability
-        if trace_id:
-            lines.append("[bold]Observability:[/bold]")
-            lines.append(f"  Trace ID: {trace_id}")
-
-        # Display panel
-        panel = Panel(
-            "\n".join(lines),
-            title=f"[bold]Run Details: {stage}[/bold]",
-            border_style="cyan",
+        panel_content = _build_run_panel_content(
+            run_id_full,
+            tenant_id,
+            stage,
+            status,
+            error,
+            input_fingerprint,
+            code_ref,
+            config_hash,
+            started_at,
+            finished_at,
+            duration_seconds,
+            rows_in,
+            rows_out,
+            llm_calls,
+            tokens,
+            trace_id,
         )
+
+        panel = Panel(panel_content, title=f"[bold]Run Details: {stage}[/bold]", border_style="cyan")
         console.print(panel)
 
     finally:
@@ -1989,6 +2069,7 @@ def runs_show(
 
 @app.command()
 def adapters(
+    *,
     as_json: Annotated[bool, typer.Option("--json", help="Output as JSON")] = False,
 ) -> None:
     """List all available source adapters.
@@ -2035,7 +2116,7 @@ def adapters(
 
     except Exception as e:
         console.print(f"[red]Error listing adapters: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 def main() -> None:

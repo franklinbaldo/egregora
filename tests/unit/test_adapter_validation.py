@@ -22,7 +22,7 @@ from egregora.sources.base import AdapterMeta, SourceAdapter
 class MockAdapter(SourceAdapter):
     """Mock adapter for testing validation."""
 
-    def __init__(self, return_valid: bool = True) -> None:
+    def __init__(self, *, return_valid: bool = True) -> None:
         """Initialize mock adapter.
 
         Args:
@@ -82,8 +82,7 @@ class MockAdapter(SourceAdapter):
                 }
             )
             # Create memtable with explicit schema
-            table = ibis.memtable(df, schema=IR_V1_SCHEMA)
-            return table
+            return ibis.memtable(df, schema=IR_V1_SCHEMA)
         # Return invalid table (missing required columns)
         import pandas as pd
 
@@ -251,9 +250,9 @@ class TestSchemaValidationErrors:
         data = {"event_id": [1], "tenant_id": ["test"]}
         table = ibis.memtable(pd.DataFrame(data))
 
-        with pytest.raises(SchemaError, match="IR v1 schema mismatch"):
-            from egregora.database.validation import validate_ir_schema
+        from egregora.database.validation import validate_ir_schema
 
+        with pytest.raises(SchemaError, match="IR v1 schema mismatch"):
             validate_ir_schema(table)
 
     def test_extra_columns_allowed(self) -> None:
@@ -284,10 +283,10 @@ class TestSchemaValidationErrors:
         }
         table = ibis.memtable(pd.DataFrame(data))
 
+        from egregora.database.validation import validate_ir_schema
+
         # Should raise because extra columns are not allowed
         with pytest.raises(SchemaError, match="Extra columns"):
-            from egregora.database.validation import validate_ir_schema
-
             validate_ir_schema(table)
 
 

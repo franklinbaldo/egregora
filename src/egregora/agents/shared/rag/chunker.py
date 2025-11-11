@@ -22,7 +22,7 @@ def estimate_tokens(text: str) -> int:
     We use 1800 tokens max per chunk for safety.
     """
     # Centralized implementation
-    from egregora.agents.model_limits import estimate_tokens as _estimate  # noqa: PLC0415
+    from egregora.agents.model_limits import estimate_tokens as _estimate
 
     return _estimate(text)
 

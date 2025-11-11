@@ -47,7 +47,7 @@ class ValidatedAdapter:
 
     """
 
-    def __init__(self, adapter: SourceAdapter, validate: bool = True) -> None:
+    def __init__(self, adapter: SourceAdapter, *, validate: bool = True) -> None:
         """Initialize validated adapter wrapper."""
         self._adapter = adapter
         self._validate = validate
@@ -114,7 +114,7 @@ class AdapterRegistry:
 
     """
 
-    def __init__(self, validate_outputs: bool = False) -> None:
+    def __init__(self, *, validate_outputs: bool = False) -> None:
         """Initialize registry and load adapters.
 
         Args:
@@ -275,7 +275,7 @@ def get_global_registry() -> AdapterRegistry:
         >>> adapter = registry.get("whatsapp")
 
     """
-    global _global_registry  # noqa: PLW0603
+    global _global_registry
     if _global_registry is None:
         _global_registry = AdapterRegistry()
     return _global_registry

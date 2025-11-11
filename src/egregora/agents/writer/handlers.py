@@ -82,7 +82,7 @@ def _handle_write_profile_tool(
     )
 
 
-def _handle_search_media_tool(  # noqa: PLR0913
+def _handle_search_media_tool(
     fn_args: dict[str, Any],
     fn_call: genai_types.FunctionCall,
     _client: genai.Client,

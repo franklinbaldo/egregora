@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -293,5 +294,5 @@ def test_journal_entry_frozen():
     """Test JournalEntry is frozen (immutable)."""
     entry = JournalEntry(entry_type="thinking", content="Test")
 
-    with pytest.raises(Exception):  # dataclass FrozenInstanceError
-        entry.content = "Modified"  # type: ignore
+    with pytest.raises(FrozenInstanceError):
+        entry.content = "Modified"  # type: ignore[misc]

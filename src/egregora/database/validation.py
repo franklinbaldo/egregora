@@ -64,6 +64,9 @@ if TYPE_CHECKING:
 # Type variable for decorator
 F = TypeVar("F", bound=Callable[..., "Table"])
 
+# Constants
+MIN_STAGE_ARGS = 2  # Stage process method requires (self, data) at minimum
+
 
 class SchemaError(Exception):
     """Raised when table schema doesn't match IR v1 specification."""
@@ -310,7 +313,7 @@ def validate_ir_schema(table: Table, *, sample_size: int = 100) -> None:
         # Log warning but don't fail (execution issues with memtable, etc.)
         import logging
 
-        logging.getLogger(__name__).warning(f"IR v1 runtime validation skipped due to execution error: {e}")
+        logging.getLogger(__name__).warning("IR v1 runtime validation skipped due to execution error: %s", e)
 
 
 def _types_compatible(expected: dt.DataType, actual: dt.DataType) -> bool:
@@ -447,7 +450,7 @@ def validate_stage[F: Callable[..., "Table"]](func: F) -> F:
     def wrapper(*args: Any, **kwargs: Any) -> Any:  # Returns StageResult
         # Extract input data from args
         # Signature: process(self, data: Table, context: dict[str, Any]) -> StageResult
-        if len(args) < 2:
+        if len(args) < MIN_STAGE_ARGS:
             msg = "Stage process method requires at least 2 arguments: (self, data)"
             raise TypeError(msg)
 

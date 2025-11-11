@@ -216,7 +216,7 @@ def index_document(
     return len(chunks)
 
 
-def query_similar_posts(  # noqa: PLR0913
+def query_similar_posts(
     table: Table,
     store: VectorStore,
     *,
@@ -539,7 +539,7 @@ def _coerce_message_datetime(value: object) -> datetime | None:
     return result
 
 
-def query_media(  # noqa: PLR0913
+def query_media(
     query: str,
     store: VectorStore,
     media_types: list[str] | None = None,

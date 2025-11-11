@@ -75,7 +75,7 @@ def check_structure() -> list[str]:
         "SECURITY.md",
         "LICENSE",
     }
-    root_md_files = set(f.name for f in Path(".").glob("*.md"))
+    root_md_files = {f.name for f in Path().glob("*.md")}
     extra_docs = root_md_files - essential_root_docs
     if extra_docs:
         errors.append(f"Extra docs in root (should be in docs/): {extra_docs}")
@@ -95,28 +95,13 @@ def check_structure() -> list[str]:
 
 def main() -> int:
     """Run structure verification."""
-    print("🔍 Verifying egregora directory structure...")
-    print()
-
     errors = check_structure()
 
     if errors:
-        print("❌ Structure errors found:")
-        for error in errors:
-            print(f"  • {error}")
-        print()
-        print("See the tree restructuring plan for expected structure.")
+        for _error in errors:
+            pass
         return 1
 
-    print("✅ Structure verified successfully!")
-    print()
-    print("All directories and files are organized correctly:")
-    print("  • Tests organized by type (unit/integration/e2e/agents/linting)")
-    print("  • Prompts organized by category (system/enrichment)")
-    print("  • Templates use consistent .jinja extension")
-    print("  • Agent files have descriptive names")
-    print("  • Dev tools consolidated in dev_tools/")
-    print("  • Root documentation is clean")
     return 0
 
 

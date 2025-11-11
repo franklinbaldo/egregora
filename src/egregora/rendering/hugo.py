@@ -86,7 +86,7 @@ class HugoOutputFormat(OutputFormat):
         self._journals_impl = MkDocsJournalStorage(site_root)
         self._enrichments_impl = MkDocsEnrichmentStorage(site_root)
 
-        logger.debug(f"Initialized Hugo storage for {site_root}")
+        logger.debug("Initialized Hugo storage for %s", site_root)
 
     @property
     def posts(self) -> PostStorage:
@@ -432,7 +432,7 @@ Consult your Hugo theme documentation for available shortcodes.
 **Note**: This is a template. Customize based on your Hugo theme's conventions.
 """
 
-    def list_documents(self) -> Table:  # noqa: C901, PLR0912
+    def list_documents(self) -> Table:
         """List all Hugo documents as Ibis table.
 
         Returns Ibis table with storage identifiers (relative paths) and modification times.

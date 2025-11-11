@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Example fasta2a (Agent-to-Agent protocol) usage.
+"""Example fasta2a (Agent-to-Agent protocol) usage.
 
 This demonstrates exposing a Pydantic AI agent as an A2A server
 for agent-to-agent communication.
@@ -37,7 +36,4 @@ app = agent.to_a2a()
 
 if __name__ == '__main__':
     import uvicorn
-    print("Starting A2A agent server...")
-    print("Agent card endpoint: http://localhost:8000/agent-card")
-    print("Agent endpoint: http://localhost:8000/agent")
     uvicorn.run(app, host="0.0.0.0", port=8000)

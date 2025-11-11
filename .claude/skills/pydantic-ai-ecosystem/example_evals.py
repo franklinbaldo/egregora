@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-"""
-Example Pydantic Evals usage for testing AI agents.
-"""
+"""Example Pydantic Evals usage for testing AI agents."""
 
 from pydantic_ai import Agent
 from pydantic_evals import Case, Dataset
 from pydantic_evals.evaluators import IsInstance, LLMJudge
-
 
 # Create agent to evaluate
 agent = Agent(
@@ -54,19 +51,12 @@ async def run_agent(question: str) -> str:
     return result.output
 
 
-async def main():
+async def main() -> None:
     """Run evaluation and print results."""
-    print("Running evaluation...")
     report = await dataset.evaluate(run_agent)
 
-    print("\n" + "="*50)
-    print("EVALUATION REPORT")
-    print("="*50)
     report.print()
 
-    print(f"\nAverage Score: {report.average_score():.2%}")
-    print(f"Total Cases: {len(report.case_results)}")
-    print(f"Passed: {sum(1 for r in report.case_results if r.score >= 0.8)}")
 
 
 if __name__ == '__main__':

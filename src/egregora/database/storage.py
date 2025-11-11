@@ -116,6 +116,7 @@ class StorageManager:
         table: Table,
         name: str,
         mode: Literal["replace", "append"] = "replace",
+        *,
         checkpoint: bool = True,
     ) -> None:
         """Write Ibis table to DuckDB.
@@ -141,13 +142,13 @@ class StorageManager:
 
             # Load into DuckDB from parquet
             if mode == "replace":
-                sql = f"CREATE OR REPLACE TABLE {name} AS SELECT * FROM read_parquet('{parquet_path}')"
+                sql = f"CREATE OR REPLACE TABLE {name} AS SELECT * FROM read_parquet('{parquet_path}')"  # nosec B608 - name validated by caller
             else:  # append
                 # Create table if not exists, then insert
                 sql = f"""
                     CREATE TABLE IF NOT EXISTS {name} AS SELECT * FROM read_parquet('{parquet_path}') WHERE 1=0;
                     INSERT INTO {name} SELECT * FROM read_parquet('{parquet_path}')
-                """
+                """  # nosec B608 - name validated by caller
 
             self.conn.execute(sql)
             logger.info("Table '%s' written with checkpoint (%s)", name, mode)
@@ -166,8 +167,9 @@ class StorageManager:
     def execute_view(
         self,
         view_name: str,
-        builder: "ViewBuilder",  # type: ignore  # noqa: F821
+        builder: "ViewBuilder",  # type: ignore[name-defined]
         input_table: str,
+        *,
         checkpoint: bool = True,
     ) -> Table:
         """Execute view builder and optionally materialize result.
@@ -277,7 +279,7 @@ class StorageManager:
         """Context manager entry."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore[no-untyped-def]
         """Context manager exit - closes connection."""
         self.close()
 

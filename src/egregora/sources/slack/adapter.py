@@ -100,51 +100,6 @@ class SlackInputSource(InputSource):
         )
         raise NotImplementedError(msg)
 
-        # The code below is template/reference implementation
-        # Uncomment and complete when implementing Slack support
-        """
-        if not self.supports_format(source_path):
-            msg = f"Source path {source_path} is not a valid Slack export directory"
-            raise ValueError(msg)
-        users = self._load_users(source_path)
-        channels = self._find_channels(source_path)
-        if channel_name:
-            channels = [c for c in channels if c["name"] == channel_name]
-            if not channels:
-                msg = f"Channel '{channel_name}' not found in export"
-                raise ValueError(msg)
-        all_messages = []
-        for channel in channels:
-            messages = self._parse_channel(source_path, channel, users)
-            all_messages.extend(messages)
-        if not all_messages:
-            logger.warning("No messages found in Slack export")
-            from egregora.database.schemas import (  # noqa: PLC0415 - avoid circular import
-                MESSAGE_SCHEMA,
-            )
-
-            empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
-            metadata = InputMetadata(
-                source_type=self.source_type,
-                group_name=channel_name or "Slack Export",
-                group_slug=self._slugify(channel_name or "slack-export"),
-                export_date=export_date or datetime.now(tz=UTC).date(),
-                timezone=str(timezone) if timezone else "UTC",
-            )
-            return (empty_table, metadata)
-        table = ibis.memtable(all_messages)
-        table = table.order_by("timestamp")
-        metadata = InputMetadata(
-            source_type=self.source_type,
-            group_name=channel_name or "Slack Export",
-            group_slug=self._slugify(channel_name or "slack-export"),
-            export_date=export_date or datetime.now(tz=UTC).date(),
-            timezone=str(timezone) if timezone else "UTC",
-            additional_metadata={"channel_count": len(channels), "message_count": len(all_messages)},
-        )
-        return (table, metadata)
-        """
-
     def adapter_meta(self) -> AdapterMeta:
         """Return adapter metadata for plugin discovery.
 

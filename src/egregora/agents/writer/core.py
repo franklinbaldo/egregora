@@ -131,7 +131,7 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     return author_counts.author.execute().tolist()
 
 
-def _process_tool_calls(  # noqa: C901, PLR0913
+def _process_tool_calls(
     candidate: genai_types.Candidate,
     output_dir: Path,
     profiles_dir: Path,
@@ -218,7 +218,7 @@ def _load_document_from_path(path: Path) -> Document | None:
 
     if content.startswith("---\n"):
         try:
-            import yaml  # noqa: PLC0415
+            import yaml
 
             end_marker = content.find("\n---\n", 4)
             if end_marker != -1:
@@ -229,7 +229,7 @@ def _load_document_from_path(path: Path) -> Document | None:
                 if not isinstance(metadata, dict):
                     logger.warning("Frontmatter is not a dict at %s", path)
                     metadata = {}
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("Failed to parse frontmatter at %s: %s", path, e)
 
     # Infer document type from path
@@ -254,7 +254,7 @@ def _load_document_from_path(path: Path) -> Document | None:
     )
 
 
-def index_documents_for_rag(output_format: OutputFormat, rag_dir: Path, *, embedding_model: str) -> int:  # noqa: C901
+def index_documents_for_rag(output_format: OutputFormat, rag_dir: Path, *, embedding_model: str) -> int:
     """Index new/changed documents using incremental indexing via OutputFormat.
 
     Uses OutputFormat.list_documents() to get storage identifiers and mtimes,
@@ -381,7 +381,7 @@ def index_documents_for_rag(output_format: OutputFormat, rag_dir: Path, *, embed
                 )
                 indexed_count += 1
                 logger.debug("Indexed document: %s", row.storage_identifier)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 # Don't let one failing document break incremental indexing
                 logger.warning("Failed to index document %s: %s", row.storage_identifier, e)
                 continue
@@ -389,7 +389,7 @@ def index_documents_for_rag(output_format: OutputFormat, rag_dir: Path, *, embed
         if indexed_count > 0:
             logger.info("Indexed %d new/changed documents in RAG (incremental)", indexed_count)
 
-        return indexed_count  # noqa: TRY300
+        return indexed_count
 
     except PromptTooLargeError:
         raise
@@ -571,7 +571,7 @@ def _write_posts_for_window_pydantic(
             )
             if indexed_count > 0:
                 logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # RAG indexing is non-critical - log error but don't fail
             logger.warning("Failed to update RAG index after writing: %s", e)
 

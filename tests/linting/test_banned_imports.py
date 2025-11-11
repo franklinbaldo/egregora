@@ -56,7 +56,7 @@ def is_in_type_checking_block(node: ast.Import | ast.ImportFrom, tree: ast.Modul
     return False
 
 
-def check_file_for_banned_imports(file_path: Path) -> list[str]:  # noqa: C901 - test validation function
+def check_file_for_banned_imports(file_path: Path) -> list[str]:
     """Check a Python file for banned pandas imports.
 
     Returns:

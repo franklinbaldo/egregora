@@ -40,7 +40,7 @@ def check_module(module: str, allowlist: set[str]) -> list[str]:
         if not line:
             continue
         path, *_ = line.split(":", 2)
-        if path.startswith("tests/") or path.startswith("tests_unit/"):
+        if path.startswith(("tests/", "tests_unit/")):
             continue
         if path in allowlist:
             continue
@@ -56,7 +56,6 @@ SUCCESS_ERROR_CODE = 0
 
 def main(argv: list[str]) -> int:
     if len(argv) < MIN_ARGS:
-        print("Usage: check_forbidden_imports.py <module> [<module> ...]", file=sys.stderr)
         return USAGE_ERROR_CODE
 
     allowlist = load_allowlist()
@@ -65,14 +64,8 @@ def main(argv: list[str]) -> int:
         failures.extend(check_module(module, allowlist))
 
     if failures:
-        print("Forbidden imports detected. Review the following lines:\n", file=sys.stderr)
-        print("\n".join(failures), file=sys.stderr)
         if allowlist:
-            print(
-                "\nIf these imports are intentional, add the file path to",
-                ALLOWLIST_PATH,
-                file=sys.stderr,
-            )
+            pass
         return FAILURE_ERROR_CODE
     return SUCCESS_ERROR_CODE
 
