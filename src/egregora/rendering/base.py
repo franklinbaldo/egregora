@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from ibis.expr.types import Table
+
     from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
 
 # Constants
@@ -690,7 +692,7 @@ def create_output_format(site_root: Path, format_type: str = "mkdocs") -> Output
     """
     # Ensure registry is populated by importing rendering module
     # This triggers registration in rendering/__init__.py
-    import egregora.rendering  # noqa: F401, PLC0415
+    import egregora.rendering
 
     # Get format class from registry
     output_format = output_registry.get_format(format_type)

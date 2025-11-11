@@ -199,7 +199,7 @@ class TestRagErrorHandling:
 
     @patch("egregora.agents.writer.context.VectorStore")
     @patch("egregora.agents.writer.context.query_similar_posts")
-    def test_rag_error_logging(  # noqa: PLR0913 - test fixtures
+    def test_rag_error_logging(
         self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir, caplog
     ):
         """Test that RAG errors are logged with full traceback."""

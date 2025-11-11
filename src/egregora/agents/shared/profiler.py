@@ -171,7 +171,7 @@ def _validate_alias(alias: str) -> str | None:
     return alias.replace("`", "&#96;")
 
 
-def apply_command_to_profile(  # noqa: C901
+def apply_command_to_profile(
     author_uuid: Annotated[str, "The anonymized author UUID"],
     command: Annotated[dict[str, Any], "The command dictionary from the parser"],
     timestamp: Annotated[str, "The timestamp of when the command was issued"],

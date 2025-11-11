@@ -160,7 +160,7 @@ def _process_single_url(
         try:
             markdown = run_url_enrichment(url_agent, url, prompts_dir=prompts_dir)
             cache.store(cache_key, {"markdown": markdown, "type": "url"})
-        except Exception as exc:  # noqa: BLE001 - log and continue enrichment
+        except Exception as exc:
             logger.warning("URL enrichment failed for %s: %s", url, exc)
             return None, ""
 
@@ -169,7 +169,7 @@ def _process_single_url(
     return enrichment_id_str, markdown
 
 
-def _process_single_media(  # noqa: PLR0913 - contextual params for enrichment
+def _process_single_media(
     ref: str,
     media_filename_lookup: dict[str, tuple[str, Path]],
     media_agent: Any,
@@ -214,7 +214,7 @@ def _process_single_media(  # noqa: PLR0913 - contextual params for enrichment
                 media_agent, file_path, mime_hint=media_type, prompts_dir=prompts_dir
             )
             cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
-        except Exception as exc:  # noqa: BLE001 - skip and continue pipeline
+        except Exception as exc:
             logger.warning("Media enrichment failed for %s (%s): %s", file_path, media_type, exc)
             return None, "", False
 
@@ -244,7 +244,7 @@ def _process_single_media(  # noqa: PLR0913 - contextual params for enrichment
     return enrichment_id_str, markdown_content, pii_detected
 
 
-def _enrich_urls(  # noqa: PLR0913 - contextual params for enrichment
+def _enrich_urls(
     messages_table: Table,
     url_agent: Any,
     cache: EnrichmentCache,
@@ -352,7 +352,7 @@ def _extract_media_references(
     return unique_media
 
 
-def _enrich_media(  # noqa: PLR0913 - contextual params for enrichment
+def _enrich_media(
     messages_table: Table,
     media_mapping: dict[str, Path],
     media_agent: Any,
@@ -491,7 +491,7 @@ def _persist_to_duckdb(
         target_table: Target table name
 
     """
-    from egregora.database import schemas  # noqa: PLC0415 - avoid circular import
+    from egregora.database import schemas
 
     if not re.fullmatch("[A-Za-z_][A-Za-z0-9_]*", target_table):
         msg = "target_table must be a valid DuckDB identifier"

@@ -277,7 +277,7 @@ class JournalEntry:
     tool_name: str | None = None
 
 
-def _extract_intercalated_log(messages: Any) -> list[JournalEntry]:  # noqa: C901
+def _extract_intercalated_log(messages: Any) -> list[JournalEntry]:
     """Extract intercalated journal log preserving actual execution order.
 
     Processes agent message history to create a timeline showing:
@@ -574,7 +574,7 @@ def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:
     return (saved_posts, saved_profiles)
 
 
-def _register_writer_tools(  # noqa: C901
+def _register_writer_tools(
     agent: Agent[WriterAgentState, WriterAgentReturn],
     *,
     enable_banner: bool = False,
@@ -778,7 +778,7 @@ def _validate_prompt_fits(
         PromptTooLargeError: If prompt exceeds hard model limit
 
     """
-    from egregora.agents.model_limits import (  # noqa: PLC0415
+    from egregora.agents.model_limits import (
         PromptTooLargeError,
         get_model_context_limit,
         validate_prompt_fits,

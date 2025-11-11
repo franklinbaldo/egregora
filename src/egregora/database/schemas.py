@@ -20,7 +20,7 @@ for improved maintainability and single source of truth.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
 import duckdb

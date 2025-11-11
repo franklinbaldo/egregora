@@ -247,7 +247,7 @@ def get_current_trace_id() -> str | None:
         if span and span.get_span_context().is_valid:
             # Format trace ID as 32-character hex string
             return format(span.get_span_context().trace_id, "032x")
-    except Exception:  # noqa: BLE001 - Optional telemetry must not break pipeline
+    except Exception:
         # Gracefully handle any OTEL errors
         return None
     else:

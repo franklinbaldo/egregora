@@ -128,10 +128,10 @@ def _install_google_stubs() -> None:
 _install_google_stubs()
 
 # Imports below require sys.path setup above
-from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file  # noqa: E402
-from egregora.types import GroupSlug  # noqa: E402
-from egregora.utils.zip import validate_zip_contents  # noqa: E402
-from tests.utils.mock_batch_client import MockGeminiClient  # noqa: E402
+from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
+from egregora.types import GroupSlug
+from egregora.utils.zip import validate_zip_contents
+from tests.utils.mock_batch_client import MockGeminiClient
 
 
 @pytest.fixture(autouse=True)

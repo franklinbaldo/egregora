@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 import ibis
 import ibis.expr.datatypes as dt
 import pytest
+from pydantic import ValidationError
 
 from egregora.database.validation import (
     IR_V1_SCHEMA,
@@ -116,7 +117,7 @@ class TestIRv1Row:
 
     def test_invalid_tenant_id_empty(self):
         """Test empty tenant_id fails validation."""
-        with pytest.raises(Exception):  # Pydantic ValidationError
+        with pytest.raises(ValidationError, match="tenant_id"):
             IRv1Row(
                 event_id=uuid.uuid4(),
                 tenant_id="",  # Empty string
@@ -131,7 +132,7 @@ class TestIRv1Row:
 
     def test_invalid_source_uppercase(self):
         """Test uppercase source fails validation."""
-        with pytest.raises(Exception):  # Pydantic ValidationError
+        with pytest.raises(ValidationError, match="source"):
             IRv1Row(
                 event_id=uuid.uuid4(),
                 tenant_id="default",

@@ -27,7 +27,7 @@ def configure_logfire() -> bool:
         logger.info("LOGFIRE_TOKEN not set, skipping Logfire configuration")
         return False
     try:
-        import logfire  # noqa: PLC0415
+        import logfire
     except ImportError:
         logger.warning("logfire package not installed, skipping configuration")
         return False
@@ -45,7 +45,7 @@ def get_logfire() -> ModuleType | None:
 
     """
     try:
-        import logfire  # noqa: PLC0415
+        import logfire
     except ImportError:
         return None
     else:

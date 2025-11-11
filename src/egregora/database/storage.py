@@ -167,7 +167,7 @@ class StorageManager:
     def execute_view(
         self,
         view_name: str,
-        builder: "ViewBuilder",  # type: ignore  # noqa: F821
+        builder: "ViewBuilder",  # type: ignore[name-defined]
         input_table: str,
         *,
         checkpoint: bool = True,
@@ -279,7 +279,7 @@ class StorageManager:
         """Context manager entry."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore[no-untyped-def]
         """Context manager exit - closes connection."""
         self.close()
 

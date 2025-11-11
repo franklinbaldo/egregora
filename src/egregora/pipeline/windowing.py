@@ -124,7 +124,7 @@ class Window:
     size: int  # Number of messages
 
 
-def create_windows(  # noqa: PLR0913
+def create_windows(
     table: Table,
     *,
     step_size: int = 100,

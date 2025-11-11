@@ -322,7 +322,7 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
 
 
 @app.command()
-def write(  # noqa: PLR0913 - CLI commands naturally have many parameters
+def write(
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     source: Annotated[str, typer.Option(help="Source type: 'whatsapp' or 'slack'")] = "whatsapp",
@@ -425,7 +425,7 @@ def write(  # noqa: PLR0913 - CLI commands naturally have many parameters
 
 
 @app.command()
-def edit(  # noqa: PLR0913 - CLI commands naturally have many parameters
+def edit(
     post_path: Annotated[Path, typer.Argument(help="Path to the post markdown file")],
     *,
     site_dir: Annotated[
@@ -587,7 +587,7 @@ def agents_lint(site_dir: Annotated[Path, typer.Option(help="Site directory")] =
         raise typer.Exit(1)
 
 
-def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: C901, PLR0915 - Complex due to nested command registration
+def _register_ranking_cli(app: typer.Typer) -> None:
     """Register ranking commands when the optional extra is installed."""
     try:
         ranking_agent = importlib.import_module("egregora.agents.ranking")
@@ -624,7 +624,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: C901, PLR0915 - Co
         logger.debug("Ranking extra unavailable: %s", missing)
         return
 
-    def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None) -> None:  # noqa: C901, PLR0915 - Complex ranking loop with error handling
+    def _run_ranking_session(config: RankingCliConfig, gemini_key: str | None) -> None:
         if config.debug:
             logging.getLogger().setLevel(logging.DEBUG)
         site_path = config.site_dir.resolve()
@@ -676,7 +676,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: C901, PLR0915 - Co
                 default_profile.parent.mkdir(parents=True, exist_ok=True)
                 default_profile.write_text("---\nuuid: judge\nalias: Judge\n---\nA fair and balanced judge.")
                 profile_files = [default_profile]
-            profile_path = random.choice(profile_files)  # noqa: S311 - Not cryptographic, just selecting a judge
+            profile_path = random.choice(profile_files)
             # Resolve prompts directory
             prompts_dir = (
                 site_path / ".egregora" / "prompts"
@@ -713,7 +713,7 @@ def _register_ranking_cli(app: typer.Typer) -> None:  # noqa: C901, PLR0915 - Co
         )
 
     @app.command()
-    def rank(  # noqa: PLR0913 - CLI commands naturally have many parameters
+    def rank(
         site_dir: Annotated[Path, typer.Argument(help="Path to MkDocs site directory")],
         *,
         comparisons: Annotated[int, typer.Option(help="Number of comparisons to run")] = 1,
@@ -847,7 +847,7 @@ def _filter_messages_by_date(
 
 
 @app.command()
-def group(  # noqa: PLR0913
+def group(
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file from parse stage")],
     step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
     step_unit: Annotated[str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days'")] = "days",
@@ -913,7 +913,7 @@ def group(  # noqa: PLR0913
 
 
 @app.command()
-def enrich(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and statements
+def enrich(
     input_csv: Annotated[Path, typer.Argument(help="Input CSV file (from parse or group stage)")],
     *,
     zip_file: Annotated[Path, typer.Option(help="Original WhatsApp ZIP file (for media extraction)")],
@@ -1020,7 +1020,7 @@ def enrich(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and sta
 
 
 @app.command()
-def gather_context(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and statements
+def gather_context(
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     *,
     window_id: Annotated[str, typer.Option(help="Window identifier (e.g., 2025-01-01 or custom label)")],
@@ -1131,7 +1131,7 @@ def gather_context(  # noqa: PLR0913, PLR0915 - CLI command with many parameters
 
 
 @app.command()
-def write_posts(  # noqa: PLR0913, PLR0915 - CLI command with many parameters and statements
+def write_posts(
     input_csv: Annotated[Path, typer.Argument(help="Input enriched CSV file")],
     *,
     window_id: Annotated[str, typer.Option(help="Window identifier (e.g., 2025-01-01 or custom label)")],
@@ -1476,7 +1476,7 @@ def cache_gc(
         except ValueError:
             console.print(f"[red]Error: Invalid size format '{max_size}'[/red]")
             console.print("Valid formats: '10GB', '500MB', '1KB', or raw bytes")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
         console.print(f"[cyan]Garbage collecting checkpoints (max size: {max_size})...[/cyan]")
         count = gc_checkpoints_by_size(max_size_bytes=max_size_bytes, cache_dir=cache_dir)
@@ -1593,9 +1593,9 @@ def views_create(
 
         console.print(f"[green]✅ Created {len(registry.list_views())} views[/green]")
 
-    except Exception as e:  # noqa: BLE001 - CLI handler needs to catch all errors for user-friendly messages
+    except Exception as e:
         console.print(f"[red]Error creating views: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     finally:
         conn.close()
@@ -1664,9 +1664,9 @@ def views_refresh(
             registry.refresh_all()
             console.print(f"[green]✅ Refreshed {len(materialized_views)} views[/green]")
 
-    except Exception as e:  # noqa: BLE001 - CLI handler needs to catch all errors for user-friendly messages
+    except Exception as e:
         console.print(f"[red]Error refreshing views: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     finally:
         conn.close()
@@ -1750,9 +1750,9 @@ def views_drop(
             registry.drop_all()
             console.print(f"[green]✅ Dropped {view_count} views[/green]")
 
-    except Exception as e:  # noqa: BLE001 - CLI handler needs to catch all errors for user-friendly messages
+    except Exception as e:
         console.print(f"[red]Error dropping views: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     finally:
         conn.close()
@@ -2114,9 +2114,9 @@ def adapters(
             console.print(table)
             console.print(f"\n[dim]Total adapters: {len(adapters_list)}[/dim]")
 
-    except Exception as e:  # noqa: BLE001 - CLI handler needs to catch all errors for user-friendly messages
+    except Exception as e:
         console.print(f"[red]Error listing adapters: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 def main() -> None:

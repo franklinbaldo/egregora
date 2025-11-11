@@ -164,8 +164,8 @@ def _process_window_with_auto_split(
         RuntimeError: If max split depth reached (indicates miscalculation)
 
     """
-    from egregora.agents.model_limits import PromptTooLargeError  # noqa: PLC0415
-    from egregora.pipeline import split_window_into_n_parts  # noqa: PLC0415
+    from egregora.agents.model_limits import PromptTooLargeError
+    from egregora.pipeline import split_window_into_n_parts
 
     # Constants
     min_window_size = 5  # Minimum messages before we stop splitting
@@ -206,7 +206,7 @@ def _process_window_with_auto_split(
         )
 
         # Calculate how many splits we need upfront (deterministic, not iterative)
-        import math  # noqa: PLC0415
+        import math
 
         num_splits = math.ceil(e.estimated_tokens / e.effective_limit)
         logger.info("%s↳ [dim]Splitting into %d parts[/]", indent, num_splits)
@@ -277,7 +277,7 @@ def _process_all_windows(
                 input_fingerprint=input_fingerprint,
                 trace_id=trace_id,
             )
-        except Exception as e:  # noqa: BLE001 - tracking failures should not block pipeline
+        except Exception as e:
             logger.warning("Failed to record run start: %s", e)
 
         # Process window
@@ -307,7 +307,7 @@ def _process_all_windows(
                     posts_count,
                     profiles_count,
                 )
-            except Exception as e:  # noqa: BLE001 - tracking failures should not block pipeline
+            except Exception as e:
                 logger.warning("Failed to record run completion: %s", e)
 
         except Exception as e:
@@ -327,7 +327,7 @@ def _process_all_windows(
                     """,
                     [finished_at, (finished_at - started_at).total_seconds(), error_msg, str(run_id)],
                 )
-            except Exception as update_err:  # noqa: BLE001 - tracking failures should not block pipeline
+            except Exception as update_err:
                 logger.warning("Failed to record run failure: %s", update_err)
 
             # Re-raise the original exception
@@ -336,7 +336,7 @@ def _process_all_windows(
     return results
 
 
-def _perform_enrichment(  # noqa: PLR0913
+def _perform_enrichment(
     window_table: ir.Table,
     media_mapping: dict[str, Path],
     config: EgregoraConfig,
@@ -542,7 +542,7 @@ def _process_commands_and_avatars(
 
 
 def _index_media_into_rag(
-    enable_enrichment: bool,  # noqa: FBT001 - internal helper function
+    enable_enrichment: bool,
     results: dict,
     site_paths: any,
     embedding_model: str,
@@ -604,7 +604,7 @@ def _save_checkpoint(results: dict, messages_table: ir.Table, checkpoint_path: P
     )
 
 
-def _apply_filters(  # noqa: C901 - acceptable complexity for filter composition
+def _apply_filters(
     messages_table: ir.Table,
     site_paths: any,
     from_date: date_type | None,
@@ -683,7 +683,7 @@ def _apply_filters(  # noqa: C901 - acceptable complexity for filter composition
     return messages_table
 
 
-def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901 - refactored from complexity 50 to 17
+def run_source_pipeline(
     source: str,
     input_path: Path,
     output_dir: Path,
@@ -818,7 +818,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901 - refactored f
         profiles_dir = site_paths.profiles_dir
 
         # Create OutputFormat for RAG indexing (storage-agnostic)
-        from egregora.rendering import create_output_format  # noqa: PLC0415
+        from egregora.rendering import create_output_format
 
         format_type = config.output.format
         output_format = create_output_format(output_dir, format_type=format_type)
@@ -829,7 +829,7 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901 - refactored f
         if config.rag.enabled:
             logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
             try:
-                from egregora.agents.writer.core import index_documents_for_rag  # noqa: PLC0415
+                from egregora.agents.writer.core import index_documents_for_rag
 
                 indexed_count = index_documents_for_rag(
                     output_format, site_paths.rag_dir, embedding_model=embedding_model

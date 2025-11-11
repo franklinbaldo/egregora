@@ -33,7 +33,7 @@ class RagErrorReason:
     SYSTEM_ERROR = "rag_error"
 
 
-def build_rag_context_for_prompt(  # noqa: PLR0913
+def build_rag_context_for_prompt(
     table_markdown: str,
     rag_dir: Path,
     client: genai.Client,
@@ -119,7 +119,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
     return "\n".join(lines).strip()
 
 
-def _query_rag_for_context(  # noqa: PLR0913
+def _query_rag_for_context(
     table: Table,
     _client: genai.Client,
     rag_dir: Path,

@@ -422,7 +422,7 @@ class MkDocsDocumentStorage:
             metadata = yaml.safe_load(frontmatter_text) or {}
             if not isinstance(metadata, dict):
                 return {}, content
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("Failed to parse frontmatter: %s", e)
             return {}, content
         else:

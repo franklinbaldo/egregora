@@ -47,7 +47,7 @@ class TestStorageManagerInit:
             assert storage.conn is not None
 
         # Connection should be closed after exit
-        with pytest.raises(duckdb.ConnectionException):  # type: ignore
+        with pytest.raises(duckdb.ConnectionException):  # type: ignore[attr-defined]
             storage.conn.execute("SELECT 1")
 
 

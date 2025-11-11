@@ -12,6 +12,7 @@ Property tests validate:
 See: src/egregora/privacy/gate.py
 """
 
+from dataclasses import FrozenInstanceError
 from datetime import datetime
 from uuid import uuid4
 
@@ -57,7 +58,7 @@ def test_privacy_pass_immutability():
 
     # NamedTuples are immutable
     with pytest.raises(AttributeError):
-        privacy_pass.tenant_id = "hacked"  # type: ignore
+        privacy_pass.tenant_id = "hacked"  # type: ignore[misc]
 
 
 def test_privacy_pass_repr():
@@ -180,7 +181,7 @@ def test_privacy_config_with_custom_values():
 
 def test_privacy_config_reidentification_validation():
     """PrivacyConfig validation: retention days must be >= 1."""
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(ValueError, match="reidentification_retention_days must be >= 1") as exc_info:
         PrivacyConfig(
             tenant_id="test",
             reidentification_retention_days=0,  # Invalid: must be >= 1
@@ -194,8 +195,8 @@ def test_privacy_config_immutability():
     config = PrivacyConfig(tenant_id="default")
 
     # Frozen dataclass prevents modification
-    with pytest.raises(Exception):  # FrozenInstanceError or AttributeError
-        config.tenant_id = "hacked"  # type: ignore
+    with pytest.raises(FrozenInstanceError):
+        config.tenant_id = "hacked"  # type: ignore[misc]
 
 
 # ============================================================================

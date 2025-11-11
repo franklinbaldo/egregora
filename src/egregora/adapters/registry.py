@@ -275,7 +275,7 @@ def get_global_registry() -> AdapterRegistry:
         >>> adapter = registry.get("whatsapp")
 
     """
-    global _global_registry  # noqa: PLW0603
+    global _global_registry
     if _global_registry is None:
         _global_registry = AdapterRegistry()
     return _global_registry

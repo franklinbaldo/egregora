@@ -250,9 +250,9 @@ class TestSchemaValidationErrors:
         data = {"event_id": [1], "tenant_id": ["test"]}
         table = ibis.memtable(pd.DataFrame(data))
 
-        with pytest.raises(SchemaError, match="IR v1 schema mismatch"):
-            from egregora.database.validation import validate_ir_schema
+        from egregora.database.validation import validate_ir_schema
 
+        with pytest.raises(SchemaError, match="IR v1 schema mismatch"):
             validate_ir_schema(table)
 
     def test_extra_columns_allowed(self) -> None:
@@ -283,10 +283,10 @@ class TestSchemaValidationErrors:
         }
         table = ibis.memtable(pd.DataFrame(data))
 
+        from egregora.database.validation import validate_ir_schema
+
         # Should raise because extra columns are not allowed
         with pytest.raises(SchemaError, match="Extra columns"):
-            from egregora.database.validation import validate_ir_schema
-
             validate_ir_schema(table)
 
 
