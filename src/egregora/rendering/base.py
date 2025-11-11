@@ -34,7 +34,32 @@ class OutputFormat(ABC):
     3. Managing author profiles
     4. Resolving site paths and configuration
     5. Generating any format-specific files (config, templates, etc.)
+
+    Directory Structure Properties:
+        These properties define the conventional directory names for this format.
+        Subclasses should override these to match their format's conventions.
+        For example, Hugo might use "static" instead of "media", "authors" instead of "profiles".
     """
+
+    @property
+    def docs_dir_name(self) -> str:
+        """Default name for the documentation directory."""
+        return "docs"
+
+    @property
+    def blog_dir_name(self) -> str:
+        """Default name for the blog directory (relative to docs_dir)."""
+        return "."
+
+    @property
+    def profiles_dir_name(self) -> str:
+        """Name for the author profiles directory."""
+        return "profiles"
+
+    @property
+    def media_dir_name(self) -> str:
+        """Name for the media/assets directory."""
+        return "media"
 
     @abstractmethod
     def scaffold_site(self, site_root: Path, site_name: str, **kwargs: object) -> tuple[Path, bool]:
