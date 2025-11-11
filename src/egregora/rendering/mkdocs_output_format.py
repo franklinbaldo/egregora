@@ -251,16 +251,9 @@ class MkDocsOutputFormat:
         if not path.exists():
             return None
 
-        try:
-            # Try to load and reconstruct document to get its document_id
-            # For now, just check if it's the same content
-            # In production, this would parse frontmatter and reconstruct Document
-            content = path.read_text(encoding="utf-8")
-            # Simple heuristic - if content matches, it's the same document
-            # Real implementation would parse frontmatter to get document_id
-            return None  # For now, assume different document
-        except (OSError, UnicodeDecodeError):
-            return None
+        # TODO: Parse frontmatter to extract document_id for proper idempotency
+        # For now, assume different document (conservative approach - will cause collision handling)
+        return None
 
     def _resolve_collision(self, path: Path, document_id: str) -> Path:
         """Resolve path collision by adding numeric suffix.
