@@ -354,8 +354,11 @@ class MkDocsEnrichmentStorage:
     """Filesystem-based enrichment storage.
 
     Structure:
-        site_root/media/urls/{enrichment_id}.md    # URL enrichments
-        site_root/docs/{filename}.md               # Media enrichments
+        site_root/docs/media/urls/{enrichment_id}.md    # URL enrichments
+        site_root/docs/media/{filename}.md              # Media enrichments
+
+    All enrichments live inside docs/media/ so MkDocs publishes them and
+    list_documents() includes them in RAG indexing.
 
     URL enrichments use deterministic UUIDs based on the URL.
     Media enrichments are stored next to the media file with .md extension.
@@ -368,11 +371,11 @@ class MkDocsEnrichmentStorage:
             site_root: Root directory for MkDocs site
 
         Side Effects:
-            Creates media/urls/ directory if it doesn't exist
+            Creates docs/media/urls/ directory if it doesn't exist
 
         """
         self.site_root = site_root
-        self.urls_dir = site_root / "media" / "urls"
+        self.urls_dir = site_root / "docs" / "media" / "urls"
         self.urls_dir.mkdir(parents=True, exist_ok=True)
 
     def write_url_enrichment(self, url: str, content: str) -> str:
@@ -383,7 +386,7 @@ class MkDocsEnrichmentStorage:
             content: Markdown enrichment content
 
         Returns:
-            Relative path string (e.g., "media/urls/{uuid}.md")
+            Relative path string (e.g., "docs/media/urls/{uuid}.md")
 
         Note:
             Uses deterministic UUID (uuid5 with NAMESPACE_URL)

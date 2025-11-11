@@ -186,7 +186,7 @@ class EnrichmentStorage(Protocol):
             content: Markdown enrichment content (LLM-generated description)
 
         Returns:
-            Opaque identifier (e.g., "media/urls/{uuid}.md")
+            Opaque identifier (e.g., "docs/media/urls/{uuid}.md")
 
         Note:
             Implementation should generate deterministic ID from URL
