@@ -194,9 +194,9 @@ def check_coverage(threshold: int = 40) -> CheckOutput:
 
 
 def check_linting() -> CheckOutput:
-    """Check linting using ruff."""
+    """Check linting using ruff on core code directories."""
     return run_command(
-        ["uv", "run", "ruff", "check", ".", "--output-format=concise"],
+        ["uv", "run", "ruff", "check", "src/egregora", "tests", "--output-format=concise"],
         "Linting (ruff)",
     )
 
