@@ -26,7 +26,8 @@ from egregora.utils.write_post import write_post as write_mkdocs_post
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
-    from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
+    # DEPRECATED Phase 5: Old storage protocols removed
+    # from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
 
 logger = logging.getLogger(__name__)
 

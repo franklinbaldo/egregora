@@ -42,7 +42,8 @@ from egregora.prompt_templates import WriterPromptTemplate
 from egregora.rendering import create_output_format, output_registry
 from egregora.rendering.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
 from egregora.rendering.mkdocs_output_format import MkDocsOutputFormat
-from egregora.storage.legacy_adapter import LegacyStorageAdapter
+
+# from egregora.storage.legacy_adapter import LegacyStorageAdapter  # DEPRECATED Phase 5
 from egregora.storage.url_convention import UrlContext
 
 if TYPE_CHECKING:
@@ -485,14 +486,9 @@ def _write_posts_for_window_pydantic(
         storage_root / ".egregora" / "prompts" if (storage_root / ".egregora" / "prompts").is_dir() else None
     )
 
-    # MODERN (Phase 3): Create document storage adapter for backward compatibility
-    # Wraps old storage protocols to work with Document abstraction
-    document_storage = LegacyStorageAdapter(
-        post_storage=posts_storage,
-        profile_storage=profiles_storage,
-        journal_storage=journals_storage,
-        site_root=storage_root,
-    )
+    # DEPRECATED Phase 5: LegacyStorageAdapter removed
+    # All document persistence now uses OutputFormat directly
+    document_storage = None
 
     # MODERN (Phase 4): Create backend-agnostic publishing components
     # URL convention and output format for perfect separation
