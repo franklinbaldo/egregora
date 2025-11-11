@@ -7,6 +7,12 @@ description: Generate relevant memes using the memegen.link API. Use this skill 
 
 This skill enables creation of memes using the free and open-source memegen.link API.
 
+## Quick Reference
+
+**For comprehensive meme creation guidance:**
+- See [Complete Markdown Memes Guide](complete-markdown-memes-guide.md) for **15+ textual meme formats** (greentext, copypasta, ASCII art, chat logs, Reddit AITA, Tumblr chains, wojak dialogues, etc.) AND image meme techniques
+- This file focuses on the **memegen.link API** for image meme generation
+
 ## Overview
 
 The memegen.link API allows you to:
