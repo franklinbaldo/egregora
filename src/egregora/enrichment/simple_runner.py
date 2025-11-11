@@ -507,9 +507,9 @@ def _persist_to_duckdb(
         quoted_view = schemas.quote_identifier(temp_view)
         duckdb_connection.raw_sql("BEGIN TRANSACTION")
         try:
-            duckdb_connection.raw_sql(f"DELETE FROM {quoted_table}")
+            duckdb_connection.raw_sql(f"DELETE FROM {quoted_table}")  # nosec B608 - quoted_table uses quote_identifier (line 501)
             duckdb_connection.raw_sql(
-                f"INSERT INTO {quoted_table} ({column_list}) SELECT {column_list} FROM {quoted_view}"
+                f"INSERT INTO {quoted_table} ({column_list}) SELECT {column_list} FROM {quoted_view}"  # nosec B608 - all identifiers quoted (lines 501-502, 507)
             )
             duckdb_connection.raw_sql("COMMIT")
         except Exception:

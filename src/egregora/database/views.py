@@ -219,7 +219,7 @@ class ViewRegistry:
             raise KeyError(msg)
 
         try:
-            return self.connection.execute(f"SELECT * FROM {name}").fetchdf()
+            return self.connection.execute(f"SELECT * FROM {name}").fetchdf()  # nosec B608 - name is registered view identifier
         except duckdb.Error as e:
             logger.exception("Failed to query view '%s': %s", name, e)
             raise
@@ -373,7 +373,7 @@ def register_common_views(
                 FROM {table_name}
                 GROUP BY author
                 ORDER BY message_count DESC
-            """,
+            """,  # nosec B608 - table_name is constant from caller
             materialized=True,
             dependencies=(table_name,),
             description="Message counts per author with temporal bounds",
@@ -399,7 +399,7 @@ def register_common_views(
                 FROM {table_name}
                 WHERE media_path IS NOT NULL
                 ORDER BY timestamp
-            """,
+            """,  # nosec B608 - table_name is constant from caller
             materialized=True,
             dependencies=(table_name,),
             description="Messages containing media attachments",
@@ -415,7 +415,7 @@ def register_common_views(
                 FROM {table_name}
                 GROUP BY hour
                 ORDER BY hour
-            """,
+            """,  # nosec B608 - table_name is constant from caller
             materialized=True,
             dependencies=(table_name,),
             description="Message counts and active authors per hour",
@@ -431,7 +431,7 @@ def register_common_views(
                 FROM {table_name}
                 GROUP BY day
                 ORDER BY day
-            """,
+            """,  # nosec B608 - table_name is constant from caller
             materialized=True,
             dependencies=(table_name,),
             description="Message counts and active authors per day",

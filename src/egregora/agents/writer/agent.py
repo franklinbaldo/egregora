@@ -409,13 +409,133 @@ def _save_journal_to_file(
     try:
         journal_id = journals.write(window_label, journal_content)
         logger.info("Saved journal entry: %s", journal_id)
-        return journal_id
     except Exception:
         logger.exception("Failed to write journal for window %s", window_label)
         return None
+    else:
+        return journal_id
 
 
-def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:  # noqa: C901, PLR0912, PLR0915
+def _parse_content_to_dict(content: Any) -> dict | None:
+    """Parse tool result content into a dictionary.
+
+    Handles multiple content formats:
+    - JSON strings
+    - Pydantic models with model_dump()
+    - Objects with __dict__
+    - Raw dictionaries
+
+    Args:
+        content: Content to parse (str, Pydantic model, or object)
+
+    Returns:
+        Parsed dictionary or None if parsing fails
+
+    """
+    if isinstance(content, str):
+        try:
+            return json.loads(content)
+        except (json.JSONDecodeError, ValueError):
+            return None
+    if hasattr(content, "model_dump"):
+        return content.model_dump()
+    if hasattr(content, "__dict__"):
+        return vars(content)
+    if isinstance(content, dict):
+        return content
+    return None
+
+
+def _categorize_tool_result(tool_name: str | None, doc_id: str) -> tuple[str | None, str]:
+    """Determine if tool result is a post or profile.
+
+    Uses tool name first, falls back to path heuristics for legacy messages.
+
+    Args:
+        tool_name: Tool name if available (e.g., "write_post_tool")
+        doc_id: Document ID/path string
+
+    Returns:
+        Tuple of ("post"|"profile"|None, doc_id). None if type cannot be determined.
+
+    """
+    # Primary: Use tool name
+    if tool_name == "write_post_tool":
+        return ("post", doc_id)
+    if tool_name == "write_profile_tool":
+        return ("profile", doc_id)
+
+    # Fallback: Use path heuristics for legacy messages
+    if "/posts/" in doc_id or doc_id.endswith(".md"):
+        return ("post", doc_id)
+    if "/profiles/" in doc_id:
+        return ("profile", doc_id)
+
+    return (None, doc_id)
+
+
+def _extract_from_success_result(data: dict, tool_name: str | None) -> tuple[list[str], list[str]]:
+    """Extract document IDs from a successful tool result dictionary.
+
+    Args:
+        data: Parsed tool result dictionary
+        tool_name: Tool name (used to categorize result)
+
+    Returns:
+        Tuple of (saved_posts, saved_profiles)
+
+    """
+    saved_posts: list[str] = []
+    saved_profiles: list[str] = []
+
+    if data.get("status") == "success" and "path" in data:
+        doc_id = data["path"]
+        result_type, doc_id = _categorize_tool_result(tool_name, doc_id)
+
+        if result_type == "post":
+            saved_posts.append(doc_id)
+        elif result_type == "profile":
+            saved_profiles.append(doc_id)
+
+    return (saved_posts, saved_profiles)
+
+
+def _extract_from_tool_return_part(part: ToolReturnPart) -> tuple[list[str], list[str]]:
+    """Extract document IDs from a ToolReturnPart message.
+
+    Args:
+        part: ToolReturnPart with parsed result
+
+    Returns:
+        Tuple of (saved_posts, saved_profiles)
+
+    """
+    parsed = _parse_content_to_dict(part.content)
+    if parsed is None:
+        return ([], [])
+
+    return _extract_from_success_result(parsed, part.tool_name)
+
+
+def _extract_from_legacy_tool_return(message: Any) -> tuple[list[str], list[str]]:
+    """Extract document IDs from legacy tool-return message.
+
+    Args:
+        message: Legacy tool-return message with kind="tool-return"
+
+    Returns:
+        Tuple of (saved_posts, saved_profiles)
+
+    """
+    parsed = _parse_content_to_dict(message.content)
+    if parsed is None:
+        return ([], [])
+
+    tool_name = getattr(message, "tool_name", None)
+    return _extract_from_success_result(parsed, tool_name)
+
+
+def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:
     """Extract saved post and profile document IDs from agent message history.
 
     Parses the agent's tool call results to find WritePostResult and
@@ -432,70 +552,22 @@ def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:  # noqa
     saved_posts: list[str] = []
     saved_profiles: list[str] = []
 
-    # Try to iterate through messages
     try:
         for message in messages:
-            # Check if this message has parts (ModelResponse structure)
+            # Handle ModelResponse messages with parts
             if hasattr(message, "parts"):
                 for part in message.parts:
-                    # Look for tool return parts
                     if isinstance(part, ToolReturnPart):
-                        # Parse the content - it might be JSON or a Pydantic model
-                        content = part.content
-                        if isinstance(content, str):
-                            try:
-                                data = json.loads(content)
-                            except (json.JSONDecodeError, ValueError):
-                                continue
-                        elif hasattr(content, "model_dump"):
-                            data = content.model_dump()
-                        elif hasattr(content, "__dict__"):
-                            data = vars(content)
-                        else:
-                            data = content
+                        posts, profiles = _extract_from_tool_return_part(part)
+                        saved_posts.extend(posts)
+                        saved_profiles.extend(profiles)
 
-                        # Extract document ID from WritePostResult or WriteProfileResult
-                        if isinstance(data, dict):
-                            if data.get("status") == "success" and "path" in data:
-                                doc_id = data["path"]
-                                # Use tool name to determine document type (not filesystem path)
-                                if part.tool_name == "write_post_tool":
-                                    saved_posts.append(doc_id)
-                                elif part.tool_name == "write_profile_tool":
-                                    saved_profiles.append(doc_id)
-            # Fallback: Check if this is a legacy tool-return message
+            # Handle legacy tool-return messages
             elif hasattr(message, "kind") and message.kind == "tool-return":
-                # Parse the content - it might be JSON or a Pydantic model
-                content = message.content
-                if isinstance(content, str):
-                    try:
-                        data = json.loads(content)
-                    except (json.JSONDecodeError, ValueError):
-                        continue
-                elif hasattr(content, "model_dump"):
-                    data = content.model_dump()
-                elif hasattr(content, "__dict__"):
-                    data = vars(content)
-                else:
-                    data = content
+                posts, profiles = _extract_from_legacy_tool_return(message)
+                saved_posts.extend(posts)
+                saved_profiles.extend(profiles)
 
-                # Extract path from WritePostResult or WriteProfileResult
-                # Use tool_name if available, otherwise fall back to path heuristics
-                if isinstance(data, dict):
-                    if data.get("status") == "success" and "path" in data:
-                        doc_id = data["path"]
-                        # Try to get tool_name from message
-                        if hasattr(message, "tool_name"):
-                            if message.tool_name == "write_post_tool":
-                                saved_posts.append(doc_id)
-                            elif message.tool_name == "write_profile_tool":
-                                saved_profiles.append(doc_id)
-                        # Legacy fallback: Determine type based on path patterns
-                        # This supports old-style filesystem paths
-                        elif "/posts/" in doc_id or doc_id.endswith(".md"):
-                            saved_posts.append(doc_id)
-                        elif "/profiles/" in doc_id:
-                            saved_profiles.append(doc_id)
     except (AttributeError, TypeError) as e:
         logger.debug("Could not parse tool results: %s", e)
 
@@ -633,73 +705,85 @@ def _register_writer_tools(  # noqa: C901
             return BannerResult(status="failed", path=None)
 
 
-def write_posts_with_pydantic_agent(  # noqa: PLR0915
-    *,
-    prompt: str,
+def _setup_agent_and_state(
     config: EgregoraConfig,
     context: WriterRuntimeContext,
     test_model: Any | None = None,
-) -> tuple[list[str], list[str]]:
-    """Execute the writer flow using Pydantic-AI agent tooling.
-
-    MODERN (Phase 2): Reduced from 12 parameters to 3 (prompt, config, context).
+) -> tuple[Agent[WriterAgentState, WriterAgentReturn], WriterAgentState, str]:
+    """Set up writer agent and execution state.
 
     Args:
-        prompt: System prompt for the writer agent
-        config: Egregora configuration (models, RAG, writer settings)
-        context: Runtime context (paths, client, period info)
-        test_model: Optional test model for unit tests (bypasses config.models.writer)
+        config: Egregora configuration
+        context: Runtime context
+        test_model: Optional test model override
 
     Returns:
-        Tuple (saved_posts, saved_profiles)
+        Tuple of (agent, state, window_label)
 
     """
-    logger.info("Running writer via Pydantic-AI backend")
-
-    # Extract values from config and context (Phase 2)
+    # Extract model names from config
     model_name = test_model if test_model is not None else config.models.writer
     embedding_model = config.models.embedding
     retrieval_mode = config.rag.mode
     retrieval_nprobe = config.rag.nprobe
     retrieval_overfetch = config.rag.overfetch
 
-    # Always use structured tool calling mode (Pydantic AI with tools)
+    # Create and configure agent
     agent = Agent[WriterAgentState, WriterAgentReturn](model=model_name, deps_type=WriterAgentState)
     _register_writer_tools(
         agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available()
     )
 
-    # Generate window identifier for logging
+    # Generate window label for logging
     window_label = f"{context.start_time:%Y-%m-%d %H:%M} to {context.end_time:%H:%M}"
 
+    # Build execution state
     state = WriterAgentState(
         window_id=window_label,
-        # Storage protocols
         posts=context.posts,
         profiles=context.profiles,
         journals=context.journals,
-        # Document storage (MODERN Phase 3)
         document_storage=context.document_storage,
-        # Pre-constructed stores
         rag_store=context.rag_store,
         annotations_store=context.annotations_store,
-        # LLM client
         batch_client=context.client,
-        # RAG configuration
         embedding_model=embedding_model,
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
-        # Deprecated (for backward compatibility)
         output_dir=context.output_dir,
         profiles_dir=context.profiles_dir,
         rag_dir=context.rag_dir,
         site_root=context.site_root,
     )
-    # Validate prompt fits in model's context window
-    from egregora.agents.model_limits import validate_prompt_fits  # noqa: PLC0415
 
-    # Extract token cap settings from pipeline config
+    return agent, state, window_label
+
+
+def _validate_prompt_fits(
+    prompt: str,
+    model_name: str,
+    config: EgregoraConfig,
+    window_label: str,
+) -> None:
+    """Validate prompt fits within model context window limits.
+
+    Args:
+        prompt: System prompt to validate
+        model_name: Name of the LLM model
+        config: Egregora configuration with token limits
+        window_label: Window identifier for logging
+
+    Raises:
+        PromptTooLargeError: If prompt exceeds hard model limit
+
+    """
+    from egregora.agents.model_limits import (  # noqa: PLC0415
+        PromptTooLargeError,
+        get_model_context_limit,
+        validate_prompt_fits,
+    )
+
     max_prompt_tokens = getattr(config.pipeline, "max_prompt_tokens", 100_000)
     use_full_context_window = getattr(config.pipeline, "use_full_context_window", False)
 
@@ -709,15 +793,12 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0915
         max_prompt_tokens=max_prompt_tokens,
         use_full_context_window=use_full_context_window,
     )
-    if not fits:
-        # Check if we're under the model's hard limit (may exceed 100k cap but still valid)
-        from egregora.agents.model_limits import get_model_context_limit  # noqa: PLC0415
 
+    if not fits:
         model_limit = get_model_context_limit(model_name)
-        model_effective_limit = int(model_limit * 0.9)  # 10% safety margin
+        model_effective_limit = int(model_limit * 0.9)
 
         if estimated_tokens <= model_effective_limit:
-            # Single large message exception: Exceeds 100k cap but fits in model
             logger.warning(
                 "Prompt exceeds %dk cap (%d tokens) but fits in model limit (%d tokens) for %s (window: %s) - allowing as exception (likely single large message)",
                 max_prompt_tokens // 1000,
@@ -727,9 +808,6 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0915
                 window_label,
             )
         else:
-            # Hard limit exceeded - raise exception to trigger window splitting
-            from egregora.agents.model_limits import PromptTooLargeError  # noqa: PLC0415
-
             logger.error(
                 "Prompt exceeds model hard limit: %d tokens > %d limit for %s (window: %s) - will split window",
                 estimated_tokens,
@@ -752,77 +830,166 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0915
             model_name,
         )
 
-    with logfire_span("writer_agent", period=window_label, model=model_name):
-        max_attempts = 3
-        result = None
-        for attempt in range(1, max_attempts + 1):
-            try:
-                result = agent.run_sync(prompt, deps=state)
-                break
-            except Exception as exc:
-                if attempt == max_attempts:
-                    logger.exception("Writer agent failed after %s attempts", attempt)
-                    raise
-                delay = attempt * 2
-                logger.warning(
-                    "Writer agent attempt %s/%s failed: %s. Retrying in %ss...",
-                    attempt,
-                    max_attempts,
-                    exc,
-                    delay,
-                )
-                time.sleep(delay)
-        result_payload = getattr(result, "output", getattr(result, "data", result))
 
-        # Extract tool results from message history
+def _run_agent_with_retries(
+    agent: Agent[WriterAgentState, WriterAgentReturn],
+    state: WriterAgentState,
+    prompt: str,
+) -> Any:
+    """Run agent with exponential backoff retry logic.
+
+    Args:
+        agent: Configured writer agent
+        state: Agent execution state
+        prompt: System prompt
+
+    Returns:
+        Agent execution result
+
+    """
+    max_attempts = 3
+    result = None
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            result = agent.run_sync(prompt, deps=state)
+            break
+        except Exception as exc:
+            if attempt == max_attempts:
+                logger.exception("Writer agent failed after %s attempts", attempt)
+                raise
+            delay = attempt * 2
+            logger.warning(
+                "Writer agent attempt %s/%s failed: %s. Retrying in %ss...",
+                attempt,
+                max_attempts,
+                exc,
+                delay,
+            )
+            time.sleep(delay)
+
+    return result
+
+
+def _log_agent_completion(
+    result: Any,
+    saved_posts: list[str],
+    saved_profiles: list[str],
+    intercalated_log: list[JournalEntry],
+    window_label: str,
+) -> None:
+    """Log agent completion metrics and results.
+
+    Args:
+        result: Agent execution result
+        saved_posts: List of created post IDs
+        saved_profiles: List of updated profile IDs
+        intercalated_log: Journal entries from execution
+        window_label: Window identifier for logging
+
+    """
+    result_payload = getattr(result, "output", getattr(result, "data", result))
+    usage = result.usage()
+
+    logfire_info(
+        "Writer agent completed",
+        period=window_label,
+        posts_created=len(saved_posts),
+        profiles_updated=len(saved_profiles),
+        journal_saved=True,
+        journal_entries=len(intercalated_log),
+        journal_thinking_entries=sum(1 for e in intercalated_log if e.entry_type == "thinking"),
+        journal_freeform_entries=sum(1 for e in intercalated_log if e.entry_type == "freeform"),
+        journal_tool_calls=sum(1 for e in intercalated_log if e.entry_type == "tool_call"),
+        tokens_total=usage.total_tokens if usage else 0,
+        tokens_input=usage.input_tokens if usage else 0,
+        tokens_output=usage.output_tokens if usage else 0,
+        tokens_cache_write=usage.cache_write_tokens if usage else 0,
+        tokens_cache_read=usage.cache_read_tokens if usage else 0,
+        tokens_input_audio=usage.input_audio_tokens if usage else 0,
+        tokens_cache_audio_read=usage.cache_audio_read_tokens if usage else 0,
+        tokens_thinking=(usage.details or {}).get("thinking_tokens", 0) if usage else 0,
+        tokens_reasoning=(usage.details or {}).get("reasoning_tokens", 0) if usage else 0,
+        usage_details=usage.details if usage and usage.details else {},
+    )
+    logger.info("Writer agent finished with summary: %s", getattr(result_payload, "summary", None))
+
+
+def _record_agent_conversation(
+    result: Any,
+    context: WriterRuntimeContext,
+) -> None:
+    """Record agent conversation to file if configured.
+
+    Args:
+        result: Agent execution result
+        context: Runtime context
+
+    """
+    record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
+    if not record_dir:
+        return
+
+    try:
+        output_path = Path(record_dir).expanduser()
+        output_path.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
+        filename = output_path / f"writer-{context.start_time:%Y%m%d_%H%M%S}-{timestamp}.json"
+        payload = ModelMessagesTypeAdapter.dump_json(result.all_messages())
+        filename.write_bytes(payload)
+        logger.info("Recorded writer agent conversation to %s", filename)
+    except (OSError, TypeError, ValueError, AttributeError) as exc:
+        logger.warning("Failed to persist writer agent messages: %s", exc)
+
+
+def write_posts_with_pydantic_agent(
+    *,
+    prompt: str,
+    config: EgregoraConfig,
+    context: WriterRuntimeContext,
+    test_model: Any | None = None,
+) -> tuple[list[str], list[str]]:
+    """Execute the writer flow using Pydantic-AI agent tooling.
+
+    MODERN (Phase 2): Reduced from 12 parameters to 3 (prompt, config, context).
+
+    Args:
+        prompt: System prompt for the writer agent
+        config: Egregora configuration (models, RAG, writer settings)
+        context: Runtime context (paths, client, period info)
+        test_model: Optional test model for unit tests (bypasses config.models.writer)
+
+    Returns:
+        Tuple (saved_posts, saved_profiles)
+
+    """
+    logger.info("Running writer via Pydantic-AI backend")
+
+    # Setup: Create agent, state, and window label
+    agent, state, window_label = _setup_agent_and_state(config, context, test_model)
+
+    # Validate: Check prompt fits in context window
+    model_name = test_model if test_model is not None else config.models.writer
+    _validate_prompt_fits(prompt, model_name, config, window_label)
+
+    # Execute: Run agent and process results
+    with logfire_span("writer_agent", period=window_label, model=model_name):
+        result = _run_agent_with_retries(agent, state, prompt)
+
+        # Extract results from agent output
         saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
 
-        # Extract intercalated log (thinking, freeform, tool usage in order), save to journal
+        # Extract and save journal
         intercalated_log = _extract_intercalated_log(result.all_messages())
-        journal_id = _save_journal_to_file(intercalated_log, window_label, context.journals)
+        _save_journal_to_file(intercalated_log, window_label, context.journals)
 
-        usage = result.usage()
-        logfire_info(
-            "Writer agent completed",
-            period=window_label,
-            posts_created=len(saved_posts),
-            profiles_updated=len(saved_profiles),
-            journal_saved=journal_id is not None,
-            journal_entries=len(intercalated_log),
-            journal_thinking_entries=sum(1 for e in intercalated_log if e.entry_type == "thinking"),
-            journal_freeform_entries=sum(1 for e in intercalated_log if e.entry_type == "freeform"),
-            journal_tool_calls=sum(1 for e in intercalated_log if e.entry_type == "tool_call"),
-            # Standard token counts
-            tokens_total=usage.total_tokens if usage else 0,
-            tokens_input=usage.input_tokens if usage else 0,
-            tokens_output=usage.output_tokens if usage else 0,
-            # Cache token counts (prompt caching)
-            tokens_cache_write=usage.cache_write_tokens if usage else 0,
-            tokens_cache_read=usage.cache_read_tokens if usage else 0,
-            # Audio token counts (for multimodal models)
-            tokens_input_audio=usage.input_audio_tokens if usage else 0,
-            tokens_cache_audio_read=usage.cache_audio_read_tokens if usage else 0,
-            # Thinking/reasoning tokens (from details dict - provider-specific)
-            tokens_thinking=(usage.details or {}).get("thinking_tokens", 0) if usage else 0,
-            tokens_reasoning=(usage.details or {}).get("reasoning_tokens", 0) if usage else 0,
-            # Raw details for any other model-specific metrics
-            usage_details=usage.details if usage and usage.details else {},
-        )
-        logger.info("Writer agent finished with summary: %s", getattr(result_payload, "summary", None))
-        record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
-        if record_dir:
-            output_path = Path(record_dir).expanduser()
-            output_path.mkdir(parents=True, exist_ok=True)
-            timestamp = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
-            # Use start time for filename
-            filename = output_path / f"writer-{context.start_time:%Y%m%d_%H%M%S}-{timestamp}.json"
-            try:
-                payload = ModelMessagesTypeAdapter.dump_json(result.all_messages())
-                filename.write_bytes(payload)
-                logger.info("Recorded writer agent conversation to %s", filename)
-            except (OSError, TypeError, ValueError, AttributeError) as record_exc:
-                logger.warning("Failed to persist writer agent messages: %s", record_exc)
-    return (saved_posts, saved_profiles)
+        # Log comprehensive metrics
+        _log_agent_completion(result, saved_posts, saved_profiles, intercalated_log, window_label)
+
+        # Record conversation if configured
+        _record_agent_conversation(result, context)
+
+    return saved_posts, saved_profiles
 
 
 class WriterStreamResult:

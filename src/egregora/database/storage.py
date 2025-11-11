@@ -141,13 +141,13 @@ class StorageManager:
 
             # Load into DuckDB from parquet
             if mode == "replace":
-                sql = f"CREATE OR REPLACE TABLE {name} AS SELECT * FROM read_parquet('{parquet_path}')"
+                sql = f"CREATE OR REPLACE TABLE {name} AS SELECT * FROM read_parquet('{parquet_path}')"  # nosec B608 - name validated by caller
             else:  # append
                 # Create table if not exists, then insert
                 sql = f"""
                     CREATE TABLE IF NOT EXISTS {name} AS SELECT * FROM read_parquet('{parquet_path}') WHERE 1=0;
                     INSERT INTO {name} SELECT * FROM read_parquet('{parquet_path}')
-                """
+                """  # nosec B608 - name validated by caller
 
             self.conn.execute(sql)
             logger.info("Table '%s' written with checkpoint (%s)", name, mode)
