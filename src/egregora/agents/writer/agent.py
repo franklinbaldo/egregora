@@ -63,7 +63,6 @@ from egregora.agents.shared.rag import VectorStore, is_rag_available, query_medi
 from egregora.config.schema import EgregoraConfig
 from egregora.core.document import Document, DocumentType
 from egregora.database.streaming import stream_ibis
-from egregora.storage import JournalStorage, PostStorage, ProfileStorage
 from egregora.storage.documents import DocumentStorage
 from egregora.storage.output_format import OutputFormat
 from egregora.storage.url_convention import UrlContext, UrlConvention
@@ -79,34 +78,24 @@ class WriterRuntimeContext:
     """Runtime context for writer agent execution.
 
     MODERN (Phase 2): Bundles runtime parameters to reduce function signatures.
-    MODERN (Adapter Pattern): Uses storage protocols instead of directory paths.
-    MODERN (Phase 3): Added DocumentStorage for content-addressed documents.
-    MODERN (Phase 4): Added UrlConvention + OutputFormat for perfect separation.
-    Stores are pre-constructed and injected (not built from directories).
+    MODERN (Phase 4): Uses OutputFormat for all document persistence.
+    MODERN (Phase 5): Removed redundant storage protocols in favor of OutputFormat.
 
     Windows are identified by (start_time, end_time) tuple, not artificial IDs.
     This makes them stable across config changes and more meaningful for logging.
 
-    Architecture (Phase 4):
+    Architecture (Phase 5 - Simplified):
     - Core calculates URLs using url_convention directly
     - Core requests persistence via output_format.serve(document)
-    - Core and Format are independent, only sharing the convention
+    - Single abstraction (OutputFormat) replaces all storage protocols
+    - Reading profiles uses direct filesystem access via profiles_dir
     """
 
     # Time window
     start_time: datetime
     end_time: datetime
 
-    # Storage protocols (injected)
-    posts: PostStorage
-    profiles: ProfileStorage
-    journals: JournalStorage
-
-    # Document storage (MODERN Phase 3: content-addressed documents)
-    # DEPRECATED: Will be replaced by url_convention + output_format
-    document_storage: DocumentStorage
-
-    # MODERN Phase 4: Backend-agnostic publishing
+    # MODERN Phase 4: Backend-agnostic publishing (single abstraction)
     url_convention: UrlConvention
     url_context: UrlContext
     output_format: OutputFormat
@@ -121,12 +110,15 @@ class WriterRuntimeContext:
     # Prompt templates directory (resolved by caller, not constructed here)
     prompts_dir: Path | None = None
 
-    # DEPRECATED (to be removed in Phase 3):
-    # These are kept temporarily for backward compatibility during migration
+    # Deprecated paths (kept for read operations and backward compatibility)
+    # TODO Phase 6: Add read methods to OutputFormat, remove these paths
     output_dir: Path | None = None
     profiles_dir: Path | None = None
     rag_dir: Path | None = None
     site_root: Path | None = None
+
+    # DEPRECATED Phase 5: Replaced by output_format
+    document_storage: DocumentStorage | None = None
 
 
 class PostMetadata(BaseModel):
@@ -190,8 +182,8 @@ class WriterAgentState(BaseModel):
     """Immutable dependencies passed to agent tools.
 
     MODERN (Phase 1): This is now frozen to prevent mutation in tools.
-    MODERN (Adapter Pattern): Uses storage protocols instead of directory paths.
-    MODERN (Phase 3): Added DocumentStorage for content-addressed documents.
+    MODERN (Phase 4): Uses OutputFormat for all document persistence.
+    MODERN (Phase 5): Removed redundant storage protocols in favor of OutputFormat.
     Results are extracted from the agent's message history instead of being
     tracked via mutation.
     """
@@ -201,17 +193,15 @@ class WriterAgentState(BaseModel):
     # Window identification
     window_id: str
 
-    # Storage protocols
-    posts: PostStorage
-    profiles: ProfileStorage
-    journals: JournalStorage
-
-    # Document storage (MODERN Phase 3: content-addressed documents)
-    document_storage: DocumentStorage
+    # MODERN Phase 4: Backend-agnostic publishing (single abstraction)
+    # Note: Using Any for protocol types since Pydantic can't validate Protocols
+    url_convention: Any  # UrlConvention protocol
+    url_context: Any  # UrlContext dataclass
+    output_format: Any  # OutputFormat protocol
 
     # Pre-constructed stores
-    rag_store: VectorStore
-    annotations_store: AnnotationStore | None
+    rag_store: Any  # VectorStore
+    annotations_store: Any | None  # AnnotationStore protocol
 
     # LLM client
     batch_client: Any
@@ -222,11 +212,15 @@ class WriterAgentState(BaseModel):
     retrieval_nprobe: int | None
     retrieval_overfetch: int | None
 
-    # DEPRECATED (kept for backward compatibility during migration):
+    # Deprecated paths (kept for read operations)
+    # TODO Phase 6: Add read methods to OutputFormat, remove these paths
     output_dir: Path | None = None
     profiles_dir: Path | None = None
     rag_dir: Path | None = None
     site_root: Path | None = None
+
+    # DEPRECATED Phase 5: Replaced by output_format
+    document_storage: Any | None = None  # DocumentStorage
 
 
 def _extract_thinking_content(messages: Any) -> list[str]:
@@ -374,14 +368,14 @@ def _extract_intercalated_log(messages: Any) -> list[JournalEntry]:
 def _save_journal_to_file(
     intercalated_log: list[JournalEntry],
     window_label: str,
-    journals: JournalStorage,
+    output_format: OutputFormat,
 ) -> str | None:
     """Save journal entry with intercalated thinking, freeform, and tool usage to markdown file.
 
     Args:
         intercalated_log: List of journal entries in chronological order
         window_label: Human-readable window identifier (e.g., "2025-01-15 10:00 to 12:00")
-        journals: Journal storage protocol implementation
+        output_format: OutputFormat instance for document persistence
 
     Returns:
         Journal identifier (opaque string), or None if no content
@@ -419,15 +413,20 @@ def _save_journal_to_file(
         logger.exception("Failed to render journal template")
         return None
 
-    # Write using storage protocol
+    # Write using OutputFormat
     try:
-        journal_id = journals.write(window_label, journal_content)
-        logger.info("Saved journal entry: %s", journal_id)
+        doc = Document(
+            content=journal_content,
+            type=DocumentType.JOURNAL,
+            metadata={"window_label": window_label, "date": now_utc.strftime("%Y-%m-%d")},
+            source_window=window_label,
+        )
+        output_format.serve(doc)
+        logger.info("Saved journal entry: %s", doc.document_id)
+        return doc.document_id
     except Exception:
         logger.exception("Failed to write journal for window %s", window_label)
         return None
-    else:
-        return journal_id
 
 
 def _parse_content_to_dict(content: Any) -> dict | None:
@@ -627,9 +626,15 @@ def _register_writer_tools(
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterAgentState], author_uuid: str) -> ReadProfileResult:
-        # Use storage protocol instead of direct filesystem access
-        content = ctx.deps.profiles.read(author_uuid)
-        if not content:
+        # Read profile directly from filesystem
+        # (OutputFormat is for writing only, read operations use direct access)
+        if ctx.deps.profiles_dir:
+            profile_path = ctx.deps.profiles_dir / f"{author_uuid}.md"
+            if profile_path.exists():
+                content = profile_path.read_text(encoding="utf-8")
+            else:
+                content = "No profile exists yet."
+        else:
             content = "No profile exists yet."
         return ReadProfileResult(content=content)
 
@@ -764,21 +769,27 @@ def _setup_agent_and_state(
     # Build execution state
     state = WriterAgentState(
         window_id=window_label,
-        posts=context.posts,
-        profiles=context.profiles,
-        journals=context.journals,
-        document_storage=context.document_storage,
+        # MODERN Phase 5: Single OutputFormat abstraction
+        url_convention=context.url_convention,
+        url_context=context.url_context,
+        output_format=context.output_format,
+        # Stores
         rag_store=context.rag_store,
         annotations_store=context.annotations_store,
+        # LLM client
         batch_client=context.client,
+        # RAG configuration
         embedding_model=embedding_model,
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
+        # Deprecated paths (for read operations)
         output_dir=context.output_dir,
         profiles_dir=context.profiles_dir,
         rag_dir=context.rag_dir,
         site_root=context.site_root,
+        # Deprecated document_storage
+        document_storage=context.document_storage,
     )
 
     return agent, state, window_label
@@ -1005,7 +1016,7 @@ def write_posts_with_pydantic_agent(
 
         # Extract and save journal
         intercalated_log = _extract_intercalated_log(result.all_messages())
-        _save_journal_to_file(intercalated_log, window_label, context.journals)
+        _save_journal_to_file(intercalated_log, window_label, context.output_format)
 
         # Log comprehensive metrics
         _log_agent_completion(result, saved_posts, saved_profiles, intercalated_log, window_label)
@@ -1121,12 +1132,10 @@ async def write_posts_with_pydantic_agent_stream(
 
     state = WriterAgentState(
         window_id=window_label,
-        # Storage protocols
-        posts=context.posts,
-        profiles=context.profiles,
-        journals=context.journals,
-        # Document storage (MODERN Phase 3)
-        document_storage=context.document_storage,
+        # MODERN Phase 5: Single OutputFormat abstraction
+        url_convention=context.url_convention,
+        url_context=context.url_context,
+        output_format=context.output_format,
         # Pre-constructed stores
         rag_store=context.rag_store,
         annotations_store=context.annotations_store,
@@ -1137,10 +1146,12 @@ async def write_posts_with_pydantic_agent_stream(
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
-        # Deprecated (for backward compatibility)
+        # Deprecated paths (for read operations)
         output_dir=context.output_dir,
         profiles_dir=context.profiles_dir,
         rag_dir=context.rag_dir,
         site_root=context.site_root,
+        # Deprecated document_storage
+        document_storage=context.document_storage,
     )
     return WriterStreamResult(agent, state, prompt, context, model_name)

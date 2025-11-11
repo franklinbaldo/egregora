@@ -508,16 +508,10 @@ def _write_posts_for_window_pydantic(
             mkdocs_output_format.url_convention.name,
         )
 
-    # Create runtime context for writer agent (MODERN: uses storage protocols)
+    # Create runtime context for writer agent (MODERN Phase 5: OutputFormat only)
     runtime_context = WriterRuntimeContext(
         start_time=start_time,
         end_time=end_time,
-        # Storage protocols
-        posts=posts_storage,
-        profiles=profiles_storage,
-        journals=journals_storage,
-        # Document storage (MODERN Phase 3)
-        document_storage=document_storage,
         # Backend-agnostic publishing (MODERN Phase 4)
         url_convention=url_convention,
         url_context=url_context,
@@ -534,6 +528,8 @@ def _write_posts_for_window_pydantic(
         profiles_dir=config.profiles_dir,
         rag_dir=config.rag_dir,
         site_root=site_root,
+        # Deprecated document_storage (Phase 5)
+        document_storage=document_storage,
     )
 
     # Format timestamps for LLM prompt (human-readable)
