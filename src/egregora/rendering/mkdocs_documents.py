@@ -14,7 +14,6 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from egregora.agents.shared.profiler import write_profile as write_profile_content
 from egregora.core.document import Document, DocumentType
 
 logger = logging.getLogger(__name__)
@@ -72,6 +71,11 @@ class MkDocsDocumentStorage:
 
         # Index: document_id → storage_path (for fast lookups)
         self._index: dict[str, Path] = {}
+
+        # Use MkDocsProfileStorage for format-specific profile handling
+        from egregora.rendering.mkdocs import MkDocsProfileStorage
+
+        self._profile_storage = MkDocsProfileStorage(site_root)
 
     def add(self, document: Document) -> str:
         """Store document in MkDocs-specific location.
@@ -286,9 +290,9 @@ class MkDocsDocumentStorage:
             full_content = f"---\n{yaml_front}---\n\n{document.content}"
             path.write_text(full_content, encoding="utf-8")
         elif document.type == DocumentType.PROFILE:
-            # Use write_profile_content (handles frontmatter, .authors.yml)
+            # Use MkDocsProfileStorage for format-specific handling (.authors.yml update)
             author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
-            write_profile_content(author_uuid, document.content, self.profiles_dir)
+            self._profile_storage.write(author_uuid, document.content)
         elif document.type == DocumentType.ENRICHMENT_URL:
             # URL enrichment with optional frontmatter
             if document.parent_id or document.metadata:

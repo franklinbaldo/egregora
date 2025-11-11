@@ -268,12 +268,19 @@ class MkDocsProfileStorage:
 
         Side Effects:
             - Writes profile with YAML frontmatter
-            - Updates .authors.yml in site root
+            - Updates .authors.yml in site root (MkDocs-specific)
 
         """
-        # Use write_profile_content to ensure proper YAML frontmatter and .authors.yml update
+        # Use write_profile_content to write the profile with YAML frontmatter
+        # (generic logic, no format-specific side effects)
         absolute_path = write_profile_content(author_uuid, content, self.profiles_dir)
-        return str(Path(absolute_path).relative_to(self.site_root))
+        profile_path = Path(absolute_path)
+
+        # MkDocs-specific: Update .authors.yml for blog plugin compatibility
+        # This side effect is isolated to this MkDocs implementation
+        self._update_authors_yml(author_uuid, profile_path)
+
+        return str(profile_path.relative_to(self.site_root))
 
     def read(self, author_uuid: str) -> str | None:
         """Read profile from filesystem.
@@ -299,6 +306,102 @@ class MkDocsProfileStorage:
 
         """
         return (self.profiles_dir / f"{author_uuid}.md").exists()
+
+    def _update_authors_yml(self, author_uuid: str, profile_path: Path) -> None:
+        """Update .authors.yml file for MkDocs blog plugin.
+
+        This is a format-specific side effect that only applies to MkDocs sites
+        using the blog plugin. It reads the profile's frontmatter and updates
+        the .authors.yml file in the site root.
+
+        Args:
+            author_uuid: Author UUID
+            profile_path: Absolute path to the profile file
+
+        Side Effects:
+            Creates or updates .authors.yml in site_root
+
+        """
+        # Extract frontmatter from profile
+        if not profile_path.exists():
+            logger.warning("Profile not found for .authors.yml update: %s", profile_path)
+            return
+
+        try:
+            content = profile_path.read_text(encoding="utf-8")
+            front_matter = self._extract_profile_metadata(content)
+        except (OSError, UnicodeDecodeError) as e:
+            logger.warning("Failed to read profile for .authors.yml update: %s", e)
+            return
+
+        # Update .authors.yml
+        authors_yml_path = self.site_root / ".authors.yml"
+
+        # Load existing .authors.yml or create new
+        authors = {}
+        if authors_yml_path.exists():
+            try:
+                with authors_yml_path.open("r", encoding="utf-8") as f:
+                    authors = yaml.safe_load(f) or {}
+            except yaml.YAMLError:
+                logger.warning("Failed to parse .authors.yml, creating new file")
+
+        # Build author entry from frontmatter
+        author_entry: dict[str, Any] = {}
+
+        # Name: use alias if available, otherwise UUID
+        author_entry["name"] = front_matter.get("alias", front_matter.get("name", author_uuid))
+
+        # Description: use bio if available
+        if "bio" in front_matter:
+            author_entry["description"] = front_matter["bio"]
+
+        # Avatar: use avatar URL if available
+        if "avatar" in front_matter:
+            author_entry["avatar"] = front_matter["avatar"]
+
+        # Social links
+        if "social" in front_matter:
+            for platform, url in front_matter["social"].items():
+                author_entry[platform] = url
+
+        # Update authors dict
+        authors[author_uuid] = author_entry
+
+        # Write back to .authors.yml
+        try:
+            with authors_yml_path.open("w", encoding="utf-8") as f:
+                yaml.dump(authors, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+            logger.info("Updated .authors.yml with %s", author_uuid)
+        except (OSError, yaml.YAMLError) as e:
+            logger.warning("Failed to write .authors.yml: %s", e)
+
+    @staticmethod
+    def _extract_profile_metadata(content: str) -> dict[str, Any]:
+        """Extract metadata from profile content's YAML frontmatter.
+
+        Args:
+            content: Profile markdown with YAML frontmatter
+
+        Returns:
+            Dictionary with profile metadata (alias, avatar, bio, social, etc.)
+
+        """
+        metadata: dict[str, Any] = {}
+
+        # Try to parse YAML front-matter
+        if content.startswith("---"):
+            try:
+                # Extract YAML between --- delimiters
+                parts = content.split("---", 2)
+                if len(parts) >= 3:  # ["", frontmatter, body]
+                    front_matter = yaml.safe_load(parts[1])
+                    if isinstance(front_matter, dict):
+                        metadata.update(front_matter)
+            except yaml.YAMLError:
+                pass
+
+        return metadata
 
 
 class MkDocsJournalStorage:

@@ -89,8 +89,9 @@ def write_profile(
 
     logger.info("Saved profile for %s to %s", author_uuid, profile_path)
 
-    # Update .authors.yml for MkDocs blog plugin
-    _update_authors_yml(profiles_dir.parent, author_uuid, front_matter)
+    # NOTE: Format-specific side effects (like .authors.yml updates) should be
+    # handled by the format implementation (MkDocsProfileStorage, HugoProfileStorage, etc.)
+    # not in this generic profiler module. This keeps the module truly format-agnostic.
 
     return str(profile_path)
 
