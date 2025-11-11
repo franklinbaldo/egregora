@@ -26,3 +26,21 @@ repos:
         language: system
         pass_filenames: false
         files: ^src/egregora/.*\.py$
+      - id: check-complexity
+        name: Check code complexity (radon)
+        entry: python dev_tools/code_quality.py --check radon
+        language: system
+        pass_filenames: false
+        files: ^src/egregora/.*\.py$
+      - id: check-dead-code
+        name: Check for dead code (vulture)
+        entry: python dev_tools/code_quality.py --check vulture
+        language: system
+        pass_filenames: false
+        files: ^src/egregora/.*\.py$
+      - id: check-security
+        name: Security scan (bandit)
+        entry: python dev_tools/code_quality.py --check bandit
+        language: system
+        pass_filenames: false
+        files: ^src/egregora/.*\.py$

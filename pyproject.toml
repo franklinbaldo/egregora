@@ -215,6 +215,17 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+markers = [
+    "quality: code quality checks (vulture, radon, bandit)",
+    "complexity: complexity checks with radon",
+    "deadcode: dead code detection with vulture",
+    "security: security scans with bandit",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+# Default coverage settings (can be overridden with CLI flags)
+addopts = [
+    "--strict-markers",  # Fail on unknown markers
+]
 
 [dependency-groups]
 dev = [

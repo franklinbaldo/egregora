@@ -569,9 +569,7 @@ class VectorStore:
             "\n            SELECT COUNT(*)\n            FROM information_schema.tables\n            WHERE lower(table_name) = lower(?)\n        ",
             [TABLE_NAME],
         ).fetchone()
-        if not table_present or table_present[0] == 0:
-            return False
-        return True
+        return not (not table_present or table_present[0] == 0)
 
     def _validate_and_normalize_mode(self, mode: str) -> str:
         """Normalize and validate search mode, switching to exact if VSS unavailable."""
