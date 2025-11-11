@@ -10,6 +10,7 @@ from pydantic_ai.models.test import TestModel
 from egregora.agents.shared.rag import VectorStore
 from egregora.agents.writer.agent import WriterRuntimeContext, write_posts_with_pydantic_agent
 from egregora.config.loader import create_default_config
+from egregora.storage.legacy_adapter import LegacyStorageAdapter
 from tests.helpers.storage import InMemoryJournalStorage, InMemoryPostStorage, InMemoryProfileStorage
 from tests.utils.mock_batch_client import create_mock_batch_client
 
@@ -51,6 +52,14 @@ def test_write_posts_with_test_model(writer_dirs: tuple[Path, Path, Path]) -> No
     journals_storage = InMemoryJournalStorage()
     rag_store = VectorStore(rag_dir / "chunks.parquet")
 
+    # MODERN (Phase 3): Create document storage adapter
+    document_storage = LegacyStorageAdapter(
+        post_storage=posts_storage,
+        profile_storage=profiles_storage,
+        journal_storage=journals_storage,
+        site_root=site_root,
+    )
+
     context = WriterRuntimeContext(
         start_time=datetime(2025, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
         end_time=datetime(2025, 1, 1, 23, 59, tzinfo=ZoneInfo("UTC")),
@@ -58,6 +67,8 @@ def test_write_posts_with_test_model(writer_dirs: tuple[Path, Path, Path]) -> No
         posts=posts_storage,
         profiles=profiles_storage,
         journals=journals_storage,
+        # Document storage (MODERN Phase 3)
+        document_storage=document_storage,
         # Pre-constructed stores
         rag_store=rag_store,
         annotations_store=None,

@@ -61,8 +61,10 @@ from egregora.agents.banner import generate_banner_for_post, is_banner_generatio
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore, is_rag_available, query_media
 from egregora.config.schema import EgregoraConfig
+from egregora.core.document import Document, DocumentType
 from egregora.database.streaming import stream_ibis
 from egregora.storage import JournalStorage, PostStorage, ProfileStorage
+from egregora.storage.documents import DocumentStorage
 from egregora.utils.logfire_config import logfire_info, logfire_span
 
 if TYPE_CHECKING:
@@ -76,6 +78,7 @@ class WriterRuntimeContext:
 
     MODERN (Phase 2): Bundles runtime parameters to reduce function signatures.
     MODERN (Adapter Pattern): Uses storage protocols instead of directory paths.
+    MODERN (Phase 3): Added DocumentStorage for content-addressed documents.
     Stores are pre-constructed and injected (not built from directories).
 
     Windows are identified by (start_time, end_time) tuple, not artificial IDs.
@@ -90,6 +93,9 @@ class WriterRuntimeContext:
     posts: PostStorage
     profiles: ProfileStorage
     journals: JournalStorage
+
+    # Document storage (MODERN Phase 3: content-addressed documents)
+    document_storage: DocumentStorage
 
     # Pre-constructed stores (injected, not built from paths)
     rag_store: VectorStore
@@ -171,6 +177,7 @@ class WriterAgentState(BaseModel):
 
     MODERN (Phase 1): This is now frozen to prevent mutation in tools.
     MODERN (Adapter Pattern): Uses storage protocols instead of directory paths.
+    MODERN (Phase 3): Added DocumentStorage for content-addressed documents.
     Results are extracted from the agent's message history instead of being
     tracked via mutation.
     """
@@ -184,6 +191,9 @@ class WriterAgentState(BaseModel):
     posts: PostStorage
     profiles: ProfileStorage
     journals: JournalStorage
+
+    # Document storage (MODERN Phase 3: content-addressed documents)
+    document_storage: DocumentStorage
 
     # Pre-constructed stores
     rag_store: VectorStore
@@ -474,12 +484,18 @@ def _register_writer_tools(  # noqa: C901
     def write_post_tool(
         ctx: RunContext[WriterAgentState], metadata: PostMetadata, content: str
     ) -> WritePostResult:
-        # Use storage protocol instead of direct filesystem access
-        post_id = ctx.deps.posts.write(
-            slug=metadata.slug, metadata=metadata.model_dump(exclude_none=True), content=content
+        # MODERN (Phase 3): Create Document object and use DocumentStorage
+        doc = Document(
+            content=content,
+            type=DocumentType.POST,
+            metadata=metadata.model_dump(exclude_none=True),
+            source_window=ctx.deps.window_id,
         )
-        logger.info("Writer agent saved post: %s", post_id)
-        return WritePostResult(status="success", path=post_id)  # path field kept for compatibility
+
+        # Store via document storage (delegates to format-specific implementation)
+        doc_id = ctx.deps.document_storage.add(doc)
+        logger.info("Writer agent saved post: %s", doc_id)
+        return WritePostResult(status="success", path=doc_id)  # path field kept for compatibility
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterAgentState], author_uuid: str) -> ReadProfileResult:
@@ -493,10 +509,18 @@ def _register_writer_tools(  # noqa: C901
     def write_profile_tool(
         ctx: RunContext[WriterAgentState], author_uuid: str, content: str
     ) -> WriteProfileResult:
-        # Use storage protocol instead of direct filesystem access
-        profile_id = ctx.deps.profiles.write(author_uuid, content)
-        logger.info("Writer agent saved profile: %s", profile_id)
-        return WriteProfileResult(status="success", path=profile_id)  # path field kept for compatibility
+        # MODERN (Phase 3): Create Document object and use DocumentStorage
+        doc = Document(
+            content=content,
+            type=DocumentType.PROFILE,
+            metadata={"uuid": author_uuid},
+            source_window=ctx.deps.window_id,
+        )
+
+        # Store via document storage (delegates to format-specific implementation)
+        doc_id = ctx.deps.document_storage.add(doc)
+        logger.info("Writer agent saved profile: %s", doc_id)
+        return WriteProfileResult(status="success", path=doc_id)  # path field kept for compatibility
 
     if enable_rag:
 
@@ -617,6 +641,8 @@ def write_posts_with_pydantic_agent(  # noqa: PLR0915
         posts=context.posts,
         profiles=context.profiles,
         journals=context.journals,
+        # Document storage (MODERN Phase 3)
+        document_storage=context.document_storage,
         # Pre-constructed stores
         rag_store=context.rag_store,
         annotations_store=context.annotations_store,
@@ -871,6 +897,8 @@ async def write_posts_with_pydantic_agent_stream(
         posts=context.posts,
         profiles=context.profiles,
         journals=context.journals,
+        # Document storage (MODERN Phase 3)
+        document_storage=context.document_storage,
         # Pre-constructed stores
         rag_store=context.rag_store,
         annotations_store=context.annotations_store,

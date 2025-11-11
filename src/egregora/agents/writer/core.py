@@ -39,6 +39,7 @@ from egregora.config import ModelConfig
 from egregora.config.loader import create_default_config
 from egregora.prompt_templates import WriterPromptTemplate
 from egregora.rendering import create_output_format, output_registry
+from egregora.storage.legacy_adapter import LegacyStorageAdapter
 
 if TYPE_CHECKING:
     from google import genai
@@ -405,6 +406,15 @@ def _write_posts_for_window_pydantic(
         storage_root / ".egregora" / "prompts" if (storage_root / ".egregora" / "prompts").is_dir() else None
     )
 
+    # MODERN (Phase 3): Create document storage adapter for backward compatibility
+    # Wraps old storage protocols to work with Document abstraction
+    document_storage = LegacyStorageAdapter(
+        post_storage=posts_storage,
+        profile_storage=profiles_storage,
+        journal_storage=journals_storage,
+        site_root=storage_root,
+    )
+
     # Create runtime context for writer agent (MODERN: uses storage protocols)
     runtime_context = WriterRuntimeContext(
         start_time=start_time,
@@ -413,6 +423,8 @@ def _write_posts_for_window_pydantic(
         posts=posts_storage,
         profiles=profiles_storage,
         journals=journals_storage,
+        # Document storage (MODERN Phase 3)
+        document_storage=document_storage,
         # Pre-constructed stores
         rag_store=rag_store,
         annotations_store=annotations_store,
