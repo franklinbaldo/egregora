@@ -625,7 +625,7 @@ class MkDocsOutputFormat(OutputFormat):
         # Prevents duplicate configs - refuse to init if ANY mkdocs.yml exists
         site_paths = resolve_site_paths(site_root)
         mkdocs_in_egregora = site_paths.mkdocs_config_path  # .egregora/mkdocs.yml
-        mkdocs_at_root = site_root / "mkdocs.yml"           # mkdocs.yml at root
+        mkdocs_at_root = site_root / "mkdocs.yml"  # mkdocs.yml at root
 
         if mkdocs_in_egregora.exists() or mkdocs_at_root.exists():
             existing_path = mkdocs_in_egregora if mkdocs_in_egregora.exists() else mkdocs_at_root
