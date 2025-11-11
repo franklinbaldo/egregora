@@ -128,6 +128,32 @@ from egregora.config.schema import (
 )
 
 # ==============================================================================
+# Runtime Context Dataclasses (from .types)
+# ==============================================================================
+# Dataclasses for function parameters in the Phase 2 Configuration Objects pattern.
+# These replace parameter soup (12-16 params → 3-6 params) in function signatures.
+#
+# TRANSITIONAL: These will eventually be migrated to use EgregoraConfig internally,
+# but currently exist as standalone dataclasses for gradual migration.
+#
+# - ProcessConfig: CLI process command parameters
+# - WriterConfig: Writer agent runtime context
+# - EnrichmentConfig: Enrichment stage parameters
+# - RankingCliConfig: Ranking CLI parameters
+# - ComparisonConfig: Elo ranking comparison parameters
+# - ComparisonData: Comparison result data
+# - MediaEnrichmentContext: Media enrichment runtime context
+from egregora.config.types import (
+    ComparisonConfig,
+    ComparisonData,
+    EnrichmentConfig,
+    MediaEnrichmentContext,
+    ProcessConfig,
+    RankingCliConfig,
+    WriterConfig,
+)
+
+# ==============================================================================
 # Site Paths & MkDocs Utilities (from rendering.mkdocs_site)
 # ==============================================================================
 # DEPRECATED: MkDocs-specific utilities moved to rendering.mkdocs_site module.
@@ -153,32 +179,6 @@ from egregora.rendering.mkdocs_site import (
     find_mkdocs_file,
     load_mkdocs_config,
     resolve_site_paths,
-)
-
-# ==============================================================================
-# Runtime Context Dataclasses (from .types)
-# ==============================================================================
-# Dataclasses for function parameters in the Phase 2 Configuration Objects pattern.
-# These replace parameter soup (12-16 params → 3-6 params) in function signatures.
-#
-# TRANSITIONAL: These will eventually be migrated to use EgregoraConfig internally,
-# but currently exist as standalone dataclasses for gradual migration.
-#
-# - ProcessConfig: CLI process command parameters
-# - WriterConfig: Writer agent runtime context
-# - EnrichmentConfig: Enrichment stage parameters
-# - RankingCliConfig: Ranking CLI parameters
-# - ComparisonConfig: Elo ranking comparison parameters
-# - ComparisonData: Comparison result data
-# - MediaEnrichmentContext: Media enrichment runtime context
-from egregora.config.types import (
-    ComparisonConfig,
-    ComparisonData,
-    EnrichmentConfig,
-    MediaEnrichmentContext,
-    ProcessConfig,
-    RankingCliConfig,
-    WriterConfig,
 )
 
 __all__ = [
