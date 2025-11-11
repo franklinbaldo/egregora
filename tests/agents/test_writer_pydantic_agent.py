@@ -10,7 +10,10 @@ from pydantic_ai.models.test import TestModel
 from egregora.agents.shared.rag import VectorStore
 from egregora.agents.writer.agent import WriterRuntimeContext, write_posts_with_pydantic_agent
 from egregora.config.loader import create_default_config
+from egregora.rendering.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
+from egregora.rendering.mkdocs_output_format import MkDocsOutputFormat
 from egregora.storage.legacy_adapter import LegacyStorageAdapter
+from egregora.storage.url_convention import UrlContext
 from tests.helpers.storage import InMemoryJournalStorage, InMemoryPostStorage, InMemoryProfileStorage
 from tests.utils.mock_batch_client import create_mock_batch_client
 
@@ -60,6 +63,11 @@ def test_write_posts_with_test_model(writer_dirs: tuple[Path, Path, Path]) -> No
         site_root=site_root,
     )
 
+    # MODERN (Phase 4): Create backend-agnostic publishing components
+    url_convention = LegacyMkDocsUrlConvention()
+    url_context = UrlContext(base_url="", site_prefix="", base_path=site_root)
+    output_format = MkDocsOutputFormat(site_root=site_root, url_context=url_context)
+
     context = WriterRuntimeContext(
         start_time=datetime(2025, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
         end_time=datetime(2025, 1, 1, 23, 59, tzinfo=ZoneInfo("UTC")),
@@ -69,6 +77,10 @@ def test_write_posts_with_test_model(writer_dirs: tuple[Path, Path, Path]) -> No
         journals=journals_storage,
         # Document storage (MODERN Phase 3)
         document_storage=document_storage,
+        # Backend-agnostic publishing (MODERN Phase 4)
+        url_convention=url_convention,
+        url_context=url_context,
+        output_format=output_format,
         # Pre-constructed stores
         rag_store=rag_store,
         annotations_store=None,

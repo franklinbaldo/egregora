@@ -17,6 +17,10 @@ from egregora.agents.writer.agent import (
     write_posts_with_pydantic_agent_stream,
 )
 from egregora.config.loader import create_default_config
+from egregora.rendering.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
+from egregora.rendering.mkdocs_output_format import MkDocsOutputFormat
+from egregora.storage.legacy_adapter import LegacyStorageAdapter
+from egregora.storage.url_convention import UrlContext
 from tests.evals.writer_evals import create_writer_dataset
 from tests.helpers.storage import InMemoryJournalStorage, InMemoryPostStorage, InMemoryProfileStorage
 from tests.utils.mock_batch_client import create_mock_batch_client
@@ -74,6 +78,19 @@ async def run_writer_agent(inputs: dict, writer_dirs: tuple[Path, Path, Path]) -
     journals_storage = InMemoryJournalStorage()
     rag_store = VectorStore(rag_dir / "chunks.parquet")
 
+    # MODERN (Phase 3): Create document storage adapter
+    document_storage = LegacyStorageAdapter(
+        post_storage=posts_storage,
+        profile_storage=profiles_storage,
+        journal_storage=journals_storage,
+        site_root=site_root,
+    )
+
+    # MODERN (Phase 4): Create backend-agnostic publishing components
+    url_convention = LegacyMkDocsUrlConvention()
+    url_context = UrlContext(base_url="", site_prefix="", base_path=site_root)
+    output_format = MkDocsOutputFormat(site_root=site_root, url_context=url_context)
+
     context = WriterRuntimeContext(
         start_time=start_time,
         end_time=end_time,
@@ -81,6 +98,12 @@ async def run_writer_agent(inputs: dict, writer_dirs: tuple[Path, Path, Path]) -
         posts=posts_storage,
         profiles=profiles_storage,
         journals=journals_storage,
+        # Document storage (MODERN Phase 3)
+        document_storage=document_storage,
+        # Backend-agnostic publishing (MODERN Phase 4)
+        url_convention=url_convention,
+        url_context=url_context,
+        output_format=output_format,
         # Pre-constructed stores
         rag_store=rag_store,
         annotations_store=None,
@@ -155,6 +178,19 @@ def test_writer_evaluation_empty_conversation(writer_dirs):
     journals_storage = InMemoryJournalStorage()
     rag_store = VectorStore(rag_dir / "chunks.parquet")
 
+    # MODERN (Phase 3): Create document storage adapter
+    document_storage = LegacyStorageAdapter(
+        post_storage=posts_storage,
+        profile_storage=profiles_storage,
+        journal_storage=journals_storage,
+        site_root=site_root,
+    )
+
+    # MODERN (Phase 4): Create backend-agnostic publishing components
+    url_convention = LegacyMkDocsUrlConvention()
+    url_context = UrlContext(base_url="", site_prefix="", base_path=site_root)
+    output_format = MkDocsOutputFormat(site_root=site_root, url_context=url_context)
+
     context = WriterRuntimeContext(
         start_time=start_time,
         end_time=end_time,
@@ -162,6 +198,12 @@ def test_writer_evaluation_empty_conversation(writer_dirs):
         posts=posts_storage,
         profiles=profiles_storage,
         journals=journals_storage,
+        # Document storage (MODERN Phase 3)
+        document_storage=document_storage,
+        # Backend-agnostic publishing (MODERN Phase 4)
+        url_convention=url_convention,
+        url_context=url_context,
+        output_format=output_format,
         # Pre-constructed stores
         rag_store=rag_store,
         annotations_store=None,
@@ -224,6 +266,19 @@ async def test_writer_stream_empty_conversation(writer_dirs):
     journals_storage = InMemoryJournalStorage()
     rag_store = VectorStore(rag_dir / "chunks.parquet")
 
+    # MODERN (Phase 3): Create document storage adapter
+    document_storage = LegacyStorageAdapter(
+        post_storage=posts_storage,
+        profile_storage=profiles_storage,
+        journal_storage=journals_storage,
+        site_root=site_root,
+    )
+
+    # MODERN (Phase 4): Create backend-agnostic publishing components
+    url_convention = LegacyMkDocsUrlConvention()
+    url_context = UrlContext(base_url="", site_prefix="", base_path=site_root)
+    output_format = MkDocsOutputFormat(site_root=site_root, url_context=url_context)
+
     context = WriterRuntimeContext(
         start_time=start_time,
         end_time=end_time,
@@ -231,6 +286,12 @@ async def test_writer_stream_empty_conversation(writer_dirs):
         posts=posts_storage,
         profiles=profiles_storage,
         journals=journals_storage,
+        # Document storage (MODERN Phase 3)
+        document_storage=document_storage,
+        # Backend-agnostic publishing (MODERN Phase 4)
+        url_convention=url_convention,
+        url_context=url_context,
+        output_format=output_format,
         # Pre-constructed stores
         rag_store=rag_store,
         annotations_store=None,
