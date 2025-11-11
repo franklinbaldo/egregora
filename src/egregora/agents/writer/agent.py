@@ -415,17 +415,18 @@ def _save_journal_to_file(
         return None
 
 
-def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:  # noqa: C901
-    """Extract saved post and profile paths from agent message history.
+def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:  # noqa: C901, PLR0912, PLR0915
+    """Extract saved post and profile document IDs from agent message history.
 
     Parses the agent's tool call results to find WritePostResult and
-    WriteProfileResult returns.
+    WriteProfileResult returns. Uses tool names to distinguish document types
+    instead of parsing filesystem paths (supports opaque document IDs).
 
     Args:
         messages: Agent message history from result.all_messages()
 
     Returns:
-        Tuple of (saved_posts, saved_profiles) as lists of file paths
+        Tuple of (saved_posts, saved_profiles) as lists of document IDs
 
     """
     saved_posts: list[str] = []
@@ -434,8 +435,36 @@ def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:  # noqa
     # Try to iterate through messages
     try:
         for message in messages:
-            # Check if this is a tool return message
-            if hasattr(message, "kind") and message.kind == "tool-return":
+            # Check if this message has parts (ModelResponse structure)
+            if hasattr(message, "parts"):
+                for part in message.parts:
+                    # Look for tool return parts
+                    if isinstance(part, ToolReturnPart):
+                        # Parse the content - it might be JSON or a Pydantic model
+                        content = part.content
+                        if isinstance(content, str):
+                            try:
+                                data = json.loads(content)
+                            except (json.JSONDecodeError, ValueError):
+                                continue
+                        elif hasattr(content, "model_dump"):
+                            data = content.model_dump()
+                        elif hasattr(content, "__dict__"):
+                            data = vars(content)
+                        else:
+                            data = content
+
+                        # Extract document ID from WritePostResult or WriteProfileResult
+                        if isinstance(data, dict):
+                            if data.get("status") == "success" and "path" in data:
+                                doc_id = data["path"]
+                                # Use tool name to determine document type (not filesystem path)
+                                if part.tool_name == "write_post_tool":
+                                    saved_posts.append(doc_id)
+                                elif part.tool_name == "write_profile_tool":
+                                    saved_profiles.append(doc_id)
+            # Fallback: Check if this is a legacy tool-return message
+            elif hasattr(message, "kind") and message.kind == "tool-return":
                 # Parse the content - it might be JSON or a Pydantic model
                 content = message.content
                 if isinstance(content, str):
@@ -451,14 +480,22 @@ def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:  # noqa
                     data = content
 
                 # Extract path from WritePostResult or WriteProfileResult
+                # Use tool_name if available, otherwise fall back to path heuristics
                 if isinstance(data, dict):
                     if data.get("status") == "success" and "path" in data:
-                        path = data["path"]
-                        # Determine if it's a post or profile based on path
-                        if "/posts/" in path or path.endswith(".md"):
-                            saved_posts.append(path)
-                        elif "/profiles/" in path:
-                            saved_profiles.append(path)
+                        doc_id = data["path"]
+                        # Try to get tool_name from message
+                        if hasattr(message, "tool_name"):
+                            if message.tool_name == "write_post_tool":
+                                saved_posts.append(doc_id)
+                            elif message.tool_name == "write_profile_tool":
+                                saved_profiles.append(doc_id)
+                        # Legacy fallback: Determine type based on path patterns
+                        # This supports old-style filesystem paths
+                        elif "/posts/" in doc_id or doc_id.endswith(".md"):
+                            saved_posts.append(doc_id)
+                        elif "/profiles/" in doc_id:
+                            saved_profiles.append(doc_id)
     except (AttributeError, TypeError) as e:
         logger.debug("Could not parse tool results: %s", e)
 
