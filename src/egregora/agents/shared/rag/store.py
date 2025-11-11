@@ -549,8 +549,14 @@ class VectorStore:
             return self._search_exact(where_clause, order_clause, params, min_similarity)
 
         return self._search_ann(
-            where_clause, order_clause, params, min_similarity, top_k, nprobe, overfetch,
-            embedding_dimensionality
+            where_clause,
+            order_clause,
+            params,
+            min_similarity,
+            top_k,
+            nprobe,
+            overfetch,
+            embedding_dimensionality,
         )
 
     def _table_available(self) -> bool:
@@ -671,8 +677,14 @@ class VectorStore:
         last_error: Exception | None = None
         for function_name in self._candidate_vss_functions():
             result = self._try_ann_search(
-                function_name, where_clause, order_clause, params, min_similarity,
-                ann_limit, nprobe_clause, embedding_dimensionality
+                function_name,
+                where_clause,
+                order_clause,
+                params,
+                min_similarity,
+                ann_limit,
+                nprobe_clause,
+                embedding_dimensionality,
             )
             if result is not None:
                 return result

@@ -1859,7 +1859,9 @@ def _format_status(status: str) -> str:
     return status
 
 
-def _format_run_header(lines: list[str], run_id: str, tenant_id: str | None, stage: str, status_display: str) -> None:
+def _format_run_header(
+    lines: list[str], run_id: str, tenant_id: str | None, stage: str, status_display: str
+) -> None:
     """Append run header section to lines."""
     lines.append(f"[bold cyan]Run ID:[/bold cyan] {run_id}")
     if tenant_id:
@@ -1869,7 +1871,9 @@ def _format_run_header(lines: list[str], run_id: str, tenant_id: str | None, sta
     lines.append("")
 
 
-def _format_timestamps(lines: list[str], started_at: str, finished_at: str | None, duration_seconds: float | None) -> None:
+def _format_timestamps(
+    lines: list[str], started_at: str, finished_at: str | None, duration_seconds: float | None
+) -> None:
     """Append timestamps section to lines."""
     lines.append("[bold]Timestamps:[/bold]")
     lines.append(f"  Started:  {started_at}")
@@ -1880,7 +1884,9 @@ def _format_timestamps(lines: list[str], started_at: str, finished_at: str | Non
     lines.append("")
 
 
-def _format_metrics(lines: list[str], rows_in: int | None, rows_out: int | None, llm_calls: int | None, tokens: int | None) -> None:
+def _format_metrics(
+    lines: list[str], rows_in: int | None, rows_out: int | None, llm_calls: int | None, tokens: int | None
+) -> None:
     """Append metrics section to lines if any metrics exist."""
     if not (rows_in is not None or rows_out is not None or llm_calls or tokens):
         return
@@ -1896,7 +1902,9 @@ def _format_metrics(lines: list[str], rows_in: int | None, rows_out: int | None,
     lines.append("")
 
 
-def _format_fingerprints(lines: list[str], input_fingerprint: str | None, code_ref: str | None, config_hash: str | None) -> None:
+def _format_fingerprints(
+    lines: list[str], input_fingerprint: str | None, code_ref: str | None, config_hash: str | None
+) -> None:
     """Append fingerprints section to lines if any fingerprints exist."""
     if not (input_fingerprint or code_ref or config_hash):
         return
@@ -1998,10 +2006,42 @@ def runs_show(
             console.print(f"[red]Run not found: {run_id}[/red]")
             raise typer.Exit(1)
 
-        (run_id_full, tenant_id, stage, status, error, input_fingerprint, code_ref, config_hash, started_at, finished_at, duration_seconds, rows_in, rows_out, llm_calls, tokens, trace_id) = result
+        (
+            run_id_full,
+            tenant_id,
+            stage,
+            status,
+            error,
+            input_fingerprint,
+            code_ref,
+            config_hash,
+            started_at,
+            finished_at,
+            duration_seconds,
+            rows_in,
+            rows_out,
+            llm_calls,
+            tokens,
+            trace_id,
+        ) = result
 
         panel_content = _build_run_panel_content(
-            run_id_full, tenant_id, stage, status, error, input_fingerprint, code_ref, config_hash, started_at, finished_at, duration_seconds, rows_in, rows_out, llm_calls, tokens, trace_id
+            run_id_full,
+            tenant_id,
+            stage,
+            status,
+            error,
+            input_fingerprint,
+            code_ref,
+            config_hash,
+            started_at,
+            finished_at,
+            duration_seconds,
+            rows_in,
+            rows_out,
+            llm_calls,
+            tokens,
+            trace_id,
         )
 
         panel = Panel(panel_content, title=f"[bold]Run Details: {stage}[/bold]", border_style="cyan")
