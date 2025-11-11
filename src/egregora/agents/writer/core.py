@@ -40,7 +40,10 @@ from egregora.config.loader import create_default_config
 from egregora.core.document import Document, DocumentType
 from egregora.prompt_templates import WriterPromptTemplate
 from egregora.rendering import create_output_format, output_registry
+from egregora.rendering.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
+from egregora.rendering.mkdocs_output_format import MkDocsOutputFormat
 from egregora.storage.legacy_adapter import LegacyStorageAdapter
+from egregora.storage.url_convention import UrlContext
 
 if TYPE_CHECKING:
     from google import genai
@@ -491,6 +494,20 @@ def _write_posts_for_window_pydantic(
         site_root=storage_root,
     )
 
+    # MODERN (Phase 4): Create backend-agnostic publishing components
+    # URL convention and output format for perfect separation
+    url_convention = LegacyMkDocsUrlConvention()
+    url_context = UrlContext(base_url="", site_prefix="", base_path=storage_root)
+    mkdocs_output_format = MkDocsOutputFormat(site_root=storage_root, url_context=url_context)
+
+    # Verify convention compatibility
+    if mkdocs_output_format.url_convention.name != url_convention.name:
+        logger.warning(
+            "Convention mismatch: Core uses %s, Format uses %s",
+            url_convention.name,
+            mkdocs_output_format.url_convention.name,
+        )
+
     # Create runtime context for writer agent (MODERN: uses storage protocols)
     runtime_context = WriterRuntimeContext(
         start_time=start_time,
@@ -501,6 +518,10 @@ def _write_posts_for_window_pydantic(
         journals=journals_storage,
         # Document storage (MODERN Phase 3)
         document_storage=document_storage,
+        # Backend-agnostic publishing (MODERN Phase 4)
+        url_convention=url_convention,
+        url_context=url_context,
+        output_format=mkdocs_output_format,
         # Pre-constructed stores
         rag_store=rag_store,
         annotations_store=annotations_store,

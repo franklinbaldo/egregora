@@ -65,6 +65,8 @@ from egregora.core.document import Document, DocumentType
 from egregora.database.streaming import stream_ibis
 from egregora.storage import JournalStorage, PostStorage, ProfileStorage
 from egregora.storage.documents import DocumentStorage
+from egregora.storage.output_format import OutputFormat
+from egregora.storage.url_convention import UrlContext, UrlConvention
 from egregora.utils.logfire_config import logfire_info, logfire_span
 
 if TYPE_CHECKING:
@@ -79,10 +81,16 @@ class WriterRuntimeContext:
     MODERN (Phase 2): Bundles runtime parameters to reduce function signatures.
     MODERN (Adapter Pattern): Uses storage protocols instead of directory paths.
     MODERN (Phase 3): Added DocumentStorage for content-addressed documents.
+    MODERN (Phase 4): Added UrlConvention + OutputFormat for perfect separation.
     Stores are pre-constructed and injected (not built from directories).
 
     Windows are identified by (start_time, end_time) tuple, not artificial IDs.
     This makes them stable across config changes and more meaningful for logging.
+
+    Architecture (Phase 4):
+    - Core calculates URLs using url_convention directly
+    - Core requests persistence via output_format.serve(document)
+    - Core and Format are independent, only sharing the convention
     """
 
     # Time window
@@ -95,7 +103,13 @@ class WriterRuntimeContext:
     journals: JournalStorage
 
     # Document storage (MODERN Phase 3: content-addressed documents)
+    # DEPRECATED: Will be replaced by url_convention + output_format
     document_storage: DocumentStorage
+
+    # MODERN Phase 4: Backend-agnostic publishing
+    url_convention: UrlConvention
+    url_context: UrlContext
+    output_format: OutputFormat
 
     # Pre-constructed stores (injected, not built from paths)
     rag_store: VectorStore
@@ -593,7 +607,8 @@ def _register_writer_tools(
     def write_post_tool(
         ctx: RunContext[WriterAgentState], metadata: PostMetadata, content: str
     ) -> WritePostResult:
-        # MODERN (Phase 3): Create Document object and use DocumentStorage
+        # MODERN (Phase 4): Backend-agnostic publishing
+        # 1. Create Document object
         doc = Document(
             content=content,
             type=DocumentType.POST,
@@ -601,10 +616,14 @@ def _register_writer_tools(
             source_window=ctx.deps.window_id,
         )
 
-        # Store via document storage (delegates to format-specific implementation)
-        doc_id = ctx.deps.document_storage.add(doc)
-        logger.info("Writer agent saved post: %s", doc_id)
-        return WritePostResult(status="success", path=doc_id)  # path field kept for compatibility
+        # 2. Calculate URL using convention (Core's responsibility)
+        url = ctx.deps.url_convention.canonical_url(doc, ctx.deps.url_context)
+
+        # 3. Request persistence (Format's responsibility)
+        ctx.deps.output_format.serve(doc)
+
+        logger.info("Writer agent saved post at URL: %s (doc_id: %s)", url, doc.document_id)
+        return WritePostResult(status="success", path=url)  # Return URL as "path"
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterAgentState], author_uuid: str) -> ReadProfileResult:
@@ -618,7 +637,8 @@ def _register_writer_tools(
     def write_profile_tool(
         ctx: RunContext[WriterAgentState], author_uuid: str, content: str
     ) -> WriteProfileResult:
-        # MODERN (Phase 3): Create Document object and use DocumentStorage
+        # MODERN (Phase 4): Backend-agnostic publishing
+        # 1. Create Document object
         doc = Document(
             content=content,
             type=DocumentType.PROFILE,
@@ -626,10 +646,14 @@ def _register_writer_tools(
             source_window=ctx.deps.window_id,
         )
 
-        # Store via document storage (delegates to format-specific implementation)
-        doc_id = ctx.deps.document_storage.add(doc)
-        logger.info("Writer agent saved profile: %s", doc_id)
-        return WriteProfileResult(status="success", path=doc_id)  # path field kept for compatibility
+        # 2. Calculate URL using convention (Core's responsibility)
+        url = ctx.deps.url_convention.canonical_url(doc, ctx.deps.url_context)
+
+        # 3. Request persistence (Format's responsibility)
+        ctx.deps.output_format.serve(doc)
+
+        logger.info("Writer agent saved profile at URL: %s (doc_id: %s)", url, doc.document_id)
+        return WriteProfileResult(status="success", path=url)  # Return URL as "path"
 
     if enable_rag:
 
