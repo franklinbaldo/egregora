@@ -58,9 +58,7 @@ class SkillInjectionSupport(Protocol):
         ...
 
 
-async def use_skill(
-    ctx: RunContext[Any], skill_name: str, task: str
-) -> str:
+async def use_skill(ctx: RunContext[Any], skill_name: str, task: str) -> str:
     """Load a skill and execute a task with it using a specialized sub-agent.
 
     This tool spawns a sub-agent with the requested skill content injected into
@@ -129,9 +127,7 @@ async def use_skill(
     # This ensures parent tools work correctly (can access storage, RAG, etc.)
     try:
         summary = await _run_sub_agent(sub_agent, task, skill_name, ctx.deps)
-        logger.info(
-            f"Skill usage completed: {skill_name} - {summary[:100]}..."
-        )
+        logger.info(f"Skill usage completed: {skill_name} - {summary[:100]}...")
         return summary
 
     except Exception as e:
@@ -164,9 +160,7 @@ def end_skill_use(summary: str) -> SkillCompletionResult:
     return SkillCompletionResult(summary=summary)
 
 
-def _build_skill_system_prompt(
-    parent_prompt: str, skill_content: str, task: str
-) -> str:
+def _build_skill_system_prompt(parent_prompt: str, skill_content: str, task: str) -> str:
     """Build system prompt for sub-agent with skill context.
 
     Args:
@@ -187,7 +181,7 @@ to help you complete a specific task.
 
 ## Injected Skill: {skill_content[:500]}...
 
-{'...(skill content truncated)...' if len(skill_content) > 500 else ''}
+{"...(skill content truncated)..." if len(skill_content) > 500 else ""}
 
 ## Your Task
 
@@ -207,9 +201,7 @@ to help you complete a specific task.
 """
 
 
-async def _run_sub_agent(
-    agent: Agent[Any, Any], task: str, skill_name: str, parent_deps: Any
-) -> str:
+async def _run_sub_agent(agent: Agent[Any, Any], task: str, skill_name: str, parent_deps: Any) -> str:
     """Run sub-agent and extract summary.
 
     The sub-agent can either:
@@ -244,9 +236,7 @@ async def _run_sub_agent(
         logger.debug(f"Sub-agent used end_skill_use: {clean_summary[:100]}...")
         return clean_summary
     # Agent finished naturally without calling end_skill_use
-    logger.debug(
-        "Sub-agent finished without end_skill_use, using final response as summary"
-    )
+    logger.debug("Sub-agent finished without end_skill_use, using final response as summary")
     return summary
 
 
