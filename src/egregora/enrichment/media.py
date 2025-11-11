@@ -11,7 +11,6 @@ from typing import Annotated
 import ibis
 from ibis.expr.types import Table
 
-from egregora.config import MEDIA_DIR_NAME
 from egregora.enrichment.batch import _iter_table_record_batches
 
 ATTACHMENT_MARKERS = ("(arquivo anexado)", "(file attached)", "(archivo adjunto)", "\u200e<attached:")
@@ -88,9 +87,9 @@ def find_media_references(
 def extract_media_from_zip(
     zip_path: Annotated[Path, "The path to the WhatsApp export ZIP file"],
     filenames: Annotated[set[str], "A set of media filenames to extract"],
-    docs_dir: Annotated[Path, "The MkDocs docs directory"],
+    media_dir: Annotated[Path, "The media directory (e.g., site_root/media)"],
 ) -> Annotated[dict[str, Path], "A mapping from original filenames to their new paths on disk"]:
-    """Extract media files from ZIP and save to output_dir/media/.
+    """Extract media files from ZIP and save to media_dir/.
 
     UUID generation is based on content only - enables global deduplication
     across all groups (same file = same UUID regardless of group).
@@ -99,7 +98,6 @@ def extract_media_from_zip(
     """
     if not filenames:
         return {}
-    media_dir = docs_dir / MEDIA_DIR_NAME
     media_dir.mkdir(parents=True, exist_ok=True)
     # Fixed namespace for all egregora media (same as avatars)
     namespace = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
@@ -194,7 +192,9 @@ def extract_and_replace_media(
             message = row.get("message", "")
             media_refs = find_media_references(message)
             all_media.update(media_refs)
-    media_mapping = extract_media_from_zip(zip_path, all_media, docs_dir)
+    # Compute media_dir from docs_dir (MkDocs convention: media/ subdirectory)
+    media_dir = docs_dir / "media"
+    media_mapping = extract_media_from_zip(zip_path, all_media, media_dir)
     if not media_mapping:
         return (messages_table, {})
 
