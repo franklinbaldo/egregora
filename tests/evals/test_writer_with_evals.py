@@ -54,7 +54,7 @@ async def run_writer_agent(inputs: dict, writer_dirs: tuple[Path, Path, Path]) -
     batch_client = create_mock_batch_client()
 
     # MODERN (Phase 2): Create config and context
-    site_root = posts_dir.parent.parent  # Go up from docs/posts to site root
+    site_root = posts_dir.parent  # MODERN: posts is at site root (not docs/posts)
     config = create_default_config(site_root)
     config = config.model_copy(
         deep=True,
@@ -135,7 +135,7 @@ def test_writer_evaluation_empty_conversation(writer_dirs):
     case = next(c for c in dataset.cases if c.name == "empty_conversation")
 
     # MODERN (Phase 2): Create config and context
-    site_root = posts_dir.parent.parent  # Go up from docs/posts to site root
+    site_root = posts_dir.parent  # MODERN: posts is at site root (not docs/posts)
     config = create_default_config(site_root)
     config = config.model_copy(
         deep=True,
@@ -204,7 +204,7 @@ async def test_writer_stream_empty_conversation(writer_dirs):
     case = next(c for c in dataset.cases if c.name == "empty_conversation")
 
     # MODERN (Phase 2): Create config and context
-    site_root = posts_dir.parent.parent  # Go up from docs/posts to site root
+    site_root = posts_dir.parent  # MODERN: posts is at site root (not docs/posts)
     config = create_default_config(site_root)
     config = config.model_copy(
         deep=True,

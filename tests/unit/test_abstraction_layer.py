@@ -104,8 +104,10 @@ class TestMkDocsOutputFormat:
 
     def test_detect_mkdocs_site(self, tmp_path):
         """Test auto-detection of MkDocs site."""
-        # Create mock mkdocs.yml
-        mkdocs_yml = tmp_path / "mkdocs.yml"
+        # Create mock mkdocs.yml in .egregora/ (MODERN location)
+        egregora_dir = tmp_path / ".egregora"
+        egregora_dir.mkdir()
+        mkdocs_yml = egregora_dir / "mkdocs.yml"
         mkdocs_yml.write_text("site_name: Test\n")
 
         output = output_registry.get_format("mkdocs")
@@ -127,11 +129,12 @@ class TestMkDocsOutputFormat:
         assert config_path.exists()
         assert config_path.name == "mkdocs.yml"
 
-        # Check directory structure
-        assert (site_root / "docs").exists()
-        assert (site_root / "docs" / "posts").exists()
-        assert (site_root / "docs" / "profiles").exists()
-        assert (site_root / "docs" / "media").exists()
+        # Check directory structure (MODERN: content at root level, not in docs/)
+        assert (site_root / "posts").exists()
+        assert (site_root / "profiles").exists()
+        assert (site_root / "media").exists()
+        assert (site_root / ".egregora").exists()
+        assert (site_root / ".egregora" / "mkdocs.yml").exists()
 
     def test_resolve_paths(self, tmp_path):
         """Test path resolution for MkDocs site."""
@@ -145,7 +148,8 @@ class TestMkDocsOutputFormat:
         config = output.resolve_paths(site_root)
 
         assert config.site_root == site_root
-        assert config.docs_dir == site_root / "docs"
+        # MODERN: docs_dir is site root (mkdocs.yml in .egregora/ with docs_dir: ..)
+        assert config.docs_dir == site_root
         assert config.posts_dir.exists()
         assert config.profiles_dir.exists()
         assert config.media_dir.exists()
@@ -225,10 +229,12 @@ class TestIntegration:
         with zipfile.ZipFile(zip_path, "w") as zf:
             zf.writestr("_chat.txt", "Test")
 
-        # Create MkDocs site
+        # Create MkDocs site (MODERN: mkdocs.yml in .egregora/)
         site_root = tmp_path / "site"
         site_root.mkdir(parents=True, exist_ok=True)
-        (site_root / "mkdocs.yml").write_text("site_name: Test\n")
+        egregora_dir = site_root / ".egregora"
+        egregora_dir.mkdir()
+        (egregora_dir / "mkdocs.yml").write_text("site_name: Test\n")
 
         # Auto-detect
         source = input_registry.detect_source(zip_path)
