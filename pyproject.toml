@@ -45,8 +45,10 @@ docs = [
     "codespell>=2.3.0",
     "mkdocs-git-revision-date-localized-plugin>=1.2",
     "mkdocs-minify-plugin>=0.8",
-    "mkdocs-rss-plugin>=1.15",
     "mkdocs-material[imaging]>=9.5",
+]
+rss = [
+    "mkdocs-rss-plugin>=1.15",
 ]
 ranking = []
 lint = [

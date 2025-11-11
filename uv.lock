@@ -589,7 +589,6 @@ docs = [
     { name = "mkdocs-git-revision-date-localized-plugin" },
     { name = "mkdocs-material", extra = ["imaging"] },
     { name = "mkdocs-minify-plugin" },
-    { name = "mkdocs-rss-plugin" },
     { name = "mkdocs-static-i18n" },
     { name = "mkdocstrings", extra = ["python"] },
     { name = "pymdown-extensions" },
@@ -598,6 +597,9 @@ docs = [
 lint = [
     { name = "pre-commit" },
     { name = "ruff" },
+]
+rss = [
+    { name = "mkdocs-rss-plugin" },
 ]
 test = [
     { name = "pytest-vcr" },
@@ -632,7 +634,7 @@ requires-dist = [
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5" },
     { name = "mkdocs-material", extras = ["imaging"], marker = "extra == 'docs'", specifier = ">=9.5" },
     { name = "mkdocs-minify-plugin", marker = "extra == 'docs'", specifier = ">=0.8" },
-    { name = "mkdocs-rss-plugin", marker = "extra == 'docs'", specifier = ">=1.15" },
+    { name = "mkdocs-rss-plugin", marker = "extra == 'rss'", specifier = ">=1.15" },
     { name = "mkdocs-static-i18n", marker = "extra == 'docs'", specifier = ">=1.2" },
     { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=0.30" },
     { name = "pillow", specifier = ">=10.0.0" },
@@ -657,7 +659,7 @@ requires-dist = [
     { name = "typer", extras = ["all"], specifier = ">=0.20.0" },
     { name = "werkzeug", specifier = ">=3.0.0" },
 ]
-provides-extras = ["test", "docs", "ranking", "lint"]
+provides-extras = ["test", "docs", "rss", "ranking", "lint"]
 
 [package.metadata.requires-dev]
 dev = [
