@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
 import pytest
+from egregora.storage.legacy_adapter import LegacyStorageAdapter
 from pydantic_ai.models.test import TestModel
 
 from egregora.agents.shared.rag import VectorStore
@@ -12,7 +13,6 @@ from egregora.agents.writer.agent import WriterRuntimeContext, write_posts_with_
 from egregora.config.loader import create_default_config
 from egregora.rendering.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
 from egregora.rendering.mkdocs_output_format import MkDocsOutputFormat
-from egregora.storage.legacy_adapter import LegacyStorageAdapter
 from egregora.storage.url_convention import UrlContext
 from tests.helpers.storage import InMemoryJournalStorage, InMemoryPostStorage, InMemoryProfileStorage
 from tests.utils.mock_batch_client import create_mock_batch_client

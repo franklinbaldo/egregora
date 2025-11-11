@@ -8,6 +8,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
+from egregora.storage.legacy_adapter import LegacyStorageAdapter
 from pydantic_ai.models.test import TestModel
 
 from egregora.agents.shared.rag import VectorStore
@@ -19,7 +20,6 @@ from egregora.agents.writer.agent import (
 from egregora.config.loader import create_default_config
 from egregora.rendering.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
 from egregora.rendering.mkdocs_output_format import MkDocsOutputFormat
-from egregora.storage.legacy_adapter import LegacyStorageAdapter
 from egregora.storage.url_convention import UrlContext
 from tests.evals.writer_evals import create_writer_dataset
 from tests.helpers.storage import InMemoryJournalStorage, InMemoryPostStorage, InMemoryProfileStorage
