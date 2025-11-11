@@ -82,8 +82,7 @@ class MockAdapter(SourceAdapter):
                 }
             )
             # Create memtable with explicit schema
-            table = ibis.memtable(df, schema=IR_V1_SCHEMA)
-            return table
+            return ibis.memtable(df, schema=IR_V1_SCHEMA)
         # Return invalid table (missing required columns)
         import pandas as pd
 

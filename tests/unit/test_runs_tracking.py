@@ -453,7 +453,8 @@ def test_run_stage_with_tracking_failure(temp_db_path: Path):
 
     # Define failing stage function
     def failing_stage(*, input_table: ibis.Table, **kwargs) -> ibis.Table:
-        raise ValueError("Intentional test failure")
+        msg = "Intentional test failure"
+        raise ValueError(msg)
 
     # Create context
     ctx = RunContext.create(stage="test-stage", db_path=temp_db_path)
@@ -537,7 +538,7 @@ def test_run_stage_with_tracking_records_lineage(temp_db_path: Path):
     )
 
     # Execute with tracking
-    result, run_id = run_stage_with_tracking(
+    _result, run_id = run_stage_with_tracking(
         stage_func=child_stage,
         context=ctx,
         input_table=None,

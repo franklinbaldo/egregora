@@ -17,17 +17,17 @@ from egregora.database.schemas import (
 from egregora.database.storage import StorageManager, duckdb_backend, temp_storage
 
 __all__ = [
-    # Connection utilities
-    "StorageManager",
-    "duckdb_backend",
-    "temp_storage",
     # Schemas
     "CONVERSATION_SCHEMA",
     "MESSAGE_SCHEMA",
     "RUNS_TABLE_DDL",
     "RUNS_TABLE_SCHEMA",
     "WHATSAPP_CONVERSATION_SCHEMA",
+    # Connection utilities
+    "StorageManager",
     # Runs table utilities
     "create_runs_table",
+    "duckdb_backend",
     "ensure_runs_table_exists",
+    "temp_storage",
 ]

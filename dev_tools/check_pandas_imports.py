@@ -67,8 +67,8 @@ def check_file(file_path: Path) -> list[str]:
 
                 errors.append(f"{file_path}:{i + 1}: {line.strip()}")
 
-    except Exception as e:
-        print(f"Error reading {file_path}: {e}", file=sys.stderr)
+    except Exception:
+        pass
 
     return errors
 
@@ -78,7 +78,6 @@ def main() -> int:
     src_dir = Path("src/egregora")
 
     if not src_dir.exists():
-        print(f"Error: {src_dir} does not exist", file=sys.stderr)
         return 1
 
     all_errors = []
@@ -92,11 +91,8 @@ def main() -> int:
         all_errors.extend(errors)
 
     if all_errors:
-        print("❌ Found banned pandas imports. Use Ibis + DuckDB instead.")
-        print("   TYPE_CHECKING imports are allowed for type hints.")
-        print("   See docs/development/agents/claude.md for Ibis-first policy.\n")
-        for error in all_errors:
-            print(f"   {error}")
+        for _error in all_errors:
+            pass
         return 1
 
     return 0

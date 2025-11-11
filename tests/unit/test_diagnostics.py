@@ -2,7 +2,6 @@
 
 import os
 import subprocess
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -83,13 +82,8 @@ class TestCheckPythonVersion:
 
         # Current Python should be 3.12+ (project requirement)
         assert result.check == "Python Version"
-        if sys.version_info >= (3, 12):
-            assert result.status == HealthStatus.OK
-            assert "Python 3.12" in result.message or "Python 3.13" in result.message
-        else:
-            # If running on older Python (shouldn't happen)
-            assert result.status == HealthStatus.ERROR
-            assert "requires 3.12+" in result.message
+        assert result.status == HealthStatus.OK
+        assert "Python 3.12" in result.message or "Python 3.13" in result.message
 
 
 class TestCheckRequiredPackages:
@@ -111,7 +105,8 @@ class TestCheckRequiredPackages:
         # Mock importlib to raise ImportError for specific packages
         def mock_import_func(name: str) -> None:
             if name in ("ibis", "duckdb"):
-                raise ImportError(f"No module named '{name}'")
+                msg = f"No module named '{name}'"
+                raise ImportError(msg)
 
         mock_import.side_effect = mock_import_func
 

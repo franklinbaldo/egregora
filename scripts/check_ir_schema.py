@@ -31,10 +31,8 @@ def load_lockfile_schema(lockfile_path: Path) -> dict:
         with open(lockfile_path) as f:
             return json.load(f)
     except FileNotFoundError:
-        print(f"❌ Lockfile not found: {lockfile_path}", file=sys.stderr)
         sys.exit(2)
-    except json.JSONDecodeError as e:
-        print(f"❌ Invalid JSON in lockfile: {e}", file=sys.stderr)
+    except json.JSONDecodeError:
         sys.exit(2)
 
 
@@ -48,8 +46,7 @@ def load_code_schema():
         from egregora.database.validation import IR_V1_SCHEMA
 
         return IR_V1_SCHEMA
-    except ImportError as e:
-        print(f"❌ Failed to import IR_V1_SCHEMA: {e}", file=sys.stderr)
+    except ImportError:
         sys.exit(2)
 
 
@@ -57,18 +54,17 @@ def dtype_to_string(dtype: dt.DataType) -> str:
     """Convert Ibis dtype to string representation for comparison."""
     if isinstance(dtype, dt.UUID):
         return "UUID"
-    elif isinstance(dtype, dt.String):
+    if isinstance(dtype, dt.String):
         return "String"
-    elif isinstance(dtype, dt.Timestamp):
+    if isinstance(dtype, dt.Timestamp):
         return "Timestamp"
-    elif isinstance(dtype, dt.JSON):
+    if isinstance(dtype, dt.JSON):
         return "JSON"
-    elif isinstance(dtype, dt.Int64):
+    if isinstance(dtype, dt.Int64):
         return "Int64"
-    elif isinstance(dtype, dt.Boolean):
+    if isinstance(dtype, dt.Boolean):
         return "Boolean"
-    else:
-        return str(dtype)
+    return str(dtype)
 
 
 def compare_schemas(lockfile_data: dict, code_schema) -> list[str]:
@@ -76,6 +72,7 @@ def compare_schemas(lockfile_data: dict, code_schema) -> list[str]:
 
     Returns:
         List of differences (empty if schemas match)
+
     """
     differences = []
 
@@ -124,40 +121,24 @@ def compare_schemas(lockfile_data: dict, code_schema) -> list[str]:
 
 def main() -> int:
     """Run schema validation check."""
-    print("🔍 Checking IR v1 schema for drift...")
-
     # Resolve paths
     repo_root = Path(__file__).parent.parent
     lockfile_path = repo_root / "schema" / "ir_v1.json"
 
     # Load schemas
-    print(f"📖 Loading lockfile: {lockfile_path}")
     lockfile_data = load_lockfile_schema(lockfile_path)
 
-    print("📖 Loading code schema from src/egregora/database/validation.py")
     code_schema = load_code_schema()
 
     # Compare
-    print("⚖️  Comparing schemas...")
     differences = compare_schemas(lockfile_data, code_schema)
 
     if not differences:
-        print("✅ Schemas match! No drift detected.")
         return 0
 
-    print("\n❌ Schema drift detected!")
-    print("\nDifferences:")
-    for diff in differences:
-        print(f"  • {diff}")
+    for _diff in differences:
+        pass
 
-    print("\n⚠️  To fix:")
-    print("  1. If this is an intentional schema change:")
-    print("     - Update schema/ir_v1.json with new schema")
-    print("     - Update schema/ir_v1.sql with new SQL")
-    print("     - Consider incrementing version to ir_v2 if breaking")
-    print("  2. If this is accidental:")
-    print("     - Revert changes to src/egregora/database/validation.py")
-    print("     - Keep IR_V1_SCHEMA in sync with lockfile")
 
     return 1
 

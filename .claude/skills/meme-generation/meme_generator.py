@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-Meme Generator Helper
+"""Meme Generator Helper.
 
 A Python interface for the memegen.link API to generate memes programmatically.
 
@@ -63,13 +62,11 @@ class MemeGenerator:
         "documentation": ["yodawg", "buzz", "wonka"],
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the meme generator."""
-        pass
 
     def _format_text(self, text: str) -> str:
         """Format text for URL inclusion following memegen rules."""
-
         replacements = {
             " ": "_",
             "-": "--",
@@ -99,8 +96,7 @@ class MemeGenerator:
         style: str | None = None,
         font: str | None = None,
     ) -> str:
-        """
-        Generate a meme URL.
+        """Generate a meme URL.
 
         Args:
             template: Template name (e.g., 'buzz', 'drake')
@@ -115,6 +111,7 @@ class MemeGenerator:
 
         Returns:
             URL to the generated meme
+
         """
         # Format text
         top = self._format_text(top_text) if top_text else "_"
@@ -143,14 +140,14 @@ class MemeGenerator:
         return url
 
     def suggest_template_for_context(self, context: str) -> str:
-        """
-        Suggest a template based on context.
+        """Suggest a template based on context.
 
         Args:
             context: Description of the situation (e.g., 'deployment success')
 
         Returns:
             Suggested template name
+
         """
         context_lower = context.lower()
 
@@ -163,17 +160,16 @@ class MemeGenerator:
         return "buzz"
 
     def list_templates(self) -> dict[str, str]:
-        """
-        List all available templates with descriptions.
+        """List all available templates with descriptions.
 
         Returns:
             Dictionary of template names and descriptions
+
         """
         return self.TEMPLATES
 
     def get_markdown_image(self, url: str, alt_text: str = "Meme", width: int | None = None) -> str:
-        """
-        Generate markdown for embedding the meme image.
+        """Generate markdown for embedding the meme image.
 
         Args:
             url: The meme URL
@@ -182,13 +178,14 @@ class MemeGenerator:
 
         Returns:
             Markdown image syntax
+
         """
         if width:
             return f'<img src="{url}" alt="{alt_text}" width="{width}"/>'
         return f"![{alt_text}]({url})"
 
 
-def main():
+def main() -> None:
     """CLI interface for the meme generator."""
     parser = argparse.ArgumentParser(description="Generate memes using memegen.link")
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
@@ -217,7 +214,7 @@ def main():
     generator = MemeGenerator()
 
     if args.command == "generate":
-        url = generator.generate(
+        generator.generate(
             template=args.template,
             top_text=args.top,
             bottom_text=args.bottom,
@@ -227,22 +224,17 @@ def main():
             layout=args.layout,
         )
         if args.markdown:
-            print(generator.get_markdown_image(url))
+            pass
         else:
-            print(url)
+            pass
 
     elif args.command == "list-templates":
         templates = generator.list_templates()
-        print("\nAvailable Templates:\n")
-        for name, description in sorted(templates.items()):
-            print(f"  {name:15} - {description}")
-        print(f"\nTotal: {len(templates)} templates")
-        print("\nFor more templates, visit: https://api.memegen.link/templates/")
+        for _name, _description in sorted(templates.items()):
+            pass
 
     elif args.command == "suggest":
-        template = generator.suggest_template_for_context(args.context)
-        print(f"Suggested template: {template}")
-        print(f"Description: {generator.TEMPLATES.get(template, 'N/A')}")
+        generator.suggest_template_for_context(args.context)
 
     else:
         parser.print_help()

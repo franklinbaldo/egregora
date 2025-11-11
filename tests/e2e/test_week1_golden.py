@@ -95,7 +95,6 @@ def test_week1_golden_whatsapp_pipeline(
     # ===========================================================================
     # Stage 1: Ingestion (WhatsApp → IR v1)
     # ===========================================================================
-    print("\n📥 Stage 1: Ingestion (WhatsApp → IR v1)")
 
     ingestion_run_id = uuid.uuid4()
     ingestion_start = time.time()
@@ -120,22 +119,20 @@ def test_week1_golden_whatsapp_pipeline(
     assert set(table.columns) == set(CONVERSATION_SCHEMA.keys()), "Schema mismatch"
 
     # Validate data types
-    for col_name, expected_type in CONVERSATION_SCHEMA.items():
-        actual_type = str(table[col_name].type())
+    for col_name in CONVERSATION_SCHEMA:
+        str(table[col_name].type())
         # DuckDB type names may differ slightly, just check column exists
         assert col_name in table.columns, f"Missing column: {col_name}"
 
     # Validate data contents
     row_count = table.count().execute()
     assert row_count > 0, "No messages parsed"
-    print(f"   ✅ Parsed {row_count} messages")
 
     # Validate required fields are populated
     df = table.execute()
     assert df["timestamp"].notna().all(), "Missing timestamps"
     assert df["author"].notna().all(), "Missing authors"
     assert df["message"].notna().all(), "Missing messages"
-    print("   ✅ All required fields populated")
 
     # Record ingestion run
     ingestion_end_time = datetime.now(UTC)
@@ -150,21 +147,17 @@ def test_week1_golden_whatsapp_pipeline(
         rows_in=0,
         rows_out=row_count,
     )
-    ingestion_end = time.time()
-    print(f"   ✅ Ingestion recorded (run_id: {ingestion_run_id})")
-    print(f"   ⏱️  Duration: {ingestion_end - ingestion_start:.2f}s")
+    time.time()
 
     # ===========================================================================
     # Stage 2: Privacy Gate (Anonymization + UUID5)
     # ===========================================================================
-    print("\n🔒 Stage 2: Privacy Gate (Anonymization + UUID5)")
 
     privacy_run_id = uuid.uuid4()
     privacy_start = time.time()
 
     # Generate input fingerprint for checkpointing
     input_fingerprint = fingerprint_table(table)
-    print(f"   ✅ Input fingerprint: {input_fingerprint[:16]}...")
 
     # Anonymize table (deterministic UUID5)
     anonymized_table = anonymize_table(table)
@@ -173,14 +166,13 @@ def test_week1_golden_whatsapp_pipeline(
     anon_df = anonymized_table.execute()
     assert "author" in anon_df.columns, "Missing author column"
     assert anon_df["author"].notna().all(), "Missing author values"
-    print(f"   ✅ Anonymized {row_count} messages")
 
     # Validate UUID5 determinism
     # Note: Current anonymizer uses hex[:8], not full UUID. For Week 1 test, we just verify:
     # 1. Authors are anonymized (not the same as raw names)
     # 2. Re-ingestion produces same anonymized values
     unique_authors_raw = df["author"].unique()
-    unique_authors_anon = anon_df["author"].unique()
+    anon_df["author"].unique()
 
     # Verify anonymization happened (raw != anonymized)
     for author_raw in unique_authors_raw:
@@ -189,7 +181,6 @@ def test_week1_golden_whatsapp_pipeline(
         assert len(author_anon) == 8, f"Anonymized author should be 8-char hex: {author_anon}"
         assert author_anon != author_raw, f"Author not anonymized: {author_raw}"
 
-    print(f"   ✅ Author anonymization verified ({len(unique_authors_raw)} unique authors)")
 
     # Record privacy run
     privacy_end_time = datetime.now(UTC)
@@ -214,16 +205,13 @@ def test_week1_golden_whatsapp_pipeline(
         """,
         [str(privacy_run_id), str(ingestion_run_id)],
     )
-    privacy_end = time.time()
-    print(f"   ✅ Privacy gate recorded (run_id: {privacy_run_id})")
-    print(f"   ⏱️  Duration: {privacy_end - privacy_start:.2f}s")
+    time.time()
 
     # ===========================================================================
     # Stage 3: Re-ingestion Test (Determinism Validation)
     # ===========================================================================
-    print("\n🔄 Stage 3: Re-ingestion Test (Determinism Validation)")
 
-    reingest_start = time.time()
+    time.time()
 
     # Re-parse same export
     table2 = parse_source(export)
@@ -244,15 +232,11 @@ def test_week1_golden_whatsapp_pipeline(
     input_fingerprint2 = fingerprint_table(table2)
     assert input_fingerprint == input_fingerprint2, "Fingerprint changed on re-ingest"
 
-    reingest_end = time.time()
-    print("   ✅ Re-ingestion produces identical UUIDs")
-    print("   ✅ Input fingerprint stable across runs")
-    print(f"   ⏱️  Duration: {reingest_end - reingest_start:.2f}s")
+    time.time()
 
     # ===========================================================================
     # Validation: Runs Tracking
     # ===========================================================================
-    print("\n📊 Validation: Runs Tracking")
 
     # Query runs table
     runs = runs_db.execute("""
@@ -265,7 +249,6 @@ def test_week1_golden_whatsapp_pipeline(
     assert runs[0][1] == "ingestion", "First run should be ingestion"
     assert runs[1][1] == "privacy", "Second run should be privacy"
     assert all(run[2] == "completed" for run in runs), "All runs should be completed"
-    print(f"   ✅ {len(runs)} runs recorded")
 
     # Query lineage table
     lineage = runs_db.execute("""
@@ -276,30 +259,18 @@ def test_week1_golden_whatsapp_pipeline(
     assert len(lineage) == 1, f"Expected 1 lineage edge, got {len(lineage)}"
     assert lineage[0][0] == privacy_run_id, "Child should be privacy run"
     assert lineage[0][1] == ingestion_run_id, "Parent should be ingestion run"
-    print("   ✅ Lineage tracked: ingestion → privacy")
 
     # ===========================================================================
     # Performance Validation
     # ===========================================================================
     total_time = time.time() - start_time
-    print(f"\n⏱️  Total execution time: {total_time:.2f}s")
 
     # Week 1 target: <5 min for golden test
     assert total_time < 300, f"Test too slow: {total_time:.2f}s (target: <300s)"
-    print("   ✅ Performance target met (<5 min)")
 
     # ===========================================================================
     # Summary
     # ===========================================================================
-    print("\n" + "=" * 70)
-    print("✅ Week 1 Golden Test PASSED")
-    print("=" * 70)
-    print(f"   Ingestion:     {row_count} messages parsed")
-    print(f"   Privacy:       {len(unique_authors_raw)} authors anonymized (UUID5)")
-    print("   Determinism:   Re-ingest produces identical values")
-    print(f"   Runs tracking: {len(runs)} runs, {len(lineage)} lineage edges")
-    print(f"   Total time:    {total_time:.2f}s (target: <300s)")
-    print("=" * 70)
 
 
 def test_week1_schema_lockfile_validation():

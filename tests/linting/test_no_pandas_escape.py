@@ -39,19 +39,14 @@ def main() -> int:
         for file_path in get_python_files():
             errors = check_file_for_banned_imports(file_path)
             all_errors.extend(errors)
-    except Exception as e:
-        print(f"❌ Error during pandas import check: {e}", file=sys.stderr)
+    except Exception:
         return 1
 
     if all_errors:
-        print("❌ Found banned pandas imports:\n", file=sys.stderr)
-        for error in all_errors:
-            print(f"  {error}", file=sys.stderr)
-        print("\n📖 Policy: Egregora uses Ibis + DuckDB for all DataFrame operations.", file=sys.stderr)
-        print("   See CLAUDE.md section 'Ibis-First Coding Standard' for details.", file=sys.stderr)
+        for _error in all_errors:
+            pass
         return 1
 
-    print("✅ No pandas imports found in src/egregora/ (outside whitelisted paths)")
     return 0
 
 

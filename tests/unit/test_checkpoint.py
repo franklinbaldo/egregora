@@ -317,7 +317,7 @@ def test_run_with_checkpointing_auto_fingerprint(
         return input_table.mutate(processed=True)
 
     # First call (no fingerprint provided)
-    result1, was_cached1 = run_with_checkpointing(
+    _result1, was_cached1 = run_with_checkpointing(
         stage_func=stage_func,
         stage="test-stage",
         input_table=sample_table,
@@ -328,7 +328,7 @@ def test_run_with_checkpointing_auto_fingerprint(
     assert call_count == 1
 
     # Second call (same input_table, fingerprint auto-computed)
-    result2, was_cached2 = run_with_checkpointing(
+    _result2, was_cached2 = run_with_checkpointing(
         stage_func=stage_func,
         stage="test-stage",
         input_table=sample_table,
@@ -349,7 +349,7 @@ def test_run_with_checkpointing_different_config(temp_cache_dir: Path):
         return "result"
 
     # First call with config1
-    result1, was_cached1 = run_with_checkpointing(
+    _result1, was_cached1 = run_with_checkpointing(
         stage_func=stage_func,
         stage="test-stage",
         input_fingerprint="sha256:test123",
@@ -361,7 +361,7 @@ def test_run_with_checkpointing_different_config(temp_cache_dir: Path):
     assert call_count == 1
 
     # Second call with config2 (different)
-    result2, was_cached2 = run_with_checkpointing(
+    _result2, was_cached2 = run_with_checkpointing(
         stage_func=stage_func,
         stage="test-stage",
         input_fingerprint="sha256:test123",

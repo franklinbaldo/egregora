@@ -766,36 +766,36 @@ def _ensure_date_column(table: Table) -> Table:
 # ============================================================================
 
 __all__ = [
+    # Annotations schema
+    "ANNOTATIONS_SCHEMA",
     # Ephemeral schemas
     "CONVERSATION_SCHEMA",
     "DEFAULT_TIMEZONE",
+    # Elo schemas
+    "ELO_HISTORY_SCHEMA",
+    "ELO_RATINGS_SCHEMA",
     "MESSAGE_SCHEMA",
-    "WHATSAPP_CONVERSATION_SCHEMA",
-    "WHATSAPP_SCHEMA",
     # RAG schemas
     "RAG_CHUNKS_METADATA_SCHEMA",
     "RAG_CHUNKS_SCHEMA",
     "RAG_INDEX_META_SCHEMA",
     "RAG_SEARCH_RESULT_SCHEMA",
-    # Annotations schema
-    "ANNOTATIONS_SCHEMA",
-    # Elo schemas
-    "ELO_HISTORY_SCHEMA",
-    "ELO_RATINGS_SCHEMA",
     # Runs schema
     "RUNS_TABLE_DDL",
     "RUNS_TABLE_SCHEMA",
+    "WHATSAPP_CONVERSATION_SCHEMA",
+    "WHATSAPP_SCHEMA",
     # General utilities
     "add_primary_key",
     "create_index",
-    "create_table_if_not_exists",
-    "ensure_identity_column",
-    "quote_identifier",
     # Runs utilities
     "create_runs_table",
+    "create_table_if_not_exists",
     "drop_runs_table",
-    "ensure_runs_table_exists",
+    "ensure_identity_column",
     # Message schema utilities
     "ensure_message_schema",
+    "ensure_runs_table_exists",
     "group_slug",
+    "quote_identifier",
 ]

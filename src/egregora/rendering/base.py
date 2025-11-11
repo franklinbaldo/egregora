@@ -514,7 +514,7 @@ class OutputFormat(ABC):
         return metadata, body
 
     def prepare_window(
-        self, window_label: str, window_data: dict[str, Any] | None = None
+        self, window_label: str, _window_data: dict[str, Any] | None = None
     ) -> dict[str, Any] | None:
         """Pre-processing hook called before writer agent processes a window.
 
@@ -550,9 +550,9 @@ class OutputFormat(ABC):
     def finalize_window(
         self,
         window_label: str,
-        posts_created: list[str],
-        profiles_updated: list[str],
-        metadata: dict[str, Any] | None = None,
+        _posts_created: list[str],
+        _profiles_updated: list[str],
+        _metadata: dict[str, Any] | None = None,
     ) -> None:
         """Post-processing hook called after writer agent completes a window.
 
