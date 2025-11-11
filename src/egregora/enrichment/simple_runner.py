@@ -120,10 +120,12 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
     logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
     logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
 
+    # Derive prompts_dir for custom Jinja template overrides
+    prompts_dir = context.site_root / ".egregora" / "prompts" if context.site_root else None
+
     # Create thin agents (created once, reused for all items)
-    site_root = context.site_root
-    url_agent = make_url_agent(url_model, site_root=site_root) if enable_url else None
-    media_agent = make_media_agent(vision_model, site_root=site_root) if enable_media else None
+    url_agent = make_url_agent(url_model, prompts_dir=prompts_dir) if enable_url else None
+    media_agent = make_media_agent(vision_model, prompts_dir=prompts_dir) if enable_media else None
 
     if messages_table.count().execute() == 0:
         return messages_table
@@ -162,16 +164,14 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
             else:
                 # Call agent (one call per URL)
                 try:
-                    markdown = run_url_enrichment(url_agent, url, site_root=site_root)
+                    markdown = run_url_enrichment(url_agent, url, prompts_dir=prompts_dir)
                     cache.store(cache_key, {"markdown": markdown, "type": "url"})
                 except Exception as exc:  # noqa: BLE001 - log and continue enrichment
                     logger.warning("URL enrichment failed for %s: %s", url, exc)
                     continue
 
-            # Write output file
-            enrichment_id = uuid.uuid5(uuid.NAMESPACE_URL, url)
-            enrichment_path = docs_dir / "media" / "urls" / f"{enrichment_id}.md"
-            _atomic_write_text(enrichment_path, markdown)
+            # Write output file using storage protocol
+            enrichment_id_str = context.output_format.enrichments.write_url_enrichment(url, markdown)
 
             # Add enrichment row (use first message timestamp for simplicity)
             first_msg_with_url = (
@@ -189,7 +189,7 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
                         "timestamp": enrichment_timestamp,
                         "date": enrichment_timestamp.date(),
                         "author": "egregora",
-                        "message": f"[URL Enrichment] {url}\nEnrichment saved: {enrichment_path}",
+                        "message": f"[URL Enrichment] {url}\nEnrichment saved: {enrichment_id_str}",
                         "original_line": "",
                         "tagged_line": "",
                     }
@@ -249,7 +249,7 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
                 # Call agent
                 try:
                     markdown_content = run_media_enrichment(
-                        media_agent, file_path, mime_hint=media_type, site_root=site_root
+                        media_agent, file_path, mime_hint=media_type, prompts_dir=prompts_dir
                     )
                     cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
                 except Exception as exc:  # noqa: BLE001 - skip and continue pipeline
@@ -273,9 +273,10 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
             if not markdown_content:
                 markdown_content = f"[No enrichment generated for media: {file_path.name}]"
 
-            # Write output file
-            enrichment_path = file_path.with_suffix(file_path.suffix + ".md")
-            _atomic_write_text(enrichment_path, markdown_content)
+            # Write output file using storage protocol
+            enrichment_id_str = context.output_format.enrichments.write_media_enrichment(
+                file_path.name, markdown_content
+            )
 
             # Add enrichment row (use first message timestamp)
             # Note: ref might be original filename or UUID filename
@@ -294,7 +295,10 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
                         "timestamp": enrichment_timestamp,
                         "date": enrichment_timestamp.date(),
                         "author": "egregora",
-                        "message": f"[Media Enrichment] {file_path.name}\nEnrichment saved: {enrichment_path}",
+                        "message": (
+                            f"[Media Enrichment] {file_path.name}\n"
+                            f"Enrichment saved: {enrichment_id_str}"
+                        ),
                         "original_line": "",
                         "tagged_line": "",
                     }

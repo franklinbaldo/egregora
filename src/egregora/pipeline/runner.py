@@ -50,6 +50,7 @@ def _perform_enrichment(  # noqa: PLR0913
     enrichment_cache: EnrichmentCache,
     site_paths: any,
     posts_dir: Path,
+    output_format: any,
 ) -> ir.Table:
     """Execute enrichment for a window's table.
 
@@ -62,6 +63,7 @@ def _perform_enrichment(  # noqa: PLR0913
         enrichment_cache: Enrichment cache instance
         site_paths: Site path configuration
         posts_dir: Posts output directory
+        output_format: OutputFormat instance for storage protocol access
 
     Returns:
         Enriched table
@@ -71,6 +73,8 @@ def _perform_enrichment(  # noqa: PLR0913
         cache=enrichment_cache,
         docs_dir=site_paths.docs_dir,
         posts_dir=posts_dir,
+        output_format=output_format,
+        site_root=site_paths.site_root,
     )
     return enrich_table(
         window_table,
@@ -387,7 +391,13 @@ def run_source_pipeline(  # noqa: PLR0913, PLR0912, PLR0915, C901
                 if enable_enrichment:
                     logger.info("%s✨ [cyan]Enriching[/] window %s", indent, window_label)
                     enriched_table = _perform_enrichment(
-                        window_table_processed, media_mapping, config, enrichment_cache, site_paths, posts_dir
+                        window_table_processed,
+                        media_mapping,
+                        config,
+                        enrichment_cache,
+                        site_paths,
+                        posts_dir,
+                        output_format,
                     )
                 else:
                     enriched_table = window_table_processed

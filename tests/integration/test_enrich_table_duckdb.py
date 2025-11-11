@@ -12,6 +12,7 @@ from egregora.config.loader import create_default_config
 from egregora.database.schemas import CONVERSATION_SCHEMA
 from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
 from egregora.utils import BatchPromptResult, EnrichmentCache
+from tests.helpers.storage import InMemoryEnrichmentStorage
 
 
 # Use ibis options to set default backend for memtable()
@@ -101,10 +102,14 @@ def test_enrich_table_persists_sorted_results(tmp_path, duckdb_backend):
         },
     )
 
+    # Create mock output_format with enrichments storage
+    output_format = SimpleNamespace(enrichments=InMemoryEnrichmentStorage())
+
     enrichment_context = EnrichmentRuntimeContext(
         cache=cache,
         docs_dir=docs_dir,
         posts_dir=posts_dir,
+        output_format=output_format,
         duckdb_connection=duckdb_backend,
         target_table="conversation_output",
     )
@@ -147,10 +152,14 @@ def test_enrich_table_insert_is_idempotent(tmp_path, duckdb_backend):
         },
     )
 
+    # Create mock output_format with enrichments storage
+    output_format = SimpleNamespace(enrichments=InMemoryEnrichmentStorage())
+
     enrichment_context = EnrichmentRuntimeContext(
         cache=cache,
         docs_dir=docs_dir,
         posts_dir=posts_dir,
+        output_format=output_format,
         duckdb_connection=duckdb_backend,
         target_table="conversation_output",
     )
