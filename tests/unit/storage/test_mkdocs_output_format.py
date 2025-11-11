@@ -256,3 +256,47 @@ class TestMkDocsOutputFormatSpecific:
 
         assert convention.name == "legacy-mkdocs"
         assert convention.version == "v1"
+
+    def test_metadata_change_moves_file(self, output_format, tmp_path):
+        """Changing metadata (slug) moves file to new location."""
+        # First write with original slug
+        doc1 = Document(
+            content="Same content",
+            type=DocumentType.POST,
+            metadata={"slug": "old-slug", "date": datetime(2025, 1, 11), "title": "Post"},
+            parent_id=None,
+            created_at=datetime.now(),
+            source_window=None,
+            suggested_path=None,
+        )
+
+        output_format.serve(doc1)
+        old_path = tmp_path / "posts" / "2025-01-11-old-slug.md"
+        assert old_path.exists()
+        assert not (tmp_path / "posts" / "2025-01-11-new-slug.md").exists()
+
+        # Update slug but keep same content (same document_id!)
+        doc2 = Document(
+            content="Same content",  # Same content = same document_id
+            type=DocumentType.POST,
+            metadata={"slug": "new-slug", "date": datetime(2025, 1, 11), "title": "Post"},
+            parent_id=None,
+            created_at=datetime.now(),
+            source_window=None,
+            suggested_path=None,
+        )
+
+        # Verify they have the same document_id
+        assert doc1.document_id == doc2.document_id
+
+        # Serve updated document
+        output_format.serve(doc2)
+
+        # File should move to new location
+        new_path = tmp_path / "posts" / "2025-01-11-new-slug.md"
+        assert new_path.exists(), "File should exist at new slug path"
+        assert not old_path.exists(), "File should be moved (not copied) from old path"
+
+        # Content should be preserved
+        content = new_path.read_text()
+        assert "Same content" in content

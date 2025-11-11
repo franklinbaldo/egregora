@@ -106,27 +106,37 @@ class MkDocsOutputFormat:
         """
         doc_id = document.document_id
 
-        # Check idempotency - if document already served, reuse path
+        # Always calculate URL and path from current metadata
+        # Cannot use cached path - metadata may have changed!
+        # (document_id is content-based, doesn't include slug/date changes)
+        url = self._url_convention.canonical_url(document, self._ctx)
+        path = self._url_to_path(url, document)
+
+        # Check if this document was previously served at a different path
         if doc_id in self._index:
-            path = self._index[doc_id]
-            logger.debug("Document %s already served at %s (idempotent)", doc_id, path)
-        else:
-            # Calculate URL using convention
-            url = self._url_convention.canonical_url(document, self._ctx)
+            old_path = self._index[doc_id]
+            if old_path != path:
+                # Metadata changed (e.g., slug/date update) - move file
+                if old_path.exists():
+                    logger.info("Moving document %s: %s → %s", doc_id[:8], old_path, path)
+                    # Ensure new parent directory exists
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    # Move to new location (or will overwrite if path collision)
+                    old_path.rename(path) if not path.exists() else old_path.unlink()
+                else:
+                    logger.debug("Old path %s doesn't exist, writing to new path %s", old_path, path)
+            else:
+                # Same path - true idempotent rewrite
+                logger.debug("Document %s unchanged at %s (idempotent)", doc_id[:8], path)
 
-            # Convert URL to filesystem path
-            path = self._url_to_path(url, document)
-
-            # For deterministic paths (slugs, UUIDs), overwrite existing files
-            # This ensures updates replace content instead of creating duplicates
-            # Only check for collisions on content-addressed paths (ENRICHMENT_URL)
-            if path.exists() and document.type == DocumentType.ENRICHMENT_URL:
-                existing_doc_id = self._get_document_id_at_path(path)
-                if existing_doc_id and existing_doc_id != doc_id:
-                    # True collision: different document at same content hash
-                    path = self._resolve_collision(path, doc_id)
-                    logger.warning("Hash collision for %s, using %s", doc_id[:8], path)
-            # For slug/UUID paths (POST, PROFILE, JOURNAL), overwrite is intentional update
+        # For content-addressed paths, check for hash collisions
+        # (slug/UUID paths are deterministic, collisions are updates not errors)
+        if path.exists() and document.type == DocumentType.ENRICHMENT_URL:
+            existing_doc_id = self._get_document_id_at_path(path)
+            if existing_doc_id and existing_doc_id != doc_id:
+                # True collision: different document at same content hash
+                path = self._resolve_collision(path, doc_id)
+                logger.warning("Hash collision for %s, using %s", doc_id[:8], path)
 
         # Write document at determined path
         self._write_document(document, path)
