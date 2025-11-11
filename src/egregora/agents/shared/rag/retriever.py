@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, TypedDict
 import ibis
 from ibis.expr.types import Table
 
-from egregora.agents.shared.rag.chunker import chunk_document
+from egregora.agents.shared.rag.chunker import chunk_document, chunk_from_document
 from egregora.agents.shared.rag.embedder import embed_chunks, embed_query
 from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA, VectorStore
 from egregora.config.site import MEDIA_DIR_NAME
@@ -19,6 +19,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from ibis.expr.types import Table
+
+    from egregora.core.document import Document
+
 logger = logging.getLogger(__name__)
 
 
@@ -99,6 +102,93 @@ def index_post(post_path: Path, store: VectorStore, *, embedding_model: str) -> 
     chunks_table = ibis.memtable(rows, schema=VECTOR_STORE_SCHEMA)
     store.add(chunks_table)
     logger.info("Indexed %s chunks from %s", len(chunks), post_path.name)
+    return len(chunks)
+
+
+def index_document(
+    document: Document,
+    store: VectorStore,
+    *,
+    embedding_model: str,
+    source_path: str | None = None,
+    source_mtime_ns: int | None = None,
+) -> int:
+    """Chunk, embed, and index a Document object.
+
+    MODERN (Phase 4): Works with Document abstraction instead of filesystem paths.
+    Uses content-addressed document_id for deduplication.
+
+    Args:
+        document: Content-addressed Document object
+        store: Vector store
+        embedding_model: Embedding model name
+        source_path: Optional source path for tracking (backward compatibility)
+        source_mtime_ns: Optional mtime for tracking (backward compatibility)
+
+    Returns:
+        Number of chunks indexed
+
+    """
+    logger.info("Indexing Document %s (type=%s)", document.document_id[:8], document.type.value)
+
+    # Chunk the document
+    chunks = chunk_from_document(document, max_tokens=1800)
+    if not chunks:
+        logger.warning("No chunks generated from Document %s", document.document_id[:8])
+        return 0
+
+    # Use document_id as source_path fallback (content-addressed)
+    if source_path is None:
+        source_path = f"document:{document.document_id}"
+    if source_mtime_ns is None:
+        # Use document creation time as mtime (content changes → new ID → new timestamp)
+        source_mtime_ns = int(document.created_at.timestamp() * 1_000_000_000)
+
+    # Embed chunks
+    chunk_texts = [chunk["content"] for chunk in chunks]
+    embeddings = embed_chunks(chunk_texts, model=embedding_model, task_type="RETRIEVAL_DOCUMENT")
+
+    # Build rows for vector store
+    rows = []
+    for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
+        metadata = chunk["metadata"]
+        post_date = _coerce_post_date(metadata.get("date"))
+        authors = metadata.get("authors", [])
+        if isinstance(authors, str):
+            authors = [authors]
+        tags = metadata.get("tags", [])
+        if isinstance(tags, str):
+            tags = [tags]
+
+        rows.append(
+            {
+                "chunk_id": f"{document.document_id}_{i}",
+                "document_type": document.type.value,  # Use DocumentType enum
+                "document_id": document.document_id,  # Content-addressed ID
+                "source_path": source_path,
+                "source_mtime_ns": source_mtime_ns,
+                "post_slug": chunk["post_slug"],
+                "post_title": chunk["post_title"],
+                "post_date": post_date,
+                "media_uuid": None,  # TODO: Support media documents
+                "media_type": None,
+                "media_path": None,
+                "original_filename": None,
+                "message_date": None,
+                "author_uuid": None,
+                "chunk_index": i,
+                "content": chunk["content"],
+                "embedding": embedding,
+                "tags": tags,
+                "category": metadata.get("category"),
+                "authors": authors,
+            }
+        )
+
+    # Add to store
+    chunks_table = ibis.memtable(rows, schema=VECTOR_STORE_SCHEMA)
+    store.add(chunks_table)
+    logger.info("Indexed %s chunks from Document %s", len(chunks), document.document_id[:8])
     return len(chunks)
 
 

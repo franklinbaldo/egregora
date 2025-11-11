@@ -1,11 +1,16 @@
 """Document chunking for RAG system."""
 
+from __future__ import annotations
+
 import logging
 import re
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import frontmatter
+
+if TYPE_CHECKING:
+    from egregora.core.document import Document
 
 logger = logging.getLogger(__name__)
 
@@ -130,4 +135,49 @@ def chunk_document(post_path: Path, max_tokens: int = 1800) -> list[dict[str, An
             }
         )
     logger.info("Chunked %s into %s chunks", post_path.name, len(chunks))
+    return chunks
+
+
+def chunk_from_document(document: Document, max_tokens: int = 1800) -> list[dict[str, Any]]:
+    """Chunk a Document object into indexable chunks.
+
+    MODERN (Phase 4): Works with Document abstraction instead of filesystem paths.
+
+    Args:
+        document: Content-addressed Document object
+        max_tokens: Max tokens per chunk
+
+    Returns:
+        List of chunk dicts with metadata:
+        {
+            'content': str,
+            'post_slug': str,
+            'post_title': str,
+            'metadata': {...},
+            'document_id': str,
+        }
+
+    """
+    # Extract slug and title from metadata
+    metadata = document.metadata
+    slug = metadata.get("slug", document.document_id[:8])
+    title = metadata.get("title", slug.replace("-", " ").title())
+
+    # Chunk the document content
+    text_chunks = chunk_markdown(document.content, max_tokens=max_tokens)
+
+    chunks = []
+    for i, chunk_text in enumerate(text_chunks):
+        chunks.append(
+            {
+                "content": chunk_text,
+                "chunk_index": i,
+                "post_slug": slug,
+                "post_title": title,
+                "metadata": metadata,
+                "document_id": document.document_id,  # Include content-addressed ID
+            }
+        )
+
+    logger.info("Chunked Document %s into %s chunks", document.document_id[:8], len(chunks))
     return chunks
