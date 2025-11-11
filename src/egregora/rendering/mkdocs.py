@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ibis
+import yaml
 
 from egregora.agents.shared.profiler import write_profile as write_profile_content
 from egregora.config.site import load_mkdocs_config, resolve_site_paths
@@ -52,7 +53,7 @@ class MkDocsPostStorage:
         Post content here...
     """
 
-    def __init__(self, site_root: Path, output_format: OutputFormat | None = None):
+    def __init__(self, site_root: Path, output_format: OutputFormat | None = None) -> None:
         """Initialize MkDocs post storage.
 
         Args:
@@ -93,8 +94,6 @@ class MkDocsPostStorage:
             metadata["slug"] will be updated to "my-post-2" to match.
 
         """
-        import yaml
-
         # Extract date from metadata (optional, defaults to today via extract_date_prefix)
         date_str = metadata.get("date", "")
 
@@ -205,8 +204,6 @@ class MkDocsPostStorage:
             ValueError: If frontmatter is malformed
 
         """
-        import yaml
-
         if not content.startswith("---\n"):
             return {}, content
 
@@ -223,7 +220,8 @@ class MkDocsPostStorage:
         try:
             metadata = yaml.safe_load(frontmatter_text) or {}
         except yaml.YAMLError as e:
-            raise ValueError(f"Invalid YAML frontmatter: {e}") from e
+            msg = f"Invalid YAML frontmatter: {e}"
+            raise ValueError(msg) from e
 
         return metadata, body
 
@@ -239,7 +237,7 @@ class MkDocsProfileStorage:
     The .authors.yml file is automatically updated for MkDocs blog plugin compatibility.
     """
 
-    def __init__(self, site_root: Path):
+    def __init__(self, site_root: Path) -> None:
         """Initialize MkDocs profile storage.
 
         Args:
@@ -315,7 +313,7 @@ class MkDocsJournalStorage:
     safe filenames like "journal_2025-01-10_10-00_to_12-00.md".
     """
 
-    def __init__(self, site_root: Path):
+    def __init__(self, site_root: Path) -> None:
         """Initialize MkDocs journal storage.
 
         Args:
@@ -380,7 +378,7 @@ class MkDocsEnrichmentStorage:
     Media enrichments are stored next to the media file with .md extension.
     """
 
-    def __init__(self, site_root: Path):
+    def __init__(self, site_root: Path) -> None:
         """Initialize MkDocs enrichment storage.
 
         Args:
@@ -512,7 +510,7 @@ class MkDocsOutputFormat(OutputFormat):
         self._journals_impl = MkDocsJournalStorage(site_root)
         self._enrichments_impl = MkDocsEnrichmentStorage(site_root)
 
-        logger.debug(f"Initialized MkDocs storage for {site_root}")
+        logger.debug("Initialized MkDocs storage for %s", site_root)
 
     @property
     def posts(self) -> PostStorage:
