@@ -711,8 +711,6 @@ class VectorStore:
         query = base_query + where_clause + order_clause
         try:
             result = self._execute_search_query(query, params, min_similarity)
-            self._vss_function = function_name
-            return result
         except duckdb.Error as exc:
             self._last_ann_error = exc
             logger.warning("ANN search failed with %s: %s", function_name, exc)
@@ -721,6 +719,9 @@ class VectorStore:
             self._last_ann_error = exc
             logger.exception("ANN search aborted")
             return None
+        else:
+            self._vss_function = function_name
+            return result
 
     def _handle_ann_failure(
         self,

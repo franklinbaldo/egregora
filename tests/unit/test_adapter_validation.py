@@ -22,7 +22,7 @@ from egregora.sources.base import AdapterMeta, SourceAdapter
 class MockAdapter(SourceAdapter):
     """Mock adapter for testing validation."""
 
-    def __init__(self, return_valid: bool = True) -> None:
+    def __init__(self, *, return_valid: bool = True) -> None:
         """Initialize mock adapter.
 
         Args:

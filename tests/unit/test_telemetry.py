@@ -19,10 +19,10 @@ def _has_otel_packages() -> bool:
     try:
         import opentelemetry.sdk.trace
         import opentelemetry.trace  # noqa: F401
-
-        return True
     except ImportError:
         return False
+    else:
+        return True
 
 
 class TestOtelConfiguration:

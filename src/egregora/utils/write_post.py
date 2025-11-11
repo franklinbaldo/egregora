@@ -12,6 +12,9 @@ import yaml
 
 from egregora.utils import safe_path_join, slugify
 
+# Constants
+ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
+
 
 def write_post(content: str, metadata: dict[str, Any], output_dir: Path = Path("output/posts")) -> str:
     """Save a blog post with YAML front matter.
@@ -120,7 +123,7 @@ def _extract_clean_date(date_str: str) -> str:
     # Try to parse as ISO date first (most common)
     try:
         # Handle ISO format (YYYY-MM-DD)
-        if len(date_str) == 10 and date_str[4] == "-" and date_str[7] == "-":
+        if len(date_str) == ISO_DATE_LENGTH and date_str[4] == "-" and date_str[7] == "-":
             datetime.date.fromisoformat(date_str)  # Validate
             return date_str
     except (ValueError, AttributeError):
@@ -135,9 +138,10 @@ def _extract_clean_date(date_str: str) -> str:
         clean_date = match.group(1)
         try:
             datetime.date.fromisoformat(clean_date)  # Validate
-            return clean_date
         except (ValueError, AttributeError):
             pass
+        else:
+            return clean_date
 
     # Fallback: return original if we can't parse it
     return date_str

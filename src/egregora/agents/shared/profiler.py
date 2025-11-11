@@ -11,6 +11,7 @@ import pyarrow as pa
 logger = logging.getLogger(__name__)
 MAX_ALIAS_LENGTH = 40
 ASCII_CONTROL_CHARS_THRESHOLD = 32
+YAML_FRONTMATTER_PARTS_COUNT = 3  # YAML front matter splits into 3 parts: ["", content, rest]
 
 
 def read_profile(
@@ -561,7 +562,7 @@ def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:
         try:
             # Extract YAML between --- delimiters
             parts = content.split("---", 2)
-            if len(parts) >= 3:
+            if len(parts) >= YAML_FRONTMATTER_PARTS_COUNT:
                 front_matter = yaml.safe_load(parts[1])
                 if isinstance(front_matter, dict):
                     metadata.update(front_matter)

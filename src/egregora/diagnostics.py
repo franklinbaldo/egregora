@@ -22,6 +22,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+# Constants
+MIN_API_KEY_LENGTH_FOR_MASKING = 12  # Minimum length to safely mask API key (8 + 4 chars)
+
 
 class HealthStatus(str, Enum):
     """Health check status levels."""
@@ -109,7 +112,7 @@ def check_api_key() -> DiagnosticResult:
 
     if api_key:
         # Mask the key for security
-        masked = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+        masked = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > MIN_API_KEY_LENGTH_FOR_MASKING else "***"
         return DiagnosticResult(
             check="API Key",
             status=HealthStatus.OK,
@@ -175,7 +178,7 @@ def check_duckdb_extensions() -> DiagnosticResult:
         finally:
             conn.close()
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - Diagnostic check must catch all errors to report them
         return DiagnosticResult(
             check="DuckDB VSS Extension",
             status=HealthStatus.ERROR,
@@ -282,7 +285,7 @@ def check_egregora_config() -> DiagnosticResult:
             },
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - Diagnostic check must catch all errors to report them
         return DiagnosticResult(
             check="Egregora Config",
             status=HealthStatus.ERROR,
@@ -311,7 +314,7 @@ def check_adapters() -> DiagnosticResult:
             message="No adapters registered",
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - Diagnostic check must catch all errors to report them
         return DiagnosticResult(
             check="Source Adapters",
             status=HealthStatus.ERROR,
@@ -347,7 +350,7 @@ def run_diagnostics() -> list[DiagnosticResult]:
         try:
             result = check_func()
             results.append(result)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Diagnostic wrapper must catch all errors to report them
             # Catch-all for unexpected errors
             check_name = getattr(check_func, "__name__", "Unknown Check")
             check_name = check_name.replace("check_", "").replace("_", " ").title()

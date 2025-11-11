@@ -116,6 +116,7 @@ class StorageManager:
         table: Table,
         name: str,
         mode: Literal["replace", "append"] = "replace",
+        *,
         checkpoint: bool = True,
     ) -> None:
         """Write Ibis table to DuckDB.
@@ -168,6 +169,7 @@ class StorageManager:
         view_name: str,
         builder: "ViewBuilder",  # type: ignore  # noqa: F821
         input_table: str,
+        *,
         checkpoint: bool = True,
     ) -> Table:
         """Execute view builder and optionally materialize result.

@@ -220,7 +220,7 @@ class PrivacyGate:
         # TODO: Add explicit IR schema validation once IR v1 is integrated
 
         # 2. Anonymize authors (deterministic UUIDs)
-        logger.info(f"PrivacyGate: Anonymizing table for tenant={config.tenant_id}, run={run_id}")
+        logger.info("PrivacyGate: Anonymizing table for tenant=%s, run=%s", config.tenant_id, run_id)
         anonymized = anonymize_table(table)
 
         # 3. Detect PII (optional)
@@ -237,8 +237,10 @@ class PrivacyGate:
         )
 
         logger.info(
-            f"PrivacyGate: Issued PrivacyPass for tenant={config.tenant_id}, "
-            f"run={run_id}, timestamp={privacy_pass.timestamp.isoformat()}"
+            "PrivacyGate: Issued PrivacyPass for tenant=%s, run=%s, timestamp=%s",
+            config.tenant_id,
+            run_id,
+            privacy_pass.timestamp.isoformat(),
         )
 
         return anonymized, privacy_pass

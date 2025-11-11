@@ -39,7 +39,7 @@ def main() -> int:
         for file_path in get_python_files():
             errors = check_file_for_banned_imports(file_path)
             all_errors.extend(errors)
-    except Exception:
+    except Exception:  # noqa: BLE001 - Test error handler returns exit code
         return 1
 
     if all_errors:

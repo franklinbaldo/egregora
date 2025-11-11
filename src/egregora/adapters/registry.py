@@ -47,7 +47,7 @@ class ValidatedAdapter:
 
     """
 
-    def __init__(self, adapter: SourceAdapter, validate: bool = True) -> None:
+    def __init__(self, adapter: SourceAdapter, *, validate: bool = True) -> None:
         """Initialize validated adapter wrapper."""
         self._adapter = adapter
         self._validate = validate
@@ -114,7 +114,7 @@ class AdapterRegistry:
 
     """
 
-    def __init__(self, validate_outputs: bool = False) -> None:
+    def __init__(self, *, validate_outputs: bool = False) -> None:
         """Initialize registry and load adapters.
 
         Args:

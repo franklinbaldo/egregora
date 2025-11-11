@@ -86,7 +86,7 @@ class HugoOutputFormat(OutputFormat):
         self._journals_impl = MkDocsJournalStorage(site_root)
         self._enrichments_impl = MkDocsEnrichmentStorage(site_root)
 
-        logger.debug(f"Initialized Hugo storage for {site_root}")
+        logger.debug("Initialized Hugo storage for %s", site_root)
 
     @property
     def posts(self) -> PostStorage:

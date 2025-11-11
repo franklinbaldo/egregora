@@ -393,7 +393,7 @@ class InputSourceRegistry:
                 instance = source_class()
                 meta = instance.adapter_meta()
                 metadata.append(meta)
-            except Exception:
+            except (TypeError, ValueError, AttributeError):
                 logger.warning("Failed to get metadata for %s", source_class)
 
         return metadata

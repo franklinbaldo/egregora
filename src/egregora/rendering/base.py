@@ -10,6 +10,10 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
 
+# Constants
+ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
+FILENAME_PARTS_WITH_EXTENSION = 2  # Parts when splitting filename by "." (name, extension)
+
 
 @dataclass
 class SiteConfiguration:
@@ -398,12 +402,13 @@ class OutputFormat(ABC):
         date_str = date_str.strip()
 
         # Try ISO date first (YYYY-MM-DD)
-        if len(date_str) == 10 and date_str[4] == "-" and date_str[7] == "-":
+        if len(date_str) == ISO_DATE_LENGTH and date_str[4] == "-" and date_str[7] == "-":
             try:
                 datetime.date.fromisoformat(date_str)
-                return date_str
             except (ValueError, AttributeError):
                 pass
+            else:
+                return date_str
 
         # Extract YYYY-MM-DD pattern from longer strings
         match = re.match(r"(\d{4}-\d{2}-\d{2})", date_str)
@@ -411,9 +416,10 @@ class OutputFormat(ABC):
             clean_date = match.group(1)
             try:
                 datetime.date.fromisoformat(clean_date)
-                return clean_date
             except (ValueError, AttributeError):
                 pass
+            else:
+                return clean_date
 
         # Fallback: use today's date
         return datetime.date.today().isoformat()
@@ -452,7 +458,7 @@ class OutputFormat(ABC):
         if "{suffix}" not in filename_pattern:
             # Add suffix placeholder before extension
             parts = filename_pattern.rsplit(".", 1)
-            if len(parts) == 2:
+            if len(parts) == FILENAME_PARTS_WITH_EXTENSION:
                 filename_pattern = f"{parts[0]}{{suffix}}.{parts[1]}"
             else:
                 filename_pattern = f"{filename_pattern}{{suffix}}"

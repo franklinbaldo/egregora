@@ -139,8 +139,8 @@ class ViewRegistry:
             else:
                 self.connection.execute(f"CREATE VIEW IF NOT EXISTS {view.name} AS {view.sql}")
                 logger.info("Created view: %s", view.name)
-        except duckdb.Error as e:
-            logger.exception("Failed to create view '%s': %s", view.name, e)
+        except duckdb.Error:
+            logger.exception("Failed to create view '%s'", view.name)
             raise
 
     def create_all(self, *, force: bool = False) -> None:
@@ -184,8 +184,8 @@ class ViewRegistry:
             self.connection.execute(f"DROP TABLE IF EXISTS {view.name}")
             self.connection.execute(f"CREATE TABLE {view.name} AS {view.sql}")
             logger.info("Refreshed materialized view: %s", view.name)
-        except duckdb.Error as e:
-            logger.exception("Failed to refresh view '%s': %s", view.name, e)
+        except duckdb.Error:
+            logger.exception("Failed to refresh view '%s'", view.name)
             raise
 
     def refresh_all(self) -> None:
@@ -220,8 +220,8 @@ class ViewRegistry:
 
         try:
             return self.connection.execute(f"SELECT * FROM {name}").fetchdf()  # nosec B608 - name is registered view identifier
-        except duckdb.Error as e:
-            logger.exception("Failed to query view '%s': %s", name, e)
+        except duckdb.Error:
+            logger.exception("Failed to query view '%s'", name)
             raise
 
     def query_ibis(self, name: str, backend: ibis.BaseBackend) -> Table:
@@ -266,8 +266,8 @@ class ViewRegistry:
             else:
                 self.connection.execute(f"DROP VIEW IF EXISTS {view.name}")
             logger.info("Dropped view: %s", view.name)
-        except duckdb.Error as e:
-            logger.exception("Failed to drop view '%s': %s", view.name, e)
+        except duckdb.Error:
+            logger.exception("Failed to drop view '%s'", view.name)
             raise
 
     def drop_all(self) -> None:

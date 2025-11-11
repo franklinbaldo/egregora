@@ -9,6 +9,8 @@ Tests cover:
 
 from pathlib import Path
 
+import jinja2
+
 from egregora.prompt_templates import (
     PACKAGE_PROMPTS_DIR,
     create_prompt_environment,
@@ -149,7 +151,7 @@ def test_custom_prompt_partial_override(tmp_path):
         editor_template = env.get_template("system/editor.jinja")
         # If it exists in package, we should get it
         assert editor_template is not None
-    except Exception:
+    except jinja2.TemplateNotFound:
         # If editor.jinja doesn't exist in package, that's fine
         # This test is about priority, not existence
         pass
