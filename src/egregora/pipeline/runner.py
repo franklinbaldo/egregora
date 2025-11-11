@@ -64,7 +64,9 @@ class WindowProcessingContext:
     client: genai.Client
 
 
-def _process_single_window(window: any, ctx: WindowProcessingContext, *, depth: int = 0) -> dict[str, dict[str, list[str]]]:
+def _process_single_window(
+    window: any, ctx: WindowProcessingContext, *, depth: int = 0
+) -> dict[str, dict[str, list[str]]]:
     """Process a single window with media extraction, enrichment, and post writing.
 
     Args:
@@ -81,9 +83,7 @@ def _process_single_window(window: any, ctx: WindowProcessingContext, *, depth: 
     window_table = window.table
     window_count = window.size
 
-    logger.info(
-        "%s➡️  [bold]%s[/] — %s messages (depth=%d)", indent, window_label, window_count, depth
-    )
+    logger.info("%s➡️  [bold]%s[/] — %s messages (depth=%d)", indent, window_label, window_count, depth)
 
     # Process media
     temp_prefix = f"egregora-media-{window.start_time:%Y%m%d_%H%M%S}-"
@@ -222,9 +222,7 @@ def _process_window_with_auto_split(
         combined_results = {}
         for i, split_window in enumerate(split_windows, 1):
             split_label = f"{split_window.start_time:%Y-%m-%d %H:%M} to {split_window.end_time:%H:%M}"
-            logger.info(
-                "%s↳ [dim]Processing part %d/%d: %s[/]", indent, i, len(split_windows), split_label
-            )
+            logger.info("%s↳ [dim]Processing part %d/%d: %s[/]", indent, i, len(split_windows), split_label)
             split_results = _process_window_with_auto_split(
                 split_window, ctx, depth=depth + 1, max_depth=max_depth
             )
@@ -381,7 +379,16 @@ def _perform_enrichment(  # noqa: PLR0913
 
 def _setup_pipeline_environment(
     output_dir: Path, config: EgregoraConfig, api_key: str | None, model_override: str | None
-) -> tuple[any, Path, duckdb.DuckDBPyConnection, duckdb.DuckDBPyConnection, any, ModelConfig, genai.Client, EnrichmentCache]:
+) -> tuple[
+    any,
+    Path,
+    duckdb.DuckDBPyConnection,
+    duckdb.DuckDBPyConnection,
+    any,
+    ModelConfig,
+    genai.Client,
+    EnrichmentCache,
+]:
     """Set up pipeline environment including paths, connections, and clients.
 
     Args:
@@ -452,8 +459,7 @@ def _parse_and_validate_source(
     is_valid, errors = validate_ir_schema(messages_table)
     if not is_valid:
         raise ValueError(
-            "Source adapter produced invalid IR schema. Errors:\n"
-            + "\n".join(f"  - {err}" for err in errors)
+            "Source adapter produced invalid IR schema. Errors:\n" + "\n".join(f"  - {err}" for err in errors)
         )
 
     total_messages = messages_table.count().execute()
@@ -566,9 +572,7 @@ def _index_media_into_rag(
         logger.exception("[red]Failed to index media into RAG[/]")
 
 
-def _save_checkpoint(
-    results: dict, messages_table: ir.Table, checkpoint_path: Path
-) -> None:
+def _save_checkpoint(results: dict, messages_table: ir.Table, checkpoint_path: Path) -> None:
     """Save checkpoint after successful window processing.
 
     Args:
@@ -635,8 +639,7 @@ def _apply_filters(  # noqa: C901 - acceptable complexity for filter composition
         original_count = messages_table.count().execute()
         if from_date and to_date:
             messages_table = messages_table.filter(
-                (messages_table.timestamp.date() >= from_date)
-                & (messages_table.timestamp.date() <= to_date)
+                (messages_table.timestamp.date() >= from_date) & (messages_table.timestamp.date() <= to_date)
             )
             logger.info("📅 [cyan]Filtering[/] from %s to %s", from_date, to_date)
         elif from_date:
@@ -648,9 +651,7 @@ def _apply_filters(  # noqa: C901 - acceptable complexity for filter composition
         filtered_count = messages_table.count().execute()
         removed_by_date = original_count - filtered_count
         if removed_by_date > 0:
-            logger.info(
-                "🗓️  [yellow]Filtered out[/] %s messages (kept %s)", removed_by_date, filtered_count
-            )
+            logger.info("🗓️  [yellow]Filtered out[/] %s messages (kept %s)", removed_by_date, filtered_count)
 
     # Checkpoint-based resume logic
     checkpoint = load_checkpoint(checkpoint_path)

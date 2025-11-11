@@ -17,6 +17,6 @@ __all__ = [
     "RankingStore",
     "calculate_elo_update",
     "initialize_ratings",
-    "update_ratings",
     "run_comparison",
+    "update_ratings",
 ]

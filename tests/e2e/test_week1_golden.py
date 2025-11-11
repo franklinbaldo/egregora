@@ -181,7 +181,6 @@ def test_week1_golden_whatsapp_pipeline(
         assert len(author_anon) == 8, f"Anonymized author should be 8-char hex: {author_anon}"
         assert author_anon != author_raw, f"Author not anonymized: {author_raw}"
 
-
     # Record privacy run
     privacy_end_time = datetime.now(UTC)
     record_run(
