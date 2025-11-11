@@ -6,6 +6,8 @@ Generate relevant memes using the [memegen.link](https://memegen.link) API.
 
 This skill enables Claude Code to generate memes using the free and open-source memegen.link API. Perfect for adding humor to conversations, creating social media content, or making technical discussions more engaging.
 
+**📚 New:** Check out the [Complete Markdown Memes Guide](complete-markdown-memes-guide.md) for comprehensive coverage of both **textual meme formats** (greentext, copypasta, ASCII art, chat logs, etc.) and **image memes** via URL.
+
 ## Quick Start
 
 ### Basic Usage
