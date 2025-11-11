@@ -274,8 +274,10 @@ def enrich_table_simple(  # noqa: C901, PLR0912, PLR0915
                 markdown_content = f"[No enrichment generated for media: {file_path.name}]"
 
             # Write output file using storage protocol
+            # Pass path relative to docs_dir to preserve subdirectory structure (e.g., "media/images/abc.jpg")
+            relative_path = file_path.relative_to(docs_dir)
             enrichment_id_str = context.output_format.enrichments.write_media_enrichment(
-                file_path.name, markdown_content
+                str(relative_path), markdown_content
             )
 
             # Add enrichment row (use first message timestamp)
