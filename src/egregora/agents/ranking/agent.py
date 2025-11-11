@@ -25,8 +25,8 @@ from rich.console import Console
 
 from egregora.agents.ranking.elo import calculate_elo_update
 from egregora.agents.ranking.store import RankingStore
-from egregora.config import resolve_site_paths
 from egregora.config.schema import DEFAULT_MODEL
+from egregora.rendering.mkdocs_site import resolve_site_paths
 from egregora.prompt_templates import RankingComparisonPromptTemplate, RankingSystemPromptTemplate
 from egregora.utils.logfire_config import logfire_span
 

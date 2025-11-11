@@ -13,8 +13,8 @@ from ibis.expr.types import Table
 from egregora.agents.shared.rag.chunker import chunk_document, chunk_from_document
 from egregora.agents.shared.rag.embedder import embed_chunks, embed_query
 from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA, VectorStore
-from egregora.config.site import MEDIA_DIR_NAME
 from egregora.core.document import DocumentType
+from egregora.rendering.mkdocs_site import MEDIA_DIR_NAME
 
 if TYPE_CHECKING:
     from pathlib import Path

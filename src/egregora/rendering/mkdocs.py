@@ -18,8 +18,8 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 
 from egregora.agents.shared.profiler import write_profile as write_profile_content
 from egregora.config.loader import create_default_config
-from egregora.config.site import load_mkdocs_config, resolve_site_paths
 from egregora.rendering.base import OutputFormat, SiteConfiguration
+from egregora.rendering.mkdocs_site import load_mkdocs_config, resolve_site_paths
 from egregora.utils.paths import slugify
 from egregora.utils.write_post import write_post as write_mkdocs_post
 

@@ -128,8 +128,11 @@ from egregora.config.schema import (
 )
 
 # ==============================================================================
-# Site Paths & MkDocs Utilities (from .site)
+# Site Paths & MkDocs Utilities (from rendering.mkdocs_site)
 # ==============================================================================
+# DEPRECATED: MkDocs-specific utilities moved to rendering.mkdocs_site module.
+# Re-exported here for backward compatibility only.
+#
 # Path resolution for MkDocs site structure (blog/, profiles/, media/, .egregora/).
 # Handles both legacy flat structure and new .egregora/ structure.
 #
@@ -139,7 +142,9 @@ from egregora.config.schema import (
 # - load_mkdocs_config(): Load and parse mkdocs.yml
 # - DEFAULT_BLOG_DIR, DEFAULT_DOCS_DIR: Default directory names
 # - MEDIA_DIR_NAME, PROFILES_DIR_NAME: Subdirectory names
-from egregora.config.site import (
+#
+# New code should import from egregora.rendering.mkdocs_site directly.
+from egregora.rendering.mkdocs_site import (
     DEFAULT_BLOG_DIR,
     DEFAULT_DOCS_DIR,
     MEDIA_DIR_NAME,
