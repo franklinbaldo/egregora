@@ -14,7 +14,6 @@ from egregora.agents.shared.rag.chunker import chunk_document, chunk_from_docume
 from egregora.agents.shared.rag.embedder import embed_chunks, embed_query
 from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA, VectorStore
 from egregora.core.document import DocumentType
-from egregora.rendering.mkdocs_site import MEDIA_DIR_NAME
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -424,7 +423,8 @@ def index_all_media(docs_dir: Path, store: VectorStore, *, embedding_model: str)
         4. Index only those changed files (incremental, not full reindex)
 
     """
-    media_dir = docs_dir / MEDIA_DIR_NAME
+    # Compute media_dir using MkDocs convention
+    media_dir = docs_dir / "media"
     if not media_dir.exists():
         logger.warning("Media directory does not exist: %s", media_dir)
         return 0
