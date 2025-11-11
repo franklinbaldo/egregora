@@ -97,11 +97,42 @@ class MkDocsOutputFormat:
         4. Writes document with appropriate format
         5. Updates index
 
+        Slug Collision Behavior (P1 Badge - Intentional Design):
+        -------------------------------------------------------
+        Overwriting behavior varies by document type:
+
+        **Posts** (slug + date based):
+          - Path: `posts/YYYY-MM-DD-{slug}.md`
+          - Collision: **Overwrites** (second post with same slug+date replaces first)
+          - Rationale: Posts are identified by (slug, date), not content.
+            Writing post "my-post" on "2025-01-11" twice should UPDATE the file,
+            like UPDATE in SQL or PUT in REST. This is idempotent publishing.
+
+        **Profiles** (UUID based):
+          - Path: `profiles/{uuid}.md`
+          - Collision: **Overwrites** (updating profile for same UUID)
+          - Rationale: Profiles are identified by UUID. Updating a user's profile
+            should replace the existing file, not create duplicates.
+
+        **Enrichment URLs** (content-hash based):
+          - Path: `enrichments/{hash}.md`
+          - Collision: **Detects and resolves** with suffix (`{hash}-1.md`)
+          - Rationale: Hash-based paths should be unique. A collision indicates
+            either (1) true hash collision (rare) or (2) different content
+            mapped to same path. Resolution adds numeric suffix.
+
+        The current implementation returns `None` (fire-and-forget). If error
+        reporting is needed in the future, the signature can be extended to
+        return an optional `ServeResult` or raise exceptions.
+
         Args:
             document: Document to serve
 
         Returns:
-            None (void)
+            None (void return - fire-and-forget pattern)
+
+        Raises:
+            IOError: If filesystem write fails
 
         """
         doc_id = document.document_id
