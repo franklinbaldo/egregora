@@ -118,11 +118,21 @@ def load_mkdocs_config(
     Annotated[dict[str, Any], "The loaded mkdocs.yml as a dictionary"],
     Annotated[Path | None, "The path to the found mkdocs.yml, or None"],
 ]:
-    """Load ``mkdocs.yml`` as a dict, returning empty config when missing."""
-    mkdocs_path = find_mkdocs_file(start)
+    """Load ``mkdocs.yml`` as a dict, returning empty config when missing.
+
+    MODERN (Phase N): Respects output.mkdocs_config_path from .egregora/config.yml
+    """
+    # Try custom path from .egregora/config.yml first
+    mkdocs_path = _try_load_mkdocs_path_from_config(start)
+
+    # Fall back to standard search (.egregora/mkdocs.yml or root mkdocs.yml)
+    if not mkdocs_path:
+        mkdocs_path = find_mkdocs_file(start)
+
     if not mkdocs_path:
         logger.debug("mkdocs.yml not found when starting from %s", start)
         return ({}, None)
+
     try:
         config = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}  # noqa: S506 - trusted config file
     except yaml.YAMLError as exc:
@@ -197,7 +207,10 @@ def _try_load_mkdocs_path_from_config(start: Path) -> Path | None:
                 if config.output and config.output.mkdocs_config_path:
                     # Path is relative to site root (candidate)
                     mkdocs_path = candidate / config.output.mkdocs_config_path
-                    return mkdocs_path.resolve()
+                    mkdocs_path = mkdocs_path.resolve()
+                    # Only return if the file actually exists
+                    if mkdocs_path.exists():
+                        return mkdocs_path
             except Exception as e:
                 logger.debug("Failed to load mkdocs_config_path from config: %s", e)
                 return None

@@ -221,6 +221,40 @@ output:
         # Should have found the custom mkdocs.yml
         assert site_paths.mkdocs_path == custom_mkdocs
 
+    def test_supports_site_with_custom_mkdocs_path(self, tmp_path):
+        """Test that supports_site() detects sites with custom mkdocs_config_path.
+
+        Regression test for P1 badge: load_mkdocs_config() now respects
+        output.mkdocs_config_path from .egregora/config.yml.
+        """
+        output = output_registry.get_format("mkdocs")
+        site_root = tmp_path / "test-site"
+        site_root.mkdir(parents=True)
+
+        # Create custom mkdocs.yml at non-standard location
+        custom_config_dir = site_root / "build-configs"
+        custom_config_dir.mkdir()
+        custom_mkdocs = custom_config_dir / "mkdocs.yml"
+        custom_mkdocs.write_text("site_name: Custom Config Location\n")
+
+        # Create .egregora/config.yml with custom path
+        egregora_dir = site_root / ".egregora"
+        egregora_dir.mkdir()
+        config_yml = egregora_dir / "config.yml"
+        config_yml.write_text("""
+output:
+  format: mkdocs
+  mkdocs_config_path: build-configs/mkdocs.yml
+""")
+
+        # supports_site() should return True even with custom path
+        assert output.supports_site(site_root) is True
+
+        # Also verify detect_format() works
+        detected = output_registry.detect_format(site_root)
+        assert detected is not None
+        assert detected.format_type == "mkdocs"
+
     def test_docs_dir_resolved_relative_to_mkdocs(self, tmp_path):
         """Test that docs_dir is resolved relative to mkdocs.yml location, not site root."""
         from egregora.rendering.mkdocs_site import resolve_site_paths
