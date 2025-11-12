@@ -3,7 +3,7 @@
 Tests cover:
 - @validate_adapter_output decorator
 - ValidatedAdapter wrapper
-- AdapterRegistry with validate_outputs=True
+- InputAdapterRegistry with validate_outputs=True
 - Schema validation error handling
 """
 
@@ -14,12 +14,12 @@ from pathlib import Path
 import ibis
 import pytest
 
-from egregora.adapters.registry import AdapterRegistry, ValidatedAdapter
+from egregora.adapters.registry import InputAdapterRegistry, ValidatedAdapter
 from egregora.database.validation import SchemaError, validate_adapter_output
-from egregora.sources.base import AdapterMeta, SourceAdapter
+from egregora.sources.base import AdapterMeta, InputAdapter
 
 
-class MockAdapter(SourceAdapter):
+class MockAdapter(InputAdapter):
     """Mock adapter for testing validation."""
 
     def __init__(self, *, return_valid: bool = True) -> None:
@@ -197,19 +197,19 @@ class TestValidatedAdapter:
 
 
 class TestAdapterRegistryValidation:
-    """Tests for AdapterRegistry with validation enabled."""
+    """Tests for InputAdapterRegistry with validation enabled."""
 
     def test_registry_without_validation(self) -> None:
-        """Test AdapterRegistry without validation (default)."""
-        registry = AdapterRegistry(validate_outputs=False)
+        """Test InputAdapterRegistry without validation (default)."""
+        registry = InputAdapterRegistry(validate_outputs=False)
 
         # Should load adapters without validation
         assert len(registry) >= 2
         assert "whatsapp" in registry
 
     def test_registry_with_validation(self) -> None:
-        """Test AdapterRegistry with validation enabled."""
-        registry = AdapterRegistry(validate_outputs=True)
+        """Test InputAdapterRegistry with validation enabled."""
+        registry = InputAdapterRegistry(validate_outputs=True)
 
         # Should load adapters with validation wrappers
         assert len(registry) >= 2
@@ -220,7 +220,7 @@ class TestAdapterRegistryValidation:
 
     def test_registry_validated_adapters_work(self, tmp_path: Path) -> None:
         """Test that validated adapters from registry work correctly."""
-        registry = AdapterRegistry(validate_outputs=False)
+        registry = InputAdapterRegistry(validate_outputs=False)
 
         # Get WhatsApp adapter (should work with valid export)
         adapter = registry.get("whatsapp")
@@ -228,7 +228,7 @@ class TestAdapterRegistryValidation:
 
     def test_registry_list_adapters_with_validation(self) -> None:
         """Test that list_adapters works with validated adapters."""
-        registry = AdapterRegistry(validate_outputs=True)
+        registry = InputAdapterRegistry(validate_outputs=True)
 
         adapters = registry.list_adapters()
         assert len(adapters) >= 2

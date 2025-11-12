@@ -1,12 +1,12 @@
-# Dead Code Removal Plan - Post OutputFormat Refactoring
+# Dead Code Removal Plan - Post OutputAdapter Refactoring
 
 **Date**: 2025-11-11
-**Context**: After Phases 2-4 OutputFormat implementation
+**Context**: After Phases 2-4 OutputAdapter implementation
 **Status**: CONFIRMED DEAD CODE IDENTIFIED
 
 ## Executive Summary
 
-Our OutputFormat refactoring (Phases 2-4) successfully eliminated the need for several components. This document identifies **confirmed dead code** that can now be safely removed.
+Our OutputAdapter refactoring (Phases 2-4) successfully eliminated the need for several components. This document identifies **confirmed dead code** that can now be safely removed.
 
 ## Dead Code Identified
 
@@ -110,7 +110,7 @@ tests/storage/test_document_storage.py:from egregora.rendering.mkdocs_documents 
 **Status**:
 - ✅ Not used in production code
 - ⚠️ Extensively tested in `tests/storage/test_document_storage.py`
-- **Replaced by**: `MkDocsOutputFormat` (110 lines, 72% coverage)
+- **Replaced by**: `MkDocsOutputAdapter` (110 lines, 72% coverage)
 
 **Safe to remove**: ⚠️ NOT YET - Has comprehensive test coverage
 
@@ -128,7 +128,7 @@ tests/storage/test_document_storage.py:from egregora.rendering.mkdocs_documents 
 **Analysis**:
 - Protocol still defined (16 lines)
 - Used by `MkDocsDocumentStorage` (which is dead)
-- NOT used by new `OutputFormat` architecture
+- NOT used by new `OutputAdapter` architecture
 - Different paradigm entirely
 
 **Status**:
@@ -268,17 +268,17 @@ context = WriterAgentContext(
 import warnings
 
 class MkDocsDocumentStorage:
-    """DEPRECATED: Use MkDocsOutputFormat instead.
+    """DEPRECATED: Use MkDocsOutputAdapter instead.
 
     This class will be removed in version 2.0.
-    Please migrate to the new OutputFormat abstraction.
+    Please migrate to the new OutputAdapter abstraction.
 
     See: docs/refactoring/backend-agnostic-publishing.md
     """
 
     def __init__(self, site_root: Path) -> None:
         warnings.warn(
-            "MkDocsDocumentStorage is deprecated. Use MkDocsOutputFormat instead.",
+            "MkDocsDocumentStorage is deprecated. Use MkDocsOutputAdapter instead.",
             DeprecationWarning,
             stacklevel=2
         )
@@ -364,7 +364,7 @@ uv run python -c "from egregora.agents.writer.writer_runner import write_posts_f
 
 **Why it's safe**:
 1. Field is never read (proven by grep)
-2. All functionality replaced by OutputFormat
+2. All functionality replaced by OutputAdapter
 3. All tests still passing with new implementation
 4. No external API changes (internal refactoring only)
 
@@ -463,7 +463,7 @@ uv run python -c "from egregora.agents.writer.writer_runner import write_posts_f
 
 ## Conclusion
 
-Our OutputFormat refactoring successfully eliminated the need for `document_storage` field and `LegacyStorageAdapter`. This dead code can be safely removed with minimal risk.
+Our OutputAdapter refactoring successfully eliminated the need for `document_storage` field and `LegacyStorageAdapter`. This dead code can be safely removed with minimal risk.
 
 **Key insight**: Static analysis tools like vulture can't catch "write-only" variables. Manual code review and grep analysis are essential for finding this type of dead code.
 

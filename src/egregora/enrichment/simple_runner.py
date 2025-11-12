@@ -165,7 +165,7 @@ def _process_single_url(
             logger.exception("URL enrichment failed for %s", url)
             return None, ""
 
-    # Create Document and serve using OutputFormat protocol
+    # Create Document and serve using OutputAdapter protocol
     doc = Document(
         content=markdown,
         type=DocumentType.ENRICHMENT_URL,
@@ -242,8 +242,8 @@ def _process_single_media(
     if not markdown_content:
         markdown_content = f"[No enrichment generated for media: {file_path.name}]"
 
-    # Create Document and serve using OutputFormat protocol
-    # OutputFormat will determine storage location from filename + type
+    # Create Document and serve using OutputAdapter protocol
+    # OutputAdapter will determine storage location from filename + type
     doc = Document(
         content=markdown_content,
         type=DocumentType.ENRICHMENT_MEDIA,

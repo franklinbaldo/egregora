@@ -27,7 +27,7 @@ Input Source → Ibis Table → Pipeline Stages → Output Format
 ```
 src/egregora/core/
 ├── input_source.py      # InputSource ABC and registry
-├── output_format.py     # OutputFormat ABC and registry
+├── output_format.py     # OutputAdapter ABC and registry
 └── registry.py          # Auto-registration of implementations
 
 src/egregora/ingestion/
@@ -205,9 +205,9 @@ Create a new file: `src/egregora/init/<format>_output.py`
 ```python
 from pathlib import Path
 from typing import Any
-from egregora.core.output_format import OutputFormat, SiteConfiguration
+from egregora.core.output_format import OutputAdapter, SiteConfiguration
 
-class HugoOutputFormat(OutputFormat):
+class HugoOutputAdapter(OutputAdapter):
     @property
     def format_type(self) -> str:
         return "hugo"
@@ -273,12 +273,12 @@ class HugoOutputFormat(OutputFormat):
 Add to `src/egregora/core/registry.py`:
 
 ```python
-from ..init.hugo_output import HugoOutputFormat
+from ..init.hugo_output import HugoOutputAdapter
 
 def register_all():
     # ...
-    output_registry.register(MkDocsOutputFormat)
-    output_registry.register(HugoOutputFormat)  # ← Add this
+    output_registry.register(MkDocsOutputAdapter)
+    output_registry.register(HugoOutputAdapter)  # ← Add this
 ```
 
 ### Step 3: Test Your Implementation

@@ -53,7 +53,7 @@ class UrlConvention(Protocol):
     def name(self) -> str:
         """Convention identifier (e.g., 'legacy-mkdocs', 'flat', 'hugo-like').
 
-        Used to verify Core and OutputFormat use the same convention.
+        Used to verify Core and OutputAdapter use the same convention.
         """
         ...
 

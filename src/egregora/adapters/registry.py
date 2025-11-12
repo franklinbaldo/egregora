@@ -1,6 +1,6 @@
 """Adapter plugin registry for loading built-in and third-party adapters.
 
-This module provides the AdapterRegistry class which:
+This module provides the InputAdapterRegistry class which:
 - Automatically discovers adapters via Python entry points
 - Validates IR version compatibility
 - Optionally validates adapter outputs against IR v1 schema
@@ -24,10 +24,10 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
-    from egregora.sources.base import SourceAdapter
+    from egregora.sources.base import InputAdapter
 
 logger = logging.getLogger(__name__)
-__all__ = ["AdapterRegistry", "get_global_registry"]
+__all__ = ["InputAdapterRegistry", "get_global_registry"]
 
 
 class ValidatedAdapter:
@@ -47,7 +47,7 @@ class ValidatedAdapter:
 
     """
 
-    def __init__(self, adapter: SourceAdapter, *, validate: bool = True) -> None:
+    def __init__(self, adapter: InputAdapter, *, validate: bool = True) -> None:
         """Initialize validated adapter wrapper."""
         self._adapter = adapter
         self._validate = validate
@@ -87,7 +87,7 @@ class ValidatedAdapter:
         return f"ValidatedAdapter({self._adapter!r}, validate={self._validate})"
 
 
-class AdapterRegistry:
+class InputAdapterRegistry:
     """Registry for discovering and managing source adapters.
 
     The registry automatically loads:
@@ -95,7 +95,7 @@ class AdapterRegistry:
     2. Third-party adapters via entry points (group: 'egregora.adapters')
 
     Adapters must:
-    - Implement SourceAdapter protocol
+    - Implement InputAdapter protocol
     - Provide get_adapter_metadata() with ir_version='v1'
     - Be instantiable without arguments
 
@@ -104,11 +104,11 @@ class AdapterRegistry:
 
     Example:
         >>> # Without validation
-        >>> registry = AdapterRegistry()
+        >>> registry = InputAdapterRegistry()
         >>> adapter = registry.get("whatsapp")
         >>>
         >>> # With auto-validation
-        >>> registry = AdapterRegistry(validate_outputs=True)
+        >>> registry = InputAdapterRegistry(validate_outputs=True)
         >>> adapter = registry.get("whatsapp")
         >>> table = adapter.parse(Path("export.zip"))  # Auto-validated
 
@@ -121,7 +121,7 @@ class AdapterRegistry:
             validate_outputs: If True, wrap adapters to auto-validate IR v1 schema
 
         """
-        self._adapters: dict[str, SourceAdapter] = {}
+        self._adapters: dict[str, InputAdapter] = {}
         self._validate_outputs = validate_outputs
         self._load_builtin()
         self._load_plugins()
@@ -162,7 +162,7 @@ class AdapterRegistry:
         """Load third-party adapters from entry points.
 
         Entry points should be registered under group 'egregora.adapters'.
-        Each entry point should provide a SourceAdapter class.
+        Each entry point should provide a InputAdapter class.
 
         """
         discovered = entry_points(group="egregora.adapters")
@@ -203,7 +203,7 @@ class AdapterRegistry:
             except Exception:
                 logger.exception("Failed to load plugin adapter: %s", ep.name)
 
-    def get(self, source_identifier: str) -> SourceAdapter:
+    def get(self, source_identifier: str) -> InputAdapter:
         """Get adapter by source identifier.
 
         Args:
@@ -216,7 +216,7 @@ class AdapterRegistry:
             KeyError: If source identifier not found
 
         Example:
-            >>> registry = AdapterRegistry()
+            >>> registry = InputAdapterRegistry()
             >>> adapter = registry.get("whatsapp")
             >>> table = adapter.parse(Path("export.zip"))
 
@@ -234,7 +234,7 @@ class AdapterRegistry:
             List of adapter metadata dictionaries
 
         Example:
-            >>> registry = AdapterRegistry()
+            >>> registry = InputAdapterRegistry()
             >>> for meta in registry.list_adapters():
             ...     print(f"{meta['name']} v{meta['version']}")
 
@@ -253,21 +253,21 @@ class AdapterRegistry:
         """String representation of registry."""
         count = len(self._adapters)
         sources = ", ".join(self._adapters.keys())
-        return f"AdapterRegistry(adapters={count}, sources=[{sources}])"
+        return f"InputAdapterRegistry(adapters={count}, sources=[{sources}])"
 
 
 # Global registry instance (lazy-loaded)
-_global_registry: AdapterRegistry | None = None
+_global_registry: InputAdapterRegistry | None = None
 
 
-def get_global_registry() -> AdapterRegistry:
+def get_global_registry() -> InputAdapterRegistry:
     """Get the global adapter registry (singleton pattern).
 
     This provides a convenient way to access adapters without
     creating multiple registry instances.
 
     Returns:
-        Global AdapterRegistry instance
+        Global InputAdapterRegistry instance
 
     Example:
         >>> from egregora.adapters.registry import get_global_registry
@@ -277,5 +277,5 @@ def get_global_registry() -> AdapterRegistry:
     """
     global _global_registry
     if _global_registry is None:
-        _global_registry = AdapterRegistry()
+        _global_registry = InputAdapterRegistry()
     return _global_registry

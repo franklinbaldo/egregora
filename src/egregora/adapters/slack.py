@@ -20,7 +20,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, TypedDict
 
-from egregora.sources.base import AdapterMeta, MediaMapping, SourceAdapter
+from egregora.sources.base import AdapterMeta, MediaMapping, InputAdapter
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 __all__ = ["SlackAdapter"]
 
 
-class SlackAdapter(SourceAdapter):
+class SlackAdapter(InputAdapter):
     """Source adapter for Slack exports (STUB/TEMPLATE).
 
     Slack exports are typically JSON files with a specific structure.

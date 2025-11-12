@@ -1,6 +1,6 @@
-"""Tests for OutputFormat common utilities and data integrity validations.
+"""Tests for OutputAdapter common utilities and data integrity validations.
 
-Verifies that OutputFormat base class utilities work correctly:
+Verifies that OutputAdapter base class utilities work correctly:
 - normalize_slug() - URL-safe slug normalization
 - extract_date_prefix() - date extraction from various formats
 - generate_unique_filename() - prevent silent overwrites
@@ -14,83 +14,83 @@ from pathlib import Path
 
 import pytest
 
-from egregora.rendering.base import OutputFormat
-from egregora.rendering.mkdocs import MkDocsOutputFormat
+from egregora.rendering.base import OutputAdapter
+from egregora.rendering.mkdocs import MkDocsOutputAdapter
 
 
 class TestNormalizeSlug:
-    """Test OutputFormat.normalize_slug() utility."""
+    """Test OutputAdapter.normalize_slug() utility."""
 
     def test_normalize_slug_lowercase(self):
         """Normalizes to lowercase."""
-        result = OutputFormat.normalize_slug("My Great Post")
+        result = OutputAdapter.normalize_slug("My Great Post")
         assert result == "my-great-post"
 
     def test_normalize_slug_replaces_spaces(self):
         """Replaces spaces with hyphens."""
-        result = OutputFormat.normalize_slug("multiple word slug")
+        result = OutputAdapter.normalize_slug("multiple word slug")
         assert result == "multiple-word-slug"
 
     def test_normalize_slug_removes_special_chars(self):
         """Removes special characters."""
-        result = OutputFormat.normalize_slug("Post with Special! Chars@")
+        result = OutputAdapter.normalize_slug("Post with Special! Chars@")
         assert "!" not in result
         assert "@" not in result
 
     def test_normalize_slug_already_normalized(self):
         """Handles already-normalized slugs."""
-        result = OutputFormat.normalize_slug("already-normalized")
+        result = OutputAdapter.normalize_slug("already-normalized")
         assert result == "already-normalized"
 
     def test_normalize_slug_unicode(self):
         """Handles unicode characters."""
-        result = OutputFormat.normalize_slug("Café and Résumé")
+        result = OutputAdapter.normalize_slug("Café and Résumé")
         # Slugify should handle unicode appropriately
         assert " " not in result
 
 
 class TestExtractDatePrefix:
-    """Test OutputFormat.extract_date_prefix() utility."""
+    """Test OutputAdapter.extract_date_prefix() utility."""
 
     def test_extract_date_prefix_clean_date(self):
         """Extracts clean YYYY-MM-DD dates."""
-        result = OutputFormat.extract_date_prefix("2025-01-10")
+        result = OutputAdapter.extract_date_prefix("2025-01-10")
         assert result == "2025-01-10"
 
     def test_extract_date_prefix_iso_timestamp(self):
         """Extracts date from ISO timestamps."""
-        result = OutputFormat.extract_date_prefix("2025-01-10T14:30:00")
+        result = OutputAdapter.extract_date_prefix("2025-01-10T14:30:00")
         assert result == "2025-01-10"
 
     def test_extract_date_prefix_window_label(self):
         """Extracts date from window labels."""
-        result = OutputFormat.extract_date_prefix("2025-01-10 10:00 to 12:00")
+        result = OutputAdapter.extract_date_prefix("2025-01-10 10:00 to 12:00")
         assert result == "2025-01-10"
 
     def test_extract_date_prefix_datetime_string(self):
         """Extracts date from datetime strings."""
-        result = OutputFormat.extract_date_prefix("2025-01-10 14:30:45")
+        result = OutputAdapter.extract_date_prefix("2025-01-10 14:30:45")
         assert result == "2025-01-10"
 
     def test_extract_date_prefix_empty_string(self):
         """Returns today's date for empty string."""
-        result = OutputFormat.extract_date_prefix("")
+        result = OutputAdapter.extract_date_prefix("")
         expected = datetime.date.today().isoformat()
         assert result == expected
 
     def test_extract_date_prefix_invalid_format(self):
         """Returns today's date for invalid formats."""
-        result = OutputFormat.extract_date_prefix("not a date")
+        result = OutputAdapter.extract_date_prefix("not a date")
         expected = datetime.date.today().isoformat()
         assert result == expected
 
 
 class TestGenerateUniqueFilename:
-    """Test OutputFormat.generate_unique_filename() utility."""
+    """Test OutputAdapter.generate_unique_filename() utility."""
 
     def test_generate_unique_filename_no_collision(self, tmp_path: Path):
         """Returns original filename if no collision."""
-        result = OutputFormat.generate_unique_filename(tmp_path, "test.md")
+        result = OutputAdapter.generate_unique_filename(tmp_path, "test.md")
         assert result == tmp_path / "test.md"
 
     def test_generate_unique_filename_adds_suffix(self, tmp_path: Path):
@@ -98,7 +98,7 @@ class TestGenerateUniqueFilename:
         # Create existing file
         (tmp_path / "test.md").write_text("existing")
 
-        result = OutputFormat.generate_unique_filename(tmp_path, "test.md")
+        result = OutputAdapter.generate_unique_filename(tmp_path, "test.md")
         assert result == tmp_path / "test-2.md"
 
     def test_generate_unique_filename_increments_suffix(self, tmp_path: Path):
@@ -108,7 +108,7 @@ class TestGenerateUniqueFilename:
         (tmp_path / "test-2.md").write_text("v2")
         (tmp_path / "test-3.md").write_text("v3")
 
-        result = OutputFormat.generate_unique_filename(tmp_path, "test.md")
+        result = OutputAdapter.generate_unique_filename(tmp_path, "test.md")
         assert result == tmp_path / "test-4.md"
 
     def test_generate_unique_filename_with_suffix_placeholder(self, tmp_path: Path):
@@ -116,12 +116,12 @@ class TestGenerateUniqueFilename:
         # Create existing file
         (tmp_path / "test.md").write_text("existing")
 
-        result = OutputFormat.generate_unique_filename(tmp_path, "test{suffix}.md")
+        result = OutputAdapter.generate_unique_filename(tmp_path, "test{suffix}.md")
         assert result == tmp_path / "test-2.md"
 
 
 class TestParseFrontmatter:
-    """Test OutputFormat.parse_frontmatter() utility."""
+    """Test OutputAdapter.parse_frontmatter() utility."""
 
     def test_parse_frontmatter_with_yaml(self):
         """Parses YAML frontmatter correctly."""
@@ -133,7 +133,7 @@ tags: [tag1, tag2]
 
 Body content here."""
 
-        format_instance = MkDocsOutputFormat()
+        format_instance = MkDocsOutputAdapter()
         metadata, body = format_instance.parse_frontmatter(content)
 
         assert metadata["title"] == "Test Post"
@@ -146,7 +146,7 @@ Body content here."""
         """Returns empty dict for content without frontmatter."""
         content = "Just plain content"
 
-        format_instance = MkDocsOutputFormat()
+        format_instance = MkDocsOutputAdapter()
         metadata, body = format_instance.parse_frontmatter(content)
 
         assert metadata == {}
@@ -159,7 +159,7 @@ Body content here."""
 
 Body content."""
 
-        format_instance = MkDocsOutputFormat()
+        format_instance = MkDocsOutputAdapter()
         metadata, body = format_instance.parse_frontmatter(content)
 
         # Empty frontmatter is treated as no frontmatter (implementation detail)
@@ -170,11 +170,11 @@ Body content."""
 
 
 class TestMkDocsPostStorageIntegration:
-    """Integration tests for MkDocsPostStorage with OutputFormat utilities."""
+    """Integration tests for MkDocsPostStorage with OutputAdapter utilities."""
 
     def test_write_with_output_format_normalizes_slug(self, tmp_path: Path):
         """write() normalizes slug when output_format provided."""
-        output_format = MkDocsOutputFormat()
+        output_format = MkDocsOutputAdapter()
         output_format.initialize(tmp_path)
 
         post_storage = output_format.posts
@@ -190,7 +190,7 @@ class TestMkDocsPostStorageIntegration:
 
     def test_write_with_output_format_adds_date_prefix(self, tmp_path: Path):
         """write() adds date prefix when output_format provided."""
-        output_format = MkDocsOutputFormat()
+        output_format = MkDocsOutputAdapter()
         output_format.initialize(tmp_path)
 
         post_storage = output_format.posts
@@ -206,7 +206,7 @@ class TestMkDocsPostStorageIntegration:
 
     def test_write_with_output_format_prevents_overwrite(self, tmp_path: Path):
         """write() generates unique filename for duplicate slugs."""
-        output_format = MkDocsOutputFormat()
+        output_format = MkDocsOutputAdapter()
         output_format.initialize(tmp_path)
 
         post_storage = output_format.posts

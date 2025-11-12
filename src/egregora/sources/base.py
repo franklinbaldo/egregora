@@ -2,7 +2,7 @@
 
 This module provides the core abstractions for implementing chat platform adapters:
 
-1. **SourceAdapter** (Modern Interface):
+1. **InputAdapter** (Modern Interface):
    - The standard adapter interface for all sources
    - Returns Table directly conforming to IR schema
    - Supports media delivery and content-hash UUIDs
@@ -46,7 +46,7 @@ __all__ = [
     "AdapterMeta",
     "Export",
     "MediaMapping",
-    "SourceAdapter",
+    "InputAdapter",
 ]
 
 
@@ -58,7 +58,7 @@ class AdapterMeta(TypedDict):
     - Validate IR version compatibility
     - Provide documentation links
 
-    Used by both InputSource and SourceAdapter interfaces.
+    Used by both InputSource and InputAdapter interfaces.
 
     Attributes:
         name: Adapter identifier (e.g., 'whatsapp', 'slack')
@@ -111,11 +111,11 @@ class Export:
 
 
 # =============================================================================
-# SourceAdapter Interface
+# InputAdapter Interface
 # =============================================================================
 
 
-class SourceAdapter(ABC):
+class InputAdapter(ABC):
     """Abstract base class for all source adapters.
 
     A source adapter is responsible for:
@@ -338,8 +338,8 @@ class SourceAdapter(ABC):
             UUID string (e.g., "a1b2c3d4-e5f6-5789-a1b2-c3d4e5f67890")
 
         Example:
-            >>> uuid1 = SourceAdapter.generate_media_uuid(Path("photo1.jpg"))
-            >>> uuid2 = SourceAdapter.generate_media_uuid(Path("photo1_copy.jpg"))
+            >>> uuid1 = InputAdapter.generate_media_uuid(Path("photo1.jpg"))
+            >>> uuid2 = InputAdapter.generate_media_uuid(Path("photo1_copy.jpg"))
             >>> uuid1 == uuid2  # True if content is identical
 
         """

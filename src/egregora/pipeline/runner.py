@@ -357,7 +357,7 @@ def _perform_enrichment(
         enrichment_cache: Enrichment cache instance
         site_paths: Site path configuration
         posts_dir: Posts output directory
-        output_format: OutputFormat instance for storage protocol access
+        output_format: OutputAdapter instance for storage protocol access
 
     Returns:
         Enriched table
@@ -828,7 +828,7 @@ def run_source_pipeline(
         posts_dir = site_paths.posts_dir
         profiles_dir = site_paths.profiles_dir
 
-        # Create OutputFormat for RAG indexing (storage-agnostic)
+        # Create OutputAdapter for RAG indexing (storage-agnostic)
         from egregora.rendering import create_output_format
 
         format_type = config.output.format
@@ -836,7 +836,7 @@ def run_source_pipeline(
 
         # Phase 7.5: Index all existing documents for RAG before window processing
         # This ensures the writer agent has full context from previous runs
-        # Uses OutputFormat.list_documents() - no filesystem assumptions
+        # Uses OutputAdapter.list_documents() - no filesystem assumptions
         if config.rag.enabled:
             logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
             try:

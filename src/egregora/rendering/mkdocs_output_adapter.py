@@ -1,6 +1,6 @@
 """MkDocs output format implementation.
 
-Implements OutputFormat protocol using filesystem-based MkDocs conventions.
+Implements OutputAdapter protocol using filesystem-based MkDocs conventions.
 Adopts LegacyMkDocsUrlConvention and ensures documents are served at those URLs.
 """
 
@@ -22,7 +22,7 @@ from egregora.rendering.legacy_mkdocs_url_convention import LegacyMkDocsUrlConve
 logger = logging.getLogger(__name__)
 
 
-class MkDocsOutputFormat:
+class MkDocsOutputAdapter:
     """MkDocs output format with filesystem backend.
 
     Adopts LegacyMkDocsUrlConvention and persists documents to filesystem.
@@ -38,7 +38,7 @@ class MkDocsOutputFormat:
     Examples:
         >>> convention = LegacyMkDocsUrlConvention()
         >>> ctx = UrlContext(base_url="https://example.com")
-        >>> format = MkDocsOutputFormat(site_root=Path("output"), url_context=ctx)
+        >>> format = MkDocsOutputAdapter(site_root=Path("output"), url_context=ctx)
         >>>
         >>> # Core calculates URL
         >>> url = convention.canonical_url(document, ctx)

@@ -152,7 +152,7 @@ class InMemoryJournalStorage:
     """In-memory journal storage for testing.
 
     Data is stored in a dictionary mapping safe labels to content strings.
-    Implements OutputFormat protocol's serve() method for compatibility with new agent code.
+    Implements OutputAdapter protocol's serve() method for compatibility with new agent code.
     """
 
     def __init__(self):
@@ -160,7 +160,7 @@ class InMemoryJournalStorage:
         self._journals: dict[str, str] = {}
 
     def serve(self, document) -> None:
-        """Store document (OutputFormat protocol).
+        """Store document (OutputAdapter protocol).
 
         Args:
             document: Document object with content and metadata
@@ -229,7 +229,7 @@ class InMemoryJournalStorage:
 class InMemoryEnrichmentStorage:
     """In-memory enrichment storage for testing.
 
-    Implements OutputFormat protocol with serve() method.
+    Implements OutputAdapter protocol with serve() method.
     URL enrichments are stored with slugified URLs (like filesystem version).
     Media enrichments are stored by filename.
     """
@@ -240,7 +240,7 @@ class InMemoryEnrichmentStorage:
         self._media_enrichments: dict[str, str] = {}
 
     def serve(self, document) -> None:
-        """Store document (OutputFormat protocol).
+        """Store document (OutputAdapter protocol).
 
         Args:
             document: Document object with content, type, and metadata

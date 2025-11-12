@@ -17,7 +17,7 @@ What's Exported:
   - `PipelineStage`, `StageConfig`, `StageResult`: Stage abstraction layer
 
 **Source Adapters**:
-  - `SourceAdapter`: Abstract interface for parsing different message sources
+  - `InputAdapter`: Abstract interface for parsing different message sources
   - `MediaMapping`: Media attachment handling (WhatsApp, Slack, etc.)
 
 **Intermediate Representation (IR)**:
@@ -119,7 +119,7 @@ from egregora.pipeline.views import ViewBuilder, ViewRegistry, views
 # ============================================================================
 # Abstract interfaces for parsing different message sources (WhatsApp, Slack, etc.)
 # and handling media attachments across platforms.
-from egregora.sources.base import MediaMapping, SourceAdapter
+from egregora.sources.base import MediaMapping, InputAdapter
 
 
 def __getattr__(name: str) -> object:
@@ -175,7 +175,7 @@ def __getattr__(name: str) -> object:
 # Explicit export list for clean namespace. Groups exports by category:
 #   - IR primitives (IR_SCHEMA, create_ir_table, validate_ir_schema)
 #   - Stage abstractions (PipelineStage, StageConfig, StageResult)
-#   - Source adapters (SourceAdapter, MediaMapping)
+#   - Source adapters (InputAdapter, MediaMapping)
 #   - Windowing utilities (create_windows, Window - lazy-loaded via __getattr__)
 #   - Checkpoint utilities (load_checkpoint, save_checkpoint - lazy-loaded via __getattr__)
 #   - Run tracking (RunContext, record_run, run_stage_with_tracking)
@@ -184,7 +184,7 @@ __all__ = [
     "MediaMapping",
     "PipelineStage",
     "RunContext",
-    "SourceAdapter",
+    "InputAdapter",
     "StageConfig",
     "StageResult",
     "ViewBuilder",

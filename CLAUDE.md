@@ -107,6 +107,14 @@ Egregora follows PEP 8 and Python idioms for clear, consistent naming across the
 - Pattern: `*Settings` for configuration dataclasses
 - Example: `ZipValidationSettings` not `ZipValidationLimits`
 
+**Adapters (System Boundaries)**:
+- Pattern: `Input*` for bringing data INTO the pipeline, `Output*` for taking data OUT
+- Examples: `InputAdapter` not `SourceAdapter`, `OutputAdapter` not `OutputFormat`
+- Registries: `InputAdapterRegistry`, `OutputAdapterRegistry`
+- Implementations: `WhatsAppAdapter`, `SlackAdapter` (implement `InputAdapter`)
+- Implementations: `MkDocsOutputAdapter`, `HugoOutputAdapter` (implement `OutputAdapter`)
+- Rationale: Creates clear symmetry defining system boundaries (IN vs OUT)
+
 ### Function Names
 
 - **Use explicit verbs**: `get_adapter_metadata()` not `adapter_meta()`
@@ -120,18 +128,20 @@ Egregora follows PEP 8 and Python idioms for clear, consistent naming across the
 
 ### File Renames Summary
 
-| Old                       | New                          | Rationale                          |
-|---------------------------|------------------------------|------------------------------------|
-| `config/schema.py`        | `config/settings.py`         | Settings not schema                |
-| `database/storage.py`     | `database/duckdb_manager.py` | Explicit technology                |
-| `database/schemas.py`     | `database/ir_schema.py`      | Focus on IR                        |
-| `utils/filesystem.py`     | `utils/file_system.py`       | PEP 8 snake_case                   |
-| `utils/dates.py`          | `utils/time_utils.py`        | Broader scope                      |
-| `agents/shared/shared.py` | `agents/shared/llm_tools.py` | Avoid redundancy                   |
-| `agents/shared/profiler.py` | `agents/shared/author_profiles.py` | Noun-based clarity       |
-| `agents/writer/core.py`   | `agents/writer/writer_runner.py` | Explicit role               |
-| `agents/writer/context.py` | `agents/writer/context_builder.py` | Action-based naming      |
-| `agents/banner/generator.py` | `agents/banner/image_generator.py` | Content type explicit    |
+| Old                                | New                                    | Rationale                          |
+|------------------------------------|----------------------------------------|------------------------------------|
+| `config/schema.py`                 | `config/settings.py`                   | Settings not schema                |
+| `database/storage.py`              | `database/duckdb_manager.py`           | Explicit technology                |
+| `database/schemas.py`              | `database/ir_schema.py`                | Focus on IR                        |
+| `utils/filesystem.py`              | `utils/file_system.py`                 | PEP 8 snake_case                   |
+| `utils/dates.py`                   | `utils/time_utils.py`                  | Broader scope                      |
+| `agents/shared/shared.py`          | `agents/shared/llm_tools.py`           | Avoid redundancy                   |
+| `agents/shared/profiler.py`        | `agents/shared/author_profiles.py`     | Noun-based clarity                 |
+| `agents/writer/core.py`            | `agents/writer/writer_runner.py`       | Explicit role                      |
+| `agents/writer/context.py`         | `agents/writer/context_builder.py`     | Action-based naming                |
+| `agents/banner/generator.py`       | `agents/banner/image_generator.py`     | Content type explicit              |
+| `storage/output_format.py`         | `storage/output_adapter.py`            | Adapter not just format            |
+| `rendering/mkdocs_output_format.py` | `rendering/mkdocs_output_adapter.py`  | Consistent adapter naming          |
 
 ## Architecture: Staged Pipeline
 
@@ -142,12 +152,12 @@ Parse ZIP   UUIDs     LLM enrich      RAG/Elo     Writer      MkDocs
 
 ### Key Stages
 
-1. **Ingestion** (`sources/whatsapp/`, `ingestion/`): `parse_source()` → `CONVERSATION_SCHEMA`
+1. **Ingestion** (`sources/`, `adapters/`): `InputAdapter` → `parse()` → `CONVERSATION_SCHEMA`
 2. **Privacy** (`privacy/`): Names → UUIDs, PII detection BEFORE LLM
 3. **Augmentation** (`enrichment/`): LLM URL/media descriptions, profiles
 4. **Knowledge** (`agents/tools/`): RAG (DuckDB VSS), annotations, Elo rankings
 5. **Generation** (`agents/writer/`): Pydantic-AI agent with tools (write_post, profiles, RAG)
-6. **Publication** (`rendering/`): MkDocs + Jinja2 templates
+6. **Publication** (`rendering/`): `OutputAdapter` → `serve()` → MkDocs/Hugo/etc.
 
 ### Design Principles
 

@@ -31,7 +31,7 @@ from egregora.enrichment.media import get_media_subfolder
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
-    from egregora.sources.base import SourceAdapter
+    from egregora.sources.base import InputAdapter
 logger = logging.getLogger(__name__)
 MARKDOWN_IMAGE_PATTERN = re.compile("!\\[([^\\]]*)\\]\\(([^)]+)\\)")
 MARKDOWN_LINK_PATTERN = re.compile("(?<!!)\\[([^\\]]+)\\]\\(([^)]+)\\)")
@@ -125,7 +125,7 @@ def replace_markdown_media_refs(
 
 def process_media_for_window(
     window_table: Table,
-    adapter: SourceAdapter,
+    adapter: InputAdapter,
     media_dir: Path,
     temp_dir: Path,
     docs_dir: Path,

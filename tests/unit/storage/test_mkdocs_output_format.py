@@ -1,4 +1,4 @@
-"""Tests for MkDocsOutputFormat implementation.
+"""Tests for MkDocsOutputAdapter implementation.
 
 Runs conformance tests and format-specific tests for MkDocs filesystem backend.
 """
@@ -9,22 +9,22 @@ import pytest
 
 from egregora.core.document import Document, DocumentType
 from egregora.rendering.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
-from egregora.rendering.mkdocs_output_format import MkDocsOutputFormat
+from egregora.rendering.mkdocs_output_adapter import MkDocsOutputAdapter
 from egregora.storage.url_convention import UrlContext
 from tests.unit.storage.test_output_format_conformance import OutputFormatConformanceTests
 
 
 class TestMkDocsOutputFormatConformance(OutputFormatConformanceTests):
-    """Conformance tests for MkDocsOutputFormat.
+    """Conformance tests for MkDocsOutputAdapter.
 
     Inherits all conformance tests from OutputFormatConformanceTests.
     """
 
     @pytest.fixture
     def output_format(self, tmp_path):
-        """Create MkDocsOutputFormat instance."""
+        """Create MkDocsOutputAdapter instance."""
         ctx = UrlContext(base_url="https://example.com")
-        return MkDocsOutputFormat(site_root=tmp_path, url_context=ctx)
+        return MkDocsOutputAdapter(site_root=tmp_path, url_context=ctx)
 
     @pytest.fixture
     def url_convention(self):
@@ -38,13 +38,13 @@ class TestMkDocsOutputFormatConformance(OutputFormatConformanceTests):
 
 
 class TestMkDocsOutputFormatSpecific:
-    """Format-specific tests for MkDocsOutputFormat."""
+    """Format-specific tests for MkDocsOutputAdapter."""
 
     @pytest.fixture
     def output_format(self, tmp_path):
-        """Create MkDocsOutputFormat instance."""
+        """Create MkDocsOutputAdapter instance."""
         ctx = UrlContext(base_url="https://example.com")
-        return MkDocsOutputFormat(site_root=tmp_path, url_context=ctx)
+        return MkDocsOutputAdapter(site_root=tmp_path, url_context=ctx)
 
     @pytest.fixture
     def ctx(self):

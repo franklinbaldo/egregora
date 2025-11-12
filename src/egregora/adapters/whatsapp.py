@@ -1,7 +1,7 @@
 """WhatsApp source adapter - parses WhatsApp ZIP exports into IR format.
 
 This adapter wraps the existing WhatsApp parsing logic and exposes it through
-the standard SourceAdapter interface, making WhatsApp just another source in
+the standard InputAdapter interface, making WhatsApp just another source in
 the pipeline.
 
 Media Handling:
@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 import ibis
 
 from egregora.pipeline.validation import create_ir_table
-from egregora.sources.base import AdapterMeta, SourceAdapter
+from egregora.sources.base import AdapterMeta, InputAdapter
 from egregora.sources.whatsapp.models import WhatsAppExport
 from egregora.sources.whatsapp.parser import (
     parse_source,
@@ -112,7 +112,7 @@ def _convert_whatsapp_media_to_markdown(message: str) -> str:
     return result
 
 
-class WhatsAppAdapter(SourceAdapter):
+class WhatsAppAdapter(InputAdapter):
     """Source adapter for WhatsApp ZIP exports.
 
     This adapter handles:

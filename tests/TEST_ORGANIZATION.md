@@ -109,7 +109,7 @@ Some test names appear in multiple files **intentionally**:
    - Acceptable duplication for clarity
 
 2. **`test_adapter_meta_structure`** (2 files)
-   - Tests different adapter types (InputSource vs SourceAdapter)
+   - Tests different adapter types (InputSource vs InputAdapter)
    - Different protocols, not duplicate tests
 
 3. **Registry tests** (2 files each)

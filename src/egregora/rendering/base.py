@@ -31,7 +31,7 @@ class SiteConfiguration:
     additional_paths: dict[str, Path] | None = None
 
 
-class OutputFormat(ABC):
+class OutputAdapter(ABC):
     """Abstract base class for output formats.
 
     Output formats are responsible for:
@@ -287,7 +287,7 @@ class OutputFormat(ABC):
                 Empty table if no documents exist
 
         Example:
-            >>> format = MkDocsOutputFormat()
+            >>> format = MkDocsOutputAdapter()
             >>> format.initialize(site_root)
             >>> docs = format.list_documents()
             >>> docs.head(3).execute()
@@ -407,7 +407,7 @@ class OutputFormat(ABC):
             ValueError: If site_root is invalid
 
         Example:
-            >>> format = MkDocsOutputFormat()
+            >>> format = MkDocsOutputAdapter()
             >>> format.initialize(Path("/path/to/site"))
             >>> posts = format.posts  # Now safe to access
 
@@ -429,9 +429,9 @@ class OutputFormat(ABC):
             Normalized slug (lowercase, hyphens only)
 
         Examples:
-            >>> OutputFormat.normalize_slug("My Great Post!")
+            >>> OutputAdapter.normalize_slug("My Great Post!")
             'my-great-post'
-            >>> OutputFormat.normalize_slug("AI & Machine Learning")
+            >>> OutputAdapter.normalize_slug("AI & Machine Learning")
             'ai-machine-learning'
 
         """
@@ -458,9 +458,9 @@ class OutputFormat(ABC):
             Clean date in YYYY-MM-DD format, or today's date if parsing fails
 
         Examples:
-            >>> OutputFormat.extract_date_prefix("2025-03-02")
+            >>> OutputAdapter.extract_date_prefix("2025-03-02")
             '2025-03-02'
-            >>> OutputFormat.extract_date_prefix("2025-03-02 10:00 to 12:00")
+            >>> OutputAdapter.extract_date_prefix("2025-03-02 10:00 to 12:00")
             '2025-03-02'
 
         """
@@ -666,23 +666,23 @@ class OutputFormat(ABC):
         # Base implementation does nothing - subclasses override for specific tasks
 
 
-class OutputFormatRegistry:
+class OutputAdapterRegistry:
     """Registry for managing available output formats."""
 
     def __init__(self) -> None:
-        self._formats: dict[str, type[OutputFormat]] = {}
+        self._formats: dict[str, type[OutputAdapter]] = {}
 
-    def register(self, format_class: type[OutputFormat]) -> None:
+    def register(self, format_class: type[OutputAdapter]) -> None:
         """Register an output format class.
 
         Args:
-            format_class: Class inheriting from OutputFormat
+            format_class: Class inheriting from OutputAdapter
 
         """
         instance = format_class()
         self._formats[instance.format_type] = format_class
 
-    def get_format(self, format_type: str) -> OutputFormat:
+    def get_format(self, format_type: str) -> OutputAdapter:
         """Get an output format by type.
 
         Args:
@@ -701,7 +701,7 @@ class OutputFormatRegistry:
             raise KeyError(msg)
         return self._formats[format_type]()
 
-    def detect_format(self, site_root: Path) -> OutputFormat | None:
+    def detect_format(self, site_root: Path) -> OutputAdapter | None:
         """Auto-detect the appropriate output format for a given site.
 
         Args:
@@ -722,11 +722,11 @@ class OutputFormatRegistry:
         return list(self._formats.keys())
 
 
-output_registry = OutputFormatRegistry()
+output_registry = OutputAdapterRegistry()
 
 
-def create_output_format(site_root: Path, format_type: str = "mkdocs") -> OutputFormat:
-    """Create and initialize an OutputFormat based on configuration.
+def create_output_format(site_root: Path, format_type: str = "mkdocs") -> OutputAdapter:
+    """Create and initialize an OutputAdapter based on configuration.
 
     This is the main factory function for creating output formats. It uses the
     output_registry to get the appropriate format class and initializes it.
@@ -739,7 +739,7 @@ def create_output_format(site_root: Path, format_type: str = "mkdocs") -> Output
         format_type: Output format type from config ('mkdocs', 'hugo', etc.)
 
     Returns:
-        Initialized OutputFormat instance
+        Initialized OutputAdapter instance
 
     Raises:
         KeyError: If format_type is not registered

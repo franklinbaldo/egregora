@@ -1,12 +1,12 @@
-# Code Cleanup Analysis - Post OutputFormat Refactoring
+# Code Cleanup Analysis - Post OutputAdapter Refactoring
 
 **Date**: 2025-11-11
-**Context**: After completing Phase 2-4 of backend-agnostic OutputFormat implementation
+**Context**: After completing Phase 2-4 of backend-agnostic OutputAdapter implementation
 **Tools Used**: vulture, deptry, ruff, bandit, coverage.py, python-cleanup skill
 
 ## Executive Summary
 
-Comprehensive dead code and dependency analysis performed after implementing the new OutputFormat abstraction (Phases 2-4). **Result: Codebase is remarkably clean** with only minor issues found and immediately fixed.
+Comprehensive dead code and dependency analysis performed after implementing the new OutputAdapter abstraction (Phases 2-4). **Result: Codebase is remarkably clean** with only minor issues found and immediately fixed.
 
 ### Key Findings
 
@@ -18,7 +18,7 @@ Comprehensive dead code and dependency analysis performed after implementing the
 
 ### Issues Fixed
 
-1. **F841 Unused Variable** - `content` in `MkDocsOutputFormat._get_document_id_at_path()`
+1. **F841 Unused Variable** - `content` in `MkDocsOutputAdapter._get_document_id_at_path()`
    - **Location**: `src/egregora/rendering/mkdocs_output_format.py:258`
    - **Fix**: Removed unused variable, simplified stub with TODO
    - **Commit**: `eea55f4`
@@ -69,7 +69,7 @@ Comprehensive dead code and dependency analysis performed after implementing the
 **Command**: `uv run ruff check src/egregora --select F401 --select F841`
 
 **Results**:
-- ❌ **1 issue found**: Unused variable `content` in `MkDocsOutputFormat`
+- ❌ **1 issue found**: Unused variable `content` in `MkDocsOutputAdapter`
 - **Location**: `src/egregora/rendering/mkdocs_output_format.py:258`
 - **Fix Applied**: Removed unused variable, simplified method
 - ✅ **After fix**: All checks pass
@@ -105,7 +105,7 @@ return None
 | `mkdocs_output_format.py` | 110 | **72%** | ✅ Good |
 | `documents.py` (protocol) | 16 | **100%** | ✅ Excellent |
 
-**Untested Lines in MkDocsOutputFormat** (31 lines, 28% uncovered):
+**Untested Lines in MkDocsOutputAdapter** (31 lines, 28% uncovered):
 - Lines 122-129: `_url_to_path()` edge cases for some document types
 - Lines 155, 177, 205-206, 222, 231, 236-239: Type-specific write logic branches
 - Lines 251-256: Stub method `_get_document_id_at_path()`
@@ -177,7 +177,7 @@ return None
 - **Testing**: 0% coverage of implementation
 - **Backend**: Filesystem only
 
-### After (New OutputFormat Abstraction):
+### After (New OutputAdapter Abstraction):
 - **Size**:
   - Protocol definitions: 26 lines (url_convention.py + output_format.py)
   - Implementation: 110 lines (mkdocs_output_format.py)
@@ -198,7 +198,7 @@ return None
 ## Recommendations
 
 ### Immediate Actions ✅ (Completed)
-1. ✅ Fix unused variable in `MkDocsOutputFormat`
+1. ✅ Fix unused variable in `MkDocsOutputAdapter`
 2. ✅ Document cleanup findings
 3. ✅ Verify security of new code
 
@@ -213,7 +213,7 @@ return None
 2. **Increase edge case coverage** (Optional):
    - Add tests for document type edge cases in `_url_to_path()`
    - Add tests for collision resolution scenarios
-   - Target: 85%+ coverage for `MkDocsOutputFormat`
+   - Target: 85%+ coverage for `MkDocsOutputAdapter`
 
 ### Long-term (Phase 5 - Future Major Version)
 1. **Deprecate MkDocsDocumentStorage**:
@@ -225,7 +225,7 @@ return None
 2. **Remove LegacyStorageAdapter**:
    - Remove `document_storage` field from `WriterAgentContext`
    - Remove old PostStorage/ProfileStorage/JournalStorage protocols
-   - Update all call sites to use OutputFormat directly
+   - Update all call sites to use OutputAdapter directly
 
 3. **Consolidate testing**:
    - Move tests from `test_document_storage.py` to `test_mkdocs_output_format.py`
@@ -246,7 +246,7 @@ return None
 
 ### Overall Assessment: **A+**
 
-The new OutputFormat implementation is exceptionally clean:
+The new OutputAdapter implementation is exceptionally clean:
 - No dead code
 - No security issues
 - Excellent test coverage
@@ -279,7 +279,7 @@ The new OutputFormat implementation is exceptionally clean:
 
 ## Conclusion
 
-The backend-agnostic OutputFormat refactoring (Phases 2-4) resulted in a **remarkably clean codebase** with:
+The backend-agnostic OutputAdapter refactoring (Phases 2-4) resulted in a **remarkably clean codebase** with:
 - **Zero dead code**
 - **Zero security issues**
 - **Excellent test coverage** (72-100%)

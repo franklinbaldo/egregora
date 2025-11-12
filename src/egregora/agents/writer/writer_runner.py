@@ -33,7 +33,7 @@ from egregora.core.document import Document, DocumentType
 from egregora.prompt_templates import WriterPromptTemplate
 from egregora.rendering import create_output_format, output_registry
 from egregora.rendering.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
-from egregora.rendering.mkdocs_output_format import MkDocsOutputFormat
+from egregora.rendering.mkdocs_output_adapter import MkDocsOutputAdapter
 
 # from egregora.storage.legacy_adapter import LegacyStorageAdapter  # DEPRECATED Phase 5
 from egregora.storage.url_convention import UrlContext
@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from google import genai
     from ibis.expr.types import Table
 
-    from egregora.rendering.base import OutputFormat
+    from egregora.rendering.base import OutputAdapter
 
 
 logger = logging.getLogger(__name__)
@@ -188,17 +188,17 @@ def _load_document_from_path(path: Path) -> Document | None:
     )
 
 
-def index_documents_for_rag(output_format: OutputFormat, rag_dir: Path, *, embedding_model: str) -> int:
-    """Index new/changed documents using incremental indexing via OutputFormat.
+def index_documents_for_rag(output_format: OutputAdapter, rag_dir: Path, *, embedding_model: str) -> int:
+    """Index new/changed documents using incremental indexing via OutputAdapter.
 
-    Uses OutputFormat.list_documents() to get storage identifiers and mtimes,
+    Uses OutputAdapter.list_documents() to get storage identifiers and mtimes,
     then compares with RAG metadata using Ibis joins to identify new/changed files.
     No filesystem assumptions - works with any storage backend.
 
     This should be called once at pipeline initialization before window processing.
 
     Args:
-        output_format: OutputFormat instance (initialized with site_root)
+        output_format: OutputAdapter instance (initialized with site_root)
         rag_dir: Directory containing RAG vector store
         embedding_model: Model to use for embeddings
 
@@ -206,7 +206,7 @@ def index_documents_for_rag(output_format: OutputFormat, rag_dir: Path, *, embed
         Number of NEW documents indexed (not total indexed documents)
 
     Algorithm:
-        1. Get all documents from OutputFormat as Ibis table (storage_identifier, mtime_ns)
+        1. Get all documents from OutputAdapter as Ibis table (storage_identifier, mtime_ns)
         2. Resolve identifiers to absolute paths (add source_path column)
         3. Get indexed sources from RAG as Ibis table (source_path, source_mtime_ns)
         4. Delta detection using Ibis left join: find new/changed documents
@@ -214,13 +214,13 @@ def index_documents_for_rag(output_format: OutputFormat, rag_dir: Path, *, embed
 
     Note:
         - Uses Ibis joins for efficient delta detection (no loops, no dicts)
-        - No filesystem assumptions (uses OutputFormat abstraction)
+        - No filesystem assumptions (uses OutputAdapter abstraction)
         - Skips files already indexed with same mtime (idempotent)
         - Safe to run multiple times - will only index new/changed files
 
     """
     try:
-        # Phase 1: Get all documents from OutputFormat as Ibis table
+        # Phase 1: Get all documents from OutputAdapter as Ibis table
         format_documents = output_format.list_documents()
 
         # Check if empty
@@ -229,7 +229,7 @@ def index_documents_for_rag(output_format: OutputFormat, rag_dir: Path, *, embed
             logger.debug("No documents found by output format")
             return 0
 
-        logger.debug("OutputFormat reported %d documents", doc_count)
+        logger.debug("OutputAdapter reported %d documents", doc_count)
 
         # Phase 2: Resolve storage identifiers to absolute paths
         # Add source_path column by resolving each identifier
@@ -399,7 +399,7 @@ def _write_posts_for_window_pydantic(
         egregora_config.models.writer = config.cli_model
         egregora_config.models.embedding = config.cli_model
 
-    # Create OutputFormat coordinator (MODERN: OutputFormat Coordinator Pattern)
+    # Create OutputAdapter coordinator (MODERN: OutputAdapter Coordinator Pattern)
     # Determine site_root for storage (use output_dir parent if site_root not set)
     storage_root = site_root if site_root else config.output_dir.parent
 
@@ -416,7 +416,7 @@ def _write_posts_for_window_pydantic(
     )
 
     # DEPRECATED Phase 5: LegacyStorageAdapter removed
-    # All document persistence now uses OutputFormat directly
+    # All document persistence now uses OutputAdapter directly
 
     # MODERN (Phase 4+6): Create runtime output format based on configuration
     # Different from line 474 which uses registry (old pattern) for instructions only
@@ -425,8 +425,8 @@ def _write_posts_for_window_pydantic(
 
     # Create format-specific runtime output format
     if format_type == "mkdocs":
-        # Use NEW MkDocsOutputFormat with constructor injection (has url_convention property)
-        runtime_output_format = MkDocsOutputFormat(site_root=storage_root, url_context=url_context)
+        # Use NEW MkDocsOutputAdapter with constructor injection (has url_convention property)
+        runtime_output_format = MkDocsOutputAdapter(site_root=storage_root, url_context=url_context)
         url_convention = runtime_output_format.url_convention
     else:
         # For other formats (Hugo, etc.), fall back to old pattern for now
@@ -438,7 +438,7 @@ def _write_posts_for_window_pydantic(
             format_type,
         )
 
-    # Create runtime context for writer agent (MODERN Phase 6: OutputFormat with read support)
+    # Create runtime context for writer agent (MODERN Phase 6: OutputAdapter with read support)
     runtime_context = WriterAgentContext(
         start_time=start_time,
         end_time=end_time,
@@ -458,7 +458,7 @@ def _write_posts_for_window_pydantic(
     # Format timestamps for LLM prompt (human-readable)
     date_range = f"{start_time:%Y-%m-%d %H:%M} to {end_time:%H:%M}"
 
-    # Load output format instructions from OutputFormat (MkDocs, Hugo, etc.)
+    # Load output format instructions from OutputAdapter (MkDocs, Hugo, etc.)
     format_instructions = output_format.get_format_instructions()
 
     # Get custom instructions from .egregora/config.yml (not mkdocs.yml)

@@ -384,7 +384,7 @@ All source adapters MUST implement:
 from typing import Protocol
 import ibis
 
-class SourceAdapter(Protocol):
+class InputAdapter(Protocol):
     def parse_source(self, input_path: Path) -> ibis.Table:
         """Parse source to IR v1 table.
 

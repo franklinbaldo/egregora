@@ -45,7 +45,7 @@ class EnrichmentRuntimeContext:
     cache: EnrichmentCache
     docs_dir: Path
     posts_dir: Path
-    output_format: Any  # OutputFormat - storage protocol coordinator
+    output_format: Any  # OutputAdapter - storage protocol coordinator
     site_root: Path | None = None  # For custom prompt overrides in {site_root}/.egregora/prompts/
     duckdb_connection: "DuckDBBackend | None" = None
     target_table: str | None = None

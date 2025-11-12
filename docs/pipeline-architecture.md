@@ -89,7 +89,7 @@ IR_SCHEMA = {
 
 ### 2. Source Adapters
 
-**Abstract Interface**: `SourceAdapter`
+**Abstract Interface**: `InputAdapter`
 
 **Required Methods**:
 - `parse(input_path, timezone) → Table`: Convert raw export to IR-compliant table
@@ -170,10 +170,10 @@ To add support for a new chat platform:
 ```python
 # src/egregora/adapters/discord.py
 
-from egregora.pipeline.adapters import SourceAdapter
+from egregora.pipeline.adapters import InputAdapter
 from egregora.pipeline.validation import create_ir_table
 
-class DiscordAdapter(SourceAdapter):
+class DiscordAdapter(InputAdapter):
     @property
     def source_name(self) -> str:
         return "Discord"
@@ -486,7 +486,7 @@ integration-tests:
 
 ### Phase 1 (Current)
 - ✅ IR schema definition
-- ✅ SourceAdapter interface
+- ✅ InputAdapter interface
 - ✅ WhatsApp adapter
 - ✅ Slack stub adapter
 - ✅ Core orchestrator

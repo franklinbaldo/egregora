@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from egregora.storage.url_convention import UrlConvention
 
 
-class OutputFormat(Protocol):
+class OutputAdapter(Protocol):
     """Protocol for output format implementations.
 
     Handles document persistence at URLs defined by a UrlConvention.

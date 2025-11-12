@@ -384,14 +384,14 @@ def validate_adapter_output[F: Callable[..., "Table"]](func: F) -> F:
         SchemaError: If adapter output doesn't match IR v1 schema
 
     Example:
-        >>> class MyAdapter(SourceAdapter):
+        >>> class MyAdapter(InputAdapter):
         ...     @validate_adapter_output
         ...     def parse(self, input_path: Path) -> Table:
         ...         # Parse logic here
         ...         return table
 
     Note:
-        This is a convenience decorator. AdapterRegistry can also
+        This is a convenience decorator. InputAdapterRegistry can also
         auto-validate outputs when validate_outputs=True.
 
     """

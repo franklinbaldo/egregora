@@ -102,7 +102,7 @@ def test_enrich_table_persists_sorted_results(tmp_path, duckdb_backend):
         },
     )
 
-    # Create mock output_format that implements OutputFormat protocol (serve method)
+    # Create mock output_format that implements OutputAdapter protocol (serve method)
     output_format = InMemoryEnrichmentStorage()
 
     enrichment_context = EnrichmentRuntimeContext(
@@ -152,7 +152,7 @@ def test_enrich_table_insert_is_idempotent(tmp_path, duckdb_backend):
         },
     )
 
-    # Create mock output_format that implements OutputFormat protocol (serve method)
+    # Create mock output_format that implements OutputAdapter protocol (serve method)
     output_format = InMemoryEnrichmentStorage()
 
     enrichment_context = EnrichmentRuntimeContext(

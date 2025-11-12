@@ -7,21 +7,21 @@ This guide explains how to create custom source adapters for Egregora, enabling 
 Egregora uses a **plugin architecture** for source adapters. Adapters:
 - Convert platform-specific exports → standardized IR (Intermediate Representation)
 - Are automatically discovered via Python entry points
-- Must implement the `SourceAdapter` protocol
+- Must implement the `InputAdapter` protocol
 - Support IR v1 schema
 
 ## Quick Start
 
 ### 1. Create Adapter Class
 
-Create a Python class that implements `SourceAdapter`:
+Create a Python class that implements `InputAdapter`:
 
 ```python
 from pathlib import Path
-from egregora.pipeline.adapters import SourceAdapter, AdapterMeta
+from egregora.pipeline.adapters import InputAdapter, AdapterMeta
 import ibis
 
-class DiscordAdapter(SourceAdapter):
+class DiscordAdapter(InputAdapter):
     """Adapter for Discord JSON exports."""
 
     @property
@@ -259,7 +259,7 @@ from typing import Any
 from uuid import uuid5, UUID
 
 import ibis
-from egregora.pipeline.adapters import SourceAdapter, AdapterMeta
+from egregora.pipeline.adapters import InputAdapter, AdapterMeta
 
 logger = logging.getLogger(__name__)
 
@@ -267,7 +267,7 @@ logger = logging.getLogger(__name__)
 DISCORD_NAMESPACE = UUID("8f3c5a2e-4b1d-4c7e-9f6a-2d8e3f1b9c4a")
 
 
-class DiscordAdapter(SourceAdapter):
+class DiscordAdapter(InputAdapter):
     """Source adapter for Discord JSON exports.
 
     Discord exports are JSON files with structure:
@@ -541,7 +541,7 @@ Use `@validate_adapter_output` to automatically validate adapter methods:
 ```python
 from egregora.database.validation import validate_adapter_output
 
-class DiscordAdapter(SourceAdapter):
+class DiscordAdapter(InputAdapter):
     @validate_adapter_output
     def parse(self, input_path: Path, **kwargs) -> Table:
         """Parse Discord export - output automatically validated."""
@@ -556,13 +556,13 @@ class DiscordAdapter(SourceAdapter):
 
 ### Registry-Level Validation
 
-Enable automatic validation for **all** adapters via `AdapterRegistry`:
+Enable automatic validation for **all** adapters via `InputAdapterRegistry`:
 
 ```python
-from egregora.adapters import AdapterRegistry
+from egregora.adapters import InputAdapterRegistry
 
 # Create registry with validation enabled
-registry = AdapterRegistry(validate_outputs=True)
+registry = InputAdapterRegistry(validate_outputs=True)
 
 # All adapter outputs automatically validated
 adapter = registry.get("discord")

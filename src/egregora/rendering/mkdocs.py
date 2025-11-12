@@ -18,7 +18,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 
 from egregora.agents.shared.author_profiles import write_profile as write_profile_content
 from egregora.config.settings import create_default_config
-from egregora.rendering.base import OutputFormat, SiteConfiguration
+from egregora.rendering.base import OutputAdapter, SiteConfiguration
 from egregora.rendering.mkdocs_site import _ConfigLoader, resolve_site_paths
 from egregora.utils.paths import safe_path_join, slugify
 
@@ -183,7 +183,7 @@ def secure_path_join(base_dir: Path, user_path: str) -> Path:
 # MkDocs Storage Implementations
 # ============================================================================
 # These classes implement the storage protocols for MkDocs filesystem structure.
-# They are used internally by MkDocsOutputFormat and should not be imported directly.
+# They are used internally by MkDocsOutputAdapter and should not be imported directly.
 
 
 class MkDocsPostStorage:
@@ -202,12 +202,12 @@ class MkDocsPostStorage:
         Post content here...
     """
 
-    def __init__(self, site_root: Path, output_format: OutputFormat | None = None) -> None:
+    def __init__(self, site_root: Path, output_format: OutputAdapter | None = None) -> None:
         """Initialize MkDocs post storage.
 
         Args:
             site_root: Root directory for MkDocs site
-            output_format: OutputFormat instance for utilities (normalize_slug, etc.)
+            output_format: OutputAdapter instance for utilities (normalize_slug, etc.)
                           If None, will use default implementations without validations
 
         Side Effects:
@@ -231,7 +231,7 @@ class MkDocsPostStorage:
             Relative path string (e.g., "posts/2025-01-10-my-post.md")
 
         Note:
-            Uses OutputFormat utilities for:
+            Uses OutputAdapter utilities for:
             - Slug normalization (URL-safe, lowercase, hyphens)
             - Date extraction (handles window labels, ISO timestamps, defaults to today)
             - Unique filename generation (prevents silent overwrites)
@@ -246,7 +246,7 @@ class MkDocsPostStorage:
         # Extract date from metadata (optional, defaults to today via extract_date_prefix)
         date_str = metadata.get("date", "")
 
-        # Apply data integrity validations if OutputFormat is available
+        # Apply data integrity validations if OutputAdapter is available
         if self.output_format:
             # Normalize slug to URL-safe format
             normalized_slug = self.output_format.normalize_slug(slug)
@@ -611,7 +611,7 @@ class MkDocsEnrichmentStorage:
 # ============================================================================
 
 
-class MkDocsOutputFormat(OutputFormat):
+class MkDocsOutputAdapter(OutputAdapter):
     """MkDocs output format with Material theme support.
 
     Creates blog sites using:
@@ -625,7 +625,7 @@ class MkDocsOutputFormat(OutputFormat):
     """
 
     def __init__(self) -> None:
-        """Initialize MkDocsOutputFormat with uninitialized storage."""
+        """Initialize MkDocsOutputAdapter with uninitialized storage."""
         self._site_root: Path | None = None
         self._posts_impl: PostStorage | None = None
         self._profiles_impl: ProfileStorage | None = None
@@ -673,7 +673,7 @@ class MkDocsOutputFormat(OutputFormat):
 
         """
         if self._posts_impl is None:
-            msg = "MkDocsOutputFormat not initialized - call initialize(site_root) first"
+            msg = "MkDocsOutputAdapter not initialized - call initialize(site_root) first"
             raise RuntimeError(msg)
         return self._posts_impl
 
@@ -689,7 +689,7 @@ class MkDocsOutputFormat(OutputFormat):
 
         """
         if self._profiles_impl is None:
-            msg = "MkDocsOutputFormat not initialized - call initialize(site_root) first"
+            msg = "MkDocsOutputAdapter not initialized - call initialize(site_root) first"
             raise RuntimeError(msg)
         return self._profiles_impl
 
@@ -705,7 +705,7 @@ class MkDocsOutputFormat(OutputFormat):
 
         """
         if self._journals_impl is None:
-            msg = "MkDocsOutputFormat not initialized - call initialize(site_root) first"
+            msg = "MkDocsOutputAdapter not initialized - call initialize(site_root) first"
             raise RuntimeError(msg)
         return self._journals_impl
 
@@ -721,7 +721,7 @@ class MkDocsOutputFormat(OutputFormat):
 
         """
         if self._enrichments_impl is None:
-            msg = "MkDocsOutputFormat not initialized - call initialize(site_root) first"
+            msg = "MkDocsOutputAdapter not initialized - call initialize(site_root) first"
             raise RuntimeError(msg)
         return self._enrichments_impl
 
@@ -1437,7 +1437,7 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
 
         """
         if not hasattr(self, "_site_root") or self._site_root is None:
-            msg = "MkDocsOutputFormat not initialized - call initialize() first"
+            msg = "MkDocsOutputAdapter not initialized - call initialize() first"
             raise RuntimeError(msg)
 
         # MkDocs identifiers are relative paths from site_root

@@ -165,7 +165,7 @@ class TestSlackAdapter:
 
 
 class TestAdapterContract:
-    """Test that all adapters follow the SourceAdapter contract."""
+    """Test that all adapters follow the InputAdapter contract."""
 
     @pytest.mark.parametrize("source_id", list(ADAPTER_REGISTRY.keys()))
     def test_adapter_has_source_name_property(self, source_id):

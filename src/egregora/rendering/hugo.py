@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 
-from egregora.rendering.base import OutputFormat, SiteConfiguration
+from egregora.rendering.base import OutputAdapter, SiteConfiguration
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -50,7 +50,7 @@ def escape_toml_string(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r")
 
 
-class HugoOutputFormat(OutputFormat):
+class HugoOutputAdapter(OutputAdapter):
     """Hugo static site generator output format.
 
     Hugo uses:
@@ -66,7 +66,7 @@ class HugoOutputFormat(OutputFormat):
     """
 
     def __init__(self) -> None:
-        """Initialize HugoOutputFormat with uninitialized storage."""
+        """Initialize HugoOutputAdapter with uninitialized storage."""
         self._site_root: Path | None = None
         self._posts_impl: PostStorage | None = None
         self._profiles_impl: ProfileStorage | None = None
@@ -122,7 +122,7 @@ class HugoOutputFormat(OutputFormat):
 
         """
         if self._posts_impl is None:
-            msg = "HugoOutputFormat not initialized - call initialize(site_root) first"
+            msg = "HugoOutputAdapter not initialized - call initialize(site_root) first"
             raise RuntimeError(msg)
         return self._posts_impl
 
@@ -138,7 +138,7 @@ class HugoOutputFormat(OutputFormat):
 
         """
         if self._profiles_impl is None:
-            msg = "HugoOutputFormat not initialized - call initialize(site_root) first"
+            msg = "HugoOutputAdapter not initialized - call initialize(site_root) first"
             raise RuntimeError(msg)
         return self._profiles_impl
 
@@ -154,7 +154,7 @@ class HugoOutputFormat(OutputFormat):
 
         """
         if self._journals_impl is None:
-            msg = "HugoOutputFormat not initialized - call initialize(site_root) first"
+            msg = "HugoOutputAdapter not initialized - call initialize(site_root) first"
             raise RuntimeError(msg)
         return self._journals_impl
 
@@ -170,7 +170,7 @@ class HugoOutputFormat(OutputFormat):
 
         """
         if self._enrichments_impl is None:
-            msg = "HugoOutputFormat not initialized - call initialize(site_root) first"
+            msg = "HugoOutputAdapter not initialized - call initialize(site_root) first"
             raise RuntimeError(msg)
         return self._enrichments_impl
 
@@ -541,7 +541,7 @@ Consult your Hugo theme documentation for available shortcodes.
 
         """
         if not hasattr(self, "_site_root") or self._site_root is None:
-            msg = "HugoOutputFormat not initialized - call initialize() first"
+            msg = "HugoOutputAdapter not initialized - call initialize() first"
             raise RuntimeError(msg)
 
         # Hugo identifiers are relative paths from site_root

@@ -111,7 +111,7 @@ def test_enrich_table_persists_results(tmp_path: Path):
         },
     )
 
-    # Create mock output_format (InMemoryEnrichmentStorage implements OutputFormat protocol)
+    # Create mock output_format (InMemoryEnrichmentStorage implements OutputAdapter protocol)
     output_format = InMemoryEnrichmentStorage()
 
     enrichment_context = EnrichmentRuntimeContext(

@@ -9,7 +9,7 @@ from egregora.pipeline.media import (
     extract_markdown_media_refs,
     replace_markdown_media_refs,
 )
-from egregora.sources.base import SourceAdapter
+from egregora.sources.base import InputAdapter
 
 
 class TestExtractMarkdownMediaRefs:
@@ -109,8 +109,8 @@ class TestGenerateContentUUID:
             path2 = Path(f2.name)
 
         try:
-            uuid1 = SourceAdapter.generate_media_uuid(path1)
-            uuid2 = SourceAdapter.generate_media_uuid(path2)
+            uuid1 = InputAdapter.generate_media_uuid(path1)
+            uuid2 = InputAdapter.generate_media_uuid(path2)
 
             assert uuid1 == uuid2
         finally:
@@ -128,8 +128,8 @@ class TestGenerateContentUUID:
             path2 = Path(f2.name)
 
         try:
-            uuid1 = SourceAdapter.generate_media_uuid(path1)
-            uuid2 = SourceAdapter.generate_media_uuid(path2)
+            uuid1 = InputAdapter.generate_media_uuid(path1)
+            uuid2 = InputAdapter.generate_media_uuid(path2)
 
             assert uuid1 != uuid2
         finally:
@@ -143,7 +143,7 @@ class TestGenerateContentUUID:
             path = Path(f.name)
 
         try:
-            uuid = SourceAdapter.generate_media_uuid(path)
+            uuid = InputAdapter.generate_media_uuid(path)
 
             # UUID format: 8-4-4-4-12 hex characters
             assert len(uuid) == 36

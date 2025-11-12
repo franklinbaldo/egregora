@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from egregora.rendering.base import OutputFormat, output_registry
+from egregora.rendering.base import OutputAdapter, output_registry
 
 
 class TestOutputRegistry:
@@ -19,7 +19,7 @@ class TestOutputRegistry:
     def test_get_mkdocs_format(self):
         """Test getting MkDocs output format."""
         output = output_registry.get_format("mkdocs")
-        assert isinstance(output, OutputFormat)
+        assert isinstance(output, OutputAdapter)
         assert output.format_type == "mkdocs"
 
     def test_get_invalid_format(self):

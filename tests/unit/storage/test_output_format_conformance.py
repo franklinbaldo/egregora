@@ -1,6 +1,6 @@
-"""Conformance tests for OutputFormat protocol.
+"""Conformance tests for OutputAdapter protocol.
 
-These tests should pass for ANY OutputFormat implementation.
+These tests should pass for ANY OutputAdapter implementation.
 They verify that the format correctly implements the protocol contract.
 """
 
@@ -12,10 +12,10 @@ from egregora.core.document import Document, DocumentType
 
 
 class OutputFormatConformanceTests:
-    """Base conformance tests for OutputFormat implementations.
+    """Base conformance tests for OutputAdapter implementations.
 
     Subclass this and provide the output_format, url_convention, and ctx fixtures
-    to run conformance tests for your OutputFormat implementation.
+    to run conformance tests for your OutputAdapter implementation.
 
     Example:
         class TestMyFormatConformance(OutputFormatConformanceTests):
@@ -73,7 +73,7 @@ class OutputFormatConformanceTests:
         )
 
     def test_convention_name_and_version(self, output_format):
-        """OutputFormat exposes convention name and version."""
+        """OutputAdapter exposes convention name and version."""
         convention = output_format.url_convention
 
         assert convention.name
@@ -259,7 +259,7 @@ class OutputFormatTestHelper:
         Subclasses should implement this to check format-specific storage.
 
         Args:
-            output_format: The OutputFormat instance
+            output_format: The OutputAdapter instance
             document: The document that should be served
             ctx: The UrlContext used
 
