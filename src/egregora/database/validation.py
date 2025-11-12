@@ -572,7 +572,7 @@ def create_ir_table(
     ir_table = normalized.mutate(
         event_id=event_uuid_udf(
             normalized["message_id"].cast(dt.string),
-            normalized["timestamp"].cast(dt.Timestamp(timezone="UTC")),
+            normalized["timestamp"].cast(dt.Timestamp()),
         ),
         tenant_id=ibis.literal(tenant_id, type=dt.string),
         source=ibis.literal(source, type=dt.string),
