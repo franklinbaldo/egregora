@@ -20,8 +20,7 @@ from egregora.agents.shared.profiler import write_profile as write_profile_conte
 from egregora.config.schema import create_default_config
 from egregora.rendering.base import OutputFormat, SiteConfiguration
 from egregora.rendering.mkdocs_site import _ConfigLoader, resolve_site_paths
-from egregora.utils.paths import slugify
-from egregora.utils.write_post import write_post as write_mkdocs_post
+from egregora.utils.paths import safe_path_join, slugify
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -29,6 +28,122 @@ if TYPE_CHECKING:
     from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
 
 logger = logging.getLogger(__name__)
+
+# Constants
+ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
+
+
+def _extract_clean_date(date_str: str) -> str:
+    """Extract clean YYYY-MM-DD date from various formats.
+
+    Handles:
+    - Clean dates: "2025-03-02"
+    - ISO timestamps: "2025-03-02T10:30:00"
+    - Window labels: "2025-03-02 08:01 to 12:49"
+    - Datetimes: "2025-03-02 10:30:45"
+
+    Args:
+        date_str: Date string in various formats
+
+    Returns:
+        Clean date in YYYY-MM-DD format
+
+    """
+    import datetime
+    import re
+
+    # Remove leading/trailing whitespace
+    date_str = date_str.strip()
+
+    # Try to parse as ISO date first (most common)
+    try:
+        # Handle ISO format (YYYY-MM-DD)
+        if len(date_str) == ISO_DATE_LENGTH and date_str[4] == "-" and date_str[7] == "-":
+            datetime.date.fromisoformat(date_str)  # Validate
+            return date_str
+    except (ValueError, AttributeError):
+        pass
+
+    # Extract YYYY-MM-DD from longer strings (window labels, timestamps)
+    match = re.match(r"(\d{4}-\d{2}-\d{2})", date_str)
+    if match:
+        clean_date = match.group(1)
+        try:
+            datetime.date.fromisoformat(clean_date)  # Validate
+        except (ValueError, AttributeError):
+            pass
+        else:
+            return clean_date
+
+    # Fallback: return original if we can't parse it
+    return date_str
+
+
+def _write_mkdocs_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
+    """Save a blog post with YAML front matter (MkDocs format).
+
+    Args:
+        content: Markdown post content
+        metadata: Post metadata (title, slug, date, tags, summary, authors, category)
+
+    Returns:
+        Path where post was saved
+
+    Raises:
+        ValueError: If required metadata is missing
+
+    """
+    import datetime
+
+    required = ["title", "slug", "date"]
+    for key in required:
+        if key not in metadata:
+            msg = f"Missing required metadata: {key}"
+            raise ValueError(msg)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Parse and clean date
+    raw_date = metadata["date"]
+    date_prefix = _extract_clean_date(raw_date)
+
+    # Slugify and handle duplicates
+    base_slug = slugify(metadata["slug"])
+    slug_candidate = base_slug
+    filename = f"{date_prefix}-{slug_candidate}.md"
+    filepath = safe_path_join(output_dir, filename)
+    suffix = 2
+    while filepath.exists():
+        slug_candidate = f"{base_slug}-{suffix}"
+        filename = f"{date_prefix}-{slug_candidate}.md"
+        filepath = safe_path_join(output_dir, filename)
+        suffix += 1
+
+    # Build front matter
+    front_matter = {
+        "title": metadata["title"],
+        "slug": slug_candidate,
+    }
+
+    # Use cleaned date for front matter
+    try:
+        front_matter["date"] = datetime.date.fromisoformat(date_prefix)
+    except (ValueError, AttributeError):
+        front_matter["date"] = date_prefix
+
+    if "tags" in metadata:
+        front_matter["tags"] = metadata["tags"]
+    if "summary" in metadata:
+        front_matter["summary"] = metadata["summary"]
+    if "authors" in metadata:
+        front_matter["authors"] = metadata["authors"]
+    if "category" in metadata:
+        front_matter["category"] = metadata["category"]
+
+    yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True)
+    full_post = f"---\n{yaml_front}---\n\n{content}"
+    filepath.write_text(full_post, encoding="utf-8")
+    return str(filepath)
 
 
 def secure_path_join(base_dir: Path, user_path: str) -> Path:
@@ -984,7 +1099,7 @@ class MkDocsOutputFormat(OutputFormat):
 
         """
         try:
-            return write_mkdocs_post(content, metadata, output_dir)
+            return _write_mkdocs_post(content, metadata, output_dir)
         except Exception as e:
             msg = f"Failed to write MkDocs post: {e}"
             raise RuntimeError(msg) from e

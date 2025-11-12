@@ -27,14 +27,6 @@ from egregora.agents.shared.rag import VectorStore, index_document
 from egregora.agents.writer.agent import WriterRuntimeContext, write_posts_with_pydantic_agent
 from egregora.agents.writer.context import _load_profiles_context, build_rag_context_for_prompt
 from egregora.agents.writer.formatting import _build_conversation_markdown, _load_freeform_memory
-from egregora.agents.writer.handlers import (
-    _handle_annotate_conversation_tool,
-    _handle_generate_banner_tool,
-    _handle_read_profile_tool,
-    _handle_search_media_tool,
-    _handle_write_post_tool,
-    _handle_write_profile_tool,
-)
 from egregora.config import get_model_for_task
 from egregora.config.schema import EgregoraConfig, create_default_config
 from egregora.core.document import Document, DocumentType
@@ -134,68 +126,6 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     if author_counts.count().execute() == 0:
         return []
     return author_counts.author.execute().tolist()
-
-
-def _process_tool_calls(
-    candidate: genai_types.Candidate,
-    output_dir: Path,
-    profiles_dir: Path,
-    saved_posts: list[str],
-    saved_profiles: list[str],
-    client: genai.Client,
-    rag_dir: Path,
-    annotations_store: AnnotationStore | None,
-    *,
-    embedding_model: str,
-    retrieval_mode: str = "ann",
-    retrieval_nprobe: int | None = None,
-    retrieval_overfetch: int | None = None,
-) -> tuple[bool, list[genai_types.Content], list[str]]:
-    """Process all tool calls from LLM response.
-
-    All embeddings use fixed 768 dimensions.
-    """
-    has_tool_calls = False
-    tool_responses: list[genai_types.Content] = []
-    freeform_parts: list[str] = []
-    if not candidate or not candidate.content or (not candidate.content.parts):
-        return (False, [], [])
-    for part in candidate.content.parts:
-        function_call = getattr(part, "function_call", None)
-        if function_call:
-            has_tool_calls = True
-            fn_call = function_call
-            fn_name = fn_call.name
-            fn_args = fn_call.args or {}
-            if fn_name == "write_post":
-                tool_responses.append(_handle_write_post_tool(fn_args, fn_call, output_dir, saved_posts))
-            elif fn_name == "read_profile":
-                tool_responses.append(_handle_read_profile_tool(fn_args, fn_call, profiles_dir))
-            elif fn_name == "write_profile":
-                tool_responses.append(
-                    _handle_write_profile_tool(fn_args, fn_call, profiles_dir, saved_profiles)
-                )
-            elif fn_name == "search_media":
-                response = _handle_search_media_tool(
-                    fn_args,
-                    fn_call,
-                    client,
-                    rag_dir,
-                    embedding_model=embedding_model,
-                    retrieval_mode=retrieval_mode,
-                    retrieval_nprobe=retrieval_nprobe,
-                    retrieval_overfetch=retrieval_overfetch,
-                )
-                tool_responses.append(response)
-            elif fn_name == "annotate_conversation":
-                tool_responses.append(_handle_annotate_conversation_tool(fn_args, fn_call, annotations_store))
-            elif fn_name == "generate_banner":
-                tool_responses.append(_handle_generate_banner_tool(fn_args, fn_call, output_dir))
-            continue
-        text = getattr(part, "text", "")
-        if text:
-            freeform_parts.append(text)
-    return (has_tool_calls, tool_responses, freeform_parts)
 
 
 def _load_document_from_path(path: Path) -> Document | None:

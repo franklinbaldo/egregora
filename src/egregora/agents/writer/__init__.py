@@ -9,13 +9,13 @@ Documentation:
 - Core Concepts (Editorial Control): docs/getting-started/concepts.md#editorial-control-llm-decision-making
 """
 
+from egregora.agents.writer.agent import PostMetadata
 from egregora.agents.writer.core import (
     WriterConfig,
     get_top_authors,
     index_documents_for_rag,
     write_posts_for_window,
 )
-from egregora.agents.writer.tools import PostMetadata
 
 __all__ = [
     "PostMetadata",

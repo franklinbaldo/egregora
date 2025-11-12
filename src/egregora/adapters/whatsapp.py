@@ -20,7 +20,9 @@ from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 
 import ibis
 
-from egregora.ingestion import parse_source  # Phase 6: Renamed from parse_export (alpha - breaking)
+from egregora.sources.whatsapp.parser import (
+    parse_source,
+)  # Phase 6: Renamed from parse_export (alpha - breaking)
 from egregora.pipeline.validation import create_ir_table
 from egregora.sources.base import AdapterMeta, SourceAdapter
 from egregora.sources.whatsapp.models import WhatsAppExport

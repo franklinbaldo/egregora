@@ -29,7 +29,7 @@ from egregora.config.schema import EgregoraConfig
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
-from egregora.ingestion import extract_commands, filter_egregora_messages  # Phase 6: Re-exported
+from egregora.sources.whatsapp.parser import extract_commands, filter_egregora_messages
 from egregora.pipeline import create_windows, load_checkpoint, save_checkpoint
 from egregora.pipeline.media import process_media_for_window
 from egregora.pipeline.tracking import fingerprint_window, record_run
