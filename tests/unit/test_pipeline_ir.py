@@ -161,9 +161,7 @@ class TestIRSchema:
         # Should not raise an error
         result = ir_table.execute()
         assert len(result) == 1
-        expected_uuid = deterministic_author_uuid(
-            "user1", namespace=uuid.uuid5(uuid.NAMESPACE_DNS, "custom")
-        )
+        expected_uuid = deterministic_author_uuid("user1", namespace=uuid.uuid5(uuid.NAMESPACE_DNS, "custom"))
         assert result["author_uuid"][0] == expected_uuid
 
 

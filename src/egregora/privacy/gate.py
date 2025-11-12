@@ -238,7 +238,7 @@ class PrivacyGate:
         @ibis.udf.scalar.python
         def author_uuid_matches(
             author_raw: str,
-            author_uuid: "uuid.UUID",
+            author_uuid: uuid.UUID,
         ) -> bool:
             import uuid
 

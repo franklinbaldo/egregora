@@ -11,8 +11,8 @@ Related ADR: docs/architecture/adr-003-privacy-gate-capability-token.md
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import uuid
+from dataclasses import dataclass
 
 from egregora.privacy.constants import NAMESPACE_AUTHOR
 

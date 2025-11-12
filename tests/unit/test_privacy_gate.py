@@ -9,16 +9,16 @@ Tests verify that:
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 from uuid import uuid4
-import uuid
 
 import ibis
 import pytest
 
 from egregora.database.validation import IR_MESSAGE_SCHEMA
-from egregora.privacy.constants import deterministic_author_uuid
 from egregora.privacy.config import PrivacySettings
+from egregora.privacy.constants import deterministic_author_uuid
 from egregora.privacy.gate import PrivacyGate, PrivacyPass, require_privacy_pass
 
 

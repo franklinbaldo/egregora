@@ -152,9 +152,7 @@ def test_uuid5_determinism_property(author: str, namespace: uuid.UUID | None):
     namespace1=st.uuids(),
     namespace2=st.uuids(),
 )
-def test_namespace_isolation_property(
-    author: str, namespace1: uuid.UUID, namespace2: uuid.UUID
-):
+def test_namespace_isolation_property(author: str, namespace1: uuid.UUID, namespace2: uuid.UUID):
     """Property test: Different namespaces produce different UUIDs."""
     uuid1 = deterministic_author_uuid(author, namespace=namespace1)
     uuid2 = deterministic_author_uuid(author, namespace=namespace2)

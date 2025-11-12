@@ -149,7 +149,6 @@ def deterministic_event_uuid(
 
 def deterministic_thread_uuid(tenant_id: str, source: str, thread_key: str) -> uuid.UUID:
     """Generate deterministic UUID for a conversation thread."""
-
     ctx = NamespaceContext(tenant_id=tenant_id, source=source)
     thread_namespace = ctx.thread_namespace()
     return uuid.uuid5(thread_namespace, thread_key)

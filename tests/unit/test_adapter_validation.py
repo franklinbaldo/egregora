@@ -9,11 +9,11 @@ Tests cover:
 
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 
 import ibis
 import pytest
-import uuid
 
 from egregora.database.validation import SchemaError, validate_adapter_output
 from egregora.input_adapters.registry import InputAdapterRegistry, ValidatedAdapter
@@ -258,7 +258,6 @@ class TestSchemaValidationErrors:
 
     def test_extra_columns_allowed(self) -> None:
         """Test that extra columns are allowed (schema is superset)."""
-        import uuid
         from datetime import UTC, datetime
 
         import pandas as pd

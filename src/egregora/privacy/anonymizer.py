@@ -24,7 +24,6 @@ def _sanitize_mentions(text: str, mapping: dict[str, str]) -> str:
 
 def anonymize_table(table: Table, *, redact_token: str = DEFAULT_REDACTED) -> Table:
     """Redact author_raw values while preserving deterministic author_uuid."""
-
     required = {"author_raw", "author_uuid"}
     missing = required - set(table.columns)
     if missing:

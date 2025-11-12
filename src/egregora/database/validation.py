@@ -519,7 +519,6 @@ def create_ir_table(
     author_namespace: uuid.UUID | None = None,
 ) -> Table:
     """Convert legacy conversation table to IR v1 schema."""
-
     if not tenant_id:
         msg = "tenant_id is required when constructing IR table"
         raise ValueError(msg)
