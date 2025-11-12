@@ -129,7 +129,7 @@ class InputAdapterRegistry:
     def _load_builtin(self) -> None:
         """Load built-in adapters (WhatsApp, Slack)."""
         try:
-            from egregora.adapters.whatsapp import WhatsAppAdapter
+            from egregora.input_adapters.whatsapp import WhatsAppAdapter
 
             adapter = WhatsAppAdapter()
             meta = adapter.get_adapter_metadata()
@@ -144,7 +144,7 @@ class InputAdapterRegistry:
             logger.exception("Failed to load WhatsAppAdapter")
 
         try:
-            from egregora.adapters.slack import SlackAdapter
+            from egregora.input_adapters.slack import SlackAdapter
 
             adapter = SlackAdapter()
             meta = adapter.get_adapter_metadata()
@@ -270,7 +270,7 @@ def get_global_registry() -> InputAdapterRegistry:
         Global InputAdapterRegistry instance
 
     Example:
-        >>> from egregora.adapters.registry import get_global_registry
+        >>> from egregora.input_adapters.registry import get_global_registry
         >>> registry = get_global_registry()
         >>> adapter = registry.get("whatsapp")
 

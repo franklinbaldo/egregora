@@ -126,7 +126,7 @@ The **CoreOrchestrator** is the source-agnostic execution engine:
 
 ```python
 from egregora.pipeline import CoreOrchestrator, PipelineSettings
-from egregora.adapters import get_adapter
+from egregora.input_adapters import get_adapter
 
 # Get adapter
 adapter = get_adapter("whatsapp")
@@ -206,7 +206,7 @@ class DiscordAdapter(InputAdapter):
 ```python
 # src/egregora/adapters/__init__.py
 
-from egregora.adapters.discord import DiscordAdapter
+from egregora.input_adapters.discord import DiscordAdapter
 
 ADAPTER_REGISTRY = {
     "whatsapp": WhatsAppAdapter,
@@ -421,7 +421,7 @@ class TestWhatsAppAdapterIntegration:
 
     def test_parse_real_export_structure(self):
         """Test parsing actual WhatsApp export structure."""
-        from egregora.adapters import WhatsAppAdapter
+        from egregora.input_adapters import WhatsAppAdapter
 
         adapter = WhatsAppAdapter()
         table = adapter.parse(

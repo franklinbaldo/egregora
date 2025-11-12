@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from egregora.core.document import Document
+    from egregora.data_primitives.document import Document
 
 
 @dataclass(frozen=True, slots=True)

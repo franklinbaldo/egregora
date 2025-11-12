@@ -91,7 +91,7 @@ If you want to inspect or manually control migration:
 
 ```python
 import ibis
-from egregora.core import database_schema
+from egregora.data_primitives import database_schema
 from egregora.knowledge.rag.store import VectorStore
 from egregora.knowledge.annotations import AnnotationStore
 

@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 
-from egregora.rendering.base import OutputAdapter, SiteConfiguration
+from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -93,7 +93,7 @@ class HugoOutputAdapter(OutputAdapter):
             RuntimeError: If storage initialization fails
 
         """
-        from egregora.rendering.mkdocs import (
+        from egregora.output_adapters.mkdocs import (
             MkDocsEnrichmentStorage,
             MkDocsJournalStorage,
             MkDocsPostStorage,

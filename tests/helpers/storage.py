@@ -246,7 +246,7 @@ class InMemoryEnrichmentStorage:
             document: Document object with content, type, and metadata
 
         """
-        from egregora.core.document import DocumentType
+        from egregora.data_primitives.document import DocumentType
 
         if document.type == DocumentType.ENRICHMENT_URL:
             url = document.metadata.get("url", "")

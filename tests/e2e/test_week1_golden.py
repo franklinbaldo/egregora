@@ -101,7 +101,7 @@ def test_week1_golden_whatsapp_pipeline(
 
     # Discover chat file in ZIP
     group_name, chat_file = discover_chat_file(whatsapp_fixture)
-    from egregora.types import GroupSlug
+    from egregora.data_primitives import GroupSlug
 
     export = WhatsAppExport(
         zip_path=whatsapp_fixture,

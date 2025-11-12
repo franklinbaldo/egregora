@@ -13,14 +13,14 @@ from ibis.expr.types import Table
 from egregora.agents.shared.rag.chunker import chunk_document, chunk_from_document
 from egregora.agents.shared.rag.embedder import embed_chunks, embed_query_text
 from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA, VectorStore
-from egregora.core.document import DocumentType
+from egregora.data_primitives.document import DocumentType
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from ibis.expr.types import Table
 
-    from egregora.core.document import Document
+    from egregora.data_primitives.document import Document
 
 logger = logging.getLogger(__name__)
 

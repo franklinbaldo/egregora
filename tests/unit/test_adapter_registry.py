@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from egregora.adapters.registry import InputAdapterRegistry, get_global_registry
+from egregora.input_adapters.registry import InputAdapterRegistry, get_global_registry
 
 
 class TestAdapterRegistry:
@@ -197,14 +197,14 @@ class TestLegacyCompatibility:
 
     def test_get_adapter_function_still_works(self) -> None:
         """Test that legacy get_adapter() function still works."""
-        from egregora.adapters import get_adapter
+        from egregora.input_adapters import get_adapter
 
         adapter = get_adapter("whatsapp")
         assert adapter.source_identifier == "whatsapp"
 
     def test_get_adapter_raises_on_unknown(self) -> None:
         """Test that legacy get_adapter() raises KeyError."""
-        from egregora.adapters import get_adapter
+        from egregora.input_adapters import get_adapter
 
         with pytest.raises(KeyError, match="Unknown source"):
             get_adapter("unknown")

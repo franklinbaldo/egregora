@@ -27,7 +27,7 @@ from egregora.sources.whatsapp.parser import (
     parse_source,
 )  # Phase 6: Renamed from parse_export (alpha - breaking)
 from egregora.sources.whatsapp.pipeline import discover_chat_file
-from egregora.types import GroupSlug
+from egregora.data_primitives import GroupSlug
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table

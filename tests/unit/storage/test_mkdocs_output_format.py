@@ -7,9 +7,9 @@ from datetime import datetime
 
 import pytest
 
-from egregora.core.document import Document, DocumentType
-from egregora.rendering.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
-from egregora.rendering.mkdocs_output_adapter import MkDocsOutputAdapter
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.output_adapters.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
+from egregora.output_adapters.mkdocs_output_adapter import MkDocsOutputAdapter
 from egregora.storage.url_convention import UrlContext
 from tests.unit.storage.test_output_format_conformance import OutputFormatConformanceTests
 

@@ -12,15 +12,15 @@ Plugin System:
 - get_global_registry(): Access the global adapter registry
 
 Example:
-    >>> from egregora.adapters import get_global_registry
+    >>> from egregora.input_adapters import get_global_registry
     >>> registry = get_global_registry()
     >>> adapter = registry.get("whatsapp")
 
 """
 
-from egregora.adapters.registry import InputAdapterRegistry, get_global_registry
-from egregora.adapters.slack import SlackAdapter
-from egregora.adapters.whatsapp import WhatsAppAdapter
+from egregora.input_adapters.registry import InputAdapterRegistry, get_global_registry
+from egregora.input_adapters.slack import SlackAdapter
+from egregora.input_adapters.whatsapp import WhatsAppAdapter
 from egregora.sources.base import InputAdapter
 
 # Legacy registry (deprecated in favor of InputAdapterRegistry)
@@ -43,11 +43,11 @@ def get_adapter(source_identifier: str) -> InputAdapter:
 
     Example:
         >>> # New way (recommended)
-        >>> from egregora.adapters import get_global_registry
+        >>> from egregora.input_adapters import get_global_registry
         >>> adapter = get_global_registry().get("whatsapp")
         >>>
         >>> # Old way (still works)
-        >>> from egregora.adapters import get_adapter
+        >>> from egregora.input_adapters import get_adapter
         >>> adapter = get_adapter("whatsapp")
 
     """
@@ -61,7 +61,7 @@ def list_adapters() -> list[str]:
         List of adapter source identifiers (e.g., ["whatsapp", "slack"])
 
     Example:
-        >>> from egregora.adapters import list_adapters
+        >>> from egregora.input_adapters import list_adapters
         >>> adapters = list_adapters()
         >>> print(adapters)
         ['whatsapp', 'slack']

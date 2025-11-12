@@ -103,8 +103,8 @@ tests/evals/test_writer_with_evals.py:79:    document_storage = LegacyStorageAda
 $ grep -r "MkDocsDocumentStorage" src/egregora --include="*.py"
 # NO RESULTS - not used in production!
 
-$ grep -r "from egregora.rendering.mkdocs_documents import" tests/ --include="*.py"
-tests/storage/test_document_storage.py:from egregora.rendering.mkdocs_documents import MkDocsDocumentStorage
+$ grep -r "from egregora.output_adapters.mkdocs_documents import" tests/ --include="*.py"
+tests/storage/test_document_storage.py:from egregora.output_adapters.mkdocs_documents import MkDocsDocumentStorage
 ```
 
 **Status**:

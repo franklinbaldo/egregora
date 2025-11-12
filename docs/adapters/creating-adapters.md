@@ -559,7 +559,7 @@ class DiscordAdapter(InputAdapter):
 Enable automatic validation for **all** adapters via `InputAdapterRegistry`:
 
 ```python
-from egregora.adapters import InputAdapterRegistry
+from egregora.input_adapters import InputAdapterRegistry
 
 # Create registry with validation enabled
 registry = InputAdapterRegistry(validate_outputs=True)

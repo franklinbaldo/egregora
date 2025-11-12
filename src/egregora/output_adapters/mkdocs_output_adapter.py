@@ -11,13 +11,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from egregora.core.document import Document
+    from egregora.data_primitives.document import Document
     from egregora.storage.url_convention import UrlContext, UrlConvention
 
 # Lazy import to avoid circular dependency (mkdocs_output_format ← agents ← writer/core → mkdocs_output_format)
 # from egregora.agents.shared.author_profiles import write_profile as write_profile_content
-from egregora.core.document import DocumentType
-from egregora.rendering.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
+from egregora.data_primitives.document import DocumentType
+from egregora.output_adapters.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +262,7 @@ class MkDocsOutputAdapter:
             return None
 
         # Reconstruct Document (note: document_id will be recalculated from content)
-        from egregora.core.document import Document
+        from egregora.data_primitives.document import Document
 
         return Document(content=actual_content, type=doc_type, metadata=metadata)
 
@@ -278,7 +278,7 @@ class MkDocsOutputAdapter:
             List of documents
 
         """
-        from egregora.core.document import Document
+        from egregora.data_primitives.document import Document
 
         documents: list[Document] = []
 

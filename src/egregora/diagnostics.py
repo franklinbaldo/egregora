@@ -296,7 +296,7 @@ def check_egregora_config() -> DiagnosticResult:
 def check_adapters() -> DiagnosticResult:
     """Check available source adapters."""
     try:
-        from egregora.adapters import list_adapters
+        from egregora.input_adapters import list_adapters
 
         sources = list_adapters()
 

@@ -4,8 +4,8 @@ from datetime import datetime
 
 import pytest
 
-from egregora.core.document import Document, DocumentType
-from egregora.rendering.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.output_adapters.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
 from egregora.storage.url_convention import UrlContext
 
 

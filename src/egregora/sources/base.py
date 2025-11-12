@@ -34,7 +34,7 @@ from uuid import UUID, uuid5
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
-    from egregora.types import GroupSlug
+    from egregora.data_primitives import GroupSlug
 
 logger = logging.getLogger(__name__)
 

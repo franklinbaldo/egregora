@@ -141,7 +141,15 @@ Egregora follows PEP 8 and Python idioms for clear, consistent naming across the
 | `agents/writer/context.py`         | `agents/writer/context_builder.py`     | Action-based naming                |
 | `agents/banner/generator.py`       | `agents/banner/image_generator.py`     | Content type explicit              |
 | `storage/output_format.py`         | `storage/output_adapter.py`            | Adapter not just format            |
-| `rendering/mkdocs_output_format.py` | `rendering/mkdocs_output_adapter.py`  | Consistent adapter naming          |
+| `rendering/mkdocs_output_format.py` | `output_adapters/mkdocs_output_adapter.py` | Consistent adapter naming   |
+
+### Package Renames Summary
+
+| Old                | New                      | Rationale                                    |
+|--------------------|--------------------------|----------------------------------------------|
+| `core/` + `types.py` | `data_primitives/`     | Consolidates fundamental data models         |
+| `adapters/`        | `input_adapters/`        | Explicit: brings data INTO pipeline          |
+| `rendering/`       | `output_adapters/`       | Explicit: takes data OUT of pipeline         |
 
 ## Architecture: Staged Pipeline
 
@@ -152,12 +160,12 @@ Parse ZIP   UUIDs     LLM enrich      RAG/Elo     Writer      MkDocs
 
 ### Key Stages
 
-1. **Ingestion** (`sources/`, `adapters/`): `InputAdapter` → `parse()` → `CONVERSATION_SCHEMA`
+1. **Ingestion** (`sources/`, `input_adapters/`): `InputAdapter` → `parse()` → `CONVERSATION_SCHEMA`
 2. **Privacy** (`privacy/`): Names → UUIDs, PII detection BEFORE LLM
 3. **Augmentation** (`enrichment/`): LLM URL/media descriptions, profiles
 4. **Knowledge** (`agents/tools/`): RAG (DuckDB VSS), annotations, Elo rankings
 5. **Generation** (`agents/writer/`): Pydantic-AI agent with tools (write_post, profiles, RAG)
-6. **Publication** (`rendering/`): `OutputAdapter` → `serve()` → MkDocs/Hugo/etc.
+6. **Publication** (`output_adapters/`): `OutputAdapter` → `serve()` → MkDocs/Hugo/etc.
 
 ### Design Principles
 
@@ -224,10 +232,20 @@ Parse ZIP   UUIDs     LLM enrich      RAG/Elo     Writer      MkDocs
 
 ## Code Structure
 
+**Architectural Symmetry**: The codebase is organized around clear data flow boundaries:
+- `input_adapters/` → brings external data INTO the pipeline
+- `data_primitives/` → defines core data models (Document, types)
+- `output_adapters/` → takes structured data OUT to publication
+
+This creates perfect symmetry: `InputAdapter` ↔ `OutputAdapter` with `data_primitives` as the shared contract.
+
 ```
 src/egregora/
 ├── cli.py                    # Entry point
 ├── pipeline.py               # Windowing
+├── data_primitives/          # Core data models (merged from core/ + types.py)
+│   ├── document.py          # Document, DocumentType, DocumentCollection
+│   └── base_types.py        # GroupSlug, PostSlug
 ├── database/
 │   ├── ir_schema.py         # All schemas (renamed from schemas.py)
 │   ├── duckdb_manager.py    # DuckDBStorageManager (C.2) (renamed from storage.py)
@@ -239,8 +257,10 @@ src/egregora/
 │   ├── views.py             # View registry (C.1)
 │   ├── tracking.py          # Run tracking (D.1)
 │   └── checkpoint.py        # Content-addressed checkpointing
-├── ingestion/base.py         # Generic interfaces
-├── sources/whatsapp/         # WhatsApp-specific
+├── sources/                  # InputAdapter base class
+├── input_adapters/           # Concrete input adapters (renamed from adapters/)
+│   ├── whatsapp.py          # WhatsAppAdapter
+│   └── slack.py             # SlackAdapter
 ├── privacy/                  # Anonymization, PII
 ├── enrichment/               # LLM enrichment
 ├── agents/
@@ -257,12 +277,17 @@ src/egregora/
 │   ├── editor/              # Post refinement
 │   ├── ranking/             # Elo
 │   └── tools/               # Skills and tool injection
-├── utils/
-│   ├── telemetry.py         # OpenTelemetry (D.2)
-│   ├── file_system.py       # File utilities (renamed from filesystem.py)
-│   ├── time_utils.py        # Date/time utilities (renamed from dates.py)
-│   └── cache.py             # DiskCache
-└── rendering/               # MkDocs + templates
+├── output_adapters/          # Concrete output adapters (renamed from rendering/)
+│   ├── base.py              # OutputAdapter protocol
+│   ├── mkdocs_output_adapter.py  # MkDocs implementation
+│   └── mkdocs_site.py       # MkDocs site structure
+├── storage/                  # Output adapter utilities
+│   └── output_adapter.py    # OutputAdapter base implementations
+└── utils/
+    ├── telemetry.py         # OpenTelemetry (D.2)
+    ├── file_system.py       # File utilities (renamed from filesystem.py)
+    ├── time_utils.py        # Date/time utilities (renamed from dates.py)
+    └── cache.py             # DiskCache
 ```
 
 ## Database Schemas

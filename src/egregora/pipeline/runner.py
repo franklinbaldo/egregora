@@ -20,7 +20,7 @@ import duckdb
 import ibis
 from google import genai
 
-from egregora.adapters import get_adapter
+from egregora.input_adapters import get_adapter
 from egregora.agents.shared.author_profiles import filter_opted_out_authors, process_commands
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
@@ -33,7 +33,7 @@ from egregora.pipeline import create_windows, load_checkpoint, save_checkpoint
 from egregora.pipeline.media import process_media_for_window
 from egregora.pipeline.tracking import fingerprint_window, record_run
 from egregora.pipeline.validation import validate_ir_schema
-from egregora.rendering.mkdocs_site import resolve_site_paths
+from egregora.output_adapters.mkdocs_site import resolve_site_paths
 from egregora.sources.whatsapp.parser import extract_commands, filter_egregora_messages
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.telemetry import get_current_trace_id
@@ -829,7 +829,7 @@ def run_source_pipeline(
         profiles_dir = site_paths.profiles_dir
 
         # Create OutputAdapter for RAG indexing (storage-agnostic)
-        from egregora.rendering import create_output_format
+        from egregora.output_adapters import create_output_format
 
         format_type = config.output.format
         output_format = create_output_format(output_dir, format_type=format_type)

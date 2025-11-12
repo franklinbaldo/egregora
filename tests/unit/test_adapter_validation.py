@@ -14,7 +14,7 @@ from pathlib import Path
 import ibis
 import pytest
 
-from egregora.adapters.registry import InputAdapterRegistry, ValidatedAdapter
+from egregora.input_adapters.registry import InputAdapterRegistry, ValidatedAdapter
 from egregora.database.validation import SchemaError, validate_adapter_output
 from egregora.sources.base import AdapterMeta, InputAdapter
 
@@ -301,7 +301,7 @@ class TestIntegrationWithRealAdapters:
 
     def test_slack_adapter_fails_validation(self) -> None:
         """Test that Slack stub raises NotImplementedError before validation."""
-        from egregora.adapters import get_global_registry
+        from egregora.input_adapters import get_global_registry
 
         registry = get_global_registry()
         slack_adapter = registry.get("slack")

@@ -8,7 +8,7 @@ MODERN: Updated to use OutputAdapter abstraction instead of direct scaffolding i
 
 from pathlib import Path
 
-from egregora.rendering import create_output_format
+from egregora.output_adapters import create_output_format
 
 
 def test_init_creates_all_template_files(tmp_path: Path):
@@ -127,7 +127,7 @@ def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
     import yaml
 
     from egregora.init.scaffolding import ensure_mkdocs_project
-    from egregora.rendering.mkdocs_site import _ConfigLoader
+    from egregora.output_adapters.mkdocs_site import _ConfigLoader
 
     # Create site
     ensure_mkdocs_project(tmp_path)

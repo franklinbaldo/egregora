@@ -219,7 +219,7 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
    ```python
    # src/egregora/agents/writer/core.py
 
-   from egregora.rendering.mkdocs_profile_storage import MkDocsProfileStorage
+   from egregora.output_adapters.mkdocs_profile_storage import MkDocsProfileStorage
 
    # Create storage instances
    profile_storage = MkDocsProfileStorage(
@@ -400,7 +400,7 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
    # tests/helpers/in_memory_storage.py
 
    from egregora.storage import OutputAdapter, UrlConvention, UrlContext
-   from egregora.core.document import Document
+   from egregora.data_primitives.document import Document
 
    class InMemoryOutputFormat:
        """In-memory OutputAdapter for testing."""

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from egregora.adapters.slack import SlackAdapter
+from egregora.input_adapters.slack import SlackAdapter
 
 
 def test_slack_adapter_parse_raises_not_implemented(tmp_path: Path):

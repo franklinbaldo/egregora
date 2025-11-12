@@ -9,8 +9,8 @@ MODERN (Phase N): Refactored to use OutputAdapter abstraction.
 import logging
 from pathlib import Path
 
-from egregora.rendering import create_output_format
-from egregora.rendering.mkdocs_site import resolve_site_paths
+from egregora.output_adapters import create_output_format
+from egregora.output_adapters.mkdocs_site import resolve_site_paths
 
 logger = logging.getLogger(__name__)
 

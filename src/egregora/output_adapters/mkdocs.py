@@ -18,8 +18,8 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 
 from egregora.agents.shared.author_profiles import write_profile as write_profile_content
 from egregora.config.settings import create_default_config
-from egregora.rendering.base import OutputAdapter, SiteConfiguration
-from egregora.rendering.mkdocs_site import _ConfigLoader, resolve_site_paths
+from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
+from egregora.output_adapters.mkdocs_site import _ConfigLoader, resolve_site_paths
 from egregora.utils.paths import safe_path_join, slugify
 
 if TYPE_CHECKING:
@@ -740,7 +740,7 @@ class MkDocsOutputAdapter(OutputAdapter):
 
         # Check known locations (no upward directory search)
         # 1. Check .egregora/config.yml for custom mkdocs_config_path
-        from egregora.rendering.mkdocs_site import _try_load_mkdocs_path_from_config
+        from egregora.output_adapters.mkdocs_site import _try_load_mkdocs_path_from_config
 
         mkdocs_path_from_config = _try_load_mkdocs_path_from_config(site_root)
         if mkdocs_path_from_config and mkdocs_path_from_config.exists():

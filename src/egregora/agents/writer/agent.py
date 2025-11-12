@@ -59,7 +59,7 @@ from egregora.agents.banner import generate_banner_for_post, is_banner_generatio
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore, is_rag_available, query_media
 from egregora.config.settings import EgregoraConfig
-from egregora.core.document import Document, DocumentType
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.streaming import stream_ibis
 from egregora.storage.output_adapter import OutputAdapter
 from egregora.storage.url_convention import UrlContext, UrlConvention

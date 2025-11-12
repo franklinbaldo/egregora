@@ -8,7 +8,7 @@ from datetime import datetime
 
 import pytest
 
-from egregora.core.document import Document, DocumentType
+from egregora.data_primitives.document import Document, DocumentType
 
 
 class OutputFormatConformanceTests:

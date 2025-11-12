@@ -28,7 +28,7 @@ import ibis
 import ibis.expr.datatypes as dt
 from ibis import udf
 
-from egregora.types import GroupSlug
+from egregora.data_primitives import GroupSlug
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
