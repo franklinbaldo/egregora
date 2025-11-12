@@ -152,14 +152,32 @@ class InMemoryJournalStorage:
     """In-memory journal storage for testing.
 
     Data is stored in a dictionary mapping safe labels to content strings.
+    Implements OutputFormat protocol's serve() method for compatibility with new agent code.
     """
 
     def __init__(self):
         """Initialize empty in-memory journal storage."""
         self._journals: dict[str, str] = {}
 
+    def serve(self, document) -> None:
+        """Store document (OutputFormat protocol).
+
+        Args:
+            document: Document object with content and metadata
+
+        """
+        # Extract window_label from metadata, fallback to source_window
+        window_label = document.metadata.get("window_label")
+        if window_label is None and hasattr(document, "source_window"):
+            window_label = document.source_window
+        if window_label is None:
+            window_label = "unknown"
+
+        safe_label = self._sanitize_label(window_label)
+        self._journals[safe_label] = document.content
+
     def write(self, window_label: str, content: str) -> str:
-        """Store journal entry in memory.
+        """Store journal entry in memory (legacy method).
 
         Args:
             window_label: Human-readable window label
