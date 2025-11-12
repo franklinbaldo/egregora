@@ -8,7 +8,7 @@ import ibis
 import pandas as pd
 import pytest
 
-from egregora.config.loader import create_default_config
+from egregora.config.schema import create_default_config
 from egregora.database.schemas import CONVERSATION_SCHEMA
 from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
 from egregora.utils import BatchPromptResult, EnrichmentCache

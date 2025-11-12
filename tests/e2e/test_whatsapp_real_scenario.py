@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 import ibis
 import pytest
 
-from egregora.config.loader import create_default_config
+from egregora.config.schema import create_default_config
 from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
 from egregora.enrichment.media import extract_and_replace_media
 from egregora.ingestion import filter_egregora_messages, parse_source

@@ -11,8 +11,12 @@ Tests cover:
 import pytest
 from pydantic import ValidationError
 
-from egregora.config.loader import create_default_config, find_egregora_config, load_egregora_config
-from egregora.config.schema import EgregoraConfig
+from egregora.config.schema import (
+    EgregoraConfig,
+    create_default_config,
+    find_egregora_config,
+    load_egregora_config,
+)
 
 
 def test_egregora_config_defaults():
@@ -233,7 +237,7 @@ def test_create_default_config(tmp_path):
 
 def test_config_roundtrip(tmp_path):
     """Test that config can be saved and loaded without loss."""
-    from egregora.config.loader import save_egregora_config
+    from egregora.config.schema import save_egregora_config
 
     # Create custom config
     custom_config = EgregoraConfig(

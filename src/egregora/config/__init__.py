@@ -36,12 +36,11 @@ configuration objects (3-6 params). The pattern includes:
 ```
 config/
 ├── __init__.py          # This facade (re-exports everything)
-├── schema.py            # Pydantic V2 models (EgregoraConfig, ModelsConfig, RAGConfig)
+├── schema.py            # Pydantic V2 models + loading (EgregoraConfig, load/save functions)
 ├── types.py             # Runtime contexts (ProcessConfig, WriterConfig, EditorContext)
 ├── pipeline.py          # Pipeline-specific configs (PipelineEnrichmentConfig)
 ├── site.py              # Site paths and MkDocs utilities (SitePaths, resolve_site_paths)
-├── model.py             # Model configuration (ModelConfig, get_model_config)
-└── loader.py            # Config loading/saving (load_egregora_config, create_default_config)
+└── model.py             # Model configuration (ModelConfig, get_model_config)
 ```
 
 **Migration Status:**
