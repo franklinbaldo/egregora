@@ -1,7 +1,10 @@
-"""Centralized Pydantic configuration for Egregora (ALPHA VERSION).
+"""Centralized configuration for Egregora (ALPHA VERSION).
 
-This module defines the complete configuration structure for Egregora,
-including schemas, loading, and saving.
+This module consolidates ALL configuration code in one place:
+- Pydantic models for .egregora/config.yml
+- Loading and saving functions
+- Runtime dataclasses for function parameters
+- Model configuration utilities
 
 Benefits:
 - Single source of truth for all configuration
@@ -19,18 +22,24 @@ Strategy:
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from datetime import date, timedelta
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger(__name__)
 
-# Default models
+# ============================================================================
+# Constants
+# ============================================================================
+
 DEFAULT_MODEL = "google-gla:gemini-flash-latest"
 DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
 DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash-image"
+EMBEDDING_DIM = 768  # Embedding vector dimensions
 
 # Model naming conventions
 PydanticModelName = Annotated[
@@ -482,8 +491,185 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
     return config_path
 
 
+# ============================================================================
+# Runtime Configuration Dataclasses
+# ============================================================================
+# These dataclasses are used for function parameters (not persisted to YAML).
+# They replace parameter soup (12-16 params → 3-6 params).
+
+
+@dataclass
+class ProcessConfig:
+    """Configuration for chat export processing (source-agnostic).
+
+    Replaces long parameter lists (15+ params) with structured config object.
+    """
+
+    zip_file: Annotated[Path, "Path to the chat export file (ZIP, JSON, etc.)"]
+    output_dir: Annotated[Path, "Directory for the generated site"]
+    step_size: Annotated[int, "Size of each processing window"] = 1
+    step_unit: Annotated[str, "Unit for windowing: 'messages', 'hours', 'days'"] = "days"
+    overlap_ratio: Annotated[float, "Fraction of window to overlap (0.0-0.5)"] = 0.2
+    max_window_time: Annotated[timedelta | None, "Optional maximum time span per window"] = None
+    enable_enrichment: Annotated[bool, "Enable LLM enrichment for URLs/media"] = True
+    from_date: Annotated[date | None, "Only process messages from this date onwards"] = None
+    to_date: Annotated[date | None, "Only process messages up to this date"] = None
+    timezone: Annotated[str | None, "Timezone for date parsing"] = None
+    gemini_key: Annotated[str | None, "Google Gemini API key"] = None
+    model: Annotated[str | None, "Gemini model to use"] = None
+    debug: Annotated[bool, "Enable debug logging"] = False
+    retrieval_mode: Annotated[str, "Retrieval strategy: 'ann' or 'exact'"] = "ann"
+    retrieval_nprobe: Annotated[int | None, "Advanced: DuckDB VSS nprobe for ANN"] = None
+    retrieval_overfetch: Annotated[int | None, "Advanced: ANN candidate pool multiplier"] = None
+    batch_threshold: Annotated[int, "Minimum items before batching API calls"] = 10
+    max_prompt_tokens: Annotated[int, "Maximum tokens per prompt"] = 100_000
+    use_full_context_window: Annotated[bool, "Use full model context window"] = False
+
+    @property
+    def input_path(self) -> Path:
+        """Alias for zip_file (source-agnostic naming)."""
+        return self.zip_file
+
+
+@dataclass
+class WriterRuntimeConfig:
+    """Runtime configuration for post writing (not the Pydantic WriterConfig)."""
+
+    posts_dir: Annotated[Path, "Directory to save posts"]
+    profiles_dir: Annotated[Path, "Directory to save profiles"]
+    rag_dir: Annotated[Path, "Directory for RAG data"]
+    model_config: Annotated[object | None, "Model configuration"] = None  # ModelConfig defined below
+    enable_rag: Annotated[bool, "Enable RAG"] = True
+
+
+@dataclass
+class MediaEnrichmentContext:
+    """Context for media enrichment prompts."""
+
+    media_type: Annotated[str, "The type of media (e.g., 'image', 'video')"]
+    media_filename: Annotated[str, "The filename of the media"]
+    author: Annotated[str, "The author of the message containing the media"]
+    timestamp: Annotated[str, "The timestamp of the message"]
+    nearby_messages: Annotated[str, "Messages sent before and after the media"]
+    ocr_text: Annotated[str, "Text extracted from the media via OCR"] = ""
+    detected_objects: Annotated[str, "Objects detected in the media"] = ""
+
+
+@dataclass
+class EnrichmentRuntimeConfig:
+    """Runtime configuration for enrichment operations."""
+
+    client: Annotated[object, "The Gemini client"]
+    output_dir: Annotated[Path, "The directory to save enriched data"]
+    model: Annotated[str, "The Gemini model to use for enrichment"] = DEFAULT_MODEL
+
+
+@dataclass
+class PipelineEnrichmentConfig:
+    """Extended enrichment configuration for pipeline operations.
+
+    Extends basic enrichment config with pipeline-specific settings.
+    """
+
+    batch_threshold: int = 10
+    max_enrichments: int = 500
+    enable_url: bool = True
+    enable_media: bool = True
+
+    def __post_init__(self) -> None:
+        """Validate configuration after initialization."""
+        if self.batch_threshold < 1:
+            msg = f"batch_threshold must be >= 1, got {self.batch_threshold}"
+            raise ValueError(msg)
+        if self.max_enrichments < 0:
+            msg = f"max_enrichments must be >= 0, got {self.max_enrichments}"
+            raise ValueError(msg)
+
+    @classmethod
+    def from_cli_args(cls, **kwargs: int | bool) -> PipelineEnrichmentConfig:
+        """Create config from CLI arguments."""
+        return cls(
+            batch_threshold=kwargs.get("batch_threshold", 10),
+            max_enrichments=kwargs.get("max_enrichments", 500),
+            enable_url=kwargs.get("enable_url", True),
+            enable_media=kwargs.get("enable_media", True),
+        )
+
+
+# ============================================================================
+# Model Configuration Utilities
+# ============================================================================
+
+# Model type literal for type checking
+ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor", "banner", "embedding"]
+
+
+class ModelConfig:
+    """Centralized model configuration with CLI override support.
+
+    Uses EgregoraConfig as the source of truth.
+    """
+
+    def __init__(self, config: EgregoraConfig | None = None, cli_model: str | None = None) -> None:
+        """Initialize model config.
+
+        Args:
+            config: EgregoraConfig instance from .egregora/config.yml (optional)
+            cli_model: Optional model override from CLI flag (highest priority)
+
+        """
+        self.config = config
+        self.cli_model = cli_model
+
+    def get_model(self, model_type: ModelType) -> str:
+        """Get model name for a specific task.
+
+        Priority:
+        1. CLI flag (--model) if provided
+        2. Config file (.egregora/config.yml models.{type})
+
+        Args:
+            model_type: Type of model to retrieve
+
+        Returns:
+            Model name to use
+
+        """
+        # CLI override takes precedence
+        if self.cli_model:
+            logger.debug("Using CLI model for %s: %s", model_type, self.cli_model)
+            return self.cli_model
+
+        # Get from config (defaults already resolved by schema validator)
+        if self.config:
+            model = getattr(self.config.models, model_type)
+            logger.debug("Using config model for %s: %s", model_type, model)
+            return model
+
+        # Fallback to DEFAULT_MODEL if no config provided
+        logger.debug("Using fallback DEFAULT_MODEL for %s", model_type)
+        return DEFAULT_MODEL
+
+
+def get_model_config(site_root: Path, cli_model: str | None = None) -> ModelConfig:
+    """Load EgregoraConfig and create ModelConfig.
+
+    Convenience function that combines config loading with ModelConfig creation.
+
+    Args:
+        site_root: Root directory containing .egregora/config.yml
+        cli_model: Optional CLI model override
+
+    Returns:
+        ModelConfig instance
+
+    """
+    egregora_config = load_egregora_config(site_root)
+    return ModelConfig(config=egregora_config, cli_model=cli_model)
+
+
 __all__ = [
-    # Config schemas
+    # Pydantic config schemas (persisted in .egregora/config.yml)
     "EgregoraConfig",
     "EnrichmentConfig",
     "FeaturesConfig",
@@ -499,8 +685,19 @@ __all__ = [
     "find_egregora_config",
     "load_egregora_config",
     "save_egregora_config",
+    # Runtime dataclasses (not persisted, for function parameters)
+    "ProcessConfig",
+    "WriterRuntimeConfig",
+    "MediaEnrichmentContext",
+    "EnrichmentRuntimeConfig",
+    "PipelineEnrichmentConfig",
+    # Model configuration
+    "ModelConfig",
+    "ModelType",
+    "get_model_config",
     # Constants
     "DEFAULT_MODEL",
     "DEFAULT_EMBEDDING_MODEL",
     "DEFAULT_BANNER_MODEL",
+    "EMBEDDING_DIM",
 ]

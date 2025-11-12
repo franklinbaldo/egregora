@@ -7,7 +7,7 @@ extracted from CLI to maintain separation of concerns.
 import logging
 from datetime import UTC, date, datetime
 
-from egregora.config.types import ProcessConfig
+from egregora.config.schema import ProcessConfig
 
 logger = logging.getLogger(__name__)
 
