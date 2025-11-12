@@ -240,19 +240,21 @@ def _process_window_with_auto_split(
 
 
 def _process_all_windows(
-    windows_iterator: any, ctx: WindowProcessingContext, runs_conn: duckdb.DuckDBPyConnection
+    windows_iterator: any, ctx: WindowProcessingContext, runs_backend: any
 ) -> dict[str, dict[str, list[str]]]:
     """Process all windows with tracking and error handling.
 
     Args:
         windows_iterator: Iterator of Window objects
         ctx: Window processing context
-        runs_conn: DuckDB connection for run tracking
+        runs_backend: Ibis backend for run tracking
 
     Returns:
         Dict mapping window labels to {'posts': [...], 'profiles': [...]}
 
     """
+    # Access underlying DuckDB connection for run tracking (needs raw SQL)
+    runs_conn = runs_backend.con
     results = {}
 
     for window in windows_iterator:
@@ -384,29 +386,36 @@ def _perform_enrichment(
     )
 
 
-def _create_duckdb_connections(
+def _create_database_backends(
     site_root: Path,
-) -> tuple[Path, duckdb.DuckDBPyConnection, any, duckdb.DuckDBPyConnection]:
-    """Create DuckDB connections for pipeline and runs tracking.
+    config: EgregoraConfig,
+) -> tuple[Path, any, any]:
+    """Create database backends for pipeline and runs tracking.
+
+    Uses Ibis for database abstraction, allowing future migration to
+    other databases (Postgres, SQLite, etc.) via connection strings.
 
     Args:
         site_root: Root directory for the site
+        config: Egregora configuration
 
     Returns:
-        Tuple of (runtime_db_path, connection, backend, runs_conn)
+        Tuple of (runtime_db_path, pipeline_backend, runs_backend)
 
     """
-    # Setup pipeline database connection
-    runtime_db_path = site_root / ".egregora" / "pipeline.duckdb"
+    # Resolve database paths from config
+    runtime_db_path = site_root / config.database.pipeline_db
+    runs_db_path = site_root / config.database.runs_db
+
+    # Ensure parent directories exist
     runtime_db_path.parent.mkdir(parents=True, exist_ok=True)
-    connection = duckdb.connect(str(runtime_db_path))
-    backend = ibis.duckdb.from_connection(connection)
+    runs_db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Setup runs tracking database
-    runs_db_path = site_root / ".egregora" / "runs.duckdb"
-    runs_conn = duckdb.connect(str(runs_db_path))
+    # Create Ibis backends (database-agnostic)
+    pipeline_backend = ibis.connect(f"duckdb://{runtime_db_path}")
+    runs_backend = ibis.connect(f"duckdb://{runs_db_path}")
 
-    return runtime_db_path, connection, backend, runs_conn
+    return runtime_db_path, pipeline_backend, runs_backend
 
 
 def _setup_pipeline_environment(
@@ -414,14 +423,13 @@ def _setup_pipeline_environment(
 ) -> tuple[
     any,
     Path,
-    duckdb.DuckDBPyConnection,
-    duckdb.DuckDBPyConnection,
+    any,
     any,
     str | None,
     genai.Client,
     EnrichmentCache,
 ]:
-    """Set up pipeline environment including paths, connections, and clients.
+    """Set up pipeline environment including paths, backends, and clients.
 
     Args:
         output_dir: Output directory for generated content
@@ -430,7 +438,7 @@ def _setup_pipeline_environment(
         model_override: Model override for CLI --model flag
 
     Returns:
-        Tuple of (site_paths, runtime_db_path, connection, runs_conn, backend, model_override, client, enrichment_cache)
+        Tuple of (site_paths, runtime_db_path, pipeline_backend, runs_backend, model_override, client, enrichment_cache)
 
     Raises:
         ValueError: If mkdocs.yml or docs directory not found
@@ -447,8 +455,8 @@ def _setup_pipeline_environment(
         msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
         raise ValueError(msg)
 
-    # Setup database connections
-    runtime_db_path, connection, backend, runs_conn = _create_duckdb_connections(site_paths.site_root)
+    # Setup database backends (Ibis-based, database-agnostic)
+    runtime_db_path, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
 
     # Setup Gemini client
     # Configure aggressive retry options to handle rate limits efficiently
@@ -470,9 +478,8 @@ def _setup_pipeline_environment(
     return (
         site_paths,
         runtime_db_path,
-        connection,
-        runs_conn,
         backend,
+        runs_backend,
         model_override,
         client,
         enrichment_cache,
@@ -763,14 +770,13 @@ def run(
     logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", source)
     adapter = get_adapter(source)
 
-    # Setup environment (paths, connections, clients)
+    # Setup environment (paths, backends, clients)
     if client is None:
         (
             site_paths,
             runtime_db_path,
-            connection,
-            runs_conn,
             backend,
+            runs_backend,
             cli_model_override,
             client,
             enrichment_cache,
@@ -785,7 +791,7 @@ def run(
         if not site_paths.docs_dir.exists():
             msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
             raise ValueError(msg)
-        runtime_db_path, connection, backend, runs_conn = _create_duckdb_connections(site_paths.site_root)
+        runtime_db_path, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
         cli_model_override = model_override
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         enrichment_cache = EnrichmentCache(cache_dir)
@@ -891,7 +897,7 @@ def run(
         )
 
         # Process all windows with tracking
-        results = _process_all_windows(windows_iterator, window_ctx, runs_conn)
+        results = _process_all_windows(windows_iterator, window_ctx, runs_backend)
 
         # Index media enrichments into RAG
         _index_media_into_rag(enable_enrichment, results, site_paths, embedding_model)
@@ -907,11 +913,12 @@ def run(
                 enrichment_cache.close()
         finally:
             try:
-                if "runs_conn" in locals():
-                    runs_conn.close()
+                if "runs_backend" in locals():
+                    runs_backend.con.close()
             finally:
                 if client:
                     client.close()
         if options is not None:
             options.default_backend = old_backend
-        connection.close()
+        if "backend" in locals():
+            backend.con.close()

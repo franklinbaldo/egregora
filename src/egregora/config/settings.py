@@ -292,6 +292,24 @@ class OutputSettings(BaseModel):
     )
 
 
+class DatabaseSettings(BaseModel):
+    """Database configuration for pipeline and observability.
+
+    All paths are relative to site_root. Uses Ibis connection strings
+    for database-agnostic operation (supports DuckDB, Postgres, SQLite, etc.).
+    """
+
+    # Database file paths (relative to site_root)
+    pipeline_db: str = Field(
+        default=".egregora/pipeline.duckdb",
+        description="Pipeline database path (relative to site root)",
+    )
+    runs_db: str = Field(
+        default=".egregora/runs.duckdb",
+        description="Run tracking database path (relative to site root)",
+    )
+
+
 class FeaturesSettings(BaseModel):
     """Feature flags for experimental or optional functionality."""
 
@@ -333,6 +351,10 @@ class EgregoraConfig(BaseModel):
       step_size: 1
       step_unit: days
 
+    database:
+      pipeline_db: .egregora/pipeline.duckdb
+      runs_db: .egregora/runs.duckdb
+
     output:
       format: mkdocs
     ```
@@ -365,6 +387,10 @@ class EgregoraConfig(BaseModel):
     paths: PathsSettings = Field(
         default_factory=PathsSettings,
         description="Site directory paths (relative to site root)",
+    )
+    database: DatabaseSettings = Field(
+        default_factory=DatabaseSettings,
+        description="Database configuration (pipeline and run tracking)",
     )
     output: OutputSettings = Field(
         default_factory=OutputSettings,
