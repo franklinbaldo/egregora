@@ -12,7 +12,7 @@ from rich.panel import Panel
 from egregora.config import ProcessConfig, load_egregora_config
 from egregora.config.validation import parse_date_arg, validate_retrieval_config
 from egregora.init import ensure_mkdocs_project
-from egregora.pipeline.runner import run_source_pipeline
+from egregora.orchestration import write_pipeline
 from egregora.utils.logging_setup import configure_logging, console
 
 app = typer.Typer(
@@ -192,7 +192,7 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
                 border_style="cyan",
             )
         )
-        run_source_pipeline(
+        write_pipeline.run(
             source=source,
             input_path=config.zip_file,
             output_dir=config.output_dir,

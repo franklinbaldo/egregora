@@ -158,6 +158,8 @@ Ingestion → Privacy → Augmentation → Knowledge ← Generation → Publicat
 Parse ZIP   UUIDs     LLM enrich      RAG/Elo     Writer      MkDocs
 ```
 
+These stages are coordinated by the **orchestration layer** (`orchestration/`), which provides high-level workflows like `write_pipeline.run()` that execute the complete sequence.
+
 ### Key Stages
 
 1. **Ingestion** (`sources/`, `input_adapters/`): `InputAdapter` → `parse()` → `CONVERSATION_SCHEMA`
@@ -232,18 +234,32 @@ Parse ZIP   UUIDs     LLM enrich      RAG/Elo     Writer      MkDocs
 
 ## Code Structure
 
-**Architectural Symmetry**: The codebase is organized around clear data flow boundaries:
-- `input_adapters/` → brings external data INTO the pipeline
-- `data_primitives/` → defines core data models (Document, types)
-- `output_adapters/` → takes structured data OUT to publication
+**Three-Layer Architecture**: The codebase follows clean architecture with explicit separation:
 
-This creates perfect symmetry: `InputAdapter` ↔ `OutputAdapter` with `data_primitives` as the shared contract.
+**Layer 3: Business Workflows** (`orchestration/`)
+- High-level execution flows for user-facing commands
+- Coordinates stages to accomplish specific goals
+- `write_pipeline.py`: Complete write workflow (ingest → process → generate → publish)
+
+**Layer 2: Infrastructure** (`pipeline/`, `input_adapters/`, `output_adapters/`)
+- Generic, reusable mechanisms for data processing
+- `pipeline/`: Windowing, tracking, views, validation
+- `input_adapters/`: Brings external data IN
+- `output_adapters/`: Takes structured data OUT
+
+**Layer 1: Foundation** (`data_primitives/`, `database/`)
+- Core data models and persistence
+- `data_primitives/`: Document, GroupSlug, PostSlug
+- `database/`: DuckDB management, IR schemas
 
 ```
 src/egregora/
-├── cli.py                    # Entry point
-├── pipeline.py               # Windowing
-├── data_primitives/          # Core data models (merged from core/ + types.py)
+├── cli.py                    # Entry point → delegates to orchestration/
+├── orchestration/            # HIGH-LEVEL WORKFLOWS
+│   ├── write_pipeline.py    # Write command orchestration (WHAT to execute)
+│   ├── read_pipeline.py     # (Future) Read agent workflow
+│   └── edit_pipeline.py     # (Future) Edit agent workflow
+├── data_primitives/          # CORE DATA MODELS
 │   ├── document.py          # Document, DocumentType, DocumentCollection
 │   └── base_types.py        # GroupSlug, PostSlug
 ├── database/

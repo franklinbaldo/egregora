@@ -1,7 +1,15 @@
-"""High-level pipeline runner - sets up and executes the complete pipeline.
+"""Write pipeline orchestration - executes the complete write workflow.
 
-This module provides the main entry point for running the source-agnostic pipeline.
-It handles the complete flow from parsing to final output generation.
+This module orchestrates the high-level flow for the 'write' command, coordinating:
+- Input adapter selection and parsing
+- Privacy and enrichment stages
+- Window-based post generation
+- Output adapter persistence
+
+Part of the three-layer architecture:
+- orchestration/ (THIS) - Business workflows (WHAT to execute)
+- pipeline/ - Generic infrastructure (HOW to execute)
+- data_primitives/ - Core data models
 """
 
 from __future__ import annotations
@@ -41,7 +49,7 @@ from egregora.utils.telemetry import get_current_trace_id
 if TYPE_CHECKING:
     import ibis.expr.types as ir
 logger = logging.getLogger(__name__)
-__all__ = ["run_source_pipeline"]
+__all__ = ["run"]
 
 
 @dataclass
@@ -695,7 +703,7 @@ def _apply_filters(
     return messages_table
 
 
-def run_source_pipeline(
+def run(
     source: str,
     input_path: Path,
     output_dir: Path,
@@ -705,7 +713,7 @@ def run_source_pipeline(
     model_override: str | None = None,
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
-    """Run the complete source-agnostic pipeline.
+    """Run the complete write pipeline workflow.
 
     MODERN (Phase 2): Uses EgregoraConfig instead of 16 individual parameters.
 
