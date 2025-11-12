@@ -505,8 +505,6 @@ def _persist_to_duckdb(
         target_table: Target table name
 
     """
-    from egregora.database import ir_schema
-
     if not re.fullmatch("[A-Za-z_][A-Za-z0-9_]*", target_table):
         msg = "target_table must be a valid DuckDB identifier"
         raise ValueError(msg)
