@@ -76,7 +76,7 @@ class SchemaError(Exception):
 # IR v1 Schema Definition (Ibis)
 # ============================================================================
 
-IR_V1_SCHEMA = ibis.schema(
+IR_MESSAGE_SCHEMA = ibis.schema(
     {
         # Identity
         "event_id": dt.UUID,
@@ -110,7 +110,7 @@ IR_V1_SCHEMA = ibis.schema(
 # ============================================================================
 
 
-class IRv1Row(BaseModel):
+class IRMessageRow(BaseModel):
     """Runtime validator for IR v1 rows.
 
     This Pydantic model validates individual rows conform to IR v1 schema.
@@ -158,7 +158,7 @@ class IRv1Row(BaseModel):
 # ============================================================================
 
 
-def load_ir_v1_lockfile(lockfile_path: Path | None = None) -> dict[str, Any]:
+def load_ir_schema_lockfile(lockfile_path: Path | None = None) -> dict[str, Any]:
     """Load IR v1 schema from lockfile (schema/ir_v1.json).
 
     Args:
@@ -250,7 +250,7 @@ def validate_ir_schema(table: Table, *, sample_size: int = 100) -> None:
     """
     # 1. Compile-time check: Schema structure
     actual_schema = table.schema()
-    expected_schema = IR_V1_SCHEMA
+    expected_schema = IR_MESSAGE_SCHEMA
 
     # Compare column names (order doesn't matter)
     expected_cols = set(expected_schema.names)
@@ -301,7 +301,7 @@ def validate_ir_schema(table: Table, *, sample_size: int = 100) -> None:
                             row_dict[field] = uuid.UUID(str(value))
 
                 # Validate with Pydantic
-                IRv1Row(**row_dict)
+                IRMessageRow(**row_dict)
             except ValidationError as e:
                 msg = f"IR v1 validation failed at row {idx}: {e}"
                 raise SchemaError(msg) from e

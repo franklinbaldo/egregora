@@ -41,7 +41,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, TypeVar
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
-    from egregora.privacy.config import PrivacyConfig
+    from egregora.privacy.config import PrivacySettings
 
 logger = logging.getLogger(__name__)
 
@@ -151,9 +151,9 @@ class PrivacyGate:
 
     Example:
         >>> from egregora.privacy.gate import PrivacyGate
-        >>> from egregora.privacy.config import PrivacyConfig
+        >>> from egregora.privacy.config import PrivacySettings
         >>>
-        >>> config = PrivacyConfig(tenant_id="acme-corp")
+        >>> config = PrivacySettings(tenant_id="acme-corp")
         >>> raw_table = load_raw_data()  # Contains author_raw (PII)
         >>>
         >>> # Run privacy gate
@@ -169,7 +169,7 @@ class PrivacyGate:
     @staticmethod
     def run(
         table: Table,
-        config: PrivacyConfig,
+        config: PrivacySettings,
         run_id: str,
     ) -> tuple[Table, PrivacyPass]:
         """Execute privacy gate and issue capability token.
@@ -195,7 +195,7 @@ class PrivacyGate:
             ValueError: If config validation fails
 
         Example:
-            >>> config = PrivacyConfig(tenant_id="acme")
+            >>> config = PrivacySettings(tenant_id="acme")
             >>> raw = ibis.memtable([{"author_raw": "Alice", "message": "Hi"}])
             >>> anonymized, token = PrivacyGate.run(raw, config, "run-1")
             >>>
@@ -209,7 +209,7 @@ class PrivacyGate:
 
         # Validate config
         if not config.tenant_id:
-            msg = "PrivacyConfig.tenant_id cannot be empty"
+            msg = "PrivacySettings.tenant_id cannot be empty"
             raise ValueError(msg)
 
         if not run_id:

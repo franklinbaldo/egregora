@@ -10,7 +10,7 @@ Our OutputFormat refactoring (Phases 2-4) successfully eliminated the need for s
 
 ## Dead Code Identified
 
-### 1. ✅ CONFIRMED DEAD: `document_storage` field in `WriterRuntimeContext`
+### 1. ✅ CONFIRMED DEAD: `document_storage` field in `WriterAgentContext`
 
 **Location**: `src/egregora/agents/writer/agent.py:107`
 
@@ -53,7 +53,7 @@ document_storage = LegacyStorageAdapter(
 
 **Analysis**:
 - Creates `LegacyStorageAdapter` instance
-- Passes it to `WriterRuntimeContext.document_storage`
+- Passes it to `WriterAgentContext.document_storage`
 - But `document_storage` field is never used (see #1)
 - Complete waste of CPU cycles and memory
 
@@ -175,7 +175,7 @@ tests/storage/test_document_storage.py:from egregora.rendering.mkdocs_documents 
 
 ## Removal Plan (Phase 5)
 
-### Step 1: Remove dead field from WriterRuntimeContext ✅ Safe
+### Step 1: Remove dead field from WriterAgentContext ✅ Safe
 
 **File**: `src/egregora/agents/writer/agent.py`
 
@@ -208,7 +208,7 @@ document_storage = LegacyStorageAdapter(
 
 **And remove from context**:
 ```python
-runtime_context = WriterRuntimeContext(
+runtime_context = WriterAgentContext(
     # ... other fields ...
     # Document storage (MODERN Phase 3)
     document_storage=document_storage,  # ← REMOVE THIS LINE
@@ -236,7 +236,7 @@ document_storage = LegacyStorageAdapter(
     site_root=site_root,
 )
 
-context = WriterRuntimeContext(
+context = WriterAgentContext(
     # ...
     document_storage=document_storage,  # ← REMOVE
     # ...
@@ -327,7 +327,7 @@ grep -r "LegacyStorageAdapter" src/egregora tests/ --include="*.py"
 uv run pytest tests/
 
 # 3. Check for any runtime errors
-uv run python -c "from egregora.agents.writer.core import write_posts_for_window; print('OK')"
+uv run python -c "from egregora.agents.writer.writer_runner import write_posts_for_window; print('OK')"
 ```
 
 ---
@@ -338,7 +338,7 @@ uv run python -c "from egregora.agents.writer.core import write_posts_for_window
 
 **Code Reduction**:
 - Remove 269 lines of dead code
-- Simplify WriterRuntimeContext (1 less field)
+- Simplify WriterAgentContext (1 less field)
 - Remove entire LegacyStorageAdapter module
 
 **Maintenance**:
@@ -391,7 +391,7 @@ uv run python -c "from egregora.agents.writer.core import write_posts_for_window
 - **Files**: 2-3 files
 
 **Tasks**:
-1. Remove `document_storage` field from `WriterRuntimeContext`
+1. Remove `document_storage` field from `WriterAgentContext`
 2. Remove `LegacyStorageAdapter` instantiation from `core.py`
 3. Remove field from context creation
 4. Run tests

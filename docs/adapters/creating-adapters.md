@@ -32,7 +32,7 @@ class DiscordAdapter(SourceAdapter):
     def source_identifier(self) -> str:
         return "discord"
 
-    def adapter_meta(self) -> AdapterMeta:
+    def get_adapter_metadata(self) -> AdapterMeta:
         """Return adapter metadata for plugin discovery."""
         return AdapterMeta(
             name="Discord",
@@ -99,11 +99,11 @@ def source_identifier(self) -> str:
 
 ### Required Methods
 
-#### `adapter_meta()` → `AdapterMeta`
+#### `get_adapter_metadata()` → `AdapterMeta`
 Return adapter metadata for plugin discovery and validation.
 
 ```python
-def adapter_meta(self) -> AdapterMeta:
+def get_adapter_metadata(self) -> AdapterMeta:
     return AdapterMeta(
         name="Discord",           # Human-readable name
         version="1.0.0",          # Semantic version
@@ -292,7 +292,7 @@ class DiscordAdapter(SourceAdapter):
     def source_identifier(self) -> str:
         return "discord"
 
-    def adapter_meta(self) -> AdapterMeta:
+    def get_adapter_metadata(self) -> AdapterMeta:
         return AdapterMeta(
             name="Discord",
             version="1.0.0",
@@ -445,7 +445,7 @@ from egregora_discord import DiscordAdapter
 def test_adapter_meta():
     """Test adapter metadata."""
     adapter = DiscordAdapter()
-    meta = adapter.adapter_meta()
+    meta = adapter.get_adapter_metadata()
 
     assert meta["name"] == "Discord"
     assert meta["version"] == "1.0.0"
@@ -491,14 +491,14 @@ Egregora validates IR versions during plugin loading:
 
 ```python
 # ❌ This adapter will be REJECTED
-def adapter_meta(self) -> AdapterMeta:
+def get_adapter_metadata(self) -> AdapterMeta:
     return AdapterMeta(
         ...,
         ir_version="v2"  # INVALID - only "v1" supported
     )
 
 # ✅ This adapter will be ACCEPTED
-def adapter_meta(self) -> AdapterMeta:
+def get_adapter_metadata(self) -> AdapterMeta:
     return AdapterMeta(
         ...,
         ir_version="v1"  # VALID
@@ -687,13 +687,13 @@ How Egregora discovers your adapter:
    ```
 
 2. **Validation**:
-   - Check `adapter_meta()` exists
+   - Check `get_adapter_metadata()` exists
    - Validate `ir_version == "v1"`
    - Verify `source` matches identifier
 
 3. **Registration**:
    ```python
-   meta = adapter.adapter_meta()
+   meta = adapter.get_adapter_metadata()
    registry[meta["source"]] = adapter
    ```
 

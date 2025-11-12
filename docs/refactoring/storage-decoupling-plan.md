@@ -63,7 +63,7 @@ def _update_authors_yml(site_root: Path, author_uuid: str, front_matter: dict) -
 
 ```python
 @dataclass(frozen=True, slots=True)
-class WriterRuntimeContext:
+class WriterAgentContext:
     # ...
 
     # ❌ DEPRECATED: Never read, only written
@@ -227,7 +227,7 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
        site_root=site_root
    )
 
-   runtime_context = WriterRuntimeContext(
+   runtime_context = WriterAgentContext(
        profiles=profile_storage,  # ✅ Inject protocol implementation
        # ...
    )
@@ -258,7 +258,7 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
    # src/egregora/agents/writer/agent.py
 
    @dataclass(frozen=True, slots=True)
-   class WriterRuntimeContext:
+   class WriterAgentContext:
        # ... other fields ...
 
        # ❌ DELETE THIS FIELD
@@ -280,8 +280,8 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
    # document_storage = legacy_adapter
    ```
 
-3. **Update all WriterRuntimeContext instantiations**
-   - Search: `WriterRuntimeContext(`
+3. **Update all WriterAgentContext instantiations**
+   - Search: `WriterAgentContext(`
    - Remove: `document_storage=...` parameter
    - Files: `core.py`, test files
 
@@ -453,7 +453,7 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
        output_format = InMemoryOutputFormat(url_convention)
        profile_storage = InMemoryProfileStorage()
 
-       context = WriterRuntimeContext(
+       context = WriterAgentContext(
            url_convention=url_convention,
            url_context=UrlContext(),
            output_format=output_format,
@@ -696,7 +696,7 @@ def serve(self, document: Document) -> None:
        hugo_format = HugoOutputFormat(site_root=tmp_path)
 
        # Use Hugo format instead of MkDocs
-       context = WriterRuntimeContext(
+       context = WriterAgentContext(
            output_format=hugo_format,
            # ...
        )

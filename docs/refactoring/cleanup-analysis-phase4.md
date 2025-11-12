@@ -166,7 +166,7 @@ return None
 - **Coverage**: 32%
 - **Purpose**: Bridge between old PostStorage/ProfileStorage and new Document abstraction
 - **Status**: Still used in `writer/core.py` for backward compatibility
-- **Recommendation**: Remove once `document_storage` field removed from `WriterRuntimeContext`
+- **Recommendation**: Remove once `document_storage` field removed from `WriterAgentContext`
 
 ## Comparison: Before vs After Refactoring
 
@@ -223,7 +223,7 @@ return None
    - Remove in 2-3 releases
 
 2. **Remove LegacyStorageAdapter**:
-   - Remove `document_storage` field from `WriterRuntimeContext`
+   - Remove `document_storage` field from `WriterAgentContext`
    - Remove old PostStorage/ProfileStorage/JournalStorage protocols
    - Update all call sites to use OutputFormat directly
 

@@ -106,7 +106,7 @@ For type-safe Ibis operations:
 ```python
 import ibis.expr.datatypes as dt
 
-IR_V1_SCHEMA = ibis.schema({
+IR_MESSAGE_SCHEMA = ibis.schema({
     # Identity
     "event_id": dt.UUID,
 
@@ -389,11 +389,11 @@ class SourceAdapter(Protocol):
         """Parse source to IR v1 table.
 
         Returns:
-            Ibis table conforming to IR_V1_SCHEMA
+            Ibis table conforming to IR_MESSAGE_SCHEMA
         """
         ...
 
-    def adapter_meta(self) -> AdapterMeta:
+    def get_adapter_metadata(self) -> AdapterMeta:
         """Return adapter metadata."""
         ...
 ```
@@ -429,7 +429,7 @@ export = WhatsAppExport(
 table = parse_source(export)
 
 # Validate schema
-assert set(table.columns) == set(IR_V1_SCHEMA.keys())
+assert set(table.columns) == set(IR_MESSAGE_SCHEMA.keys())
 ```
 
 ---

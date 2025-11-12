@@ -11,7 +11,7 @@ import ibis
 from ibis.expr.types import Table
 
 from egregora.agents.shared.rag.chunker import chunk_document, chunk_from_document
-from egregora.agents.shared.rag.embedder import embed_chunks, embed_query
+from egregora.agents.shared.rag.embedder import embed_chunks, embed_query_text
 from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA, VectorStore
 from egregora.core.document import DocumentType
 
@@ -253,11 +253,11 @@ def query_similar_posts(
     logger.info("Querying similar posts for period with %s messages", msg_count)
     query_text = table.execute().to_csv(sep="|", index=False)
     logger.debug("Query text length: %s chars", len(query_text))
-    query_vec = embed_query(query_text, model=embedding_model)
+    query_vec = embed_query_text(query_text, model=embedding_model)
     results = store.search(
         query_vec=query_vec,
         top_k=top_k * 3 if deduplicate else top_k,
-        min_similarity=0.7,
+        min_similarity_threshold=0.7,
         mode=retrieval_mode,
         nprobe=retrieval_nprobe,
         overfetch=retrieval_overfetch,
@@ -544,7 +544,7 @@ def query_media(
     store: VectorStore,
     media_types: list[str] | None = None,
     top_k: int = 5,
-    min_similarity: float = 0.7,
+    min_similarity_threshold: float = 0.7,
     *,
     deduplicate: bool = True,
     embedding_model: str,
@@ -559,7 +559,7 @@ def query_media(
         store: Vector store
         media_types: Optional filter by media type (e.g., ["image", "video"])
         top_k: Number of results to return
-        min_similarity: Minimum cosine similarity (0-1)
+        min_similarity_threshold: Minimum cosine similarity (0-1)
         deduplicate: Keep only 1 chunk per media file (highest similarity)
         embedding_model: Embedding model name
         retrieval_mode: "ann" (default) or "exact" for brute-force search
@@ -571,11 +571,11 @@ def query_media(
 
     """
     logger.info("Searching media for: %s", query)
-    query_vec = embed_query(query, model=embedding_model)
+    query_vec = embed_query_text(query, model=embedding_model)
     results = store.search(
         query_vec=query_vec,
         top_k=top_k * 3 if deduplicate else top_k,
-        min_similarity=min_similarity,
+        min_similarity_threshold=min_similarity_threshold,
         document_type="media",
         media_types=media_types,
         mode=retrieval_mode,

@@ -96,7 +96,7 @@ def test_egregora_directory_created(tmp_path: Path):
 
 def test_config_yml_structure(tmp_path: Path):
     """Test that generated config.yml has correct structure."""
-    from egregora.config.schema import load_egregora_config
+    from egregora.config.settings import load_egregora_config
 
     # Create and scaffold MkDocs site using OutputFormat
     output_format = create_output_format(tmp_path, format_type="mkdocs")

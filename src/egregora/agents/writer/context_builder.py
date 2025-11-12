@@ -10,9 +10,9 @@ from google import genai
 from ibis.expr.types import Table
 from returns.result import Failure, Result, Success
 
-from egregora.agents.shared.profiler import get_active_authors, read_profile
+from egregora.agents.shared.author_profiles import get_active_authors, read_profile
 from egregora.agents.shared.rag import VectorStore, build_rag_context_for_writer, query_similar_posts
-from egregora.agents.shared.rag.embedder import embed_query
+from egregora.agents.shared.rag.embedder import embed_query_text
 from egregora.utils.logfire_config import logfire_info, logfire_span
 
 logger = logging.getLogger(__name__)
@@ -83,12 +83,12 @@ def build_rag_context_for_prompt(
         )
     if not table_markdown.strip():
         return ""
-    query_vector = embed_query(table_markdown, model=embedding_model)
+    query_vector = embed_query_text(table_markdown, model=embedding_model)
     store = VectorStore(rag_dir / "chunks.parquet")
     search_results = store.search(
         query_vec=query_vector,
         top_k=top_k,
-        min_similarity=0.7,
+        min_similarity_threshold=0.7,
         mode=retrieval_mode,
         nprobe=retrieval_nprobe,
         overfetch=retrieval_overfetch,

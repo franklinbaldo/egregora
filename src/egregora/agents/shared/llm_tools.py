@@ -7,7 +7,7 @@ from google import genai
 
 from egregora.agents.shared.rag import VectorStore, query_similar_posts
 from egregora.config import get_model_for_task
-from egregora.config.schema import EgregoraConfig
+from egregora.config.settings import EgregoraConfig
 from egregora.utils.genai import call_with_retries
 
 

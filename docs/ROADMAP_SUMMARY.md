@@ -82,7 +82,7 @@ Detailed 5-day execution guide with:
 ✅ **Privacy-First**: Capability-based gate (no global state)
 ✅ **Deterministic**: Content-addressed checkpoints + namespaced UUIDs
 ✅ **Observable**: Runs table + OpenTelemetry traces
-✅ **Pluggable**: Adapter entry points + `adapter_meta()`
+✅ **Pluggable**: Adapter entry points + `get_adapter_metadata()`
 ✅ **Multi-tenant**: `tenant_id` flows through entire pipeline
 ✅ **Testable**: Deps injection + property tests
 
@@ -198,7 +198,7 @@ docs/ROADMAP_SUMMARY.md        (this file) - Executive summary
 ### Medium-term (Weeks 3-6)
 1. Privacy capability token
 2. Content-addressed checkpoints
-3. View registry + StorageManager
+3. View registry + DuckDBStorageManager
 4. Agent refactoring (deps injection)
 
 ### Long-term (Weeks 7-12)

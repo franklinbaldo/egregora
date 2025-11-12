@@ -36,8 +36,8 @@ class TestAdapterRegistry:
         assert adapter.source_identifier == "whatsapp"
         assert adapter.source_name == "WhatsApp"
 
-        # Verify adapter_meta()
-        meta = adapter.adapter_meta()
+        # Verify get_adapter_metadata()
+        meta = adapter.get_adapter_metadata()
         assert meta["name"] == "WhatsApp"
         assert meta["version"] == "1.0.0"
         assert meta["source"] == "whatsapp"
@@ -52,8 +52,8 @@ class TestAdapterRegistry:
         assert adapter.source_identifier == "slack"
         assert adapter.source_name == "Slack"
 
-        # Verify adapter_meta()
-        meta = adapter.adapter_meta()
+        # Verify get_adapter_metadata()
+        meta = adapter.get_adapter_metadata()
         assert meta["name"] == "Slack"
         assert meta["version"] == "0.1.0"
         assert meta["source"] == "slack"
@@ -137,7 +137,7 @@ class TestAdapterMeta:
         """Test that AdapterMeta has correct structure."""
         registry = AdapterRegistry()
         adapter = registry.get("whatsapp")
-        meta = adapter.adapter_meta()
+        meta = adapter.get_adapter_metadata()
 
         # Verify all required fields
         assert isinstance(meta["name"], str)
@@ -167,7 +167,7 @@ class TestAdapterProtocol:
         assert hasattr(adapter, "source_identifier")
 
         # Required methods
-        assert hasattr(adapter, "adapter_meta")
+        assert hasattr(adapter, "get_adapter_metadata")
         assert hasattr(adapter, "parse")
 
         # Optional methods
@@ -184,7 +184,7 @@ class TestAdapterProtocol:
         assert hasattr(adapter, "source_identifier")
 
         # Required methods
-        assert hasattr(adapter, "adapter_meta")
+        assert hasattr(adapter, "get_adapter_metadata")
         assert hasattr(adapter, "parse")
 
         # Optional methods

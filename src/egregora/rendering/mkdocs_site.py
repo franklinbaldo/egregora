@@ -201,7 +201,7 @@ def _try_load_mkdocs_path_from_config(start: Path) -> Path | None:
         if config_file.exists():
             try:
                 # Import here to avoid circular dependency
-                from egregora.config.schema import load_egregora_config
+                from egregora.config.settings import load_egregora_config
 
                 config = load_egregora_config(candidate)
                 if config.output and config.output.mkdocs_config_path:

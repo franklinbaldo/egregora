@@ -22,13 +22,13 @@ import ibis
 
 from egregora.agents.model_limits import PromptTooLargeError
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.shared.profiler import get_active_authors
+from egregora.agents.shared.author_profiles import get_active_authors
 from egregora.agents.shared.rag import VectorStore, index_document
-from egregora.agents.writer.agent import WriterRuntimeContext, write_posts_with_pydantic_agent
-from egregora.agents.writer.context import _load_profiles_context, build_rag_context_for_prompt
+from egregora.agents.writer.agent import WriterAgentContext, write_posts_with_pydantic_agent
+from egregora.agents.writer.context_builder import _load_profiles_context, build_rag_context_for_prompt
 from egregora.agents.writer.formatting import _build_conversation_markdown, _load_freeform_memory
 from egregora.config import get_model_for_task
-from egregora.config.schema import EgregoraConfig, create_default_config
+from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.core.document import Document, DocumentType
 from egregora.prompt_templates import WriterPromptTemplate
 from egregora.rendering import create_output_format, output_registry
@@ -439,7 +439,7 @@ def _write_posts_for_window_pydantic(
         )
 
     # Create runtime context for writer agent (MODERN Phase 6: OutputFormat with read support)
-    runtime_context = WriterRuntimeContext(
+    runtime_context = WriterAgentContext(
         start_time=start_time,
         end_time=end_time,
         # Backend-agnostic publishing (MODERN Phase 4+6)

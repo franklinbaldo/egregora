@@ -21,11 +21,11 @@ import ibis
 from google import genai
 
 from egregora.adapters import get_adapter
-from egregora.agents.shared.profiler import filter_opted_out_authors, process_commands
+from egregora.agents.shared.author_profiles import filter_opted_out_authors, process_commands
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config import get_model_for_task
-from egregora.config.schema import EgregoraConfig
+from egregora.config.settings import EgregoraConfig
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
@@ -840,7 +840,7 @@ def run_source_pipeline(
         if config.rag.enabled:
             logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
             try:
-                from egregora.agents.writer.core import index_documents_for_rag
+                from egregora.agents.writer.writer_runner import index_documents_for_rag
 
                 indexed_count = index_documents_for_rag(
                     output_format, site_paths.rag_dir, embedding_model=embedding_model

@@ -289,7 +289,7 @@ def write(
             console.print(f"[red]{e}[/red]")
             raise typer.Exit(1) from e
     config = ProcessConfig(
-        zip_file=input_file,
+        input_file=input_file,
         output_dir=output,
         step_size=step_size,
         step_unit=step_unit,

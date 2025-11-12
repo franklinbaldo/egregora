@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 from ibis.expr.types import Table
 
-from egregora.config.schema import EgregoraConfig
+from egregora.config.settings import EgregoraConfig
 from egregora.enrichment.simple_runner import enrich_table_simple
 
 if TYPE_CHECKING:

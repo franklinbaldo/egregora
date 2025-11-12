@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from egregora.agents.shared.rag.embedder import embed_query
+from egregora.agents.shared.rag.embedder import embed_query_text
 from egregora.agents.shared.rag.store import VectorStore
 from egregora.utils.logfire_config import logfire_info, logfire_span
 
@@ -27,7 +27,7 @@ async def find_relevant_docs(
     rag_dir: Path,
     embedding_model: str,
     top_k: int = 5,
-    min_similarity: float = 0.7,
+    min_similarity_threshold: float = 0.7,
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
@@ -45,7 +45,7 @@ async def find_relevant_docs(
         rag_dir: Directory containing vector store
         embedding_model: Embedding model name
         top_k: Number of results to return
-        min_similarity: Minimum similarity threshold (0-1)
+        min_similarity_threshold: Minimum similarity threshold (0-1)
         retrieval_mode: "ann" or "exact" retrieval
         retrieval_nprobe: ANN nprobe parameter
         retrieval_overfetch: ANN overfetch multiplier
@@ -71,12 +71,12 @@ async def find_relevant_docs(
     """
     with logfire_span("find_relevant_docs", query_length=len(query), top_k=top_k):
         try:
-            query_vector = embed_query(query, model=embedding_model)
+            query_vector = embed_query_text(query, model=embedding_model)
             store = VectorStore(rag_dir / "chunks.parquet")
             results = store.search(
                 query_vec=query_vector,
                 top_k=top_k,
-                min_similarity=min_similarity,
+                min_similarity_threshold=min_similarity_threshold,
                 mode=retrieval_mode,
                 nprobe=retrieval_nprobe,
                 overfetch=retrieval_overfetch,

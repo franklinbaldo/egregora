@@ -8,7 +8,7 @@ This package contains tools that agents use to perform their tasks:
 """
 
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.shared.profiler import get_active_authors
-from egregora.agents.shared.shared import AVAILABLE_TOOLS
+from egregora.agents.shared.author_profiles import get_active_authors
+from egregora.agents.shared.llm_tools import AVAILABLE_TOOLS
 
 __all__ = ["AVAILABLE_TOOLS", "AnnotationStore", "get_active_authors"]

@@ -8,7 +8,7 @@ surface (write_post, read/write_profile, search_media, annotate, banner)
 so the rest of the pipeline can remain unchanged during the migration.
 
 MODERN (Phase 1): Deps are frozen/immutable, no mutation in tools.
-MODERN (Phase 2): Uses WriterRuntimeContext to reduce parameters.
+MODERN (Phase 2): Uses WriterAgentContext to reduce parameters.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ from pydantic_ai.messages import (
 from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore, is_rag_available, query_media
-from egregora.config.schema import EgregoraConfig
+from egregora.config.settings import EgregoraConfig
 from egregora.core.document import Document, DocumentType
 from egregora.database.streaming import stream_ibis
 from egregora.storage.output_format import OutputFormat
@@ -78,7 +78,7 @@ AgentModel = Any  # Model specification (string or configured model object)
 
 
 @dataclass(frozen=True, slots=True)
-class WriterRuntimeContext:
+class WriterAgentContext:
     """Runtime context for writer agent execution.
 
     MODERN (Phase 2): Bundles runtime parameters to reduce function signatures.
@@ -662,7 +662,7 @@ def _register_writer_tools(
                 store=ctx.deps.rag_store,
                 media_types=media_types,
                 top_k=limit,
-                min_similarity=0.7,
+                min_similarity_threshold=0.7,
                 embedding_model=ctx.deps.embedding_model,
                 retrieval_mode=ctx.deps.retrieval_mode,
                 retrieval_nprobe=ctx.deps.retrieval_nprobe,
@@ -719,7 +719,7 @@ def _register_writer_tools(
 
 def _setup_agent_and_state(
     config: EgregoraConfig,
-    context: WriterRuntimeContext,
+    context: WriterAgentContext,
     test_model: AgentModel | None = None,
 ) -> tuple[Agent[WriterAgentState, WriterAgentReturn], WriterAgentState, str]:
     """Set up writer agent and execution state.
@@ -930,7 +930,7 @@ def _log_agent_completion(
 
 def _record_agent_conversation(
     result: RunResult[WriterAgentReturn],
-    context: WriterRuntimeContext,
+    context: WriterAgentContext,
 ) -> None:
     """Record agent conversation to file if configured.
 
@@ -959,7 +959,7 @@ def write_posts_with_pydantic_agent(
     *,
     prompt: str,
     config: EgregoraConfig,
-    context: WriterRuntimeContext,
+    context: WriterAgentContext,
     test_model: AgentModel | None = None,
 ) -> tuple[list[str], list[str]]:
     """Execute the writer flow using Pydantic-AI agent tooling.
@@ -1024,7 +1024,7 @@ class WriterStreamResult:
         agent: Agent[WriterAgentState, WriterAgentReturn],
         state: WriterAgentState,
         prompt: str,
-        context: WriterRuntimeContext,
+        context: WriterAgentContext,
         model_name: str,
     ) -> None:
         self.agent = agent
@@ -1071,7 +1071,7 @@ async def write_posts_with_pydantic_agent_stream(
     *,
     prompt: str,
     config: EgregoraConfig,
-    context: WriterRuntimeContext,
+    context: WriterAgentContext,
     test_model: AgentModel | None = None,
 ) -> WriterStreamResult:
     """Execute writer with streaming output.

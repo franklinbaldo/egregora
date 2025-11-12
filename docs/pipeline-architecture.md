@@ -125,14 +125,14 @@ IR_SCHEMA = {
 The **CoreOrchestrator** is the source-agnostic execution engine:
 
 ```python
-from egregora.pipeline import CoreOrchestrator, PipelineConfig
+from egregora.pipeline import CoreOrchestrator, PipelineSettings
 from egregora.adapters import get_adapter
 
 # Get adapter
 adapter = get_adapter("whatsapp")
 
 # Configure pipeline
-config = PipelineConfig(
+config = PipelineSettings(
     input_path=Path("export.zip"),
     output_dir=Path("output"),
     period="day",

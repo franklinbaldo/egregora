@@ -1,13 +1,13 @@
-# StorageManager (Priority C.2)
+# DuckDBStorageManager (Priority C.2)
 
 **Status**: Implemented (2025-01-09)
 **Module**: `egregora.database.storage`
 
 ## Overview
 
-The **StorageManager** provides centralized DuckDB connection management with automatic checkpointing and integration with the ViewRegistry. It eliminates raw SQL usage and provides a consistent interface for table I/O across pipeline stages.
+The **DuckDBStorageManager** provides centralized DuckDB connection management with automatic checkpointing and integration with the ViewRegistry. It eliminates raw SQL usage and provides a consistent interface for table I/O across pipeline stages.
 
-## Why StorageManager?
+## Why DuckDBStorageManager?
 
 **Problems it solves:**
 
@@ -27,10 +27,10 @@ The **StorageManager** provides centralized DuckDB connection management with au
 ## Architecture
 
 ```python
-from egregora.database.storage import StorageManager
+from egregora.database.duckdb_manager import DuckDBStorageManager
 
 # Initialize with file or in-memory
-storage = StorageManager(db_path=Path("pipeline.duckdb"))
+storage = DuckDBStorageManager(db_path=Path("pipeline.duckdb"))
 
 # Read/write tables
 table = storage.read_table("conversations")
@@ -46,20 +46,20 @@ result = storage.execute_view("chunks_materialized", chunks_builder, "conversati
 
 ### Basic Operations
 
-**Initialize StorageManager:**
+**Initialize DuckDBStorageManager:**
 
 ```python
 from pathlib import Path
-from egregora.database.storage import StorageManager
+from egregora.database.duckdb_manager import DuckDBStorageManager
 
 # File-based (persistent)
-storage = StorageManager(db_path=Path("pipeline.duckdb"))
+storage = DuckDBStorageManager(db_path=Path("pipeline.duckdb"))
 
 # In-memory (temporary)
-storage = StorageManager()
+storage = DuckDBStorageManager()
 
 # Custom checkpoint directory
-storage = StorageManager(
+storage = DuckDBStorageManager(
     db_path=Path("pipeline.duckdb"),
     checkpoint_dir=Path(".egregora/checkpoints")
 )
@@ -68,7 +68,7 @@ storage = StorageManager(
 **Context Manager (recommended):**
 
 ```python
-with StorageManager(db_path=Path("pipeline.duckdb")) as storage:
+with DuckDBStorageManager(db_path=Path("pipeline.duckdb")) as storage:
     table = storage.read_table("conversations")
     # ... operations ...
 # Connection automatically closed
@@ -195,7 +195,7 @@ storage.write_table(table, "enriched", checkpoint=True)
 # 2. Table persists across connections
 storage1.close()
 
-storage2 = StorageManager(db_path=Path("pipeline.duckdb"))
+storage2 = DuckDBStorageManager(db_path=Path("pipeline.duckdb"))
 table = storage2.read_table("enriched")  # Still available!
 ```
 
@@ -203,10 +203,10 @@ table = storage2.read_table("enriched")  # Still available!
 
 ```python
 # Default: .egregora/data/<table_name>.parquet
-storage = StorageManager()  # → .egregora/data/
+storage = DuckDBStorageManager()  # → .egregora/data/
 
 # Custom:
-storage = StorageManager(checkpoint_dir=Path("my_checkpoints"))
+storage = DuckDBStorageManager(checkpoint_dir=Path("my_checkpoints"))
 ```
 
 ## Integration with Pipeline Stages
@@ -215,7 +215,7 @@ storage = StorageManager(checkpoint_dir=Path("my_checkpoints"))
 
 ```python
 def enrich_stage(
-    storage: StorageManager,
+    storage: DuckDBStorageManager,
     config: EgregoraConfig,
     privacy_pass: PrivacyPass
 ) -> None:
@@ -231,7 +231,7 @@ def enrich_stage(
 
 
 # Usage
-with StorageManager(db_path=Path("pipeline.duckdb")) as storage:
+with DuckDBStorageManager(db_path=Path("pipeline.duckdb")) as storage:
     enrich_stage(storage, config, privacy_pass)
 ```
 
@@ -240,7 +240,7 @@ with StorageManager(db_path=Path("pipeline.duckdb")) as storage:
 ```python
 from egregora.pipeline.views import views
 
-def chunking_stage(storage: StorageManager) -> None:
+def chunking_stage(storage: DuckDBStorageManager) -> None:
     """Chunking stage using ViewRegistry."""
     chunks_builder = views.get("chunks")
     storage.execute_view(
@@ -251,7 +251,7 @@ def chunking_stage(storage: StorageManager) -> None:
     )
 
 
-with StorageManager(db_path=Path("pipeline.duckdb")) as storage:
+with DuckDBStorageManager(db_path=Path("pipeline.duckdb")) as storage:
     chunking_stage(storage)
 ```
 
@@ -262,7 +262,7 @@ with StorageManager(db_path=Path("pipeline.duckdb")) as storage:
 ```python
 def test_my_stage():
     """Test pipeline stage with in-memory storage."""
-    from egregora.database.storage import temp_storage
+    from egregora.database.duckdb_manager import temp_storage
 
     with temp_storage() as storage:
         # Create test data
@@ -283,7 +283,7 @@ def test_my_stage():
 from unittest.mock import Mock
 
 def test_stage_with_mock():
-    mock_storage = Mock(spec=StorageManager)
+    mock_storage = Mock(spec=DuckDBStorageManager)
     mock_storage.read_table.return_value = test_table
 
     my_stage(mock_storage)
@@ -293,10 +293,10 @@ def test_stage_with_mock():
 
 ## API Reference
 
-### `StorageManager`
+### `DuckDBStorageManager`
 
 ```python
-class StorageManager:
+class DuckDBStorageManager:
     def __init__(
         self,
         db_path: Path | None = None,
@@ -346,7 +346,7 @@ class StorageManager:
 ### `temp_storage()`
 
 ```python
-def temp_storage() -> StorageManager:
+def temp_storage() -> DuckDBStorageManager:
     """Create temporary in-memory storage manager."""
 ```
 
@@ -356,7 +356,7 @@ def temp_storage() -> StorageManager:
 
 ```python
 def process_stage(
-    storage: StorageManager,
+    storage: DuckDBStorageManager,
     config: Config
 ) -> None:
     """Generic processing stage."""
@@ -368,7 +368,7 @@ def process_stage(
 ### Pattern 2: Checkpoint Recovery
 
 ```python
-def resumable_stage(storage: StorageManager) -> None:
+def resumable_stage(storage: DuckDBStorageManager) -> None:
     """Stage that can resume from checkpoint."""
     if storage.table_exists("partial_results"):
         logger.info("Resuming from checkpoint")
@@ -387,7 +387,7 @@ def resumable_stage(storage: StorageManager) -> None:
 ### Pattern 3: Multi-Table Join
 
 ```python
-def join_stage(storage: StorageManager) -> None:
+def join_stage(storage: DuckDBStorageManager) -> None:
     """Join multiple tables."""
     conversations = storage.read_table("conversations")
     profiles = storage.read_table("profiles")
@@ -412,10 +412,10 @@ conn.execute("CREATE TABLE enriched AS SELECT * FROM conversations WHERE ...")
 df = conn.execute("SELECT * FROM enriched").fetchdf()
 ```
 
-**After (StorageManager):**
+**After (DuckDBStorageManager):**
 
 ```python
-with StorageManager(db_path=Path("pipeline.duckdb")) as storage:
+with DuckDBStorageManager(db_path=Path("pipeline.duckdb")) as storage:
     table = storage.read_table("conversations")
     enriched = table.filter(...)
     storage.write_table(enriched, "enriched")
@@ -434,10 +434,10 @@ with StorageManager(db_path=Path("pipeline.duckdb")) as storage:
 
 ```python
 # In-memory (fast, no persistence)
-storage = StorageManager()
+storage = DuckDBStorageManager()
 
 # File-based (slower, persists)
-storage = StorageManager(db_path=Path("pipeline.duckdb"))
+storage = DuckDBStorageManager(db_path=Path("pipeline.duckdb"))
 ```
 
 **Checkpoint overhead:**
@@ -456,7 +456,7 @@ storage.write_table(table, "important", checkpoint=True)
 
 ## Roadmap Items Completed
 
-- ✅ C.2: StorageManager + No Raw SQL
+- ✅ C.2: DuckDBStorageManager + No Raw SQL
   - Centralized DuckDB connection management
   - Automatic parquet checkpointing
   - Ibis-first API (no raw SQL)
@@ -487,9 +487,9 @@ conn.close()
 **After:**
 
 ```python
-from egregora.database import StorageManager
+from egregora.database import DuckDBStorageManager
 
-with StorageManager(db_path=Path("pipeline.duckdb")) as storage:
+with DuckDBStorageManager(db_path=Path("pipeline.duckdb")) as storage:
     table = storage.read_table("conversations")
     enriched = table.mutate(...)
     storage.write_table(enriched, "enriched")

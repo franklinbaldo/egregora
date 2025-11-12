@@ -96,7 +96,7 @@ class AdapterRegistry:
 
     Adapters must:
     - Implement SourceAdapter protocol
-    - Provide adapter_meta() with ir_version='v1'
+    - Provide get_adapter_metadata() with ir_version='v1'
     - Be instantiable without arguments
 
     Args:
@@ -132,7 +132,7 @@ class AdapterRegistry:
             from egregora.adapters.whatsapp import WhatsAppAdapter
 
             adapter = WhatsAppAdapter()
-            meta = adapter.adapter_meta()
+            meta = adapter.get_adapter_metadata()
 
             # Wrap with validation if enabled
             if self._validate_outputs:
@@ -147,7 +147,7 @@ class AdapterRegistry:
             from egregora.adapters.slack import SlackAdapter
 
             adapter = SlackAdapter()
-            meta = adapter.adapter_meta()
+            meta = adapter.get_adapter_metadata()
 
             # Wrap with validation if enabled
             if self._validate_outputs:
@@ -174,14 +174,14 @@ class AdapterRegistry:
                 adapter = adapter_cls()
 
                 # Validate adapter protocol
-                if not hasattr(adapter, "adapter_meta"):
+                if not hasattr(adapter, "get_adapter_metadata"):
                     logger.warning(
-                        "Plugin %s does not implement adapter_meta(), skipping",
+                        "Plugin %s does not implement get_adapter_metadata(), skipping",
                         ep.name,
                     )
                     continue
 
-                meta = adapter.adapter_meta()
+                meta = adapter.get_adapter_metadata()
 
                 # Validate IR version
                 if meta["ir_version"] != "v1":
@@ -239,7 +239,7 @@ class AdapterRegistry:
             ...     print(f"{meta['name']} v{meta['version']}")
 
         """
-        return [adapter.adapter_meta() for adapter in self._adapters.values()]
+        return [adapter.get_adapter_metadata() for adapter in self._adapters.values()]
 
     def __contains__(self, source_identifier: str) -> bool:
         """Check if source identifier is registered."""

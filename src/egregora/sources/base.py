@@ -127,7 +127,7 @@ class SourceAdapter(ABC):
     Required Methods:
         - source_name (property): Human-readable name
         - source_identifier (property): CLI identifier
-        - adapter_meta(): Return adapter metadata for plugin discovery
+        - get_adapter_metadata(): Return adapter metadata for plugin discovery
         - parse(): Convert raw export to IR-compliant table
 
     Optional Methods (with default implementations):
@@ -156,7 +156,7 @@ class SourceAdapter(ABC):
         """
 
     @abstractmethod
-    def adapter_meta(self) -> AdapterMeta:
+    def get_adapter_metadata(self) -> AdapterMeta:
         """Return adapter metadata for plugin discovery and validation.
 
         This method enables:
@@ -170,7 +170,7 @@ class SourceAdapter(ABC):
 
         Example:
             >>> adapter = WhatsAppAdapter()
-            >>> meta = adapter.adapter_meta()
+            >>> meta = adapter.get_adapter_metadata()
             >>> print(f"{meta['name']} v{meta['version']} (IR {meta['ir_version']})")
             WhatsApp v1.0.0 (IR v1)
 

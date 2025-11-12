@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     import zipfile
 __all__ = [
     "ZipValidationError",
-    "ZipValidationLimits",
+    "ZipValidationSettings",
     "configure_default_limits",
     "ensure_safe_member_size",
     "validate_zip_contents",
@@ -22,7 +22,7 @@ class ZipValidationError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
-class ZipValidationLimits:
+class ZipValidationSettings:
     """Constraints applied when validating WhatsApp ZIP archives."""
 
     max_total_size: int = 500 * 1024 * 1024
@@ -30,11 +30,11 @@ class ZipValidationLimits:
     max_member_count: int = 2000
 
 
-_DEFAULT_LIMITS: ZipValidationLimits = ZipValidationLimits()
+_DEFAULT_LIMITS: ZipValidationSettings = ZipValidationSettings()
 
 
 def configure_default_limits(
-    limits: Annotated[ZipValidationLimits, "The new default validation limits"],
+    limits: Annotated[ZipValidationSettings, "The new default validation limits"],
 ) -> None:
     """Override module-wide validation limits."""
     global _DEFAULT_LIMITS
@@ -44,7 +44,7 @@ def configure_default_limits(
 def validate_zip_contents(
     zf: Annotated[zipfile.ZipFile, "The ZIP file to validate"],
     *,
-    limits: Annotated[ZipValidationLimits | None, "Optional validation limits to use"] = None,
+    limits: Annotated[ZipValidationSettings | None, "Optional validation limits to use"] = None,
 ) -> None:
     """Validate members of a ZIP archive.
 
@@ -72,7 +72,7 @@ def ensure_safe_member_size(
     zf: Annotated[zipfile.ZipFile, "The ZIP file to check"],
     member_name: Annotated[str, "The name of the member to check"],
     *,
-    limits: Annotated[ZipValidationLimits | None, "Optional validation limits to use"] = None,
+    limits: Annotated[ZipValidationSettings | None, "Optional validation limits to use"] = None,
 ) -> None:
     """Ensure an individual member stays within safe boundaries before reading."""
     limits = limits or _DEFAULT_LIMITS

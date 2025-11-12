@@ -5,7 +5,8 @@ Phase 2.2: Centralized database management.
 - Connection utilities consolidated in storage.py
 """
 
-from egregora.database.schemas import (
+from egregora.database.duckdb_manager import DuckDBStorageManager, duckdb_backend, temp_storage
+from egregora.database.ir_schema import (
     CONVERSATION_SCHEMA,
     MESSAGE_SCHEMA,
     RUNS_TABLE_DDL,
@@ -14,7 +15,6 @@ from egregora.database.schemas import (
     create_runs_table,
     ensure_runs_table_exists,
 )
-from egregora.database.storage import StorageManager, duckdb_backend, temp_storage
 
 __all__ = [
     # Schemas
@@ -24,7 +24,7 @@ __all__ = [
     "RUNS_TABLE_SCHEMA",
     "WHATSAPP_CONVERSATION_SCHEMA",
     # Connection utilities
-    "StorageManager",
+    "DuckDBStorageManager",
     # Runs table utilities
     "create_runs_table",
     "duckdb_backend",

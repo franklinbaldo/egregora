@@ -250,7 +250,7 @@ def record_run(
 
     """
     # Ensure runs table exists (idempotent)
-    from egregora.database.schemas import ensure_runs_table_exists
+    from egregora.database.ir_schema import ensure_runs_table_exists
 
     ensure_runs_table_exists(conn)
 
@@ -314,7 +314,7 @@ def record_lineage(
         return  # No lineage to record
 
     # Ensure lineage table exists (idempotent)
-    from egregora.database.schemas import ensure_lineage_table_exists
+    from egregora.database.ir_schema import ensure_lineage_table_exists
 
     ensure_lineage_table_exists(conn)
 

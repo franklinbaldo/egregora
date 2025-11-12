@@ -39,7 +39,7 @@ class MockAdapter(SourceAdapter):
     def source_identifier(self) -> str:
         return "testsource"
 
-    def adapter_meta(self) -> AdapterMeta:
+    def get_adapter_metadata(self) -> AdapterMeta:
         return AdapterMeta(
             name="TestSource",
             version="1.0.0",
@@ -57,7 +57,7 @@ class MockAdapter(SourceAdapter):
 
             import pandas as pd
 
-            from egregora.database.validation import IR_V1_SCHEMA
+            from egregora.database.validation import IR_MESSAGE_SCHEMA
 
             # Create test UUID for created_by_run to avoid null type issues
             test_run_id = uuid.uuid4()
@@ -82,7 +82,7 @@ class MockAdapter(SourceAdapter):
                 }
             )
             # Create memtable with explicit schema
-            return ibis.memtable(df, schema=IR_V1_SCHEMA)
+            return ibis.memtable(df, schema=IR_MESSAGE_SCHEMA)
         # Return invalid table (missing required columns)
         import pandas as pd
 
@@ -183,7 +183,7 @@ class TestValidatedAdapter:
         # Should delegate to base adapter
         assert validated.source_name == "TestSource"
         assert validated.source_identifier == "testsource"
-        meta = validated.adapter_meta()
+        meta = validated.get_adapter_metadata()
         assert meta["name"] == "TestSource"
 
     def test_wrapper_repr(self) -> None:

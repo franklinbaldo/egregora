@@ -8,10 +8,10 @@ centralized DuckDB access to eliminate raw SQL and provide consistent
 checkpoint management across pipeline stages.
 
 Usage:
-    from egregora.database.storage import StorageManager
+    from egregora.database.duckdb_manager import DuckDBStorageManager
 
     # Create storage manager
-    storage = StorageManager(db_path=Path("pipeline.duckdb"))
+    storage = DuckDBStorageManager(db_path=Path("pipeline.duckdb"))
 
     # Read table as Ibis
     table = storage.read_table("conversations")
@@ -66,7 +66,7 @@ def quote_identifier(name: str) -> str:
     return f'"{name}"'
 
 
-class StorageManager:
+class DuckDBStorageManager:
     """Centralized DuckDB connection + Ibis helpers.
 
     Manages database connections, table I/O, and automatic checkpointing
@@ -80,7 +80,7 @@ class StorageManager:
         checkpoint_dir: Directory for parquet checkpoints
 
     Example:
-        >>> storage = StorageManager(db_path=Path("pipeline.duckdb"))
+        >>> storage = DuckDBStorageManager(db_path=Path("pipeline.duckdb"))
         >>> table = storage.read_table("conversations")
         >>> enriched = table.mutate(score=table.rating * 2)
         >>> storage.write_table(enriched, "conversations_enriched")
@@ -111,7 +111,7 @@ class StorageManager:
         self.ibis_conn = ibis.duckdb.from_connection(self.conn)
 
         logger.info(
-            "StorageManager initialized (db=%s, checkpoints=%s)",
+            "DuckDBStorageManager initialized (db=%s, checkpoints=%s)",
             "memory" if db_path is None else db_path,
             self.checkpoint_dir,
         )
@@ -305,9 +305,9 @@ class StorageManager:
         Call this when done with the storage manager to clean up resources.
         """
         self.conn.close()
-        logger.info("StorageManager closed")
+        logger.info("DuckDBStorageManager closed")
 
-    def __enter__(self) -> "StorageManager":
+    def __enter__(self) -> "DuckDBStorageManager":
         """Context manager entry."""
         return self
 
@@ -321,11 +321,11 @@ class StorageManager:
 # ============================================================================
 
 
-def temp_storage() -> StorageManager:
+def temp_storage() -> DuckDBStorageManager:
     """Create temporary in-memory storage manager.
 
     Returns:
-        StorageManager with in-memory database
+        DuckDBStorageManager with in-memory database
 
     Example:
         >>> with temp_storage() as storage:
@@ -333,7 +333,7 @@ def temp_storage() -> StorageManager:
         ...     result = storage.read_table("temp")
 
     """
-    return StorageManager(db_path=None, checkpoint_dir=Path("/tmp/.egregora-temp"))
+    return DuckDBStorageManager(db_path=None, checkpoint_dir=Path("/tmp/.egregora-temp"))
 
 
 @contextlib.contextmanager
@@ -368,7 +368,7 @@ def duckdb_backend():
 
 
 __all__ = [
-    "StorageManager",
+    "DuckDBStorageManager",
     "duckdb_backend",
     "temp_storage",
 ]

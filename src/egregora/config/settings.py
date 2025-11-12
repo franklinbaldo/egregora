@@ -52,7 +52,7 @@ GoogleModelName = Annotated[
 ]
 
 
-class ModelsConfig(BaseModel):
+class ModelSettings(BaseModel):
     """LLM model configuration for different tasks.
 
     - Pydantic-AI agents expect provider-prefixed IDs like ``google-gla:gemini-flash-latest``
@@ -92,7 +92,7 @@ class ModelsConfig(BaseModel):
     )
 
 
-class RAGConfig(BaseModel):
+class RAGSettings(BaseModel):
     """Retrieval-Augmented Generation (RAG) configuration."""
 
     enabled: bool = Field(
@@ -105,7 +105,7 @@ class RAGConfig(BaseModel):
         le=20,
         description="Number of top results to retrieve",
     )
-    min_similarity: float = Field(
+    min_similarity_threshold: float = Field(
         default=0.7,
         ge=0.0,
         le=1.0,
@@ -129,7 +129,7 @@ class RAGConfig(BaseModel):
     )
 
 
-class WriterConfig(BaseModel):
+class WriterAgentSettings(BaseModel):
     """Blog post writer configuration."""
 
     custom_instructions: str | None = Field(
@@ -140,7 +140,7 @@ class WriterConfig(BaseModel):
     # REMOVED (Phase 3): enable_banners - never accessed (controlled by API key availability)
 
 
-class PrivacyConfig(BaseModel):
+class PrivacySettings(BaseModel):
     """Privacy and data protection settings.
 
     .. note::
@@ -153,7 +153,7 @@ class PrivacyConfig(BaseModel):
     # REMOVED (Phase 3): opt_out_keywords - never accessed (planned feature)
 
 
-class EnrichmentConfig(BaseModel):
+class EnrichmentSettings(BaseModel):
     """Enrichment settings for URLs and media."""
 
     enabled: bool = Field(
@@ -176,7 +176,7 @@ class EnrichmentConfig(BaseModel):
     )
 
 
-class PipelineConfig(BaseModel):
+class PipelineSettings(BaseModel):
     """Pipeline execution settings."""
 
     step_size: int = Field(
@@ -227,7 +227,7 @@ class PipelineConfig(BaseModel):
     )
 
 
-class PathsConfig(BaseModel):
+class PathsSettings(BaseModel):
     """Site directory paths configuration.
 
     All paths are relative to site_root (output directory).
@@ -275,7 +275,7 @@ class PathsConfig(BaseModel):
     )
 
 
-class OutputConfig(BaseModel):
+class OutputSettings(BaseModel):
     """Output format configuration.
 
     Specifies which output format to use for generated content.
@@ -292,7 +292,7 @@ class OutputConfig(BaseModel):
     )
 
 
-class FeaturesConfig(BaseModel):
+class FeaturesSettings(BaseModel):
     """Feature flags for experimental or optional functionality."""
 
     ranking_enabled: bool = Field(
@@ -319,7 +319,7 @@ class EgregoraConfig(BaseModel):
     rag:
       enabled: true
       top_k: 5
-      min_similarity: 0.7
+      min_similarity_threshold: 0.7
 
     writer:
       custom_instructions: "Write in a casual, friendly tone"
@@ -338,40 +338,40 @@ class EgregoraConfig(BaseModel):
     ```
     """
 
-    models: ModelsConfig = Field(
-        default_factory=ModelsConfig,
+    models: ModelSettings = Field(
+        default_factory=ModelSettings,
         description="LLM model configuration",
     )
-    rag: RAGConfig = Field(
-        default_factory=RAGConfig,
+    rag: RAGSettings = Field(
+        default_factory=RAGSettings,
         description="RAG configuration",
     )
-    writer: WriterConfig = Field(
-        default_factory=WriterConfig,
+    writer: WriterAgentSettings = Field(
+        default_factory=WriterAgentSettings,
         description="Writer configuration",
     )
-    privacy: PrivacyConfig = Field(
-        default_factory=PrivacyConfig,
+    privacy: PrivacySettings = Field(
+        default_factory=PrivacySettings,
         description="Privacy settings",
     )
-    enrichment: EnrichmentConfig = Field(
-        default_factory=EnrichmentConfig,
+    enrichment: EnrichmentSettings = Field(
+        default_factory=EnrichmentSettings,
         description="Enrichment settings",
     )
-    pipeline: PipelineConfig = Field(
-        default_factory=PipelineConfig,
+    pipeline: PipelineSettings = Field(
+        default_factory=PipelineSettings,
         description="Pipeline settings",
     )
-    paths: PathsConfig = Field(
-        default_factory=PathsConfig,
+    paths: PathsSettings = Field(
+        default_factory=PathsSettings,
         description="Site directory paths (relative to site root)",
     )
-    output: OutputConfig = Field(
-        default_factory=OutputConfig,
+    output: OutputSettings = Field(
+        default_factory=OutputSettings,
         description="Output format settings",
     )
-    features: FeaturesConfig = Field(
-        default_factory=FeaturesConfig,
+    features: FeaturesSettings = Field(
+        default_factory=FeaturesSettings,
         description="Feature flags",
     )
 
@@ -505,7 +505,7 @@ class ProcessConfig:
     Replaces long parameter lists (15+ params) with structured config object.
     """
 
-    zip_file: Annotated[Path, "Path to the chat export file (ZIP, JSON, etc.)"]
+    input_file: Annotated[Path, "Path to the chat export file (ZIP, JSON, etc.)"]
     output_dir: Annotated[Path, "Directory for the generated site"]
     step_size: Annotated[int, "Size of each processing window"] = 1
     step_unit: Annotated[str, "Unit for windowing: 'messages', 'hours', 'days'"] = "days"
@@ -527,8 +527,8 @@ class ProcessConfig:
 
     @property
     def input_path(self) -> Path:
-        """Alias for zip_file (source-agnostic naming)."""
-        return self.zip_file
+        """Alias for input_file (source-agnostic naming)."""
+        return self.input_file
 
 
 @dataclass
@@ -652,15 +652,15 @@ def get_model_for_task(
 __all__ = [
     # Pydantic config schemas (persisted in .egregora/config.yml)
     "EgregoraConfig",
-    "EnrichmentConfig",
-    "FeaturesConfig",
-    "ModelsConfig",
-    "OutputConfig",
-    "PathsConfig",
-    "PipelineConfig",
-    "PrivacyConfig",
-    "RAGConfig",
-    "WriterConfig",
+    "EnrichmentSettings",
+    "FeaturesSettings",
+    "ModelSettings",
+    "OutputSettings",
+    "PathsSettings",
+    "PipelineSettings",
+    "PrivacySettings",
+    "RAGSettings",
+    "WriterAgentSettings",
     # Config loading functions
     "create_default_config",
     "find_egregora_config",

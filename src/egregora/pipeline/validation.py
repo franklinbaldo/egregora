@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import ibis.expr.datatypes as dt
 
-from egregora.database.schemas import DEFAULT_TIMEZONE, ensure_message_schema
+from egregora.database.ir_schema import DEFAULT_TIMEZONE, ensure_message_schema
 
 if TYPE_CHECKING:
     from zoneinfo import ZoneInfo

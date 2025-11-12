@@ -16,8 +16,8 @@ import ibis
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
-from egregora.agents.shared.profiler import write_profile as write_profile_content
-from egregora.config.schema import create_default_config
+from egregora.agents.shared.author_profiles import write_profile as write_profile_content
+from egregora.config.settings import create_default_config
 from egregora.rendering.base import OutputFormat, SiteConfiguration
 from egregora.rendering.mkdocs_site import _ConfigLoader, resolve_site_paths
 from egregora.utils.paths import safe_path_join, slugify

@@ -64,7 +64,7 @@ class SlackAdapter(SourceAdapter):
     def source_identifier(self) -> str:
         return "slack"
 
-    def adapter_meta(self) -> AdapterMeta:
+    def get_adapter_metadata(self) -> AdapterMeta:
         """Return adapter metadata for plugin discovery.
 
         Returns:

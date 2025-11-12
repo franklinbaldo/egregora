@@ -20,7 +20,7 @@ import pytest
 from typer.testing import CliRunner
 
 from egregora.cli import app
-from egregora.database.schemas import create_runs_table
+from egregora.database.ir_schema import create_runs_table
 from egregora.pipeline.tracking import record_run
 
 # Create a CLI runner for testing

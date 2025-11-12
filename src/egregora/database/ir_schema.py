@@ -513,8 +513,8 @@ def ensure_runs_table_exists(conn: duckdb.DuckDBPyConnection) -> None:
         conn: DuckDB connection
 
     Example:
-        >>> from egregora.database import StorageManager
-        >>> storage = StorageManager()
+        >>> from egregora.database import DuckDBStorageManager
+        >>> storage = DuckDBStorageManager()
         >>> ensure_runs_table_exists(storage.conn)  # Safe to call multiple times
 
     """
@@ -631,8 +631,8 @@ def ensure_lineage_table_exists(conn: duckdb.DuckDBPyConnection) -> None:
         conn: DuckDB connection
 
     Example:
-        >>> from egregora.database import StorageManager
-        >>> storage = StorageManager()
+        >>> from egregora.database import DuckDBStorageManager
+        >>> storage = DuckDBStorageManager()
         >>> ensure_lineage_table_exists(storage.conn)  # Safe to call multiple times
 
     """

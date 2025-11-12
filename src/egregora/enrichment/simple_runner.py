@@ -31,7 +31,7 @@ import ibis
 from ibis.expr.types import Table
 
 from egregora.core.document import Document, DocumentType
-from egregora.database.schemas import CONVERSATION_SCHEMA
+from egregora.database.ir_schema import CONVERSATION_SCHEMA
 from egregora.enrichment.batch import _safe_timestamp_plus_one
 from egregora.enrichment.media import (
     detect_media_type,
@@ -48,7 +48,7 @@ from egregora.enrichment.thin_agents import (
 from egregora.utils import make_enrichment_cache_key
 
 if TYPE_CHECKING:
-    from egregora.config.schema import EgregoraConfig
+    from egregora.config.settings import EgregoraConfig
     from egregora.enrichment.core import EnrichmentRuntimeContext
     from egregora.utils.cache import EnrichmentCache
 
@@ -505,7 +505,7 @@ def _persist_to_duckdb(
         target_table: Target table name
 
     """
-    from egregora.database import schemas
+    from egregora.database import ir_schema
 
     if not re.fullmatch("[A-Za-z_][A-Za-z0-9_]*", target_table):
         msg = "target_table must be a valid DuckDB identifier"
