@@ -21,8 +21,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
 from pathlib import Path
-from urllib.parse import urlparse
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import ibis
@@ -388,7 +388,6 @@ def _perform_enrichment(
 
 def _is_connection_uri(value: str) -> bool:
     """Return True if the provided value looks like a DB connection URI."""
-
     if not value:
         return False
 
@@ -421,6 +420,7 @@ def _create_database_backends(
         ``runtime_db_path`` may be a filesystem ``Path`` or a connection URI string.
 
     """
+
     def _resolve_backend(value: str) -> tuple[Path | str, any]:
         if _is_connection_uri(value):
             return value, ibis.connect(value)
