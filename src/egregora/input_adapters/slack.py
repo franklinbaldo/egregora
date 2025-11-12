@@ -20,7 +20,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, TypedDict
 
-from egregora.sources.base import AdapterMeta, MediaMapping, InputAdapter
+from egregora.sources.base import AdapterMeta, InputAdapter, MediaMapping
 
 if TYPE_CHECKING:
     from pathlib import Path

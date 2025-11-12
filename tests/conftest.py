@@ -128,8 +128,8 @@ def _install_google_stubs() -> None:
 _install_google_stubs()
 
 # Imports below require sys.path setup above
-from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.data_primitives import GroupSlug
+from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.utils.zip import validate_zip_contents
 from tests.utils.mock_batch_client import MockGeminiClient
 

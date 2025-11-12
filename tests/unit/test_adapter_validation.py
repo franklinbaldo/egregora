@@ -14,8 +14,8 @@ from pathlib import Path
 import ibis
 import pytest
 
-from egregora.input_adapters.registry import InputAdapterRegistry, ValidatedAdapter
 from egregora.database.validation import SchemaError, validate_adapter_output
+from egregora.input_adapters.registry import InputAdapterRegistry, ValidatedAdapter
 from egregora.sources.base import AdapterMeta, InputAdapter
 
 

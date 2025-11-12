@@ -20,7 +20,6 @@ import duckdb
 import ibis
 from google import genai
 
-from egregora.input_adapters import get_adapter
 from egregora.agents.shared.author_profiles import filter_opted_out_authors, process_commands
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
@@ -29,11 +28,12 @@ from egregora.config.settings import EgregoraConfig
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
+from egregora.input_adapters import get_adapter
+from egregora.output_adapters.mkdocs_site import resolve_site_paths
 from egregora.pipeline import create_windows, load_checkpoint, save_checkpoint
 from egregora.pipeline.media import process_media_for_window
 from egregora.pipeline.tracking import fingerprint_window, record_run
 from egregora.pipeline.validation import validate_ir_schema
-from egregora.output_adapters.mkdocs_site import resolve_site_paths
 from egregora.sources.whatsapp.parser import extract_commands, filter_egregora_messages
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.telemetry import get_current_trace_id

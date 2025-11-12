@@ -30,10 +30,10 @@ from egregora.agents.writer.formatting import _build_conversation_markdown, _loa
 from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.prompt_templates import WriterPromptTemplate
 from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
 from egregora.output_adapters.mkdocs_output_adapter import MkDocsOutputAdapter
+from egregora.prompt_templates import WriterPromptTemplate
 
 # from egregora.storage.legacy_adapter import LegacyStorageAdapter  # DEPRECATED Phase 5
 from egregora.storage.url_convention import UrlContext
