@@ -132,7 +132,7 @@ def _create_enrichment_row(
 
 def _serve_enrichment_document(
     document: Document,
-    context: "EnrichmentRuntimeContext",
+    context: EnrichmentRuntimeContext,
     *,
     source_url: str | None = None,
     media_path: Path | None = None,
@@ -156,8 +156,8 @@ def _serve_enrichment_document(
             ``enrichments`` helpers.
         ValueError: If required contextual information is missing for the
             legacy persistence helpers.
-    """
 
+    """
     output_format = context.output_format
     serve_fn = getattr(output_format, "serve", None)
     if callable(serve_fn):
