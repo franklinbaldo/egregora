@@ -75,6 +75,64 @@ After each commit/push, reflect on:
 
 Ask permission to update CLAUDE.md with valuable insights (non-obvious fixes, architecture decisions, design tradeoffs).
 
+## Naming Conventions (Updated 2025-01)
+
+Egregora follows PEP 8 and Python idioms for clear, consistent naming across the codebase.
+
+### Module Names
+
+- **Use descriptive snake_case**: `file_system.py` not `filesystem.py`
+- **Be specific over generic**: `duckdb_manager.py` not `storage.py`, `writer_runner.py` not `core.py`
+- **Avoid redundant names**: `llm_tools.py` not `shared/shared.py`
+
+### Class Names
+
+**Configuration (Pydantic models in `config/settings.py`)**:
+- Pattern: `*Settings` for Pydantic BaseModel configs
+- Examples: `ModelSettings`, `RAGSettings`, `PipelineSettings`, `WriterAgentSettings`
+- Distinguishes Pydantic models (persisted) from runtime dataclasses (ephemeral)
+
+**Runtime contexts (dataclasses)**:
+- Pattern: `*Context` or `*Config` for runtime-only dataclasses
+- Examples: `WriterAgentContext`, `ProcessConfig`, `RuntimeContext`
+- Never persisted, used for function parameters
+
+**Database**:
+- Pattern: `{Technology}{Purpose}` for managers
+- Examples: `DuckDBStorageManager` not `StorageManager`
+- Pattern: `{Domain}{Type}` for data models
+- Examples: `IRMessageRow` not `IRv1Row`, `IR_MESSAGE_SCHEMA` not `IR_V1_SCHEMA`
+
+**Utils**:
+- Pattern: `*Settings` for configuration dataclasses
+- Example: `ZipValidationSettings` not `ZipValidationLimits`
+
+### Function Names
+
+- **Use explicit verbs**: `get_adapter_metadata()` not `adapter_meta()`
+- **Be descriptive**: `embed_texts_in_batch()` not `embed_batch()`
+- **Clarify purpose**: `embed_query_text()` not `embed_query()`
+
+### Variable Names
+
+- **Source-agnostic naming**: `input_file` not `zip_file`, `input_path` not `zip_path`
+- **Explicit thresholds**: `min_similarity_threshold` not `min_similarity`
+
+### File Renames Summary
+
+| Old                       | New                          | Rationale                          |
+|---------------------------|------------------------------|------------------------------------|
+| `config/schema.py`        | `config/settings.py`         | Settings not schema                |
+| `database/storage.py`     | `database/duckdb_manager.py` | Explicit technology                |
+| `database/schemas.py`     | `database/ir_schema.py`      | Focus on IR                        |
+| `utils/filesystem.py`     | `utils/file_system.py`       | PEP 8 snake_case                   |
+| `utils/dates.py`          | `utils/time_utils.py`        | Broader scope                      |
+| `agents/shared/shared.py` | `agents/shared/llm_tools.py` | Avoid redundancy                   |
+| `agents/shared/profiler.py` | `agents/shared/author_profiles.py` | Noun-based clarity       |
+| `agents/writer/core.py`   | `agents/writer/writer_runner.py` | Explicit role               |
+| `agents/writer/context.py` | `agents/writer/context_builder.py` | Action-based naming      |
+| `agents/banner/generator.py` | `agents/banner/image_generator.py` | Content type explicit    |
+
 ## Architecture: Staged Pipeline
 
 ```
@@ -121,9 +179,9 @@ Parse ZIP   UUIDs     LLM enrich      RAG/Elo     Writer      MkDocs
 - Register: `@views.register("my_view")`
 - Docs: `docs/pipeline/view-registry.md`
 
-**StorageManager (C.2)**:
+**DuckDBStorageManager (C.2)**:
 - Centralized DuckDB + parquet checkpointing
-- `with StorageManager() as storage:`
+- `with DuckDBStorageManager() as storage:`
 - `storage.write_table(table, "name", checkpoint=True)`
 - `storage.execute_view("output", builder, "input")`
 - Docs: `docs/database/storage-manager.md`
@@ -161,10 +219,12 @@ src/egregora/
 ├── cli.py                    # Entry point
 ├── pipeline.py               # Windowing
 ├── database/
-│   ├── schema.py            # All schemas
-│   ├── storage.py           # StorageManager (C.2)
+│   ├── ir_schema.py         # All schemas (renamed from schemas.py)
+│   ├── duckdb_manager.py    # DuckDBStorageManager (C.2) (renamed from storage.py)
 │   └── validation.py        # IR validation
-├── config/                   # Config dataclasses
+├── config/
+│   ├── settings.py          # Pydantic settings models (renamed from schema.py)
+│   └── ...                  # Other config files
 ├── pipeline/
 │   ├── views.py             # View registry (C.1)
 │   ├── tracking.py          # Run tracking (D.1)
@@ -174,19 +234,30 @@ src/egregora/
 ├── privacy/                  # Anonymization, PII
 ├── enrichment/               # LLM enrichment
 ├── agents/
-│   ├── writer/              # Main agent
+│   ├── writer/
+│   │   ├── writer_runner.py # Main orchestration (renamed from core.py)
+│   │   ├── context_builder.py # Prompt context (renamed from context.py)
+│   │   └── agent.py         # Writer agent
+│   ├── banner/
+│   │   └── image_generator.py # Banner generation (renamed from generator.py)
+│   ├── shared/
+│   │   ├── llm_tools.py     # LLM tool functions (renamed from shared.py)
+│   │   ├── author_profiles.py # Author profiling (renamed from profiler.py)
+│   │   └── rag/             # RAG implementation
 │   ├── editor/              # Post refinement
 │   ├── ranking/             # Elo
-│   └── tools/               # RAG, annotations, profiler, skills
+│   └── tools/               # Skills and tool injection
 ├── utils/
 │   ├── telemetry.py         # OpenTelemetry (D.2)
+│   ├── file_system.py       # File utilities (renamed from filesystem.py)
+│   ├── time_utils.py        # Date/time utilities (renamed from dates.py)
 │   └── cache.py             # DiskCache
 └── rendering/               # MkDocs + templates
 ```
 
 ## Database Schemas
 
-All in `database/schema.py`:
+All in `database/ir_schema.py`:
 
 **Ephemeral** (in-memory):
 - `CONVERSATION_SCHEMA`: Pipeline data (timestamp, author, message, etc.)
