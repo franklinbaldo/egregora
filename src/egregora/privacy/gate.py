@@ -33,6 +33,7 @@ Example:
 from __future__ import annotations
 
 import logging
+import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from functools import wraps
@@ -237,8 +238,6 @@ class PrivacyGate:
 
         @ibis.udf.scalar.python
         def author_uuid_matches(
-            tenant: str,
-            source: str,
             author_raw: str,
             author_uuid: uuid.UUID,
         ) -> bool:
@@ -246,13 +245,14 @@ class PrivacyGate:
 
             if author_raw is None or author_uuid is None:
                 return False
-            expected = deterministic_author_uuid(tenant, source, author_raw)
+            expected = deterministic_author_uuid(
+                author_raw,
+                namespace=config.author_namespace,
+            )
             return uuid.UUID(str(author_uuid)) == expected
 
         validation = table.mutate(
             _valid_author_uuid=author_uuid_matches(
-                table.tenant_id,
-                table.source,
                 table.author_raw,
                 table.author_uuid,
             )

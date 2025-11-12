@@ -9,6 +9,7 @@ Tests verify that:
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -26,9 +27,11 @@ def _build_ir_table(
     author_raw: str = "Alice",
     tenant_id: str = "test-tenant",
     source: str = "whatsapp",
+    author_namespace: uuid.UUID | None = None,
 ) -> ibis.Table:
     now = datetime.now(UTC)
-    author_uuid = deterministic_author_uuid(tenant_id, source, author_raw)
+    namespace = author_namespace or uuid.NAMESPACE_URL
+    author_uuid = deterministic_author_uuid(author_raw, namespace=namespace)
     data = {
         "event_id": [uuid4()],
         "tenant_id": [tenant_id],
@@ -41,7 +44,7 @@ def _build_ir_table(
         "text": ["Hello world"],
         "media_url": [None],
         "media_type": [None],
-        "attrs": [{}],
+        "attrs": [None],
         "pii_flags": [None],
         "created_at": [now],
         "created_by_run": [None],
@@ -201,6 +204,20 @@ class TestPrivacyGate:
         author = result["author_raw"].iloc[0]
         assert author != "Alice"
         assert len(author) >= 8
+
+    def test_privacy_gate_rejects_mismatched_author_namespace(self):
+        """PrivacyGate fails if table uses unexpected author namespace."""
+        custom_ns = uuid.uuid5(uuid.NAMESPACE_DNS, "alt-scope")
+        table = _build_ir_table(
+            author_raw="Alice",
+            tenant_id="test",
+            author_namespace=custom_ns,
+        )
+
+        config = PrivacySettings(tenant_id="test")
+
+        with pytest.raises(ValueError, match="author_uuid mismatch"):
+            PrivacyGate.run(table, config, "run-1")
 
     def test_privacy_gate_fails_with_empty_tenant_id(self):
         """PrivacySettings raises ValueError if tenant_id is empty."""

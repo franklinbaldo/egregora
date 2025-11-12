@@ -12,6 +12,7 @@ Property tests validate:
 See: src/egregora/privacy/gate.py
 """
 
+import uuid
 from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -84,9 +85,16 @@ def test_privacy_pass_repr():
 # ============================================================================
 
 
-def _make_ir_table(*, tenant_id: str, author: str, source: str = "whatsapp") -> ibis.Table:
+def _make_ir_table(
+    *,
+    tenant_id: str,
+    author: str,
+    source: str = "whatsapp",
+    author_namespace: uuid.UUID | None = None,
+) -> ibis.Table:
     now = datetime.now(UTC)
-    author_uuid = deterministic_author_uuid(tenant_id, source, author)
+    namespace = author_namespace or uuid.NAMESPACE_URL
+    author_uuid = deterministic_author_uuid(author, namespace=namespace)
     data = {
         "event_id": [uuid4()],
         "tenant_id": [tenant_id],
@@ -99,7 +107,7 @@ def _make_ir_table(*, tenant_id: str, author: str, source: str = "whatsapp") -> 
         "text": ["Hello world"],
         "media_url": [None],
         "media_type": [None],
-        "attrs": [{}],
+        "attrs": [None],
         "pii_flags": [None],
         "created_at": [now],
         "created_by_run": [None],
@@ -191,6 +199,7 @@ def test_privacy_config_defaults():
     assert config.allowed_media_domains == ()
     assert config.enable_reidentification_escrow is False
     assert config.reidentification_retention_days == 90
+    assert config.author_namespace == uuid.NAMESPACE_URL
 
 
 def test_privacy_config_with_custom_values():
@@ -201,6 +210,7 @@ def test_privacy_config_with_custom_values():
         allowed_media_domains=("acme.com", "cdn.example.com"),
         enable_reidentification_escrow=True,
         reidentification_retention_days=30,
+        author_namespace=uuid.uuid5(uuid.NAMESPACE_DNS, "acme-corp"),
     )
 
     assert config.tenant_id == "acme-corp"
@@ -208,6 +218,7 @@ def test_privacy_config_with_custom_values():
     assert config.allowed_media_domains == ("acme.com", "cdn.example.com")
     assert config.enable_reidentification_escrow is True
     assert config.reidentification_retention_days == 30
+    assert config.author_namespace == uuid.uuid5(uuid.NAMESPACE_DNS, "acme-corp")
 
 
 def test_privacy_config_reidentification_validation():
