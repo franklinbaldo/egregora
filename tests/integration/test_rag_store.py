@@ -137,7 +137,9 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
             )
             store.add(second_batch)
 
-            stored_rows = store.get_all().order_by("chunk_id").execute()
+            # Read directly from parquet to verify data was stored
+            stored_table = store._client.read_parquet(store.parquet_path)
+            stored_rows = stored_table.order_by("chunk_id").execute()
             assert list(stored_rows["chunk_id"]) == ["chunk-1", "chunk-2"]
         finally:
             store.close()

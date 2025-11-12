@@ -2,9 +2,8 @@
 
 import logging
 import os
-from datetime import date, datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 from zoneinfo import ZoneInfo
 
 import typer
@@ -22,60 +21,6 @@ app = typer.Typer(
     add_completion=False,
 )
 logger = logging.getLogger(__name__)
-
-# Constants
-MAX_POSTS_TO_DISPLAY = 5
-
-# Type alias for JSON-serializable values
-JsonValue = (
-    None
-    | str
-    | int
-    | float
-    | bool
-    | datetime
-    | date
-    | dict[str, Any]
-    | list[Any]
-    | tuple[Any, ...]
-    | set[Any]
-)
-
-
-def _make_json_safe(
-    value: JsonValue, *, strict: bool = False
-) -> str | int | float | bool | dict[str, Any] | list[Any] | None:
-    """Return a JSON-serializable representation of ``value``.
-
-    Args:
-        value: Value to convert
-        strict: If True, raise TypeError for non-serializable types instead of
-                converting to string. Default False for backward compatibility.
-
-    Raises:
-        TypeError: If strict=True and value is not JSON-serializable
-
-    """
-    if value is None or isinstance(value, str | int | float | bool):
-        return value
-    if isinstance(value, datetime | date):
-        return value.isoformat()
-    if isinstance(value, dict):
-        return {key: _make_json_safe(val, strict=strict) for key, val in value.items()}
-    if isinstance(value, list | tuple | set):
-        return [_make_json_safe(item, strict=strict) for item in value]
-    if hasattr(value, "item"):
-        try:
-            return value.item()
-        except (TypeError, ValueError, AttributeError) as e:
-            logger.debug("Failed to call .item() on %s: %s", type(value).__name__, e)
-    if strict:
-        msg = f"Cannot serialize type {type(value).__name__} to JSON. Value: {value!r}"
-        raise TypeError(msg)
-    logger.warning(
-        "Converting non-serializable type %s to string for JSON export: %r", type(value).__name__, value
-    )
-    return str(value)
 
 
 @app.callback()
@@ -1191,5 +1136,3 @@ def runs_show(
 
     finally:
         conn.close()
-
-    main()

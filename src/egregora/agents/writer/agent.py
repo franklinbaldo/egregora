@@ -7,8 +7,6 @@ It exposes ``write_posts_with_pydantic_agent`` which mirrors the signature of
 surface (write_post, read/write_profile, search_media, annotate, banner)
 so the rest of the pipeline can remain unchanged during the migration.
 
-At the moment this backend is opt-in via the ``EGREGORA_LLM_BACKEND`` flag.
-
 MODERN (Phase 1): Deps are frozen/immutable, no mutation in tools.
 MODERN (Phase 2): Uses WriterRuntimeContext to reduce parameters.
 """
@@ -69,8 +67,6 @@ from egregora.utils.logfire_config import logfire_info, logfire_span
 
 if TYPE_CHECKING:
     from pydantic_ai.result import RunResult
-
-    from egregora.agents.shared.annotations import AnnotationStore
 
 logger = logging.getLogger(__name__)
 

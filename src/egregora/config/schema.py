@@ -1,24 +1,31 @@
-"""Pydantic schemas for .egregora/config.yml configuration.
+"""Centralized Pydantic configuration for Egregora (ALPHA VERSION).
 
-This module defines the configuration structure for the .egregora/ directory,
-which replaces settings previously stored in mkdocs.yml extra.egregora.
-
-Migration from mkdocs.yml:
-- Old: mkdocs.yml extra.egregora.models.writer
-- New: .egregora/config.yml models.writer
+This module defines the complete configuration structure for Egregora,
+including schemas, loading, and saving.
 
 Benefits:
+- Single source of truth for all configuration
 - Backend independence (works with Hugo, Astro, etc.)
-- User customization (separated from rendering config)
 - Type safety (Pydantic validation at load time)
-- Custom prompts (.egregora/prompts/ overrides)
+- No backward compatibility - clean alpha design
+
+Strategy:
+- ONLY loads from .egregora/config.yml
+- Creates default config if missing
+- No mkdocs.yml fallback
+- No legacy transformation
 """
 
 from __future__ import annotations
 
+import logging
+from pathlib import Path
 from typing import Annotated, Literal
 
+import yaml
 from pydantic import BaseModel, ConfigDict, Field
+
+logger = logging.getLogger(__name__)
 
 # Default models
 DEFAULT_MODEL = "google-gla:gemini-flash-latest"
@@ -211,6 +218,54 @@ class PipelineConfig(BaseModel):
     )
 
 
+class PathsConfig(BaseModel):
+    """Site directory paths configuration.
+
+    All paths are relative to site_root (output directory).
+    Provides defaults that match the standard .egregora/ structure.
+    """
+
+    # .egregora/ internal paths (relative to site_root)
+    egregora_dir: str = Field(
+        default=".egregora",
+        description="Egregora internal directory (contains config, rag, cache)",
+    )
+    rag_dir: str = Field(
+        default=".egregora/rag",
+        description="RAG database and embeddings storage",
+    )
+    cache_dir: str = Field(
+        default=".egregora/.cache",
+        description="API response cache",
+    )
+    prompts_dir: str = Field(
+        default=".egregora/prompts",
+        description="Custom prompt overrides",
+    )
+
+    # Content paths (relative to site_root)
+    docs_dir: str = Field(
+        default="docs",
+        description="Documentation/content directory",
+    )
+    posts_dir: str = Field(
+        default="posts",
+        description="Blog posts directory",
+    )
+    profiles_dir: str = Field(
+        default="profiles",
+        description="Author profiles directory",
+    )
+    media_dir: str = Field(
+        default="docs/media",
+        description="Media files (images, videos) directory",
+    )
+    journal_dir: str = Field(
+        default="posts/journal",
+        description="Agent execution journals directory",
+    )
+
+
 class OutputConfig(BaseModel):
     """Output format configuration.
 
@@ -298,6 +353,10 @@ class EgregoraConfig(BaseModel):
         default_factory=PipelineConfig,
         description="Pipeline settings",
     )
+    paths: PathsConfig = Field(
+        default_factory=PathsConfig,
+        description="Site directory paths (relative to site root)",
+    )
     output: OutputConfig = Field(
         default_factory=OutputConfig,
         description="Output format settings",
@@ -313,14 +372,135 @@ class EgregoraConfig(BaseModel):
     )
 
 
+# ============================================================================
+# Configuration Loading and Saving
+# ============================================================================
+
+
+def find_egregora_config(start_dir: Path) -> Path | None:
+    """Search upward for .egregora/config.yml.
+
+    Args:
+        start_dir: Starting directory for upward search
+
+    Returns:
+        Path to .egregora/config.yml if found, else None
+
+    """
+    current = start_dir.expanduser().resolve()
+    for candidate in (current, *current.parents):
+        config_path = candidate / ".egregora" / "config.yml"
+        if config_path.exists():
+            return config_path
+    return None
+
+
+def load_egregora_config(site_root: Path) -> EgregoraConfig:
+    """Load Egregora configuration from .egregora/config.yml.
+
+    SIMPLE: Just load .egregora/config.yml, create if missing.
+
+    Args:
+        site_root: Root directory of the site
+
+    Returns:
+        Validated EgregoraConfig instance
+
+    Raises:
+        ValidationError: If config file contains invalid data
+
+    """
+    config_path = site_root / ".egregora" / "config.yml"
+
+    if not config_path.exists():
+        logger.info("No .egregora/config.yml found, creating default config")
+        return create_default_config(site_root)
+
+    logger.info("Loading config from %s", config_path)
+
+    try:
+        data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        return EgregoraConfig(**data)
+    except yaml.YAMLError:
+        logger.exception("Failed to parse %s", config_path)
+        logger.warning("Creating default config due to YAML error")
+        return create_default_config(site_root)
+    except Exception:
+        logger.exception("Invalid config in %s", config_path)
+        logger.warning("Creating default config due to validation error")
+        return create_default_config(site_root)
+
+
+def create_default_config(site_root: Path) -> EgregoraConfig:
+    """Create default .egregora/config.yml and return it.
+
+    Args:
+        site_root: Root directory of the site
+
+    Returns:
+        EgregoraConfig with all defaults
+
+    """
+    config = EgregoraConfig()  # All defaults from Pydantic
+    save_egregora_config(config, site_root)
+    logger.info("Created default config at %s/.egregora/config.yml", site_root)
+    return config
+
+
+def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
+    """Save EgregoraConfig to .egregora/config.yml.
+
+    Creates .egregora/ directory if it doesn't exist.
+
+    Args:
+        config: EgregoraConfig instance to save
+        site_root: Root directory of the site
+
+    Returns:
+        Path to the saved config file
+
+    """
+    egregora_dir = site_root / ".egregora"
+    egregora_dir.mkdir(exist_ok=True, parents=True)
+
+    config_path = egregora_dir / "config.yml"
+
+    # Export as dict
+    data = config.model_dump(exclude_defaults=False, mode="python")
+
+    # Write with nice formatting
+    yaml_str = yaml.dump(
+        data,
+        default_flow_style=False,
+        sort_keys=False,
+        allow_unicode=True,
+    )
+
+    config_path.write_text(yaml_str, encoding="utf-8")
+    logger.debug("Saved config to %s", config_path)
+
+    return config_path
+
+
 __all__ = [
+    # Config schemas
     "EgregoraConfig",
     "EnrichmentConfig",
     "FeaturesConfig",
     "ModelsConfig",
     "OutputConfig",
+    "PathsConfig",
     "PipelineConfig",
     "PrivacyConfig",
     "RAGConfig",
     "WriterConfig",
+    # Config loading functions
+    "create_default_config",
+    "find_egregora_config",
+    "load_egregora_config",
+    "save_egregora_config",
+    # Constants
+    "DEFAULT_MODEL",
+    "DEFAULT_EMBEDDING_MODEL",
+    "DEFAULT_BANNER_MODEL",
 ]

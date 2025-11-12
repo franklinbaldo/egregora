@@ -35,7 +35,6 @@ from egregora.pipeline.media import process_media_for_window
 from egregora.pipeline.tracking import fingerprint_window, record_run
 from egregora.pipeline.validation import validate_ir_schema
 from egregora.rendering.mkdocs_site import resolve_site_paths
-from egregora.types import GroupSlug
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.telemetry import get_current_trace_id
 
@@ -447,9 +446,7 @@ def _setup_pipeline_environment(
     return site_paths, runtime_db_path, connection, runs_conn, backend, model_config, client, enrichment_cache
 
 
-def _parse_and_validate_source(
-    adapter: any, input_path: Path, timezone: str
-) -> tuple[ir.Table, dict[str, any], str]:
+def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) -> ir.Table:
     """Parse source and validate IR schema.
 
     Args:
@@ -458,7 +455,7 @@ def _parse_and_validate_source(
         timezone: Timezone string
 
     Returns:
-        Tuple of (messages_table, metadata, group_slug)
+        messages_table: Validated messages table
 
     Raises:
         ValueError: If IR schema validation fails
@@ -477,20 +474,16 @@ def _parse_and_validate_source(
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)
 
     metadata = adapter.get_metadata(input_path)
-    group_slug = GroupSlug(metadata.get("group_slug", "unknown"))
     logger.info("[yellow]👥 Group:[/] %s", metadata.get("group_name", "Unknown"))
 
-    return messages_table, metadata, group_slug
+    return messages_table
 
 
-def _setup_content_directories(site_paths: any) -> dict[str, Path]:
+def _setup_content_directories(site_paths: any) -> None:
     """Create and validate content directories.
 
     Args:
         site_paths: Site path configuration
-
-    Returns:
-        Dict mapping directory labels to paths
 
     Raises:
         ValueError: If directories are not inside docs_dir
@@ -509,8 +502,6 @@ def _setup_content_directories(site_paths: any) -> dict[str, Path]:
             msg = f"{label.capitalize()} directory must reside inside the MkDocs docs_dir. Expected parent {site_paths.docs_dir}, got {directory}."
             raise ValueError(msg) from exc
         directory.mkdir(parents=True, exist_ok=True)
-
-    return content_dirs
 
 
 def _process_commands_and_avatars(
@@ -784,7 +775,6 @@ def run_source_pipeline(
         overlap_ratio = config.pipeline.overlap_ratio
         max_window_time_hours = config.pipeline.max_window_time
         max_window_time = timedelta(hours=max_window_time_hours) if max_window_time_hours else None
-        batch_threshold = config.pipeline.batch_threshold
         enable_enrichment = config.enrichment.enabled
         retrieval_mode = config.rag.mode
         retrieval_nprobe = config.rag.nprobe
@@ -803,10 +793,10 @@ def run_source_pipeline(
         embedding_model = model_config.get_model("embedding")
 
         # Parse and validate source
-        messages_table, metadata, group_slug = _parse_and_validate_source(adapter, input_path, timezone)
+        messages_table = _parse_and_validate_source(adapter, input_path, timezone)
 
         # Setup content directories
-        content_dirs = _setup_content_directories(site_paths)
+        _setup_content_directories(site_paths)
 
         # Process commands and avatars
         messages_table = _process_commands_and_avatars(

@@ -19,15 +19,14 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 from egregora.agents.shared.profiler import write_profile as write_profile_content
 from egregora.config.loader import create_default_config
 from egregora.rendering.base import OutputFormat, SiteConfiguration
-from egregora.rendering.mkdocs_site import load_mkdocs_config, resolve_site_paths
+from egregora.rendering.mkdocs_site import _ConfigLoader, find_mkdocs_file, resolve_site_paths
 from egregora.utils.paths import slugify
 from egregora.utils.write_post import write_post as write_mkdocs_post
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
-    # DEPRECATED Phase 5: Old storage protocols removed
-    # from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
+    from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
 
 logger = logging.getLogger(__name__)
 
@@ -626,7 +625,8 @@ class MkDocsOutputFormat(OutputFormat):
         mkdocs_path = site_root / "mkdocs.yml"
         if mkdocs_path.exists():
             return True
-        _config, mkdocs_path_found = load_mkdocs_config(site_root)
+        # Inline: check if mkdocs.yml exists in parent directories
+        mkdocs_path_found = find_mkdocs_file(site_root)
         return mkdocs_path_found is not None
 
     def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
@@ -803,7 +803,7 @@ class MkDocsOutputFormat(OutputFormat):
         Creates:
         - .egregora/config.yml (from template with comments)
         - .egregora/prompts/ (for custom prompt overrides + default copies)
-        - .egregora/prompts/system/ (writer, editor prompts)
+        - .egregora/prompts/system/ (writer system prompts)
         - .egregora/prompts/enrichment/ (URL, media prompts)
         - .egregora/prompts/README.md (usage guide)
         - .egregora/.gitignore (ignore ephemeral data)
@@ -927,8 +927,17 @@ class MkDocsOutputFormat(OutputFormat):
             msg = f"Failed to resolve site paths: {e}"
             raise RuntimeError(msg) from e
         config_file = site_paths.mkdocs_path
-        # Load mkdocs.yml to get site_name
-        mkdocs_config, _ = load_mkdocs_config(site_root)
+        # Inline: load mkdocs.yml to get site_name
+        mkdocs_path = find_mkdocs_file(site_root)
+        if mkdocs_path:
+            try:
+                mkdocs_config = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
+            except yaml.YAMLError as exc:
+                logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
+                mkdocs_config = {}
+        else:
+            logger.debug("mkdocs.yml not found when starting from %s", site_root)
+            mkdocs_config = {}
         return SiteConfiguration(
             site_root=site_paths.site_root,
             site_name=mkdocs_config.get("site_name", "Egregora Site"),
@@ -1019,10 +1028,16 @@ class MkDocsOutputFormat(OutputFormat):
             ValueError: If config is invalid
 
         """
-        config, mkdocs_path = load_mkdocs_config(site_root)
-        if mkdocs_path is None:
+        # Inline: load mkdocs.yml
+        mkdocs_path = find_mkdocs_file(site_root)
+        if not mkdocs_path:
             msg = f"No mkdocs.yml found in {site_root} or parent directories"
             raise FileNotFoundError(msg)
+        try:
+            config = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
+        except yaml.YAMLError as exc:
+            logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
+            config = {}
         return config
 
     def get_markdown_extensions(self) -> list[str]:
