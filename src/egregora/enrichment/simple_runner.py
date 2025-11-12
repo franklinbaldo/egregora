@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 import ibis
 from ibis.expr.types import Table
 
+from egregora.core.document import Document, DocumentType
 from egregora.database.schemas import CONVERSATION_SCHEMA
 from egregora.enrichment.batch import _safe_timestamp_plus_one
 from egregora.enrichment.media import (
@@ -164,8 +165,14 @@ def _process_single_url(
             logger.exception("URL enrichment failed for %s", url)
             return None, ""
 
-    # Write output file using storage protocol
-    enrichment_id_str = context.output_format.enrichments.write_url_enrichment(url, markdown)
+    # Create Document and serve using OutputFormat protocol
+    doc = Document(
+        content=markdown,
+        type=DocumentType.ENRICHMENT_URL,
+        metadata={"url": url},
+    )
+    context.output_format.serve(doc)
+    enrichment_id_str = doc.document_id
     return enrichment_id_str, markdown
 
 
@@ -235,11 +242,18 @@ def _process_single_media(
     if not markdown_content:
         markdown_content = f"[No enrichment generated for media: {file_path.name}]"
 
-    # Write output file using storage protocol
-    relative_path = file_path.relative_to(context.docs_dir)
-    enrichment_id_str = context.output_format.enrichments.write_media_enrichment(
-        str(relative_path), markdown_content
+    # Create Document and serve using OutputFormat protocol
+    # OutputFormat will determine storage location from filename + type
+    doc = Document(
+        content=markdown_content,
+        type=DocumentType.ENRICHMENT_MEDIA,
+        metadata={
+            "filename": file_path.name,
+            "media_type": media_type,
+        },
     )
+    context.output_format.serve(doc)
+    enrichment_id_str = doc.document_id
 
     return enrichment_id_str, markdown_content, pii_detected
 

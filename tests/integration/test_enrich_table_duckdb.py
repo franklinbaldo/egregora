@@ -102,8 +102,8 @@ def test_enrich_table_persists_sorted_results(tmp_path, duckdb_backend):
         },
     )
 
-    # Create mock output_format with enrichments storage
-    output_format = SimpleNamespace(enrichments=InMemoryEnrichmentStorage())
+    # Create mock output_format that implements OutputFormat protocol (serve method)
+    output_format = InMemoryEnrichmentStorage()
 
     enrichment_context = EnrichmentRuntimeContext(
         cache=cache,
@@ -152,8 +152,8 @@ def test_enrich_table_insert_is_idempotent(tmp_path, duckdb_backend):
         },
     )
 
-    # Create mock output_format with enrichments storage
-    output_format = SimpleNamespace(enrichments=InMemoryEnrichmentStorage())
+    # Create mock output_format that implements OutputFormat protocol (serve method)
+    output_format = InMemoryEnrichmentStorage()
 
     enrichment_context = EnrichmentRuntimeContext(
         cache=cache,

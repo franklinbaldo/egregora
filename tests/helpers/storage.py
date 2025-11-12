@@ -229,6 +229,7 @@ class InMemoryJournalStorage:
 class InMemoryEnrichmentStorage:
     """In-memory enrichment storage for testing.
 
+    Implements OutputFormat protocol with serve() method.
     URL enrichments are stored with slugified URLs (like filesystem version).
     Media enrichments are stored by filename.
     """
@@ -238,8 +239,28 @@ class InMemoryEnrichmentStorage:
         self._url_enrichments: dict[str, str] = {}
         self._media_enrichments: dict[str, str] = {}
 
+    def serve(self, document) -> None:
+        """Store document (OutputFormat protocol).
+
+        Args:
+            document: Document object with content, type, and metadata
+
+        """
+        from egregora.core.document import DocumentType
+
+        if document.type == DocumentType.ENRICHMENT_URL:
+            url = document.metadata.get("url", "")
+            url_prefix = slugify(url, max_len=40)
+            url_uuid = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_URL, url))
+            url_hash = url_uuid.replace("-", "")[:8]
+            filename = f"{url_prefix}-{url_hash}"
+            self._url_enrichments[filename] = document.content
+        elif document.type == DocumentType.ENRICHMENT_MEDIA:
+            filename = document.metadata.get("filename", "unknown")
+            self._media_enrichments[filename] = document.content
+
     def write_url_enrichment(self, url: str, content: str) -> str:
-        """Store URL enrichment in memory.
+        """Store URL enrichment in memory (legacy method).
 
         Args:
             url: Full URL that was enriched
@@ -260,7 +281,7 @@ class InMemoryEnrichmentStorage:
         return f"memory://enrichments/urls/{filename}"
 
     def write_media_enrichment(self, filename: str, content: str) -> str:
-        """Store media enrichment in memory.
+        """Store media enrichment in memory (legacy method).
 
         Args:
             filename: Original media filename
