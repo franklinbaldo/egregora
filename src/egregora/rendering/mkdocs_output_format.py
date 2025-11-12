@@ -231,7 +231,7 @@ class MkDocsOutputFormat:
         # Read file content
         try:
             content = path.read_text(encoding="utf-8")
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             logger.exception("Failed to read document at %s", path)
             return None
 
@@ -249,8 +249,8 @@ class MkDocsOutputFormat:
                     frontmatter_yaml = parts[1]
                     actual_content = parts[2].strip()
                     metadata = yaml.safe_load(frontmatter_yaml) or {}
-            except Exception:
-                logger.warning("Failed to parse frontmatter for %s", path)
+            except (ImportError, yaml.YAMLError) as e:
+                logger.warning("Failed to parse frontmatter for %s: %s", path, e)
 
         # Reconstruct Document (note: document_id will be recalculated from content)
         from egregora.core.document import Document
@@ -313,7 +313,7 @@ class MkDocsOutputFormat:
             # Read all non-markdown files in media_dir
             if self.media_dir.exists():
                 for file_path in self.media_dir.iterdir():
-                    if file_path.is_file() and not file_path.suffix == ".md":
+                    if file_path.is_file() and file_path.suffix != ".md":
                         try:
                             content = file_path.read_bytes()
                             documents.append(
@@ -321,8 +321,8 @@ class MkDocsOutputFormat:
                                     content=content.decode("utf-8", errors="ignore"), type=DocumentType.MEDIA
                                 )
                             )
-                        except Exception:
-                            logger.warning("Failed to read media file %s", file_path)
+                        except (OSError, UnicodeDecodeError) as e:
+                            logger.warning("Failed to read media file %s: %s", file_path, e)
 
         return documents
 
@@ -360,7 +360,7 @@ class MkDocsOutputFormat:
         if document.type == DocumentType.ENRICHMENT_URL:
             # /docs/media/urls/{doc_id}/ → docs/media/urls/{doc_id}.md
             return self.site_root / f"{url_path}.md"
-        if document.type == DocumentType.ENRICHMENT_MEDIA or document.type == DocumentType.MEDIA:
+        if document.type in (DocumentType.ENRICHMENT_MEDIA, DocumentType.MEDIA):
             # /docs/media/{filename} → docs/media/{filename}
             return self.site_root / url_path
         # Fallback

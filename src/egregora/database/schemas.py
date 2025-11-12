@@ -20,7 +20,6 @@ for improved maintainability and single source of truth.
 from __future__ import annotations
 
 import logging
-import re
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
@@ -35,28 +34,6 @@ if TYPE_CHECKING:
     from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
-
-
-def quote_identifier(name: str) -> str:
-    """Safely quote a SQL identifier to prevent injection.
-
-    Args:
-        name: Table/view/column name
-
-    Returns:
-        Quoted identifier safe for SQL
-
-    Raises:
-        ValueError: If name contains invalid characters
-
-    """
-    # Allow only alphanumeric, underscore, hyphen
-    if not re.match(r"^[a-zA-Z0-9_-]+$", name):
-        msg = f"Invalid identifier name: {name!r}. Only alphanumeric, underscore, and hyphen allowed."
-        raise ValueError(msg)
-
-    # Quote with double quotes (DuckDB identifier quoting)
-    return f'"{name}"'
 
 
 # ============================================================================

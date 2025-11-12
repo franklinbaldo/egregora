@@ -160,8 +160,8 @@ def _process_single_url(
         try:
             markdown = run_url_enrichment(url_agent, url, prompts_dir=prompts_dir)
             cache.store(cache_key, {"markdown": markdown, "type": "url"})
-        except Exception as exc:
-            logger.warning("URL enrichment failed for %s: %s", url, exc)
+        except Exception:
+            logger.exception("URL enrichment failed for %s", url)
             return None, ""
 
     # Write output file using storage protocol
@@ -214,8 +214,8 @@ def _process_single_media(
                 media_agent, file_path, mime_hint=media_type, prompts_dir=prompts_dir
             )
             cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
-        except Exception as exc:
-            logger.warning("Media enrichment failed for %s (%s): %s", file_path, media_type, exc)
+        except Exception:
+            logger.exception("Media enrichment failed for %s (%s)", file_path, media_type)
             return None, "", False
 
     # Check for PII detection
@@ -513,6 +513,7 @@ def _persist_to_duckdb(
             )
             duckdb_connection.raw_sql("COMMIT")
         except Exception:
+            logger.exception("Transaction failed during DuckDB persistence, rolling back")
             duckdb_connection.raw_sql("ROLLBACK")
             raise
     finally:

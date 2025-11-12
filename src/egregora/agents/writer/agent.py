@@ -19,7 +19,7 @@ import json
 import logging
 import os
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -68,8 +68,17 @@ from egregora.storage.url_convention import UrlContext, UrlConvention
 from egregora.utils.logfire_config import logfire_info, logfire_span
 
 if TYPE_CHECKING:
+    from pydantic_ai.result import RunResult
+
     from egregora.agents.shared.annotations import AnnotationStore
+
 logger = logging.getLogger(__name__)
+
+# Type aliases for improved type safety
+# Note: Some types remain as Any due to Pydantic limitations with Protocol validation
+MessageHistory = Sequence[ModelRequest | ModelResponse]
+LLMClient = Any  # Could be various client types (Google, Anthropic, etc.)
+AgentModel = Any  # Model specification (string or configured model object)
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,7 +113,7 @@ class WriterRuntimeContext:
     annotations_store: AnnotationStore | None
 
     # LLM client
-    client: Any
+    client: LLMClient
 
     # Prompt templates directory (resolved by caller, not constructed here)
     prompts_dir: Path | None = None
@@ -200,7 +209,7 @@ class WriterAgentState(BaseModel):
     annotations_store: Any | None  # AnnotationStore protocol
 
     # LLM client
-    batch_client: Any
+    batch_client: LLMClient
 
     # RAG configuration
     embedding_model: str
@@ -214,7 +223,7 @@ class WriterAgentState(BaseModel):
     site_root: Path | None = None  # Used for banner generation
 
 
-def _extract_thinking_content(messages: Any) -> list[str]:
+def _extract_thinking_content(messages: MessageHistory) -> list[str]:
     """Extract thinking/reasoning content from agent message history.
 
     Parses ModelResponse messages to find ThinkingPart objects containing
@@ -238,7 +247,7 @@ def _extract_thinking_content(messages: Any) -> list[str]:
     return thinking_contents
 
 
-def _extract_freeform_content(messages: Any) -> str:
+def _extract_freeform_content(messages: MessageHistory) -> str:
     """Extract freeform content from agent message history.
 
     Freeform content is plain text output from the model that's NOT a tool call.
@@ -276,7 +285,7 @@ class JournalEntry:
     tool_name: str | None = None
 
 
-def _extract_intercalated_log(messages: Any) -> list[JournalEntry]:
+def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
     """Extract intercalated journal log preserving actual execution order.
 
     Processes agent message history to create a timeline showing:
@@ -415,12 +424,12 @@ def _save_journal_to_file(
         output_format.serve(doc)
         logger.info("Saved journal entry: %s", doc.document_id)
         return doc.document_id
-    except Exception:
+    except Exception:  # Broad catch: journal is non-critical, various backends may raise different exceptions
         logger.exception("Failed to write journal for window %s", window_label)
         return None
 
 
-def _parse_content_to_dict(content: Any) -> dict | None:
+def _parse_content_to_dict(content: Any) -> dict[str, Any] | None:
     """Parse tool result content into a dictionary.
 
     Handles multiple content formats:
@@ -430,7 +439,7 @@ def _parse_content_to_dict(content: Any) -> dict | None:
     - Raw dictionaries
 
     Args:
-        content: Content to parse (str, Pydantic model, or object)
+        content: Content to parse (Any type needed: str, Pydantic model, dict, or arbitrary object)
 
     Returns:
         Parsed dictionary or None if parsing fails
@@ -478,7 +487,7 @@ def _categorize_tool_result(tool_name: str | None, doc_id: str) -> tuple[str | N
     return (None, doc_id)
 
 
-def _extract_from_success_result(data: dict, tool_name: str | None) -> tuple[list[str], list[str]]:
+def _extract_from_success_result(data: dict[str, Any], tool_name: str | None) -> tuple[list[str], list[str]]:
     """Extract document IDs from a successful tool result dictionary.
 
     Args:
@@ -526,6 +535,7 @@ def _extract_from_legacy_tool_return(message: Any) -> tuple[list[str], list[str]
 
     Args:
         message: Legacy tool-return message with kind="tool-return"
+                 (Any type needed: legacy messages have arbitrary structure)
 
     Returns:
         Tuple of (saved_posts, saved_profiles)
@@ -539,7 +549,7 @@ def _extract_from_legacy_tool_return(message: Any) -> tuple[list[str], list[str]
     return _extract_from_success_result(parsed, tool_name)
 
 
-def _extract_tool_results(messages: Any) -> tuple[list[str], list[str]]:
+def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str]]:
     """Extract saved post and profile document IDs from agent message history.
 
     Parses the agent's tool call results to find WritePostResult and
@@ -585,6 +595,11 @@ def _register_writer_tools(
     enable_rag: bool = False,
 ) -> None:
     """Attach tool implementations to the agent.
+
+    NOTE: This function is 140 lines long and should be refactored. Consider:
+    - Extracting each tool decorator into separate functions
+    - Using a tool registry pattern
+    - Separating conditional tool registration logic
 
     Args:
         agent: The writer agent to register tools with
@@ -724,14 +739,14 @@ def _register_writer_tools(
 def _setup_agent_and_state(
     config: EgregoraConfig,
     context: WriterRuntimeContext,
-    test_model: Any | None = None,
+    test_model: AgentModel | None = None,
 ) -> tuple[Agent[WriterAgentState, WriterAgentReturn], WriterAgentState, str]:
     """Set up writer agent and execution state.
 
     Args:
         config: Egregora configuration
         context: Runtime context
-        test_model: Optional test model override
+        test_model: Optional test model override (string or configured model object)
 
     Returns:
         Tuple of (agent, state, window_label)
@@ -854,7 +869,7 @@ def _run_agent_with_retries(
     agent: Agent[WriterAgentState, WriterAgentReturn],
     state: WriterAgentState,
     prompt: str,
-) -> Any:
+) -> RunResult[WriterAgentReturn]:
     """Run agent with exponential backoff retry logic.
 
     Args:
@@ -863,17 +878,17 @@ def _run_agent_with_retries(
         prompt: System prompt
 
     Returns:
-        Agent execution result
+        Agent execution result with message history and usage metrics
 
     """
     max_attempts = 3
-    result = None
+    result: RunResult[WriterAgentReturn] | None = None
 
     for attempt in range(1, max_attempts + 1):
         try:
             result = agent.run_sync(prompt, deps=state)
             break
-        except Exception as exc:
+        except Exception as exc:  # Broad catch: retry on any error (network, API, timeout, etc.)
             if attempt == max_attempts:
                 logger.exception("Writer agent failed after %s attempts", attempt)
                 raise
@@ -887,11 +902,13 @@ def _run_agent_with_retries(
             )
             time.sleep(delay)
 
+    # Type narrowing: result will always be set if we reach here (exception raised on final failure)
+    assert result is not None, "Result should be set after successful retry or exception raised"
     return result
 
 
 def _log_agent_completion(
-    result: Any,
+    result: RunResult[WriterAgentReturn],
     saved_posts: list[str],
     saved_profiles: list[str],
     intercalated_log: list[JournalEntry],
@@ -900,7 +917,7 @@ def _log_agent_completion(
     """Log agent completion metrics and results.
 
     Args:
-        result: Agent execution result
+        result: Agent execution result with message history and usage metrics
         saved_posts: List of created post IDs
         saved_profiles: List of updated profile IDs
         intercalated_log: Journal entries from execution
@@ -935,14 +952,14 @@ def _log_agent_completion(
 
 
 def _record_agent_conversation(
-    result: Any,
+    result: RunResult[WriterAgentReturn],
     context: WriterRuntimeContext,
 ) -> None:
     """Record agent conversation to file if configured.
 
     Args:
-        result: Agent execution result
-        context: Runtime context
+        result: Agent execution result with message history
+        context: Runtime context with start_time and output paths
 
     """
     record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
@@ -966,7 +983,7 @@ def write_posts_with_pydantic_agent(
     prompt: str,
     config: EgregoraConfig,
     context: WriterRuntimeContext,
-    test_model: Any | None = None,
+    test_model: AgentModel | None = None,
 ) -> tuple[list[str], list[str]]:
     """Execute the writer flow using Pydantic-AI agent tooling.
 
@@ -976,10 +993,10 @@ def write_posts_with_pydantic_agent(
         prompt: System prompt for the writer agent
         config: Egregora configuration (models, RAG, writer settings)
         context: Runtime context (paths, client, period info)
-        test_model: Optional test model for unit tests (bypasses config.models.writer)
+        test_model: Optional test model for unit tests (string or configured model object)
 
     Returns:
-        Tuple (saved_posts, saved_profiles)
+        Tuple (saved_posts, saved_profiles) as lists of document IDs
 
     """
     logger.info("Running writer via Pydantic-AI backend")
@@ -1027,7 +1044,7 @@ class WriterStreamResult:
 
     def __init__(
         self,
-        agent: Agent,
+        agent: Agent[WriterAgentState, WriterAgentReturn],
         state: WriterAgentState,
         prompt: str,
         context: WriterRuntimeContext,
@@ -1078,7 +1095,7 @@ async def write_posts_with_pydantic_agent_stream(
     prompt: str,
     config: EgregoraConfig,
     context: WriterRuntimeContext,
-    test_model: Any | None = None,
+    test_model: AgentModel | None = None,
 ) -> WriterStreamResult:
     """Execute writer with streaming output.
 
@@ -1088,7 +1105,7 @@ async def write_posts_with_pydantic_agent_stream(
         prompt: System prompt for the writer agent
         config: Egregora configuration (models, RAG, writer settings)
         context: Runtime context (paths, client, period info)
-        test_model: Optional test model for unit tests (bypasses config.models.writer)
+        test_model: Optional test model for unit tests (string or configured model object)
 
     Returns:
         WriterStreamResult async context manager for streaming

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from hashlib import sha256
@@ -46,7 +47,10 @@ class EnrichmentCache:
         base_dir = base_dir.expanduser().resolve()
         base_dir.mkdir(parents=True, exist_ok=True)
         logger.debug("Initializing enrichment cache at %s", base_dir)
-        self._cache = diskcache.Cache(str(base_dir))
+
+        # Use JSONDisk to avoid pickle RCE vulnerability
+        # All enrichment payloads are JSON-serializable dicts
+        self._cache = diskcache.Cache(str(base_dir), disk=diskcache.JSONDisk)
         self.directory = base_dir
 
     def load(
@@ -55,7 +59,20 @@ class EnrichmentCache:
         """Return cached payload when present."""
         if self._cache is None:
             return None
-        value = self._cache.get(key)
+
+        try:
+            value = self._cache.get(key)
+        except (json.JSONDecodeError, TypeError, ValueError) as e:
+            # Migration: old pickle cache entries can't be deserialized with JSON
+            logger.warning(
+                "Failed to deserialize cache entry for key %s (likely old pickle format): %s. "
+                "Clearing entry - will be regenerated.",
+                key,
+                e,
+            )
+            self.delete(key)
+            return None
+
         if value is None:
             return None
         if not isinstance(value, dict):
