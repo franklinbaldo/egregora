@@ -10,10 +10,7 @@ Run with: uvicorn example_fasta2a:app --reload
 from pydantic_ai import Agent, RunContext
 
 # Create agent with tools
-agent = Agent(
-    'gemini-1.5-pro',
-    instructions='Be helpful and concise. Use tools when appropriate.'
-)
+agent = Agent("gemini-1.5-pro", instructions="Be helpful and concise. Use tools when appropriate.")
 
 
 @agent.tool
@@ -34,6 +31,7 @@ async def search_web(ctx: RunContext, query: str) -> str:
 app = agent.to_a2a()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

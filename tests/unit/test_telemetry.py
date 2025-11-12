@@ -16,13 +16,9 @@ import pytest
 
 def _has_otel_packages() -> bool:
     """Check if OpenTelemetry packages are installed."""
-    try:
-        import opentelemetry.sdk.trace
-        import opentelemetry.trace
-    except ImportError:
-        return False
-    else:
-        return True
+    from importlib.util import find_spec
+
+    return find_spec("opentelemetry.sdk.trace") is not None and find_spec("opentelemetry.trace") is not None
 
 
 class TestOtelConfiguration:
