@@ -112,9 +112,10 @@ def get_active_authors(
     authors: list[str | None] = []
     try:
         # IR v1: use author_uuid column instead of author
-        arrow_table = table.select("author_uuid").distinct().to_pyarrow()
+        # Cast UUID to string for PyArrow compatibility
+        arrow_table = table.select(author_uuid=table.author_uuid.cast(str)).distinct().to_pyarrow()
     except AttributeError:
-        result = table.select("author_uuid").distinct().execute()
+        result = table.select(author_uuid=table.author_uuid.cast(str)).distinct().execute()
         if hasattr(result, "columns"):
             if "author_uuid" in result.columns:
                 authors = result["author_uuid"].tolist()
@@ -138,7 +139,8 @@ def get_active_authors(
     if limit is not None and limit > 0:
         author_counts = {}
         for author in filtered_authors:
-            count = table.filter(table.author == author).count().execute()
+            # IR v1: use author_uuid column
+            count = table.filter(table.author_uuid == author).count().execute()
             author_counts[author] = count
         sorted_authors = sorted(author_counts.items(), key=lambda x: x[1], reverse=True)
         return [author for author, _ in sorted_authors[:limit]]
