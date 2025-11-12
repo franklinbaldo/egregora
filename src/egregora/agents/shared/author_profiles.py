@@ -96,13 +96,13 @@ def write_profile(
 
 
 def get_active_authors(
-    table: Annotated[ir.Table, "The Ibis table with an 'author' column"],
+    table: Annotated[ir.Table, "The Ibis table with an 'author_uuid' column"],
     limit: Annotated[int | None, "An optional limit on the number of authors to return"] = None,
 ) -> Annotated[list[str], "A list of unique author UUIDs, excluding 'system' and 'egregora'"]:
     """Get list of unique authors from a Table.
 
     Args:
-        table: Ibis Table with 'author' column
+        table: Ibis Table with 'author_uuid' column (IR v1 schema)
         limit: Optional limit on number of authors to return (most active first)
 
     Returns:
@@ -111,12 +111,13 @@ def get_active_authors(
     """
     authors: list[str | None] = []
     try:
-        arrow_table = table.select("author").distinct().to_pyarrow()
+        # IR v1: use author_uuid column instead of author
+        arrow_table = table.select("author_uuid").distinct().to_pyarrow()
     except AttributeError:
-        result = table.select("author").distinct().execute()
+        result = table.select("author_uuid").distinct().execute()
         if hasattr(result, "columns"):
-            if "author" in result.columns:
-                authors = result["author"].tolist()
+            if "author_uuid" in result.columns:
+                authors = result["author_uuid"].tolist()
             else:
                 authors = result.iloc[:, 0].tolist()
         elif hasattr(result, "tolist"):
