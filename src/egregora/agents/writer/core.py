@@ -35,8 +35,8 @@ from egregora.agents.writer.handlers import (
     _handle_write_post_tool,
     _handle_write_profile_tool,
 )
-from egregora.config import ModelConfig
-from egregora.config.schema import create_default_config
+from egregora.config import get_model_for_task
+from egregora.config.schema import EgregoraConfig, create_default_config
 from egregora.core.document import Document, DocumentType
 from egregora.prompt_templates import WriterPromptTemplate
 from egregora.rendering import create_output_format, output_registry
@@ -68,7 +68,8 @@ class WriterConfig:
     profiles_dir: Path = Path("output/profiles")
     rag_dir: Path = Path("output/rag")
     site_root: Path | None = None  # For custom prompt overrides in {site_root}/.egregora/prompts/
-    model_config: ModelConfig | None = None
+    egregora_config: EgregoraConfig | None = None
+    cli_model: str | None = None
     enable_rag: bool = True
     retrieval_mode: str = "ann"
     retrieval_nprobe: int | None = None
@@ -430,9 +431,10 @@ def _write_posts_for_window_pydantic(
         config = WriterConfig()
     if table.count().execute() == 0:
         return {"posts": [], "profiles": []}
-    model_config = ModelConfig() if config.model_config is None else config.model_config
-    writer_model = model_config.get_model("writer")
-    embedding_model = model_config.get_model("embedding")
+
+    # Get embedding model for RAG
+    embedding_model = get_model_for_task("embedding", config.egregora_config, config.cli_model)
+
     annotations_store = AnnotationStore(config.rag_dir / "annotations.duckdb")
     messages_table = table.to_pyarrow()
     conversation_md = _build_conversation_markdown(messages_table, annotations_store)
@@ -456,14 +458,17 @@ def _write_posts_for_window_pydantic(
     # site_root is where the .egregora/ directory lives
     site_root = config.site_root
 
-    # MODERN (Phase 2): Get EgregoraConfig from WriterConfig's ModelConfig
-    if config.model_config is None:
+    # MODERN (Phase 2): Get EgregoraConfig from WriterConfig
+    if config.egregora_config is None:
         egregora_config = create_default_config(site_root) if site_root else create_default_config(Path.cwd())
     else:
-        # Create a copy so CLI overrides (ModelConfig) can be applied without mutating shared config.
-        egregora_config = config.model_config.config.model_copy(deep=True)
-        egregora_config.models.writer = writer_model
-        egregora_config.models.embedding = embedding_model
+        # Create a copy so we don't mutate the shared config
+        egregora_config = config.egregora_config.model_copy(deep=True)
+
+    # Apply CLI model overrides if provided
+    if config.cli_model:
+        egregora_config.models.writer = config.cli_model
+        egregora_config.models.embedding = config.cli_model
 
     # Create OutputFormat coordinator (MODERN: OutputFormat Coordinator Pattern)
     # Determine site_root for storage (use output_dir parent if site_root not set)
@@ -483,7 +488,6 @@ def _write_posts_for_window_pydantic(
 
     # DEPRECATED Phase 5: LegacyStorageAdapter removed
     # All document persistence now uses OutputFormat directly
-    document_storage = None
 
     # MODERN (Phase 4+6): Create runtime output format based on configuration
     # Different from line 474 which uses registry (old pattern) for instructions only

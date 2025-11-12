@@ -604,68 +604,49 @@ class PipelineEnrichmentConfig:
 ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor", "banner", "embedding"]
 
 
-class ModelConfig:
-    """Centralized model configuration with CLI override support.
+def get_model_for_task(
+    task: ModelType,
+    egregora_config: EgregoraConfig | None = None,
+    cli_override: str | None = None,
+) -> str:
+    """Get model name for a specific task.
 
-    Uses EgregoraConfig as the source of truth.
-    """
-
-    def __init__(self, config: EgregoraConfig | None = None, cli_model: str | None = None) -> None:
-        """Initialize model config.
-
-        Args:
-            config: EgregoraConfig instance from .egregora/config.yml (optional)
-            cli_model: Optional model override from CLI flag (highest priority)
-
-        """
-        self.config = config
-        self.cli_model = cli_model
-
-    def get_model(self, model_type: ModelType) -> str:
-        """Get model name for a specific task.
-
-        Priority:
-        1. CLI flag (--model) if provided
-        2. Config file (.egregora/config.yml models.{type})
-
-        Args:
-            model_type: Type of model to retrieve
-
-        Returns:
-            Model name to use
-
-        """
-        # CLI override takes precedence
-        if self.cli_model:
-            logger.debug("Using CLI model for %s: %s", model_type, self.cli_model)
-            return self.cli_model
-
-        # Get from config (defaults already resolved by schema validator)
-        if self.config:
-            model = getattr(self.config.models, model_type)
-            logger.debug("Using config model for %s: %s", model_type, model)
-            return model
-
-        # Fallback to DEFAULT_MODEL if no config provided
-        logger.debug("Using fallback DEFAULT_MODEL for %s", model_type)
-        return DEFAULT_MODEL
-
-
-def get_model_config(site_root: Path, cli_model: str | None = None) -> ModelConfig:
-    """Load EgregoraConfig and create ModelConfig.
-
-    Convenience function that combines config loading with ModelConfig creation.
+    Priority:
+    1. CLI override (--model flag)
+    2. Config file (.egregora/config.yml models.{task})
+    3. DEFAULT_MODEL fallback
 
     Args:
-        site_root: Root directory containing .egregora/config.yml
-        cli_model: Optional CLI model override
+        task: Type of model task (writer, enricher, etc.)
+        egregora_config: Optional EgregoraConfig from .egregora/config.yml
+        cli_override: Optional CLI model override (--model flag)
 
     Returns:
-        ModelConfig instance
+        Model name to use
+
+    Examples:
+        >>> get_model_for_task("writer", config, cli_model="gemini-2.0-flash")
+        "gemini-2.0-flash"  # CLI override
+        >>> get_model_for_task("writer", config, None)
+        "google-gla:gemini-flash-latest"  # From config
+        >>> get_model_for_task("writer", None, None)
+        "google-gla:gemini-flash-latest"  # DEFAULT_MODEL
 
     """
-    egregora_config = load_egregora_config(site_root)
-    return ModelConfig(config=egregora_config, cli_model=cli_model)
+    # CLI override takes precedence
+    if cli_override:
+        logger.debug("Using CLI model for %s: %s", task, cli_override)
+        return cli_override
+
+    # Get from config (defaults already resolved by schema validator)
+    if egregora_config:
+        model = getattr(egregora_config.models, task)
+        logger.debug("Using config model for %s: %s", task, model)
+        return model
+
+    # Fallback to DEFAULT_MODEL if no config provided
+    logger.debug("Using fallback DEFAULT_MODEL for %s", task)
+    return DEFAULT_MODEL
 
 
 __all__ = [
@@ -692,9 +673,8 @@ __all__ = [
     "EnrichmentRuntimeConfig",
     "PipelineEnrichmentConfig",
     # Model configuration
-    "ModelConfig",
     "ModelType",
-    "get_model_config",
+    "get_model_for_task",
     # Constants
     "DEFAULT_MODEL",
     "DEFAULT_EMBEDDING_MODEL",

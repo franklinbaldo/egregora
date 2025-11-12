@@ -70,9 +70,8 @@ from egregora.config.schema import (
     EnrichmentRuntimeConfig,
     FeaturesConfig,
     MediaEnrichmentContext,
-    # Model configuration utilities
-    ModelConfig,
     ModelsConfig,
+    # Model configuration utilities
     ModelType,
     PipelineEnrichmentConfig,
     PrivacyConfig,
@@ -83,7 +82,7 @@ from egregora.config.schema import (
     # Config loading/saving functions
     create_default_config,
     find_egregora_config,
-    get_model_config,
+    get_model_for_task,
     load_egregora_config,
     save_egregora_config,
 )
@@ -135,10 +134,9 @@ __all__ = [
     # ==========================================================================
     # Model Configuration Utilities
     # ==========================================================================
-    "ModelConfig",  # Backend-agnostic model config
     "ModelType",  # Type literal for model roles
-    "ModelType",  # Enum of model roles
     "ModelsConfig",  # LLM model names
+    "get_model_for_task",  # Get model name with CLI override support
     # ==========================================================================
     # Pipeline-Specific Configs
     # ==========================================================================
@@ -160,7 +158,6 @@ __all__ = [
     "create_default_config",  # Create default config
     "find_egregora_config",  # Find config file in directory tree
     "find_mkdocs_file",  # Locate mkdocs.yml
-    "get_model_config",  # Get config from EgregoraConfig or env
     # ==========================================================================
     # Config Loading & Persistence
     # ==========================================================================
