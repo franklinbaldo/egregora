@@ -44,7 +44,6 @@ from egregora.sources.whatsapp.parser import extract_commands, filter_egregora_m
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.transformations.media import process_media_for_window
 from egregora.utils.cache import EnrichmentCache
-from egregora.utils.telemetry import get_current_trace_id
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
@@ -274,7 +273,6 @@ def _process_all_windows(
         # Record run start
         try:
             input_fingerprint = fingerprint_window(window)
-            trace_id = get_current_trace_id()
 
             record_run(
                 conn=runs_conn,
@@ -284,7 +282,7 @@ def _process_all_windows(
                 started_at=started_at,
                 rows_in=window.size,
                 input_fingerprint=input_fingerprint,
-                trace_id=trace_id,
+                trace_id=None,
             )
         except Exception as e:
             logger.warning("Failed to record run start: %s", e)
