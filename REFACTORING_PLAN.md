@@ -75,6 +75,39 @@ Based on ChatGPT analysis and alpha mindset principles, we're simplifying the co
 
 **Rationale**: Tests were failing for commands that were never implemented or were removed. Skipped until features are implemented.
 
+#### 8. Documentation Updates ✅ (commit 57d9892)
+**Impact**: Clarified design decisions, removed obsolete feature references
+
+**README.md updates**:
+- Removed "Advanced Features" section (egregora edit, rank, parse/group/enrich)
+- All referenced commands were either never implemented or use obsolete API
+- Keeps main workflow documentation (egregora write)
+
+**docs/observability/runs-tracking.md updates**:
+- Changed OpenTelemetry section from "Planned" to "Simplified"
+- Clarified `trace_id` is always None (OTEL support intentionally removed)
+- Added rationale: Single-user alpha tool doesn't need distributed tracing
+- Documents alternative: Use `run_id` for stage correlation
+- Updated schema comment: "Unused (OTEL support removed)"
+- Clarified metrics export: CLI tools sufficient, external export not planned
+
+**Verified up-to-date**:
+- CLAUDE.md - Already updated in previous commits
+- pipeline-architecture.md - No obsolete references
+- No references to validate_newsletter_privacy found
+
+**Rationale**: Documentation should reflect actual implementation. Alpha mindset: Clean breaks over maintaining wishlist features.
+
+---
+
+## 🎉 Phase 1 Complete!
+
+**Total Time**: ~2 hours across 2 sessions
+**Items Completed**: 8 (4 P0 + 4 P1)
+**Net Code Reduction**: -1,352 lines
+**Test Health**: 93% pass rate (646/693 active tests)
+**Documentation**: Fully synchronized with code
+
 ---
 
 ### Session 1: P0 - Critical Quick Wins ✅ (-1,089 lines)
