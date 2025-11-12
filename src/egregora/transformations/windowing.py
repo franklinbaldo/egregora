@@ -176,8 +176,8 @@ def create_windows(
     if table.count().execute() == 0:
         return
 
-    # Sort by timestamp
-    sorted_table = table.order_by(table.timestamp)
+    # Sort by timestamp (IR v1: use .ts column)
+    sorted_table = table.order_by(table.ts)
 
     # Calculate overlap in messages
     overlap = int(step_size * overlap_ratio)
@@ -333,8 +333,8 @@ def _window_by_time(
     while current_start <= max_ts:  # Use <= to handle single-timestamp datasets
         current_end = current_start + delta + overlap_delta
 
-        # Filter messages in this window
-        window_table = table.filter((table.timestamp >= current_start) & (table.timestamp < current_end))
+        # Filter messages in this window (IR v1: use .ts column)
+        window_table = table.filter((table.ts >= current_start) & (table.ts < current_end))
 
         window_size = window_table.count().execute()
 
@@ -372,16 +372,16 @@ def _window_by_bytes(
         Windows packed to maximum byte capacity
 
     """
-    # Add row number and byte length columns
+    # Add row number and byte length columns (IR v1: use .ts and .text columns)
     enriched = table.mutate(
-        row_num=ibis.row_number().over(ibis.window(order_by=[table.timestamp])),
-        msg_bytes=table.message.length().cast("int64"),
+        row_num=ibis.row_number().over(ibis.window(order_by=[table.ts])),
+        msg_bytes=table.text.length().cast("int64"),
     )
 
     # Calculate cumulative bytes
     windowed = enriched.mutate(
         cumulative_bytes=enriched.msg_bytes.sum().over(
-            ibis.window(order_by=[enriched.timestamp], rows=(None, 0))
+            ibis.window(order_by=[enriched.ts], rows=(None, 0))
         )
     )
 
@@ -431,14 +431,14 @@ def _window_by_bytes(
 
         # Calculate overlap in messages (approximate from bytes)
         if overlap_bytes > 0 and chunk_size > 1:
-            # Find how many messages from end fit in overlap_bytes
+            # Find how many messages from end fit in overlap_bytes (IR v1: use .text and .ts columns)
             # window_table is already the correct chunk, no need for tail()
-            tail_with_bytes = window_table.mutate(msg_bytes_col=window_table.message.length())
+            tail_with_bytes = window_table.mutate(msg_bytes_col=window_table.text.length())
 
             # Cumulative bytes from end (reverse order using DESC)
             tail_cumsum = tail_with_bytes.mutate(
                 reverse_cum=tail_with_bytes.msg_bytes_col.sum().over(
-                    ibis.window(order_by=[tail_with_bytes.timestamp.desc()], rows=(None, 0))
+                    ibis.window(order_by=[tail_with_bytes.ts.desc()], rows=(None, 0))
                 )
             )
 
@@ -453,14 +453,14 @@ def _window_by_bytes(
 
 
 def _get_min_timestamp(table: Table) -> datetime:
-    """Get minimum timestamp from table."""
-    result = table.aggregate(table.timestamp.min().name("min_ts")).execute()
+    """Get minimum timestamp from table (IR v1: use .ts column)."""
+    result = table.aggregate(table.ts.min().name("min_ts")).execute()
     return result["min_ts"][0]
 
 
 def _get_max_timestamp(table: Table) -> datetime:
-    """Get maximum timestamp from table."""
-    result = table.aggregate(table.timestamp.max().name("max_ts")).execute()
+    """Get maximum timestamp from table (IR v1: use .ts column)."""
+    result = table.aggregate(table.ts.max().name("max_ts")).execute()
     return result["max_ts"][0]
 
 
@@ -493,13 +493,14 @@ def split_window_into_n_parts(window: Window, n: int) -> list[Window]:
 
         # For the LAST partition, use <= to include messages at window.end_time
         # (critical for message/byte-based windows where end_time == last message timestamp)
+        # IR v1: use .ts column
         if i == n - 1:
             part_table = window.table.filter(
-                (window.table.timestamp >= part_start) & (window.table.timestamp <= part_end)
+                (window.table.ts >= part_start) & (window.table.ts <= part_end)
             )
         else:
             part_table = window.table.filter(
-                (window.table.timestamp >= part_start) & (window.table.timestamp < part_end)
+                (window.table.ts >= part_start) & (window.table.ts < part_end)
             )
 
         part_size = part_table.count().execute()

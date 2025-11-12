@@ -225,7 +225,8 @@ def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
     if int(messages.count().execute()) == 0:
         return (messages, 0)
     original_count = int(messages.count().execute())
-    filtered_messages = messages.filter(~messages.message.lower().startswith("/egregora"))
+    # IR v1: Use .text column instead of .message
+    filtered_messages = messages.filter(~messages.text.lower().startswith("/egregora"))
     removed_count = original_count - int(filtered_messages.count().execute())
     if removed_count > 0:
         logger.info("Removed %s /egregora messages from table", removed_count)
