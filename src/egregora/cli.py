@@ -5,15 +5,15 @@ import os
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated, Any
+from zoneinfo import ZoneInfo
 
 import typer
 from rich.panel import Panel
 
-from egregora.config import (
-    ProcessConfig,
-    find_mkdocs_file,
-)
+from egregora.config import ProcessConfig, load_egregora_config
+from egregora.config.validation import parse_date_arg, validate_retrieval_config
 from egregora.init import ensure_mkdocs_project
+from egregora.pipeline.runner import run_source_pipeline
 from egregora.utils.logging_setup import configure_logging, console
 
 app = typer.Typer(
@@ -97,40 +97,8 @@ def _resolve_gemini_key(cli_override: str | None) -> str | None:
     return os.getenv("GOOGLE_API_KEY")
 
 
-def _validate_retrieval_config(config: ProcessConfig) -> None:
-    """Validate and normalize retrieval mode configuration.
-
-    Phase 4: Extracted from _validate_and_run_process to reduce complexity.
-
-    Args:
-        config: ProcessConfig to validate (modified in place)
-
-    Raises:
-        typer.Exit: If validation fails
-
-    """
-    retrieval_mode = (config.retrieval_mode or "ann").lower()
-    if retrieval_mode not in {"ann", "exact"}:
-        console.print("[red]Invalid retrieval mode. Choose 'ann' or 'exact'.[/red]")
-        raise typer.Exit(1)
-
-    if retrieval_mode == "exact" and config.retrieval_nprobe:
-        console.print("[yellow]Ignoring retrieval_nprobe: only applicable to ANN search.[/yellow]")
-        config.retrieval_nprobe = None
-
-    if config.retrieval_nprobe is not None and config.retrieval_nprobe <= 0:
-        console.print("[red]retrieval_nprobe must be positive when provided.[/red]")
-        raise typer.Exit(1)
-
-    if config.retrieval_overfetch is not None and config.retrieval_overfetch <= 0:
-        console.print("[red]retrieval_overfetch must be positive when provided.[/red]")
-        raise typer.Exit(1)
-
-    config.retrieval_mode = retrieval_mode
-
-
 def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
-    """Ensure MkDocs scaffold exists, creating if needed with user confirmation.
+    """Ensure site is initialized (has .egregora/config.yml), creating if needed with user confirmation.
 
     Phase 4: Extracted from _validate_and_run_process to reduce complexity.
 
@@ -141,22 +109,21 @@ def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
         typer.Exit: If user declines to initialize or initialization fails
 
     """
-    mkdocs_path = find_mkdocs_file(output_dir)
-    if mkdocs_path:
-        return  # MkDocs scaffold already exists
+    config_path = output_dir / ".egregora" / "config.yml"
+    if config_path.exists():
+        return  # Site already initialized
 
     output_dir.mkdir(parents=True, exist_ok=True)
     warning_message = (
-        f"[yellow]Warning:[/yellow] MkDocs configuration not found in {output_dir}. "
-        "Egregora can initialize a new scaffold before processing."
+        f"[yellow]Warning:[/yellow] Egregora site not initialized in {output_dir}. "
+        "Egregora can initialize a new site before processing."
     )
     console.print(warning_message)
 
     proceed = True
     if any(output_dir.iterdir()):
         proceed = typer.confirm(
-            "The output directory is not empty and lacks mkdocs.yml. "
-            "Initialize a fresh MkDocs scaffold here?",
+            "The output directory is not empty and lacks .egregora/config.yml. Initialize a fresh site here?",
             default=False,
         )
 
@@ -164,9 +131,9 @@ def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
         console.print("[red]Aborting processing at user's request.[/red]")
         raise typer.Exit(1)
 
-    logger.info("Initializing MkDocs scaffold in %s", output_dir)
+    logger.info("Initializing site in %s", output_dir)
     ensure_mkdocs_project(output_dir)
-    console.print("[green]Initialized MkDocs scaffold. Continuing with processing.[/green]")
+    console.print("[green]Initialized site. Continuing with processing.[/green]")
 
 
 @app.command()
@@ -220,7 +187,11 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
             raise typer.Exit(1) from e
 
     # Phase 4: Extracted validation logic
-    _validate_retrieval_config(config)
+    try:
+        validate_retrieval_config(config)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
 
     # Resolve and ensure output directory
     output_dir = config.output_dir.expanduser().resolve()
@@ -357,21 +328,20 @@ def write(
     - All metadata (title, slug, tags, summary, etc)
     - Which author profiles to update based on contributions
     """
+    # Parse date arguments using validation module
     from_date_obj = None
     to_date_obj = None
     if from_date:
         try:
-            from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").replace(tzinfo=UTC).date()
+            from_date_obj = parse_date_arg(from_date, "from_date")
         except ValueError as e:
-            console.print(f"[red]Invalid from_date format: {e}[/red]")
-            console.print("[yellow]Expected format: YYYY-MM-DD[/yellow]")
+            console.print(f"[red]{e}[/red]")
             raise typer.Exit(1) from e
     if to_date:
         try:
-            to_date_obj = datetime.strptime(to_date, "%Y-%m-%d").replace(tzinfo=UTC).date()
+            to_date_obj = parse_date_arg(to_date, "to_date")
         except ValueError as e:
-            console.print(f"[red]Invalid to_date format: {e}[/red]")
-            console.print("[yellow]Expected format: YYYY-MM-DD[/yellow]")
+            console.print(f"[red]{e}[/red]")
             raise typer.Exit(1) from e
     config = ProcessConfig(
         zip_file=input_file,
