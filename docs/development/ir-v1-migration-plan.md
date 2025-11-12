@@ -135,7 +135,7 @@ Map legacy columns to IR v1:
 | `timestamp`      | `ts`               | Direct copy (same type) |
 | `date`           | *(derived)*        | Extract from `ts`: `ts.date()` |
 | `author`         | `author_raw`       | **REVERT**: Use raw name from export, not UUID |
-| `author`         | `author_uuid`      | Generate via `deterministic_author_uuid()` |
+| `author`         | `author_uuid`      | Generate via `deterministic_author_uuid()` inside adapter |
 | `message`        | `text`             | Direct copy |
 | `original_line`  | `attrs['original_line']` | Move to metadata JSON |
 | `tagged_line`    | `attrs['tagged_line']`   | Move to metadata JSON |
@@ -155,7 +155,10 @@ Map legacy columns to IR v1:
 Use deterministic UUID5 generation from `privacy/constants.py`:
 
 ```python
+import uuid
+
 from egregora.privacy.constants import (
+    NAMESPACE_AUTHOR,
     NamespaceContext,
     deterministic_author_uuid,
     deterministic_event_uuid,
@@ -168,11 +171,14 @@ ctx = NamespaceContext(
     source="whatsapp"
 )
 
-# Generate UUIDs
+# Author UUIDs are generated inside the adapter before returning IR
+author_namespace = uuid.uuid5(
+    NAMESPACE_AUTHOR,
+    f"tenant:{ctx.tenant_id}:source:{ctx.source}"
+)
 author_uuid = deterministic_author_uuid(
-    tenant_id=str(group_slug),
-    source="whatsapp",
-    author_raw=author_name  # Raw name from export
+    author_raw=author_name,
+    namespace=author_namespace,
 )
 
 thread_id = deterministic_thread_uuid(
@@ -206,8 +212,8 @@ def parse(input_path: Path) -> Table:
 ```python
 def parse(input_path: Path) -> Table:
     # 1. Parse chat file → raw messages
-    # 2. Keep raw author names (DON'T anonymize yet)
-    # 3. Generate UUIDs (event_id, thread_id, author_uuid)
+    # 2. Generate UUIDs (event_id, thread_id, author_uuid)
+    # 3. Return IR v1 with both author_raw and author_uuid populated
     # 4. Add tenant_id, source, metadata
     # 5. Return IR_MESSAGE_SCHEMA
 ```
@@ -276,7 +282,7 @@ rg '"timestamp"' --type py src/egregora/
 ### Step 1: Create UUID Helpers (if missing)
 
 Check if these exist in `privacy/constants.py`:
-- ✅ `deterministic_author_uuid(tenant_id, source, author_raw)`
+- ✅ `deterministic_author_uuid(author_raw, namespace=...)`
 - ❓ `deterministic_event_uuid(tenant_id, source, msg_id)` - may need to add
 - ❓ `deterministic_thread_uuid(tenant_id, source, thread_key)` - may need to add
 
@@ -301,6 +307,10 @@ def parse(export: WhatsAppExport) -> Table:
     # 3. Create namespace context
     ctx = NamespaceContext(tenant_id=tenant_id, source=source)
     thread_id = deterministic_thread_uuid(tenant_id, source, tenant_id)
+    author_namespace = uuid.uuid5(
+        NAMESPACE_AUTHOR,
+        f"tenant:{ctx.tenant_id}:source:{ctx.source}",
+    )
 
     # 4. Generate IR v1 columns
     ir_messages = []
@@ -320,9 +330,11 @@ def parse(export: WhatsAppExport) -> Table:
             # Temporal
             "ts": msg["timestamp"],
 
-            # Authors (RAW - privacy stage will handle)
-            "author_raw": msg["author"],  # Keep raw name
-            "author_uuid": deterministic_author_uuid(tenant_id, source, msg["author"]),
+            # Authors (adapter provides both raw + anonymized values)
+            "author_raw": msg["author"],
+            "author_uuid": deterministic_author_uuid(
+                msg["author"], namespace=author_namespace
+            ),
 
             # Content
             "text": msg["message"],
@@ -363,8 +375,12 @@ def anonymize_authors(table: Table) -> Table:
 
     # Validate author_uuid matches author_raw
     for row in table.head(5).to_pandas().itertuples():
+        namespace = uuid.uuid5(
+            NAMESPACE_AUTHOR,
+            f"tenant:{row.tenant_id}:source:{row.source}",
+        )
         expected_uuid = deterministic_author_uuid(
-            row.tenant_id, row.source, row.author_raw
+            row.author_raw, namespace=namespace
         )
         assert row.author_uuid == expected_uuid, "UUID mismatch!"
 
@@ -455,8 +471,12 @@ def test_whatsapp_adapter_ir_v1_schema():
 
     # Check UUID determinism
     row = table.head(1).to_pandas().iloc[0]
+    namespace = uuid.uuid5(
+        NAMESPACE_AUTHOR,
+        f"tenant:{row.tenant_id}:source:{row.source}",
+    )
     expected_uuid = deterministic_author_uuid(
-        row.tenant_id, row.source, row.author_raw
+        row.author_raw, namespace=namespace
     )
     assert row.author_uuid == expected_uuid
 ```
@@ -491,7 +511,7 @@ def test_ir_v1_end_to_end():
   - [ ] `deterministic_thread_uuid()`
 
 - [ ] **Step 2**: Update WhatsApp adapter
-  - [ ] Remove early anonymization
+  - [ ] Generate anonymized `author_uuid` values inside the adapter
   - [ ] Add `tenant_id` = GroupSlug
   - [ ] Add `source` = "whatsapp"
   - [ ] Generate UUIDs

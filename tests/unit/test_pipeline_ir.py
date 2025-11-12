@@ -1,8 +1,11 @@
 """Tests for pipeline IR (Intermediate Representation) schema and validation."""
 
+import uuid
+
 import ibis
 
 from egregora.database.validation import IR_MESSAGE_SCHEMA, create_ir_table, validate_ir_schema
+from egregora.privacy.constants import deterministic_author_uuid
 
 
 class TestIRSchema:
@@ -132,6 +135,8 @@ class TestIRSchema:
         assert len(result) == 1
         assert result["author_raw"][0] == "alice"
         assert result["text"][0] == "Test message"
+        assert result["author_uuid"][0] == deterministic_author_uuid("alice")
+        assert result["attrs"][0] is None
 
     def test_create_ir_table_with_custom_timezone(self):
         """create_ir_table should handle custom timezones."""
@@ -150,11 +155,14 @@ class TestIRSchema:
             source="whatsapp",
             thread_key="tenant-1",
             timezone="America/New_York",
+            author_namespace=uuid.uuid5(uuid.NAMESPACE_DNS, "custom"),
         )
 
         # Should not raise an error
         result = ir_table.execute()
         assert len(result) == 1
+        expected_uuid = deterministic_author_uuid("user1", namespace=uuid.uuid5(uuid.NAMESPACE_DNS, "custom"))
+        assert result["author_uuid"][0] == expected_uuid
 
 
 class TestIRSchemaContract:

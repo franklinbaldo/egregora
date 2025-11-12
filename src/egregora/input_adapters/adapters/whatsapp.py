@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import re
+import uuid
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -129,6 +130,9 @@ class WhatsAppAdapter(InputAdapter):
 
     """
 
+    def __init__(self, *, author_namespace: uuid.UUID | None = None) -> None:
+        self._author_namespace = author_namespace or uuid.NAMESPACE_URL
+
     @property
     def source_name(self) -> str:
         return "WhatsApp"
@@ -203,6 +207,7 @@ class WhatsAppAdapter(InputAdapter):
             source=self.source_identifier,
             thread_key=tenant_id,
             timezone=timezone,
+            author_namespace=self._author_namespace,
         )
         logger.debug("Parsed WhatsApp export with %s messages", ir_table.count().execute())
         return ir_table

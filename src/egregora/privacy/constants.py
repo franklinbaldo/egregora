@@ -22,9 +22,10 @@ from datetime import datetime
 # Base namespace for all Egregora UUIDs (generated from 'egregora.dev')
 EGREGORA_NAMESPACE = uuid.UUID("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
 
-# Author identity namespace (for author_raw → author_uuid mapping)
-# Generated from: uuid.uuid5(EGREGORA_NAMESPACE, "author")
-NAMESPACE_AUTHOR = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+# Author identity namespace (default author pseudonymization namespace)
+# Using Python's built-in URL namespace keeps behaviour predictable and
+# allows adapters to opt into custom namespaces when needed.
+NAMESPACE_AUTHOR = uuid.NAMESPACE_URL
 
 # Event identity namespace (for deterministic event_id generation)
 # Generated from: uuid.uuid5(EGREGORA_NAMESPACE, "event")
@@ -48,31 +49,10 @@ class NamespaceContext:
         tenant_id: Tenant identifier for multi-tenant isolation
         source: Source adapter name (e.g., 'whatsapp', 'slack')
 
-    Example:
-        >>> ctx = NamespaceContext(tenant_id="default", source="whatsapp")
-        >>> author_ns = ctx.author_namespace()
-        >>> uuid.uuid5(author_ns, "Alice")
-
     """
 
     tenant_id: str
     source: str
-
-    def author_namespace(self) -> uuid.UUID:
-        """Get tenant-scoped author namespace.
-
-        Returns:
-            UUID5 namespace for author identity within this tenant+source
-
-        Example:
-            >>> ctx = NamespaceContext("acme-corp", "slack")
-            >>> ns = ctx.author_namespace()
-            >>> uuid.uuid5(ns, "alice@acme.com")
-
-        """
-        # Format: "tenant:{tenant_id}:source:{source}:author"
-        namespace_key = f"tenant:{self.tenant_id}:source:{self.source}:author"
-        return uuid.uuid5(NAMESPACE_AUTHOR, namespace_key)
 
     def event_namespace(self) -> uuid.UUID:
         """Get tenant-scoped event namespace.
@@ -100,33 +80,37 @@ class NamespaceContext:
 # ============================================================================
 
 
-def deterministic_author_uuid(tenant_id: str, source: str, author_raw: str) -> uuid.UUID:
+def deterministic_author_uuid(
+    author_raw: str,
+    *,
+    namespace: uuid.UUID = NAMESPACE_AUTHOR,
+) -> uuid.UUID:
     """Generate deterministic UUID for an author.
 
     This function ensures:
     1. Same author → same UUID across runs (determinism)
-    2. Different tenants → different UUIDs (isolation)
-    3. Same author in different sources → different UUIDs (source separation)
+    2. Custom namespaces → distinct UUIDs when adapters opt-in
 
     Args:
-        tenant_id: Tenant identifier
-        source: Source adapter name (e.g., 'whatsapp', 'slack')
         author_raw: Original author name
+        namespace: UUID5 namespace controlling pseudonymization scope
 
     Returns:
         Deterministic UUID5 for this author
 
     Example:
-        >>> deterministic_author_uuid("default", "whatsapp", "Alice")
+        >>> deterministic_author_uuid("Alice")
         UUID('...')  # Always the same for this input
-        >>> deterministic_author_uuid("acme", "whatsapp", "Alice")
-        UUID('...')  # Different UUID (different tenant)
+        >>> ns = uuid.uuid5(uuid.NAMESPACE_DNS, "my-private-space")
+        >>> deterministic_author_uuid("Alice", namespace=ns)
+        UUID('...')  # Different UUID when namespace changes
 
     """
-    ctx = NamespaceContext(tenant_id=tenant_id, source=source)
-    author_namespace = ctx.author_namespace()
     normalized_author = author_raw.strip().lower()
-    return uuid.uuid5(author_namespace, normalized_author)
+    if not normalized_author:
+        msg = "author_raw cannot be empty when generating author UUID"
+        raise ValueError(msg)
+    return uuid.uuid5(namespace, normalized_author)
 
 
 def deterministic_event_uuid(

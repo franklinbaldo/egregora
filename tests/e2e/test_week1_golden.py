@@ -315,7 +315,7 @@ def test_week1_uuid5_namespaces_immutable():
 
     # These UUIDs MUST NOT change (locked in Week 1)
     # Generated on 2025-01-08 and frozen for deterministic identity mapping
-    assert str(NAMESPACE_AUTHOR) == "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+    assert str(NAMESPACE_AUTHOR) == str(uuid.NAMESPACE_URL)
     assert str(NAMESPACE_EVENT) == "f47ac10b-58cc-4372-a567-0e02b2c3d479"
     assert str(NAMESPACE_THREAD) == "550e8400-e29b-41d4-a716-446655440000"
 

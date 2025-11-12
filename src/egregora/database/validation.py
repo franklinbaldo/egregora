@@ -56,6 +56,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from egregora.database.ir_schema import ensure_message_schema
 from egregora.privacy.constants import (
+    NAMESPACE_AUTHOR,
     deterministic_author_uuid,
     deterministic_event_uuid,
     deterministic_thread_uuid,
@@ -515,6 +516,7 @@ def create_ir_table(
     timezone: str | ZoneInfo | None = None,
     thread_key: str | None = None,
     run_id: uuid.UUID | None = None,
+    author_namespace: uuid.UUID | None = None,
 ) -> Table:
     """Convert legacy conversation table to IR v1 schema."""
     if not tenant_id:
@@ -526,12 +528,14 @@ def create_ir_table(
 
     normalized = ensure_message_schema(table, timezone=timezone)
 
+    namespace_value = author_namespace or NAMESPACE_AUTHOR
+
     @ibis.udf.scalar.python
     def author_uuid_udf(author: str | None) -> uuid.UUID:
         if author is None or not author.strip():
             msg = "author column cannot be empty when generating author_uuid"
             raise ValueError(msg)
-        return deterministic_author_uuid(tenant_id, source, author)
+        return deterministic_author_uuid(author, namespace=namespace_value)
 
     @ibis.udf.scalar.python
     def event_uuid_udf(message_id: str | None, ts_value: datetime) -> uuid.UUID:
@@ -558,7 +562,6 @@ def create_ir_table(
 
     thread_identifier = thread_key or tenant_id
     thread_uuid = deterministic_thread_uuid(tenant_id, source, thread_identifier)
-
     created_at_literal = ibis.literal(datetime.now(UTC), type=dt.Timestamp(timezone="UTC"))
     if run_id is not None:
         created_by_run_literal = ibis.literal(run_id, type=dt.UUID)
