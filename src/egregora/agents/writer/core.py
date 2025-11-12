@@ -40,7 +40,6 @@ from egregora.storage.url_convention import UrlContext
 
 if TYPE_CHECKING:
     from google import genai
-    from google.genai import types as genai_types
     from ibis.expr.types import Table
 
     from egregora.rendering.base import OutputFormat
