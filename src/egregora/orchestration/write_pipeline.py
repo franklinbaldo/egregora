@@ -24,7 +24,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
-import duckdb
 import ibis
 from google import genai
 
