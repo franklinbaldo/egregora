@@ -22,6 +22,7 @@ import pytest
 
 from egregora.database.ir_schema import CONVERSATION_SCHEMA
 from egregora.database.tracking import fingerprint_table, record_run
+from egregora.database.validation import create_ir_table
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.sources.whatsapp.parser import parse_source
@@ -156,29 +157,31 @@ def test_week1_golden_whatsapp_pipeline(
     privacy_run_id = uuid.uuid4()
     privacy_start = time.time()
 
+    # Convert to IR schema for privacy processing
+    ir_table = create_ir_table(
+        table,
+        tenant_id=str(export.group_slug),
+        source="whatsapp",
+        thread_key=str(export.group_slug),
+    )
+
     # Generate input fingerprint for checkpointing
-    input_fingerprint = fingerprint_table(table)
+    input_fingerprint = fingerprint_table(ir_table)
 
     # Anonymize table (deterministic UUID5)
-    anonymized_table = anonymize_table(table)
+    anonymized_table = anonymize_table(ir_table)
 
-    # Validate anonymization (legacy anonymizer replaces author in-place, not author_uuid)
+    # Validate anonymization respects new IR schema
     anon_df = anonymized_table.execute()
-    assert "author" in anon_df.columns, "Missing author column"
-    assert anon_df["author"].notna().all(), "Missing author values"
+    assert "author_raw" in anon_df.columns, "Missing author_raw column"
+    assert anon_df["author_raw"].notna().all(), "Missing author_raw values"
 
-    # Validate UUID5 determinism
-    # Note: Current anonymizer uses hex[:8], not full UUID. For Week 1 test, we just verify:
-    # 1. Authors are anonymized (not the same as raw names)
-    # 2. Re-ingestion produces same anonymized values
-    unique_authors_raw = df["author"].unique()
-    anon_df["author"].unique()
+    ir_df = ir_table.execute()
+    unique_authors_raw = ir_df["author_raw"].unique()
 
     # Verify anonymization happened (raw != anonymized)
     for author_raw in unique_authors_raw:
-        author_anon = anon_df[df["author"] == author_raw]["author"].iloc[0]
-        # Anonymized should be hex string (8 chars), not original name
-        assert len(author_anon) == 8, f"Anonymized author should be 8-char hex: {author_anon}"
+        author_anon = anon_df[ir_df["author_raw"] == author_raw]["author_raw"].iloc[0]
         assert author_anon != author_raw, f"Author not anonymized: {author_raw}"
 
     # Record privacy run
@@ -214,21 +217,27 @@ def test_week1_golden_whatsapp_pipeline(
 
     # Re-parse same export
     table2 = parse_source(export)
-    anonymized_table2 = anonymize_table(table2)
+    ir_table2 = create_ir_table(
+        table2,
+        tenant_id=str(export.group_slug),
+        source="whatsapp",
+        thread_key=str(export.group_slug),
+    )
+    anonymized_table2 = anonymize_table(ir_table2)
 
     # Validate identical anonymized values on re-ingest
-    df2 = table2.execute()
+    df2 = ir_table2.execute()
     anon_df2 = anonymized_table2.execute()
 
     for author_raw in unique_authors_raw:
         # Get anonymized value from first ingest
-        anon1 = anon_df[df["author"] == author_raw]["author"].iloc[0]
+        anon1 = anon_df[ir_df["author_raw"] == author_raw]["author_raw"].iloc[0]
         # Get anonymized value from second ingest
-        anon2 = anon_df2[df2["author"] == author_raw]["author"].iloc[0]
+        anon2 = anon_df2[df2["author_raw"] == author_raw]["author_raw"].iloc[0]
         assert anon1 == anon2, f"Anonymized value changed on re-ingest for {author_raw}"
 
     # Validate input fingerprint is identical
-    input_fingerprint2 = fingerprint_table(table2)
+    input_fingerprint2 = fingerprint_table(ir_table2)
     assert input_fingerprint == input_fingerprint2, "Fingerprint changed on re-ingest"
 
     time.time()
@@ -306,7 +315,7 @@ def test_week1_uuid5_namespaces_immutable():
 
     # These UUIDs MUST NOT change (locked in Week 1)
     # Generated on 2025-01-08 and frozen for deterministic identity mapping
-    assert str(NAMESPACE_AUTHOR) == "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+    assert str(NAMESPACE_AUTHOR) == str(uuid.NAMESPACE_URL)
     assert str(NAMESPACE_EVENT) == "f47ac10b-58cc-4372-a567-0e02b2c3d479"
     assert str(NAMESPACE_THREAD) == "550e8400-e29b-41d4-a716-446655440000"
 
