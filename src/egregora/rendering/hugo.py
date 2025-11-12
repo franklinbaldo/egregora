@@ -28,6 +28,28 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def escape_toml_string(value: str) -> str:
+    """Escape a string for safe use in TOML basic strings.
+
+    Args:
+        value: String to escape
+
+    Returns:
+        Escaped string safe for TOML
+
+    Examples:
+        >>> escape_toml_string('Normal title')
+        'Normal title'
+        >>> escape_toml_string('Title with "quotes"')
+        'Title with \\"quotes\\"'
+        >>> escape_toml_string('Evil" key="injected')
+        'Evil\\" key=\\"injected'
+
+    """
+    # Escape backslashes and quotes (TOML basic string escaping)
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r")
+
+
 class HugoOutputFormat(OutputFormat):
     """Hugo static site generator output format.
 
@@ -265,15 +287,17 @@ class HugoOutputFormat(OutputFormat):
         date_str = metadata["date"]
         filename = f"{date_str}-{slug}.md"
         filepath = output_dir / filename
-        front_matter = f'''+++\ntitle = "{metadata["title"]}"\ndate = {date_str}\ndraft = false\n'''
+        # Escape all user-controlled strings to prevent TOML injection
+        title = escape_toml_string(metadata["title"])
+        front_matter = f'+++\ntitle = "{title}"\ndate = {date_str}\ndraft = false\n'
         if "tags" in metadata:
-            tags = ", ".join(f'"{t}"' for t in metadata["tags"])
+            tags = ", ".join(f'"{escape_toml_string(t)}"' for t in metadata["tags"])
             front_matter += f"tags = [{tags}]\n"
         if "summary" in metadata:
-            summary = metadata["summary"].replace('"', '\\"')
+            summary = escape_toml_string(metadata["summary"])
             front_matter += f'description = "{summary}"\n'
         if "authors" in metadata:
-            authors = ", ".join(f'"{a}"' for a in metadata["authors"])
+            authors = ", ".join(f'"{escape_toml_string(a)}"' for a in metadata["authors"])
             front_matter += f"authors = [{authors}]\n"
         front_matter += "+++\n\n"
         full_post = front_matter + content
@@ -306,6 +330,8 @@ class HugoOutputFormat(OutputFormat):
         else:
             content = profile_data.get("content", "")
             title = profile_data.get("name", author_id)
+        # Escape title to prevent TOML injection
+        title = escape_toml_string(title)
         front_matter = f'+++\ntitle = "{title}"\ntype = "profile"\n+++\n\n'
         filepath = profiles_dir / f"{author_id}.md"
         filepath.write_text(front_matter + content, encoding="utf-8")

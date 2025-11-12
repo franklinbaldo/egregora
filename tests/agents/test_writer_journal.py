@@ -250,15 +250,22 @@ def test_save_journal_to_file_creates_directory(tmp_path: Path):
 
 
 def test_save_journal_to_file_sanitizes_filename(tmp_path: Path):
-    """Test journal saving sanitizes window label in identifier."""
+    """Test journal saving sanitizes window label in storage key."""
     journals = InMemoryJournalStorage()
 
     log = [JournalEntry(entry_type="thinking", content="Test")]
     result = _save_journal_to_file(log, "2025-01-15 10:00 to 12:00", journals)
 
     assert result is not None
-    # Identifier should have sanitized label (colons→hyphens, spaces→underscores)
-    assert result == "memory://journal/2025-01-15_10-00_to_12-00"
+    # Result is now a document_id (UUID format)
+    import uuid
+
+    uuid.UUID(result)  # Validates it's a proper UUID, raises ValueError if not
+
+    # Verify journal was stored with sanitized label (colons→hyphens, spaces→underscores)
+    content = journals.get_by_label("2025-01-15 10:00 to 12:00")
+    assert content is not None
+    assert "Test" in content
 
 
 def test_save_journal_to_file_contains_frontmatter(tmp_path: Path):

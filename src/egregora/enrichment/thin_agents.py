@@ -121,6 +121,29 @@ def make_media_agent(
 # --- Single-call helpers ---
 
 
+def _sanitize_prompt_input(text: str, max_length: int = 2000) -> str:
+    """Sanitize user input for LLM prompts to prevent prompt injection.
+
+    Args:
+        text: User-controlled text (URL, filename, etc.)
+        max_length: Maximum length to prevent resource exhaustion
+
+    Returns:
+        Sanitized text safe for inclusion in prompts
+
+    """
+    # Truncate to prevent resource exhaustion
+    text = text[:max_length]
+
+    # Remove control characters and other potentially dangerous characters
+    # Keep only printable ASCII and common Unicode characters
+    cleaned = "".join(char for char in text if char.isprintable() or char in "\n\t")
+
+    # Escape any instruction-like patterns that could manipulate the LLM
+    # Remove multiple consecutive newlines that could be used to inject instructions
+    return "\n".join(line for line in cleaned.split("\n") if line.strip())
+
+
 def run_url_enrichment(
     agent: Agent[UrlEnrichmentDeps, EnrichmentOut], url: str | AnyUrl, prompts_dir: Path | None = None
 ) -> str:
@@ -143,8 +166,11 @@ def run_url_enrichment(
 
     """
     url_str = str(url)
+    # Sanitize URL to prevent prompt injection attacks
+    sanitized_url = _sanitize_prompt_input(url_str, max_length=2000)
+
     deps = UrlEnrichmentDeps(url=url_str, prompts_dir=prompts_dir)
-    prompt = f"Fetch and summarize the content at this URL. Include the main topic, key points, and any important metadata (author, date, etc.).\n\nURL: {url_str}"
+    prompt = f"Fetch and summarize the content at this URL. Include the main topic, key points, and any important metadata (author, date, etc.).\n\nURL: {sanitized_url}"
     result: RunResult[EnrichmentOut] = agent.run_sync(prompt, deps=deps)
     # pydantic-ai 0.0.14+ uses .data attribute
     output = getattr(result, "data", getattr(result, "output", result))
@@ -174,8 +200,11 @@ def run_media_enrichment(
     """
     deps = MediaEnrichmentDeps(prompts_dir=prompts_dir)
     desc = "Describe this media file in 2-3 sentences, highlighting what a reader would learn by viewing it."
-    hint_text = f" ({mime_hint})" if mime_hint else ""
-    prompt = f"{desc}\nFILE: {file_path.name}{hint_text}"
+    # Sanitize filename and mime_hint to prevent prompt injection
+    sanitized_filename = _sanitize_prompt_input(file_path.name, max_length=255)
+    sanitized_mime = _sanitize_prompt_input(mime_hint, max_length=50) if mime_hint else None
+    hint_text = f" ({sanitized_mime})" if sanitized_mime else ""
+    prompt = f"{desc}\nFILE: {sanitized_filename}{hint_text}"
 
     # Load file as BinaryContent for vision models
     binary_content: BinaryContent = load_file_as_binary_content(file_path)

@@ -17,11 +17,10 @@ import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
 from egregora.agents.shared.profiler import write_profile as write_profile_content
-from egregora.config.loader import create_default_config
+from egregora.config.schema import create_default_config
 from egregora.rendering.base import OutputFormat, SiteConfiguration
-from egregora.rendering.mkdocs_site import load_mkdocs_config, resolve_site_paths
-from egregora.utils.paths import slugify
-from egregora.utils.write_post import write_post as write_mkdocs_post
+from egregora.rendering.mkdocs_site import _ConfigLoader, resolve_site_paths
+from egregora.utils.paths import safe_path_join, slugify
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -29,6 +28,155 @@ if TYPE_CHECKING:
     from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
 
 logger = logging.getLogger(__name__)
+
+# Constants
+ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
+
+
+def _extract_clean_date(date_str: str) -> str:
+    """Extract clean YYYY-MM-DD date from various formats.
+
+    Handles:
+    - Clean dates: "2025-03-02"
+    - ISO timestamps: "2025-03-02T10:30:00"
+    - Window labels: "2025-03-02 08:01 to 12:49"
+    - Datetimes: "2025-03-02 10:30:45"
+
+    Args:
+        date_str: Date string in various formats
+
+    Returns:
+        Clean date in YYYY-MM-DD format
+
+    """
+    import datetime
+    import re
+
+    # Remove leading/trailing whitespace
+    date_str = date_str.strip()
+
+    # Try to parse as ISO date first (most common)
+    try:
+        # Handle ISO format (YYYY-MM-DD)
+        if len(date_str) == ISO_DATE_LENGTH and date_str[4] == "-" and date_str[7] == "-":
+            datetime.date.fromisoformat(date_str)  # Validate
+            return date_str
+    except (ValueError, AttributeError):
+        pass
+
+    # Extract YYYY-MM-DD from longer strings (window labels, timestamps)
+    match = re.match(r"(\d{4}-\d{2}-\d{2})", date_str)
+    if match:
+        clean_date = match.group(1)
+        try:
+            datetime.date.fromisoformat(clean_date)  # Validate
+        except (ValueError, AttributeError):
+            pass
+        else:
+            return clean_date
+
+    # Fallback: return original if we can't parse it
+    return date_str
+
+
+def _write_mkdocs_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
+    """Save a blog post with YAML front matter (MkDocs format).
+
+    Args:
+        content: Markdown post content
+        metadata: Post metadata (title, slug, date, tags, summary, authors, category)
+
+    Returns:
+        Path where post was saved
+
+    Raises:
+        ValueError: If required metadata is missing
+
+    """
+    import datetime
+
+    required = ["title", "slug", "date"]
+    for key in required:
+        if key not in metadata:
+            msg = f"Missing required metadata: {key}"
+            raise ValueError(msg)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Parse and clean date
+    raw_date = metadata["date"]
+    date_prefix = _extract_clean_date(raw_date)
+
+    # Slugify and handle duplicates
+    base_slug = slugify(metadata["slug"])
+    slug_candidate = base_slug
+    filename = f"{date_prefix}-{slug_candidate}.md"
+    filepath = safe_path_join(output_dir, filename)
+    suffix = 2
+    while filepath.exists():
+        slug_candidate = f"{base_slug}-{suffix}"
+        filename = f"{date_prefix}-{slug_candidate}.md"
+        filepath = safe_path_join(output_dir, filename)
+        suffix += 1
+
+    # Build front matter
+    front_matter = {
+        "title": metadata["title"],
+        "slug": slug_candidate,
+    }
+
+    # Use cleaned date for front matter
+    try:
+        front_matter["date"] = datetime.date.fromisoformat(date_prefix)
+    except (ValueError, AttributeError):
+        front_matter["date"] = date_prefix
+
+    if "tags" in metadata:
+        front_matter["tags"] = metadata["tags"]
+    if "summary" in metadata:
+        front_matter["summary"] = metadata["summary"]
+    if "authors" in metadata:
+        front_matter["authors"] = metadata["authors"]
+    if "category" in metadata:
+        front_matter["category"] = metadata["category"]
+
+    yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True)
+    full_post = f"---\n{yaml_front}---\n\n{content}"
+    filepath.write_text(full_post, encoding="utf-8")
+    return str(filepath)
+
+
+def secure_path_join(base_dir: Path, user_path: str) -> Path:
+    """Safely join a user-provided path to a base directory, preventing path traversal.
+
+    Args:
+        base_dir: Base directory that result must stay within
+        user_path: User-provided path (potentially malicious)
+
+    Returns:
+        Resolved path within base_dir
+
+    Raises:
+        ValueError: If user_path attempts to escape base_dir
+
+    Examples:
+        >>> secure_path_join(Path("/var/www"), "posts/my-post.md")
+        Path("/var/www/posts/my-post.md")
+        >>> secure_path_join(Path("/var/www"), "../etc/passwd")
+        ValueError: Path traversal detected
+
+    """
+    # Join paths and resolve to absolute path
+    full_path = (base_dir / user_path).resolve()
+
+    # Verify the resolved path is still within base_dir
+    try:
+        full_path.relative_to(base_dir.resolve())
+    except ValueError as e:
+        msg = f"Path traversal detected: {user_path!r} escapes base directory {base_dir}"
+        raise ValueError(msg) from e
+
+    return full_path
 
 
 # ============================================================================
@@ -447,8 +595,8 @@ class MkDocsEnrichmentStorage:
 
         """
         # Media enrichment goes next to the media file
-        # filename is already relative to site_root (e.g., "media/images/abc.jpg")
-        media_path = self.site_root / filename
+        # Use secure_path_join to prevent path traversal attacks
+        media_path = secure_path_join(self.site_root, filename)
         enrichment_path = media_path.with_suffix(media_path.suffix + ".md")
 
         # Ensure parent directory exists
@@ -589,11 +737,24 @@ class MkDocsOutputFormat(OutputFormat):
         """
         if not site_root.exists():
             return False
-        mkdocs_path = site_root / "mkdocs.yml"
-        if mkdocs_path.exists():
+
+        # Check known locations (no upward directory search)
+        # 1. Check .egregora/config.yml for custom mkdocs_config_path
+        from egregora.rendering.mkdocs_site import _try_load_mkdocs_path_from_config
+
+        mkdocs_path_from_config = _try_load_mkdocs_path_from_config(site_root)
+        if mkdocs_path_from_config and mkdocs_path_from_config.exists():
             return True
-        _config, mkdocs_path_found = load_mkdocs_config(site_root)
-        return mkdocs_path_found is not None
+
+        # 2. Check default location: .egregora/mkdocs.yml
+        if (site_root / ".egregora" / "mkdocs.yml").exists():
+            return True
+
+        # 3. Check legacy location: root mkdocs.yml
+        if (site_root / "mkdocs.yml").exists():
+            return True
+
+        return False
 
     def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure.
@@ -769,7 +930,7 @@ class MkDocsOutputFormat(OutputFormat):
         Creates:
         - .egregora/config.yml (from template with comments)
         - .egregora/prompts/ (for custom prompt overrides + default copies)
-        - .egregora/prompts/system/ (writer, editor prompts)
+        - .egregora/prompts/system/ (writer system prompts)
         - .egregora/prompts/enrichment/ (URL, media prompts)
         - .egregora/prompts/README.md (usage guide)
         - .egregora/.gitignore (ignore ephemeral data)
@@ -893,8 +1054,18 @@ class MkDocsOutputFormat(OutputFormat):
             msg = f"Failed to resolve site paths: {e}"
             raise RuntimeError(msg) from e
         config_file = site_paths.mkdocs_path
-        # Load mkdocs.yml to get site_name
-        mkdocs_config, _ = load_mkdocs_config(site_root)
+        # Load mkdocs.yml to get site_name (already resolved by resolve_site_paths)
+        if site_paths.mkdocs_path:
+            try:
+                mkdocs_config = (
+                    yaml.load(site_paths.mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
+                )
+            except yaml.YAMLError as exc:
+                logger.warning("Failed to parse mkdocs.yml at %s: %s", site_paths.mkdocs_path, exc)
+                mkdocs_config = {}
+        else:
+            logger.debug("mkdocs.yml not found in %s", site_root)
+            mkdocs_config = {}
         return SiteConfiguration(
             site_root=site_paths.site_root,
             site_name=mkdocs_config.get("site_name", "Egregora Site"),
@@ -928,7 +1099,7 @@ class MkDocsOutputFormat(OutputFormat):
 
         """
         try:
-            return write_mkdocs_post(content, metadata, output_dir)
+            return _write_mkdocs_post(content, metadata, output_dir)
         except Exception as e:
             msg = f"Failed to write MkDocs post: {e}"
             raise RuntimeError(msg) from e
@@ -985,10 +1156,16 @@ class MkDocsOutputFormat(OutputFormat):
             ValueError: If config is invalid
 
         """
-        config, mkdocs_path = load_mkdocs_config(site_root)
-        if mkdocs_path is None:
-            msg = f"No mkdocs.yml found in {site_root} or parent directories"
+        # Use resolve_site_paths to find mkdocs.yml (checks custom path, .egregora/, root)
+        site_paths = resolve_site_paths(site_root)
+        if not site_paths.mkdocs_path:
+            msg = f"No mkdocs.yml found in {site_root}"
             raise FileNotFoundError(msg)
+        try:
+            config = yaml.load(site_paths.mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
+        except yaml.YAMLError as exc:
+            logger.warning("Failed to parse mkdocs.yml at %s: %s", site_paths.mkdocs_path, exc)
+            config = {}
         return config
 
     def get_markdown_extensions(self) -> list[str]:

@@ -22,7 +22,6 @@ INDEX_NAME = "rag_chunks_embedding_idx"
 METADATA_TABLE_NAME = "rag_chunks_metadata"
 DEFAULT_ANN_OVERFETCH = 5
 INDEX_META_TABLE = "index_meta"
-DEFAULT_EXACT_INDEX_THRESHOLD = 1000
 
 
 class _ConnectionProxy:
@@ -47,13 +46,6 @@ class _ConnectionProxy:
         overrides = object.__getattribute__(self, "_overrides")
         overrides[name] = value
 
-    def __delattr__(self, name: str) -> None:
-        overrides = object.__getattribute__(self, "_overrides")
-        if name in overrides:
-            del overrides[name]
-            return
-        delattr(object.__getattribute__(self, "_inner"), name)
-
 
 VECTOR_STORE_SCHEMA = database_schema.RAG_CHUNKS_SCHEMA
 SEARCH_RESULT_SCHEMA = database_schema.RAG_SEARCH_RESULT_SCHEMA
@@ -77,13 +69,11 @@ class VectorStore:
         parquet_path: Path,
         *,
         connection: duckdb.DuckDBPyConnection | None = None,
-        _exact_index_threshold: int = DEFAULT_EXACT_INDEX_THRESHOLD,
     ) -> None:
         """Initialize vector store.
 
         Args:
             parquet_path: Path to Parquet file (e.g., output/rag/chunks.parquet)
-            exact_index_threshold: Maximum row count before switching to ANN indexing
 
         """
         self.parquet_path = parquet_path
@@ -1001,61 +991,3 @@ class VectorStore:
         """Close the DuckDB connection if owned by this store."""
         if self._owns_connection:
             self.conn.close()
-
-    def get_all(self) -> Table:
-        """Read entire vector store.
-
-        Useful for analytics, exports, client-side usage.
-        """
-        if not self.parquet_path.exists():
-            return self._empty_table(VECTOR_STORE_SCHEMA)
-        return self._client.read_parquet(self.parquet_path)
-
-    def stats(self) -> dict[str, Any]:
-        """Get vector store statistics."""
-        if not self.parquet_path.exists():
-            return {"total_chunks": 0, "total_posts": 0, "total_media": 0, "media_by_type": {}}
-        table = self.get_all()
-        total_chunks = table.count().execute()
-        if total_chunks == 0:
-            return {"total_chunks": 0, "total_posts": 0, "date_range": (None, None), "total_tags": 0}
-        df_executed = table.execute()
-        has_doc_type = "document_type" in df_executed.columns
-        stats = {"total_chunks": total_chunks}
-        if has_doc_type:
-            post_table = table.filter(table.document_type == "post")
-            media_table = table.filter(table.document_type == "media")
-            post_count = post_table.count().execute()
-            media_count = media_table.count().execute()
-            stats["total_posts"] = post_table.post_slug.nunique().execute() if post_count > 0 else 0
-            stats["total_media"] = media_table.media_uuid.nunique().execute() if media_count > 0 else 0
-            if media_count > 0:
-                media_types_agg = (
-                    media_table.group_by("media_type")
-                    .aggregate(count=lambda t: t.media_uuid.nunique())
-                    .execute()
-                )
-                stats["media_by_type"] = {
-                    row["media_type"]: row["count"]
-                    for _, row in media_types_agg.iterrows()
-                    if row["media_type"]
-                }
-            else:
-                stats["media_by_type"] = {}
-            if post_count > 0:
-                stats["post_date_range"] = (
-                    post_table.post_date.min().execute(),
-                    post_table.post_date.max().execute(),
-                )
-            if media_count > 0:
-                stats["media_date_range"] = (
-                    media_table.message_date.min().execute(),
-                    media_table.message_date.max().execute(),
-                )
-        else:
-            stats["total_posts"] = table.post_slug.nunique().execute()
-            stats["total_media"] = 0
-            stats["media_by_type"] = {}
-            stats["date_range"] = (table.post_date.min().execute(), table.post_date.max().execute())
-            stats["total_tags"] = table.tags.unnest().nunique().execute()
-        return stats

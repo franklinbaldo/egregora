@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 import ibis
 from ibis.expr.types import Table
 
+from egregora.core.document import Document, DocumentType
 from egregora.database.schemas import CONVERSATION_SCHEMA
 from egregora.enrichment.batch import _safe_timestamp_plus_one
 from egregora.enrichment.media import (
@@ -160,12 +161,18 @@ def _process_single_url(
         try:
             markdown = run_url_enrichment(url_agent, url, prompts_dir=prompts_dir)
             cache.store(cache_key, {"markdown": markdown, "type": "url"})
-        except Exception as exc:
-            logger.warning("URL enrichment failed for %s: %s", url, exc)
+        except Exception:
+            logger.exception("URL enrichment failed for %s", url)
             return None, ""
 
-    # Write output file using storage protocol
-    enrichment_id_str = context.output_format.enrichments.write_url_enrichment(url, markdown)
+    # Create Document and serve using OutputFormat protocol
+    doc = Document(
+        content=markdown,
+        type=DocumentType.ENRICHMENT_URL,
+        metadata={"url": url},
+    )
+    context.output_format.serve(doc)
+    enrichment_id_str = doc.document_id
     return enrichment_id_str, markdown
 
 
@@ -214,8 +221,8 @@ def _process_single_media(
                 media_agent, file_path, mime_hint=media_type, prompts_dir=prompts_dir
             )
             cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
-        except Exception as exc:
-            logger.warning("Media enrichment failed for %s (%s): %s", file_path, media_type, exc)
+        except Exception:
+            logger.exception("Media enrichment failed for %s (%s)", file_path, media_type)
             return None, "", False
 
     # Check for PII detection
@@ -235,11 +242,18 @@ def _process_single_media(
     if not markdown_content:
         markdown_content = f"[No enrichment generated for media: {file_path.name}]"
 
-    # Write output file using storage protocol
-    relative_path = file_path.relative_to(context.docs_dir)
-    enrichment_id_str = context.output_format.enrichments.write_media_enrichment(
-        str(relative_path), markdown_content
+    # Create Document and serve using OutputFormat protocol
+    # OutputFormat will determine storage location from filename + type
+    doc = Document(
+        content=markdown_content,
+        type=DocumentType.ENRICHMENT_MEDIA,
+        metadata={
+            "filename": file_path.name,
+            "media_type": media_type,
+        },
     )
+    context.output_format.serve(doc)
+    enrichment_id_str = doc.document_id
 
     return enrichment_id_str, markdown_content, pii_detected
 
@@ -513,6 +527,7 @@ def _persist_to_duckdb(
             )
             duckdb_connection.raw_sql("COMMIT")
         except Exception:
+            logger.exception("Transaction failed during DuckDB persistence, rolling back")
             duckdb_connection.raw_sql("ROLLBACK")
             raise
     finally:

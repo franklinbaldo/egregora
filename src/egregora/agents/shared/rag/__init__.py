@@ -6,8 +6,8 @@ Uses Google Gemini embedding models (default: gemini-embedding-001, 768 dimensio
 **Requires GOOGLE_API_KEY** - RAG features depend on Gemini embeddings API.
 Use `is_rag_available()` to check if RAG can be enabled.
 
-The embedding model is configurable via ModelConfig. See config.model.DEFAULT_EMBEDDING_MODEL
-and config.model.EMBEDDING_DIM for the embedding dimensionality.
+The embedding model is configurable via EgregoraConfig. See config.schema.DEFAULT_EMBEDDING_MODEL
+and config.schema.EMBEDDING_DIM for the embedding dimensionality.
 
 Documentation:
 - RAG Feature: docs/features/rag.md

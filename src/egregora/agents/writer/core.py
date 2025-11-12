@@ -27,24 +27,19 @@ from egregora.agents.shared.rag import VectorStore, index_document
 from egregora.agents.writer.agent import WriterRuntimeContext, write_posts_with_pydantic_agent
 from egregora.agents.writer.context import _load_profiles_context, build_rag_context_for_prompt
 from egregora.agents.writer.formatting import _build_conversation_markdown, _load_freeform_memory
-from egregora.agents.writer.handlers import (
-    _handle_annotate_conversation_tool,
-    _handle_generate_banner_tool,
-    _handle_read_profile_tool,
-    _handle_search_media_tool,
-    _handle_write_post_tool,
-    _handle_write_profile_tool,
-)
-from egregora.config import ModelConfig
-from egregora.config.loader import create_default_config
+from egregora.config import get_model_for_task
+from egregora.config.schema import EgregoraConfig, create_default_config
 from egregora.core.document import Document, DocumentType
 from egregora.prompt_templates import WriterPromptTemplate
 from egregora.rendering import create_output_format, output_registry
-from egregora.storage.legacy_adapter import LegacyStorageAdapter
+from egregora.rendering.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
+from egregora.rendering.mkdocs_output_format import MkDocsOutputFormat
+
+# from egregora.storage.legacy_adapter import LegacyStorageAdapter  # DEPRECATED Phase 5
+from egregora.storage.url_convention import UrlContext
 
 if TYPE_CHECKING:
     from google import genai
-    from google.genai import types as genai_types
     from ibis.expr.types import Table
 
     from egregora.rendering.base import OutputFormat
@@ -64,7 +59,8 @@ class WriterConfig:
     profiles_dir: Path = Path("output/profiles")
     rag_dir: Path = Path("output/rag")
     site_root: Path | None = None  # For custom prompt overrides in {site_root}/.egregora/prompts/
-    model_config: ModelConfig | None = None
+    egregora_config: EgregoraConfig | None = None
+    cli_model: str | None = None
     enable_rag: bool = True
     retrieval_mode: str = "ann"
     retrieval_nprobe: int | None = None
@@ -129,68 +125,6 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     if author_counts.count().execute() == 0:
         return []
     return author_counts.author.execute().tolist()
-
-
-def _process_tool_calls(
-    candidate: genai_types.Candidate,
-    output_dir: Path,
-    profiles_dir: Path,
-    saved_posts: list[str],
-    saved_profiles: list[str],
-    client: genai.Client,
-    rag_dir: Path,
-    annotations_store: AnnotationStore | None,
-    *,
-    embedding_model: str,
-    retrieval_mode: str = "ann",
-    retrieval_nprobe: int | None = None,
-    retrieval_overfetch: int | None = None,
-) -> tuple[bool, list[genai_types.Content], list[str]]:
-    """Process all tool calls from LLM response.
-
-    All embeddings use fixed 768 dimensions.
-    """
-    has_tool_calls = False
-    tool_responses: list[genai_types.Content] = []
-    freeform_parts: list[str] = []
-    if not candidate or not candidate.content or (not candidate.content.parts):
-        return (False, [], [])
-    for part in candidate.content.parts:
-        function_call = getattr(part, "function_call", None)
-        if function_call:
-            has_tool_calls = True
-            fn_call = function_call
-            fn_name = fn_call.name
-            fn_args = fn_call.args or {}
-            if fn_name == "write_post":
-                tool_responses.append(_handle_write_post_tool(fn_args, fn_call, output_dir, saved_posts))
-            elif fn_name == "read_profile":
-                tool_responses.append(_handle_read_profile_tool(fn_args, fn_call, profiles_dir))
-            elif fn_name == "write_profile":
-                tool_responses.append(
-                    _handle_write_profile_tool(fn_args, fn_call, profiles_dir, saved_profiles)
-                )
-            elif fn_name == "search_media":
-                response = _handle_search_media_tool(
-                    fn_args,
-                    fn_call,
-                    client,
-                    rag_dir,
-                    embedding_model=embedding_model,
-                    retrieval_mode=retrieval_mode,
-                    retrieval_nprobe=retrieval_nprobe,
-                    retrieval_overfetch=retrieval_overfetch,
-                )
-                tool_responses.append(response)
-            elif fn_name == "annotate_conversation":
-                tool_responses.append(_handle_annotate_conversation_tool(fn_args, fn_call, annotations_store))
-            elif fn_name == "generate_banner":
-                tool_responses.append(_handle_generate_banner_tool(fn_args, fn_call, output_dir))
-            continue
-        text = getattr(part, "text", "")
-        if text:
-            freeform_parts.append(text)
-    return (has_tool_calls, tool_responses, freeform_parts)
 
 
 def _load_document_from_path(path: Path) -> Document | None:
@@ -426,9 +360,10 @@ def _write_posts_for_window_pydantic(
         config = WriterConfig()
     if table.count().execute() == 0:
         return {"posts": [], "profiles": []}
-    model_config = ModelConfig() if config.model_config is None else config.model_config
-    writer_model = model_config.get_model("writer")
-    embedding_model = model_config.get_model("embedding")
+
+    # Get embedding model for RAG
+    embedding_model = get_model_for_task("embedding", config.egregora_config, config.cli_model)
+
     annotations_store = AnnotationStore(config.rag_dir / "annotations.duckdb")
     messages_table = table.to_pyarrow()
     conversation_md = _build_conversation_markdown(messages_table, annotations_store)
@@ -452,14 +387,17 @@ def _write_posts_for_window_pydantic(
     # site_root is where the .egregora/ directory lives
     site_root = config.site_root
 
-    # MODERN (Phase 2): Get EgregoraConfig from WriterConfig's ModelConfig
-    if config.model_config is None:
+    # MODERN (Phase 2): Get EgregoraConfig from WriterConfig
+    if config.egregora_config is None:
         egregora_config = create_default_config(site_root) if site_root else create_default_config(Path.cwd())
     else:
-        # Create a copy so CLI overrides (ModelConfig) can be applied without mutating shared config.
-        egregora_config = config.model_config.config.model_copy(deep=True)
-        egregora_config.models.writer = writer_model
-        egregora_config.models.embedding = embedding_model
+        # Create a copy so we don't mutate the shared config
+        egregora_config = config.egregora_config.model_copy(deep=True)
+
+    # Apply CLI model overrides if provided
+    if config.cli_model:
+        egregora_config.models.writer = config.cli_model
+        egregora_config.models.embedding = config.cli_model
 
     # Create OutputFormat coordinator (MODERN: OutputFormat Coordinator Pattern)
     # Determine site_root for storage (use output_dir parent if site_root not set)
@@ -469,11 +407,6 @@ def _write_posts_for_window_pydantic(
     format_type = egregora_config.output.format
     output_format = create_output_format(storage_root, format_type=format_type)
 
-    # Get storage implementations from OutputFormat
-    posts_storage = output_format.posts
-    profiles_storage = output_format.profiles
-    journals_storage = output_format.journals
-
     # Create pre-constructed stores
     rag_store = VectorStore(config.rag_dir / "chunks.parquet")
 
@@ -482,25 +415,37 @@ def _write_posts_for_window_pydantic(
         storage_root / ".egregora" / "prompts" if (storage_root / ".egregora" / "prompts").is_dir() else None
     )
 
-    # MODERN (Phase 3): Create document storage adapter for backward compatibility
-    # Wraps old storage protocols to work with Document abstraction
-    document_storage = LegacyStorageAdapter(
-        post_storage=posts_storage,
-        profile_storage=profiles_storage,
-        journal_storage=journals_storage,
-        site_root=storage_root,
-    )
+    # DEPRECATED Phase 5: LegacyStorageAdapter removed
+    # All document persistence now uses OutputFormat directly
 
-    # Create runtime context for writer agent (MODERN: uses storage protocols)
+    # MODERN (Phase 4+6): Create runtime output format based on configuration
+    # Different from line 474 which uses registry (old pattern) for instructions only
+    # Runtime needs NEW pattern with constructor injection for url_convention support
+    url_context = UrlContext(base_url="", site_prefix="", base_path=storage_root)
+
+    # Create format-specific runtime output format
+    if format_type == "mkdocs":
+        # Use NEW MkDocsOutputFormat with constructor injection (has url_convention property)
+        runtime_output_format = MkDocsOutputFormat(site_root=storage_root, url_context=url_context)
+        url_convention = runtime_output_format.url_convention
+    else:
+        # For other formats (Hugo, etc.), fall back to old pattern for now
+        # TODO: Implement NEW pattern for Hugo with url_convention support
+        runtime_output_format = output_format
+        url_convention = LegacyMkDocsUrlConvention()  # Temporary fallback
+        logger.warning(
+            "Format %s does not support NEW url_convention pattern yet, using fallback",
+            format_type,
+        )
+
+    # Create runtime context for writer agent (MODERN Phase 6: OutputFormat with read support)
     runtime_context = WriterRuntimeContext(
         start_time=start_time,
         end_time=end_time,
-        # Storage protocols
-        posts=posts_storage,
-        profiles=profiles_storage,
-        journals=journals_storage,
-        # Document storage (MODERN Phase 3)
-        document_storage=document_storage,
+        # Backend-agnostic publishing (MODERN Phase 4+6)
+        url_convention=url_convention,
+        url_context=url_context,
+        output_format=runtime_output_format,
         # Pre-constructed stores
         rag_store=rag_store,
         annotations_store=annotations_store,
@@ -508,11 +453,6 @@ def _write_posts_for_window_pydantic(
         client=client,
         # Prompt templates directory
         prompts_dir=prompts_dir,
-        # Deprecated (kept for backward compatibility)
-        output_dir=config.output_dir,
-        profiles_dir=config.profiles_dir,
-        rag_dir=config.rag_dir,
-        site_root=site_root,
     )
 
     # Format timestamps for LLM prompt (human-readable)

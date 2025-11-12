@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 # ============================================================================
 # Ephemeral/In-Memory Schemas (Not Persisted)
 # ============================================================================
@@ -383,7 +384,13 @@ def add_primary_key(conn: duckdb.DuckDBPyConnection, table_name: str, column_nam
 
     """
     try:
-        conn.execute(f"ALTER TABLE {table_name} ADD CONSTRAINT pk_{table_name} PRIMARY KEY ({column_name})")
+        # Use quoted identifiers to prevent SQL injection
+        quoted_table = quote_identifier(table_name)
+        quoted_column = quote_identifier(column_name)
+        constraint_name = quote_identifier(f"pk_{table_name}")
+        conn.execute(
+            f"ALTER TABLE {quoted_table} ADD CONSTRAINT {constraint_name} PRIMARY KEY ({quoted_column})"
+        )
     except duckdb.Error as e:
         # Constraint may already exist - log and continue
         logger.debug("Could not add primary key to %s.%s: %s", table_name, column_name, e)
@@ -409,9 +416,18 @@ def ensure_identity_column(
         If the column already has identity configured, this is a no-op.
 
     """
+    # Validate generated parameter to prevent SQL injection
+    if generated not in ("ALWAYS", "BY DEFAULT"):
+        msg = f"Invalid identity generation mode: {generated!r}. Must be 'ALWAYS' or 'BY DEFAULT'."
+        raise ValueError(msg)
+
     try:
+        # Use quoted identifiers to prevent SQL injection
+        quoted_table = quote_identifier(table_name)
+        quoted_column = quote_identifier(column_name)
+        # generated is validated above, safe to interpolate
         conn.execute(
-            f"ALTER TABLE {table_name} ALTER COLUMN {column_name} SET GENERATED {generated} AS IDENTITY"
+            f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} SET GENERATED {generated} AS IDENTITY"
         )
     except duckdb.Error as e:
         # Identity already configured or column contains incompatible data - log and continue
@@ -442,14 +458,19 @@ def create_index(
         Uses CREATE INDEX IF NOT EXISTS to handle already-existing indexes.
 
     """
+    # Use quoted identifiers to prevent SQL injection
+    quoted_index = quote_identifier(index_name)
+    quoted_table = quote_identifier(table_name)
+    quoted_column = quote_identifier(column_name)
+
     if index_type == "HNSW":
         conn.execute(
-            f"CREATE INDEX IF NOT EXISTS {index_name} "
-            f"ON {table_name} USING HNSW ({column_name}) "
+            f"CREATE INDEX IF NOT EXISTS {quoted_index} "
+            f"ON {quoted_table} USING HNSW ({quoted_column}) "
             "WITH (metric = 'cosine')"
         )
     else:
-        conn.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({column_name})")
+        conn.execute(f"CREATE INDEX IF NOT EXISTS {quoted_index} ON {quoted_table} ({quoted_column})")
 
 
 # ----------------------------------------------------------------------------

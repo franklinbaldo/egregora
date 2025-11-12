@@ -1,38 +1,30 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import ibis
 from google import genai
 
 from egregora.agents.shared.rag import VectorStore, query_similar_posts
-from egregora.config import ModelConfig
+from egregora.config import get_model_for_task
+from egregora.config.schema import EgregoraConfig
 from egregora.utils.genai import call_with_retries
-
-if TYPE_CHECKING:
-    from egregora.agents.editor.document import Editor
-
-
-def edit_line(expect_version: int, index: int, new: str, editor: Editor) -> None:
-    """Replace a single line in the document."""
-    editor.edit_line(expect_version, index, new)
-
-
-def full_rewrite(expect_version: int, content: str, editor: Editor) -> None:
-    """Replace the entire document content."""
-    editor.full_rewrite(expect_version, content)
 
 
 async def query_rag(
-    query: str, max_results: int, rag_dir: Path, _client: genai.Client, model_config: ModelConfig
+    query: str,
+    max_results: int,
+    rag_dir: Path,
+    _client: genai.Client,
+    egregora_config: EgregoraConfig | None,
+    cli_model: str | None,
 ) -> str:
     """RAG search returning formatted context string."""
     if not rag_dir.exists():
         return "RAG system not available (no posts indexed yet)"
     try:
         store = VectorStore(rag_dir / "chunks.parquet")
-        embedding_model = model_config.get_model("embedding")
+        embedding_model = get_model_for_task("embedding", egregora_config, cli_model)
         dummy_table = ibis.memtable({"query_text": [query]})
         results = await query_similar_posts(
             table=dummy_table, store=store, embedding_model=embedding_model, top_k=max_results
@@ -50,10 +42,12 @@ async def query_rag(
         return f"RAG query failed: {e!s}"
 
 
-async def ask_llm(question: str, client: genai.Client, model_config: ModelConfig) -> str:
+async def ask_llm(
+    question: str, client: genai.Client, egregora_config: EgregoraConfig | None, cli_model: str | None
+) -> str:
     """Simple Q&A with fresh LLM instance."""
     try:
-        model_google = model_config.get_model("editor")
+        model_google = get_model_for_task("editor", egregora_config, cli_model)
         if ":" in model_google:
             model_google = model_google.split(":", 1)[1]
         if not model_google.startswith("models/"):
@@ -84,8 +78,6 @@ def link_rewriter(url: str) -> str:
 
 
 AVAILABLE_TOOLS = {
-    "edit_line": edit_line,
-    "full_rewrite": full_rewrite,
     "query_rag": query_rag,
     "ask_llm": ask_llm,
     "finish": finish,

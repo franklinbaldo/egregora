@@ -1,29 +1,45 @@
-"""Pydantic schemas for .egregora/config.yml configuration.
+"""Centralized configuration for Egregora (ALPHA VERSION).
 
-This module defines the configuration structure for the .egregora/ directory,
-which replaces settings previously stored in mkdocs.yml extra.egregora.
-
-Migration from mkdocs.yml:
-- Old: mkdocs.yml extra.egregora.models.writer
-- New: .egregora/config.yml models.writer
+This module consolidates ALL configuration code in one place:
+- Pydantic models for .egregora/config.yml
+- Loading and saving functions
+- Runtime dataclasses for function parameters
+- Model configuration utilities
 
 Benefits:
+- Single source of truth for all configuration
 - Backend independence (works with Hugo, Astro, etc.)
-- User customization (separated from rendering config)
 - Type safety (Pydantic validation at load time)
-- Custom prompts (.egregora/prompts/ overrides)
+- No backward compatibility - clean alpha design
+
+Strategy:
+- ONLY loads from .egregora/config.yml
+- Creates default config if missing
+- No mkdocs.yml fallback
+- No legacy transformation
 """
 
 from __future__ import annotations
 
+import logging
+from dataclasses import dataclass
+from datetime import date, timedelta
+from pathlib import Path
 from typing import Annotated, Literal
 
+import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
-# Default models
+logger = logging.getLogger(__name__)
+
+# ============================================================================
+# Constants
+# ============================================================================
+
 DEFAULT_MODEL = "google-gla:gemini-flash-latest"
 DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
 DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash-image"
+EMBEDDING_DIM = 768  # Embedding vector dimensions
 
 # Model naming conventions
 PydanticModelName = Annotated[
@@ -211,6 +227,54 @@ class PipelineConfig(BaseModel):
     )
 
 
+class PathsConfig(BaseModel):
+    """Site directory paths configuration.
+
+    All paths are relative to site_root (output directory).
+    Provides defaults that match the standard .egregora/ structure.
+    """
+
+    # .egregora/ internal paths (relative to site_root)
+    egregora_dir: str = Field(
+        default=".egregora",
+        description="Egregora internal directory (contains config, rag, cache)",
+    )
+    rag_dir: str = Field(
+        default=".egregora/rag",
+        description="RAG database and embeddings storage",
+    )
+    cache_dir: str = Field(
+        default=".egregora/.cache",
+        description="API response cache",
+    )
+    prompts_dir: str = Field(
+        default=".egregora/prompts",
+        description="Custom prompt overrides",
+    )
+
+    # Content paths (relative to site_root)
+    docs_dir: str = Field(
+        default="docs",
+        description="Documentation/content directory",
+    )
+    posts_dir: str = Field(
+        default="posts",
+        description="Blog posts directory",
+    )
+    profiles_dir: str = Field(
+        default="profiles",
+        description="Author profiles directory",
+    )
+    media_dir: str = Field(
+        default="docs/media",
+        description="Media files (images, videos) directory",
+    )
+    journal_dir: str = Field(
+        default="posts/journal",
+        description="Agent execution journals directory",
+    )
+
+
 class OutputConfig(BaseModel):
     """Output format configuration.
 
@@ -298,6 +362,10 @@ class EgregoraConfig(BaseModel):
         default_factory=PipelineConfig,
         description="Pipeline settings",
     )
+    paths: PathsConfig = Field(
+        default_factory=PathsConfig,
+        description="Site directory paths (relative to site root)",
+    )
     output: OutputConfig = Field(
         default_factory=OutputConfig,
         description="Output format settings",
@@ -313,14 +381,303 @@ class EgregoraConfig(BaseModel):
     )
 
 
+# ============================================================================
+# Configuration Loading and Saving
+# ============================================================================
+
+
+def find_egregora_config(start_dir: Path) -> Path | None:
+    """Search upward for .egregora/config.yml.
+
+    Args:
+        start_dir: Starting directory for upward search
+
+    Returns:
+        Path to .egregora/config.yml if found, else None
+
+    """
+    current = start_dir.expanduser().resolve()
+    for candidate in (current, *current.parents):
+        config_path = candidate / ".egregora" / "config.yml"
+        if config_path.exists():
+            return config_path
+    return None
+
+
+def load_egregora_config(site_root: Path) -> EgregoraConfig:
+    """Load Egregora configuration from .egregora/config.yml.
+
+    SIMPLE: Just load .egregora/config.yml, create if missing.
+
+    Args:
+        site_root: Root directory of the site
+
+    Returns:
+        Validated EgregoraConfig instance
+
+    Raises:
+        ValidationError: If config file contains invalid data
+
+    """
+    config_path = site_root / ".egregora" / "config.yml"
+
+    if not config_path.exists():
+        logger.info("No .egregora/config.yml found, creating default config")
+        return create_default_config(site_root)
+
+    logger.info("Loading config from %s", config_path)
+
+    try:
+        data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        return EgregoraConfig(**data)
+    except yaml.YAMLError:
+        logger.exception("Failed to parse %s", config_path)
+        logger.warning("Creating default config due to YAML error")
+        return create_default_config(site_root)
+    except Exception:
+        logger.exception("Invalid config in %s", config_path)
+        logger.warning("Creating default config due to validation error")
+        return create_default_config(site_root)
+
+
+def create_default_config(site_root: Path) -> EgregoraConfig:
+    """Create default .egregora/config.yml and return it.
+
+    Args:
+        site_root: Root directory of the site
+
+    Returns:
+        EgregoraConfig with all defaults
+
+    """
+    config = EgregoraConfig()  # All defaults from Pydantic
+    save_egregora_config(config, site_root)
+    logger.info("Created default config at %s/.egregora/config.yml", site_root)
+    return config
+
+
+def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
+    """Save EgregoraConfig to .egregora/config.yml.
+
+    Creates .egregora/ directory if it doesn't exist.
+
+    Args:
+        config: EgregoraConfig instance to save
+        site_root: Root directory of the site
+
+    Returns:
+        Path to the saved config file
+
+    """
+    egregora_dir = site_root / ".egregora"
+    egregora_dir.mkdir(exist_ok=True, parents=True)
+
+    config_path = egregora_dir / "config.yml"
+
+    # Export as dict
+    data = config.model_dump(exclude_defaults=False, mode="python")
+
+    # Write with nice formatting
+    yaml_str = yaml.dump(
+        data,
+        default_flow_style=False,
+        sort_keys=False,
+        allow_unicode=True,
+    )
+
+    config_path.write_text(yaml_str, encoding="utf-8")
+    logger.debug("Saved config to %s", config_path)
+
+    return config_path
+
+
+# ============================================================================
+# Runtime Configuration Dataclasses
+# ============================================================================
+# These dataclasses are used for function parameters (not persisted to YAML).
+# They replace parameter soup (12-16 params → 3-6 params).
+
+
+@dataclass
+class ProcessConfig:
+    """Configuration for chat export processing (source-agnostic).
+
+    Replaces long parameter lists (15+ params) with structured config object.
+    """
+
+    zip_file: Annotated[Path, "Path to the chat export file (ZIP, JSON, etc.)"]
+    output_dir: Annotated[Path, "Directory for the generated site"]
+    step_size: Annotated[int, "Size of each processing window"] = 1
+    step_unit: Annotated[str, "Unit for windowing: 'messages', 'hours', 'days'"] = "days"
+    overlap_ratio: Annotated[float, "Fraction of window to overlap (0.0-0.5)"] = 0.2
+    max_window_time: Annotated[timedelta | None, "Optional maximum time span per window"] = None
+    enable_enrichment: Annotated[bool, "Enable LLM enrichment for URLs/media"] = True
+    from_date: Annotated[date | None, "Only process messages from this date onwards"] = None
+    to_date: Annotated[date | None, "Only process messages up to this date"] = None
+    timezone: Annotated[str | None, "Timezone for date parsing"] = None
+    gemini_key: Annotated[str | None, "Google Gemini API key"] = None
+    model: Annotated[str | None, "Gemini model to use"] = None
+    debug: Annotated[bool, "Enable debug logging"] = False
+    retrieval_mode: Annotated[str, "Retrieval strategy: 'ann' or 'exact'"] = "ann"
+    retrieval_nprobe: Annotated[int | None, "Advanced: DuckDB VSS nprobe for ANN"] = None
+    retrieval_overfetch: Annotated[int | None, "Advanced: ANN candidate pool multiplier"] = None
+    batch_threshold: Annotated[int, "Minimum items before batching API calls"] = 10
+    max_prompt_tokens: Annotated[int, "Maximum tokens per prompt"] = 100_000
+    use_full_context_window: Annotated[bool, "Use full model context window"] = False
+
+    @property
+    def input_path(self) -> Path:
+        """Alias for zip_file (source-agnostic naming)."""
+        return self.zip_file
+
+
+@dataclass
+class WriterRuntimeConfig:
+    """Runtime configuration for post writing (not the Pydantic WriterConfig)."""
+
+    posts_dir: Annotated[Path, "Directory to save posts"]
+    profiles_dir: Annotated[Path, "Directory to save profiles"]
+    rag_dir: Annotated[Path, "Directory for RAG data"]
+    model_config: Annotated[object | None, "Model configuration"] = None  # ModelConfig defined below
+    enable_rag: Annotated[bool, "Enable RAG"] = True
+
+
+@dataclass
+class MediaEnrichmentContext:
+    """Context for media enrichment prompts."""
+
+    media_type: Annotated[str, "The type of media (e.g., 'image', 'video')"]
+    media_filename: Annotated[str, "The filename of the media"]
+    author: Annotated[str, "The author of the message containing the media"]
+    timestamp: Annotated[str, "The timestamp of the message"]
+    nearby_messages: Annotated[str, "Messages sent before and after the media"]
+    ocr_text: Annotated[str, "Text extracted from the media via OCR"] = ""
+    detected_objects: Annotated[str, "Objects detected in the media"] = ""
+
+
+@dataclass
+class EnrichmentRuntimeConfig:
+    """Runtime configuration for enrichment operations."""
+
+    client: Annotated[object, "The Gemini client"]
+    output_dir: Annotated[Path, "The directory to save enriched data"]
+    model: Annotated[str, "The Gemini model to use for enrichment"] = DEFAULT_MODEL
+
+
+@dataclass
+class PipelineEnrichmentConfig:
+    """Extended enrichment configuration for pipeline operations.
+
+    Extends basic enrichment config with pipeline-specific settings.
+    """
+
+    batch_threshold: int = 10
+    max_enrichments: int = 500
+    enable_url: bool = True
+    enable_media: bool = True
+
+    def __post_init__(self) -> None:
+        """Validate configuration after initialization."""
+        if self.batch_threshold < 1:
+            msg = f"batch_threshold must be >= 1, got {self.batch_threshold}"
+            raise ValueError(msg)
+        if self.max_enrichments < 0:
+            msg = f"max_enrichments must be >= 0, got {self.max_enrichments}"
+            raise ValueError(msg)
+
+    @classmethod
+    def from_cli_args(cls, **kwargs: int | bool) -> PipelineEnrichmentConfig:
+        """Create config from CLI arguments."""
+        return cls(
+            batch_threshold=kwargs.get("batch_threshold", 10),
+            max_enrichments=kwargs.get("max_enrichments", 500),
+            enable_url=kwargs.get("enable_url", True),
+            enable_media=kwargs.get("enable_media", True),
+        )
+
+
+# ============================================================================
+# Model Configuration Utilities
+# ============================================================================
+
+# Model type literal for type checking
+ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor", "banner", "embedding"]
+
+
+def get_model_for_task(
+    task: ModelType,
+    egregora_config: EgregoraConfig | None = None,
+    cli_override: str | None = None,
+) -> str:
+    """Get model name for a specific task.
+
+    Priority:
+    1. CLI override (--model flag)
+    2. Config file (.egregora/config.yml models.{task})
+    3. DEFAULT_MODEL fallback
+
+    Args:
+        task: Type of model task (writer, enricher, etc.)
+        egregora_config: Optional EgregoraConfig from .egregora/config.yml
+        cli_override: Optional CLI model override (--model flag)
+
+    Returns:
+        Model name to use
+
+    Examples:
+        >>> get_model_for_task("writer", config, cli_model="gemini-2.0-flash")
+        "gemini-2.0-flash"  # CLI override
+        >>> get_model_for_task("writer", config, None)
+        "google-gla:gemini-flash-latest"  # From config
+        >>> get_model_for_task("writer", None, None)
+        "google-gla:gemini-flash-latest"  # DEFAULT_MODEL
+
+    """
+    # CLI override takes precedence
+    if cli_override:
+        logger.debug("Using CLI model for %s: %s", task, cli_override)
+        return cli_override
+
+    # Get from config (defaults already resolved by schema validator)
+    if egregora_config:
+        model = getattr(egregora_config.models, task)
+        logger.debug("Using config model for %s: %s", task, model)
+        return model
+
+    # Fallback to DEFAULT_MODEL if no config provided
+    logger.debug("Using fallback DEFAULT_MODEL for %s", task)
+    return DEFAULT_MODEL
+
+
 __all__ = [
+    # Pydantic config schemas (persisted in .egregora/config.yml)
     "EgregoraConfig",
     "EnrichmentConfig",
     "FeaturesConfig",
     "ModelsConfig",
     "OutputConfig",
+    "PathsConfig",
     "PipelineConfig",
     "PrivacyConfig",
     "RAGConfig",
     "WriterConfig",
+    # Config loading functions
+    "create_default_config",
+    "find_egregora_config",
+    "load_egregora_config",
+    "save_egregora_config",
+    # Runtime dataclasses (not persisted, for function parameters)
+    "ProcessConfig",
+    "WriterRuntimeConfig",
+    "MediaEnrichmentContext",
+    "EnrichmentRuntimeConfig",
+    "PipelineEnrichmentConfig",
+    # Model configuration
+    "ModelType",
+    "get_model_for_task",
+    # Constants
+    "DEFAULT_MODEL",
+    "DEFAULT_EMBEDDING_MODEL",
+    "DEFAULT_BANNER_MODEL",
+    "EMBEDDING_DIM",
 ]

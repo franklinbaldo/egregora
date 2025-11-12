@@ -54,10 +54,28 @@ def get_adapter(source_identifier: str) -> SourceAdapter:
     return get_global_registry().get(source_identifier)
 
 
+def list_adapters() -> list[str]:
+    """List all registered adapter identifiers.
+
+    Returns:
+        List of adapter source identifiers (e.g., ["whatsapp", "slack"])
+
+    Example:
+        >>> from egregora.adapters import list_adapters
+        >>> adapters = list_adapters()
+        >>> print(adapters)
+        ['whatsapp', 'slack']
+
+    """
+    registry = get_global_registry()
+    return list(registry._adapters.keys())
+
+
 __all__ = [
     "AdapterRegistry",
     "SlackAdapter",
     "WhatsAppAdapter",
     "get_adapter",
     "get_global_registry",
+    "list_adapters",
 ]

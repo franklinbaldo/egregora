@@ -297,6 +297,47 @@ logging.basicConfig(level=logging.DEBUG)
 conn.execute("SELECT * FROM duckdb_extensions() WHERE extension_name = 'vss'")
 ```
 
+## Slug Collision Behavior (OutputFormat)
+
+**P1 Badge Response**: The `serve()` method has **intentional overwriting behavior** for slug-based paths.
+
+### Design Rationale
+
+**Posts** (slug + date):
+- Path: `posts/YYYY-MM-DD-{slug}.md`
+- Collision: **Overwrites** (second post with same slug+date replaces first)
+- Rationale: Posts are identified by (slug, date), not content. Writing the same slug twice should UPDATE the file, like `UPDATE` in SQL or `PUT` in REST. This is idempotent publishing.
+
+**Profiles** (UUID):
+- Path: `profiles/{uuid}.md`
+- Collision: **Overwrites** (updating profile for same UUID)
+- Rationale: Profiles are identified by UUID. Updating a user's profile should replace the existing file, not create duplicates.
+
+**Enrichment URLs** (content hash):
+- Path: `enrichments/{hash}.md`
+- Collision: **Detects and resolves** with suffix (`{hash}-1.md`)
+- Rationale: Hash collisions are rare but theoretically possible. Resolution adds numeric suffix.
+
+### Error Reporting (Future Enhancement)
+
+Currently `serve()` returns `None` (fire-and-forget). If collision reporting is needed:
+
+**Option 1**: Add optional return type (backward compatible)
+```python
+def serve(self, document: Document) -> ServeResult | None:
+    """Returns ServeResult if error, None if success."""
+```
+
+**Option 2**: Use exceptions for errors
+```python
+def serve(self, document: Document) -> None:
+    """Raises ServeError on collision (if strict mode enabled)."""
+    if strict and path.exists():
+        raise SlugCollisionError(...)
+```
+
+**Decision**: DEFER until needed. Current overwriting behavior is correct for idempotent publishing.
+
 ## TENET-BREAK Philosophy
 
 Intentional principle violations:

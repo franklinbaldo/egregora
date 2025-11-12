@@ -24,18 +24,17 @@ from egregora.adapters import get_adapter
 from egregora.agents.shared.profiler import filter_opted_out_authors, process_commands
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
-from egregora.config import ModelConfig
+from egregora.config import get_model_for_task
 from egregora.config.schema import EgregoraConfig
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
-from egregora.ingestion import extract_commands, filter_egregora_messages  # Phase 6: Re-exported
 from egregora.pipeline import create_windows, load_checkpoint, save_checkpoint
 from egregora.pipeline.media import process_media_for_window
 from egregora.pipeline.tracking import fingerprint_window, record_run
 from egregora.pipeline.validation import validate_ir_schema
 from egregora.rendering.mkdocs_site import resolve_site_paths
-from egregora.types import GroupSlug
+from egregora.sources.whatsapp.parser import extract_commands, filter_egregora_messages
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.telemetry import get_current_trace_id
 
@@ -58,7 +57,7 @@ class WindowProcessingContext:
     enrichment_cache: EnrichmentCache
     output_format: any
     enable_enrichment: bool
-    model_config: ModelConfig
+    cli_model_override: str | None
     retrieval_mode: str
     retrieval_nprobe: int
     retrieval_overfetch: int
@@ -121,7 +120,8 @@ def _process_single_window(
         profiles_dir=ctx.profiles_dir,
         rag_dir=ctx.site_paths.rag_dir,
         site_root=ctx.site_paths.site_root,
-        model_config=ctx.model_config,
+        egregora_config=ctx.config,
+        cli_model=ctx.cli_model_override,
         enable_rag=True,
         retrieval_mode=ctx.retrieval_mode,
         retrieval_nprobe=ctx.retrieval_nprobe,
@@ -386,7 +386,7 @@ def _setup_pipeline_environment(
     duckdb.DuckDBPyConnection,
     duckdb.DuckDBPyConnection,
     any,
-    ModelConfig,
+    str | None,
     genai.Client,
     EnrichmentCache,
 ]:
@@ -399,7 +399,7 @@ def _setup_pipeline_environment(
         model_override: Model override for CLI --model flag
 
     Returns:
-        Tuple of (site_paths, runtime_db_path, connection, runs_conn, backend, model_config, client, enrichment_cache)
+        Tuple of (site_paths, runtime_db_path, connection, runs_conn, backend, model_override, client, enrichment_cache)
 
     Raises:
         ValueError: If mkdocs.yml or docs directory not found
@@ -426,8 +426,7 @@ def _setup_pipeline_environment(
     runs_db_path = site_paths.site_root / ".egregora" / "runs.duckdb"
     runs_conn = duckdb.connect(str(runs_db_path))
 
-    # Setup model configuration and client
-    model_config = ModelConfig(config=config, cli_model=model_override)
+    # Setup Gemini client
     # Configure aggressive retry options to handle rate limits efficiently
     http_options = genai.types.HttpOptions(
         retryOptions=genai.types.HttpRetryOptions(
@@ -444,12 +443,19 @@ def _setup_pipeline_environment(
     cache_dir = Path(".egregora-cache") / site_paths.site_root.name
     enrichment_cache = EnrichmentCache(cache_dir)
 
-    return site_paths, runtime_db_path, connection, runs_conn, backend, model_config, client, enrichment_cache
+    return (
+        site_paths,
+        runtime_db_path,
+        connection,
+        runs_conn,
+        backend,
+        model_override,
+        client,
+        enrichment_cache,
+    )
 
 
-def _parse_and_validate_source(
-    adapter: any, input_path: Path, timezone: str
-) -> tuple[ir.Table, dict[str, any], str]:
+def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) -> ir.Table:
     """Parse source and validate IR schema.
 
     Args:
@@ -458,7 +464,7 @@ def _parse_and_validate_source(
         timezone: Timezone string
 
     Returns:
-        Tuple of (messages_table, metadata, group_slug)
+        messages_table: Validated messages table
 
     Raises:
         ValueError: If IR schema validation fails
@@ -477,20 +483,16 @@ def _parse_and_validate_source(
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)
 
     metadata = adapter.get_metadata(input_path)
-    group_slug = GroupSlug(metadata.get("group_slug", "unknown"))
     logger.info("[yellow]👥 Group:[/] %s", metadata.get("group_name", "Unknown"))
 
-    return messages_table, metadata, group_slug
+    return messages_table
 
 
-def _setup_content_directories(site_paths: any) -> dict[str, Path]:
+def _setup_content_directories(site_paths: any) -> None:
     """Create and validate content directories.
 
     Args:
         site_paths: Site path configuration
-
-    Returns:
-        Dict mapping directory labels to paths
 
     Raises:
         ValueError: If directories are not inside docs_dir
@@ -509,8 +511,6 @@ def _setup_content_directories(site_paths: any) -> dict[str, Path]:
             msg = f"{label.capitalize()} directory must reside inside the MkDocs docs_dir. Expected parent {site_paths.docs_dir}, got {directory}."
             raise ValueError(msg) from exc
         directory.mkdir(parents=True, exist_ok=True)
-
-    return content_dirs
 
 
 def _process_commands_and_avatars(
@@ -747,7 +747,7 @@ def run_source_pipeline(
             connection,
             runs_conn,
             backend,
-            model_config,
+            cli_model_override,
             client,
             enrichment_cache,
         ) = _setup_pipeline_environment(output_dir, config, api_key, model_override)
@@ -767,7 +767,7 @@ def run_source_pipeline(
         backend = ibis.duckdb.from_connection(connection)
         runs_db_path = site_paths.site_root / ".egregora" / "runs.duckdb"
         runs_conn = duckdb.connect(str(runs_db_path))
-        model_config = ModelConfig(config=config, cli_model=model_override)
+        cli_model_override = model_override
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         enrichment_cache = EnrichmentCache(cache_dir)
 
@@ -784,7 +784,6 @@ def run_source_pipeline(
         overlap_ratio = config.pipeline.overlap_ratio
         max_window_time_hours = config.pipeline.max_window_time
         max_window_time = timedelta(hours=max_window_time_hours) if max_window_time_hours else None
-        batch_threshold = config.pipeline.batch_threshold
         enable_enrichment = config.enrichment.enabled
         retrieval_mode = config.rag.mode
         retrieval_nprobe = config.rag.nprobe
@@ -799,14 +798,14 @@ def run_source_pipeline(
             to_date = date_type.fromisoformat(config.pipeline.to_date)
 
         # Get model identifiers
-        vision_model = model_config.get_model("enricher_vision")
-        embedding_model = model_config.get_model("embedding")
+        vision_model = get_model_for_task("enricher_vision", config, cli_model_override)
+        embedding_model = get_model_for_task("embedding", config, cli_model_override)
 
         # Parse and validate source
-        messages_table, metadata, group_slug = _parse_and_validate_source(adapter, input_path, timezone)
+        messages_table = _parse_and_validate_source(adapter, input_path, timezone)
 
         # Setup content directories
-        content_dirs = _setup_content_directories(site_paths)
+        _setup_content_directories(site_paths)
 
         # Process commands and avatars
         messages_table = _process_commands_and_avatars(
@@ -865,7 +864,7 @@ def run_source_pipeline(
             enrichment_cache=enrichment_cache,
             output_format=output_format,
             enable_enrichment=enable_enrichment,
-            model_config=model_config,
+            cli_model_override=cli_model_override,
             retrieval_mode=retrieval_mode,
             retrieval_nprobe=retrieval_nprobe,
             retrieval_overfetch=retrieval_overfetch,

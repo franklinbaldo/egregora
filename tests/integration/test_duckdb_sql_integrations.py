@@ -7,9 +7,8 @@ from typing import TYPE_CHECKING
 
 import ibis
 
-from egregora.agents.ranking.store import RankingStore
 from egregora.agents.shared.annotations import ANNOTATION_AUTHOR, AnnotationStore
-from egregora.config.loader import create_default_config
+from egregora.config.schema import create_default_config
 from egregora.database import schemas as database_schema
 from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
 from egregora.utils.batch import BatchPromptResult
@@ -52,42 +51,6 @@ def _create_conversation_table(tmp_path: Path) -> tuple[duckdb.DuckDBPyConnectio
         database_schema.CONVERSATION_SCHEMA,
     )
     return backend.con, table_name
-
-
-def test_ranking_store_bulk_initialize_and_update(tmp_path: Path):
-    store = RankingStore(tmp_path / "rankings")
-
-    initial_posts = ["post-a", "post-b"]
-    inserted = store.initialize_ratings(initial_posts)
-    assert inserted == len(set(initial_posts))
-
-    next_posts = ["post-a", "post-c"]
-    inserted_again = store.initialize_ratings(next_posts)
-    assert inserted_again == len({"post-c"})
-
-    store.update_ratings("post-a", "post-b", 1600.0, 1400.0)
-
-    rating_a = store.get_rating("post-a")
-    rating_b = store.get_rating("post-b")
-
-    assert rating_a == {"elo_global": 1600.0, "games_played": 1}
-    assert rating_b == {"elo_global": 1400.0, "games_played": 1}
-
-
-def test_ranking_store_initialize_handles_empty_batches(tmp_path: Path):
-    store = RankingStore(tmp_path / "rankings")
-
-    assert store.initialize_ratings([]) == 0
-
-    temp_tables = store.conn.execute(
-        """
-        SELECT table_name
-        FROM information_schema.tables
-        WHERE lower(table_name) = lower('__elo_init_posts')
-        """
-    ).fetchall()
-
-    assert temp_tables == []
 
 
 def test_annotation_store_uses_identity_column(tmp_path: Path):
@@ -148,8 +111,8 @@ def test_enrich_table_persists_results(tmp_path: Path):
         },
     )
 
-    # Create mock output_format with enrichments storage
-    output_format = SimpleNamespace(enrichments=InMemoryEnrichmentStorage())
+    # Create mock output_format (InMemoryEnrichmentStorage implements OutputFormat protocol)
+    output_format = InMemoryEnrichmentStorage()
 
     enrichment_context = EnrichmentRuntimeContext(
         cache=cache,
