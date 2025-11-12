@@ -67,6 +67,7 @@ from egregora.config.schema import (
     EMBEDDING_DIM,
     # Pydantic V2 config models (persisted in .egregora/config.yml)
     EgregoraConfig,
+    EnrichmentConfig,
     EnrichmentRuntimeConfig,
     FeaturesConfig,
     MediaEnrichmentContext,
@@ -78,6 +79,7 @@ from egregora.config.schema import (
     # Runtime dataclasses (for function parameters, not persisted)
     ProcessConfig,
     RAGConfig,
+    WriterConfig,
     WriterRuntimeConfig,
     # Config loading/saving functions
     create_default_config,
@@ -121,8 +123,6 @@ __all__ = [
     "EMBEDDING_DIM",  # Embedding vector dimensions
     "MEDIA_DIR_NAME",  # Media subdirectory name
     "PROFILES_DIR_NAME",  # Profiles subdirectory name
-    "ComparisonConfig",  # Elo ranking comparison parameters
-    "ComparisonData",  # Comparison result data
     # ==========================================================================
     # Core Pydantic V2 Config Models (PRIMARY - Phase 2 modernization)
     # ==========================================================================
@@ -149,7 +149,6 @@ __all__ = [
     # Will eventually use EgregoraConfig internally.
     "ProcessConfig",  # CLI process command parameters
     "RAGConfig",  # Retrieval settings
-    "RankingCliConfig",  # Ranking CLI parameters
     # ==========================================================================
     # Site Paths & MkDocs Utilities
     # ==========================================================================
