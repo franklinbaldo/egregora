@@ -398,10 +398,17 @@ uv run bandit -r src/egregora
 - **Session 1**: -1,089 lines net (-1,266 deleted, +177 added)
   - Telemetry: -544 lines
   - Output formats: -545 lines
+- **Session 2** (Phase 2 items): -1,559 lines total
+  - Dead code removal (F): -10 lines
+  - Duplicate adapters (E): -901 lines
+  - Streaming removal (G): -648 lines
+
+**Total reduction across sessions**: -2,648 lines
 
 ### Test Coverage
 - **Before**: Unknown
 - **After Session 1**: ~90% passing (750+ tests)
+- **After Session 2**: 93% passing (646/693 tests)
 - **Target**: 95%+ passing
 
 ### Build Time
@@ -432,4 +439,48 @@ uv run bandit -r src/egregora
 - Tests maintained throughout (no "fix later" commits)
 - Documentation updated inline with code changes
 
-**Last updated**: 2025-11-12 after Session 1 completion
+## Session 2 Summary (2025-11-12)
+
+**Phase 2 (P2 Improvements) - Partial completion**
+
+### Completed Items
+
+#### F. Dead Code Removal (-10 lines)
+- Removed 5 unused imports from `config/__init__.py`
+- Removed 2 commented-out imports
+- **Commit**: `1392bb3`
+
+#### E. Input Adapter Consistency (-901 lines)
+- Discovered and removed entire duplicate directory `input_adapters/adapters/`
+- All adapter tests pass (59/59)
+- **Commit**: `219ac8e`
+
+#### G. Streaming.py Removal (-648 lines)
+- **Problem**: Premature optimization for data that fits in memory
+- **Impact**: Simplified RAG search, enrichment batching
+- **Deleted**: `database/streaming/` + tests
+- **Simplified**: `enrichment/batch.py` (70 lines → 20 lines)
+- **Commit**: `e1e968f`
+
+### D. DuckDB Connection Management - Audit Complete
+
+**Findings from audit**:
+- ✅ **DuckDBStorageManager exists but unused** - Modern pattern available in `database/duckdb_manager.py`
+- 🔴 **write_pipeline.py has duplicate connection code** - Lines 426-429 duplicated at 770-775
+- ✅ **Specialized stores correct** - AnnotationStore, VectorStore have valid reasons for custom patterns
+- ✅ **Streaming utils deleted** - No longer applicable after streaming removal
+
+**Recommendation**: Extract connection helpers in `write_pipeline.py` (15 min work, saves 50+ lines)
+
+### Key Insights
+
+1. **Streaming was unnecessary** - Windows are 100-1000 messages, RAG queries return 5-50 results
+2. **Duplicate directories exist** - Found entire duplicate `adapters/` subtree
+3. **Alpha mindset works** - Removed -2,648 lines without breaking functionality
+4. **DuckDBStorageManager underutilized** - Exists but not adopted
+
+**Next steps**: Consider DuckDB connection refactoring (low priority, already working)
+
+---
+
+**Last updated**: 2025-11-12 after Session 2 (Phase 2 partial)
