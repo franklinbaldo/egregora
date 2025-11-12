@@ -234,75 +234,96 @@ These stages are coordinated by the **orchestration layer** (`orchestration/`), 
 
 ## Code Structure
 
-**Three-Layer Architecture**: The codebase follows clean architecture with explicit separation:
+**Three-Layer Functional Architecture**: The codebase follows clean architecture with explicit separation of concerns. **No PipelineStage abstraction** - all transformations are pure functions (Table → Table).
+
+### Why Functional?
+
+**ELIMINATED** (2025-01-12): `PipelineStage` class hierarchy. The OOP stage abstraction added unnecessary ceremony for what are fundamentally simple functional transformations. Benefits of removal:
+
+- ✅ **Simpler**: Functions > Classes for Table → Table transforms
+- ✅ **Explicit**: `orchestration/` sequences steps directly, no dynamic discovery
+- ✅ **Functional**: Embraces "Functional transforms: Table → Table" (Design Principles)
+- ✅ **Less boilerplate**: -811 lines of code, clearer intent
+
+**Validation** still enforced via `@validate_stage` decorator (now supports plain functions):
+
+```python
+from egregora.database import validate_stage
+
+@validate_stage
+def filter_messages(data: Table, min_length: int = 0) -> Table:
+    return data.filter(data.text.length() >= min_length)
+```
+
+### Three Layers
 
 **Layer 3: Business Workflows** (`orchestration/`)
 - High-level execution flows for user-facing commands
-- Coordinates stages to accomplish specific goals
+- Explicitly sequences functional transformations
 - `write_pipeline.py`: Complete write workflow (ingest → process → generate → publish)
 
-**Layer 2: Infrastructure** (`pipeline/`, `input_adapters/`, `output_adapters/`)
-- Generic, reusable mechanisms for data processing
-- `pipeline/`: Windowing, tracking, views, validation
-- `input_adapters/`: Brings external data IN
-- `output_adapters/`: Takes structured data OUT
+**Layer 2: Infrastructure** (`transformations/`, `input_adapters/`, `output_adapters/`, `database/`)
+- **`transformations/`**: Pure functional data manipulation (windowing, media processing)
+- **`database/`**: Persistence, tracking, views, validation (infrastructure + state)
+- **`input_adapters/`**: Brings external data IN to the system
+- **`output_adapters/`**: Takes structured data OUT for publication
 
-**Layer 1: Foundation** (`data_primitives/`, `database/`)
-- Core data models and persistence
-- `data_primitives/`: Document, GroupSlug, PostSlug
-- `database/`: DuckDB management, IR schemas
+**Layer 1: Foundation** (`data_primitives/`)
+- Core data models: Document, DocumentType, GroupSlug, PostSlug
+- Universal data types used across all layers
 
 ```
 src/egregora/
 ├── cli.py                    # Entry point → delegates to orchestration/
-├── orchestration/            # HIGH-LEVEL WORKFLOWS
-│   ├── write_pipeline.py    # Write command orchestration (WHAT to execute)
+├── orchestration/            # BUSINESS WORKFLOWS (Layer 3)
+│   ├── write_pipeline.py    # Write workflow: ingest → process → generate → publish
 │   ├── read_pipeline.py     # (Future) Read agent workflow
 │   └── edit_pipeline.py     # (Future) Edit agent workflow
-├── data_primitives/          # CORE DATA MODELS
+├── data_primitives/          # FOUNDATION (Layer 1)
 │   ├── document.py          # Document, DocumentType, DocumentCollection
 │   └── base_types.py        # GroupSlug, PostSlug
-├── database/
-│   ├── ir_schema.py         # All schemas (renamed from schemas.py)
-│   ├── duckdb_manager.py    # DuckDBStorageManager (C.2) (renamed from storage.py)
-│   └── validation.py        # IR validation
-├── config/
-│   ├── settings.py          # Pydantic settings models (renamed from schema.py)
-│   └── ...                  # Other config files
-├── pipeline/
+├── transformations/          # PURE FUNCTIONAL TRANSFORMATIONS (Layer 2)
+│   ├── windowing.py         # create_windows, Window, checkpointing
+│   └── media.py             # Media reference processing
+├── database/                 # INFRASTRUCTURE & STATE (Layer 2)
+│   ├── ir_schema.py         # IR schema definitions
+│   ├── duckdb_manager.py    # DuckDB connection management (C.2)
+│   ├── validation.py        # Schema validation, @validate_stage decorator
 │   ├── views.py             # View registry (C.1)
-│   ├── tracking.py          # Run tracking (D.1)
-│   └── checkpoint.py        # Content-addressed checkpointing
-├── sources/                  # InputAdapter base class
-├── input_adapters/           # Concrete input adapters (renamed from adapters/)
+│   └── tracking.py          # Run tracking & observability (D.1)
+├── config/
+│   ├── settings.py          # Pydantic settings models
+│   └── ...                  # Other config files
+├── sources/                  # InputAdapter base protocol
+├── input_adapters/           # INPUT ADAPTERS (Layer 2)
 │   ├── whatsapp.py          # WhatsAppAdapter
 │   └── slack.py             # SlackAdapter
-├── privacy/                  # Anonymization, PII
-├── enrichment/               # LLM enrichment
+├── privacy/                  # Anonymization, PII detection
+├── enrichment/               # LLM-powered enrichment
 ├── agents/
 │   ├── writer/
-│   │   ├── writer_runner.py # Main orchestration (renamed from core.py)
-│   │   ├── context_builder.py # Prompt context (renamed from context.py)
-│   │   └── agent.py         # Writer agent
+│   │   ├── writer_runner.py # Agent coordination
+│   │   ├── context_builder.py # Prompt building
+│   │   └── agent.py         # Pydantic-AI writer agent
 │   ├── banner/
-│   │   └── image_generator.py # Banner generation (renamed from generator.py)
+│   │   └── image_generator.py # Banner/hero image generation
 │   ├── shared/
-│   │   ├── llm_tools.py     # LLM tool functions (renamed from shared.py)
-│   │   ├── author_profiles.py # Author profiling (renamed from profiler.py)
+│   │   ├── llm_tools.py     # Shared LLM utilities
+│   │   ├── author_profiles.py # Author profiling
 │   │   └── rag/             # RAG implementation
 │   ├── editor/              # Post refinement
-│   ├── ranking/             # Elo
-│   └── tools/               # Skills and tool injection
-├── output_adapters/          # Concrete output adapters (renamed from rendering/)
+│   ├── ranking/             # Elo ranking
+│   └── tools/               # Agent skills & tool injection
+├── output_adapters/          # OUTPUT ADAPTERS (Layer 2)
 │   ├── base.py              # OutputAdapter protocol
 │   ├── mkdocs_output_adapter.py  # MkDocs implementation
 │   └── mkdocs_site.py       # MkDocs site structure
-├── storage/                  # Output adapter utilities
-│   └── output_adapter.py    # OutputAdapter base implementations
+├── storage/                  # Output adapter base implementations
+│   └── output_adapter.py    # Shared adapter logic
 └── utils/
     ├── telemetry.py         # OpenTelemetry (D.2)
-    ├── file_system.py       # File utilities (renamed from filesystem.py)
-    ├── time_utils.py        # Date/time utilities (renamed from dates.py)
+    ├── file_system.py       # File utilities
+    ├── time_utils.py        # Date/time utilities
     └── cache.py             # DiskCache
 ```
 
