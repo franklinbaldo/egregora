@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
 from pathlib import Path
+from urllib.parse import urlparse
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
@@ -385,10 +386,27 @@ def _perform_enrichment(
     )
 
 
+def _is_connection_uri(value: str) -> bool:
+    """Return True if the provided value looks like a DB connection URI."""
+
+    if not value:
+        return False
+
+    parsed = urlparse(value)
+    if not parsed.scheme:
+        return False
+
+    # Handle Windows drive letters (e.g. C:/path or C:\path)
+    if len(parsed.scheme) == 1 and value[1:3] in {":/", ":\\"}:
+        return False
+
+    return True
+
+
 def _create_database_backends(
     site_root: Path,
     config: EgregoraConfig,
-) -> tuple[Path, any, any]:
+) -> tuple[Path | str, any, any]:
     """Create database backends for pipeline and runs tracking.
 
     Uses Ibis for database abstraction, allowing future migration to
@@ -399,20 +417,25 @@ def _create_database_backends(
         config: Egregora configuration
 
     Returns:
-        Tuple of (runtime_db_path, pipeline_backend, runs_backend)
+        Tuple of (runtime_db_path, pipeline_backend, runs_backend) where
+        ``runtime_db_path`` may be a filesystem ``Path`` or a connection URI string.
 
     """
-    # Resolve database paths from config
-    runtime_db_path = site_root / config.database.pipeline_db
-    runs_db_path = site_root / config.database.runs_db
+    def _resolve_backend(value: str) -> tuple[Path | str, any]:
+        if _is_connection_uri(value):
+            return value, ibis.connect(value)
 
-    # Ensure parent directories exist
-    runtime_db_path.parent.mkdir(parents=True, exist_ok=True)
-    runs_db_path.parent.mkdir(parents=True, exist_ok=True)
+        db_path = Path(value).expanduser()
+        if not db_path.is_absolute():
+            db_path = (site_root / db_path).resolve()
+        else:
+            db_path = db_path.resolve()
 
-    # Create Ibis backends (database-agnostic)
-    pipeline_backend = ibis.connect(f"duckdb://{runtime_db_path}")
-    runs_backend = ibis.connect(f"duckdb://{runs_db_path}")
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        return db_path, ibis.connect(f"duckdb://{db_path}")
+
+    runtime_db_path, pipeline_backend = _resolve_backend(config.database.pipeline_db)
+    runs_db_path, runs_backend = _resolve_backend(config.database.runs_db)
 
     return runtime_db_path, pipeline_backend, runs_backend
 
@@ -421,7 +444,7 @@ def _setup_pipeline_environment(
     output_dir: Path, config: EgregoraConfig, api_key: str | None, model_override: str | None
 ) -> tuple[
     any,
-    Path,
+    Path | str,
     any,
     any,
     str | None,
