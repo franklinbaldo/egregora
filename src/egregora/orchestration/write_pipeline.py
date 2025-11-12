@@ -384,6 +384,31 @@ def _perform_enrichment(
     )
 
 
+def _create_duckdb_connections(
+    site_root: Path,
+) -> tuple[Path, duckdb.DuckDBPyConnection, any, duckdb.DuckDBPyConnection]:
+    """Create DuckDB connections for pipeline and runs tracking.
+
+    Args:
+        site_root: Root directory for the site
+
+    Returns:
+        Tuple of (runtime_db_path, connection, backend, runs_conn)
+
+    """
+    # Setup pipeline database connection
+    runtime_db_path = site_root / ".egregora" / "pipeline.duckdb"
+    runtime_db_path.parent.mkdir(parents=True, exist_ok=True)
+    connection = duckdb.connect(str(runtime_db_path))
+    backend = ibis.duckdb.from_connection(connection)
+
+    # Setup runs tracking database
+    runs_db_path = site_root / ".egregora" / "runs.duckdb"
+    runs_conn = duckdb.connect(str(runs_db_path))
+
+    return runtime_db_path, connection, backend, runs_conn
+
+
 def _setup_pipeline_environment(
     output_dir: Path, config: EgregoraConfig, api_key: str | None, model_override: str | None
 ) -> tuple[
@@ -423,14 +448,7 @@ def _setup_pipeline_environment(
         raise ValueError(msg)
 
     # Setup database connections
-    runtime_db_path = site_paths.site_root / ".egregora" / "pipeline.duckdb"
-    runtime_db_path.parent.mkdir(parents=True, exist_ok=True)
-    connection = duckdb.connect(str(runtime_db_path))
-    backend = ibis.duckdb.from_connection(connection)
-
-    # Setup runs tracking database
-    runs_db_path = site_paths.site_root / ".egregora" / "runs.duckdb"
-    runs_conn = duckdb.connect(str(runs_db_path))
+    runtime_db_path, connection, backend, runs_conn = _create_duckdb_connections(site_paths.site_root)
 
     # Setup Gemini client
     # Configure aggressive retry options to handle rate limits efficiently
@@ -767,12 +785,7 @@ def run(
         if not site_paths.docs_dir.exists():
             msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
             raise ValueError(msg)
-        runtime_db_path = site_paths.site_root / ".egregora" / "pipeline.duckdb"
-        runtime_db_path.parent.mkdir(parents=True, exist_ok=True)
-        connection = duckdb.connect(str(runtime_db_path))
-        backend = ibis.duckdb.from_connection(connection)
-        runs_db_path = site_paths.site_root / ".egregora" / "runs.duckdb"
-        runs_conn = duckdb.connect(str(runs_db_path))
+        runtime_db_path, connection, backend, runs_conn = _create_duckdb_connections(site_paths.site_root)
         cli_model_override = model_override
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         enrichment_cache = EnrichmentCache(cache_dir)
