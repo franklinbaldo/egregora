@@ -17,8 +17,8 @@ from pydantic_ai.messages import (
 
 from egregora.agents.writer.agent import (
     JournalEntry,
-    _extract_journal_content,
     _extract_intercalated_log,
+    _extract_journal_content,
     _extract_thinking_content,
     _save_journal_to_file,
 )
