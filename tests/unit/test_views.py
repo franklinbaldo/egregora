@@ -3,7 +3,7 @@
 import ibis
 import pytest
 
-from egregora.database.views import ViewBuilder, ViewRegistry, views
+from egregora.database.views import ViewRegistry, views
 
 
 @pytest.fixture
