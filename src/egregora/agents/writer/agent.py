@@ -63,6 +63,7 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.streaming import stream_ibis
 from egregora.storage.output_adapter import OutputAdapter
 from egregora.storage.url_convention import UrlContext, UrlConvention
+
 if TYPE_CHECKING:
     from pydantic_ai.result import RunResult
 

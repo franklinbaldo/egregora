@@ -35,7 +35,6 @@ logger = logging.getLogger(__name__)
 @app.callback()
 def _initialize_cli() -> None:
     """Initialize CLI (placeholder for future setup)."""
-    pass
 
 
 def _resolve_gemini_key(cli_override: str | None) -> str | None:
