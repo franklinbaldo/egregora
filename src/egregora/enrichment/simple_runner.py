@@ -130,6 +130,80 @@ def _create_enrichment_row(
     }
 
 
+def _serve_enrichment_document(
+    document: Document,
+    context: "EnrichmentRuntimeContext",
+    *,
+    source_url: str | None = None,
+    media_path: Path | None = None,
+) -> None:
+    """Persist an enrichment document using legacy or modern output formats.
+
+    The enrichment pipeline is being migrated from the legacy MkDocs coordinator
+    (which exposes ``enrichments.write_*`` helpers) to the new OutputFormat
+    ``serve()`` API. During the transition, the pipeline may receive either
+    implementation. This helper detects the available interface and performs the
+    appropriate persistence call, ensuring backwards compatibility.
+
+    Args:
+        document: Document to persist.
+        context: Runtime context containing the output format instance.
+        source_url: Original URL for URL enrichments (legacy API requirement).
+        media_path: Absolute path to the media file for media enrichments.
+
+    Raises:
+        AttributeError: If the output format exposes neither ``serve`` nor
+            ``enrichments`` helpers.
+        ValueError: If required contextual information is missing for the
+            legacy persistence helpers.
+    """
+
+    output_format = context.output_format
+    serve_fn = getattr(output_format, "serve", None)
+    if callable(serve_fn):
+        serve_fn(document)
+        return
+
+    enrichments = getattr(output_format, "enrichments", None)
+    if enrichments is None:
+        msg = (
+            "Output format does not implement 'serve' or legacy enrichment helpers; "
+            "cannot persist enrichment document"
+        )
+        raise AttributeError(msg)
+
+    if document.type == DocumentType.ENRICHMENT_URL:
+        if source_url is None:
+            raise ValueError("source_url is required for legacy URL enrichment writes")
+        enrichments.write_url_enrichment(source_url, document.content)
+        return
+
+    if document.type == DocumentType.ENRICHMENT_MEDIA:
+        if media_path is None:
+            raise ValueError("media_path is required for legacy media enrichment writes")
+
+        # Legacy API expects a path relative to the site root. Fall back to the
+        # filename if we cannot make it relative (e.g., when site_root is None).
+        relative_path: str
+        if isinstance(media_path, Path):
+            candidate = media_path
+        else:
+            candidate = Path(media_path)
+
+        if candidate.is_absolute() and context.site_root is not None:
+            try:
+                relative_path = str(candidate.relative_to(context.site_root))
+            except ValueError:
+                relative_path = candidate.name
+        else:
+            relative_path = str(candidate)
+
+        enrichments.write_media_enrichment(relative_path, document.content)
+        return
+
+    raise ValueError(f"Unsupported document type for enrichment persistence: {document.type}")
+
+
 def _process_single_url(
     url: str,
     url_agent: Any,
@@ -171,7 +245,7 @@ def _process_single_url(
         type=DocumentType.ENRICHMENT_URL,
         metadata={"url": url},
     )
-    context.output_format.serve(doc)
+    _serve_enrichment_document(doc, context, source_url=url)
     enrichment_id_str = doc.document_id
     return enrichment_id_str, markdown
 
@@ -252,7 +326,7 @@ def _process_single_media(
             "media_type": media_type,
         },
     )
-    context.output_format.serve(doc)
+    _serve_enrichment_document(doc, context, media_path=file_path)
     enrichment_id_str = doc.document_id
 
     return enrichment_id_str, markdown_content, pii_detected
