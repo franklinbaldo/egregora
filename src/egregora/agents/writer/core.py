@@ -485,18 +485,24 @@ def _write_posts_for_window_pydantic(
     # All document persistence now uses OutputFormat directly
     document_storage = None
 
-    # MODERN (Phase 4): Create backend-agnostic publishing components
-    # URL convention and output format for perfect separation
-    url_convention = LegacyMkDocsUrlConvention()
+    # MODERN (Phase 4+6): Create runtime output format based on configuration
+    # Different from line 474 which uses registry (old pattern) for instructions only
+    # Runtime needs NEW pattern with constructor injection for url_convention support
     url_context = UrlContext(base_url="", site_prefix="", base_path=storage_root)
-    mkdocs_output_format = MkDocsOutputFormat(site_root=storage_root, url_context=url_context)
 
-    # Verify convention compatibility
-    if mkdocs_output_format.url_convention.name != url_convention.name:
+    # Create format-specific runtime output format
+    if format_type == "mkdocs":
+        # Use NEW MkDocsOutputFormat with constructor injection (has url_convention property)
+        runtime_output_format = MkDocsOutputFormat(site_root=storage_root, url_context=url_context)
+        url_convention = runtime_output_format.url_convention
+    else:
+        # For other formats (Hugo, etc.), fall back to old pattern for now
+        # TODO: Implement NEW pattern for Hugo with url_convention support
+        runtime_output_format = output_format
+        url_convention = LegacyMkDocsUrlConvention()  # Temporary fallback
         logger.warning(
-            "Convention mismatch: Core uses %s, Format uses %s",
-            url_convention.name,
-            mkdocs_output_format.url_convention.name,
+            "Format %s does not support NEW url_convention pattern yet, using fallback",
+            format_type,
         )
 
     # Create runtime context for writer agent (MODERN Phase 6: OutputFormat with read support)
@@ -506,7 +512,7 @@ def _write_posts_for_window_pydantic(
         # Backend-agnostic publishing (MODERN Phase 4+6)
         url_convention=url_convention,
         url_context=url_context,
-        output_format=mkdocs_output_format,
+        output_format=runtime_output_format,
         # Pre-constructed stores
         rag_store=rag_store,
         annotations_store=annotations_store,
@@ -514,10 +520,6 @@ def _write_posts_for_window_pydantic(
         client=client,
         # Prompt templates directory
         prompts_dir=prompts_dir,
-        # Paths for non-document features
-        output_dir=config.output_dir,
-        rag_dir=config.rag_dir,
-        site_root=site_root,
     )
 
     # Format timestamps for LLM prompt (human-readable)

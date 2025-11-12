@@ -118,12 +118,6 @@ class WriterRuntimeContext:
     # Prompt templates directory (resolved by caller, not constructed here)
     prompts_dir: Path | None = None
 
-    # Paths still needed for specific features (non-document persistence)
-    # TODO: Further refactoring could inject specialized handlers instead
-    output_dir: Path | None = None  # Used for banner generation fallback
-    rag_dir: Path | None = None  # Used for RAG queries
-    site_root: Path | None = None  # Used for banner generation
-
 
 class PostMetadata(BaseModel):
     """Metadata schema for the write_post tool."""
@@ -216,11 +210,6 @@ class WriterAgentState(BaseModel):
     retrieval_mode: str
     retrieval_nprobe: int | None
     retrieval_overfetch: int | None
-
-    # Paths still needed for specific features (non-document persistence)
-    output_dir: Path | None = None  # Used for banner generation fallback
-    rag_dir: Path | None = None  # Used for RAG queries
-    site_root: Path | None = None  # Used for banner generation
 
 
 def _extract_thinking_content(messages: MessageHistory) -> list[str]:
@@ -720,13 +709,9 @@ def _register_writer_tools(
         def generate_banner_tool(
             ctx: RunContext[WriterAgentState], post_slug: str, title: str, summary: str
         ) -> BannerResult:
-            # Save banners to media/images/ at site root (same as other media)
+            # Save banners to media/images/ (use output_format.media_dir to respect format abstraction)
             # Banners will be enriched through the same pipeline as other media
-            if ctx.deps.site_root:
-                banner_output_dir = ctx.deps.site_root / "media" / "images"
-            else:
-                # Fallback: use output_dir (posts_dir) if site_root not available
-                banner_output_dir = ctx.deps.output_dir / "media" / "images"
+            banner_output_dir = ctx.deps.output_format.media_dir / "images"
 
             banner_path = generate_banner_for_post(
                 post_title=title, post_summary=summary, output_dir=banner_output_dir, slug=post_slug
@@ -785,10 +770,6 @@ def _setup_agent_and_state(
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
-        # Paths for non-document features
-        output_dir=context.output_dir,
-        rag_dir=context.rag_dir,
-        site_root=context.site_root,
     )
 
     return agent, state, window_label
@@ -1147,9 +1128,5 @@ async def write_posts_with_pydantic_agent_stream(
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
-        # Paths for non-document features
-        output_dir=context.output_dir,
-        rag_dir=context.rag_dir,
-        site_root=context.site_root,
     )
     return WriterStreamResult(agent, state, prompt, context, model_name)
