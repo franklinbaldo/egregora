@@ -18,6 +18,6 @@ __all__ = [
     "anonymize_author",
     "anonymize_mentions",
     "anonymize_table",
-    "validate_text_privacy",
     "validate_newsletter_privacy",  # deprecated - use validate_text_privacy
+    "validate_text_privacy",
 ]

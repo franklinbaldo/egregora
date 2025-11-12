@@ -61,6 +61,7 @@ def validate_text_privacy(text: str) -> bool:
 
     Raises:
         PrivacyViolationError: If PII patterns are found outside UUID contexts
+
     """
     uuid_spans = [(match.start(), match.end()) for match in _UUID_PATTERN.finditer(text)]
     for pattern in _PII_PATTERNS:
@@ -77,4 +78,4 @@ def validate_text_privacy(text: str) -> bool:
 validate_newsletter_privacy = validate_text_privacy
 
 
-__all__ = ["PrivacyViolationError", "validate_text_privacy", "validate_newsletter_privacy"]
+__all__ = ["PrivacyViolationError", "validate_newsletter_privacy", "validate_text_privacy"]
