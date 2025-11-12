@@ -4,10 +4,10 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
-from egregora.core.document import Document, DocumentType
 from egregora.rendering.mkdocs_documents import MkDocsDocumentStorage
 from egregora.storage.documents import DocumentStorage
+
+from egregora.core.document import Document, DocumentType
 
 
 class TestDocumentStorageProtocol:

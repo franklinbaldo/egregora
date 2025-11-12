@@ -4,11 +4,11 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from egregora.storage.documents import DocumentStorage
 from egregora.storage.legacy_adapter import LegacyStorageAdapter
 
 from egregora.core.document import Document, DocumentType
 from egregora.rendering.mkdocs import MkDocsJournalStorage, MkDocsPostStorage, MkDocsProfileStorage
-from egregora.storage.documents import DocumentStorage
 
 
 class TestLegacyStorageAdapter:
