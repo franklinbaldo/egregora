@@ -33,16 +33,16 @@ from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig
+from egregora.database.tracking import fingerprint_window, record_run
+from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.input_adapters import get_adapter
 from egregora.output_adapters.mkdocs_site import resolve_site_paths
+from egregora.sources.whatsapp.parser import extract_commands, filter_egregora_messages
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.transformations.media import process_media_for_window
-from egregora.database.tracking import fingerprint_window, record_run
-from egregora.database.validation import validate_ir_schema
-from egregora.sources.whatsapp.parser import extract_commands, filter_egregora_messages
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.telemetry import get_current_trace_id
 
