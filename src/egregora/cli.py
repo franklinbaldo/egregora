@@ -202,6 +202,96 @@ def init(
         )
 
 
+def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -> None:
+    """Validate process configuration and run the pipeline.
+
+    Phase 4: Simplified by extracting validation logic to helper functions.
+    """
+    if config.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    # Validate timezone
+    if config.timezone:
+        try:
+            ZoneInfo(config.timezone)
+            console.print(f"[green]Using timezone: {config.timezone}[/green]")
+        except Exception as e:
+            console.print(f"[red]Invalid timezone '{config.timezone}': {e}[/red]")
+            raise typer.Exit(1) from e
+
+    # Phase 4: Extracted validation logic
+    _validate_retrieval_config(config)
+
+    # Resolve and ensure output directory
+    output_dir = config.output_dir.expanduser().resolve()
+    config.output_dir = output_dir
+
+    # Phase 4: Extracted scaffold initialization logic
+    _ensure_mkdocs_scaffold(output_dir)
+    api_key = _resolve_gemini_key(config.gemini_key)
+    if not api_key:
+        console.print("[red]Error: GOOGLE_API_KEY not set[/red]")
+        console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
+        raise typer.Exit(1)
+
+    # Load or create EgregoraConfig (Phase 2: reduces parameters)
+    base_config = load_egregora_config(output_dir)
+
+    # Override config values from CLI flags using model_copy
+    egregora_config = base_config.model_copy(
+        deep=True,
+        update={
+            "pipeline": base_config.pipeline.model_copy(
+                update={
+                    "step_size": config.step_size,
+                    "step_unit": config.step_unit,
+                    "overlap_ratio": config.overlap_ratio,
+                    "timezone": config.timezone,
+                    "from_date": config.from_date.isoformat() if config.from_date else None,
+                    "to_date": config.to_date.isoformat() if config.to_date else None,
+                    "max_prompt_tokens": config.max_prompt_tokens,
+                    "use_full_context_window": config.use_full_context_window,
+                }
+            ),
+            "enrichment": base_config.enrichment.model_copy(update={"enabled": config.enable_enrichment}),
+            "rag": base_config.rag.model_copy(
+                update={
+                    "mode": config.retrieval_mode or base_config.rag.mode,
+                    "nprobe": config.retrieval_nprobe
+                    if config.retrieval_nprobe is not None
+                    else base_config.rag.nprobe,
+                    "overfetch": config.retrieval_overfetch
+                    if config.retrieval_overfetch is not None
+                    else base_config.rag.overfetch,
+                }
+            ),
+        },
+    )
+
+    try:
+        console.print(
+            Panel(
+                f"[cyan]Source:[/cyan] {source}\n[cyan]Input:[/cyan] {config.zip_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {config.step_size} {config.step_unit}",
+                title="⚙️  Egregora Pipeline",
+                border_style="cyan",
+            )
+        )
+        run_source_pipeline(
+            source=source,
+            input_path=config.zip_file,
+            output_dir=config.output_dir,
+            config=egregora_config,
+            api_key=api_key,
+            model_override=config.model,
+        )
+        console.print("[green]Processing completed successfully.[/green]")
+    except Exception as e:
+        console.print(f"[red]Pipeline failed: {e}[/red]")
+        if config.debug:
+            raise
+        raise typer.Exit(1) from e
+
+
 @app.command()
 def write(
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
