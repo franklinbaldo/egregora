@@ -32,9 +32,8 @@ transformations/ sits in the middle layer of Egregora's architecture:
 All transformations operate on Ibis Table objects and preserve the IR schema
 contract (see database.validation for schema enforcement).
 
-Examples:
----------
-
+Examples
+--------
 Windowing by message count:
     >>> from egregora.transformations import create_windows
     >>> windows = create_windows(table, step_size=100, step_unit="messages")

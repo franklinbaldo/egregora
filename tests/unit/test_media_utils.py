@@ -5,11 +5,11 @@ from pathlib import Path
 
 import ibis
 
+from egregora.sources.base import InputAdapter
 from egregora.transformations.media import (
     extract_markdown_media_refs,
     replace_markdown_media_refs,
 )
-from egregora.sources.base import InputAdapter
 
 
 class TestExtractMarkdownMediaRefs:

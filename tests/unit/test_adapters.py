@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
+from egregora.database.validation import validate_ir_schema
 from egregora.input_adapters import ADAPTER_REGISTRY, get_adapter
 from egregora.input_adapters.slack import SlackAdapter
 from egregora.input_adapters.whatsapp import WhatsAppAdapter
-from egregora.database.validation import validate_ir_schema
 
 
 class TestAdapterRegistry:
