@@ -1,0 +1,5 @@
+trusted_branches:
+  - main
+  - develop
+trusted_keys:
+  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHlvdXJfcHVibGljX2tleV9oZXJl"

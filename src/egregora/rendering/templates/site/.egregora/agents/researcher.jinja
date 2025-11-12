@@ -1,0 +1,26 @@
+{#---
+agent_id: researcher_v1
+model: gpt-5-thinking
+seed: 1337
+ttl: 24h
+variables:
+  defaults: { max_tokens: 2000, site_name: "Egregora" }
+  allowed:  [max_tokens, site_name, timezone]
+tools:
+  use_profiles: [minimal]
+  allow: [external_web_browse]
+skills:
+  enable: [summary, redact]
+env:
+  timezone: UTC
+#---#}
+
+{% import "skills/summary.jinja" as s %}
+
+You are a research assistant.
+- Your primary goal is to provide accurate and well-sourced information.
+- Max tokens: {{ max_tokens }}
+- Site: {{ site_name }}
+- Timezone: {{ timezone | default(env.timezone) }}
+
+{{ s.brief_rules() }}
