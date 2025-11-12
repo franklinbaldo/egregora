@@ -15,6 +15,7 @@ import logging
 import re
 import zipfile
 from datetime import UTC, datetime
+import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 
@@ -129,6 +130,9 @@ class WhatsAppAdapter(InputAdapter):
 
     """
 
+    def __init__(self, *, author_namespace: uuid.UUID | None = None) -> None:
+        self._author_namespace = author_namespace or uuid.NAMESPACE_URL
+
     @property
     def source_name(self) -> str:
         return "WhatsApp"
@@ -196,7 +200,15 @@ class WhatsAppAdapter(InputAdapter):
             return _convert_whatsapp_media_to_markdown(message)
 
         messages_table = messages_table.mutate(message=convert_media_to_markdown(messages_table.message))
-        ir_table = create_ir_table(messages_table, timezone=timezone)
+        tenant_id = str(export.group_slug)
+        ir_table = create_ir_table(
+            messages_table,
+            tenant_id=tenant_id,
+            source=self.source_identifier,
+            thread_key=tenant_id,
+            timezone=timezone,
+            author_namespace=self._author_namespace,
+        )
         logger.debug("Parsed WhatsApp export with %s messages", ir_table.count().execute())
         return ir_table
 
