@@ -7,26 +7,34 @@ from typing import Annotated
 from zoneinfo import ZoneInfo
 
 import typer
+from rich.console import Console
+from rich.logging import RichHandler
 from rich.panel import Panel
 
 from egregora.config import ProcessConfig, load_egregora_config
 from egregora.config.validation import parse_date_arg, validate_retrieval_config
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration import write_pipeline
-from egregora.utils.logging_setup import configure_logging, console
 
 app = typer.Typer(
     name="egregora",
     help="Ultra-simple WhatsApp to blog pipeline with LLM-powered content generation",
     add_completion=False,
 )
+
+# Simple logging setup (no telemetry)
+console = Console()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    handlers=[RichHandler(console=console, rich_tracebacks=True, show_path=False)],
+)
 logger = logging.getLogger(__name__)
 
 
 @app.callback()
 def _initialize_cli() -> None:
-    """Configure logging when the CLI is invoked."""
-    configure_logging()
+    """Initialize CLI (placeholder for future setup)."""
 
 
 def _resolve_gemini_key(cli_override: str | None) -> str | None:

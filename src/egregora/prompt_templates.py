@@ -166,7 +166,7 @@ class WriterPromptTemplate(PromptTemplate):
     format_instructions: str = ""  # Output format conventions (MkDocs, Hugo, etc.)
     profiles_context: str = ""
     rag_context: str = ""
-    freeform_memory: str = ""
+    journal_memory: str = ""
     enable_memes: bool = False
     prompts_dir: Path | None = None  # Custom prompts directory
     env: Environment | None = None
@@ -184,7 +184,7 @@ class WriterPromptTemplate(PromptTemplate):
             format_instructions=self.format_instructions,
             profiles_context=self.profiles_context,
             rag_context=self.rag_context,
-            freeform_memory=self.freeform_memory,
+            journal_memory=self.journal_memory,
             enable_memes=self.enable_memes,
         )
 

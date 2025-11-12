@@ -63,7 +63,6 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.streaming import stream_ibis
 from egregora.storage.output_adapter import OutputAdapter
 from egregora.storage.url_convention import UrlContext, UrlConvention
-from egregora.utils.logfire_config import logfire_info, logfire_span
 
 if TYPE_CHECKING:
     from pydantic_ai.result import RunResult
@@ -232,39 +231,39 @@ def _extract_thinking_content(messages: MessageHistory) -> list[str]:
     return thinking_contents
 
 
-def _extract_freeform_content(messages: MessageHistory) -> str:
-    """Extract freeform content from agent message history.
+def _extract_journal_content(messages: MessageHistory) -> str:
+    """Extract journal content from agent message history.
 
-    Freeform content is plain text output from the model that's NOT a tool call.
+    Journal content is plain text output from the model that's NOT a tool call.
     This is typically the model's continuity journal / reflection memo.
 
     Args:
         messages: Agent message history from result.all_messages()
 
     Returns:
-        Combined freeform content as a single string
+        Combined journal content as a single string
 
     """
-    freeform_parts: list[str] = []
+    journal_parts: list[str] = []
 
     for message in messages:
         # Check if this is a ModelResponse message
         if isinstance(message, ModelResponse):
             # Iterate through parts to find TextPart (non-tool text output)
-            freeform_parts.extend(part.content for part in message.parts if isinstance(part, TextPart))
+            journal_parts.extend(part.content for part in message.parts if isinstance(part, TextPart))
 
-    return "\n\n".join(freeform_parts).strip()
+    return "\n\n".join(journal_parts).strip()
 
 
 @dataclass(frozen=True)
 class JournalEntry:
     """Represents a single entry in the intercalated journal log.
 
-    Each entry is one of: thinking, freeform text, or tool usage.
+    Each entry is one of: thinking, journal text, or tool usage.
     Entries preserve the actual execution order from the agent's message history.
     """
 
-    entry_type: str  # "thinking", "freeform", "tool_call", "tool_return"
+    entry_type: str  # "thinking", "journal", "tool_call", "tool_return"
     content: str
     timestamp: datetime | None = None
     tool_name: str | None = None
@@ -275,7 +274,7 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
 
     Processes agent message history to create a timeline showing:
     - Model thinking/reasoning
-    - Freeform text output
+    - Journal text output
     - Tool calls and their returns
 
     Args:
@@ -288,7 +287,7 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
     entries: list[JournalEntry] = []
 
     for message in messages:
-        # Handle ModelResponse (contains thinking and freeform output)
+        # Handle ModelResponse (contains thinking and journal output)
         if isinstance(message, ModelResponse):
             for part in message.parts:
                 if isinstance(part, ThinkingPart):
@@ -302,7 +301,7 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
                 elif isinstance(part, TextPart):
                     entries.append(
                         JournalEntry(
-                            entry_type="freeform",
+                            entry_type="journal",
                             content=part.content,
                             timestamp=getattr(message, "timestamp", None),
                         )
@@ -904,26 +903,12 @@ def _log_agent_completion(
     result_payload = getattr(result, "output", getattr(result, "data", result))
     usage = result.usage()
 
-    logfire_info(
-        "Writer agent completed",
-        period=window_label,
-        posts_created=len(saved_posts),
-        profiles_updated=len(saved_profiles),
-        journal_saved=True,
-        journal_entries=len(intercalated_log),
-        journal_thinking_entries=sum(1 for e in intercalated_log if e.entry_type == "thinking"),
-        journal_freeform_entries=sum(1 for e in intercalated_log if e.entry_type == "freeform"),
-        journal_tool_calls=sum(1 for e in intercalated_log if e.entry_type == "tool_call"),
-        tokens_total=usage.total_tokens if usage else 0,
-        tokens_input=usage.input_tokens if usage else 0,
-        tokens_output=usage.output_tokens if usage else 0,
-        tokens_cache_write=usage.cache_write_tokens if usage else 0,
-        tokens_cache_read=usage.cache_read_tokens if usage else 0,
-        tokens_input_audio=usage.input_audio_tokens if usage else 0,
-        tokens_cache_audio_read=usage.cache_audio_read_tokens if usage else 0,
-        tokens_thinking=(usage.details or {}).get("thinking_tokens", 0) if usage else 0,
-        tokens_reasoning=(usage.details or {}).get("reasoning_tokens", 0) if usage else 0,
-        usage_details=usage.details if usage and usage.details else {},
+    logger.info(
+        "Writer agent completed: period=%s posts=%d profiles=%d tokens=%d",
+        window_label,
+        len(saved_posts),
+        len(saved_profiles),
+        usage.total_tokens if usage else 0,
     )
     logger.info("Writer agent finished with summary: %s", getattr(result_payload, "summary", None))
 
@@ -986,21 +971,20 @@ def write_posts_with_pydantic_agent(
     _validate_prompt_fits(prompt, model_name, config, window_label)
 
     # Execute: Run agent and process results
-    with logfire_span("writer_agent", period=window_label, model=model_name):
-        result = _run_agent_with_retries(agent, state, prompt)
+    result = _run_agent_with_retries(agent, state, prompt)
 
-        # Extract results from agent output
-        saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
+    # Extract results from agent output
+    saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
 
-        # Extract and save journal
-        intercalated_log = _extract_intercalated_log(result.all_messages())
-        _save_journal_to_file(intercalated_log, window_label, context.output_format)
+    # Extract and save journal
+    intercalated_log = _extract_intercalated_log(result.all_messages())
+    _save_journal_to_file(intercalated_log, window_label, context.output_format)
 
-        # Log comprehensive metrics
-        _log_agent_completion(result, saved_posts, saved_profiles, intercalated_log, window_label)
+    # Log comprehensive metrics
+    _log_agent_completion(result, saved_posts, saved_profiles, intercalated_log, window_label)
 
-        # Record conversation if configured
-        _record_agent_conversation(result, context)
+    # Record conversation if configured
+    _record_agent_conversation(result, context)
 
     return saved_posts, saved_profiles
 

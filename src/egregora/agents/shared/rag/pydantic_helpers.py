@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Any
 
 from egregora.agents.shared.rag.embedder import embed_query_text
 from egregora.agents.shared.rag.store import VectorStore
-from egregora.utils.logfire_config import logfire_info, logfire_span
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -69,39 +68,38 @@ async def find_relevant_docs(
         ...     print(f"{doc['post_title']}: {doc['similarity']:.2f}")
 
     """
-    with logfire_span("find_relevant_docs", query_length=len(query), top_k=top_k):
-        try:
-            query_vector = embed_query_text(query, model=embedding_model)
-            store = VectorStore(rag_dir / "chunks.parquet")
-            results = store.search(
-                query_vec=query_vector,
-                top_k=top_k,
-                min_similarity_threshold=min_similarity_threshold,
-                mode=retrieval_mode,
-                nprobe=retrieval_nprobe,
-                overfetch=retrieval_overfetch,
-            )
-            df = results.execute()
-            if getattr(df, "empty", False):
-                logfire_info("No relevant docs found", query=query)
-                return []
-            records = df.to_dict("records")
-            logfire_info("Found relevant docs", count=len(records), query=query)
-            return [
-                {
-                    "content": record.get("content", ""),
-                    "post_title": record.get("post_title", "Untitled"),
-                    "post_date": str(record.get("post_date", "")),
-                    "tags": record.get("tags", []),
-                    "similarity": float(record.get("similarity", 0.0)),
-                    "post_slug": record.get("post_slug", ""),
-                }
-                for record in records
-            ]
-        except Exception as exc:
-            logger.error("Failed to find relevant docs: %s", exc, exc_info=True)
-            logfire_info("RAG retrieval failed", error=str(exc))
+    try:
+        query_vector = embed_query_text(query, model=embedding_model)
+        store = VectorStore(rag_dir / "chunks.parquet")
+        results = store.search(
+            query_vec=query_vector,
+            top_k=top_k,
+            min_similarity_threshold=min_similarity_threshold,
+            mode=retrieval_mode,
+            nprobe=retrieval_nprobe,
+            overfetch=retrieval_overfetch,
+        )
+        df = results.execute()
+        if getattr(df, "empty", False):
+            logger.info("No relevant docs found for query: %s", query[:50])
             return []
+        records = df.to_dict("records")
+        logger.info("Found %d relevant docs for query: %s", len(records), query[:50])
+        return [
+            {
+                "content": record.get("content", ""),
+                "post_title": record.get("post_title", "Untitled"),
+                "post_date": str(record.get("post_date", "")),
+                "tags": record.get("tags", []),
+                "similarity": float(record.get("similarity", 0.0)),
+                "post_slug": record.get("post_slug", ""),
+            }
+            for record in records
+        ]
+    except Exception as exc:
+        logger.error("Failed to find relevant docs: %s", exc, exc_info=True)
+        logger.info("RAG retrieval failed: %s", str(exc))
+        return []
 
 
 def format_rag_context(docs: list[dict[str, Any]]) -> str:

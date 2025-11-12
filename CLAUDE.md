@@ -217,12 +217,6 @@ These stages are coordinated by the **orchestration layer** (`orchestration/`), 
 - Observability only (don't depend on for pipeline logic)
 - Docs: `docs/observability/runs-tracking.md`
 
-**OpenTelemetry (D.2)**:
-- Opt-in: `EGREGORA_OTEL=1`
-- Exporters: Logfire → OTLP → Console
-- No mandatory keys
-- Functions: `get_tracer()`, `get_current_trace_id()`
-
 **Agent Skill Injection (2025-01-11)**:
 - Sub-agents via `use_skill(ctx, "skill-name", "task")`
 - Skills in `.egregora/skills/*.md`
@@ -321,7 +315,6 @@ src/egregora/
 ├── storage/                  # Output adapter base implementations
 │   └── output_adapter.py    # Shared adapter logic
 └── utils/
-    ├── telemetry.py         # OpenTelemetry (D.2)
     ├── file_system.py       # File utilities
     ├── time_utils.py        # Date/time utilities
     └── cache.py             # DiskCache
@@ -397,7 +390,7 @@ settings = AnthropicModelSettings(anthropic_thinking={'type': 'enabled', 'budget
 **Token tracking**: `tokens_input`, `tokens_output`, `tokens_cache_*`, `tokens_thinking`, `tokens_reasoning`
 
 **Journal entries**: Auto-saved to `output/journal/journal_*.md`
-- Intercalated log: thinking + freeform + tool calls/returns
+- Intercalated log: thinking + journal entries + tool calls/returns
 - YAML frontmatter with timestamp
 - Benefits: transparency, debugging, audit trail, continuity
 

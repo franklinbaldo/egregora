@@ -13,7 +13,6 @@ from returns.result import Failure, Result, Success
 from egregora.agents.shared.author_profiles import get_active_authors, read_profile
 from egregora.agents.shared.rag import VectorStore, build_rag_context_for_writer, query_similar_posts
 from egregora.agents.shared.rag.embedder import embed_query_text
-from egregora.utils.logfire_config import logfire_info, logfire_span
 
 logger = logging.getLogger(__name__)
 
@@ -160,27 +159,24 @@ def _query_rag_for_context(
 
     """
     try:
-        with logfire_span("rag_query", query_type="similar_posts"):
-            store = VectorStore(rag_dir / "chunks.parquet")
-            similar_posts = query_similar_posts(
-                table,
-                store,
-                embedding_model=embedding_model,
-                top_k=5,
-                deduplicate=True,
-                retrieval_mode=retrieval_mode,
-                retrieval_nprobe=retrieval_nprobe,
-                retrieval_overfetch=retrieval_overfetch,
-            )
-            if similar_posts.count().execute() == 0:
-                logger.info("No similar previous posts found")
-                logfire_info("RAG query completed", results_count=0)
-                if return_records:
-                    return ("", [])
-                return Failure(RagErrorReason.NO_HITS)
-            post_count = similar_posts.count().execute()
-            logger.info("Found %s similar previous posts", post_count)
-            logfire_info("RAG query completed", results_count=post_count)
+        store = VectorStore(rag_dir / "chunks.parquet")
+        similar_posts = query_similar_posts(
+            table,
+            store,
+            embedding_model=embedding_model,
+            top_k=5,
+            deduplicate=True,
+            retrieval_mode=retrieval_mode,
+            retrieval_nprobe=retrieval_nprobe,
+            retrieval_overfetch=retrieval_overfetch,
+        )
+        if similar_posts.count().execute() == 0:
+            logger.info("No similar previous posts found (RAG query completed with 0 results)")
+            if return_records:
+                return ("", [])
+            return Failure(RagErrorReason.NO_HITS)
+        post_count = similar_posts.count().execute()
+        logger.info("Found %s similar previous posts (RAG query completed)", post_count)
         rag_text = "\n\n## Related Previous Posts (for continuity and linking):\n"
         rag_text += "You can reference these posts in your writing to maintain conversation continuity.\n\n"
         records = similar_posts.execute().to_dict("records")
