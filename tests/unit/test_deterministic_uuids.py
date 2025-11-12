@@ -2,8 +2,7 @@
 
 Tests verify that UUID5 namespace generation is:
 1. Deterministic: Same inputs → same outputs
-2. Isolated: Different tenants → different UUIDs
-3. Source-aware: Different sources → different UUIDs
+2. Namespace-aware: Different namespaces → different UUIDs
 """
 
 from __future__ import annotations
@@ -33,8 +32,9 @@ class TestFrozenNamespaces:
         assert isinstance(EGREGORA_NAMESPACE, uuid.UUID)
 
     def test_author_namespace_is_uuid(self):
-        """NAMESPACE_AUTHOR is a valid UUID."""
+        """NAMESPACE_AUTHOR mirrors Python's URL namespace."""
         assert isinstance(NAMESPACE_AUTHOR, uuid.UUID)
+        assert NAMESPACE_AUTHOR == uuid.NAMESPACE_URL
 
     def test_event_namespace_is_uuid(self):
         """NAMESPACE_EVENT is a valid UUID."""
@@ -64,12 +64,6 @@ class TestNamespaceContext:
         with pytest.raises(AttributeError):
             ctx.tenant_id = "modified"  # type: ignore[misc]
 
-    def test_author_namespace_returns_uuid(self):
-        """author_namespace() returns a valid UUID."""
-        ctx = NamespaceContext(tenant_id="test", source="whatsapp")
-        ns = ctx.author_namespace()
-        assert isinstance(ns, uuid.UUID)
-
     def test_event_namespace_returns_uuid(self):
         """event_namespace() returns a valid UUID."""
         ctx = NamespaceContext(tenant_id="test", source="whatsapp")
@@ -88,34 +82,29 @@ class TestDeterministicAuthorUUID:
 
     def test_basic_determinism(self):
         """Same inputs produce same UUID."""
-        uuid1 = deterministic_author_uuid("default", "whatsapp", "Alice")
-        uuid2 = deterministic_author_uuid("default", "whatsapp", "Alice")
+        uuid1 = deterministic_author_uuid("Alice")
+        uuid2 = deterministic_author_uuid("Alice")
         assert uuid1 == uuid2
-
-    def test_tenant_isolation(self):
-        """Different tenants get different UUIDs for same author."""
-        uuid_acme = deterministic_author_uuid("acme", "whatsapp", "Alice")
-        uuid_default = deterministic_author_uuid("default", "whatsapp", "Alice")
-        assert uuid_acme != uuid_default
-
-    def test_source_separation(self):
-        """Different sources get different UUIDs for same author."""
-        uuid_whatsapp = deterministic_author_uuid("default", "whatsapp", "Alice")
-        uuid_slack = deterministic_author_uuid("default", "slack", "Alice")
-        assert uuid_whatsapp != uuid_slack
 
     def test_case_insensitive(self):
         """Author names are normalized (case-insensitive)."""
-        uuid_lower = deterministic_author_uuid("default", "whatsapp", "alice")
-        uuid_upper = deterministic_author_uuid("default", "whatsapp", "ALICE")
-        uuid_mixed = deterministic_author_uuid("default", "whatsapp", "Alice")
+        uuid_lower = deterministic_author_uuid("alice")
+        uuid_upper = deterministic_author_uuid("ALICE")
+        uuid_mixed = deterministic_author_uuid("Alice")
         assert uuid_lower == uuid_upper == uuid_mixed
 
     def test_whitespace_normalized(self):
         """Leading/trailing whitespace is stripped."""
-        uuid1 = deterministic_author_uuid("default", "whatsapp", "Alice")
-        uuid2 = deterministic_author_uuid("default", "whatsapp", "  Alice  ")
+        uuid1 = deterministic_author_uuid("Alice")
+        uuid2 = deterministic_author_uuid("  Alice  ")
         assert uuid1 == uuid2
+
+    def test_custom_namespace_changes_output(self):
+        """Custom namespaces produce different UUIDs."""
+        custom_ns = uuid.uuid5(uuid.NAMESPACE_DNS, "my-private-namespace")
+        default_uuid = deterministic_author_uuid("Alice")
+        custom_uuid = deterministic_author_uuid("Alice", namespace=custom_ns)
+        assert default_uuid != custom_uuid
 
 
 class TestDeterministicEventUUID:
@@ -146,47 +135,29 @@ class TestDeterministicEventUUID:
 
 
 @given(
-    tenant_id=st.text(min_size=1, max_size=50),
-    source=st.text(min_size=1, max_size=20),
     author=st.text(min_size=1, max_size=100),
+    namespace=st.none() | st.uuids(),
 )
-def test_uuid5_determinism_property(tenant_id: str, source: str, author: str):
+def test_uuid5_determinism_property(author: str, namespace: uuid.UUID | None):
     """Property test: Same inputs always produce same UUID."""
-    uuid1 = deterministic_author_uuid(tenant_id, source, author)
-    uuid2 = deterministic_author_uuid(tenant_id, source, author)
+    kwargs = {"namespace": namespace} if namespace is not None else {}
+    uuid1 = deterministic_author_uuid(author, **kwargs)
+    uuid2 = deterministic_author_uuid(author, **kwargs)
     assert uuid1 == uuid2
     assert isinstance(uuid1, uuid.UUID)
 
 
 @given(
-    tenant1=st.text(min_size=1, max_size=50),
-    tenant2=st.text(min_size=1, max_size=50),
-    source=st.text(min_size=1, max_size=20),
     author=st.text(min_size=1, max_size=100),
+    namespace1=st.uuids(),
+    namespace2=st.uuids(),
 )
-def test_tenant_isolation_property(tenant1: str, tenant2: str, source: str, author: str):
-    """Property test: Different tenants → different UUIDs (unless same tenant)."""
-    uuid1 = deterministic_author_uuid(tenant1, source, author)
-    uuid2 = deterministic_author_uuid(tenant2, source, author)
+def test_namespace_isolation_property(author: str, namespace1: uuid.UUID, namespace2: uuid.UUID):
+    """Property test: Different namespaces produce different UUIDs."""
+    uuid1 = deterministic_author_uuid(author, namespace=namespace1)
+    uuid2 = deterministic_author_uuid(author, namespace=namespace2)
 
-    if tenant1 == tenant2:
-        assert uuid1 == uuid2
-    else:
-        assert uuid1 != uuid2
-
-
-@given(
-    tenant_id=st.text(min_size=1, max_size=50),
-    source1=st.text(min_size=1, max_size=20),
-    source2=st.text(min_size=1, max_size=20),
-    author=st.text(min_size=1, max_size=100),
-)
-def test_source_separation_property(tenant_id: str, source1: str, source2: str, author: str):
-    """Property test: Different sources → different UUIDs (unless same source)."""
-    uuid1 = deterministic_author_uuid(tenant_id, source1, author)
-    uuid2 = deterministic_author_uuid(tenant_id, source2, author)
-
-    if source1 == source2:
+    if namespace1 == namespace2:
         assert uuid1 == uuid2
     else:
         assert uuid1 != uuid2

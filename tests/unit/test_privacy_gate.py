@@ -9,13 +9,47 @@ Tests verify that:
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
+from uuid import uuid4
 
 import ibis
 import pytest
 
+from egregora.database.validation import IR_MESSAGE_SCHEMA
 from egregora.privacy.config import PrivacySettings
+from egregora.privacy.constants import deterministic_author_uuid
 from egregora.privacy.gate import PrivacyGate, PrivacyPass, require_privacy_pass
+
+
+def _build_ir_table(
+    *,
+    author_raw: str = "Alice",
+    tenant_id: str = "test-tenant",
+    source: str = "whatsapp",
+    author_namespace: uuid.UUID | None = None,
+) -> ibis.Table:
+    now = datetime.now(UTC)
+    namespace = author_namespace or uuid.NAMESPACE_URL
+    author_uuid = deterministic_author_uuid(author_raw, namespace=namespace)
+    data = {
+        "event_id": [uuid4()],
+        "tenant_id": [tenant_id],
+        "source": [source],
+        "thread_id": [uuid4()],
+        "msg_id": ["msg-001"],
+        "ts": [now],
+        "author_raw": [author_raw],
+        "author_uuid": [author_uuid],
+        "text": ["Hello world"],
+        "media_url": [None],
+        "media_type": [None],
+        "attrs": [None],
+        "pii_flags": [None],
+        "created_at": [now],
+        "created_by_run": [None],
+    }
+    return ibis.memtable(data, schema=IR_MESSAGE_SCHEMA)
 
 
 class TestPrivacyPass:
@@ -141,12 +175,7 @@ class TestPrivacyGate:
     def test_privacy_gate_returns_anonymized_table_and_token(self):
         """PrivacyGate.run() returns (anonymized_table, privacy_pass)."""
         # Create test table
-        data = {
-            "timestamp": [datetime.now(UTC)],
-            "author": ["Alice"],
-            "message": ["Hello world"],
-        }
-        table = ibis.memtable(data)
+        table = _build_ir_table(tenant_id="test-tenant")
 
         config = PrivacySettings(tenant_id="test-tenant")
 
@@ -164,12 +193,7 @@ class TestPrivacyGate:
 
     def test_privacy_gate_anonymizes_authors(self):
         """PrivacyGate.run() anonymizes author column."""
-        data = {
-            "timestamp": [datetime.now(UTC)],
-            "author": ["Alice"],
-            "message": ["Hello"],
-        }
-        table = ibis.memtable(data)
+        table = _build_ir_table(author_raw="Alice", tenant_id="test")
 
         config = PrivacySettings(tenant_id="test")
         anonymized, _ = PrivacyGate.run(table, config, "run-1")
@@ -177,13 +201,27 @@ class TestPrivacyGate:
         result = anonymized.execute()
 
         # Author should be anonymized (UUID format)
-        author = result["author"].iloc[0]
+        author = result["author_raw"].iloc[0]
         assert author != "Alice"
-        assert len(author) == 8  # UUID hex format (8 chars)
+        assert len(author) >= 8
+
+    def test_privacy_gate_rejects_mismatched_author_namespace(self):
+        """PrivacyGate fails if table uses unexpected author namespace."""
+        custom_ns = uuid.uuid5(uuid.NAMESPACE_DNS, "alt-scope")
+        table = _build_ir_table(
+            author_raw="Alice",
+            tenant_id="test",
+            author_namespace=custom_ns,
+        )
+
+        config = PrivacySettings(tenant_id="test")
+
+        with pytest.raises(ValueError, match="author_uuid mismatch"):
+            PrivacyGate.run(table, config, "run-1")
 
     def test_privacy_gate_fails_with_empty_tenant_id(self):
         """PrivacySettings raises ValueError if tenant_id is empty."""
-        table = ibis.memtable([{"author": ["test"]}])
+        table = _build_ir_table(tenant_id="tenant-1")
 
         with pytest.raises(ValueError, match="tenant_id cannot be empty"):
             config = PrivacySettings(tenant_id="")
@@ -191,7 +229,7 @@ class TestPrivacyGate:
 
     def test_privacy_gate_fails_with_empty_run_id(self):
         """PrivacyGate.run() raises ValueError if run_id is empty."""
-        table = ibis.memtable([{"author": ["test"]}])
+        table = _build_ir_table(tenant_id="test")
         config = PrivacySettings(tenant_id="test")
 
         with pytest.raises(ValueError, match="run_id cannot be empty"):
@@ -199,22 +237,18 @@ class TestPrivacyGate:
 
     def test_privacy_gate_tenant_isolation(self):
         """PrivacyGate.run() issues different tokens for different tenants."""
-        data = {
-            "timestamp": [datetime.now(UTC)],
-            "author": ["Alice"],
-            "message": ["Hello"],
-        }
-        table = ibis.memtable(data)
+        table = _build_ir_table(author_raw="Alice", tenant_id="tenant-1")
 
         config_tenant1 = PrivacySettings(tenant_id="tenant-1")
         config_tenant2 = PrivacySettings(tenant_id="tenant-2")
 
         _, pass1 = PrivacyGate.run(table, config_tenant1, "run-1")
-        _, pass2 = PrivacyGate.run(table, config_tenant2, "run-1")
+
+        # Table tenant mismatch should raise
+        with pytest.raises(ValueError, match="unexpected tenant"):
+            PrivacyGate.run(table, config_tenant2, "run-1")
 
         assert pass1.tenant_id == "tenant-1"
-        assert pass2.tenant_id == "tenant-2"
-        assert pass1.tenant_id != pass2.tenant_id
 
 
 class TestPrivacyWorkflow:
@@ -223,12 +257,7 @@ class TestPrivacyWorkflow:
     def test_full_privacy_workflow(self):
         """Test complete privacy gate workflow."""
         # 1. Create raw table with PII
-        raw_data = {
-            "timestamp": [datetime.now(UTC)],
-            "author": ["Alice"],  # Real name (PII)
-            "message": ["Hello world"],
-        }
-        raw_table = ibis.memtable(raw_data)
+        raw_table = _build_ir_table(author_raw="Alice", tenant_id="acme-corp")
 
         # 2. Configure privacy
         config = PrivacySettings(
@@ -248,7 +277,7 @@ class TestPrivacyWorkflow:
         ) -> str:
             # This function is safe - decorator verified privacy_pass
             result = table.execute()
-            author = result["author"].iloc[0]
+            author = result["author_raw"].iloc[0]
             return f"Processed author: {author}"
 
         # 5. Call protected function with token
@@ -263,12 +292,7 @@ class TestPrivacyWorkflow:
 
     def test_cannot_bypass_privacy_gate(self):
         """Test that you cannot bypass privacy gate with forged tokens."""
-        raw_data = {
-            "timestamp": [datetime.now(UTC)],
-            "author": ["Alice"],  # Real name (PII)
-            "message": ["Hello"],
-        }
-        raw_table = ibis.memtable(raw_data)
+        raw_table = _build_ir_table(author_raw="Alice", tenant_id="test")
 
         @require_privacy_pass
         def send_to_llm(table: ibis.Table, *, privacy_pass: PrivacyPass) -> str:
