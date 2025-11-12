@@ -13,7 +13,6 @@ from google.genai import types as genai_types
 from ibis import IbisError
 from ibis.expr.types import Table
 
-from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.utils import BatchPromptRequest, BatchPromptResult
 
 if TYPE_CHECKING:
@@ -68,43 +67,15 @@ def _safe_timestamp_plus_one(timestamp: datetime | pd.Timestamp) -> datetime:
     return dt_value + timedelta(seconds=1)
 
 
-_STABLE_ORDER_CANDIDATES: tuple[str, ...] = (
-    "timestamp",
-    "created_at",
-    "datetime",
-    "date",
-    "ts",
-    "time",
-    "id",
-    "uuid",
-    "key",
-)
-
-
-def _get_stable_ordering(table: Table) -> list:
-    """Return a deterministic ordering for ``table`` when batching rows."""
-    columns = list(table.columns)
-    for candidate in _STABLE_ORDER_CANDIDATES:
-        if candidate in columns:
-            return [table[candidate]]
-    if columns:
-        return [table[column] for column in columns]
-    return []
-
-
 def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Convert backend frames into ``dict`` records consistently.
-
-    Note: This is legacy fallback code. Most code paths should now use
-    stream_ibis from egregora.data instead, which handles timezones correctly.
-    """
+    """Convert backend frames into dict records consistently."""
     if hasattr(frame, "to_dict"):
         return [dict(row) for row in frame.to_dict("records")]
     if hasattr(frame, "to_pylist"):
         try:
             return [dict(row) for row in frame.to_pylist()]
         except (ValueError, TypeError, AttributeError) as e:
-            msg = f"Failed to convert frame to records. This indicates the stream_ibis fast path was not used. Original error: {e}"
+            msg = f"Failed to convert frame to records. Original error: {e}"
             raise RuntimeError(msg) from e
     if isinstance(frame, list):
         return [dict(row) for row in frame]
@@ -112,72 +83,30 @@ def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> 
 
 
 def _iter_table_record_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
-    """Yield batches of table rows as dictionaries in a deterministic order.
+    """Yield batches of table rows as dictionaries.
 
-    This function now uses egregora.data.stream_ibis for memory-efficient streaming
-    without materializing the full table. This fixes Bug #3 (timezone-aware timestamps).
+    Simplified implementation for Egregora's typical use case: window sizes of
+    100-1000 messages that easily fit in memory. No streaming complexity needed.
 
     Args:
-        table: Ibis table expression to stream
+        table: Ibis table expression to execute
         batch_size: Number of rows per batch
 
     Yields:
         Lists of dictionaries representing rows
 
-    Note:
-        Uses the table's backend connection automatically via Ibis's
-        _find_backend() method.
-
     """
-    try:
-        backend = table._find_backend()
-    except (AttributeError, IbisError):
-        backend = None
-    if backend is not None:
-        ordered_table = ensure_deterministic_order(table)
-        yield from stream_ibis(ordered_table, backend, batch_size=batch_size)
-        return
+    # Order by timestamp if available for deterministic iteration
+    if "timestamp" in table.columns:
+        table = table.order_by("timestamp")
 
-    # Fallback: check for in-memory tables (ibis.memtable) that carry their own data proxy.
-    op = getattr(table, "op", lambda: None)()
-    data_proxy = getattr(op, "data", None)
-    if data_proxy is not None:
-        dataframe = data_proxy.to_frame()
-        records = _frame_to_records(dataframe)
-        if not records:
-            return
-        for start in range(0, len(records), batch_size):
-            yield records[start : start + batch_size]
-        return
+    # Execute table and convert to records
+    df = table.execute()
+    records = _frame_to_records(df)
 
-    count = table.count().execute()
-    if not count:
-        return
-    ordering = _get_stable_ordering(table)
-    fallback_ordering = ordering or [table[column] for column in table.columns]
-    if not fallback_ordering:
-        dataframe = table.execute()
-        records = _frame_to_records(dataframe)
-        if not records:
-            return
-        for start in range(0, len(records), batch_size):
-            yield records[start : start + batch_size]
-        return
-    ordered_table = table.order_by(fallback_ordering)
-    window = ibis.window(order_by=fallback_ordering)
-    numbered = ordered_table.mutate(_batch_row_number=ibis.row_number().over(window))
-    row_number = numbered._batch_row_number
-    for start in range(0, count, batch_size):
-        upper = start + batch_size
-        batch_expr = numbered.filter(
-            (row_number >= start) & (row_number < upper) if start else row_number < upper
-        ).order_by(row_number)
-        batch_expr = batch_expr.drop("_batch_row_number")
-        dataframe = batch_expr.execute()
-        batch_records = _frame_to_records(dataframe)
-        if not batch_records:
-            continue
-        yield batch_records
+    # Yield in batches
+    for start in range(0, len(records), batch_size):
+        yield records[start : start + batch_size]
 
 
 def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
