@@ -380,9 +380,7 @@ def _window_by_bytes(
 
     # Calculate cumulative bytes
     windowed = enriched.mutate(
-        cumulative_bytes=enriched.msg_bytes.sum().over(
-            ibis.window(order_by=[enriched.ts], rows=(None, 0))
-        )
+        cumulative_bytes=enriched.msg_bytes.sum().over(ibis.window(order_by=[enriched.ts], rows=(None, 0)))
     )
 
     # Materialize to avoid recomputation
@@ -495,13 +493,9 @@ def split_window_into_n_parts(window: Window, n: int) -> list[Window]:
         # (critical for message/byte-based windows where end_time == last message timestamp)
         # IR v1: use .ts column
         if i == n - 1:
-            part_table = window.table.filter(
-                (window.table.ts >= part_start) & (window.table.ts <= part_end)
-            )
+            part_table = window.table.filter((window.table.ts >= part_start) & (window.table.ts <= part_end))
         else:
-            part_table = window.table.filter(
-                (window.table.ts >= part_start) & (window.table.ts < part_end)
-            )
+            part_table = window.table.filter((window.table.ts >= part_start) & (window.table.ts < part_end))
 
         part_size = part_table.count().execute()
         if part_size > 0:
