@@ -21,7 +21,7 @@ import duckdb
 import pytest
 
 from egregora.database.ir_schema import CONVERSATION_SCHEMA
-from egregora.pipeline.tracking import fingerprint_table, record_run
+from egregora.database.tracking import fingerprint_table, record_run
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.sources.whatsapp.parser import parse_source

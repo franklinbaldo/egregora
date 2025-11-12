@@ -5,7 +5,7 @@ from pathlib import Path
 
 import ibis
 
-from egregora.pipeline.media import (
+from egregora.transformations.media import (
     extract_markdown_media_refs,
     replace_markdown_media_refs,
 )

@@ -254,7 +254,7 @@ class TestViewExecution:
 
     def test_execute_view_with_registry(self):
         """Test executing view from ViewRegistry."""
-        from egregora.pipeline.views import views
+        from egregora.database.views import views
 
         with DuckDBStorageManager() as storage:
             # Create input table matching ViewRegistry expectations

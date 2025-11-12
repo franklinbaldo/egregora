@@ -20,7 +20,7 @@ Usage:
     storage.write_table(table, "enriched_conversations")
 
     # Execute view from registry
-    from egregora.pipeline.views import views
+    from egregora.database.views import views
     chunks_builder = views.get("chunks")
     result = storage.execute_view("chunks", chunks_builder, "conversations")
 """
@@ -214,7 +214,7 @@ class DuckDBStorageManager:
             Result of view transformation
 
         Example:
-            >>> from egregora.pipeline.views import views
+            >>> from egregora.database.views import views
             >>> chunks_builder = views.get("chunks")
             >>> result = storage.execute_view(
             ...     "chunks_materialized",

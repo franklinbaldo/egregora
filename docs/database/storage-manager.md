@@ -37,7 +37,7 @@ table = storage.read_table("conversations")
 storage.write_table(enriched, "conversations_enriched", checkpoint=True)
 
 # Execute views from registry
-from egregora.pipeline.views import views
+from egregora.database.views import views
 chunks_builder = views.get("chunks")
 result = storage.execute_view("chunks_materialized", chunks_builder, "conversations")
 ```
@@ -126,7 +126,7 @@ storage.write_table(table, "mytable", mode="append", checkpoint=True)
 **With ViewRegistry integration:**
 
 ```python
-from egregora.pipeline.views import views
+from egregora.database.views import views
 
 # Get view builder
 chunks_builder = views.get("chunks")
@@ -238,7 +238,7 @@ with DuckDBStorageManager(db_path=Path("pipeline.duckdb")) as storage:
 **Pattern: View-based Stages**
 
 ```python
-from egregora.pipeline.views import views
+from egregora.database.views import views
 
 def chunking_stage(storage: DuckDBStorageManager) -> None:
     """Chunking stage using ViewRegistry."""

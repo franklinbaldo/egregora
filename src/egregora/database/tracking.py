@@ -7,7 +7,7 @@ This module provides infrastructure for tracking pipeline execution:
 4. OpenTelemetry integration (traces, logs)
 
 Usage:
-    from egregora.pipeline.tracking import RunContext, record_run, run_stage_with_tracking
+    from egregora.database.tracking import RunContext, record_run, run_stage_with_tracking
 
     # Create run context
     ctx = RunContext.create(stage="privacy", tenant_id="acme")
@@ -182,7 +182,7 @@ def fingerprint_window(window: Any) -> str:
         SHA256 fingerprint (format: "sha256:<hex>")
 
     Example:
-        >>> from egregora.pipeline.windowing import Window
+        >>> from egregora.transformations.windowing import Window
         >>> window = Window(
         ...     window_index=0,
         ...     start_time=datetime(2025, 1, 1, 10, 0, tzinfo=UTC),

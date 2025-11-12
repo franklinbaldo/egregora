@@ -1,442 +1,335 @@
-"""View registry for SQL query optimization.
+"""Canonical view registry for pipeline stages.
 
-This module provides materialized views for common pipeline queries,
-improving performance by pre-computing frequently accessed patterns.
+Stages reference views by name, not file paths. This allows:
+- SQL optimization when needed (performance)
+- Centralized view definitions
+- Easy testing (swap views for mocks)
+
+This module provides a decorator-based registry for pipeline view builders.
+Unlike src/egregora/database/views.py (SQL materialized views for query optimization),
+this registry focuses on pipeline stage transformations that can be written in
+either Ibis or SQL.
 
 Usage:
-    from egregora.database.views import ViewRegistry, register_common_views
+    from egregora.database.views import views
 
-    # Create registry
-    registry = ViewRegistry(connection)
+    # Register a view using decorator
+    @views.register("chunks")
+    def chunks_view(ir: ibis.Table) -> ibis.Table:
+        return ir.mutate(chunk_idx=ibis.row_number().over(...))
 
-    # Register common views
-    register_common_views(registry, table_name="messages")
+    # Use in pipeline stage
+    chunks_builder = views.get("chunks")
+    result = chunks_builder(ir_table)
 
-    # Use materialized views
-    author_stats = registry.query("author_message_counts")
-    media_messages = registry.query("messages_with_media")
+    # Or use SQL for performance
+    @views.register("chunks_optimized")
+    def chunks_sql(ir: ibis.Table) -> ibis.Table:
+        return ir.sql("SELECT *, ROW_NUMBER() OVER (...) FROM ir")
 """
 
 import logging
-from dataclasses import dataclass, field
-from typing import Any
+from collections.abc import Callable
 
-import duckdb
 import ibis
 from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
 
-
-@dataclass(frozen=True, slots=True)
-class ViewDefinition:
-    """Definition of a database view.
-
-    Attributes:
-        name: Unique view identifier
-        sql: SQL query defining the view
-        materialized: Whether to materialize (cache) the view
-        dependencies: List of tables/views this depends on
-        description: Human-readable description
-
-    """
-
-    name: str
-    sql: str
-    materialized: bool = False
-    dependencies: tuple[str, ...] = ()
-    description: str = ""
+# Type alias for view builder functions
+type ViewBuilder = Callable[[Table], Table]
 
 
-@dataclass
 class ViewRegistry:
-    """Registry for managing database views and materialized views.
+    """Registry of canonical pipeline views.
 
-    Provides a centralized way to define, create, and query views
-    for common pipeline patterns. Supports materialized views for
-    performance optimization.
+    Provides a centralized registry for pipeline view builders that transform
+    Ibis tables. View builders can use either Ibis expressions or raw SQL
+    for performance-critical operations.
 
     Attributes:
-        connection: DuckDB connection
-        views: Registered view definitions
+        _views: Dictionary mapping view names to builder functions
 
     Example:
-        >>> conn = duckdb.connect()
-        >>> registry = ViewRegistry(conn)
-        >>> registry.register(ViewDefinition(
-        ...     name="active_authors",
-        ...     sql="SELECT author, COUNT(*) as msg_count FROM messages GROUP BY author",
-        ...     materialized=True,
-        ... ))
-        >>> registry.create_all()
-        >>> results = registry.query("active_authors")
+        >>> registry = ViewRegistry()
+        >>>
+        >>> @registry.register("enriched")
+        >>> def enriched_view(ir: Table) -> Table:
+        ...     return ir.filter(ir.text.notnull())
+        >>>
+        >>> builder = registry.get("enriched")
+        >>> result = builder(my_table)
 
     """
 
-    connection: duckdb.DuckDBPyConnection
-    views: dict[str, ViewDefinition] = field(default_factory=dict)
+    def __init__(self) -> None:
+        """Initialize empty view registry."""
+        self._views: dict[str, ViewBuilder] = {}
+        logger.debug("Initialized ViewRegistry")
 
-    def register(self, view: ViewDefinition) -> None:
-        """Register a view definition.
+    def register(self, name: str) -> Callable[[ViewBuilder], ViewBuilder]:
+        """Decorator to register a view builder.
 
         Args:
-            view: View definition to register
+            name: Unique view identifier
+
+        Returns:
+            Decorator function that registers the view builder
 
         Raises:
             ValueError: If view name is already registered
 
+        Example:
+            >>> @views.register("my_view")
+            >>> def my_view_builder(ir: Table) -> Table:
+            ...     return ir.limit(100)
+
         """
-        if view.name in self.views:
-            msg = f"View '{view.name}' is already registered"
+
+        def decorator(func: ViewBuilder) -> ViewBuilder:
+            if name in self._views:
+                msg = f"View '{name}' is already registered"
+                raise ValueError(msg)
+
+            self._views[name] = func
+            logger.debug("Registered view: %s (function: %s)", name, func.__name__)
+            return func
+
+        return decorator
+
+    def register_function(self, name: str, func: ViewBuilder) -> None:
+        """Register a view builder function directly (without decorator).
+
+        Args:
+            name: Unique view identifier
+            func: View builder function
+
+        Raises:
+            ValueError: If view name is already registered
+
+        Example:
+            >>> def chunks(ir: Table) -> Table:
+            ...     return ir.mutate(chunk_idx=...)
+            >>> views.register_function("chunks", chunks)
+
+        """
+        if name in self._views:
+            msg = f"View '{name}' is already registered"
             raise ValueError(msg)
 
-        self.views[view.name] = view
-        logger.debug("Registered view: %s (materialized=%s)", view.name, view.materialized)
+        self._views[name] = func
+        logger.debug("Registered view: %s (function: %s)", name, func.__name__)
 
-    def register_many(self, views: list[ViewDefinition]) -> None:
-        """Register multiple view definitions.
-
-        Args:
-            views: List of view definitions
-
-        """
-        for view in views:
-            self.register(view)
-
-    def create(self, name: str, *, force: bool = False) -> None:
-        """Create a view in the database.
+    def get(self, name: str) -> ViewBuilder:
+        """Get view builder by name.
 
         Args:
-            name: View name
-            force: If True, drop existing view before creating
-
-        Raises:
-            KeyError: If view not registered
-
-        """
-        if name not in self.views:
-            msg = f"View '{name}' not registered"
-            raise KeyError(msg)
-
-        view = self.views[name]
-
-        # Drop existing view if force=True
-        if force:
-            try:
-                self.connection.execute(f"DROP VIEW IF EXISTS {view.name}")
-                if view.materialized:
-                    self.connection.execute(f"DROP TABLE IF EXISTS {view.name}")
-            except duckdb.Error:
-                pass  # View doesn't exist, that's fine
-
-        # Create view or materialized view
-        try:
-            if view.materialized:
-                # DuckDB doesn't support MATERIALIZED VIEW syntax
-                # Use CREATE TABLE AS instead
-                self.connection.execute(f"CREATE TABLE IF NOT EXISTS {view.name} AS {view.sql}")
-                logger.info("Created materialized view: %s", view.name)
-            else:
-                self.connection.execute(f"CREATE VIEW IF NOT EXISTS {view.name} AS {view.sql}")
-                logger.info("Created view: %s", view.name)
-        except duckdb.Error:
-            logger.exception("Failed to create view '%s'", view.name)
-            raise
-
-    def create_all(self, *, force: bool = False) -> None:
-        """Create all registered views in dependency order.
-
-        Args:
-            force: If True, drop existing views before creating
-
-        """
-        # Topological sort based on dependencies
-        sorted_views = self._topological_sort()
-
-        for view_name in sorted_views:
-            self.create(view_name, force=force)
-
-        logger.info("Created %d views", len(sorted_views))
-
-    def refresh(self, name: str) -> None:
-        """Refresh a materialized view by re-executing its query.
-
-        Args:
-            name: View name to refresh
-
-        Raises:
-            KeyError: If view not registered
-            ValueError: If view is not materialized
-
-        """
-        if name not in self.views:
-            msg = f"View '{name}' not registered"
-            raise KeyError(msg)
-
-        view = self.views[name]
-
-        if not view.materialized:
-            msg = f"View '{name}' is not materialized (cannot refresh regular views)"
-            raise ValueError(msg)
-
-        # Drop and recreate the materialized view
-        try:
-            self.connection.execute(f"DROP TABLE IF EXISTS {view.name}")
-            self.connection.execute(f"CREATE TABLE {view.name} AS {view.sql}")
-            logger.info("Refreshed materialized view: %s", view.name)
-        except duckdb.Error:
-            logger.exception("Failed to refresh view '%s'", view.name)
-            raise
-
-    def refresh_all(self) -> None:
-        """Refresh all materialized views in dependency order."""
-        materialized_views = [name for name, view in self.views.items() if view.materialized]
-
-        # Sort by dependencies
-        sorted_views = self._topological_sort()
-        materialized_sorted = [v for v in sorted_views if v in materialized_views]
-
-        for view_name in materialized_sorted:
-            self.refresh(view_name)
-
-        logger.info("Refreshed %d materialized views", len(materialized_sorted))
-
-    def query(self, name: str) -> Any:
-        """Query a view and return results.
-
-        Args:
-            name: View name
+            name: View identifier
 
         Returns:
-            Query results as pandas DataFrame
+            View builder function
 
         Raises:
-            KeyError: If view not registered or doesn't exist in database
+            KeyError: If view not found
+
+        Example:
+            >>> builder = views.get("chunks")
+            >>> result = builder(ir_table)
 
         """
-        if name not in self.views:
-            msg = f"View '{name}' not registered"
+        if name not in self._views:
+            msg = f"View not found: {name}"
             raise KeyError(msg)
 
-        try:
-            return self.connection.execute(f"SELECT * FROM {name}").fetchdf()  # nosec B608 - name is registered view identifier
-        except duckdb.Error:
-            logger.exception("Failed to query view '%s'", name)
-            raise
+        return self._views[name]
 
-    def query_ibis(self, name: str, backend: ibis.BaseBackend) -> Table:
-        """Query a view and return as Ibis table.
+    def has(self, name: str) -> bool:
+        """Check if view is registered.
 
         Args:
-            name: View name
-            backend: Ibis backend connected to same database
+            name: View identifier
 
         Returns:
-            Ibis table expression
-
-        Raises:
-            KeyError: If view not registered
+            True if view exists, False otherwise
 
         """
-        if name not in self.views:
-            msg = f"View '{name}' not registered"
-            raise KeyError(msg)
-
-        return backend.table(name)
-
-    def drop(self, name: str) -> None:
-        """Drop a view from the database.
-
-        Args:
-            name: View name
-
-        Raises:
-            KeyError: If view not registered
-
-        """
-        if name not in self.views:
-            msg = f"View '{name}' not registered"
-            raise KeyError(msg)
-
-        view = self.views[name]
-
-        try:
-            if view.materialized:
-                self.connection.execute(f"DROP TABLE IF EXISTS {view.name}")
-            else:
-                self.connection.execute(f"DROP VIEW IF EXISTS {view.name}")
-            logger.info("Dropped view: %s", view.name)
-        except duckdb.Error:
-            logger.exception("Failed to drop view '%s'", view.name)
-            raise
-
-    def drop_all(self) -> None:
-        """Drop all registered views."""
-        for view_name in self.views:
-            try:
-                self.drop(view_name)
-            except duckdb.Error:
-                pass  # View doesn't exist, that's fine
+        return name in self._views
 
     def list_views(self) -> list[str]:
         """List all registered view names.
 
         Returns:
-            List of view names
+            Sorted list of view names
 
         """
-        return list(self.views.keys())
+        return sorted(self._views.keys())
 
-    def get_view(self, name: str) -> ViewDefinition:
-        """Get a view definition by name.
+    def unregister(self, name: str) -> None:
+        """Remove a view from the registry.
 
         Args:
-            name: View name
-
-        Returns:
-            View definition
+            name: View identifier
 
         Raises:
-            KeyError: If view not registered
+            KeyError: If view not found
 
         """
-        if name not in self.views:
-            msg = f"View '{name}' not registered"
+        if name not in self._views:
+            msg = f"View not found: {name}"
             raise KeyError(msg)
 
-        return self.views[name]
+        del self._views[name]
+        logger.debug("Unregistered view: %s", name)
 
-    def _topological_sort(self) -> list[str]:
-        """Topological sort of views based on dependencies.
-
-        Returns:
-            List of view names in dependency order
-
-        Raises:
-            ValueError: If circular dependencies detected
-
-        """
-        # Kahn's algorithm
-        in_degree = dict.fromkeys(self.views, 0)
-        adj_list = {name: [] for name in self.views}
-
-        # Build adjacency list and in-degree counts
-        for name, view in self.views.items():
-            for dep in view.dependencies:
-                if dep in self.views:  # Only track dependencies within registry
-                    adj_list[dep].append(name)
-                    in_degree[name] += 1
-
-        # Find views with no dependencies
-        queue = [name for name, degree in in_degree.items() if degree == 0]
-        sorted_views = []
-
-        while queue:
-            current = queue.pop(0)
-            sorted_views.append(current)
-
-            # Reduce in-degree for dependent views
-            for neighbor in adj_list[current]:
-                in_degree[neighbor] -= 1
-                if in_degree[neighbor] == 0:
-                    queue.append(neighbor)
-
-        # Check for circular dependencies
-        if len(sorted_views) != len(self.views):
-            msg = "Circular dependencies detected in view definitions"
-            raise ValueError(msg)
-
-        return sorted_views
+    def clear(self) -> None:
+        """Remove all views from the registry."""
+        count = len(self._views)
+        self._views.clear()
+        logger.debug("Cleared %d views from registry", count)
 
 
-def register_common_views(
-    registry: ViewRegistry,
-    table_name: str = "messages",
-) -> None:
-    """Register common views for pipeline optimization.
+# Global singleton registry for pipeline views
+views = ViewRegistry()
+
+
+# ============================================================================
+# Common Pipeline Views
+# ============================================================================
+# These are standard view builders for common pipeline operations.
+# Custom projects can register additional views as needed.
+
+
+@views.register("chunks")
+def chunks_view(ir: Table) -> Table:
+    """Chunk conversations into sequential windows.
+
+    Adds a chunk_idx column with row numbers partitioned by thread_id
+    and ordered by timestamp.
 
     Args:
-        registry: ViewRegistry instance
-        table_name: Name of the base messages table
+        ir: IR v1 table with thread_id and ts columns
+
+    Returns:
+        IR table with added chunk_idx column
 
     """
-    views = [
-        # Author statistics
-        ViewDefinition(
-            name="author_message_counts",
-            sql=f"""
-                SELECT
-                    author,
-                    COUNT(*) as message_count,
-                    MIN(timestamp) as first_message,
-                    MAX(timestamp) as last_message
-                FROM {table_name}
-                GROUP BY author
-                ORDER BY message_count DESC
-            """,  # nosec B608 - table_name is constant from caller
-            materialized=True,
-            dependencies=(table_name,),
-            description="Message counts per author with temporal bounds",
-        ),
-        # Active authors (more than 1 message)
-        ViewDefinition(
-            name="active_authors",
-            sql="""
-                SELECT author, message_count
-                FROM author_message_counts
-                WHERE message_count > 1
-                ORDER BY message_count DESC
-            """,
-            materialized=False,
-            dependencies=("author_message_counts",),
-            description="Authors with more than one message",
-        ),
-        # Messages with media
-        ViewDefinition(
-            name="messages_with_media",
-            sql=f"""
-                SELECT *
-                FROM {table_name}
-                WHERE media_path IS NOT NULL
-                ORDER BY timestamp
-            """,  # nosec B608 - table_name is constant from caller
-            materialized=True,
-            dependencies=(table_name,),
-            description="Messages containing media attachments",
-        ),
-        # Hourly message distribution
-        ViewDefinition(
-            name="hourly_message_stats",
-            sql=f"""
-                SELECT
-                    DATE_TRUNC('hour', timestamp) as hour,
-                    COUNT(*) as message_count,
-                    COUNT(DISTINCT author) as active_authors
-                FROM {table_name}
-                GROUP BY hour
-                ORDER BY hour
-            """,  # nosec B608 - table_name is constant from caller
-            materialized=True,
-            dependencies=(table_name,),
-            description="Message counts and active authors per hour",
-        ),
-        # Daily message distribution
-        ViewDefinition(
-            name="daily_message_stats",
-            sql=f"""
-                SELECT
-                    DATE_TRUNC('day', timestamp) as day,
-                    COUNT(*) as message_count,
-                    COUNT(DISTINCT author) as active_authors
-                FROM {table_name}
-                GROUP BY day
-                ORDER BY day
-            """,  # nosec B608 - table_name is constant from caller
-            materialized=True,
-            dependencies=(table_name,),
-            description="Message counts and active authors per day",
-        ),
-    ]
+    win = ibis.window(group_by="thread_id", order_by="ts")
+    return ir.mutate(chunk_idx=ibis.row_number().over(win))
 
-    registry.register_many(views)
-    logger.info("Registered %d common views", len(views))
+
+@views.register("chunks_optimized")
+def chunks_sql(ir: Table) -> Table:
+    """Optimized chunking with raw SQL.
+
+    Same as chunks_view but uses SQL for better performance on large datasets.
+
+    Args:
+        ir: IR v1 table with thread_id and ts columns
+
+    Returns:
+        IR table with added chunk_idx column
+
+    """
+    return ir.sql("""
+        SELECT
+            *,
+            ROW_NUMBER() OVER (
+                PARTITION BY thread_id
+                ORDER BY ts
+            ) AS chunk_idx
+        FROM {}
+    """)
+
+
+@views.register("messages_with_media")
+def messages_with_media_view(ir: Table) -> Table:
+    """Filter to messages containing media.
+
+    Args:
+        ir: IR v1 table
+
+    Returns:
+        IR table filtered to messages with media_url not null
+
+    """
+    return ir.filter(ir.media_url.notnull())
+
+
+@views.register("messages_with_text")
+def messages_with_text_view(ir: Table) -> Table:
+    """Filter to messages containing text.
+
+    Args:
+        ir: IR v1 table
+
+    Returns:
+        IR table filtered to messages with non-empty text
+
+    """
+    return ir.filter(ir.text.notnull() & (ir.text != ""))
+
+
+@views.register("hourly_aggregates")
+def hourly_aggregates_view(ir: Table) -> Table:
+    """Aggregate messages by hour.
+
+    Groups messages into hourly windows and computes:
+    - Message count per hour
+    - Unique authors per hour
+    - First and last message timestamps
+
+    Args:
+        ir: IR v1 table with ts and author_uuid columns
+
+    Returns:
+        Aggregated table with hourly statistics
+
+    """
+    return (
+        ir.mutate(hour=ir.ts.truncate("hour"))
+        .group_by("hour")
+        .agg(
+            message_count=ibis._.count(),
+            unique_authors=ibis._.author_uuid.nunique(),
+            first_message=ibis._.ts.min(),
+            last_message=ibis._.ts.max(),
+        )
+        .order_by("hour")
+    )
+
+
+@views.register("daily_aggregates")
+def daily_aggregates_view(ir: Table) -> Table:
+    """Aggregate messages by day.
+
+    Groups messages into daily windows and computes:
+    - Message count per day
+    - Unique authors per day
+    - First and last message timestamps
+
+    Args:
+        ir: IR v1 table with ts and author_uuid columns
+
+    Returns:
+        Aggregated table with daily statistics
+
+    """
+    return (
+        ir.mutate(day=ir.ts.truncate("day"))
+        .group_by("day")
+        .agg(
+            message_count=ibis._.count(),
+            unique_authors=ibis._.author_uuid.nunique(),
+            first_message=ibis._.ts.min(),
+            last_message=ibis._.ts.max(),
+        )
+        .order_by("day")
+    )
+
+
+# Export public API
+__all__ = [
+    "ViewBuilder",
+    "ViewRegistry",
+    "views",
+]

@@ -38,10 +38,10 @@ from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_co
 from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.input_adapters import get_adapter
 from egregora.output_adapters.mkdocs_site import resolve_site_paths
-from egregora.pipeline import create_windows, load_checkpoint, save_checkpoint
-from egregora.pipeline.media import process_media_for_window
-from egregora.pipeline.tracking import fingerprint_window, record_run
-from egregora.pipeline.validation import validate_ir_schema
+from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
+from egregora.transformations.media import process_media_for_window
+from egregora.database.tracking import fingerprint_window, record_run
+from egregora.database.validation import validate_ir_schema
 from egregora.sources.whatsapp.parser import extract_commands, filter_egregora_messages
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.telemetry import get_current_trace_id
@@ -174,7 +174,7 @@ def _process_window_with_auto_split(
 
     """
     from egregora.agents.model_limits import PromptTooLargeError
-    from egregora.pipeline import split_window_into_n_parts
+    from egregora.transformations import split_window_into_n_parts
 
     # Constants
     min_window_size = 5  # Minimum messages before we stop splitting

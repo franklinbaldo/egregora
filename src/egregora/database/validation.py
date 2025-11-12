@@ -28,14 +28,10 @@ Usage:
     def parse(self, input_path: Path) -> ibis.Table:
         return parse_source(input_path)
 
-    # Decorator for pipeline stage methods
-    from egregora.pipeline.base import PipelineStage, StageResult
-
-    class MyStage(PipelineStage):
-        @validate_stage
-        def process(self, data: Table, context: dict[str, Any]) -> StageResult:
-            # Transform logic here
-            return StageResult(data=transformed_data)
+    # Decorator for pipeline transformations (functional approach)
+    @validate_stage
+    def filter_messages(data: Table, min_length: int = 0) -> Table:
+        return data.filter(data.text.length() >= min_length)
 
 See Also:
     - docs/architecture/ir-v1-spec.md
@@ -58,7 +54,11 @@ import ibis
 import ibis.expr.datatypes as dt
 from pydantic import BaseModel, Field, ValidationError
 
+from egregora.database.ir_schema import ensure_message_schema
+
 if TYPE_CHECKING:
+    from zoneinfo import ZoneInfo
+
     from ibis.expr.types import Table
 
 # Type variable for decorator
@@ -418,12 +418,16 @@ def validate_adapter_output[F: Callable[..., "Table"]](func: F) -> F:
 def validate_stage[F: Callable[..., "Table"]](func: F) -> F:
     """Decorator to validate pipeline stage inputs and outputs against IR v1 schema.
 
-    This decorator wraps stage.process() methods to automatically validate:
+    This decorator wraps stage functions to automatically validate:
     1. Input data conforms to IR v1 schema
     2. Output data conforms to IR v1 schema (preserves schema contract)
 
+    Works with both:
+    - Plain functions: `(data: Table, ...) -> Table`
+    - Methods: `(self, data: Table, ...) -> Table`
+
     Args:
-        func: Stage process method (returns StageResult with .data attribute)
+        func: Function or method that takes a Table as input and returns a Table
 
     Returns:
         Wrapped function that validates input/output
@@ -431,30 +435,34 @@ def validate_stage[F: Callable[..., "Table"]](func: F) -> F:
     Raises:
         SchemaError: If input or output doesn't match IR v1 schema
 
-    Example:
-        >>> from egregora.pipeline.base import PipelineStage, StageResult
-        >>> class MyStage(PipelineStage):
-        ...     @validate_stage
-        ...     def process(self, data: Table, context: dict[str, Any]) -> StageResult:
-        ...         # Transform logic here
-        ...         transformed = data.filter(...)
-        ...         return StageResult(data=transformed)
+    Example (functional approach):
+        >>> @validate_stage
+        ... def filter_messages(data: Table, min_length: int = 0) -> Table:
+        ...     return data.filter(data.text.length() >= min_length)
+
+    Example (legacy class-based - for backward compatibility only):
+        >>> # Note: PipelineStage abstraction has been removed
+        >>> # This decorator now supports both plain functions and legacy methods
 
     Note:
-        This validates BOTH inputs and outputs to ensure stages preserve
-        the IR v1 schema contract throughout the pipeline.
+        This validates BOTH inputs and outputs to ensure transformation
+        preserve the IR v1 schema contract throughout the pipeline.
 
     """
 
     @wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:  # Returns StageResult
-        # Extract input data from args
-        # Signature: process(self, data: Table, context: dict[str, Any]) -> StageResult
-        if len(args) < MIN_STAGE_ARGS:
-            msg = "Stage process method requires at least 2 arguments: (self, data)"
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        # Determine if this is a method (has self) or function
+        # For methods: args = (self, data, ...), data is at index 1
+        # For functions: args = (data, ...), data is at index 0
+        is_method = len(args) >= MIN_STAGE_ARGS and hasattr(args[0], "__class__")
+        data_index = 1 if is_method else 0
+
+        if len(args) <= data_index:
+            msg = f"Function requires at least {data_index + 1} argument(s): data parameter missing"
             raise TypeError(msg)
 
-        input_data = args[1]  # data parameter
+        input_data = args[data_index]
 
         # Validate input
         try:
@@ -467,9 +475,14 @@ def validate_stage[F: Callable[..., "Table"]](func: F) -> F:
         # Call original function
         result = func(*args, **kwargs)
 
-        # Extract output data from StageResult
-        # StageResult has .data attribute
-        output_data = result.data
+        # Extract output data
+        # Support both plain Table returns and legacy StageResult objects
+        if hasattr(result, "data"):
+            # Legacy StageResult pattern
+            output_data = result.data
+        else:
+            # Modern functional pattern: direct Table return
+            output_data = result
 
         # Validate output
         try:
@@ -482,3 +495,61 @@ def validate_stage[F: Callable[..., "Table"]](func: F) -> F:
         return result
 
     return wrapper  # type: ignore[return-value]
+
+
+# ============================================================================
+# IR Table Creation (Compatibility Layer)
+# ============================================================================
+
+
+def create_ir_table(table: Table, *, timezone: str | ZoneInfo | None = None) -> Table:
+    """Convert a table to conform to IR schema, adding/casting fields as needed.
+
+    This function is a compatibility wrapper for ensure_message_schema from ir_schema.
+    It ensures strict compliance with the IR schema by:
+    - Adding missing columns with null values
+    - Casting existing columns to correct types
+    - Dropping extra columns not in IR schema
+    - Normalizing timezone information
+
+    Args:
+        table: Source table with at minimum: timestamp, author, message
+        timezone: Timezone for timestamp normalization
+
+    Returns:
+        Table conforming to IR schema
+
+    Raises:
+        ValueError: If table is missing required core fields (timestamp, author, message)
+
+    Example:
+        >>> raw_table = parse_raw_export(...)
+        >>> ir_table = create_ir_table(raw_table, timezone="America/New_York")
+
+    """
+    return ensure_message_schema(table, timezone=timezone)
+
+
+# ============================================================================
+# Public API
+# ============================================================================
+
+__all__ = [
+    # Exceptions
+    "SchemaError",
+    # Schema definitions
+    "IR_MESSAGE_SCHEMA",
+    # Validation models
+    "IRMessageRow",
+    # Validation functions
+    "validate_ir_schema",
+    "schema_diff",
+    "load_ir_schema_lockfile",
+    # Adapter validation
+    "adapter_output_validator",
+    "validate_adapter_output",
+    # Stage validation (functional)
+    "validate_stage",
+    # IR table creation
+    "create_ir_table",
+]

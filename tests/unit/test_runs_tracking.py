@@ -17,7 +17,7 @@ import duckdb
 import ibis
 import pytest
 
-from egregora.pipeline.tracking import (
+from egregora.database.tracking import (
     RunContext,
     fingerprint_table,
     get_git_commit_sha,

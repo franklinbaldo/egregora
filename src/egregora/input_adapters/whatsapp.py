@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 import ibis
 
 from egregora.data_primitives import GroupSlug
-from egregora.pipeline.validation import create_ir_table
+from egregora.database.validation import create_ir_table
 from egregora.sources.base import AdapterMeta, InputAdapter
 from egregora.sources.whatsapp.models import WhatsAppExport
 from egregora.sources.whatsapp.parser import (
