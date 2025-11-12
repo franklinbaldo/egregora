@@ -188,7 +188,7 @@ class WhatsAppAdapter(InputAdapter):
             media_files=[],
         )
         messages_table = parse_source(export, timezone=timezone)  # Phase 6: parse_source renamed
-
+        
         @ibis.udf.scalar.python
         def convert_media_to_markdown(message: str | None) -> str | None:
             if message is None:
@@ -196,7 +196,14 @@ class WhatsAppAdapter(InputAdapter):
             return _convert_whatsapp_media_to_markdown(message)
 
         messages_table = messages_table.mutate(message=convert_media_to_markdown(messages_table.message))
-        ir_table = create_ir_table(messages_table, timezone=timezone)
+        tenant_id = str(export.group_slug)
+        ir_table = create_ir_table(
+            messages_table,
+            tenant_id=tenant_id,
+            source=self.source_identifier,
+            thread_key=tenant_id,
+            timezone=timezone,
+        )
         logger.debug("Parsed WhatsApp export with %s messages", ir_table.count().execute())
         return ir_table
 

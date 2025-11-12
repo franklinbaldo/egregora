@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 
 # ============================================================================
 # Frozen UUID5 Namespaces (DO NOT MODIFY)
@@ -132,7 +133,7 @@ def deterministic_event_uuid(
     tenant_id: str,
     source: str,
     message_id: str,
-    timestamp_iso: str,
+    timestamp: str | datetime,
 ) -> uuid.UUID:
     """Generate deterministic UUID for an event.
 
@@ -140,7 +141,7 @@ def deterministic_event_uuid(
         tenant_id: Tenant identifier
         source: Source adapter name
         message_id: Source-specific message identifier
-        timestamp_iso: ISO 8601 timestamp string
+        timestamp: Timestamp associated with the event (datetime or ISO string)
 
     Returns:
         Deterministic UUID5 for this event
@@ -152,8 +153,19 @@ def deterministic_event_uuid(
         UUID('...')
 
     """
+    if isinstance(timestamp, datetime):
+        timestamp_iso = timestamp.astimezone().isoformat()
+    else:
+        timestamp_iso = timestamp
     ctx = NamespaceContext(tenant_id=tenant_id, source=source)
     event_namespace = ctx.event_namespace()
-    # Combine message_id + timestamp for uniqueness
     event_key = f"{message_id}:{timestamp_iso}"
     return uuid.uuid5(event_namespace, event_key)
+
+
+def deterministic_thread_uuid(tenant_id: str, source: str, thread_key: str) -> uuid.UUID:
+    """Generate deterministic UUID for a conversation thread."""
+
+    ctx = NamespaceContext(tenant_id=tenant_id, source=source)
+    thread_namespace = ctx.thread_namespace()
+    return uuid.uuid5(thread_namespace, thread_key)
