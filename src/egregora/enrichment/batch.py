@@ -8,9 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import ibis
 from google.genai import types as genai_types
-from ibis import IbisError
 from ibis.expr.types import Table
 
 from egregora.utils import BatchPromptRequest, BatchPromptResult
