@@ -388,3 +388,43 @@ class TestMkDocsOutputFormatSpecific:
         """Test listing documents when there are none."""
         docs = output_format.list_documents(DocumentType.JOURNAL)
         assert docs == []
+
+    def test_read_media_file(self, output_format, tmp_path):
+        """Test reading a media file (binary data)."""
+        # Create a media file with some fake binary-like content
+        # Using text that looks like binary to test the decode path
+        media_path = tmp_path / "docs" / "media" / "test-image.jpg"
+        media_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Write some binary-ish content (simulating an image)
+        test_content = "fake-jpeg-data-\xff\xd8\xff\xe0"
+        media_path.write_text(test_content, encoding="utf-8")
+
+        # Read the media file back
+        read_doc = output_format.read_document(DocumentType.MEDIA, "test-image.jpg")
+
+        assert read_doc is not None
+        assert read_doc.type == DocumentType.MEDIA
+        assert read_doc.content == test_content
+        assert "filename" in read_doc.metadata
+        assert read_doc.metadata["filename"] == "test-image.jpg"
+
+    def test_read_media_file_with_invalid_utf8(self, output_format, tmp_path):
+        """Test reading a media file with actual binary content (invalid UTF-8)."""
+        # Create a media file with actual binary data
+        media_path = tmp_path / "docs" / "media" / "test-binary.png"
+        media_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Write actual binary data (PNG header + some invalid UTF-8 bytes)
+        binary_data = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\xff\xfe\xfd"
+        media_path.write_bytes(binary_data)
+
+        # Read the media file back - should not raise UnicodeDecodeError
+        read_doc = output_format.read_document(DocumentType.MEDIA, "test-binary.png")
+
+        assert read_doc is not None
+        assert read_doc.type == DocumentType.MEDIA
+        # Content will be decoded with errors='ignore', may lose some bytes
+        assert isinstance(read_doc.content, str)
+        assert "filename" in read_doc.metadata
+        assert read_doc.metadata["filename"] == "test-binary.png"

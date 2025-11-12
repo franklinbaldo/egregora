@@ -228,29 +228,38 @@ class MkDocsOutputFormat:
             logger.debug("Document not found: %s/%s", doc_type.value, identifier)
             return None
 
-        # Read file content
+        # Read file content - handle binary media files
         try:
-            content = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+            if doc_type == DocumentType.MEDIA:
+                # Media files are binary (images, audio, video, etc.)
+                # Read as bytes and decode with error handling
+                raw_bytes = path.read_bytes()
+                content = raw_bytes.decode("utf-8", errors="ignore")
+                # Populate metadata with filename for media files
+                metadata = {"filename": path.name}
+                actual_content = content
+            else:
+                # Text documents: read as UTF-8
+                content = path.read_text(encoding="utf-8")
+                # Parse frontmatter to extract metadata (if present)
+                metadata = {}
+                actual_content = content
+
+                if content.startswith("---\n"):
+                    # Has YAML frontmatter
+                    try:
+                        import yaml
+
+                        parts = content.split("---\n", 2)
+                        if len(parts) >= 3:
+                            frontmatter_yaml = parts[1]
+                            actual_content = parts[2].strip()
+                            metadata = yaml.safe_load(frontmatter_yaml) or {}
+                    except (ImportError, yaml.YAMLError) as e:
+                        logger.warning("Failed to parse frontmatter for %s: %s", path, e)
+        except OSError:
             logger.exception("Failed to read document at %s", path)
             return None
-
-        # Parse frontmatter to extract metadata (if present)
-        metadata: dict = {}
-        actual_content = content
-
-        if content.startswith("---\n"):
-            # Has YAML frontmatter
-            try:
-                import yaml
-
-                parts = content.split("---\n", 2)
-                if len(parts) >= 3:
-                    frontmatter_yaml = parts[1]
-                    actual_content = parts[2].strip()
-                    metadata = yaml.safe_load(frontmatter_yaml) or {}
-            except (ImportError, yaml.YAMLError) as e:
-                logger.warning("Failed to parse frontmatter for %s: %s", path, e)
 
         # Reconstruct Document (note: document_id will be recalculated from content)
         from egregora.core.document import Document
