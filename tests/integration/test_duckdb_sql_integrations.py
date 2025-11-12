@@ -6,8 +6,8 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import ibis
-
 from egregora.agents.ranking.store import RankingStore
+
 from egregora.agents.shared.annotations import ANNOTATION_AUTHOR, AnnotationStore
 from egregora.config.loader import create_default_config
 from egregora.database import schemas as database_schema

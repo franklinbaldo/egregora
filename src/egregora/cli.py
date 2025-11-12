@@ -1,47 +1,20 @@
 """Typer-based CLI for Egregora v2."""
 
-import asyncio
-import importlib
-import json
 import logging
 import os
-import random
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated, Any
-from zoneinfo import ZoneInfo
 
 import typer
-from google import genai
-from jinja2 import Environment, FileSystemLoader
-from rich.markup import escape
 from rich.panel import Panel
 
-from egregora.agents.registry import AgentResolver, ToolRegistry, load_agent
-from egregora.agents.shared.profiler import get_active_authors
-from egregora.agents.writer import WriterConfig, write_posts_for_window
-from egregora.agents.writer.context import _load_profiles_context, _query_rag_for_context
-from egregora.agents.writer.formatting import _build_conversation_markdown, _load_freeform_memory
 from egregora.config import (
-    ModelConfig,
     ProcessConfig,
     find_mkdocs_file,
-    load_egregora_config,
-    load_mkdocs_config,
-    resolve_site_paths,
 )
-from egregora.database import duckdb_backend
-from egregora.enrichment import enrich_table, extract_and_replace_media
-from egregora.enrichment.core import EnrichmentRuntimeContext
-from egregora.ingestion import parse_source  # Phase 6: Renamed from parse_export (alpha - breaking)
 from egregora.init import ensure_mkdocs_project
-from egregora.pipeline import create_windows
-from egregora.pipeline.runner import run_source_pipeline
-from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
-from egregora.types import GroupSlug
-from egregora.utils.cache import EnrichmentCache
 from egregora.utils.logging_setup import configure_logging, console
-from egregora.utils.serialization import load_table, save_table
 
 app = typer.Typer(
     name="egregora",
