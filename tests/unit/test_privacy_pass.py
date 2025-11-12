@@ -16,15 +16,14 @@ from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import ibis
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-import ibis
-
 from egregora.database.validation import IR_MESSAGE_SCHEMA
-from egregora.privacy.constants import deterministic_author_uuid
 from egregora.privacy.config import PrivacySettings
+from egregora.privacy.constants import deterministic_author_uuid
 from egregora.privacy.gate import (
     PrivacyGate,
     PrivacyPass,

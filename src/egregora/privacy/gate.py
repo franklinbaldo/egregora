@@ -240,7 +240,7 @@ class PrivacyGate:
             tenant: str,
             source: str,
             author_raw: str,
-            author_uuid: "uuid.UUID",
+            author_uuid: uuid.UUID,
         ) -> bool:
             import uuid
 
