@@ -195,14 +195,14 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
     try:
         console.print(
             Panel(
-                f"[cyan]Source:[/cyan] {source}\n[cyan]Input:[/cyan] {config.zip_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {config.step_size} {config.step_unit}",
+                f"[cyan]Source:[/cyan] {source}\n[cyan]Input:[/cyan] {config.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {config.step_size} {config.step_unit}",
                 title="⚙️  Egregora Pipeline",
                 border_style="cyan",
             )
         )
         write_pipeline.run(
             source=source,
-            input_path=config.zip_file,
+            input_path=config.input_file,
             output_dir=config.output_dir,
             config=egregora_config,
             api_key=api_key,
@@ -981,3 +981,8 @@ def runs_show(
 
     finally:
         conn.close()
+
+
+def main() -> None:
+    """Entry point for the CLI."""
+    app()
