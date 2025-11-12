@@ -6,14 +6,14 @@
 
 **Status**: Planning Phase
 **Created**: 2025-01-11
-**Related**: Phase 4 OutputFormat refactoring (completed)
+**Related**: Phase 4 OutputAdapter refactoring (completed)
 
 ---
 
 ## User Stories Summary
 
 ### Story 1: Supporting a New Static Site Generator (Hugo)
-**As a Developer**, I want to add Hugo support by implementing a single `HugoOutputFormat` class without modifying core pipeline logic.
+**As a Developer**, I want to add Hugo support by implementing a single `HugoOutputAdapter` class without modifying core pipeline logic.
 
 ### Story 2: Unit Testing the Writer Agent in Isolation
 **As a DevOps Operator**, I want fast, reliable unit tests for the writer agent using in-memory storage without touching the filesystem.
@@ -22,7 +22,7 @@
 **As a Developer**, I want the pipeline to accept a single `ProcessConfig` object instead of 15+ individual parameters.
 
 ### Story 4: Consolidating Format-Specific Logic
-**As a Developer**, I want all MkDocs-specific logic (like `.authors.yml`) isolated within `MkDocsOutputFormat`, not in shared modules.
+**As a Developer**, I want all MkDocs-specific logic (like `.authors.yml`) isolated within `MkDocsOutputAdapter`, not in shared modules.
 
 ---
 
@@ -63,7 +63,7 @@ def _update_authors_yml(site_root: Path, author_uuid: str, front_matter: dict) -
 
 ```python
 @dataclass(frozen=True, slots=True)
-class WriterRuntimeContext:
+class WriterAgentContext:
     # ...
 
     # ❌ DEPRECATED: Never read, only written
@@ -71,7 +71,7 @@ class WriterRuntimeContext:
 
     # ✅ MODERN Phase 4: Actually used
     url_convention: UrlConvention
-    output_format: OutputFormat
+    output_format: OutputAdapter
 ```
 
 **Problem**:
@@ -124,7 +124,7 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
     return WritePostResult(status="success", path=url)
 ```
 
-**Current State**: ✅ Already decoupled via OutputFormat protocol
+**Current State**: ✅ Already decoupled via OutputAdapter protocol
 
 **User Story**: Stories 1 & 2 (already complete for posts/profiles)
 
@@ -132,9 +132,9 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
 
 ## Implementation Phases
 
-### Phase 5A: Move Format-Specific Logic to OutputFormat ⚡ HIGH PRIORITY
+### Phase 5A: Move Format-Specific Logic to OutputAdapter ⚡ HIGH PRIORITY
 
-**Goal**: Isolate all MkDocs-specific logic within `MkDocsOutputFormat`
+**Goal**: Isolate all MkDocs-specific logic within `MkDocsOutputAdapter`
 
 **Tasks**:
 
@@ -219,7 +219,7 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
    ```python
    # src/egregora/agents/writer/core.py
 
-   from egregora.rendering.mkdocs_profile_storage import MkDocsProfileStorage
+   from egregora.output_adapters.mkdocs_profile_storage import MkDocsProfileStorage
 
    # Create storage instances
    profile_storage = MkDocsProfileStorage(
@@ -227,7 +227,7 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
        site_root=site_root
    )
 
-   runtime_context = WriterRuntimeContext(
+   runtime_context = WriterAgentContext(
        profiles=profile_storage,  # ✅ Inject protocol implementation
        # ...
    )
@@ -258,7 +258,7 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
    # src/egregora/agents/writer/agent.py
 
    @dataclass(frozen=True, slots=True)
-   class WriterRuntimeContext:
+   class WriterAgentContext:
        # ... other fields ...
 
        # ❌ DELETE THIS FIELD
@@ -267,7 +267,7 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
        # ✅ KEEP THESE (Phase 4 replacements)
        url_convention: UrlConvention
        url_context: UrlContext
-       output_format: OutputFormat
+       output_format: OutputAdapter
    ```
 
 2. **Remove LegacyStorageAdapter instantiation**
@@ -280,8 +280,8 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
    # document_storage = legacy_adapter
    ```
 
-3. **Update all WriterRuntimeContext instantiations**
-   - Search: `WriterRuntimeContext(`
+3. **Update all WriterAgentContext instantiations**
+   - Search: `WriterAgentContext(`
    - Remove: `document_storage=...` parameter
    - Files: `core.py`, test files
 
@@ -292,14 +292,14 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
    import warnings
 
    class LegacyStorageAdapter:
-       """DEPRECATED: Use OutputFormat protocol instead.
+       """DEPRECATED: Use OutputAdapter protocol instead.
 
        This class will be removed in version 0.6.0.
        """
 
        def __init__(self, *args, **kwargs):
            warnings.warn(
-               "LegacyStorageAdapter is deprecated, use OutputFormat instead",
+               "LegacyStorageAdapter is deprecated, use OutputAdapter instead",
                DeprecationWarning,
                stacklevel=2
            )
@@ -311,16 +311,16 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
 
    # Add deprecation notice to docstring
    class MkDocsDocumentStorage:
-       """DEPRECATED: Use MkDocsOutputFormat instead.
+       """DEPRECATED: Use MkDocsOutputAdapter instead.
 
        This class will be removed in version 0.6.0.
-       Migration: Use MkDocsOutputFormat.serve() for document persistence.
+       Migration: Use MkDocsOutputAdapter.serve() for document persistence.
        """
    ```
 
 **Benefits**:
 - ✅ Removes 269 lines of dead code
-- ✅ Clarifies which pattern to use (OutputFormat)
+- ✅ Clarifies which pattern to use (OutputAdapter)
 - ✅ Reduces cognitive load for new contributors
 
 **Estimated Time**: 2 hours
@@ -399,11 +399,11 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
    ```python
    # tests/helpers/in_memory_storage.py
 
-   from egregora.storage import OutputFormat, UrlConvention, UrlContext
-   from egregora.core.document import Document
+   from egregora.storage import OutputAdapter, UrlConvention, UrlContext
+   from egregora.data_primitives.document import Document
 
    class InMemoryOutputFormat:
-       """In-memory OutputFormat for testing."""
+       """In-memory OutputAdapter for testing."""
 
        def __init__(self, url_convention: UrlConvention):
            self._url_convention = url_convention
@@ -453,7 +453,7 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
        output_format = InMemoryOutputFormat(url_convention)
        profile_storage = InMemoryProfileStorage()
 
-       context = WriterRuntimeContext(
+       context = WriterAgentContext(
            url_convention=url_convention,
            url_context=UrlContext(),
            output_format=output_format,
@@ -653,7 +653,7 @@ def serve(self, document: Document) -> None:
 3. **In-Memory Storage Tests**
    ```python
    def test_in_memory_output_format_protocol_compliance():
-       """Verify InMemoryOutputFormat implements OutputFormat."""
+       """Verify InMemoryOutputFormat implements OutputAdapter."""
        fmt = InMemoryOutputFormat(LegacyMkDocsUrlConvention())
 
        doc = Document(content="test", type=DocumentType.POST, metadata={"slug": "test"})
@@ -692,11 +692,11 @@ def serve(self, document: Document) -> None:
 2. **Hugo Support Validation** (future)
    ```python
    def test_hugo_output_format_integration():
-       """Verify HugoOutputFormat works with writer agent."""
-       hugo_format = HugoOutputFormat(site_root=tmp_path)
+       """Verify HugoOutputAdapter works with writer agent."""
+       hugo_format = HugoOutputAdapter(site_root=tmp_path)
 
        # Use Hugo format instead of MkDocs
-       context = WriterRuntimeContext(
+       context = WriterAgentContext(
            output_format=hugo_format,
            # ...
        )
@@ -752,7 +752,7 @@ class HugoProfileStorage:
 ### For Existing Deployments
 
 **No breaking changes** - All existing MkDocs sites continue to work:
-- `MkDocsOutputFormat` remains default
+- `MkDocsOutputAdapter` remains default
 - `.authors.yml` continues to be updated
 - All file paths stay the same
 - Only internal refactoring, no API changes
@@ -768,7 +768,7 @@ class HugoProfileStorage:
 
 ### Intended Design
 
-The `serve()` method in OutputFormat has **intentional overwriting behavior** for slug-based paths:
+The `serve()` method in OutputAdapter has **intentional overwriting behavior** for slug-based paths:
 
 **Posts** (slug + date):
 - Path: `posts/YYYY-MM-DD-{slug}.md`

@@ -14,8 +14,8 @@ import pytest
 from pydantic import ValidationError
 
 from egregora.database.validation import (
-    IR_V1_SCHEMA,
-    IRv1Row,
+    IR_MESSAGE_SCHEMA,
+    IRMessageRow,
     SchemaError,
     adapter_output_validator,
     schema_diff,
@@ -44,7 +44,7 @@ def create_valid_ir_v1_table() -> ibis.Table:
         "created_at": [datetime.now(UTC)],
         "created_by_run": [None],
     }
-    return ibis.memtable(data, schema=IR_V1_SCHEMA)
+    return ibis.memtable(data, schema=IR_MESSAGE_SCHEMA)
 
 
 class TestIRv1Schema:
@@ -70,14 +70,14 @@ class TestIRv1Schema:
             "created_by_run",
         }
 
-        assert set(IR_V1_SCHEMA.names) == expected_columns
+        assert set(IR_MESSAGE_SCHEMA.names) == expected_columns
 
     def test_schema_uuid_columns(self):
         """Test UUID columns have correct type."""
         uuid_columns = ["event_id", "thread_id", "author_uuid"]
 
         for col in uuid_columns:
-            col_type = IR_V1_SCHEMA[col]
+            col_type = IR_MESSAGE_SCHEMA[col]
             assert isinstance(col_type, dt.UUID), f"{col} should be UUID type"
 
     def test_schema_nullable_columns(self):
@@ -85,16 +85,16 @@ class TestIRv1Schema:
         nullable_columns = ["text", "media_url", "media_type", "attrs", "pii_flags", "created_by_run"]
 
         for col in nullable_columns:
-            col_type = IR_V1_SCHEMA[col]
+            col_type = IR_MESSAGE_SCHEMA[col]
             assert col_type.nullable, f"{col} should be nullable"
 
 
 class TestIRv1Row:
-    """Test IRv1Row Pydantic validator."""
+    """Test IRMessageRow Pydantic validator."""
 
     def test_valid_row(self):
         """Test valid IR v1 row passes validation."""
-        row = IRv1Row(
+        row = IRMessageRow(
             event_id=uuid.uuid4(),
             tenant_id="default",
             source="whatsapp",
@@ -118,7 +118,7 @@ class TestIRv1Row:
     def test_invalid_tenant_id_empty(self):
         """Test empty tenant_id fails validation."""
         with pytest.raises(ValidationError, match="tenant_id"):
-            IRv1Row(
+            IRMessageRow(
                 event_id=uuid.uuid4(),
                 tenant_id="",  # Empty string
                 source="whatsapp",
@@ -133,7 +133,7 @@ class TestIRv1Row:
     def test_invalid_source_uppercase(self):
         """Test uppercase source fails validation."""
         with pytest.raises(ValidationError, match="source"):
-            IRv1Row(
+            IRMessageRow(
                 event_id=uuid.uuid4(),
                 tenant_id="default",
                 source="WhatsApp",  # Should be lowercase
@@ -147,7 +147,7 @@ class TestIRv1Row:
 
     def test_nullable_fields_optional(self):
         """Test nullable fields can be None."""
-        row = IRv1Row(
+        row = IRMessageRow(
             event_id=uuid.uuid4(),
             tenant_id="default",
             source="slack",
@@ -243,7 +243,7 @@ class TestValidateIRSchema:
         }
 
         # Build schema without 'source'
-        schema = ibis.schema({k: IR_V1_SCHEMA[k] for k in data})
+        schema = ibis.schema({k: IR_MESSAGE_SCHEMA[k] for k in data})
         table = ibis.memtable(data, schema=schema)
 
         with pytest.raises(SchemaError, match="schema mismatch"):
@@ -271,7 +271,7 @@ class TestValidateIRSchema:
         }
 
         # Build schema with extra field
-        schema = IR_V1_SCHEMA
+        schema = IR_MESSAGE_SCHEMA
         extra_schema = ibis.schema({**dict(schema.items()), "extra_field": dt.string})
         table = ibis.memtable(data, schema=extra_schema)
 
@@ -299,7 +299,7 @@ class TestValidateIRSchema:
         }
 
         # Change tenant_id to int64 (should be string)
-        wrong_schema = ibis.schema({**dict(IR_V1_SCHEMA.items()), "tenant_id": dt.int64})
+        wrong_schema = ibis.schema({**dict(IR_MESSAGE_SCHEMA.items()), "tenant_id": dt.int64})
         table = ibis.memtable({**data, "tenant_id": [123]}, schema=wrong_schema)
 
         with pytest.raises(SchemaError, match="type mismatch"):
@@ -308,7 +308,7 @@ class TestValidateIRSchema:
     def test_empty_table_passes(self):
         """Test empty table (0 rows) passes validation."""
         # Create empty table with correct schema
-        table = ibis.memtable([], schema=IR_V1_SCHEMA)
+        table = ibis.memtable([], schema=IR_MESSAGE_SCHEMA)
 
         # Should not raise (empty table is valid)
         validate_ir_schema(table)
@@ -334,7 +334,7 @@ class TestValidateIRSchema:
             "created_by_run": [None, None],
         }
 
-        table = ibis.memtable(data, schema=IR_V1_SCHEMA)
+        table = ibis.memtable(data, schema=IR_MESSAGE_SCHEMA)
 
         # Should not raise
         validate_ir_schema(table)

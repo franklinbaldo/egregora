@@ -356,7 +356,7 @@ class NewStage(PipelineStage):
 - `tests/unit/test_stage_validation.py` - Test suite (7 tests)
 - `src/egregora/pipeline/base.py` - PipelineStage base class
 - `docs/pipeline/view-registry.md` - ViewRegistry (C.1)
-- `docs/database/storage-manager.md` - StorageManager (C.2)
+- `docs/database/storage-manager.md` - DuckDBStorageManager (C.2)
 - `ARCHITECTURE_ROADMAP.md` - Priority C specification
 
 ## Example: Filtering Stage with Validation
@@ -389,5 +389,5 @@ class FilteringStage(PipelineStage):
 ## See Also
 
 - **Adapter validation**: `@validate_adapter_output` for source adapters
-- **IR v1 schema**: `IR_V1_SCHEMA` in `src/egregora/database/validation.py`
+- **IR v1 schema**: `IR_MESSAGE_SCHEMA` in `src/egregora/database/validation.py`
 - **Schema lockfile**: `schema/ir_v1.json` (canonical schema definition)

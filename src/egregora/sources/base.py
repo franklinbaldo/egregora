@@ -2,7 +2,7 @@
 
 This module provides the core abstractions for implementing chat platform adapters:
 
-1. **SourceAdapter** (Modern Interface):
+1. **InputAdapter** (Modern Interface):
    - The standard adapter interface for all sources
    - Returns Table directly conforming to IR schema
    - Supports media delivery and content-hash UUIDs
@@ -34,7 +34,7 @@ from uuid import UUID, uuid5
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
-    from egregora.types import GroupSlug
+    from egregora.data_primitives import GroupSlug
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +45,8 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "AdapterMeta",
     "Export",
+    "InputAdapter",
     "MediaMapping",
-    "SourceAdapter",
 ]
 
 
@@ -58,7 +58,7 @@ class AdapterMeta(TypedDict):
     - Validate IR version compatibility
     - Provide documentation links
 
-    Used by both InputSource and SourceAdapter interfaces.
+    Used by both InputSource and InputAdapter interfaces.
 
     Attributes:
         name: Adapter identifier (e.g., 'whatsapp', 'slack')
@@ -111,11 +111,11 @@ class Export:
 
 
 # =============================================================================
-# SourceAdapter Interface
+# InputAdapter Interface
 # =============================================================================
 
 
-class SourceAdapter(ABC):
+class InputAdapter(ABC):
     """Abstract base class for all source adapters.
 
     A source adapter is responsible for:
@@ -127,7 +127,7 @@ class SourceAdapter(ABC):
     Required Methods:
         - source_name (property): Human-readable name
         - source_identifier (property): CLI identifier
-        - adapter_meta(): Return adapter metadata for plugin discovery
+        - get_adapter_metadata(): Return adapter metadata for plugin discovery
         - parse(): Convert raw export to IR-compliant table
 
     Optional Methods (with default implementations):
@@ -156,7 +156,7 @@ class SourceAdapter(ABC):
         """
 
     @abstractmethod
-    def adapter_meta(self) -> AdapterMeta:
+    def get_adapter_metadata(self) -> AdapterMeta:
         """Return adapter metadata for plugin discovery and validation.
 
         This method enables:
@@ -170,7 +170,7 @@ class SourceAdapter(ABC):
 
         Example:
             >>> adapter = WhatsAppAdapter()
-            >>> meta = adapter.adapter_meta()
+            >>> meta = adapter.get_adapter_metadata()
             >>> print(f"{meta['name']} v{meta['version']} (IR {meta['ir_version']})")
             WhatsApp v1.0.0 (IR v1)
 
@@ -338,8 +338,8 @@ class SourceAdapter(ABC):
             UUID string (e.g., "a1b2c3d4-e5f6-5789-a1b2-c3d4e5f67890")
 
         Example:
-            >>> uuid1 = SourceAdapter.generate_media_uuid(Path("photo1.jpg"))
-            >>> uuid2 = SourceAdapter.generate_media_uuid(Path("photo1_copy.jpg"))
+            >>> uuid1 = InputAdapter.generate_media_uuid(Path("photo1.jpg"))
+            >>> uuid2 = InputAdapter.generate_media_uuid(Path("photo1_copy.jpg"))
             >>> uuid1 == uuid2  # True if content is identical
 
         """

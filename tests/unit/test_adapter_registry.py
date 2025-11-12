@@ -1,7 +1,7 @@
 """Tests for adapter registry and plugin discovery.
 
 Tests cover:
-- AdapterRegistry initialization
+- InputAdapterRegistry initialization
 - Built-in adapter loading (WhatsApp, Slack)
 - Plugin discovery via entry points
 - IR version validation
@@ -13,15 +13,15 @@ from __future__ import annotations
 
 import pytest
 
-from egregora.adapters.registry import AdapterRegistry, get_global_registry
+from egregora.input_adapters.registry import InputAdapterRegistry, get_global_registry
 
 
 class TestAdapterRegistry:
-    """Tests for AdapterRegistry class."""
+    """Tests for InputAdapterRegistry class."""
 
     def test_registry_initialization(self) -> None:
         """Test that registry initializes with built-in adapters."""
-        registry = AdapterRegistry()
+        registry = InputAdapterRegistry()
 
         # Should load WhatsApp and Slack adapters
         assert len(registry) >= 2
@@ -30,14 +30,14 @@ class TestAdapterRegistry:
 
     def test_get_whatsapp_adapter(self) -> None:
         """Test retrieving WhatsApp adapter."""
-        registry = AdapterRegistry()
+        registry = InputAdapterRegistry()
         adapter = registry.get("whatsapp")
 
         assert adapter.source_identifier == "whatsapp"
         assert adapter.source_name == "WhatsApp"
 
-        # Verify adapter_meta()
-        meta = adapter.adapter_meta()
+        # Verify get_adapter_metadata()
+        meta = adapter.get_adapter_metadata()
         assert meta["name"] == "WhatsApp"
         assert meta["version"] == "1.0.0"
         assert meta["source"] == "whatsapp"
@@ -46,14 +46,14 @@ class TestAdapterRegistry:
 
     def test_get_slack_adapter(self) -> None:
         """Test retrieving Slack adapter (stub)."""
-        registry = AdapterRegistry()
+        registry = InputAdapterRegistry()
         adapter = registry.get("slack")
 
         assert adapter.source_identifier == "slack"
         assert adapter.source_name == "Slack"
 
-        # Verify adapter_meta()
-        meta = adapter.adapter_meta()
+        # Verify get_adapter_metadata()
+        meta = adapter.get_adapter_metadata()
         assert meta["name"] == "Slack"
         assert meta["version"] == "0.1.0"
         assert meta["source"] == "slack"
@@ -61,14 +61,14 @@ class TestAdapterRegistry:
 
     def test_get_unknown_adapter_raises_keyerror(self) -> None:
         """Test that getting unknown adapter raises KeyError."""
-        registry = AdapterRegistry()
+        registry = InputAdapterRegistry()
 
         with pytest.raises(KeyError, match="Unknown source: 'unknown'"):
             registry.get("unknown")
 
     def test_list_adapters(self) -> None:
         """Test listing all adapters."""
-        registry = AdapterRegistry()
+        registry = InputAdapterRegistry()
         adapters = registry.list_adapters()
 
         # Should be a list of AdapterMeta dicts
@@ -90,7 +90,7 @@ class TestAdapterRegistry:
 
     def test_contains_operator(self) -> None:
         """Test __contains__ operator."""
-        registry = AdapterRegistry()
+        registry = InputAdapterRegistry()
 
         assert "whatsapp" in registry
         assert "slack" in registry
@@ -98,15 +98,15 @@ class TestAdapterRegistry:
 
     def test_len_operator(self) -> None:
         """Test __len__ operator."""
-        registry = AdapterRegistry()
+        registry = InputAdapterRegistry()
         assert len(registry) >= 2
 
     def test_repr(self) -> None:
         """Test __repr__ string representation."""
-        registry = AdapterRegistry()
+        registry = InputAdapterRegistry()
         repr_str = repr(registry)
 
-        assert "AdapterRegistry" in repr_str
+        assert "InputAdapterRegistry" in repr_str
         assert "adapters=" in repr_str
         assert "whatsapp" in repr_str
         assert "slack" in repr_str
@@ -135,9 +135,9 @@ class TestAdapterMeta:
 
     def test_adapter_meta_structure(self) -> None:
         """Test that AdapterMeta has correct structure."""
-        registry = AdapterRegistry()
+        registry = InputAdapterRegistry()
         adapter = registry.get("whatsapp")
-        meta = adapter.adapter_meta()
+        meta = adapter.get_adapter_metadata()
 
         # Verify all required fields
         assert isinstance(meta["name"], str)
@@ -148,7 +148,7 @@ class TestAdapterMeta:
 
     def test_adapter_meta_ir_version_v1(self) -> None:
         """Test that all adapters support IR v1."""
-        registry = AdapterRegistry()
+        registry = InputAdapterRegistry()
 
         for meta in registry.list_adapters():
             assert meta["ir_version"] == "v1", f"Adapter {meta['name']} should support IR v1"
@@ -159,7 +159,7 @@ class TestAdapterProtocol:
 
     def test_whatsapp_adapter_implements_protocol(self) -> None:
         """Test that WhatsApp adapter implements full protocol."""
-        registry = AdapterRegistry()
+        registry = InputAdapterRegistry()
         adapter = registry.get("whatsapp")
 
         # Required properties
@@ -167,7 +167,7 @@ class TestAdapterProtocol:
         assert hasattr(adapter, "source_identifier")
 
         # Required methods
-        assert hasattr(adapter, "adapter_meta")
+        assert hasattr(adapter, "get_adapter_metadata")
         assert hasattr(adapter, "parse")
 
         # Optional methods
@@ -176,7 +176,7 @@ class TestAdapterProtocol:
 
     def test_slack_adapter_implements_protocol(self) -> None:
         """Test that Slack adapter implements full protocol."""
-        registry = AdapterRegistry()
+        registry = InputAdapterRegistry()
         adapter = registry.get("slack")
 
         # Required properties
@@ -184,7 +184,7 @@ class TestAdapterProtocol:
         assert hasattr(adapter, "source_identifier")
 
         # Required methods
-        assert hasattr(adapter, "adapter_meta")
+        assert hasattr(adapter, "get_adapter_metadata")
         assert hasattr(adapter, "parse")
 
         # Optional methods
@@ -197,14 +197,14 @@ class TestLegacyCompatibility:
 
     def test_get_adapter_function_still_works(self) -> None:
         """Test that legacy get_adapter() function still works."""
-        from egregora.adapters import get_adapter
+        from egregora.input_adapters import get_adapter
 
         adapter = get_adapter("whatsapp")
         assert adapter.source_identifier == "whatsapp"
 
     def test_get_adapter_raises_on_unknown(self) -> None:
         """Test that legacy get_adapter() raises KeyError."""
-        from egregora.adapters import get_adapter
+        from egregora.input_adapters import get_adapter
 
         with pytest.raises(KeyError, match="Unknown source"):
             get_adapter("unknown")

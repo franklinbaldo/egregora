@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from egregora.adapters import ADAPTER_REGISTRY, get_adapter
-from egregora.adapters.slack import SlackAdapter
-from egregora.adapters.whatsapp import WhatsAppAdapter
-from egregora.pipeline.validation import validate_ir_schema
+from egregora.database.validation import validate_ir_schema
+from egregora.input_adapters import ADAPTER_REGISTRY, get_adapter
+from egregora.input_adapters.slack import SlackAdapter
+from egregora.input_adapters.whatsapp import WhatsAppAdapter
 
 
 class TestAdapterRegistry:
@@ -165,7 +165,7 @@ class TestSlackAdapter:
 
 
 class TestAdapterContract:
-    """Test that all adapters follow the SourceAdapter contract."""
+    """Test that all adapters follow the InputAdapter contract."""
 
     @pytest.mark.parametrize("source_id", list(ADAPTER_REGISTRY.keys()))
     def test_adapter_has_source_name_property(self, source_id):

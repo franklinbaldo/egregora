@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True, slots=True)
-class PrivacyConfig:
+class PrivacySettings:
     """Privacy policy configuration (immutable, tenant-scoped).
 
     Attributes:
@@ -26,7 +26,7 @@ class PrivacyConfig:
         reidentification_retention_days: How long to keep escrow data
 
     Example:
-        >>> config = PrivacyConfig(
+        >>> config = PrivacySettings(
         ...     tenant_id="acme-corp",
         ...     detect_pii=True,
         ...     allowed_media_domains=("acme.com", "trusted.com"),

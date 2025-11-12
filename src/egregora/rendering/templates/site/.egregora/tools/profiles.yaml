@@ -1,6 +1,0 @@
-profiles:
-  minimal:
-    allow: [diversity_sampler, link_rewriter]
-    deny:  [external_web_browse]
-    quotas:
-      diversity_sampler: { per_run: 2 }

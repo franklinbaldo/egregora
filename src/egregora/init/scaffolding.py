@@ -1,16 +1,16 @@
 """Site scaffolding utilities for Egregora sites.
 
-MODERN (Phase N): Refactored to use OutputFormat abstraction.
-- MkDocs-specific logic moved to MkDocsOutputFormat.scaffold_site()
+MODERN (Phase N): Refactored to use OutputAdapter abstraction.
+- MkDocs-specific logic moved to MkDocsOutputAdapter.scaffold_site()
 - This module now provides thin compatibility wrappers
-- New code should use OutputFormat directly via create_output_format()
+- New code should use OutputAdapter directly via create_output_format()
 """
 
 import logging
 from pathlib import Path
 
-from egregora.rendering import create_output_format
-from egregora.rendering.mkdocs_site import resolve_site_paths
+from egregora.output_adapters import create_output_format
+from egregora.output_adapters.mkdocs_site import resolve_site_paths
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]:
         - was_created: True if new site was created, False if existed
 
     """
-    # Use OutputFormat abstraction
+    # Use OutputAdapter abstraction
     site_root = site_root.expanduser().resolve()
     site_name = site_root.name or "Egregora Archive"
 

@@ -51,7 +51,7 @@
    - [ ] Test: `tests/unit/test_privacy_pass.py`
 
 2. **Update Privacy Config** (30 min)
-   - [ ] Add `tenant_id` to `PrivacyConfig`
+   - [ ] Add `tenant_id` to `PrivacySettings`
    - [ ] Update anonymizer to use namespaced UUIDs
    - [ ] Test: Multi-tenant isolation
 

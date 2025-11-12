@@ -10,7 +10,7 @@ Documentation:
 """
 
 from egregora.agents.writer.agent import PostMetadata
-from egregora.agents.writer.core import (
+from egregora.agents.writer.writer_runner import (
     WriterConfig,
     get_top_authors,
     index_documents_for_rag,

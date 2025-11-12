@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 from ibis.expr.types import Table
 
-from egregora.config.schema import EgregoraConfig
+from egregora.config.settings import EgregoraConfig
 from egregora.enrichment.simple_runner import enrich_table_simple
 
 if TYPE_CHECKING:
@@ -45,7 +45,7 @@ class EnrichmentRuntimeContext:
     cache: EnrichmentCache
     docs_dir: Path
     posts_dir: Path
-    output_format: Any  # OutputFormat - storage protocol coordinator
+    output_format: Any  # OutputAdapter - storage protocol coordinator
     site_root: Path | None = None  # For custom prompt overrides in {site_root}/.egregora/prompts/
     duckdb_connection: "DuckDBBackend | None" = None
     target_table: str | None = None

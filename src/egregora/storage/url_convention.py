@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from egregora.core.document import Document
+    from egregora.data_primitives.document import Document
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,7 +53,7 @@ class UrlConvention(Protocol):
     def name(self) -> str:
         """Convention identifier (e.g., 'legacy-mkdocs', 'flat', 'hugo-like').
 
-        Used to verify Core and OutputFormat use the same convention.
+        Used to verify Core and OutputAdapter use the same convention.
         """
         ...
 

@@ -31,7 +31,7 @@ Core:     Uses URL in content, cross-references, etc.
 ### Architecture
 
 1. **UrlConvention** - Defines URL policy (pure function, no I/O)
-2. **OutputFormat** - Adopts a convention, ensures documents are served at those URLs
+2. **OutputAdapter** - Adopts a convention, ensures documents are served at those URLs
 3. **Core** - Asks for URLs, requests availability, uses URLs
 
 **Key insight**: Separate URL generation (policy) from document persistence (mechanism).
@@ -92,10 +92,10 @@ Maintains current URL rules exactly:
 
 Nothing changes externally. Agents continue to get identical URLs.
 
-### 2. OutputFormat (Persistence Mechanism)
+### 2. OutputAdapter (Persistence Mechanism)
 
 ```python
-class OutputFormat(Protocol):
+class OutputAdapter(Protocol):
     """Handles document persistence at URLs defined by convention.
 
     Adopts a UrlConvention (shared with Core) and ensures documents
@@ -141,7 +141,7 @@ class OutputFormat(Protocol):
 def publish_document(
     document: Document,
     url_convention: UrlConvention,
-    output_format: OutputFormat,
+    output_format: OutputAdapter,
     ctx: UrlContext
 ) -> str:
     # Verify format uses same convention (safety check)
@@ -175,24 +175,24 @@ def publish_document(
 - Requests serving (delegates to format)
 - Uses URLs
 
-**OutputFormat does NOT:**
+**OutputAdapter does NOT:**
 - Return URLs to Core (Core calculates independently)
 - Return status (idempotency internal)
 - Expose paths, IDs, or backend details
 
-**OutputFormat ONLY:**
+**OutputAdapter ONLY:**
 - Receives documents
 - Calculates URLs from same convention
 - Persists documents at those URLs
 
 ## Implementation Examples
 
-### MkDocsOutputFormat (Filesystem)
+### MkDocsOutputAdapter (Filesystem)
 
 ```python
 from pathlib import Path
 
-class MkDocsOutputFormat:
+class MkDocsOutputAdapter:
     """MkDocs format using filesystem storage."""
 
     def __init__(self, base_path: Path, base_url: str = ""):
@@ -400,8 +400,8 @@ post_content = f"![Photo]({url})"
 ```python
 # tests/unit/storage/test_output_format_conformance.py
 
-def test_convention_name_and_version(output_format: OutputFormat):
-    """OutputFormat exposes convention name and version."""
+def test_convention_name_and_version(output_format: OutputAdapter):
+    """OutputAdapter exposes convention name and version."""
     assert output_format.url_convention.name
     assert output_format.url_convention.version
     # e.g., "legacy-mkdocs" and "v1"
@@ -414,7 +414,7 @@ def test_url_determinism(url_convention: UrlConvention, ctx: UrlContext, sample_
     assert url1 == url2
     assert url1.startswith("http") or url1.startswith("/")
 
-def test_idempotency(output_format: OutputFormat, sample_doc: Document):
+def test_idempotency(output_format: OutputAdapter, sample_doc: Document):
     """Multiple serve() calls are safe no-ops."""
     # First call
     output_format.serve(sample_doc)
@@ -440,7 +440,7 @@ def test_different_documents_different_urls(url_convention: UrlConvention, ctx: 
 
 def test_core_and_format_use_same_convention(
     url_convention: UrlConvention,
-    output_format: OutputFormat,
+    output_format: OutputAdapter,
     sample_doc: Document,
     ctx: UrlContext
 ):
@@ -455,7 +455,7 @@ def test_core_and_format_use_same_convention(
     url_from_format = output_format.url_convention.canonical_url(sample_doc, ctx)
     assert url_from_core == url_from_format
 
-def test_media_documents(url_convention: UrlConvention, output_format: OutputFormat, ctx: UrlContext):
+def test_media_documents(url_convention: UrlConvention, output_format: OutputAdapter, ctx: UrlContext):
     """Media documents work same as other documents."""
     media = Document(
         content=b"fake-image-data",
@@ -472,7 +472,7 @@ def test_media_documents(url_convention: UrlConvention, output_format: OutputFor
     output_format.serve(media)
     # No error - media treated like any other document
 
-def test_serve_makes_document_available(output_format: OutputFormat, sample_doc: Document):
+def test_serve_makes_document_available(output_format: OutputAdapter, sample_doc: Document):
     """serve() ensures document is available at convention URL."""
     output_format.serve(sample_doc)
 
@@ -490,20 +490,20 @@ def test_serve_makes_document_available(output_format: OutputFormat, sample_doc:
 
 **Files to create:**
 - `src/egregora/storage/url_convention.py` - UrlConvention protocol, UrlContext
-- `src/egregora/storage/output_format.py` - OutputFormat protocol
+- `src/egregora/storage/output_format.py` - OutputAdapter protocol
 - `src/egregora/rendering/legacy_mkdocs_url_convention.py` - LegacyMkDocsUrlConvention
 - `tests/unit/storage/test_url_convention.py` - Tests for URL generation
 - `tests/unit/storage/test_output_format_conformance.py` - Conformance tests
 
 **Steps:**
 1. Define `UrlConvention` protocol (with name/version properties)
-2. Define `OutputFormat` protocol (just serve() + url_convention property)
+2. Define `OutputAdapter` protocol (just serve() + url_convention property)
 3. Implement `LegacyMkDocsUrlConvention` with current rules
 4. Write conformance tests
 
 **Deliverable:** New abstractions with tests, no integration yet.
 
-### Phase 2: Implement MkDocsOutputFormat
+### Phase 2: Implement MkDocsOutputAdapter
 
 **Files to create:**
 - `src/egregora/rendering/mkdocs_output_format.py` - New implementation
@@ -518,13 +518,13 @@ def test_serve_makes_document_available(output_format: OutputFormat, sample_doc:
 3. Move format-specific logic (frontmatter, .authors.yml) into internal methods
 4. Run conformance tests
 
-**Deliverable:** Working `MkDocsOutputFormat` passing all tests.
+**Deliverable:** Working `MkDocsOutputAdapter` passing all tests.
 
 ### Phase 3: Update Core
 
 **Files to modify:**
 - `src/egregora/agents/writer/writer_agent.py` - Use convention + serve()
-- `src/egregora/cli.py` - Inject UrlConvention + OutputFormat
+- `src/egregora/cli.py` - Inject UrlConvention + OutputAdapter
 - Agent tools - Use URLs from convention
 
 **Steps:**
@@ -586,19 +586,19 @@ output:
 
 ### 1. **Perfect Separation of Concerns**
 - **UrlConvention**: URL policy (pure, deterministic, versionable)
-- **OutputFormat**: Persistence (internal, format-specific, opaque)
+- **OutputAdapter**: Persistence (internal, format-specific, opaque)
 - **Core**: Orchestration (calculates URLs, requests serving, uses URLs)
 - Core and Format both use convention, but independently
 - No coupling between Core and Format - only via shared convention
 
 ### 2. **Absolute Minimum Interface**
 - Core: **2 independent operations** (calculate URL, request serving)
-- OutputFormat: **1 method** (`serve`) + **1 property** (`url_convention`)
+- OutputAdapter: **1 method** (`serve`) + **1 property** (`url_convention`)
 - No publish(), no url_for(), no status, no options, no result objects
 - ~80% less interface surface area than original proposal
 
 ### 3. **Backend-Agnostic (For Real)**
-- OutputFormat can use ANY backend
+- OutputAdapter can use ANY backend
 - Core never sees paths, storage, or implementation
 - `ensure_served()` does whatever's needed internally
 
@@ -648,7 +648,7 @@ _determine_journal_path()
 ```python
 # Perfect separation - Core and Format both use convention
 url_convention = LegacyMkDocsUrlConvention()
-output_format = MkDocsOutputFormat(base_path)
+output_format = MkDocsOutputAdapter(base_path)
 
 # Verify compatibility
 assert output_format.url_convention.name == url_convention.name
@@ -668,9 +668,9 @@ output_format.serve(document)
 ## Success Criteria
 
 - [ ] `UrlConvention` protocol defined (with name/version properties)
-- [ ] `OutputFormat` protocol with **only `serve()` + `url_convention` property**
+- [ ] `OutputAdapter` protocol with **only `serve()` + `url_convention` property**
 - [ ] `LegacyMkDocsUrlConvention` maintains exact current URLs
-- [ ] `MkDocsOutputFormat` passes conformance tests
+- [ ] `MkDocsOutputAdapter` passes conformance tests
 - [ ] Core calculates URLs **directly from convention** (not from format)
 - [ ] Core uses **only `url_convention.canonical_url()` + `output_format.serve()`**
 - [ ] Convention compatibility check at startup

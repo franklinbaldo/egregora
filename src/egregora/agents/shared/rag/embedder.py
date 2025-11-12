@@ -141,7 +141,7 @@ def embed_text(
     return _call_with_retries(_make_request)
 
 
-def embed_batch(
+def embed_texts_in_batch(
     texts: Annotated[list[str], "List of texts to embed"],
     *,
     model: Annotated[str, "The embedding model to use (Google format, e.g., 'models/text-embedding-004')"],
@@ -197,12 +197,12 @@ def embed_chunks(
     """
     if not chunks:
         return []
-    embeddings = embed_batch(chunks, model=model, task_type=task_type)
+    embeddings = embed_texts_in_batch(chunks, model=model, task_type=task_type)
     logger.info("Embedded %d chunks (%d dimensions)", len(embeddings), EMBEDDING_DIM)
     return embeddings
 
 
-def embed_query(
+def embed_query_text(
     query_text: Annotated[str, "The query text to embed"],
     *,
     model: Annotated[str, "The name of the embedding model to use"],

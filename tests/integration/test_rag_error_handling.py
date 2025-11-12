@@ -8,7 +8,7 @@ import pytest
 from google import genai
 from returns.result import Failure, Success
 
-from egregora.agents.writer.context import (
+from egregora.agents.writer.context_builder import (
     RagContext,
     RagErrorReason,
     _query_rag_for_context,

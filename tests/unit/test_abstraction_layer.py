@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from egregora.rendering.base import OutputFormat, output_registry
+from egregora.output_adapters.base import OutputAdapter, output_registry
 
 
 class TestOutputRegistry:
@@ -19,7 +19,7 @@ class TestOutputRegistry:
     def test_get_mkdocs_format(self):
         """Test getting MkDocs output format."""
         output = output_registry.get_format("mkdocs")
-        assert isinstance(output, OutputFormat)
+        assert isinstance(output, OutputAdapter)
         assert output.format_type == "mkdocs"
 
     def test_get_invalid_format(self):
@@ -135,7 +135,7 @@ class TestMkDocsOutputFormat:
 
     def test_custom_mkdocs_config_path(self, tmp_path):
         """Test that custom mkdocs_config_path in .egregora/config.yml is respected."""
-        from egregora.rendering.mkdocs_site import resolve_site_paths
+        from egregora.output_adapters.mkdocs_site import resolve_site_paths
 
         site_root = tmp_path / "test-site"
         site_root.mkdir(parents=True)
@@ -198,7 +198,7 @@ output:
 
     def test_docs_dir_resolved_relative_to_mkdocs(self, tmp_path):
         """Test that docs_dir is resolved relative to mkdocs.yml location, not site root."""
-        from egregora.rendering.mkdocs_site import resolve_site_paths
+        from egregora.output_adapters.mkdocs_site import resolve_site_paths
 
         site_root = tmp_path / "test-site"
         site_root.mkdir(parents=True)

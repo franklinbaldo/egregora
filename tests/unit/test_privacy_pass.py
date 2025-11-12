@@ -20,7 +20,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from egregora.privacy.config import PrivacyConfig
+from egregora.privacy.config import PrivacySettings
 from egregora.privacy.gate import (
     PrivacyGate,
     PrivacyPass,
@@ -147,13 +147,13 @@ def test_require_privacy_pass_with_dict_fails():
 
 
 # ============================================================================
-# PrivacyConfig Tests
+# PrivacySettings Tests
 # ============================================================================
 
 
 def test_privacy_config_defaults():
-    """PrivacyConfig has sensible defaults."""
-    config = PrivacyConfig(tenant_id="default")
+    """PrivacySettings has sensible defaults."""
+    config = PrivacySettings(tenant_id="default")
 
     assert config.tenant_id == "default"
     assert config.detect_pii is True
@@ -163,8 +163,8 @@ def test_privacy_config_defaults():
 
 
 def test_privacy_config_with_custom_values():
-    """PrivacyConfig accepts custom values."""
-    config = PrivacyConfig(
+    """PrivacySettings accepts custom values."""
+    config = PrivacySettings(
         tenant_id="acme-corp",
         detect_pii=True,
         allowed_media_domains=("acme.com", "cdn.example.com"),
@@ -180,9 +180,9 @@ def test_privacy_config_with_custom_values():
 
 
 def test_privacy_config_reidentification_validation():
-    """PrivacyConfig validation: retention days must be >= 1."""
+    """PrivacySettings validation: retention days must be >= 1."""
     with pytest.raises(ValueError, match="reidentification_retention_days must be >= 1") as exc_info:
-        PrivacyConfig(
+        PrivacySettings(
             tenant_id="test",
             reidentification_retention_days=0,  # Invalid: must be >= 1
         )
@@ -191,8 +191,8 @@ def test_privacy_config_reidentification_validation():
 
 
 def test_privacy_config_immutability():
-    """PrivacyConfig is frozen (immutable)."""
-    config = PrivacyConfig(tenant_id="default")
+    """PrivacySettings is frozen (immutable)."""
+    config = PrivacySettings(tenant_id="default")
 
     # Frozen dataclass prevents modification
     with pytest.raises(FrozenInstanceError):
@@ -276,7 +276,7 @@ def test_privacy_gate_run_basic():
         ]
     )
 
-    config = PrivacyConfig(tenant_id="default")
+    config = PrivacySettings(tenant_id="default")
     run_id = str(uuid4())
 
     # Run privacy gate
@@ -303,7 +303,7 @@ def test_privacy_gate_missing_required_columns():
     # Table missing 'author' column
     table = ibis.memtable([{"message": "Hello"}])
 
-    config = PrivacyConfig(tenant_id="default")
+    config = PrivacySettings(tenant_id="default")
     run_id = str(uuid4())
 
     # Anonymizer expects 'author' column

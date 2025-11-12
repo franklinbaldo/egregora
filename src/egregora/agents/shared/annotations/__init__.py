@@ -78,7 +78,7 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 
-from egregora.database import schemas as database_schema
+from egregora.database import ir_schema as database_schema
 from egregora.privacy.detector import PrivacyViolationError, validate_newsletter_privacy
 
 if TYPE_CHECKING:

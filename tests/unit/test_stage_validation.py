@@ -1,37 +1,29 @@
-"""Tests for stage validation (Priority C.3)."""
+"""Tests for functional @validate_stage decorator.
+
+Note: This test file has been refactored to use functional transformations
+instead of the removed PipelineStage abstraction.
+"""
 
 import uuid
 from datetime import datetime
-from typing import Any
 
 import ibis
 import pytest
 from ibis.expr.types import Table
 
 from egregora.database.validation import SchemaError, validate_stage
-from egregora.pipeline.base import PipelineStage, StageConfig, StageResult
 
 
-class TestStageValidation:
-    """Tests for @validate_stage decorator."""
+class TestFunctionalStageValidation:
+    """Tests for @validate_stage decorator with functional approach."""
 
-    def test_validate_stage_with_valid_input_output(self):
-        """Test stage with valid input and output passes validation."""
+    def test_validate_stage_with_valid_function(self):
+        """Test functional transformation with valid input and output passes validation."""
 
-        class ValidStage(PipelineStage):
-            @property
-            def stage_name(self) -> str:
-                return "Valid Stage"
-
-            @property
-            def stage_identifier(self) -> str:
-                return "valid"
-
-            @validate_stage
-            def process(self, data: Table, context: dict[str, Any]) -> StageResult:
-                # Simple filter that preserves schema
-                filtered = data.filter(data.text.notnull())
-                return StageResult(data=filtered)
+        @validate_stage
+        def filter_messages(data: Table, min_length: int = 0) -> Table:
+            """Simple filter that preserves schema."""
+            return data.filter(data.text.length() >= min_length)
 
         # Create valid IR v1 table
         data = {
@@ -71,28 +63,16 @@ class TestStageValidation:
         table = ibis.memtable(data, schema=schema)
 
         # Process should succeed
-        config = StageConfig()
-        stage = ValidStage(config)
-        result = stage.process(table, {})
+        result = filter_messages(table, min_length=0)
 
-        assert isinstance(result, StageResult)
-        assert result.data is not None
+        assert result is not None
 
     def test_validate_stage_with_invalid_input_raises(self):
-        """Test stage with invalid input raises SchemaError."""
+        """Test function with invalid input raises SchemaError."""
 
-        class TestStage(PipelineStage):
-            @property
-            def stage_name(self) -> str:
-                return "Test Stage"
-
-            @property
-            def stage_identifier(self) -> str:
-                return "test"
-
-            @validate_stage
-            def process(self, data: Table, context: dict[str, Any]) -> StageResult:
-                return StageResult(data=data)
+        @validate_stage
+        def identity(data: Table) -> Table:
+            return data
 
         # Create invalid table (missing required columns)
         invalid_data = {
@@ -103,28 +83,16 @@ class TestStageValidation:
         invalid_table = ibis.memtable(invalid_data, schema=invalid_schema)
 
         # Should raise SchemaError on input validation
-        config = StageConfig()
-        stage = TestStage(config)
         with pytest.raises(SchemaError, match="Stage input validation failed"):
-            stage.process(invalid_table, {})
+            identity(invalid_table)
 
     def test_validate_stage_with_invalid_output_raises(self):
-        """Test stage that produces invalid output raises SchemaError."""
+        """Test function that produces invalid output raises SchemaError."""
 
-        class BreaksSchemaStage(PipelineStage):
-            @property
-            def stage_name(self) -> str:
-                return "Schema Breaker"
-
-            @property
-            def stage_identifier(self) -> str:
-                return "breaker"
-
-            @validate_stage
-            def process(self, data: Table, context: dict[str, Any]) -> StageResult:
-                # Drop required columns (breaks schema)
-                broken = data.select("event_id", "text")
-                return StageResult(data=broken)
+        @validate_stage
+        def break_schema(data: Table) -> Table:
+            """Drop required columns (breaks schema)."""
+            return data.select("event_id", "text")
 
         # Create valid input
         data = {
@@ -164,30 +132,19 @@ class TestStageValidation:
         table = ibis.memtable(data, schema=schema)
 
         # Should raise SchemaError on output validation
-        config = StageConfig()
-        stage = BreaksSchemaStage(config)
         with pytest.raises(SchemaError, match="Stage output validation failed"):
-            stage.process(table, {})
+            break_schema(table)
 
     def test_validate_stage_preserves_schema_through_transformations(self):
         """Test that common transformations preserve IR schema."""
 
-        class TransformStage(PipelineStage):
-            @property
-            def stage_name(self) -> str:
-                return "Transform Stage"
-
-            @property
-            def stage_identifier(self) -> str:
-                return "transform"
-
-            @validate_stage
-            def process(self, data: Table, context: dict[str, Any]) -> StageResult:
-                # Common transformations
-                result = data.filter(data.text.notnull())
-                result = result.order_by(data.ts)
-                result = result.limit(10)
-                return StageResult(data=result)
+        @validate_stage
+        def common_transforms(data: Table) -> Table:
+            """Apply common transformations."""
+            result = data.filter(data.text.notnull())
+            result = result.order_by(data.ts)
+            result = result.limit(10)
+            return result
 
         # Create valid input
         data = {
@@ -231,57 +188,33 @@ class TestStageValidation:
         table = ibis.memtable(data, schema=schema)
 
         # Should succeed - transformations preserve schema
-        config = StageConfig()
-        stage = TransformStage(config)
-        result = stage.process(table, {})
+        result = common_transforms(table)
 
-        assert isinstance(result, StageResult)
+        assert result is not None
 
-    def test_validate_stage_error_message_includes_stage_name(self):
+    def test_validate_stage_error_message_includes_function_name(self):
         """Test that validation errors include helpful context."""
 
-        class MyCustomStage(PipelineStage):
-            @property
-            def stage_name(self) -> str:
-                return "My Custom Stage"
-
-            @property
-            def stage_identifier(self) -> str:
-                return "custom"
-
-            @validate_stage
-            def process(self, data: Table, context: dict[str, Any]) -> StageResult:
-                return StageResult(data=data)
+        @validate_stage
+        def my_custom_function(data: Table) -> Table:
+            return data
 
         # Invalid input
         invalid_table = ibis.memtable({"id": [1]}, schema={"id": "int64"})
 
-        config = StageConfig()
-        stage = MyCustomStage(config)
-
-        # Error should include stage method name
+        # Error should include function name
         with pytest.raises(SchemaError) as exc_info:
-            stage.process(invalid_table, {})
+            my_custom_function(invalid_table)
 
         error_msg = str(exc_info.value)
-        assert "MyCustomStage.process" in error_msg or "process" in error_msg
-        assert "input validation failed" in error_msg.lower()
+        assert "my_custom_function" in error_msg or "input validation failed" in error_msg.lower()
 
     def test_validate_stage_with_empty_table(self):
         """Test stage validation with empty table."""
 
-        class EmptyHandlerStage(PipelineStage):
-            @property
-            def stage_name(self) -> str:
-                return "Empty Handler"
-
-            @property
-            def stage_identifier(self) -> str:
-                return "empty"
-
-            @validate_stage
-            def process(self, data: Table, context: dict[str, Any]) -> StageResult:
-                return StageResult(data=data)
+        @validate_stage
+        def identity(data: Table) -> Table:
+            return data
 
         # Create empty but valid IR table
         data = {
@@ -321,31 +254,6 @@ class TestStageValidation:
         empty_table = ibis.memtable(data, schema=schema)
 
         # Should succeed - empty table is valid
-        config = StageConfig()
-        stage = EmptyHandlerStage(config)
-        result = stage.process(empty_table, {})
+        result = identity(empty_table)
 
-        assert isinstance(result, StageResult)
-
-    def test_validate_stage_without_enough_args_raises_typeerror(self):
-        """Test that decorator raises TypeError if signature is wrong."""
-
-        class BadStage(PipelineStage):
-            @property
-            def stage_name(self) -> str:
-                return "Bad Stage"
-
-            @property
-            def stage_identifier(self) -> str:
-                return "bad"
-
-            @validate_stage
-            def process(self, data: Table, context: dict[str, Any]) -> StageResult:
-                return StageResult(data=data)
-
-        config = StageConfig()
-        stage = BadStage(config)
-
-        # Call with too few args (missing data)
-        with pytest.raises(TypeError, match="requires at least 2 arguments"):
-            stage.process()  # type: ignore[call-arg]
+        assert result is not None

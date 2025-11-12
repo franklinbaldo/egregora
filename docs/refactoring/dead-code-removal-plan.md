@@ -1,16 +1,16 @@
-# Dead Code Removal Plan - Post OutputFormat Refactoring
+# Dead Code Removal Plan - Post OutputAdapter Refactoring
 
 **Date**: 2025-11-11
-**Context**: After Phases 2-4 OutputFormat implementation
+**Context**: After Phases 2-4 OutputAdapter implementation
 **Status**: CONFIRMED DEAD CODE IDENTIFIED
 
 ## Executive Summary
 
-Our OutputFormat refactoring (Phases 2-4) successfully eliminated the need for several components. This document identifies **confirmed dead code** that can now be safely removed.
+Our OutputAdapter refactoring (Phases 2-4) successfully eliminated the need for several components. This document identifies **confirmed dead code** that can now be safely removed.
 
 ## Dead Code Identified
 
-### 1. ✅ CONFIRMED DEAD: `document_storage` field in `WriterRuntimeContext`
+### 1. ✅ CONFIRMED DEAD: `document_storage` field in `WriterAgentContext`
 
 **Location**: `src/egregora/agents/writer/agent.py:107`
 
@@ -53,7 +53,7 @@ document_storage = LegacyStorageAdapter(
 
 **Analysis**:
 - Creates `LegacyStorageAdapter` instance
-- Passes it to `WriterRuntimeContext.document_storage`
+- Passes it to `WriterAgentContext.document_storage`
 - But `document_storage` field is never used (see #1)
 - Complete waste of CPU cycles and memory
 
@@ -103,14 +103,14 @@ tests/evals/test_writer_with_evals.py:79:    document_storage = LegacyStorageAda
 $ grep -r "MkDocsDocumentStorage" src/egregora --include="*.py"
 # NO RESULTS - not used in production!
 
-$ grep -r "from egregora.rendering.mkdocs_documents import" tests/ --include="*.py"
-tests/storage/test_document_storage.py:from egregora.rendering.mkdocs_documents import MkDocsDocumentStorage
+$ grep -r "from egregora.output_adapters.mkdocs_documents import" tests/ --include="*.py"
+tests/storage/test_document_storage.py:from egregora.output_adapters.mkdocs_documents import MkDocsDocumentStorage
 ```
 
 **Status**:
 - ✅ Not used in production code
 - ⚠️ Extensively tested in `tests/storage/test_document_storage.py`
-- **Replaced by**: `MkDocsOutputFormat` (110 lines, 72% coverage)
+- **Replaced by**: `MkDocsOutputAdapter` (110 lines, 72% coverage)
 
 **Safe to remove**: ⚠️ NOT YET - Has comprehensive test coverage
 
@@ -128,7 +128,7 @@ tests/storage/test_document_storage.py:from egregora.rendering.mkdocs_documents 
 **Analysis**:
 - Protocol still defined (16 lines)
 - Used by `MkDocsDocumentStorage` (which is dead)
-- NOT used by new `OutputFormat` architecture
+- NOT used by new `OutputAdapter` architecture
 - Different paradigm entirely
 
 **Status**:
@@ -175,7 +175,7 @@ tests/storage/test_document_storage.py:from egregora.rendering.mkdocs_documents 
 
 ## Removal Plan (Phase 5)
 
-### Step 1: Remove dead field from WriterRuntimeContext ✅ Safe
+### Step 1: Remove dead field from WriterAgentContext ✅ Safe
 
 **File**: `src/egregora/agents/writer/agent.py`
 
@@ -208,7 +208,7 @@ document_storage = LegacyStorageAdapter(
 
 **And remove from context**:
 ```python
-runtime_context = WriterRuntimeContext(
+runtime_context = WriterAgentContext(
     # ... other fields ...
     # Document storage (MODERN Phase 3)
     document_storage=document_storage,  # ← REMOVE THIS LINE
@@ -236,7 +236,7 @@ document_storage = LegacyStorageAdapter(
     site_root=site_root,
 )
 
-context = WriterRuntimeContext(
+context = WriterAgentContext(
     # ...
     document_storage=document_storage,  # ← REMOVE
     # ...
@@ -268,17 +268,17 @@ context = WriterRuntimeContext(
 import warnings
 
 class MkDocsDocumentStorage:
-    """DEPRECATED: Use MkDocsOutputFormat instead.
+    """DEPRECATED: Use MkDocsOutputAdapter instead.
 
     This class will be removed in version 2.0.
-    Please migrate to the new OutputFormat abstraction.
+    Please migrate to the new OutputAdapter abstraction.
 
     See: docs/refactoring/backend-agnostic-publishing.md
     """
 
     def __init__(self, site_root: Path) -> None:
         warnings.warn(
-            "MkDocsDocumentStorage is deprecated. Use MkDocsOutputFormat instead.",
+            "MkDocsDocumentStorage is deprecated. Use MkDocsOutputAdapter instead.",
             DeprecationWarning,
             stacklevel=2
         )
@@ -327,7 +327,7 @@ grep -r "LegacyStorageAdapter" src/egregora tests/ --include="*.py"
 uv run pytest tests/
 
 # 3. Check for any runtime errors
-uv run python -c "from egregora.agents.writer.core import write_posts_for_window; print('OK')"
+uv run python -c "from egregora.agents.writer.writer_runner import write_posts_for_window; print('OK')"
 ```
 
 ---
@@ -338,7 +338,7 @@ uv run python -c "from egregora.agents.writer.core import write_posts_for_window
 
 **Code Reduction**:
 - Remove 269 lines of dead code
-- Simplify WriterRuntimeContext (1 less field)
+- Simplify WriterAgentContext (1 less field)
 - Remove entire LegacyStorageAdapter module
 
 **Maintenance**:
@@ -364,7 +364,7 @@ uv run python -c "from egregora.agents.writer.core import write_posts_for_window
 
 **Why it's safe**:
 1. Field is never read (proven by grep)
-2. All functionality replaced by OutputFormat
+2. All functionality replaced by OutputAdapter
 3. All tests still passing with new implementation
 4. No external API changes (internal refactoring only)
 
@@ -391,7 +391,7 @@ uv run python -c "from egregora.agents.writer.core import write_posts_for_window
 - **Files**: 2-3 files
 
 **Tasks**:
-1. Remove `document_storage` field from `WriterRuntimeContext`
+1. Remove `document_storage` field from `WriterAgentContext`
 2. Remove `LegacyStorageAdapter` instantiation from `core.py`
 3. Remove field from context creation
 4. Run tests
@@ -463,7 +463,7 @@ uv run python -c "from egregora.agents.writer.core import write_posts_for_window
 
 ## Conclusion
 
-Our OutputFormat refactoring successfully eliminated the need for `document_storage` field and `LegacyStorageAdapter`. This dead code can be safely removed with minimal risk.
+Our OutputAdapter refactoring successfully eliminated the need for `document_storage` field and `LegacyStorageAdapter`. This dead code can be safely removed with minimal risk.
 
 **Key insight**: Static analysis tools like vulture can't catch "write-only" variables. Manual code review and grep analysis are essential for finding this type of dead code.
 

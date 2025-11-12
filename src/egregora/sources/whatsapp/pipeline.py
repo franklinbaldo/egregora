@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from google import genai
 
-from egregora.rendering.mkdocs_site import resolve_site_paths
+from egregora.output_adapters.mkdocs_site import resolve_site_paths
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +62,9 @@ def process_whatsapp_export(
     """Public entry point for WhatsApp exports.
 
     MODERN (Phase 7): Uses flexible windowing with overlap for context continuity.
-    This is a thin wrapper around run_source_pipeline for WhatsApp-specific convenience.
+    This is a thin wrapper around write_pipeline.run() for WhatsApp-specific convenience.
 
-    For general-purpose use, prefer run_source_pipeline(source="whatsapp", ...) directly.
+    For general-purpose use, prefer write_pipeline.run(source="whatsapp", ...) directly.
 
     Args:
         zip_path: WhatsApp export ZIP file
@@ -90,10 +90,10 @@ def process_whatsapp_export(
         Dict mapping window_id to {'posts': [...], 'profiles': [...]}
 
     """
-    from egregora.config.schema import load_egregora_config
-    from egregora.pipeline.runner import run_source_pipeline
+    from egregora.config.settings import load_egregora_config
+    from egregora.orchestration import write_pipeline
 
-    # MODERN (Phase 7): Delegate to run_source_pipeline with windowing config
+    # MODERN (Phase 7): Delegate to write_pipeline.run() with windowing config
     output_dir = output_dir.expanduser().resolve()
     site_paths = resolve_site_paths(output_dir)
 
@@ -129,7 +129,7 @@ def process_whatsapp_export(
         },
     )
 
-    return run_source_pipeline(
+    return write_pipeline.run(
         source="whatsapp",
         input_path=zip_path,
         output_dir=output_dir,

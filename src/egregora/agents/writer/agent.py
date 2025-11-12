@@ -8,7 +8,7 @@ surface (write_post, read/write_profile, search_media, annotate, banner)
 so the rest of the pipeline can remain unchanged during the migration.
 
 MODERN (Phase 1): Deps are frozen/immutable, no mutation in tools.
-MODERN (Phase 2): Uses WriterRuntimeContext to reduce parameters.
+MODERN (Phase 2): Uses WriterAgentContext to reduce parameters.
 """
 
 from __future__ import annotations
@@ -58,10 +58,10 @@ from pydantic_ai.messages import (
 from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore, is_rag_available, query_media
-from egregora.config.schema import EgregoraConfig
-from egregora.core.document import Document, DocumentType
+from egregora.config.settings import EgregoraConfig
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.streaming import stream_ibis
-from egregora.storage.output_format import OutputFormat
+from egregora.storage.output_adapter import OutputAdapter
 from egregora.storage.url_convention import UrlContext, UrlConvention
 from egregora.utils.logfire_config import logfire_info, logfire_span
 
@@ -78,12 +78,12 @@ AgentModel = Any  # Model specification (string or configured model object)
 
 
 @dataclass(frozen=True, slots=True)
-class WriterRuntimeContext:
+class WriterAgentContext:
     """Runtime context for writer agent execution.
 
     MODERN (Phase 2): Bundles runtime parameters to reduce function signatures.
-    MODERN (Phase 4): Uses OutputFormat for all document persistence.
-    MODERN (Phase 5): Removed redundant storage protocols in favor of OutputFormat.
+    MODERN (Phase 4): Uses OutputAdapter for all document persistence.
+    MODERN (Phase 5): Removed redundant storage protocols in favor of OutputAdapter.
 
     Windows are identified by (start_time, end_time) tuple, not artificial IDs.
     This makes them stable across config changes and more meaningful for logging.
@@ -92,7 +92,7 @@ class WriterRuntimeContext:
     - Core calculates URLs using url_convention directly
     - Core requests persistence via output_format.serve(document)
     - Core reads documents via output_format.read_document()
-    - Single abstraction (OutputFormat) replaces all storage protocols
+    - Single abstraction (OutputAdapter) replaces all storage protocols
     """
 
     # Time window
@@ -102,7 +102,7 @@ class WriterRuntimeContext:
     # MODERN Phase 4+6: Backend-agnostic publishing (single abstraction)
     url_convention: UrlConvention
     url_context: UrlContext
-    output_format: OutputFormat
+    output_format: OutputAdapter
 
     # Pre-constructed stores (injected, not built from paths)
     rag_store: VectorStore
@@ -176,9 +176,9 @@ class WriterAgentState(BaseModel):
     """Immutable dependencies passed to agent tools.
 
     MODERN (Phase 1): This is now frozen to prevent mutation in tools.
-    MODERN (Phase 4): Uses OutputFormat for all document persistence.
-    MODERN (Phase 5): Removed redundant storage protocols in favor of OutputFormat.
-    MODERN (Phase 6): OutputFormat now supports reading documents.
+    MODERN (Phase 4): Uses OutputAdapter for all document persistence.
+    MODERN (Phase 5): Removed redundant storage protocols in favor of OutputAdapter.
+    MODERN (Phase 6): OutputAdapter now supports reading documents.
     Results are extracted from the agent's message history instead of being
     tracked via mutation.
     """
@@ -192,7 +192,7 @@ class WriterAgentState(BaseModel):
     # Note: Using Any for protocol types since Pydantic can't validate Protocols
     url_convention: Any  # UrlConvention protocol
     url_context: Any  # UrlContext dataclass
-    output_format: Any  # OutputFormat protocol (read + write)
+    output_format: Any  # OutputAdapter protocol (read + write)
 
     # Pre-constructed stores
     rag_store: Any  # VectorStore
@@ -353,14 +353,14 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
 def _save_journal_to_file(
     intercalated_log: list[JournalEntry],
     window_label: str,
-    output_format: OutputFormat,
+    output_format: OutputAdapter,
 ) -> str | None:
     """Save journal entry with intercalated thinking, freeform, and tool usage to markdown file.
 
     Args:
         intercalated_log: List of journal entries in chronological order
         window_label: Human-readable window identifier (e.g., "2025-01-15 10:00 to 12:00")
-        output_format: OutputFormat instance for document persistence
+        output_format: OutputAdapter instance for document persistence
 
     Returns:
         Journal identifier (opaque string), or None if no content
@@ -398,7 +398,7 @@ def _save_journal_to_file(
         logger.exception("Failed to render journal template")
         return None
 
-    # Write using OutputFormat
+    # Write using OutputAdapter
     try:
         doc = Document(
             content=journal_content,
@@ -617,7 +617,7 @@ def _register_writer_tools(
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterAgentState], author_uuid: str) -> ReadProfileResult:
-        # MODERN Phase 6: Read via OutputFormat (backend-agnostic)
+        # MODERN Phase 6: Read via OutputAdapter (backend-agnostic)
         doc = ctx.deps.output_format.read_document(DocumentType.PROFILE, author_uuid)
         if doc:
             content = doc.content
@@ -662,7 +662,7 @@ def _register_writer_tools(
                 store=ctx.deps.rag_store,
                 media_types=media_types,
                 top_k=limit,
-                min_similarity=0.7,
+                min_similarity_threshold=0.7,
                 embedding_model=ctx.deps.embedding_model,
                 retrieval_mode=ctx.deps.retrieval_mode,
                 retrieval_nprobe=ctx.deps.retrieval_nprobe,
@@ -719,7 +719,7 @@ def _register_writer_tools(
 
 def _setup_agent_and_state(
     config: EgregoraConfig,
-    context: WriterRuntimeContext,
+    context: WriterAgentContext,
     test_model: AgentModel | None = None,
 ) -> tuple[Agent[WriterAgentState, WriterAgentReturn], WriterAgentState, str]:
     """Set up writer agent and execution state.
@@ -752,7 +752,7 @@ def _setup_agent_and_state(
     # Build execution state
     state = WriterAgentState(
         window_id=window_label,
-        # MODERN Phase 6: OutputFormat with read support
+        # MODERN Phase 6: OutputAdapter with read support
         url_convention=context.url_convention,
         url_context=context.url_context,
         output_format=context.output_format,
@@ -930,7 +930,7 @@ def _log_agent_completion(
 
 def _record_agent_conversation(
     result: RunResult[WriterAgentReturn],
-    context: WriterRuntimeContext,
+    context: WriterAgentContext,
 ) -> None:
     """Record agent conversation to file if configured.
 
@@ -959,7 +959,7 @@ def write_posts_with_pydantic_agent(
     *,
     prompt: str,
     config: EgregoraConfig,
-    context: WriterRuntimeContext,
+    context: WriterAgentContext,
     test_model: AgentModel | None = None,
 ) -> tuple[list[str], list[str]]:
     """Execute the writer flow using Pydantic-AI agent tooling.
@@ -1024,7 +1024,7 @@ class WriterStreamResult:
         agent: Agent[WriterAgentState, WriterAgentReturn],
         state: WriterAgentState,
         prompt: str,
-        context: WriterRuntimeContext,
+        context: WriterAgentContext,
         model_name: str,
     ) -> None:
         self.agent = agent
@@ -1071,7 +1071,7 @@ async def write_posts_with_pydantic_agent_stream(
     *,
     prompt: str,
     config: EgregoraConfig,
-    context: WriterRuntimeContext,
+    context: WriterAgentContext,
     test_model: AgentModel | None = None,
 ) -> WriterStreamResult:
     """Execute writer with streaming output.
@@ -1110,7 +1110,7 @@ async def write_posts_with_pydantic_agent_stream(
 
     state = WriterAgentState(
         window_id=window_label,
-        # MODERN Phase 6: OutputFormat with read support
+        # MODERN Phase 6: OutputAdapter with read support
         url_convention=context.url_convention,
         url_context=context.url_context,
         output_format=context.output_format,

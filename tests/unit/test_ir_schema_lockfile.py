@@ -1,14 +1,14 @@
 """Tests for IR schema lockfile validation.
 
 Ensures the schema lockfile (schema/ir_v1.json) stays in sync with code
-(src/egregora/database/validation.py:IR_V1_SCHEMA).
+(src/egregora/database/validation.py:IR_MESSAGE_SCHEMA).
 """
 
 import json
 import subprocess
 from pathlib import Path
 
-from egregora.database.validation import IR_V1_SCHEMA
+from egregora.database.validation import IR_MESSAGE_SCHEMA
 
 
 def test_ir_schema_lockfile_exists():
@@ -29,14 +29,14 @@ def test_ir_schema_lockfile_valid_json():
 
 
 def test_ir_schema_matches_lockfile():
-    """IR_V1_SCHEMA in code must match lockfile."""
+    """IR_MESSAGE_SCHEMA in code must match lockfile."""
     lockfile = Path("schema/ir_v1.json")
     with open(lockfile) as f:
         lockfile_data = json.load(f)
 
     # Check column count
     lockfile_columns = set(lockfile_data["columns"].keys())
-    code_columns = set(IR_V1_SCHEMA.names)
+    code_columns = set(IR_MESSAGE_SCHEMA.names)
 
     assert lockfile_columns == code_columns, (
         f"Column mismatch. Lockfile: {lockfile_columns}, Code: {code_columns}"
@@ -44,7 +44,7 @@ def test_ir_schema_matches_lockfile():
 
     # Check each column exists in both
     for col_name in lockfile_columns:
-        assert col_name in IR_V1_SCHEMA.names, f"Column '{col_name}' in lockfile but not in code schema"
+        assert col_name in IR_MESSAGE_SCHEMA.names, f"Column '{col_name}' in lockfile but not in code schema"
 
 
 def test_check_ir_schema_script_passes():

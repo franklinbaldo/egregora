@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING
 import ibis
 
 from egregora.agents.shared.annotations import ANNOTATION_AUTHOR, AnnotationStore
-from egregora.config.schema import create_default_config
-from egregora.database import schemas as database_schema
+from egregora.config.settings import create_default_config
+from egregora.database import ir_schema as database_schema
 from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
 from egregora.utils.batch import BatchPromptResult
 from egregora.utils.cache import EnrichmentCache
@@ -111,7 +111,7 @@ def test_enrich_table_persists_results(tmp_path: Path):
         },
     )
 
-    # Create mock output_format (InMemoryEnrichmentStorage implements OutputFormat protocol)
+    # Create mock output_format (InMemoryEnrichmentStorage implements OutputAdapter protocol)
     output_format = InMemoryEnrichmentStorage()
 
     enrichment_context = EnrichmentRuntimeContext(

@@ -1,4 +1,4 @@
-"""Tests for StorageManager (Priority C.2)."""
+"""Tests for DuckDBStorageManager (Priority C.2)."""
 
 from pathlib import Path
 
@@ -7,15 +7,15 @@ import ibis
 import pytest
 from ibis.expr.types import Table
 
-from egregora.database.storage import StorageManager, temp_storage
+from egregora.database.duckdb_manager import DuckDBStorageManager, temp_storage
 
 
 class TestStorageManagerInit:
-    """Tests for StorageManager initialization."""
+    """Tests for DuckDBStorageManager initialization."""
 
     def test_init_in_memory(self):
         """Test initialization with in-memory database."""
-        storage = StorageManager()
+        storage = DuckDBStorageManager()
         assert storage.db_path is None
         assert storage.conn is not None
         assert storage.ibis_conn is not None
@@ -24,7 +24,7 @@ class TestStorageManagerInit:
     def test_init_with_file(self, tmp_path):
         """Test initialization with file-based database."""
         db_path = tmp_path / "test.duckdb"
-        storage = StorageManager(db_path=db_path)
+        storage = DuckDBStorageManager(db_path=db_path)
 
         assert storage.db_path == db_path
         assert storage.conn is not None
@@ -36,14 +36,14 @@ class TestStorageManagerInit:
     def test_init_custom_checkpoint_dir(self, tmp_path):
         """Test initialization with custom checkpoint directory."""
         checkpoint_dir = tmp_path / "checkpoints"
-        storage = StorageManager(checkpoint_dir=checkpoint_dir)
+        storage = DuckDBStorageManager(checkpoint_dir=checkpoint_dir)
 
         assert storage.checkpoint_dir == checkpoint_dir
         storage.close()
 
     def test_context_manager(self):
-        """Test StorageManager as context manager."""
-        with StorageManager() as storage:
+        """Test DuckDBStorageManager as context manager."""
+        with DuckDBStorageManager() as storage:
             assert storage.conn is not None
 
         # Connection should be closed after exit
@@ -56,7 +56,7 @@ class TestTableOperations:
 
     def test_write_and_read_table(self):
         """Test writing and reading a table."""
-        with StorageManager() as storage:
+        with DuckDBStorageManager() as storage:
             # Create sample table
             data = {"id": [1, 2, 3], "value": ["a", "b", "c"]}
             schema = {"id": "int64", "value": "string"}
@@ -77,7 +77,7 @@ class TestTableOperations:
     def test_write_with_checkpoint(self, tmp_path):
         """Test writing table with parquet checkpoint."""
         checkpoint_dir = tmp_path / "checkpoints"
-        with StorageManager(checkpoint_dir=checkpoint_dir) as storage:
+        with DuckDBStorageManager(checkpoint_dir=checkpoint_dir) as storage:
             # Create sample table
             data = {"id": [1, 2, 3]}
             schema = {"id": "int64"}
@@ -97,7 +97,7 @@ class TestTableOperations:
 
     def test_write_mode_replace(self):
         """Test replace mode overwrites existing table."""
-        with StorageManager() as storage:
+        with DuckDBStorageManager() as storage:
             # Write initial data
             table1 = ibis.memtable({"id": [1, 2]}, schema={"id": "int64"})
             storage.write_table(table1, "test_replace", checkpoint=False)
@@ -114,7 +114,7 @@ class TestTableOperations:
 
     def test_write_mode_append_requires_checkpoint(self):
         """Test append mode requires checkpoint=True."""
-        with StorageManager() as storage:
+        with DuckDBStorageManager() as storage:
             table = ibis.memtable({"id": [1]}, schema={"id": "int64"})
 
             with pytest.raises(ValueError, match="Append mode requires checkpoint"):
@@ -122,7 +122,7 @@ class TestTableOperations:
 
     def test_read_nonexistent_table_raises(self):
         """Test reading non-existent table raises ValueError."""
-        with StorageManager() as storage:
+        with DuckDBStorageManager() as storage:
             with pytest.raises(ValueError, match="Table 'nonexistent' not found"):
                 storage.read_table("nonexistent")
 
@@ -132,7 +132,7 @@ class TestTableManagement:
 
     def test_table_exists(self):
         """Test checking if table exists."""
-        with StorageManager() as storage:
+        with DuckDBStorageManager() as storage:
             assert not storage.table_exists("test_table")
 
             # Create table
@@ -143,7 +143,7 @@ class TestTableManagement:
 
     def test_list_tables(self):
         """Test listing all tables."""
-        with StorageManager() as storage:
+        with DuckDBStorageManager() as storage:
             # Initially empty
             assert storage.list_tables() == []
 
@@ -158,7 +158,7 @@ class TestTableManagement:
 
     def test_drop_table(self):
         """Test dropping a table."""
-        with StorageManager() as storage:
+        with DuckDBStorageManager() as storage:
             # Create table
             table = ibis.memtable({"id": [1]}, schema={"id": "int64"})
             storage.write_table(table, "drop_me", checkpoint=False)
@@ -173,7 +173,7 @@ class TestTableManagement:
     def test_drop_table_with_checkpoint(self, tmp_path):
         """Test dropping table and checkpoint together."""
         checkpoint_dir = tmp_path / "checkpoints"
-        with StorageManager(checkpoint_dir=checkpoint_dir) as storage:
+        with DuckDBStorageManager(checkpoint_dir=checkpoint_dir) as storage:
             # Create table with checkpoint
             table = ibis.memtable({"id": [1]}, schema={"id": "int64"})
             storage.write_table(table, "drop_me", checkpoint=True)
@@ -189,7 +189,7 @@ class TestTableManagement:
 
     def test_drop_nonexistent_table_safe(self):
         """Test dropping non-existent table doesn't raise."""
-        with StorageManager() as storage:
+        with DuckDBStorageManager() as storage:
             # Should not raise
             storage.drop_table("nonexistent")
 
@@ -199,7 +199,7 @@ class TestViewExecution:
 
     def test_execute_view_basic(self):
         """Test executing a simple view transformation."""
-        with StorageManager() as storage:
+        with DuckDBStorageManager() as storage:
             # Create input table
             table = ibis.memtable(
                 {"id": [1, 2, 3, 4, 5]},
@@ -221,7 +221,7 @@ class TestViewExecution:
     def test_execute_view_with_checkpoint(self, tmp_path):
         """Test executing view with checkpoint."""
         checkpoint_dir = tmp_path / "checkpoints"
-        with StorageManager(checkpoint_dir=checkpoint_dir) as storage:
+        with DuckDBStorageManager(checkpoint_dir=checkpoint_dir) as storage:
             # Create input table
             table = ibis.memtable(
                 {"value": [1, 2, 3]},
@@ -254,9 +254,9 @@ class TestViewExecution:
 
     def test_execute_view_with_registry(self):
         """Test executing view from ViewRegistry."""
-        from egregora.pipeline.views import views
+        from egregora.database.views import views
 
-        with StorageManager() as storage:
+        with DuckDBStorageManager() as storage:
             # Create input table matching ViewRegistry expectations
             import uuid
             from datetime import datetime
@@ -316,7 +316,7 @@ class TestCheckpointPersistence:
         checkpoint_dir = tmp_path / "checkpoints"
 
         # Session 1: Write data
-        with StorageManager(db_path=db_path, checkpoint_dir=checkpoint_dir) as storage1:
+        with DuckDBStorageManager(db_path=db_path, checkpoint_dir=checkpoint_dir) as storage1:
             table = ibis.memtable(
                 {"id": [1, 2, 3], "name": ["alice", "bob", "charlie"]},
                 schema={"id": "int64", "name": "string"},
@@ -324,7 +324,7 @@ class TestCheckpointPersistence:
             storage1.write_table(table, "users", checkpoint=True)
 
         # Session 2: Read data
-        with StorageManager(db_path=db_path, checkpoint_dir=checkpoint_dir) as storage2:
+        with DuckDBStorageManager(db_path=db_path, checkpoint_dir=checkpoint_dir) as storage2:
             result = storage2.read_table("users")
             df = result.execute()
 
@@ -337,7 +337,7 @@ class TestEdgeCases:
 
     def test_empty_table(self):
         """Test handling empty tables."""
-        with StorageManager() as storage:
+        with DuckDBStorageManager() as storage:
             # Create empty table
             empty_table = ibis.memtable([], schema={"id": "int64"})
             storage.write_table(empty_table, "empty", checkpoint=False)
@@ -349,7 +349,7 @@ class TestEdgeCases:
 
     def test_large_table_names(self):
         """Test handling long table names."""
-        with StorageManager() as storage:
+        with DuckDBStorageManager() as storage:
             long_name = "table_" + "x" * 100
             table = ibis.memtable({"id": [1]}, schema={"id": "int64"})
             storage.write_table(table, long_name, checkpoint=False)
@@ -358,7 +358,7 @@ class TestEdgeCases:
 
     def test_special_characters_in_data(self):
         """Test handling special characters in string data."""
-        with StorageManager() as storage:
+        with DuckDBStorageManager() as storage:
             data = {"text": ["hello", "world's", 'quote"test', "line\nbreak"]}
             schema = {"text": "string"}
             table = ibis.memtable(data, schema=schema)

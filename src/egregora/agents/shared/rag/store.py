@@ -14,7 +14,7 @@ from ibis import IbisError
 from ibis.expr.types import Table
 
 from egregora.config import EMBEDDING_DIM
-from egregora.database import schemas as database_schema
+from egregora.database import ir_schema as database_schema
 
 logger = logging.getLogger(__name__)
 TABLE_NAME = "rag_chunks"
@@ -495,7 +495,7 @@ class VectorStore:
         self,
         query_vec: list[float],
         top_k: int = 5,
-        min_similarity: float = 0.7,
+        min_similarity_threshold: float = 0.7,
         tag_filter: list[str] | None = None,
         date_after: date | datetime | str | None = None,
         document_type: str | None = None,
@@ -510,7 +510,7 @@ class VectorStore:
         Args:
             query_vec: Query embedding vector
             top_k: Number of results to return
-            min_similarity: Minimum cosine similarity (0-1)
+            min_similarity_threshold: Minimum cosine similarity (0-1)
             tag_filter: Filter by tags (OR logic)
             date_after: Filter by temporal boundary (``date``/``datetime``/ISO string)
             document_type: Filter by document type ("post" or "media")
@@ -531,18 +531,18 @@ class VectorStore:
         self._validate_search_parameters(nprobe)
 
         params, filters = self._build_search_filters(
-            query_vec, min_similarity, tag_filter, date_after, document_type, media_types
+            query_vec, min_similarity_threshold, tag_filter, date_after, document_type, media_types
         )
         where_clause, order_clause = self._build_query_clauses(filters, top_k)
 
         if mode_normalized == "exact":
-            return self._search_exact(where_clause, order_clause, params, min_similarity)
+            return self._search_exact(where_clause, order_clause, params, min_similarity_threshold)
 
         return self._search_ann(
             where_clause,
             order_clause,
             params,
-            min_similarity,
+            min_similarity_threshold,
             top_k,
             nprobe,
             overfetch,
@@ -589,7 +589,7 @@ class VectorStore:
     def _build_search_filters(
         self,
         query_vec: list[float],
-        min_similarity: float,
+        min_similarity_threshold: float,
         tag_filter: list[str] | None,
         date_after: date | datetime | str | None,
         document_type: str | None,
@@ -615,7 +615,7 @@ class VectorStore:
             params.append(normalized_date.isoformat())
 
         filters.append("similarity >= ?")
-        params.append(min_similarity)
+        params.append(min_similarity_threshold)
 
         return params, filters
 
@@ -636,12 +636,12 @@ class VectorStore:
         where_clause: str,
         order_clause: str,
         params: list[Any],
-        min_similarity: float,
+        min_similarity_threshold: float,
     ) -> Table:
         """Execute exact cosine similarity search."""
         query = self._build_exact_query() + where_clause + order_clause
         try:
-            return self._execute_search_query(query, params, min_similarity)
+            return self._execute_search_query(query, params, min_similarity_threshold)
         except Exception:
             logger.exception("Search failed")
             return self._empty_table(SEARCH_RESULT_SCHEMA)
@@ -651,7 +651,7 @@ class VectorStore:
         where_clause: str,
         order_clause: str,
         params: list[Any],
-        min_similarity: float,
+        min_similarity_threshold: float,
         top_k: int,
         nprobe: int | None,
         overfetch: int | None,
@@ -669,7 +669,7 @@ class VectorStore:
                 where_clause,
                 order_clause,
                 params,
-                min_similarity,
+                min_similarity_threshold,
                 ann_limit,
                 nprobe_clause,
                 embedding_dimensionality,
@@ -678,7 +678,9 @@ class VectorStore:
                 return result
             last_error = getattr(self, "_last_ann_error", None)
 
-        return self._handle_ann_failure(last_error, where_clause, order_clause, params, min_similarity)
+        return self._handle_ann_failure(
+            last_error, where_clause, order_clause, params, min_similarity_threshold
+        )
 
     def _try_ann_search(
         self,
@@ -686,7 +688,7 @@ class VectorStore:
         where_clause: str,
         order_clause: str,
         params: list[Any],
-        min_similarity: float,
+        min_similarity_threshold: float,
         ann_limit: int,
         nprobe_clause: str,
         embedding_dimensionality: int,
@@ -700,7 +702,7 @@ class VectorStore:
         )
         query = base_query + where_clause + order_clause
         try:
-            result = self._execute_search_query(query, params, min_similarity)
+            result = self._execute_search_query(query, params, min_similarity_threshold)
         except duckdb.Error as exc:
             self._last_ann_error = exc
             logger.warning("ANN search failed with %s: %s", function_name, exc)
@@ -719,14 +721,14 @@ class VectorStore:
         where_clause: str,
         order_clause: str,
         params: list[Any],
-        min_similarity: float,
+        min_similarity_threshold: float,
     ) -> Table:
         """Handle ANN search failure with fallback to exact search or error logging."""
         if last_error is not None and "does not support the supplied arguments" in str(last_error).lower():
             logger.info("Falling back to exact search due to VSS compatibility issues")
             try:
                 query = self._build_exact_query() + where_clause + order_clause
-                return self._execute_search_query(query, params, min_similarity)
+                return self._execute_search_query(query, params, min_similarity_threshold)
             except Exception:
                 logger.exception("Exact fallback search failed")
 
@@ -765,7 +767,7 @@ class VectorStore:
                 candidates.append(function_name)
         return candidates
 
-    def _execute_search_query(self, query: str, params: list[Any], min_similarity: float) -> Table:
+    def _execute_search_query(self, query: str, params: list[Any], min_similarity_threshold: float) -> Table:
         """Execute the provided search query and normalize the results."""
         cursor = self.conn.execute(query, params)
         columns = [description[0] for description in cursor.description or []]
@@ -776,7 +778,9 @@ class VectorStore:
         prepared_records = self._prepare_search_results(raw_records)
         table = self._table_from_rows(prepared_records, SEARCH_RESULT_SCHEMA)
         row_count = table.count().execute()
-        logger.info("Found %d similar chunks (min_similarity=%s)", row_count, min_similarity)
+        logger.info(
+            "Found %d similar chunks (min_similarity_threshold=%s)", row_count, min_similarity_threshold
+        )
         return table
 
     def _prepare_search_results(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
