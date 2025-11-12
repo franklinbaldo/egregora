@@ -398,12 +398,13 @@ uv run bandit -r src/egregora
 - **Session 1**: -1,089 lines net (-1,266 deleted, +177 added)
   - Telemetry: -544 lines
   - Output formats: -545 lines
-- **Session 2** (Phase 2 items): -1,559 lines total
+- **Session 2** (Phase 2 items): -1,573 lines total
   - Dead code removal (F): -10 lines
   - Duplicate adapters (E): -901 lines
   - Streaming removal (G): -648 lines
+  - DuckDB consolidation (D): -14 duplicate lines
 
-**Total reduction across sessions**: -2,648 lines
+**Total reduction across sessions**: -2,662 lines
 
 ### Test Coverage
 - **Before**: Unknown
@@ -441,7 +442,7 @@ uv run bandit -r src/egregora
 
 ## Session 2 Summary (2025-11-12)
 
-**Phase 2 (P2 Improvements) - Partial completion**
+**Phase 2 (P2 Improvements) - ✅ COMPLETE**
 
 ### Completed Items
 
@@ -462,25 +463,23 @@ uv run bandit -r src/egregora
 - **Simplified**: `enrichment/batch.py` (70 lines → 20 lines)
 - **Commit**: `e1e968f`
 
-### D. DuckDB Connection Management - Audit Complete
-
-**Findings from audit**:
-- ✅ **DuckDBStorageManager exists but unused** - Modern pattern available in `database/duckdb_manager.py`
-- 🔴 **write_pipeline.py has duplicate connection code** - Lines 426-429 duplicated at 770-775
-- ✅ **Specialized stores correct** - AnnotationStore, VectorStore have valid reasons for custom patterns
-- ✅ **Streaming utils deleted** - No longer applicable after streaming removal
-
-**Recommendation**: Extract connection helpers in `write_pipeline.py` (15 min work, saves 50+ lines)
+#### D. DuckDB Connection Management (-14 lines)
+- **Problem**: Duplicate connection setup in `write_pipeline.py` (lines 426-433 and 770-775)
+- **Solution**: Extracted `_create_duckdb_connections()` helper function
+- **Impact**: Single source of truth for connection creation, easier maintenance
+- **Benefits**: Clearer ownership, simpler error handling, reduced duplication
+- **Commit**: `46664f9`
 
 ### Key Insights
 
 1. **Streaming was unnecessary** - Windows are 100-1000 messages, RAG queries return 5-50 results
-2. **Duplicate directories exist** - Found entire duplicate `adapters/` subtree
-3. **Alpha mindset works** - Removed -2,648 lines without breaking functionality
-4. **DuckDBStorageManager underutilized** - Exists but not adopted
+2. **Duplicate code everywhere** - Found duplicate `adapters/` directory AND duplicate connection code
+3. **Alpha mindset works** - Removed -2,662 lines without breaking functionality
+4. **Simple helpers eliminate duplication** - `_create_duckdb_connections()` cleaned up 14 duplicate lines
+5. **DuckDBStorageManager underutilized** - Exists but not adopted (future opportunity)
 
-**Next steps**: Consider DuckDB connection refactoring (low priority, already working)
+**Phase 2 Status**: ✅ **100% COMPLETE** - All P2 items finished (D, E, F, G)
 
 ---
 
-**Last updated**: 2025-11-12 after Session 2 (Phase 2 partial)
+**Last updated**: 2025-11-12 after Session 2 (Phase 2 ✅ COMPLETE)
