@@ -232,39 +232,39 @@ def _extract_thinking_content(messages: MessageHistory) -> list[str]:
     return thinking_contents
 
 
-def _extract_freeform_content(messages: MessageHistory) -> str:
-    """Extract freeform content from agent message history.
+def _extract_journal_content(messages: MessageHistory) -> str:
+    """Extract journal content from agent message history.
 
-    Freeform content is plain text output from the model that's NOT a tool call.
+    Journal content is plain text output from the model that's NOT a tool call.
     This is typically the model's continuity journal / reflection memo.
 
     Args:
         messages: Agent message history from result.all_messages()
 
     Returns:
-        Combined freeform content as a single string
+        Combined journal content as a single string
 
     """
-    freeform_parts: list[str] = []
+    journal_parts: list[str] = []
 
     for message in messages:
         # Check if this is a ModelResponse message
         if isinstance(message, ModelResponse):
             # Iterate through parts to find TextPart (non-tool text output)
-            freeform_parts.extend(part.content for part in message.parts if isinstance(part, TextPart))
+            journal_parts.extend(part.content for part in message.parts if isinstance(part, TextPart))
 
-    return "\n\n".join(freeform_parts).strip()
+    return "\n\n".join(journal_parts).strip()
 
 
 @dataclass(frozen=True)
 class JournalEntry:
     """Represents a single entry in the intercalated journal log.
 
-    Each entry is one of: thinking, freeform text, or tool usage.
+    Each entry is one of: thinking, journal text, or tool usage.
     Entries preserve the actual execution order from the agent's message history.
     """
 
-    entry_type: str  # "thinking", "freeform", "tool_call", "tool_return"
+    entry_type: str  # "thinking", "journal", "tool_call", "tool_return"
     content: str
     timestamp: datetime | None = None
     tool_name: str | None = None
@@ -275,7 +275,7 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
 
     Processes agent message history to create a timeline showing:
     - Model thinking/reasoning
-    - Freeform text output
+    - Journal text output
     - Tool calls and their returns
 
     Args:
@@ -288,7 +288,7 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
     entries: list[JournalEntry] = []
 
     for message in messages:
-        # Handle ModelResponse (contains thinking and freeform output)
+        # Handle ModelResponse (contains thinking and journal output)
         if isinstance(message, ModelResponse):
             for part in message.parts:
                 if isinstance(part, ThinkingPart):
@@ -302,7 +302,7 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
                 elif isinstance(part, TextPart):
                     entries.append(
                         JournalEntry(
-                            entry_type="freeform",
+                            entry_type="journal",
                             content=part.content,
                             timestamp=getattr(message, "timestamp", None),
                         )
@@ -912,7 +912,7 @@ def _log_agent_completion(
         journal_saved=True,
         journal_entries=len(intercalated_log),
         journal_thinking_entries=sum(1 for e in intercalated_log if e.entry_type == "thinking"),
-        journal_freeform_entries=sum(1 for e in intercalated_log if e.entry_type == "freeform"),
+        journal_journal_entries=sum(1 for e in intercalated_log if e.entry_type == "journal"),
         journal_tool_calls=sum(1 for e in intercalated_log if e.entry_type == "tool_call"),
         tokens_total=usage.total_tokens if usage else 0,
         tokens_input=usage.input_tokens if usage else 0,

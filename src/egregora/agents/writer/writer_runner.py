@@ -26,7 +26,7 @@ from egregora.agents.shared.author_profiles import get_active_authors
 from egregora.agents.shared.rag import VectorStore, index_document
 from egregora.agents.writer.agent import WriterAgentContext, write_posts_with_pydantic_agent
 from egregora.agents.writer.context_builder import _load_profiles_context, build_rag_context_for_prompt
-from egregora.agents.writer.formatting import _build_conversation_markdown, _load_freeform_memory
+from egregora.agents.writer.formatting import _build_conversation_markdown, _load_journal_memory
 from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.data_primitives.document import Document, DocumentType
@@ -380,7 +380,7 @@ def _write_posts_for_window_pydantic(
             use_pydantic_helpers=True,
         )
     profiles_context = _load_profiles_context(table, config.profiles_dir)
-    freeform_memory = _load_freeform_memory(config.rag_dir)
+    journal_memory = _load_journal_memory(config.rag_dir)
     active_authors = get_active_authors(table)
 
     # Use site_root from config for custom prompt overrides
@@ -473,7 +473,7 @@ def _write_posts_for_window_pydantic(
         format_instructions=format_instructions,
         profiles_context=profiles_context,
         rag_context=rag_context,
-        freeform_memory=freeform_memory,
+        journal_memory=journal_memory,
         enable_memes=False,  # Meme generation removed in Phase 3
         prompts_dir=runtime_context.prompts_dir,
     )

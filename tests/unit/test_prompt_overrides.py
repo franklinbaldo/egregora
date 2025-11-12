@@ -103,7 +103,7 @@ def test_empty_custom_prompts_directory_fallback(tmp_path):
         context={},
         rag_context="",
         profiles_context="",
-        freeform_memory="",
+        journal_memory="",
         active_authors=[],
         start_time="2025-01-01",
         end_time="2025-01-02",

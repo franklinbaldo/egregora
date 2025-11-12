@@ -397,7 +397,7 @@ settings = AnthropicModelSettings(anthropic_thinking={'type': 'enabled', 'budget
 **Token tracking**: `tokens_input`, `tokens_output`, `tokens_cache_*`, `tokens_thinking`, `tokens_reasoning`
 
 **Journal entries**: Auto-saved to `output/journal/journal_*.md`
-- Intercalated log: thinking + freeform + tool calls/returns
+- Intercalated log: thinking + journal entries + tool calls/returns
 - YAML frontmatter with timestamp
 - Benefits: transparency, debugging, audit trail, continuity
 
