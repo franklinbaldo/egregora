@@ -62,7 +62,7 @@ See Also:
 # ==============================================================================
 # Functions for loading, creating, and saving the root EgregoraConfig from disk.
 # This is the PRIMARY way to configure Egregora (replaces env vars + CLI flags).
-from egregora.config.loader import (
+from egregora.config.schema import (
     create_default_config,
     find_egregora_config,
     load_egregora_config,

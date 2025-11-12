@@ -90,7 +90,7 @@ def process_whatsapp_export(
         Dict mapping window_id to {'posts': [...], 'profiles': [...]}
 
     """
-    from egregora.config.loader import load_egregora_config
+    from egregora.config.schema import load_egregora_config
     from egregora.pipeline.runner import run_source_pipeline
 
     # MODERN (Phase 7): Delegate to run_source_pipeline with windowing config

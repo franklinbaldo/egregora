@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from egregora.config.loader import load_egregora_config
+from egregora.config.schema import load_egregora_config
 
 if TYPE_CHECKING:
     from egregora.config.schema import EgregoraConfig

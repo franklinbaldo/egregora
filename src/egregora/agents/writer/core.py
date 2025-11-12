@@ -36,7 +36,7 @@ from egregora.agents.writer.handlers import (
     _handle_write_profile_tool,
 )
 from egregora.config import ModelConfig
-from egregora.config.loader import create_default_config
+from egregora.config.schema import create_default_config
 from egregora.core.document import Document, DocumentType
 from egregora.prompt_templates import WriterPromptTemplate
 from egregora.rendering import create_output_format, output_registry

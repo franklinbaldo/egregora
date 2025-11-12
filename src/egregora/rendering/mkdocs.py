@@ -17,7 +17,7 @@ import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
 from egregora.agents.shared.profiler import write_profile as write_profile_content
-from egregora.config.loader import create_default_config
+from egregora.config.schema import create_default_config
 from egregora.rendering.base import OutputFormat, SiteConfiguration
 from egregora.rendering.mkdocs_site import _ConfigLoader, find_mkdocs_file, resolve_site_paths
 from egregora.utils.paths import slugify
