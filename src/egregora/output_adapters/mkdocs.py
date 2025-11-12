@@ -7,6 +7,8 @@ For the modern Document-based implementation, see mkdocs_output_adapter.py.
 Storage implementations are in mkdocs_storage.py (shared with HugoOutputAdapter).
 """
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
