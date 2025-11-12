@@ -45,8 +45,8 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "AdapterMeta",
     "Export",
-    "MediaMapping",
     "InputAdapter",
+    "MediaMapping",
 ]
 
 

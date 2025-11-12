@@ -119,7 +119,7 @@ from egregora.pipeline.views import ViewBuilder, ViewRegistry, views
 # ============================================================================
 # Abstract interfaces for parsing different message sources (WhatsApp, Slack, etc.)
 # and handling media attachments across platforms.
-from egregora.sources.base import MediaMapping, InputAdapter
+from egregora.sources.base import InputAdapter, MediaMapping
 
 
 def __getattr__(name: str) -> object:
@@ -181,10 +181,10 @@ def __getattr__(name: str) -> object:
 #   - Run tracking (RunContext, record_run, run_stage_with_tracking)
 __all__ = [
     "IR_SCHEMA",
+    "InputAdapter",
     "MediaMapping",
     "PipelineStage",
     "RunContext",
-    "InputAdapter",
     "StageConfig",
     "StageResult",
     "ViewBuilder",
