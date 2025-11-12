@@ -473,11 +473,6 @@ def _write_posts_for_window_pydantic(
     format_type = egregora_config.output.format
     output_format = create_output_format(storage_root, format_type=format_type)
 
-    # Get storage implementations from OutputFormat
-    posts_storage = output_format.posts
-    profiles_storage = output_format.profiles
-    journals_storage = output_format.journals
-
     # Create pre-constructed stores
     rag_store = VectorStore(config.rag_dir / "chunks.parquet")
 
