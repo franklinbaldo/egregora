@@ -19,7 +19,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 from egregora.agents.shared.profiler import write_profile as write_profile_content
 from egregora.config.schema import create_default_config
 from egregora.rendering.base import OutputFormat, SiteConfiguration
-from egregora.rendering.mkdocs_site import _ConfigLoader, find_mkdocs_file, resolve_site_paths
+from egregora.rendering.mkdocs_site import _ConfigLoader, resolve_site_paths
 from egregora.utils.paths import slugify
 from egregora.utils.write_post import write_post as write_mkdocs_post
 
@@ -622,12 +622,24 @@ class MkDocsOutputFormat(OutputFormat):
         """
         if not site_root.exists():
             return False
-        mkdocs_path = site_root / "mkdocs.yml"
-        if mkdocs_path.exists():
+
+        # Check known locations (no upward directory search)
+        # 1. Check .egregora/config.yml for custom mkdocs_config_path
+        from egregora.rendering.mkdocs_site import _try_load_mkdocs_path_from_config
+
+        mkdocs_path_from_config = _try_load_mkdocs_path_from_config(site_root)
+        if mkdocs_path_from_config and mkdocs_path_from_config.exists():
             return True
-        # Inline: check if mkdocs.yml exists in parent directories
-        mkdocs_path_found = find_mkdocs_file(site_root)
-        return mkdocs_path_found is not None
+
+        # 2. Check default location: .egregora/mkdocs.yml
+        if (site_root / ".egregora" / "mkdocs.yml").exists():
+            return True
+
+        # 3. Check legacy location: root mkdocs.yml
+        if (site_root / "mkdocs.yml").exists():
+            return True
+
+        return False
 
     def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure.
@@ -927,16 +939,17 @@ class MkDocsOutputFormat(OutputFormat):
             msg = f"Failed to resolve site paths: {e}"
             raise RuntimeError(msg) from e
         config_file = site_paths.mkdocs_path
-        # Inline: load mkdocs.yml to get site_name
-        mkdocs_path = find_mkdocs_file(site_root)
-        if mkdocs_path:
+        # Load mkdocs.yml to get site_name (already resolved by resolve_site_paths)
+        if site_paths.mkdocs_path:
             try:
-                mkdocs_config = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
+                mkdocs_config = (
+                    yaml.load(site_paths.mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
+                )
             except yaml.YAMLError as exc:
-                logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
+                logger.warning("Failed to parse mkdocs.yml at %s: %s", site_paths.mkdocs_path, exc)
                 mkdocs_config = {}
         else:
-            logger.debug("mkdocs.yml not found when starting from %s", site_root)
+            logger.debug("mkdocs.yml not found in %s", site_root)
             mkdocs_config = {}
         return SiteConfiguration(
             site_root=site_paths.site_root,
@@ -1028,15 +1041,15 @@ class MkDocsOutputFormat(OutputFormat):
             ValueError: If config is invalid
 
         """
-        # Inline: load mkdocs.yml
-        mkdocs_path = find_mkdocs_file(site_root)
-        if not mkdocs_path:
-            msg = f"No mkdocs.yml found in {site_root} or parent directories"
+        # Use resolve_site_paths to find mkdocs.yml (checks custom path, .egregora/, root)
+        site_paths = resolve_site_paths(site_root)
+        if not site_paths.mkdocs_path:
+            msg = f"No mkdocs.yml found in {site_root}"
             raise FileNotFoundError(msg)
         try:
-            config = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
+            config = yaml.load(site_paths.mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
         except yaml.YAMLError as exc:
-            logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
+            logger.warning("Failed to parse mkdocs.yml at %s: %s", site_paths.mkdocs_path, exc)
             config = {}
         return config
 

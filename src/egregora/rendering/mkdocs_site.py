@@ -222,7 +222,79 @@ def resolve_site_paths(start: Annotated[Path, "The starting directory for path r
 
     SIMPLIFIED (Alpha): All egregora data in .egregora/ directory.
     MODERN (Regression Fix): Content at root level (not in docs/).
-    MODERN (Phase N): Respects output.mkdocs_config_path from .egregora/config.yml
+    MODERN (Phase N): Derives paths from known structure (no upward search)
+
+    This implementation:
+    - Uses start as site_root (no upward directory search)
+    - Checks .egregora/config.yml for custom mkdocs_config_path
+    - Falls back to .egregora/mkdocs.yml if no custom path
+    - All content paths are at the root
+    """
+    start = start.expanduser().resolve()
+
+    # Simple: site_root is the start directory (no upward search)
+    site_root = start
+
+    # .egregora/ structure (known locations)
+    egregora_dir = site_root / ".egregora"
+    config_path = egregora_dir / "config.yml"
+    mkdocs_config_path = egregora_dir / "mkdocs.yml"
+    prompts_dir = egregora_dir / "prompts"
+    rag_dir = egregora_dir / "rag"
+    cache_dir = egregora_dir / ".cache"
+
+    # Check for custom mkdocs_config_path in .egregora/config.yml
+    mkdocs_path_from_config = _try_load_mkdocs_path_from_config(site_root)
+
+    if mkdocs_path_from_config and mkdocs_path_from_config.exists():
+        # Custom path specified in config
+        mkdocs_path = mkdocs_path_from_config
+    elif mkdocs_config_path.exists():
+        # Default location: .egregora/mkdocs.yml
+        mkdocs_path = mkdocs_config_path
+    elif (site_root / "mkdocs.yml").exists():
+        # Backward compat: root mkdocs.yml
+        mkdocs_path = site_root / "mkdocs.yml"
+    else:
+        mkdocs_path = None
+
+    # Content directories (at root - known structure)
+    docs_dir = site_root  # For MkDocs compatibility, docs_dir points to site_root
+    blog_dir = DEFAULT_BLOG_DIR
+    posts_dir = site_root / "posts"
+    profiles_dir = site_root / PROFILES_DIR_NAME
+    media_dir = site_root / MEDIA_DIR_NAME
+    rankings_dir = site_root / "rankings"
+    enriched_dir = site_root / "enriched"
+
+    return SitePaths(
+        site_root=site_root,
+        mkdocs_path=mkdocs_path,
+        # .egregora/ paths
+        egregora_dir=egregora_dir,
+        config_path=config_path,
+        mkdocs_config_path=mkdocs_config_path,
+        prompts_dir=prompts_dir,
+        rag_dir=rag_dir,
+        cache_dir=cache_dir,
+        # Content paths
+        docs_dir=docs_dir,
+        blog_dir=blog_dir,
+        posts_dir=posts_dir,
+        profiles_dir=profiles_dir,
+        media_dir=media_dir,
+        rankings_dir=rankings_dir,
+        enriched_dir=enriched_dir,
+    )
+
+
+def resolve_site_paths_legacy(
+    start: Annotated[Path, "The starting directory for path resolution"],
+) -> SitePaths:
+    """DEPRECATED: Legacy implementation that searches for mkdocs.yml.
+
+    Use resolve_site_paths() instead which derives paths from known structure.
+    This function is kept for backward compatibility during migration.
     """
     start = start.expanduser().resolve()
 
