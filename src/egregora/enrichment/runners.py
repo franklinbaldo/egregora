@@ -24,8 +24,11 @@ from ibis.expr.types import Table
 
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.database import schemas
-from egregora.database.ir_schema import CONVERSATION_SCHEMA
+from egregora.database.ir_schema import (
+    CONVERSATION_SCHEMA,
+    create_table_if_not_exists,
+    quote_identifier,
+)
 from egregora.enrichment.agents import (
     make_media_agent,
     make_url_agent,
@@ -510,14 +513,14 @@ def _persist_to_duckdb(
         msg = "target_table must be a valid DuckDB identifier"
         raise ValueError(msg)
 
-    schemas.create_table_if_not_exists(duckdb_connection, target_table, CONVERSATION_SCHEMA)
-    quoted_table = schemas.quote_identifier(target_table)
-    column_list = ", ".join(schemas.quote_identifier(col) for col in CONVERSATION_SCHEMA.names)
+    create_table_if_not_exists(duckdb_connection, target_table, CONVERSATION_SCHEMA)
+    quoted_table = quote_identifier(target_table)
+    column_list = ", ".join(quote_identifier(col) for col in CONVERSATION_SCHEMA.names)
     temp_view = f"_egregora_enrichment_{uuid.uuid4().hex}"
 
     try:
         duckdb_connection.create_view(temp_view, combined, overwrite=True)
-        quoted_view = schemas.quote_identifier(temp_view)
+        quoted_view = quote_identifier(temp_view)
         duckdb_connection.raw_sql("BEGIN TRANSACTION")
         try:
             duckdb_connection.raw_sql(f"DELETE FROM {quoted_table}")  # nosec B608 - quoted identifiers
