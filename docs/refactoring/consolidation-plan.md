@@ -274,54 +274,31 @@ No further action needed.
 
 **Current:**
 - `constants.py` - "Central location for all constants"
-- `privacy/constants.py` - "Frozen UUID5 namespaces"
+- `privacy/uuid_namespaces.py` - "Frozen UUID5 namespaces" (renamed from `privacy/constants.py`)
 
 **Resolution:**
-Rename for clarity:
-```bash
-# Rename privacy constants
-mv src/egregora/privacy/constants.py src/egregora/privacy/uuid_namespaces.py
-```
-
-**Update imports:**
+Ensure all imports reference the new module name:
 ```python
-# OLD
-from egregora.privacy.constants import NAMESPACE_AUTHOR
-
-# NEW
 from egregora.privacy.uuid_namespaces import NAMESPACE_AUTHOR
 ```
 
 **Files to update:**
-- `src/egregora/privacy/__init__.py`
-- `src/egregora/privacy/anonymizer.py`
-- Any other files importing from privacy.constants
+- Any modules, tests, or docs importing from `egregora.privacy.constants`
 
 ### Issue 3.3: validation.py collision
 
 **Current:**
-- `config/validation.py` - Configuration validation
+- `config/config_validation.py` - Configuration validation utilities (renamed from `config/validation.py`)
 - `database/validation.py` - Schema validation
 
 **Resolution:**
-Rename for clarity:
-```bash
-# Rename config validation
-mv src/egregora/config/validation.py src/egregora/config/config_validation.py
-```
-
-**Update imports:**
+Update imports to use the new module name:
 ```python
-# OLD
-from egregora.config.validation import parse_date_arg
-
-# NEW
 from egregora.config.config_validation import parse_date_arg
 ```
 
 **Files to update:**
-- `src/egregora/cli.py`
-- `src/egregora/config/__init__.py`
+- CLI modules or helpers importing `egregora.config.validation`
 
 ### Issue 3.4: media.py collision
 
