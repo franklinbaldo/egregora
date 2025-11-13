@@ -83,52 +83,46 @@ def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> 
 def _iter_table_record_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
     """Stream table rows as batches of dictionaries without loading entire table into memory.
 
-    Uses PyArrow's streaming capabilities to iterate through table in fixed-size batches,
-    enabling memory-efficient processing of arbitrarily large windows.
+    Uses DuckDB's native fetchmany() for true streaming. This is the ORIGINAL streaming
+    approach before it was regressed to eager execution.
 
     Args:
         table: Ibis table expression to stream
-        batch_size: Number of rows per batch (advisory, actual batch size may vary)
+        batch_size: Number of rows per batch
 
     Yields:
-        Lists of dictionaries representing rows (up to batch_size per batch)
+        Lists of dictionaries representing rows (exactly batch_size per batch, except last)
 
     Note:
-        PyArrow RecordBatch sizes are determined by the backend, so actual batches
-        may be larger or smaller than batch_size. We slice them to target size.
+        Requires DuckDB backend. Falls back to eager execution for other backends.
 
     """
+    from egregora.database.streaming import ensure_deterministic_order, stream_ibis
+
+    # Try to get backend for streaming
+    try:
+        backend = table._find_backend()
+    except (AttributeError, Exception):
+        backend = None
+
+    # DuckDB streaming path (primary use case)
+    if backend is not None and hasattr(backend, "con"):
+        try:
+            ordered_table = ensure_deterministic_order(table)
+            yield from stream_ibis(ordered_table, backend, batch_size=batch_size)
+            return
+        except (AttributeError, Exception):
+            pass  # Fall through to eager fallback
+
+    # Fallback for non-DuckDB backends or memtables
     # Order by timestamp for deterministic iteration
     if "timestamp" in table.columns:
         table = table.order_by("timestamp")
 
-    # Stream table as PyArrow RecordBatches (memory-efficient)
-    try:
-        record_batch_reader = table.to_pyarrow_batches()
-    except (AttributeError, NotImplementedError):
-        # Fallback for backends without streaming support
-        df = table.execute()
-        records = _frame_to_records(df)
-        for start in range(0, len(records), batch_size):
-            yield records[start : start + batch_size]
-        return
-
-    # Process RecordBatches in streaming fashion
-    buffer: list[dict[str, Any]] = []
-
-    for record_batch in record_batch_reader:
-        # Convert RecordBatch to list of dicts
-        batch_dicts = record_batch.to_pylist()
-        buffer.extend(batch_dicts)
-
-        # Yield full batches when buffer reaches target size
-        while len(buffer) >= batch_size:
-            yield buffer[:batch_size]
-            buffer = buffer[batch_size:]
-
-    # Yield remaining records
-    if buffer:
-        yield buffer
+    df = table.execute()
+    records = _frame_to_records(df)
+    for start in range(0, len(records), batch_size):
+        yield records[start : start + batch_size]
 
 
 def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
