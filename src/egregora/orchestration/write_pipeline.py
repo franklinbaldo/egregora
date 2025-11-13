@@ -604,7 +604,10 @@ def _save_checkpoint(results: dict, messages_table: ir.Table, checkpoint_path: P
         return
 
     # Checkpoint based on messages in the filtered table
-    timestamp_column = getattr(messages_table, "ts", messages_table.timestamp)
+    if hasattr(messages_table, "ts"):
+        timestamp_column = messages_table.ts
+    else:
+        timestamp_column = messages_table.timestamp
 
     checkpoint_stats = messages_table.aggregate(
         max_timestamp=timestamp_column.max(),
@@ -651,7 +654,10 @@ def _apply_filters(
     if removed_count > 0:
         logger.warning("⚠️  %s messages removed from opted-out users", removed_count)
 
-    timestamp_column = getattr(messages_table, "ts", messages_table.timestamp)
+    if hasattr(messages_table, "ts"):
+        timestamp_column = messages_table.ts
+    else:
+        timestamp_column = messages_table.timestamp
 
     # Date range filtering
     if from_date or to_date:
