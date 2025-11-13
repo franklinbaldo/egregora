@@ -60,14 +60,9 @@ See Also:
 # CONSOLIDATED: Everything is now in schema.py - Pydantic models, dataclasses,
 # loading functions, and model utilities all in one place.
 from egregora.config.settings import (
-    DEFAULT_BANNER_MODEL,
-    DEFAULT_EMBEDDING_MODEL,
-    # Constants
-    DEFAULT_MODEL,
     EMBEDDING_DIM,
     # Pydantic V2 config models (persisted in .egregora/config.yml)
     EgregoraConfig,
-    EnrichmentRuntimeConfig,
     EnrichmentSettings,
     FeaturesSettings,
     MediaEnrichmentContext,
@@ -80,7 +75,6 @@ from egregora.config.settings import (
     ProcessConfig,
     RAGSettings,
     WriterAgentSettings,
-    WriterRuntimeConfig,
     # Config loading/saving functions
     create_default_config,
     find_egregora_config,

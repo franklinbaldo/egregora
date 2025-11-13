@@ -195,14 +195,14 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
     try:
         console.print(
             Panel(
-                f"[cyan]Source:[/cyan] {source}\n[cyan]Input:[/cyan] {config.zip_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {config.step_size} {config.step_unit}",
+                f"[cyan]Source:[/cyan] {source}\n[cyan]Input:[/cyan] {config.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {config.step_size} {config.step_unit}",
                 title="⚙️  Egregora Pipeline",
                 border_style="cyan",
             )
         )
         write_pipeline.run(
             source=source,
-            input_path=config.zip_file,
+            input_path=config.input_file,
             output_dir=config.output_dir,
             config=egregora_config,
             api_key=api_key,
@@ -709,18 +709,30 @@ def runs_tail(
     conn = duckdb.connect(str(db_path), read_only=True)
 
     try:
-        # Query last N runs
+        # Query last N runs from event-sourced run_events table
+        # Aggregate events to reconstruct run state
         result = conn.execute(
             """
-            SELECT
-                run_id,
-                stage,
-                status,
-                started_at,
-                rows_in,
-                rows_out,
-                duration_seconds
-            FROM runs
+            WITH run_summary AS (
+                SELECT
+                    run_id,
+                    stage,
+                    -- Get latest status (ordered by timestamp)
+                    LAST(status ORDER BY timestamp) as status,
+                    -- Started event has the start timestamp
+                    MIN(CASE WHEN status = 'started' THEN timestamp END) as started_at,
+                    -- Started event has rows_in
+                    MAX(CASE WHEN status = 'started' THEN rows_in END) as rows_in,
+                    -- Completed/failed events have rows_out
+                    MAX(CASE WHEN status IN ('completed', 'failed') THEN rows_out END) as rows_out,
+                    -- Completed/failed events have duration
+                    MAX(CASE WHEN status IN ('completed', 'failed') THEN duration_seconds END) as duration_seconds
+                FROM run_events
+                GROUP BY run_id, stage
+            )
+            SELECT *
+            FROM run_summary
+            WHERE started_at IS NOT NULL
             ORDER BY started_at DESC
             LIMIT ?
             """,
@@ -919,15 +931,45 @@ def runs_show(
     conn = duckdb.connect(str(db_path), read_only=True)
 
     try:
+        # Query run details from event-sourced run_events table
+        # Aggregate all events for the run to reconstruct complete state
         result = conn.execute(
             """
-            SELECT
-                run_id, tenant_id, stage, status, error,
-                input_fingerprint, code_ref, config_hash,
-                started_at, finished_at, duration_seconds,
-                rows_in, rows_out, llm_calls, tokens, trace_id
-            FROM runs
-            WHERE CAST(run_id AS VARCHAR) LIKE ?
+            WITH run_events_filtered AS (
+                SELECT *
+                FROM run_events
+                WHERE CAST(run_id AS VARCHAR) LIKE ?
+            ),
+            run_summary AS (
+                SELECT
+                    run_id,
+                    MAX(tenant_id) as tenant_id,
+                    stage,
+                    -- Latest status wins
+                    LAST(status ORDER BY timestamp) as status,
+                    -- Latest non-null error (from failed event)
+                    LAST(error ORDER BY timestamp) FILTER (WHERE error IS NOT NULL) as error,
+                    -- Started event has these
+                    MAX(CASE WHEN status = 'started' THEN input_fingerprint END) as input_fingerprint,
+                    MAX(code_ref) as code_ref,
+                    MAX(config_hash) as config_hash,
+                    -- Started event timestamp
+                    MIN(CASE WHEN status = 'started' THEN timestamp END) as started_at,
+                    -- Completed/failed event timestamp
+                    MAX(CASE WHEN status IN ('completed', 'failed') THEN timestamp END) as finished_at,
+                    -- Metrics from completion events
+                    MAX(CASE WHEN status IN ('completed', 'failed') THEN duration_seconds END) as duration_seconds,
+                    MAX(CASE WHEN status = 'started' THEN rows_in END) as rows_in,
+                    MAX(CASE WHEN status IN ('completed', 'failed') THEN rows_out END) as rows_out,
+                    MAX(llm_calls) as llm_calls,
+                    MAX(tokens) as tokens,
+                    MAX(trace_id) as trace_id
+                FROM run_events_filtered
+                GROUP BY run_id, stage
+            )
+            SELECT *
+            FROM run_summary
+            WHERE started_at IS NOT NULL
             ORDER BY started_at DESC
             LIMIT 1
             """,
@@ -981,3 +1023,8 @@ def runs_show(
 
     finally:
         conn.close()
+
+
+def main() -> None:
+    """Entry point for the CLI."""
+    app()

@@ -185,21 +185,6 @@ egregora process export.zip \
 egregora process export.zip --timezone="America/Sao_Paulo"
 ```
 
-### Advanced Features
-
-```bash
-# Interactive post editing
-egregora edit blog/posts/2025-01-15-my-post.md
-
-# Rank posts with Elo system
-egregora rank --site-dir=./blog --comparisons=50
-
-# Stage-by-stage processing (for debugging)
-egregora parse export.zip --output=messages.csv
-egregora group messages.csv --step-size=7 --step-unit=days --output-dir=windows
-egregora enrich windows/window_*.csv --zip-file=export.zip --output=enriched.csv
-```
-
 ### Privacy Controls
 
 Users can control their participation via in-chat commands:

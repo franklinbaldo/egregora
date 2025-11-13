@@ -22,9 +22,9 @@ from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
-import duckdb
 import ibis
 from google import genai
 
@@ -33,7 +33,8 @@ from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig
-from egregora.database.tracking import fingerprint_window, record_run
+from egregora.database import RUN_EVENTS_SCHEMA
+from egregora.database.tracking import fingerprint_window, get_git_commit_sha
 from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
@@ -239,15 +240,72 @@ def _process_window_with_auto_split(
         return combined_results
 
 
+RUN_EVENTS_TABLE_NAME = "run_events"
+
+
+def _ensure_run_events_table_exists(runs_backend: any) -> None:
+    """Create the run_events tracking table if it is missing for the backend."""
+    try:
+        if RUN_EVENTS_TABLE_NAME in set(runs_backend.list_tables()):
+            return
+    except Exception as exc:  # noqa: BLE001 - Graceful degradation for any backend
+        logger.debug("Unable to list tables for runs backend: %s", exc)
+
+    try:
+        runs_backend.create_table(RUN_EVENTS_TABLE_NAME, schema=RUN_EVENTS_SCHEMA)
+    except Exception as exc:  # noqa: BLE001 - Graceful degradation for any backend
+        # If the table already exists (created externally), retrieving it should
+        # succeed; otherwise re-raise to surface the configuration issue.
+        try:
+            runs_backend.table(RUN_EVENTS_TABLE_NAME)
+        except Exception as lookup_err:
+            msg = "Failed to ensure run_events tracking table exists"
+            raise RuntimeError(msg) from lookup_err
+        else:
+            logger.debug("Run events table already present: %s", exc)
+
+
+def _record_run_event(runs_backend: any, event: dict[str, object]) -> None:
+    """Record a run status event using event-sourced pattern (append-only).
+
+    Each status change is a new event with unique event_id. No UPDATE/DELETE needed.
+    Works with any backend supporting INSERT, providing full audit trail.
+
+    Args:
+        runs_backend: Ibis backend for run tracking
+        event: Event dict matching RUN_EVENTS_SCHEMA (must include event_id, run_id, status, timestamp)
+
+    Note:
+        Failures are logged but don't break the pipeline (observability-only).
+
+    """
+    try:
+        _ensure_run_events_table_exists(runs_backend)
+
+        rows = ibis.memtable([event], schema=RUN_EVENTS_SCHEMA)
+        insert_fn = getattr(runs_backend, "insert", None)
+        if not callable(insert_fn):
+            logger.debug(
+                "Run tracking unavailable: backend %s doesn't support insert()",
+                type(runs_backend).__name__,
+            )
+            return
+
+        insert_fn(RUN_EVENTS_TABLE_NAME, rows)
+    except Exception as exc:  # noqa: BLE001 - Observability failures don't break pipeline
+        logger.debug("Failed to record run event: %s", exc)
+        # Don't break pipeline for observability failures
+
+
 def _process_all_windows(
-    windows_iterator: any, ctx: WindowProcessingContext, runs_conn: duckdb.DuckDBPyConnection
+    windows_iterator: any, ctx: WindowProcessingContext, runs_backend: any
 ) -> dict[str, dict[str, list[str]]]:
     """Process all windows with tracking and error handling.
 
     Args:
         windows_iterator: Iterator of Window objects
         ctx: Window processing context
-        runs_conn: DuckDB connection for run tracking
+        runs_backend: Ibis backend for run tracking
 
     Returns:
         Dict mapping window labels to {'posts': [...], 'profiles': [...]}
@@ -266,76 +324,106 @@ def _process_all_windows(
             )
             continue
 
-        # Track window processing
+        # Track window processing (event-sourced)
         run_id = uuid.uuid4()
         started_at = datetime.now(UTC)
 
-        # Record run start
+        # Record "started" event
         try:
             input_fingerprint = fingerprint_window(window)
 
-            record_run(
-                conn=runs_conn,
-                run_id=run_id,
-                stage=f"window_{window.window_index}",
-                status="running",
-                started_at=started_at,
-                rows_in=window.size,
-                input_fingerprint=input_fingerprint,
-                trace_id=None,
-            )
-        except Exception as e:
-            logger.warning("Failed to record run start: %s", e)
+            start_event = {
+                "event_id": uuid.uuid4(),
+                "run_id": run_id,
+                "tenant_id": None,
+                "stage": f"window_{window.window_index}",
+                "status": "started",
+                "error": None,
+                "input_fingerprint": input_fingerprint,
+                "code_ref": get_git_commit_sha(),
+                "config_hash": None,
+                "timestamp": started_at,
+                "rows_in": window.size,
+                "rows_out": None,
+                "duration_seconds": None,
+                "llm_calls": None,
+                "tokens": None,
+                "trace_id": None,
+            }
+
+            _record_run_event(runs_backend, start_event)
+        except Exception as e:  # noqa: BLE001 - Observability failures don't break pipeline
+            logger.warning("Failed to record run start event: %s", e)
 
         # Process window
         try:
             window_results = _process_window_with_auto_split(window, ctx, depth=0, max_depth=5)
             results.update(window_results)
 
-            # Record run completion
+            # Record "completed" event
             finished_at = datetime.now(UTC)
             posts_count = sum(len(r.get("posts", [])) for r in window_results.values())
             profiles_count = sum(len(r.get("profiles", [])) for r in window_results.values())
 
             try:
-                runs_conn.execute(
-                    """
-                    UPDATE runs
-                    SET status = 'completed',
-                        finished_at = ?,
-                        duration_seconds = ?
-                    WHERE run_id = ?
-                    """,
-                    [finished_at, (finished_at - started_at).total_seconds(), str(run_id)],
-                )
+                completion_event = {
+                    "event_id": uuid.uuid4(),  # New event ID
+                    "run_id": run_id,  # Same run ID
+                    "tenant_id": None,
+                    "stage": f"window_{window.window_index}",
+                    "status": "completed",
+                    "error": None,
+                    "input_fingerprint": None,
+                    "code_ref": get_git_commit_sha(),
+                    "config_hash": None,
+                    "timestamp": finished_at,
+                    "rows_in": None,
+                    "rows_out": posts_count + profiles_count,
+                    "duration_seconds": (finished_at - started_at).total_seconds(),
+                    "llm_calls": None,
+                    "tokens": None,
+                    "trace_id": None,
+                }
+
+                _record_run_event(runs_backend, completion_event)
+
                 logger.debug(
                     "📊 Tracked run %s: %s posts, %s profiles",
                     str(run_id)[:8],
                     posts_count,
                     profiles_count,
                 )
-            except Exception as e:
-                logger.warning("Failed to record run completion: %s", e)
+            except Exception as e:  # noqa: BLE001 - Observability failures don't break pipeline
+                logger.warning("Failed to record run completion event: %s", e)
 
         except Exception as e:
-            # Record run failure
+            # Record "failed" event
             finished_at = datetime.now(UTC)
             error_msg = f"{type(e).__name__}: {e!s}"
 
             try:
-                runs_conn.execute(
-                    """
-                    UPDATE runs
-                    SET status = 'failed',
-                        finished_at = ?,
-                        duration_seconds = ?,
-                        error = ?
-                    WHERE run_id = ?
-                    """,
-                    [finished_at, (finished_at - started_at).total_seconds(), error_msg, str(run_id)],
-                )
-            except Exception as update_err:
-                logger.warning("Failed to record run failure: %s", update_err)
+                failure_event = {
+                    "event_id": uuid.uuid4(),  # New event ID
+                    "run_id": run_id,  # Same run ID
+                    "tenant_id": None,
+                    "stage": f"window_{window.window_index}",
+                    "status": "failed",
+                    "error": error_msg,
+                    "input_fingerprint": None,
+                    "code_ref": get_git_commit_sha(),
+                    "config_hash": None,
+                    "timestamp": finished_at,
+                    "rows_in": None,
+                    "rows_out": None,
+                    "duration_seconds": (finished_at - started_at).total_seconds(),
+                    "llm_calls": None,
+                    "tokens": None,
+                    "trace_id": None,
+                }
+
+                _record_run_event(runs_backend, failure_event)
+            except Exception as update_err:  # noqa: BLE001 - Observability failures don't break pipeline
+                logger.warning("Failed to record run failure event: %s", update_err)
 
             # Re-raise the original exception
             raise
@@ -384,19 +472,99 @@ def _perform_enrichment(
     )
 
 
+def _is_connection_uri(value: str) -> bool:
+    """Return True if the provided value looks like a DB connection URI."""
+    if not value:
+        return False
+
+    parsed = urlparse(value)
+    if not parsed.scheme:
+        return False
+
+    # Handle Windows drive letters (e.g. C:/path or C:\path)
+    if len(parsed.scheme) == 1 and value[1:3] in {":/", ":\\"}:
+        return False
+
+    return True
+
+
+def _create_database_backends(
+    site_root: Path,
+    config: EgregoraConfig,
+) -> tuple[str, any, any]:
+    """Create database backends for pipeline and runs tracking.
+
+    Uses Ibis for database abstraction, allowing future migration to
+    other databases (Postgres, SQLite, etc.) via connection strings.
+
+    Args:
+        site_root: Root directory for the site
+        config: Egregora configuration
+
+    Returns:
+        Tuple of (runtime_db_uri, pipeline_backend, runs_backend).
+
+    Notes:
+        DuckDB file URIs with the pattern ``duckdb:///./relative/path.duckdb`` are
+        resolved relative to ``site_root`` to keep configuration portable while
+        still using proper connection strings.
+
+    """
+
+    def _validate_and_connect(value: str, setting_name: str) -> tuple[str, any]:
+        if not value:
+            msg = f"Database setting '{setting_name}' must be a non-empty connection URI."
+            raise ValueError(msg)
+
+        parsed = urlparse(value)
+        if not parsed.scheme:
+            msg = (
+                "Database setting '{setting}' must be provided as an Ibis-compatible connection "
+                "URI (e.g. 'duckdb:///absolute/path/to/file.duckdb' or 'postgres://user:pass@host/db')."
+            )
+            raise ValueError(msg.format(setting=setting_name))
+
+        if len(parsed.scheme) == 1 and value[1:3] in {":/", ":\\"}:
+            msg = (
+                "Database setting '{setting}' looks like a filesystem path. Provide a full connection "
+                "URI instead (see the database settings documentation)."
+            )
+            raise ValueError(msg.format(setting=setting_name))
+
+        normalized_value = value
+
+        if parsed.scheme == "duckdb" and not parsed.netloc:
+            path_value = parsed.path
+            if path_value and path_value not in {"/:memory:", ":memory:", "memory", "memory:"}:
+                if path_value.startswith("/./"):
+                    fs_path = (site_root / Path(path_value[3:])).resolve()
+                else:
+                    fs_path = Path(path_value).resolve()
+                fs_path.parent.mkdir(parents=True, exist_ok=True)
+                normalized_value = f"duckdb:///{fs_path}"
+
+        return normalized_value, ibis.connect(normalized_value)
+
+    runtime_db_uri, pipeline_backend = _validate_and_connect(
+        config.database.pipeline_db, "database.pipeline_db"
+    )
+    _runs_db_uri, runs_backend = _validate_and_connect(config.database.runs_db, "database.runs_db")
+
+    return runtime_db_uri, pipeline_backend, runs_backend
+
+
 def _setup_pipeline_environment(
     output_dir: Path, config: EgregoraConfig, api_key: str | None, model_override: str | None
 ) -> tuple[
     any,
-    Path,
-    duckdb.DuckDBPyConnection,
-    duckdb.DuckDBPyConnection,
+    str,
+    any,
     any,
     str | None,
     genai.Client,
     EnrichmentCache,
 ]:
-    """Set up pipeline environment including paths, connections, and clients.
+    """Set up pipeline environment including paths, backends, and clients.
 
     Args:
         output_dir: Output directory for generated content
@@ -405,7 +573,7 @@ def _setup_pipeline_environment(
         model_override: Model override for CLI --model flag
 
     Returns:
-        Tuple of (site_paths, runtime_db_path, connection, runs_conn, backend, model_override, client, enrichment_cache)
+        Tuple of (site_paths, runtime_db_uri, pipeline_backend, runs_backend, model_override, client, enrichment_cache)
 
     Raises:
         ValueError: If mkdocs.yml or docs directory not found
@@ -422,15 +590,8 @@ def _setup_pipeline_environment(
         msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
         raise ValueError(msg)
 
-    # Setup database connections
-    runtime_db_path = site_paths.site_root / ".egregora" / "pipeline.duckdb"
-    runtime_db_path.parent.mkdir(parents=True, exist_ok=True)
-    connection = duckdb.connect(str(runtime_db_path))
-    backend = ibis.duckdb.from_connection(connection)
-
-    # Setup runs tracking database
-    runs_db_path = site_paths.site_root / ".egregora" / "runs.duckdb"
-    runs_conn = duckdb.connect(str(runs_db_path))
+    # Setup database backends (Ibis-based, database-agnostic)
+    runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
 
     # Setup Gemini client
     # Configure aggressive retry options to handle rate limits efficiently
@@ -451,10 +612,9 @@ def _setup_pipeline_environment(
 
     return (
         site_paths,
-        runtime_db_path,
-        connection,
-        runs_conn,
+        runtime_db_uri,
         backend,
+        runs_backend,
         model_override,
         client,
         enrichment_cache,
@@ -745,14 +905,13 @@ def run(
     logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", source)
     adapter = get_adapter(source)
 
-    # Setup environment (paths, connections, clients)
+    # Setup environment (paths, backends, clients)
     if client is None:
         (
             site_paths,
-            runtime_db_path,
-            connection,
-            runs_conn,
+            runtime_db_uri,
             backend,
+            runs_backend,
             cli_model_override,
             client,
             enrichment_cache,
@@ -767,12 +926,7 @@ def run(
         if not site_paths.docs_dir.exists():
             msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
             raise ValueError(msg)
-        runtime_db_path = site_paths.site_root / ".egregora" / "pipeline.duckdb"
-        runtime_db_path.parent.mkdir(parents=True, exist_ok=True)
-        connection = duckdb.connect(str(runtime_db_path))
-        backend = ibis.duckdb.from_connection(connection)
-        runs_db_path = site_paths.site_root / ".egregora" / "runs.duckdb"
-        runs_conn = duckdb.connect(str(runs_db_path))
+        runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
         cli_model_override = model_override
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         enrichment_cache = EnrichmentCache(cache_dir)
@@ -878,7 +1032,7 @@ def run(
         )
 
         # Process all windows with tracking
-        results = _process_all_windows(windows_iterator, window_ctx, runs_conn)
+        results = _process_all_windows(windows_iterator, window_ctx, runs_backend)
 
         # Index media enrichments into RAG
         _index_media_into_rag(enable_enrichment, results, site_paths, embedding_model)
@@ -894,11 +1048,20 @@ def run(
                 enrichment_cache.close()
         finally:
             try:
-                if "runs_conn" in locals():
-                    runs_conn.close()
+                if "runs_backend" in locals():
+                    close_method = getattr(runs_backend, "close", None)
+                    if callable(close_method):
+                        close_method()
+                    elif hasattr(runs_backend, "con") and hasattr(runs_backend.con, "close"):
+                        runs_backend.con.close()
             finally:
                 if client:
                     client.close()
         if options is not None:
             options.default_backend = old_backend
-        connection.close()
+        if "backend" in locals():
+            backend_close = getattr(backend, "close", None)
+            if callable(backend_close):
+                backend_close()
+            elif hasattr(backend, "con") and hasattr(backend.con, "close"):
+                backend.con.close()

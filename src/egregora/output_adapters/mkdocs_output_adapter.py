@@ -14,8 +14,6 @@ if TYPE_CHECKING:
     from egregora.data_primitives.document import Document
     from egregora.storage.url_convention import UrlContext, UrlConvention
 
-# Lazy import to avoid circular dependency (mkdocs_output_format ← agents ← writer/core → mkdocs_output_format)
-# from egregora.agents.shared.author_profiles import write_profile as write_profile_content
 from egregora.data_primitives.document import DocumentType
 from egregora.output_adapters.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
 

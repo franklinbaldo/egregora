@@ -1,0 +1,68 @@
+# Egregora Configuration
+# This file configures Egregora's LLM-powered pipeline
+# Separate from mkdocs.yml to support multiple rendering backends
+
+# Model configuration (Google Gemini API)
+# Uses pydantic-ai format: provider:model-name
+models:
+  writer: google-gla:gemini-flash-latest
+  enricher: google-gla:gemini-flash-latest
+  enricher_vision: google-gla:gemini-flash-latest
+  embedding: models/gemini-embedding-001
+  banner: models/gemini-2.5-flash-image
+  ranking: google-gla:gemini-flash-latest
+  editor: google-gla:gemini-flash-latest
+
+# RAG (Retrieval-Augmented Generation) settings
+rag:
+  enabled: true
+  top_k: 5                      # Number of results to retrieve
+  min_similarity: 0.7           # Minimum similarity threshold (0-1)
+  mode: ann                     # 'ann' (approximate) or 'exact'
+  # nprobe: 10                  # ANN search quality (1-100, higher = better + slower)
+  # overfetch: 3                # Overfetch multiplier for ANN candidate pool
+
+# Writer agent settings
+writer:
+  # Custom instructions for the writer agent (optional)
+  # Uncomment and customize as needed:
+  # custom_instructions: |
+  #   Write analytical posts in the style of Scott Alexander / LessWrong.
+  #   Focus on capturing narrative threads and preserving complexity.
+  enable_banners: true
+  enable_meme_generation: false
+
+# Privacy settings
+privacy:
+  anonymization_enabled: true   # Convert names to UUIDs
+  pii_detection_enabled: true   # Scan for PII (phones, emails, addresses)
+
+# Enrichment settings
+enrichment:
+  enabled: true
+  enable_url: true              # Enrich URLs with LLM-generated descriptions
+  enable_media: true            # Enrich images/videos with LLM-generated descriptions
+  max_enrichments: 50           # Maximum number of enrichments per run
+
+# Pipeline windowing settings
+pipeline:
+  step_size: 1                  # Size of each processing window
+  step_unit: days               # Unit: 'messages', 'hours', 'days', 'bytes'
+  overlap_ratio: 0.2            # Overlap fraction (0.0-0.5) for context continuity
+  # max_window_time: 168        # Max hours per window (optional)
+  # from_date: "2024-01-01"     # Start date filter (ISO format)
+  # to_date: "2024-12-31"       # End date filter (ISO format)
+  # timezone: "America/New_York" # Timezone for timestamps
+  max_prompt_tokens: 100000     # Maximum tokens per prompt (cost control)
+  use_full_context_window: false # Use full model context (overrides cap)
+
+# Output configuration
+output:
+  format: mkdocs                # Output format: 'mkdocs', 'hugo', etc.
+  # mkdocs_config_path: "mkdocs.yml"  # Path to mkdocs.yml (relative to site root)
+                                # If not set, defaults to '.egregora/mkdocs.yml'
+
+# Feature flags
+features:
+  ranking_enabled: false        # Elo-based post ranking
+  annotations_enabled: true     # Conversation annotations/threading

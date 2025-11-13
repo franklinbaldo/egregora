@@ -34,8 +34,6 @@ from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
 from egregora.output_adapters.mkdocs_output_adapter import MkDocsOutputAdapter
 from egregora.prompt_templates import WriterPromptTemplate
-
-# from egregora.storage.legacy_adapter import LegacyStorageAdapter  # DEPRECATED Phase 5
 from egregora.storage.url_convention import UrlContext
 
 if TYPE_CHECKING:
