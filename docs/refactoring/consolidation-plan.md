@@ -36,21 +36,57 @@ storage/
 └── url_convention.py                  (2.8KB) - URL abstraction
 ```
 
-### Target State (3 files)
+### Target State (Better Architecture)
 ```
-storage/
-├── output_adapter.py                  - Protocols only (OutputAdapter, UrlConvention)
-└── url_convention.py                  - URL abstraction
+data_primitives/
+├── document.py                        - Document, DocumentType, DocumentCollection
+├── base_types.py                      - GroupSlug, PostSlug
+└── protocols.py                       - OutputAdapter, UrlConvention protocols (moved from storage/)
 
 output_adapters/
-├── base.py                            - Abstract base class
+├── base.py                            - Abstract base class (if needed for shared logic)
 └── mkdocs/
     ├── __init__.py                    - Public exports
     ├── adapter.py                     - Main MkDocs implementation (merge mkdocs*.py)
-    └── url_convention.py              - MkDocs-specific URL logic
+    └── url_convention.py              - MkDocs-specific URL convention implementation
 ```
 
+**Rationale:** `OutputAdapter` and `UrlConvention` are Protocol interfaces (Layer 1 abstractions)
+that define fundamental contracts for working with Documents. They belong with other
+data primitives, not in a directory named `storage/` which implies implementation.
+
 ### Steps
+
+#### 1.0 Move protocols to data_primitives/ (ARCHITECTURAL IMPROVEMENT)
+**File:** `data_primitives/protocols.py`
+
+**Create new file with:**
+- Move `OutputAdapter` protocol from `storage/output_adapter.py`
+- Move `UrlConvention` protocol and `UrlContext` dataclass from `storage/url_convention.py`
+
+**Update imports:**
+```python
+# OLD
+from egregora.storage.output_adapter import OutputAdapter
+from egregora.storage.url_convention import UrlConvention, UrlContext
+
+# NEW
+from egregora.data_primitives.protocols import OutputAdapter, UrlConvention, UrlContext
+```
+
+**Files to update:**
+- `src/egregora/output_adapters/base.py`
+- `src/egregora/output_adapters/mkdocs.py`
+- `src/egregora/output_adapters/mkdocs_output_adapter.py`
+- `src/egregora/output_adapters/hugo.py`
+- `src/egregora/agents/writer/agent.py`
+- `src/egregora/data_primitives/__init__.py` (add to exports)
+
+**Delete empty directory:**
+```bash
+# After all protocols are moved
+rm -rf src/egregora/storage/
+```
 
 #### 1.1 Create new mkdocs/ subdirectory
 ```bash
@@ -386,34 +422,14 @@ from egregora.input_adapters.whatsapp import WhatsAppAdapter
 **Risk:** Medium (lots of import updates)
 **Benefit:** Clear directory structure, removes directory overlap
 
-### Issue 4.2: storage/ vs output_adapters/ clarification
+### Issue 4.2: storage/ directory removal
 
-**Current:**
-- `storage/` - Contains protocols AND some implementation
-- `output_adapters/` - Contains implementations
+**Resolution:** ✅ COMPLETED IN PHASE 1
 
-**Resolution:**
-Make `storage/` protocol-only:
+The `storage/` directory is eliminated entirely in Phase 1.0, with protocols moved
+to `data_primitives/protocols.py` where they belong as foundational abstractions.
 
-1. Review `storage/output_adapter.py` - ensure it's protocol only
-2. Review `storage/url_convention.py` - ensure it's protocol only
-3. Move any implementations to `output_adapters/`
-4. Add clear docstrings:
-
-```python
-# storage/output_adapter.py
-"""Output adapter protocol (interface definition only).
-
-This module defines the OutputAdapter protocol that all output format
-implementations must follow. No concrete implementations should be here.
-
-Implementations: See output_adapters/ directory.
-"""
-```
-
-**Estimated Time:** 1 hour
-**Risk:** Low
-**Benefit:** Clear separation of interface vs implementation
+This resolves the confusion about whether `storage/` contains protocols or implementations.
 
 ---
 
@@ -531,12 +547,15 @@ git revert <problematic-commit>
 
 | Phase | Time | Complexity | Dependencies |
 |-------|------|------------|--------------|
-| Phase 1: MkDocs | 4-6 hrs | Medium | None |
+| Phase 1: MkDocs + Protocols | 5-7 hrs | Medium-High | None |
 | Phase 2: Enrichment | 3-4 hrs | Medium | Phase 1 |
 | Phase 3: Name Collisions | 1-2 hrs | Low | Phase 2 |
-| Phase 4: Directory Structure | 4-5 hrs | Medium | Phase 3 |
+| Phase 4: Directory Structure | 3-4 hrs | Medium | Phase 3 |
 | Phase 5: Pipeline Logic | 2 hrs | Low | Phase 4 |
 | **Total** | **14-19 hrs** | | |
+
+**Note:** Phase 1 now includes moving protocols to `data_primitives/`, which improves
+architectural clarity and eliminates the `storage/` directory entirely.
 
 **Recommended approach:** Complete Phase 1-3 in one sprint, Phase 4-5 in next sprint.
 
