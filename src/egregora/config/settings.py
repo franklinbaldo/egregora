@@ -295,18 +295,24 @@ class OutputSettings(BaseModel):
 class DatabaseSettings(BaseModel):
     """Database configuration for pipeline and observability.
 
-    All paths are relative to site_root. Uses Ibis connection strings
-    for database-agnostic operation (supports DuckDB, Postgres, SQLite, etc.).
+    All values must be valid Ibis connection URIs (e.g. DuckDB, Postgres, SQLite).
     """
 
-    # Database file paths (relative to site_root)
     pipeline_db: str = Field(
-        default=".egregora/pipeline.duckdb",
-        description="Pipeline database path (relative to site root)",
+        default="duckdb:///./.egregora/pipeline.duckdb",
+        description=(
+            "Pipeline database connection URI (e.g. 'duckdb:///absolute/path.duckdb', "
+            "'duckdb:///./.egregora/pipeline.duckdb' for a site-relative file, or "
+            "'postgres://user:pass@host:5432/dbname')."
+        ),
     )
     runs_db: str = Field(
-        default=".egregora/runs.duckdb",
-        description="Run tracking database path (relative to site root)",
+        default="duckdb:///./.egregora/runs.duckdb",
+        description=(
+            "Run tracking database connection URI (e.g. 'duckdb:///absolute/runs.duckdb', "
+            "'duckdb:///./.egregora/runs.duckdb' for a site-relative file, or "
+            "'postgres://user:pass@host:5432/dbname')."
+        ),
     )
 
 
@@ -352,8 +358,8 @@ class EgregoraConfig(BaseModel):
       step_unit: days
 
     database:
-      pipeline_db: .egregora/pipeline.duckdb
-      runs_db: .egregora/runs.duckdb
+      pipeline_db: duckdb:///./.egregora/pipeline.duckdb
+      runs_db: duckdb:///./.egregora/runs.duckdb
 
     output:
       format: mkdocs
