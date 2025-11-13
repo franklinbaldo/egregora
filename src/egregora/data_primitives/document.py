@@ -35,6 +35,7 @@ class DocumentType(Enum):
     ENRICHMENT_URL = "enrichment_url"  # URL descriptions
     ENRICHMENT_MEDIA = "enrichment_media"  # Media file descriptions
     MEDIA = "media"  # Downloaded media files (images, videos, audio)
+    ANNOTATION = "annotation"  # Conversation annotations captured during writing
 
 
 @dataclass(frozen=True, slots=True)
