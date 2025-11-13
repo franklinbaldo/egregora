@@ -639,11 +639,8 @@ def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) ->
     logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
     messages_table = adapter.parse(input_path, timezone=timezone)
 
-    is_valid, errors = validate_ir_schema(messages_table)
-    if not is_valid:
-        raise ValueError(
-            "Source adapter produced invalid IR schema. Errors:\n" + "\n".join(f"  - {err}" for err in errors)
-        )
+    # Validate IR schema (raises SchemaError if invalid)
+    validate_ir_schema(messages_table)
 
     total_messages = messages_table.count().execute()
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)

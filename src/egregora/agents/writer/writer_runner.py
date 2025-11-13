@@ -363,7 +363,16 @@ def _write_posts_for_window_pydantic(
     embedding_model = get_model_for_task("embedding", config.egregora_config, config.cli_model)
 
     annotations_store = AnnotationStore(config.rag_dir / "annotations.duckdb")
-    messages_table = table.to_pyarrow()
+
+    # IR v1: Cast UUID columns to strings for PyArrow compatibility
+    # PyArrow doesn't support Python UUID objects, needs string serialization
+    table_with_str_uuids = table.mutate(
+        event_id=table.event_id.cast(str),
+        author_uuid=table.author_uuid.cast(str),
+        thread_id=table.thread_id.cast(str),
+        created_by_run=table.created_by_run.cast(str),
+    )
+    messages_table = table_with_str_uuids.to_pyarrow()
     conversation_md = _build_conversation_markdown(messages_table, annotations_store)
     rag_context = ""
     if config.enable_rag:
@@ -377,9 +386,10 @@ def _write_posts_for_window_pydantic(
             retrieval_overfetch=config.retrieval_overfetch,
             use_pydantic_helpers=True,
         )
-    profiles_context = _load_profiles_context(table, config.profiles_dir)
+    # IR v1: Use table with string UUIDs for pandas/PyArrow operations
+    profiles_context = _load_profiles_context(table_with_str_uuids, config.profiles_dir)
     journal_memory = _load_journal_memory(config.rag_dir)
-    active_authors = get_active_authors(table)
+    active_authors = get_active_authors(table_with_str_uuids)
 
     # Use site_root from config for custom prompt overrides
     # site_root is where the .egregora/ directory lives

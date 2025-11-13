@@ -27,7 +27,6 @@ from dateutil import parser as date_parser
 
 from egregora.constants import EgregoraCommand
 from egregora.database.ir_schema import MESSAGE_SCHEMA, ensure_message_schema
-from egregora.privacy.anonymizer import anonymize_table
 from egregora.sources.whatsapp.grammar import parse_whatsapp_line
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
@@ -226,7 +225,8 @@ def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
     if int(messages.count().execute()) == 0:
         return (messages, 0)
     original_count = int(messages.count().execute())
-    filtered_messages = messages.filter(~messages.message.lower().startswith("/egregora"))
+    # IR v1: Use .text column instead of .message
+    filtered_messages = messages.filter(~messages.text.lower().startswith("/egregora"))
     removed_count = original_count - int(filtered_messages.count().execute())
     if removed_count > 0:
         logger.info("Removed %s /egregora messages from table", removed_count)
@@ -269,7 +269,7 @@ def parse_source(export: WhatsAppExport, timezone: str | ZoneInfo | None = None)
     if _IMPORT_ORDER_COLUMN in messages.columns:
         messages = messages.drop(_IMPORT_ORDER_COLUMN)
     messages = ensure_message_schema(messages, timezone=timezone)
-    return anonymize_table(messages)
+    return messages
 
 
 def parse_multiple(exports: Sequence[WhatsAppExport], timezone: str | ZoneInfo | None = None) -> Table:
@@ -288,7 +288,7 @@ def parse_multiple(exports: Sequence[WhatsAppExport], timezone: str | ZoneInfo |
     combined = _add_message_ids(combined)
     combined = _cleanup_import_columns(combined)
     combined = ensure_message_schema(combined, timezone=timezone)
-    return anonymize_table(combined)
+    return combined
 
 
 def _parse_all_exports(exports: Sequence[WhatsAppExport], timezone: str | ZoneInfo | None) -> list[Table]:

@@ -8,6 +8,8 @@ Tests verify that:
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 
 from egregora.privacy.config import PrivacySettings
@@ -32,6 +34,7 @@ class TestPrivacyConfig:
         assert config.allowed_media_domains == ()
         assert config.enable_reidentification_escrow is False
         assert config.reidentification_retention_days == 90
+        assert config.author_namespace == uuid.NAMESPACE_URL
 
     def test_privacy_config_custom_values(self):
         """PrivacySettings accepts custom values."""
@@ -41,6 +44,7 @@ class TestPrivacyConfig:
             allowed_media_domains=("acme.com", "trusted.com"),
             enable_reidentification_escrow=True,
             reidentification_retention_days=30,
+            author_namespace=uuid.uuid5(uuid.NAMESPACE_DNS, "acme"),
         )
 
         assert config.tenant_id == "acme-corp"
@@ -48,6 +52,7 @@ class TestPrivacyConfig:
         assert config.allowed_media_domains == ("acme.com", "trusted.com")
         assert config.enable_reidentification_escrow is True
         assert config.reidentification_retention_days == 30
+        assert config.author_namespace == uuid.uuid5(uuid.NAMESPACE_DNS, "acme")
 
     def test_privacy_config_rejects_empty_tenant_id(self):
         """PrivacySettings raises ValueError for empty tenant_id."""

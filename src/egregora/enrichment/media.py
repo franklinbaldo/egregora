@@ -202,7 +202,8 @@ def extract_and_replace_media(
     def replace_in_message(message: str) -> str:
         return replace_media_mentions(message, media_mapping, docs_dir, posts_dir) if message else message
 
-    updated_table = messages_table.mutate(message=replace_in_message(messages_table.message))
+    # IR v1: use .text column
+    updated_table = messages_table.mutate(text=replace_in_message(messages_table.text))
     return (updated_table, media_mapping)
 
 

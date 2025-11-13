@@ -156,8 +156,8 @@ def parse(
     "thread_id": "uuid",          # Conversation/channel UUID
     "msg_id": "string",           # Original message ID
     "ts": "timestamp",            # Message timestamp (UTC)
-    "author_raw": "string",       # Original author name
-    "author_uuid": "uuid",        # Anonymized author UUID (use UUID5)
+    "author_raw": "string",       # Original author name (kept locally)
+    "author_uuid": "uuid",        # Adapter-generated UUID5 pseudonym
     "text": "string",             # Message content (markdown)
     "media_url": "string",        # Optional media URL
     "media_type": "string",       # Optional media type
@@ -172,6 +172,50 @@ def parse(
 - Images: `![alt text](filename.jpg)`
 - Videos: `[Video](filename.mp4)`
 - Files: `[Document](report.pdf)`
+
+---
+
+### Anonymization Happens in the Adapter
+
+Input adapters are responsible for delivering privacy-compliant data to the
+core pipeline. By the time `parse()` returns, every row **must already contain
+an anonymized `author_uuid`** that corresponds to the provided `author_raw`
+value. The core assumes this contract is met and will not back-fill
+pseudonyms.
+
+Use `egregora.privacy.constants.deterministic_author_uuid()` to generate
+UUID5 pseudonyms:
+
+```python
+from egregora.privacy.constants import (
+    NAMESPACE_AUTHOR,
+    deterministic_author_uuid,
+)
+
+def _author_uuid(tenant_id: str, author_name: str) -> uuid.UUID:
+    # Default: global namespace (cross-tenant collisions allowed)
+    return deterministic_author_uuid(author_name)
+```
+
+Adapters that require tenant-scoped anonymity can opt into their own namespace
+by deriving a UUID from adapter context and passing it explicitly:
+
+```python
+import uuid
+
+from egregora.privacy.constants import NAMESPACE_AUTHOR, deterministic_author_uuid
+
+def _namespaced_uuid(tenant_id: str, source_identifier: str, author_name: str) -> uuid.UUID:
+    tenant_namespace = uuid.uuid5(
+        NAMESPACE_AUTHOR,
+        f"tenant:{tenant_id}:source:{source_identifier}",
+    )
+    return deterministic_author_uuid(author_name, namespace=tenant_namespace)
+```
+
+Because the namespace is provided by the adapter, projects can decide whether
+all tenants share the same pseudonym space or receive isolated namespaces
+without changing the core pipeline.
 
 ---
 
