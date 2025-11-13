@@ -263,7 +263,6 @@ class EleventyArrowAdapter:
     @staticmethod
     def _deserialize_metadata(raw: Any) -> dict[str, Any]:
         """Best-effort JSON decode for stored metadata."""
-
         if isinstance(raw, str) and raw:
             try:
                 return json.loads(raw)
@@ -272,11 +271,8 @@ class EleventyArrowAdapter:
         return {}
 
     @staticmethod
-    def _identifier_candidates(
-        doc_type: DocumentType, row: Any, metadata: dict[str, Any]
-    ) -> set[str]:
+    def _identifier_candidates(doc_type: DocumentType, row: Any, metadata: dict[str, Any]) -> set[str]:
         """Return all identifiers that should match the given document."""
-
         candidates: set[str] = set()
 
         # Basic identifiers common across document types
