@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
 from pathlib import Path
+from urllib.parse import urlparse
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
 
@@ -383,12 +384,10 @@ def _perform_enrichment(
         config,
         enrichment_context,
     )
-
-
 def _create_database_backends(
     site_root: Path,
     config: EgregoraConfig,
-) -> tuple[Path, any, any]:
+) -> tuple[str, any, any]:
     """Create database backends for pipeline and runs tracking.
 
     Uses Ibis for database abstraction, allowing future migration to
@@ -399,29 +398,64 @@ def _create_database_backends(
         config: Egregora configuration
 
     Returns:
-        Tuple of (runtime_db_path, pipeline_backend, runs_backend)
+        Tuple of (runtime_db_uri, pipeline_backend, runs_backend).
+
+    Notes:
+        DuckDB file URIs with the pattern ``duckdb:///./relative/path.duckdb`` are
+        resolved relative to ``site_root`` to keep configuration portable while
+        still using proper connection strings.
 
     """
-    # Resolve database paths from config
-    runtime_db_path = site_root / config.database.pipeline_db
-    runs_db_path = site_root / config.database.runs_db
 
-    # Ensure parent directories exist
-    runtime_db_path.parent.mkdir(parents=True, exist_ok=True)
-    runs_db_path.parent.mkdir(parents=True, exist_ok=True)
+    def _validate_and_connect(value: str, setting_name: str) -> tuple[str, any]:
+        if not value:
+            msg = f"Database setting '{setting_name}' must be a non-empty connection URI."
+            raise ValueError(msg)
 
-    # Create Ibis backends (database-agnostic)
-    pipeline_backend = ibis.connect(f"duckdb://{runtime_db_path}")
-    runs_backend = ibis.connect(f"duckdb://{runs_db_path}")
+        parsed = urlparse(value)
+        if not parsed.scheme:
+            msg = (
+                "Database setting '{setting}' must be provided as an Ibis-compatible connection "
+                "URI (e.g. 'duckdb:///absolute/path/to/file.duckdb' or 'postgres://user:pass@host/db')."
+            )
+            raise ValueError(msg.format(setting=setting_name))
 
-    return runtime_db_path, pipeline_backend, runs_backend
+        if len(parsed.scheme) == 1 and value[1:3] in {":/", ":\\"}:
+            msg = (
+                "Database setting '{setting}' looks like a filesystem path. Provide a full connection "
+                "URI instead (see the database settings documentation)."
+            )
+            raise ValueError(msg.format(setting=setting_name))
+
+        normalized_value = value
+
+        if parsed.scheme == "duckdb" and not parsed.netloc:
+            path_value = parsed.path
+            if path_value and path_value not in {"/:memory:", ":memory:", "memory", "memory:"}:
+                if path_value.startswith("/./"):
+                    fs_path = (site_root / Path(path_value[3:])).resolve()
+                else:
+                    fs_path = Path(path_value).resolve()
+                fs_path.parent.mkdir(parents=True, exist_ok=True)
+                normalized_value = f"duckdb:///{fs_path}"
+
+        return normalized_value, ibis.connect(normalized_value)
+
+    runtime_db_uri, pipeline_backend = _validate_and_connect(
+        config.database.pipeline_db, "database.pipeline_db"
+    )
+    runs_db_uri, runs_backend = _validate_and_connect(
+        config.database.runs_db, "database.runs_db"
+    )
+
+    return runtime_db_uri, pipeline_backend, runs_backend
 
 
 def _setup_pipeline_environment(
     output_dir: Path, config: EgregoraConfig, api_key: str | None, model_override: str | None
 ) -> tuple[
     any,
-    Path,
+    str,
     any,
     any,
     str | None,
@@ -437,7 +471,7 @@ def _setup_pipeline_environment(
         model_override: Model override for CLI --model flag
 
     Returns:
-        Tuple of (site_paths, runtime_db_path, pipeline_backend, runs_backend, model_override, client, enrichment_cache)
+        Tuple of (site_paths, runtime_db_uri, pipeline_backend, runs_backend, model_override, client, enrichment_cache)
 
     Raises:
         ValueError: If mkdocs.yml or docs directory not found
@@ -455,7 +489,7 @@ def _setup_pipeline_environment(
         raise ValueError(msg)
 
     # Setup database backends (Ibis-based, database-agnostic)
-    runtime_db_path, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
+    runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
 
     # Setup Gemini client
     # Configure aggressive retry options to handle rate limits efficiently
@@ -476,7 +510,7 @@ def _setup_pipeline_environment(
 
     return (
         site_paths,
-        runtime_db_path,
+        runtime_db_uri,
         backend,
         runs_backend,
         model_override,
@@ -773,7 +807,7 @@ def run(
     if client is None:
         (
             site_paths,
-            runtime_db_path,
+            runtime_db_uri,
             backend,
             runs_backend,
             cli_model_override,
@@ -790,7 +824,7 @@ def run(
         if not site_paths.docs_dir.exists():
             msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
             raise ValueError(msg)
-        runtime_db_path, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
+        runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
         cli_model_override = model_override
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         enrichment_cache = EnrichmentCache(cache_dir)
