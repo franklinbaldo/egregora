@@ -78,6 +78,7 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.database import ir_schema as database_schema
 from egregora.privacy.detector import PrivacyViolationError, validate_text_privacy
 
@@ -125,6 +126,32 @@ class Annotation:
     author: str
     commentary: str
     created_at: datetime
+
+    def to_document(self) -> Document:
+        """Convert this annotation into a lightweight :class:`Document` instance.
+
+        Annotations already carry stable identity, authorship, and parent references.
+        Exposing them as documents lets downstream components (output adapters,
+        enrichment pipelines, retrieval) treat annotations just like any other
+        publishable content without special cases.
+
+        Returns:
+            Document representation of the annotation ready for serving/indexing.
+        """
+
+        metadata = {
+            "annotation_id": str(self.id),
+            "title": f"Annotation {self.id}",
+            "parent_id": self.parent_id,
+            "parent_type": self.parent_type,
+            "author": self.author,
+        }
+        return Document(
+            content=self.commentary,
+            type=DocumentType.ANNOTATION,
+            metadata=metadata,
+            created_at=self.created_at,
+        )
 
 
 # ============================================================================
@@ -314,6 +341,12 @@ class AnnotationStore:
         )
         for row in records:
             yield self._row_to_annotation(row)
+
+    def iter_annotation_documents(self) -> Iterable[Document]:
+        """Yield all annotations transformed into :class:`Document` objects."""
+
+        for annotation in self.iter_all_annotations():
+            yield annotation.to_document()
 
     # ========================================================================
     # Vectorized Operations
