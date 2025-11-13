@@ -11,8 +11,6 @@ from typing import Annotated
 import ibis
 from ibis.expr.types import Table
 
-from egregora.enrichment.runners import _iter_table_record_batches
-
 ATTACHMENT_MARKERS = ("(arquivo anexado)", "(file attached)", "(archivo adjunto)", "\u200e<attached:")
 MEDIA_EXTENSIONS = {
     ".jpg": "image",
@@ -185,6 +183,8 @@ def extract_and_replace_media(
         - Media mapping (original → extracted path)
 
     """
+    from egregora.enrichment.runners import _iter_table_record_batches
+
     all_media = set()
     batch_size = 1000
     for batch_records in _iter_table_record_batches(messages_table, batch_size):
