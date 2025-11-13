@@ -81,30 +81,54 @@ def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> 
 
 
 def _iter_table_record_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
-    """Yield batches of table rows as dictionaries.
+    """Stream table rows as batches of dictionaries without loading entire table into memory.
 
-    Simplified implementation for Egregora's typical use case: window sizes of
-    100-1000 messages that easily fit in memory. No streaming complexity needed.
+    Uses PyArrow's streaming capabilities to iterate through table in fixed-size batches,
+    enabling memory-efficient processing of arbitrarily large windows.
 
     Args:
-        table: Ibis table expression to execute
-        batch_size: Number of rows per batch
+        table: Ibis table expression to stream
+        batch_size: Number of rows per batch (advisory, actual batch size may vary)
 
     Yields:
-        Lists of dictionaries representing rows
+        Lists of dictionaries representing rows (up to batch_size per batch)
+
+    Note:
+        PyArrow RecordBatch sizes are determined by the backend, so actual batches
+        may be larger or smaller than batch_size. We slice them to target size.
 
     """
-    # Order by timestamp if available for deterministic iteration
+    # Order by timestamp for deterministic iteration
     if "timestamp" in table.columns:
         table = table.order_by("timestamp")
 
-    # Execute table and convert to records
-    df = table.execute()
-    records = _frame_to_records(df)
+    # Stream table as PyArrow RecordBatches (memory-efficient)
+    try:
+        record_batch_reader = table.to_pyarrow_batches()
+    except (AttributeError, NotImplementedError):
+        # Fallback for backends without streaming support
+        df = table.execute()
+        records = _frame_to_records(df)
+        for start in range(0, len(records), batch_size):
+            yield records[start : start + batch_size]
+        return
 
-    # Yield in batches
-    for start in range(0, len(records), batch_size):
-        yield records[start : start + batch_size]
+    # Process RecordBatches in streaming fashion
+    buffer: list[dict[str, Any]] = []
+
+    for record_batch in record_batch_reader:
+        # Convert RecordBatch to list of dicts
+        batch_dicts = record_batch.to_pylist()
+        buffer.extend(batch_dicts)
+
+        # Yield full batches when buffer reaches target size
+        while len(buffer) >= batch_size:
+            yield buffer[:batch_size]
+            buffer = buffer[batch_size:]
+
+    # Yield remaining records
+    if buffer:
+        yield buffer
 
 
 def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
