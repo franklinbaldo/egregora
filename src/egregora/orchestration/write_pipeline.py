@@ -408,8 +408,9 @@ def _create_database_backends(
 ) -> tuple[Path | str, any, any]:
     """Create database backends for pipeline and runs tracking.
 
-    Uses Ibis for database abstraction, allowing future migration to
-    other databases (Postgres, SQLite, etc.) via connection strings.
+    Uses Ibis for database abstraction. While connection URIs are accepted,
+    only DuckDB backends are currently supported because run tracking relies
+    on DuckDB-specific SQL parameter semantics.
 
     Args:
         site_root: Root directory for the site
@@ -423,6 +424,14 @@ def _create_database_backends(
 
     def _resolve_backend(value: str) -> tuple[Path | str, any]:
         if _is_connection_uri(value):
+            parsed = urlparse(value)
+            if parsed.scheme != "duckdb":
+                msg = (
+                    "Only DuckDB connection URIs are supported for pipeline and run "
+                    "tracking databases. "
+                    f"Received URI with scheme '{parsed.scheme}' for value '{value}'."
+                )
+                raise ValueError(msg)
             return value, ibis.connect(value)
 
         db_path = Path(value).expanduser()
