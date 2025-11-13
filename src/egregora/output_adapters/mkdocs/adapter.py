@@ -408,7 +408,7 @@ class MkDocsOutputAdapter(OutputAdapter):
         # Site doesn't exist - create it
         try:
             # Set up Jinja2 environment for templates
-            templates_dir = Path(__file__).resolve().parent.parent / "rendering" / "templates" / "site"
+            templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
             env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
 
             # Render context

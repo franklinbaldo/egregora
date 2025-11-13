@@ -98,7 +98,7 @@ class HugoOutputAdapter(OutputAdapter):
             RuntimeError: If storage initialization fails
 
         """
-        from egregora.output_adapters.mkdocs_storage import (
+        from egregora.output_adapters.mkdocs import (
             MkDocsEnrichmentStorage,
             MkDocsJournalStorage,
             MkDocsPostStorage,
