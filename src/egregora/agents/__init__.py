@@ -23,7 +23,6 @@ __all__ = ["AgentResolver", "ToolRegistry", "banner", "load_agent", "writer"]
 
 def __getattr__(name: str) -> Any:
     """Lazily import heavy agent modules to avoid circular imports."""
-
     if name in {"banner", "writer"}:
         module = import_module(f"egregora.agents.{name}")
         globals()[name] = module
