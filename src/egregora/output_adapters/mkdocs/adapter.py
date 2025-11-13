@@ -224,7 +224,6 @@ def resolve_site_paths(start: Annotated[Path, "Search root"]) -> SitePaths:
 
 
 class MkDocsOutputAdapter(OutputAdapter):
-
     """MkDocs output format with Material theme support.
 
     Creates blog sites using:
