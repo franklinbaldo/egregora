@@ -360,7 +360,11 @@ def _process_all_windows(
 
     # Calculate max window size from LLM context (once)
     max_window_size = _calculate_max_window_size(ctx.config)
-    logger.debug("Max window size: %d messages (based on %d token context)", max_window_size, ctx.config.writer.max_prompt_tokens)
+    logger.debug(
+        "Max window size: %d messages (based on %d token context)",
+        max_window_size,
+        ctx.config.writer.max_prompt_tokens,
+    )
 
     for window in windows_iterator:
         # Skip empty windows
