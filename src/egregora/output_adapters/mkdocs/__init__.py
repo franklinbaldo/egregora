@@ -1,10 +1,6 @@
 """MkDocs output adapter package."""
 
 from .adapter import (
-    DEFAULT_BLOG_DIR,
-    DEFAULT_DOCS_DIR,
-    MEDIA_DIR_NAME,
-    PROFILES_DIR_NAME,
     MkDocsEnrichmentStorage,
     MkDocsFilesystemAdapter,
     MkDocsJournalStorage,
@@ -20,10 +16,6 @@ from .adapter import (
 from .url_convention import LegacyMkDocsUrlConvention
 
 __all__ = [
-    "DEFAULT_BLOG_DIR",
-    "DEFAULT_DOCS_DIR",
-    "MEDIA_DIR_NAME",
-    "PROFILES_DIR_NAME",
     "LegacyMkDocsUrlConvention",
     "MkDocsEnrichmentStorage",
     "MkDocsFilesystemAdapter",
