@@ -418,7 +418,7 @@ def filter_opted_out_authors(
     if not opted_out:
         return (table, 0)
     logger.info("Found %s opted-out authors", len(opted_out))
-    author_column = getattr(table, "author_uuid", getattr(table, "author"))
+    author_column = getattr(table, "author_uuid", table.author)
 
     original_count = table.count().execute()
     filtered_table = table.filter(~author_column.isin(list(opted_out)))
