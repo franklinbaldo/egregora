@@ -244,20 +244,59 @@ class EleventyArrowAdapter:
             df = table.to_pandas()
             matches = df[df["kind"] == doc_type.value]
 
-            # Filter by identifier (try both id and slug)
+            # Filter by identifier (include document-type metadata identifiers)
             for _, row in matches.iterrows():
-                if row["id"] == identifier or row["slug"] == identifier:
+                metadata = self._deserialize_metadata(row.get("metadata"))
+                if identifier in self._identifier_candidates(doc_type, row, metadata):
                     # Reconstruct Document
                     from egregora.data_primitives.document import Document
 
                     return Document(
                         content=row["body_md"],
                         type=DocumentType(row["kind"]),
-                        metadata=json.loads(row["metadata"]) if row["metadata"] else {},
+                        metadata=metadata,
                         parent_id=row["parent_id"] if row["parent_id"] else None,
                     )
 
         return None
+
+    @staticmethod
+    def _deserialize_metadata(raw: Any) -> dict[str, Any]:
+        """Best-effort JSON decode for stored metadata."""
+        if isinstance(raw, str) and raw:
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                logger.warning("Failed to decode document metadata; returning empty dict")
+        return {}
+
+    @staticmethod
+    def _identifier_candidates(doc_type: DocumentType, row: Any, metadata: dict[str, Any]) -> set[str]:
+        """Return all identifiers that should match the given document."""
+        candidates: set[str] = set()
+
+        # Basic identifiers common across document types
+        for key in ("id", "slug"):
+            value = row.get(key)
+            if isinstance(value, str) and value:
+                candidates.add(value)
+
+        # Document-type specific identifiers
+        if doc_type == DocumentType.PROFILE:
+            for key in ("uuid", "author_uuid"):
+                value = metadata.get(key)
+                if isinstance(value, str) and value:
+                    candidates.add(value)
+        elif doc_type == DocumentType.JOURNAL:
+            value = metadata.get("window_label")
+            if isinstance(value, str) and value:
+                candidates.add(value)
+        elif doc_type == DocumentType.POST:
+            value = metadata.get("slug")
+            if isinstance(value, str) and value:
+                candidates.add(value)
+
+        return candidates
 
     def list_documents(self, doc_type: DocumentType | None = None) -> list[Document]:
         """List all documents, optionally filtered by type.
