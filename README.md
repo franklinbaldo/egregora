@@ -138,10 +138,10 @@ Egregora uses a **modern, staged pipeline** architecture built for clarity and e
 - No complex checkpoints - just checks if output files exist
 - Clean, transparent: "Does period have posts? Skip if yes, process if no"
 
-**✅ Source-Based Organization** (Phase 6)
-- Source-specific code in `sources/{whatsapp,slack}/`
-- Generic interfaces in `ingestion/base.py`
-- Easy to add new sources (Discord, Telegram, etc.)
+**✅ Adapter-Based Organization** (Phase 6)
+- Production adapters live in `input_adapters/{whatsapp,slack}/`
+- Shared protocols live in `input_adapters/base.py`
+- Easy to add new adapters (Discord, Telegram, etc.)
 
 **✅ Privacy-First**
 - **Critical invariant**: Anonymization happens BEFORE any LLM sees data
@@ -262,15 +262,15 @@ src/egregora/
 │   ├── schema.py            # EgregoraConfig (root config)
 │   ├── types.py             # Runtime context dataclasses
 │   └── loader.py            # Config loading utilities
-├── sources/                  # Source-specific implementations
-│   └── whatsapp/            # WhatsApp source
-│       ├── grammar.py       # pyparsing grammar
-│       ├── parser.py        # parse_source() function
-│       ├── input.py         # WhatsAppInputSource
-│       └── models.py        # WhatsAppExport dataclass
-├── ingestion/               # Generic source interfaces
-│   ├── base.py             # InputSource abstraction
-│   └── __init__.py         # Re-exports for convenience
+├── input_adapters/           # Source adapter implementations
+│   ├── base.py             # InputAdapter protocol
+│   ├── registry.py         # Adapter discovery + validation
+│   └── whatsapp/           # WhatsApp adapter + parser
+│       ├── __init__.py     # WhatsAppAdapter implementation
+│       ├── grammar.py      # pyparsing grammar
+│       ├── models.py       # WhatsAppExport dataclass
+│       └── parser.py       # parse_source() function
+├── orchestration/            # Pipeline orchestration helpers
 ├── privacy/                 # Anonymization + PII detection
 ├── enrichment/              # LLM-powered context enrichment
 ├── agents/                  # Pydantic-AI agents

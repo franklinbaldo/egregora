@@ -21,16 +21,18 @@ egregora/
 
 ```
 src/egregora/
-├── ingestion/              # Input source base classes (re-exports from sources/)
-│   ├── __init__.py
-│   └── base.py             # InputSource, InputMetadata protocols
-│
-├── sources/                # Source-specific implementations
-│   └── whatsapp/           # WhatsApp export parsing
+├── input_adapters/         # Adapter protocol and implementations
+│   ├── base.py             # InputAdapter protocol
+│   ├── registry.py         # Adapter discovery & validation
+│   └── whatsapp/           # WhatsApp adapter + parser
+│       ├── __init__.py     # WhatsAppAdapter implementation
 │       ├── parser.py       # parse_source() - main parser
 │       ├── grammar.py      # pyparsing grammar
-│       ├── input.py        # WhatsAppInputSource
 │       └── models.py       # WhatsAppExport dataclass
+│
+├── orchestration/          # Pipeline orchestration helpers
+│   ├── __init__.py
+│   └── whatsapp.py         # WhatsApp pipeline entry points
 │
 ├── privacy/                # Anonymization & PII detection
 │   ├── __init__.py

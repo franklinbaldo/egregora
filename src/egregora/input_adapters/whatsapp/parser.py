@@ -28,7 +28,7 @@ from dateutil import parser as date_parser
 from egregora.constants import EgregoraCommand
 from egregora.database.ir_schema import MESSAGE_SCHEMA, ensure_message_schema
 from egregora.privacy.anonymizer import anonymize_table
-from egregora.sources.whatsapp.grammar import parse_whatsapp_line
+from .grammar import parse_whatsapp_line
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 if TYPE_CHECKING:
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
     from ibis.expr.types import Table
 
-    from egregora.sources.whatsapp.models import WhatsAppExport
+    from egregora.input_adapters.whatsapp.models import WhatsAppExport
 
 SET_COMMAND_PARTS = 2
 logger = logging.getLogger(__name__)

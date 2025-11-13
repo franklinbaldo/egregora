@@ -410,8 +410,8 @@ input_adapters/
 **Import updates:**
 ```python
 # OLD
-from egregora.sources.base import InputAdapter
-from egregora.sources.whatsapp.parser import parse_whatsapp_export
+from egregora.input_adapters.base import InputAdapter
+from egregora.input_adapters.whatsapp.parser import parse_whatsapp_export
 
 # NEW
 from egregora.input_adapters.base import InputAdapter

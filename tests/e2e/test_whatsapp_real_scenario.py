@@ -13,8 +13,8 @@ import pytest
 from egregora.config.settings import create_default_config
 from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
 from egregora.enrichment.media import extract_and_replace_media
-from egregora.sources.whatsapp import process_whatsapp_export
-from egregora.sources.whatsapp.parser import filter_egregora_messages, parse_source
+from egregora.orchestration.whatsapp import process_whatsapp_export
+from egregora.input_adapters.whatsapp.parser import filter_egregora_messages, parse_source
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
 
@@ -99,7 +99,7 @@ class DummyGenaiClient:
 
 
 def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
-    monkeypatch.setattr("egregora.sources.whatsapp.pipeline.genai.Client", DummyGenaiClient)
+    monkeypatch.setattr("egregora.orchestration.whatsapp.genai.Client", DummyGenaiClient)
     # Note: GeminiDispatcher has been removed - pipeline now uses genai.Client directly
 
     def _stub_writer(

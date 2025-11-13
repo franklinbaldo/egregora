@@ -1,4 +1,4 @@
-"""Base classes and interfaces for platform-specific sources.
+"""Base classes and interfaces for platform-specific input adapters.
 
 This module provides the core abstractions for implementing chat platform adapters:
 

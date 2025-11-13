@@ -413,8 +413,8 @@ validate_ir_schema(table)  # Raises SchemaError if invalid
 ### Example: WhatsApp Adapter
 
 ```python
-from egregora.sources.whatsapp.parser import parse_source
-from egregora.sources.whatsapp.models import WhatsAppExport
+from egregora.input_adapters.whatsapp.parser import parse_source
+from egregora.input_adapters.whatsapp.models import WhatsAppExport
 
 export = WhatsAppExport(
     zip_path=Path("export.zip"),

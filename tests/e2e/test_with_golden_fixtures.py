@@ -16,7 +16,7 @@ import pytest
 from pydantic_ai.models.test import TestModel
 
 from egregora.config import resolve_site_paths
-from egregora.sources.whatsapp import process_whatsapp_export
+from egregora.orchestration.whatsapp import process_whatsapp_export
 from tests.utils.mock_batch_client import create_mock_genai_client
 
 if TYPE_CHECKING:
