@@ -604,8 +604,13 @@ def _save_checkpoint(results: dict, messages_table: ir.Table, checkpoint_path: P
         return
 
     # Checkpoint based on messages in the filtered table
+    if hasattr(messages_table, "ts"):
+        timestamp_column = messages_table.ts
+    else:
+        timestamp_column = messages_table.timestamp
+
     checkpoint_stats = messages_table.aggregate(
-        max_timestamp=messages_table.timestamp.max(),
+        max_timestamp=timestamp_column.max(),
         total_processed=messages_table.count(),
     ).execute()
 
@@ -649,19 +654,24 @@ def _apply_filters(
     if removed_count > 0:
         logger.warning("⚠️  %s messages removed from opted-out users", removed_count)
 
+    if hasattr(messages_table, "ts"):
+        timestamp_column = messages_table.ts
+    else:
+        timestamp_column = messages_table.timestamp
+
     # Date range filtering
     if from_date or to_date:
         original_count = messages_table.count().execute()
         if from_date and to_date:
             messages_table = messages_table.filter(
-                (messages_table.timestamp.date() >= from_date) & (messages_table.timestamp.date() <= to_date)
+                (timestamp_column.date() >= from_date) & (timestamp_column.date() <= to_date)
             )
             logger.info("📅 [cyan]Filtering[/] from %s to %s", from_date, to_date)
         elif from_date:
-            messages_table = messages_table.filter(messages_table.timestamp.date() >= from_date)
+            messages_table = messages_table.filter(timestamp_column.date() >= from_date)
             logger.info("📅 [cyan]Filtering[/] from %s onwards", from_date)
         elif to_date:
-            messages_table = messages_table.filter(messages_table.timestamp.date() <= to_date)
+            messages_table = messages_table.filter(timestamp_column.date() <= to_date)
             logger.info("📅 [cyan]Filtering[/] up to %s", to_date)
         filtered_count = messages_table.count().execute()
         removed_by_date = original_count - filtered_count
@@ -682,7 +692,7 @@ def _apply_filters(
             last_timestamp = last_timestamp.astimezone(utc_zone)
 
         original_count = messages_table.count().execute()
-        messages_table = messages_table.filter(messages_table.timestamp > last_timestamp)
+        messages_table = messages_table.filter(timestamp_column > last_timestamp)
         filtered_count = messages_table.count().execute()
         resumed_count = original_count - filtered_count
 
