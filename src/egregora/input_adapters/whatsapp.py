@@ -23,11 +23,11 @@ import ibis
 from egregora.data_primitives import GroupSlug
 from egregora.database.validation import create_ir_table
 from egregora.sources.base import AdapterMeta, InputAdapter
+from egregora.sources.whatsapp.pipeline import discover_chat_file
 from egregora.sources.whatsapp.models import WhatsAppExport
 from egregora.sources.whatsapp.parser import (
     parse_source,
 )  # Phase 6: Renamed from parse_export (alpha - breaking)
-from egregora.sources.whatsapp.pipeline import discover_chat_file
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
