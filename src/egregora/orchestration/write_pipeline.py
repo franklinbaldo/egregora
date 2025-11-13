@@ -33,7 +33,7 @@ from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig
-from egregora.database import RUNS_TABLE_SCHEMA
+from egregora.database import RUN_EVENTS_SCHEMA
 from egregora.database.tracking import fingerprint_window, get_git_commit_sha
 from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
@@ -240,55 +240,61 @@ def _process_window_with_auto_split(
         return combined_results
 
 
-RUNS_TABLE_NAME = "runs"
+RUN_EVENTS_TABLE_NAME = "run_events"
 
 
-def _ensure_runs_table_exists(runs_backend: any) -> None:
-    """Create the runs tracking table if it is missing for the backend."""
+def _ensure_run_events_table_exists(runs_backend: any) -> None:
+    """Create the run_events tracking table if it is missing for the backend."""
     try:
-        if RUNS_TABLE_NAME in set(runs_backend.list_tables()):
+        if RUN_EVENTS_TABLE_NAME in set(runs_backend.list_tables()):
             return
-    except Exception as exc:  # pragma: no cover - backend-specific error handling
+    except Exception as exc:  # noqa: BLE001 - Graceful degradation for any backend
         logger.debug("Unable to list tables for runs backend: %s", exc)
 
     try:
-        runs_backend.create_table(RUNS_TABLE_NAME, schema=RUNS_TABLE_SCHEMA)
-    except Exception as exc:
+        runs_backend.create_table(RUN_EVENTS_TABLE_NAME, schema=RUN_EVENTS_SCHEMA)
+    except Exception as exc:  # noqa: BLE001 - Graceful degradation for any backend
         # If the table already exists (created externally), retrieving it should
         # succeed; otherwise re-raise to surface the configuration issue.
         try:
-            runs_backend.table(RUNS_TABLE_NAME)
+            runs_backend.table(RUN_EVENTS_TABLE_NAME)
         except Exception as lookup_err:
-            raise RuntimeError("Failed to ensure runs tracking table exists") from lookup_err
+            msg = "Failed to ensure run_events tracking table exists"
+            raise RuntimeError(msg) from lookup_err
         else:
-            logger.debug("Runs table already present: %s", exc)
+            logger.debug("Run events table already present: %s", exc)
 
 
-def _write_run_record(runs_backend: any, record: dict[str, object], *, replace: bool) -> None:
-    """Insert or replace a run tracking record for the current backend."""
-    _ensure_runs_table_exists(runs_backend)
+def _record_run_event(runs_backend: any, event: dict[str, object]) -> None:
+    """Record a run status event using event-sourced pattern (append-only).
 
-    delete_fn = getattr(runs_backend, "delete", None)
-    if replace and callable(delete_fn):
-        try:
-            delete_fn(
-                RUNS_TABLE_NAME,
-                where=lambda t: t.run_id == ibis.literal(record["run_id"], type=RUNS_TABLE_SCHEMA["run_id"]),
+    Each status change is a new event with unique event_id. No UPDATE/DELETE needed.
+    Works with any backend supporting INSERT, providing full audit trail.
+
+    Args:
+        runs_backend: Ibis backend for run tracking
+        event: Event dict matching RUN_EVENTS_SCHEMA (must include event_id, run_id, status, timestamp)
+
+    Note:
+        Failures are logged but don't break the pipeline (observability-only).
+
+    """
+    try:
+        _ensure_run_events_table_exists(runs_backend)
+
+        rows = ibis.memtable([event], schema=RUN_EVENTS_SCHEMA)
+        insert_fn = getattr(runs_backend, "insert", None)
+        if not callable(insert_fn):
+            logger.debug(
+                "Run tracking unavailable: backend %s doesn't support insert()",
+                type(runs_backend).__name__,
             )
-        except Exception as exc:
-            logger.debug("Unable to delete existing runs record: %s", exc)
-    elif replace:
-        logger.debug(
-            "Runs backend %s does not expose a delete() method; skipping replace delete step",
-            type(runs_backend).__name__,
-        )
+            return
 
-    rows = ibis.memtable([record], schema=RUNS_TABLE_SCHEMA)
-    insert_fn = getattr(runs_backend, "insert", None)
-    if not callable(insert_fn):
-        msg = f"Runs backend {type(runs_backend).__name__} does not support insert()"
-        raise TypeError(msg)
-    insert_fn(RUNS_TABLE_NAME, rows)
+        insert_fn(RUN_EVENTS_TABLE_NAME, rows)
+    except Exception as exc:  # noqa: BLE001 - Observability failures don't break pipeline
+        logger.debug("Failed to record run event: %s", exc)
+        # Don't break pipeline for observability failures
 
 
 def _process_all_windows(
@@ -318,62 +324,68 @@ def _process_all_windows(
             )
             continue
 
-        # Track window processing
+        # Track window processing (event-sourced)
         run_id = uuid.uuid4()
         started_at = datetime.now(UTC)
 
-        # Record run start
-        run_record: dict[str, object] | None = None
-
+        # Record "started" event
         try:
             input_fingerprint = fingerprint_window(window)
 
-            run_record = {
+            start_event = {
+                "event_id": uuid.uuid4(),
                 "run_id": run_id,
                 "tenant_id": None,
                 "stage": f"window_{window.window_index}",
-                "status": "running",
+                "status": "started",
                 "error": None,
                 "input_fingerprint": input_fingerprint,
                 "code_ref": get_git_commit_sha(),
                 "config_hash": None,
-                "started_at": started_at,
-                "finished_at": None,
+                "timestamp": started_at,
                 "rows_in": window.size,
                 "rows_out": None,
                 "duration_seconds": None,
-                "llm_calls": 0,
-                "tokens": 0,
+                "llm_calls": None,
+                "tokens": None,
                 "trace_id": None,
             }
 
-            _write_run_record(runs_backend, run_record, replace=False)
-        except Exception as e:
-            logger.warning("Failed to record run start: %s", e)
-            run_record = None
+            _record_run_event(runs_backend, start_event)
+        except Exception as e:  # noqa: BLE001 - Observability failures don't break pipeline
+            logger.warning("Failed to record run start event: %s", e)
 
         # Process window
         try:
             window_results = _process_window_with_auto_split(window, ctx, depth=0, max_depth=5)
             results.update(window_results)
 
-            # Record run completion
+            # Record "completed" event
             finished_at = datetime.now(UTC)
             posts_count = sum(len(r.get("posts", [])) for r in window_results.values())
             profiles_count = sum(len(r.get("profiles", [])) for r in window_results.values())
 
             try:
-                if run_record is not None:
-                    run_record.update(
-                        {
-                            "status": "completed",
-                            "finished_at": finished_at,
-                            "duration_seconds": (finished_at - started_at).total_seconds(),
-                            "rows_out": posts_count + profiles_count,
-                            "error": None,
-                        }
-                    )
-                    _write_run_record(runs_backend, run_record, replace=True)
+                completion_event = {
+                    "event_id": uuid.uuid4(),  # New event ID
+                    "run_id": run_id,  # Same run ID
+                    "tenant_id": None,
+                    "stage": f"window_{window.window_index}",
+                    "status": "completed",
+                    "error": None,
+                    "input_fingerprint": None,
+                    "code_ref": get_git_commit_sha(),
+                    "config_hash": None,
+                    "timestamp": finished_at,
+                    "rows_in": None,
+                    "rows_out": posts_count + profiles_count,
+                    "duration_seconds": (finished_at - started_at).total_seconds(),
+                    "llm_calls": None,
+                    "tokens": None,
+                    "trace_id": None,
+                }
+
+                _record_run_event(runs_backend, completion_event)
 
                 logger.debug(
                     "📊 Tracked run %s: %s posts, %s profiles",
@@ -381,27 +393,37 @@ def _process_all_windows(
                     posts_count,
                     profiles_count,
                 )
-            except Exception as e:
-                logger.warning("Failed to record run completion: %s", e)
+            except Exception as e:  # noqa: BLE001 - Observability failures don't break pipeline
+                logger.warning("Failed to record run completion event: %s", e)
 
         except Exception as e:
-            # Record run failure
+            # Record "failed" event
             finished_at = datetime.now(UTC)
             error_msg = f"{type(e).__name__}: {e!s}"
 
             try:
-                if run_record is not None:
-                    run_record.update(
-                        {
-                            "status": "failed",
-                            "finished_at": finished_at,
-                            "duration_seconds": (finished_at - started_at).total_seconds(),
-                            "error": error_msg,
-                        }
-                    )
-                    _write_run_record(runs_backend, run_record, replace=True)
-            except Exception as update_err:
-                logger.warning("Failed to record run failure: %s", update_err)
+                failure_event = {
+                    "event_id": uuid.uuid4(),  # New event ID
+                    "run_id": run_id,  # Same run ID
+                    "tenant_id": None,
+                    "stage": f"window_{window.window_index}",
+                    "status": "failed",
+                    "error": error_msg,
+                    "input_fingerprint": None,
+                    "code_ref": get_git_commit_sha(),
+                    "config_hash": None,
+                    "timestamp": finished_at,
+                    "rows_in": None,
+                    "rows_out": None,
+                    "duration_seconds": (finished_at - started_at).total_seconds(),
+                    "llm_calls": None,
+                    "tokens": None,
+                    "trace_id": None,
+                }
+
+                _record_run_event(runs_backend, failure_event)
+            except Exception as update_err:  # noqa: BLE001 - Observability failures don't break pipeline
+                logger.warning("Failed to record run failure event: %s", update_err)
 
             # Re-raise the original exception
             raise
@@ -526,7 +548,7 @@ def _create_database_backends(
     runtime_db_uri, pipeline_backend = _validate_and_connect(
         config.database.pipeline_db, "database.pipeline_db"
     )
-    runs_db_uri, runs_backend = _validate_and_connect(config.database.runs_db, "database.runs_db")
+    _runs_db_uri, runs_backend = _validate_and_connect(config.database.runs_db, "database.runs_db")
 
     return runtime_db_uri, pipeline_backend, runs_backend
 

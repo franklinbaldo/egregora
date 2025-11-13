@@ -14,6 +14,7 @@ from egregora.database.duckdb_manager import DuckDBStorageManager, duckdb_backen
 from egregora.database.ir_schema import (
     CONVERSATION_SCHEMA,
     MESSAGE_SCHEMA,
+    RUN_EVENTS_SCHEMA,
     RUNS_TABLE_DDL,
     RUNS_TABLE_SCHEMA,
     WHATSAPP_CONVERSATION_SCHEMA,
@@ -36,23 +37,24 @@ __all__ = [
     "MESSAGE_SCHEMA",
     "RUNS_TABLE_DDL",
     "RUNS_TABLE_SCHEMA",
+    "RUN_EVENTS_SCHEMA",
     "WHATSAPP_CONVERSATION_SCHEMA",
     # Storage
     "DuckDBStorageManager",
-    "duckdb_backend",
-    "temp_storage",
-    # Runs table utilities
-    "create_runs_table",
-    "ensure_runs_table_exists",
     # Tracking & Observability
     "RunContext",
+    # View Registry
+    "ViewBuilder",
+    "ViewRegistry",
+    # Runs table utilities
+    "create_runs_table",
+    "duckdb_backend",
+    "ensure_runs_table_exists",
     "fingerprint_table",
     "get_git_commit_sha",
     "record_lineage",
     "record_run",
     "run_stage_with_tracking",
-    # View Registry
-    "ViewBuilder",
-    "ViewRegistry",
+    "temp_storage",
     "views",
 ]
