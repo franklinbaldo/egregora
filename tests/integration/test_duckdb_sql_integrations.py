@@ -10,7 +10,7 @@ import ibis
 from egregora.agents.shared.annotations import ANNOTATION_AUTHOR, AnnotationStore
 from egregora.config.settings import create_default_config
 from egregora.database import ir_schema as database_schema
-from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
+from egregora.enrichment.runners import EnrichmentRuntimeContext, enrich_table
 from egregora.utils.batch import BatchPromptResult
 from egregora.utils.cache import EnrichmentCache
 from tests.helpers.storage import InMemoryEnrichmentStorage

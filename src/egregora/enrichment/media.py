@@ -11,7 +11,7 @@ from typing import Annotated
 import ibis
 from ibis.expr.types import Table
 
-from egregora.enrichment.batch import _iter_table_record_batches
+from egregora.enrichment.runners import _iter_table_record_batches
 
 ATTACHMENT_MARKERS = ("(arquivo anexado)", "(file attached)", "(archivo adjunto)", "\u200e<attached:")
 MEDIA_EXTENSIONS = {

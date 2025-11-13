@@ -12,11 +12,27 @@ import ipaddress
 import logging
 import socket
 import uuid
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urljoin, urlparse
 
 import httpx
 from PIL import Image
+
+from egregora.agents.shared.author_profiles import remove_profile_avatar, update_profile_avatar
+from egregora.enrichment.agents import (
+    MediaEnrichmentContext,
+    create_media_enrichment_agent,
+    load_file_as_binary_content,
+)
+from egregora.enrichment.media import detect_media_type, extract_urls
+from egregora.sources.whatsapp.parser import extract_commands
+from egregora.utils import EnrichmentCache, make_enrichment_cache_key
+
+if TYPE_CHECKING:
+    from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
 SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
@@ -420,8 +436,204 @@ def download_avatar_from_url(
     else:
         return (avatar_uuid, avatar_path)
 
+def _ensure_datetime(timestamp: datetime | str) -> datetime:
+    """Ensure timestamp is a datetime object."""
+
+    if isinstance(timestamp, datetime):
+        return timestamp
+    if isinstance(timestamp, str):
+        return datetime.fromisoformat(timestamp)
+    msg = f"Unsupported timestamp type: {type(timestamp)}"
+    raise TypeError(msg)
+
+
+@dataclass
+class AvatarContext:
+    """Context for avatar processing operations."""
+
+    docs_dir: Path
+    media_dir: Path
+    profiles_dir: Path
+    vision_model: str
+    cache: EnrichmentCache | None = None
+
+
+def _enrich_avatar(
+    avatar_path: Path,
+    author_uuid: str,
+    timestamp: datetime,
+    context: AvatarContext,
+) -> None:
+    """Enrich avatar with LLM description using the media enrichment agent."""
+
+    cache_key = make_enrichment_cache_key(kind="media", identifier=str(avatar_path))
+    if context.cache:
+        cached = context.cache.load(cache_key)
+        if cached and cached.get("markdown"):
+            logger.info("Using cached enrichment for avatar: %s", avatar_path.name)
+            enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
+            enrichment_path.write_text(cached["markdown"], encoding="utf-8")
+            return
+
+    media_enrichment_agent = create_media_enrichment_agent(context.vision_model)
+
+    try:
+        binary_content = load_file_as_binary_content(avatar_path)
+    except (OSError, ValueError) as exc:
+        logger.warning("Failed to load avatar for enrichment: %s", exc)
+        return
+
+    media_type = detect_media_type(avatar_path)
+    if not media_type:
+        logger.warning("Could not detect media type for avatar: %s", avatar_path.name)
+        return
+
+    try:
+        media_path = avatar_path.relative_to(context.docs_dir)
+    except ValueError:
+        media_path = avatar_path
+
+    enrichment_context = MediaEnrichmentContext(
+        media_type=media_type,
+        media_filename=avatar_path.name,
+        media_path=str(media_path),
+        original_message=f"Avatar set by {author_uuid}",
+        sender_uuid=author_uuid,
+        date=timestamp.strftime("%Y-%m-%d"),
+        time=timestamp.strftime("%H:%M"),
+    )
+
+    message_content = [
+        "Analyze and enrich this avatar image. Provide a detailed description in markdown format.",
+        binary_content,
+    ]
+
+    try:
+        result = media_enrichment_agent.run_sync(message_content, deps=enrichment_context)
+        output = getattr(result, "output", getattr(result, "data", result))
+        markdown_content = output.markdown.strip()
+
+        if not markdown_content:
+            markdown_content = f"[No enrichment generated for avatar: {avatar_path.name}]"
+
+        enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
+        enrichment_path.write_text(markdown_content, encoding="utf-8")
+        logger.info("Saved avatar enrichment to: %s", enrichment_path)
+
+        if context.cache:
+            context.cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
+
+    except Exception as exc:  # pragma: no cover - enrichment failures are logged
+        logger.warning("Failed to enrich avatar %s: %s", avatar_path.name, exc)
+
+
+def _download_avatar_from_command(
+    value: str | None,
+    author_uuid: str,
+    timestamp: datetime,
+    context: AvatarContext,
+) -> str:
+    """Download avatar from URL in command value and enrich it."""
+
+    if not value:
+        msg = "Avatar command requires a URL value"
+        raise AvatarProcessingError(msg)
+
+    urls = extract_urls(value)
+    if not urls:
+        msg = "No valid URL found in command value"
+        raise AvatarProcessingError(msg)
+
+    url = urls[0]
+    _avatar_uuid, avatar_path = download_avatar_from_url(url=url, media_dir=context.media_dir)
+    _enrich_avatar(avatar_path, author_uuid, timestamp, context)
+    return url
+
+
+def process_avatar_commands(
+    messages_table: Table,
+    context: AvatarContext,
+) -> dict[str, str]:
+    """Process all avatar commands from messages table."""
+
+    logger.info("Processing avatar commands from messages")
+    commands = extract_commands(messages_table)
+    avatar_commands = [cmd for cmd in commands if cmd.get("command", {}).get("target") == "avatar"]
+    if not avatar_commands:
+        logger.info("No avatar commands found")
+        return {}
+
+    logger.info("Found %s avatar command(s)", len(avatar_commands))
+    results: dict[str, str] = {}
+    for cmd_entry in avatar_commands:
+        author_uuid = cmd_entry["author"]
+        timestamp_raw = cmd_entry["timestamp"]
+        command = cmd_entry["command"]
+        cmd_type = command["command"]
+        target = command["target"]
+        if cmd_type in ("set", "unset") and target == "avatar":
+            if cmd_type == "set":
+                timestamp_dt = _ensure_datetime(timestamp_raw)
+                result = _process_set_avatar_command(
+                    author_uuid=author_uuid,
+                    timestamp=timestamp_dt,
+                    context=context,
+                    value=command.get("value"),
+                )
+                results[author_uuid] = result
+            elif cmd_type == "unset":
+                result = _process_unset_avatar_command(
+                    author_uuid=author_uuid,
+                    timestamp=str(timestamp_raw),
+                    profiles_dir=context.profiles_dir,
+                )
+                results[author_uuid] = result
+    return results
+
+
+def _process_set_avatar_command(
+    author_uuid: str,
+    timestamp: datetime,
+    context: AvatarContext,
+    value: str | None = None,
+) -> str:
+    """Process a 'set avatar' command with enrichment."""
+
+    logger.info("Processing 'set avatar' command for %s", author_uuid)
+    try:
+        avatar_url = _download_avatar_from_command(value, author_uuid, timestamp, context)
+        update_profile_avatar(
+            author_uuid=author_uuid,
+            avatar_url=avatar_url,
+            timestamp=str(timestamp),
+            profiles_dir=context.profiles_dir,
+        )
+    except AvatarProcessingError as exc:
+        logger.exception("Failed to process avatar for %s", author_uuid)
+        return f"❌ Failed to process avatar for {author_uuid}: {exc}"
+    except Exception as exc:  # pragma: no cover - unexpected issues are logged
+        logger.exception("Unexpected error processing avatar for %s", author_uuid)
+        return f"❌ Unexpected error processing avatar for {author_uuid}: {exc}"
+    else:
+        return f"✅ Avatar set for {author_uuid}"
+
+
+def _process_unset_avatar_command(author_uuid: str, timestamp: str, profiles_dir: Path) -> str:
+    """Process an 'unset avatar' command."""
+
+    logger.info("Processing 'unset avatar' command for %s", author_uuid)
+    try:
+        remove_profile_avatar(author_uuid=author_uuid, timestamp=str(timestamp), profiles_dir=profiles_dir)
+    except Exception as exc:  # pragma: no cover - unexpected issues are logged
+        logger.exception("Failed to remove avatar for %s", author_uuid)
+        return f"❌ Failed to remove avatar for {author_uuid}: {exc}"
+    else:
+        return f"✅ Avatar removed for {author_uuid}"
+
 
 __all__ = [
+    "AvatarContext",
     "AvatarProcessingError",
     "download_avatar_from_url",
+    "process_avatar_commands",
 ]

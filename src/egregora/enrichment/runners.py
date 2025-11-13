@@ -1,19 +1,8 @@
-"""Simple straight-loop enrichment runner - no batches, no jobs, just a for-loop.
+"""Unified enrichment runners and batching helpers.
 
-This module implements the enrichment runner using the thin-agent pattern:
-- Iterate through rows
-- For each URL/media reference, check cache
-- If not cached, call agent (one call per item)
-- Write output files
-- Return enriched table
-
-Usage:
-    enriched_table = enrich_table_simple(
-        messages_table=table,
-        media_mapping=media_mapping,
-        config=config,
-        context=context,
-    )
+This module merges the thin-agent simple runner, batch helpers, and runtime
+context utilities into a single location. Public APIs for both the streaming
+runner and the batch request builders are preserved for callers.
 """
 
 from __future__ import annotations
@@ -24,59 +13,187 @@ import re
 import tempfile
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Iterator
 
 import ibis
+from google.genai import types as genai_types
 from ibis.expr.types import Table
 
+from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.database import schemas
 from egregora.database.ir_schema import CONVERSATION_SCHEMA
-from egregora.enrichment.batch import _safe_timestamp_plus_one
+from egregora.enrichment.agents import (
+    make_media_agent,
+    make_url_agent,
+    run_media_enrichment,
+    run_url_enrichment,
+)
 from egregora.enrichment.media import (
     detect_media_type,
     extract_urls,
     find_media_references,
     replace_media_mentions,
 )
-from egregora.enrichment.thin_agents import (
-    make_media_agent,
-    make_url_agent,
-    run_media_enrichment,
-    run_url_enrichment,
-)
-from egregora.utils import make_enrichment_cache_key
+from egregora.utils import BatchPromptRequest, BatchPromptResult, make_enrichment_cache_key
 
 if TYPE_CHECKING:
-    from egregora.config.settings import EgregoraConfig
-    from egregora.enrichment.core import EnrichmentRuntimeContext
+    import pandas as pd
+    import pyarrow as pa
+
     from egregora.utils.cache import EnrichmentCache
+    from ibis.backends.duckdb import Backend as DuckDBBackend
+else:  # pragma: no cover - runtime aliases for type checking only
+    EnrichmentCache = Any
+    DuckDBBackend = Any
 
 logger = logging.getLogger(__name__)
 
 
-def _atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> None:
-    """Write text to a file atomically to prevent partial writes during concurrent runs.
+# ---------------------------------------------------------------------------
+# Batch job metadata and helpers
 
-    Writes to a temporary file in the same directory, then atomically renames it.
-    This ensures readers never see partial/incomplete content.
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp_path = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding=encoding) as f:
-            f.write(content)
 
-        # Atomic rename (replaces destination if it exists)
-        Path(temp_path).replace(path)
-    except OSError as e:
+@dataclass
+class UrlEnrichmentJob:
+    """Metadata for a URL enrichment batch item."""
+
+    key: str
+    url: str
+    original_message: str
+    sender_uuid: str
+    timestamp: Any
+    path: Path
+    tag: str
+    markdown: str | None = None
+    cached: bool = False
+
+
+@dataclass
+class MediaEnrichmentJob:
+    """Metadata for a media enrichment batch item."""
+
+    key: str
+    original_filename: str
+    file_path: Path
+    original_message: str
+    sender_uuid: str
+    timestamp: Any
+    path: Path
+    tag: str
+    media_type: str | None = None
+    markdown: str | None = None
+    cached: bool = False
+    upload_uri: str | None = None
+    mime_type: str | None = None
+
+
+def _ensure_datetime(value: datetime | pd.Timestamp) -> datetime:
+    """Convert pandas/ibis timestamp objects to ``datetime``."""
+
+    if hasattr(value, "to_pydatetime"):
+        return value.to_pydatetime()
+    return value
+
+
+def _safe_timestamp_plus_one(timestamp: datetime | pd.Timestamp) -> datetime:
+    """Return timestamp + 1 second, handling pandas/ibis types."""
+
+    dt_value = _ensure_datetime(timestamp)
+    return dt_value + timedelta(seconds=1)
+
+
+def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert backend frames into dict records consistently."""
+
+    if hasattr(frame, "to_dict"):
+        return [dict(row) for row in frame.to_dict("records")]
+    if hasattr(frame, "to_pylist"):
         try:
-            Path(temp_path).unlink()
-        except (FileNotFoundError, PermissionError):
+            return [dict(row) for row in frame.to_pylist()]
+        except (ValueError, TypeError, AttributeError) as exc:  # pragma: no cover - defensive
+            msg = f"Failed to convert frame to records. Original error: {exc}"
+            raise RuntimeError(msg) from exc
+    if isinstance(frame, list):
+        return [dict(row) for row in frame]
+    return [dict(row) for row in frame]
+
+
+def _iter_table_record_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
+    """Stream table rows as batches of dictionaries without loading entire table into memory."""
+
+    from egregora.database.streaming import ensure_deterministic_order, stream_ibis
+
+    try:
+        backend = table._find_backend()
+    except (AttributeError, Exception):  # pragma: no cover - fallback path
+        backend = None
+
+    if backend is not None and hasattr(backend, "con"):
+        try:
+            ordered_table = ensure_deterministic_order(table)
+            yield from stream_ibis(ordered_table, backend, batch_size=batch_size)
+            return
+        except (AttributeError, Exception):  # pragma: no cover - fallback path
             pass
-        except OSError as cleanup_error:
-            logger.warning("Failed to cleanup temp file %s: %s", temp_path, cleanup_error)
-        raise e from None
+
+    if "timestamp" in table.columns:
+        table = table.order_by("timestamp")
+
+    df = table.execute()
+    records = _frame_to_records(df)
+    for start in range(0, len(records), batch_size):
+        yield records[start : start + batch_size]
+
+
+def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
+    """Convert an Ibis table to a list of dictionaries without heavy dependencies."""
+
+    results: list[dict[str, Any]] = []
+    for batch in _iter_table_record_batches(table):
+        results.extend(batch)
+    return results
+
+
+def build_batch_requests(
+    records: list[dict[str, Any]], model: str, *, include_file: bool = False
+) -> list[BatchPromptRequest]:
+    """Convert prompt records into ``BatchPromptRequest`` objects."""
+
+    requests: list[BatchPromptRequest] = []
+    for record in records:
+        parts = [genai_types.Part(text=record["prompt"])]
+        if include_file:
+            file_uri = record.get("file_uri")
+            if file_uri:
+                parts.append(
+                    genai_types.Part(
+                        file_data=genai_types.FileData(
+                            file_uri=file_uri,
+                            mime_type=record.get("mime_type", "application/octet-stream"),
+                        )
+                    )
+                )
+        request_kwargs: dict[str, Any] = {
+            "contents": [genai_types.Content(role="user", parts=parts)],
+            "model": model,
+            "tag": record.get("tag"),
+            "config": genai_types.GenerateContentConfig(temperature=0.3, top_k=40, top_p=0.95),
+        }
+        requests.append(BatchPromptRequest(**request_kwargs))
+    return requests
+
+
+def map_batch_results(responses: list[BatchPromptResult]) -> dict[str | None, BatchPromptResult]:
+    """Return a mapping from result tag to the ``BatchPromptResult``."""
+
+    return {result.tag: result for result in responses}
+
+
+# ---------------------------------------------------------------------------
+# Simple runner implementation (thin agent pattern)
 
 
 @dataclass
@@ -88,6 +205,25 @@ class SimpleEnrichmentResult:
     pii_media_deleted: bool = False
 
 
+def _atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> None:
+    """Write text to a file atomically to prevent partial writes during concurrent runs."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding=encoding) as file_obj:
+            file_obj.write(content)
+        Path(temp_path).replace(path)
+    except OSError as exc:
+        try:
+            Path(temp_path).unlink()
+        except (FileNotFoundError, PermissionError):
+            pass
+        except OSError as cleanup_error:  # pragma: no cover - best effort cleanup
+            logger.warning("Failed to cleanup temp file %s: %s", temp_path, cleanup_error)
+        raise exc from None
+
+
 def _create_enrichment_row(
     messages_table: Table,
     search_text: str,
@@ -95,19 +231,8 @@ def _create_enrichment_row(
     identifier: str,
     enrichment_id_str: str,
 ) -> dict[str, Any] | None:
-    """Create an enrichment row for a given URL or media reference.
+    """Create an enrichment row for a given URL or media reference."""
 
-    Args:
-        messages_table: Table to search for the first message containing the reference
-        search_text: Text to search for in messages (URL or media filename)
-        enrichment_type: Type of enrichment ("URL" or "Media")
-        identifier: Display identifier (URL or filename)
-        enrichment_id_str: Enrichment ID string
-
-    Returns:
-        Dict representing the enrichment row, or None if no matching message found
-
-    """
     first_msg = (
         messages_table.filter(messages_table.message.contains(search_text))
         .order_by(messages_table.timestamp)
@@ -137,27 +262,14 @@ def _process_single_url(
     context: EnrichmentRuntimeContext,
     prompts_dir: Path | None,
 ) -> tuple[str | None, str]:
-    """Process a single URL for enrichment.
+    """Process a single URL for enrichment."""
 
-    Args:
-        url: URL to enrich
-        url_agent: Pydantic AI agent for URL enrichment
-        cache: Enrichment cache
-        context: Runtime context
-        prompts_dir: Optional custom prompts directory
-
-    Returns:
-        Tuple of (enrichment_id_str or None, markdown_content)
-
-    """
     cache_key = make_enrichment_cache_key(kind="url", identifier=url)
 
-    # Check cache first
     cache_entry = cache.load(cache_key)
     if cache_entry:
         markdown = cache_entry.get("markdown", "")
     else:
-        # Call agent (one call per URL)
         try:
             markdown = run_url_enrichment(url_agent, url, prompts_dir=prompts_dir)
             cache.store(cache_key, {"markdown": markdown, "type": "url"})
@@ -165,7 +277,6 @@ def _process_single_url(
             logger.exception("URL enrichment failed for %s", url)
             return None, ""
 
-    # Create Document and serve using OutputAdapter protocol
     doc = Document(
         content=markdown,
         type=DocumentType.ENRICHMENT_URL,
@@ -184,20 +295,8 @@ def _process_single_media(
     context: EnrichmentRuntimeContext,
     prompts_dir: Path | None,
 ) -> tuple[str | None, str, bool]:
-    """Process a single media file for enrichment.
+    """Process a single media file for enrichment."""
 
-    Args:
-        ref: Media reference (filename or UUID)
-        media_filename_lookup: Lookup dict mapping refs to (original_filename, file_path)
-        media_agent: Pydantic AI agent for media enrichment
-        cache: Enrichment cache
-        context: Runtime context
-        prompts_dir: Optional custom prompts directory
-
-    Returns:
-        Tuple of (enrichment_id_str or None, markdown_content, pii_detected)
-
-    """
     lookup_result = media_filename_lookup.get(ref)
     if not lookup_result:
         return None, "", False
@@ -210,12 +309,10 @@ def _process_single_media(
         logger.warning("Unsupported media type for enrichment: %s", file_path.name)
         return None, "", False
 
-    # Check cache first
     cache_entry = cache.load(cache_key)
     if cache_entry:
         markdown_content = cache_entry.get("markdown", "")
     else:
-        # Call agent
         try:
             markdown_content = run_media_enrichment(
                 media_agent, file_path, mime_hint=media_type, prompts_dir=prompts_dir
@@ -225,7 +322,6 @@ def _process_single_media(
             logger.exception("Media enrichment failed for %s (%s)", file_path, media_type)
             return None, "", False
 
-    # Check for PII detection
     pii_detected = False
     if "PII_DETECTED" in markdown_content:
         logger.warning("PII detected in media: %s. Media will be deleted.", file_path.name)
@@ -242,8 +338,6 @@ def _process_single_media(
     if not markdown_content:
         markdown_content = f"[No enrichment generated for media: {file_path.name}]"
 
-    # Create Document and serve using OutputAdapter protocol
-    # OutputAdapter will determine storage location from filename + type
     doc = Document(
         content=markdown_content,
         type=DocumentType.ENRICHMENT_MEDIA,
@@ -266,24 +360,11 @@ def _enrich_urls(
     prompts_dir: Path | None,
     max_enrichments: int,
 ) -> list[dict[str, Any]]:
-    """Extract and enrich URLs from messages table.
+    """Extract and enrich URLs from messages table."""
 
-    Args:
-        messages_table: Table with messages to enrich
-        url_agent: Pydantic AI agent for URL enrichment
-        cache: Enrichment cache
-        context: Runtime context
-        prompts_dir: Optional custom prompts directory
-        max_enrichments: Maximum number of enrichments to process
-
-    Returns:
-        List of enrichment row dicts
-
-    """
     new_rows: list[dict[str, Any]] = []
     enrichment_count = 0
 
-    # Get messages with URLs (use Python for URL extraction since regex in SQL is complex)
     url_messages = messages_table.filter(messages_table.message.notnull()).execute()
     unique_urls: set[str] = set()
 
@@ -291,12 +372,11 @@ def _enrich_urls(
         if enrichment_count >= max_enrichments:
             break
         urls = extract_urls(row.message)
-        for url in urls[:3]:  # Limit URLs per message
+        for url in urls[:3]:
             if enrichment_count >= max_enrichments:
                 break
             unique_urls.add(url)
 
-    # Process each unique URL
     for url in sorted(unique_urls)[:max_enrichments]:
         if enrichment_count >= max_enrichments:
             break
@@ -305,7 +385,6 @@ def _enrich_urls(
         if enrichment_id_str is None:
             continue
 
-        # Add enrichment row
         enrichment_row = _create_enrichment_row(messages_table, url, "URL", url, enrichment_id_str)
         if enrichment_row:
             new_rows.append(enrichment_row)
@@ -316,15 +395,8 @@ def _enrich_urls(
 
 
 def _build_media_filename_lookup(media_mapping: dict[str, Path]) -> dict[str, tuple[str, Path]]:
-    """Build a lookup dict mapping media filenames to (original_filename, file_path).
+    """Build a lookup dict mapping media filenames to (original_filename, file_path)."""
 
-    Args:
-        media_mapping: Mapping of original filenames to file paths
-
-    Returns:
-        Dict mapping both original and UUID filenames to (original_filename, file_path)
-
-    """
     lookup: dict[str, tuple[str, Path]] = {}
     for original_filename, file_path in media_mapping.items():
         lookup[original_filename] = (original_filename, file_path)
@@ -335,30 +407,21 @@ def _build_media_filename_lookup(media_mapping: dict[str, Path]) -> dict[str, tu
 def _extract_media_references(
     messages_table: Table, media_filename_lookup: dict[str, tuple[str, Path]]
 ) -> set[str]:
-    """Extract unique media references from messages table.
+    """Extract unique media references from messages table."""
 
-    Args:
-        messages_table: Table with messages to scan
-        media_filename_lookup: Lookup dict for validating media references
-
-    Returns:
-        Set of unique media references found in messages
-
-    """
     media_messages = messages_table.filter(messages_table.message.notnull()).execute()
     unique_media: set[str] = set()
 
     for row in media_messages.itertuples():
-        # Extract all media references
         refs = find_media_references(row.message)
         markdown_refs = re.findall("!\\[[^\\]]*\\]\\([^)]*?([a-f0-9\\-]+\\.\\w+)\\)", row.message)
         uuid_refs = re.findall(
-            "\\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.\\w+)", row.message
+            "\\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.\\w+)",
+            row.message,
         )
         refs.extend(markdown_refs)
         refs.extend(uuid_refs)
 
-        # Add to unique set if in media_mapping
         for ref in set(refs):
             if ref in media_filename_lookup:
                 unique_media.add(ref)
@@ -376,33 +439,15 @@ def _enrich_media(
     max_enrichments: int,
     enrichment_count: int,
 ) -> tuple[list[dict[str, Any]], int, bool]:
-    """Extract and enrich media from messages table.
+    """Extract and enrich media from messages table."""
 
-    Args:
-        messages_table: Table with messages to enrich
-        media_mapping: Mapping of media filenames to file paths
-        media_agent: Pydantic AI agent for media enrichment
-        cache: Enrichment cache
-        context: Runtime context
-        prompts_dir: Optional custom prompts directory
-        max_enrichments: Maximum number of enrichments to process
-        enrichment_count: Current enrichment count (from URL enrichment)
-
-    Returns:
-        Tuple of (enrichment_rows, pii_detected_count, pii_media_deleted)
-
-    """
     new_rows: list[dict[str, Any]] = []
     pii_detected_count = 0
     pii_media_deleted = False
 
-    # Build media filename lookup
     media_filename_lookup = _build_media_filename_lookup(media_mapping)
-
-    # Extract unique media references
     unique_media = _extract_media_references(messages_table, media_filename_lookup)
 
-    # Process each unique media file
     for ref in sorted(unique_media)[: max_enrichments - enrichment_count]:
         lookup_result = media_filename_lookup.get(ref)
         if not lookup_result:
@@ -421,7 +466,6 @@ def _enrich_media(
             pii_detected_count += 1
             pii_media_deleted = True
 
-        # Add enrichment row
         enrichment_row = _create_enrichment_row(
             messages_table, ref, "Media", file_path.name, enrichment_id_str
         )
@@ -439,18 +483,7 @@ def _replace_pii_media_references(
     docs_dir: Path,
     posts_dir: Path,
 ) -> Table:
-    """Replace media references in messages after PII deletion.
-
-    Args:
-        messages_table: Table with messages
-        media_mapping: Mapping of media filenames to file paths
-        docs_dir: Docs directory path
-        posts_dir: Posts directory path
-
-    Returns:
-        Updated table with media references replaced
-
-    """
+    """Replace media references in messages after PII deletion."""
 
     @ibis.udf.scalar.python
     def replace_media_udf(message: str) -> str:
@@ -463,16 +496,8 @@ def _combine_enrichment_tables(
     messages_table: Table,
     new_rows: list[dict[str, Any]],
 ) -> Table:
-    """Combine messages table with enrichment rows.
+    """Combine messages table with enrichment rows."""
 
-    Args:
-        messages_table: Original messages table
-        new_rows: List of enrichment row dicts
-
-    Returns:
-        Combined table with enrichments added and sorted by timestamp
-
-    """
     schema = CONVERSATION_SCHEMA
     messages_table_filtered = messages_table.select(*schema.names)
     messages_table_filtered = messages_table_filtered.mutate(
@@ -480,13 +505,11 @@ def _combine_enrichment_tables(
     ).cast(schema)
 
     if new_rows:
-        # Add enrichment rows if we have any
         normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]
         enrichment_table = ibis.memtable(normalized_rows).cast(schema)
         combined = messages_table_filtered.union(enrichment_table, distinct=False)
         combined = combined.order_by("timestamp")
     else:
-        # No enrichments, just use filtered messages table
         combined = messages_table_filtered
 
     return combined
@@ -494,17 +517,11 @@ def _combine_enrichment_tables(
 
 def _persist_to_duckdb(
     combined: Table,
-    duckdb_connection: Any,
+    duckdb_connection: DuckDBBackend,
     target_table: str,
 ) -> None:
-    """Persist enriched table to DuckDB.
+    """Persist enriched table to DuckDB."""
 
-    Args:
-        combined: Combined table with enrichments
-        duckdb_connection: DuckDB connection
-        target_table: Target table name
-
-    """
     if not re.fullmatch("[A-Za-z_][A-Za-z0-9_]*", target_table):
         msg = "target_table must be a valid DuckDB identifier"
         raise ValueError(msg)
@@ -519,9 +536,9 @@ def _persist_to_duckdb(
         quoted_view = schemas.quote_identifier(temp_view)
         duckdb_connection.raw_sql("BEGIN TRANSACTION")
         try:
-            duckdb_connection.raw_sql(f"DELETE FROM {quoted_table}")  # nosec B608 - quoted_table uses quote_identifier (line 501)
+            duckdb_connection.raw_sql(f"DELETE FROM {quoted_table}")  # nosec B608 - quoted identifiers
             duckdb_connection.raw_sql(
-                f"INSERT INTO {quoted_table} ({column_list}) SELECT {column_list} FROM {quoted_view}"  # nosec B608 - all identifiers quoted (lines 501-502, 507)
+                f"INSERT INTO {quoted_table} ({column_list}) SELECT {column_list} FROM {quoted_view}"
             )
             duckdb_connection.raw_sql("COMMIT")
         except Exception:
@@ -538,21 +555,8 @@ def enrich_table_simple(
     config: EgregoraConfig,
     context: EnrichmentRuntimeContext,
 ) -> Table:
-    """Add LLM-generated enrichment rows using thin-agent pattern.
+    """Add LLM-generated enrichment rows using thin-agent pattern."""
 
-    Uses Ibis/SQL to extract URLs and media references, then processes unique items.
-
-    Args:
-        messages_table: Table with messages to enrich
-        media_mapping: Mapping of media filenames to file paths
-        config: Egregora configuration (models, enrichment settings)
-        context: Runtime context (cache, paths, DB connection)
-
-    Returns:
-        Table with enrichment rows added
-
-    """
-    # Extract config/context values
     url_model = config.models.enricher
     vision_model = config.models.enricher_vision
     max_enrichments = config.enrichment.max_enrichments
@@ -565,27 +569,22 @@ def enrich_table_simple(
     logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
     logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
 
-    # Derive prompts_dir for custom Jinja template overrides
     prompts_dir = context.site_root / ".egregora" / "prompts" if context.site_root else None
 
-    # Create thin agents (created once, reused for all items)
     url_agent = make_url_agent(url_model, prompts_dir=prompts_dir) if enable_url else None
     media_agent = make_media_agent(vision_model, prompts_dir=prompts_dir) if enable_media else None
 
     if messages_table.count().execute() == 0:
         return messages_table
 
-    # Track all enrichment rows and PII detection
     new_rows: list[dict[str, Any]] = []
     pii_detected_count = 0
     pii_media_deleted = False
 
-    # --- URL Enrichment ---
     if enable_url and url_agent is not None:
         url_rows = _enrich_urls(messages_table, url_agent, cache, context, prompts_dir, max_enrichments)
         new_rows.extend(url_rows)
 
-    # --- Media Enrichment ---
     if enable_media and media_mapping and media_agent is not None:
         media_rows, pii_count, pii_deleted = _enrich_media(
             messages_table,
@@ -601,14 +600,11 @@ def enrich_table_simple(
         pii_detected_count = pii_count
         pii_media_deleted = pii_deleted
 
-    # --- Replace PII media references if needed ---
     if pii_media_deleted:
         messages_table = _replace_pii_media_references(messages_table, media_mapping, docs_dir, posts_dir)
 
-    # --- Combine tables ---
     combined = _combine_enrichment_tables(messages_table, new_rows)
 
-    # --- Persist to DuckDB if configured ---
     duckdb_connection = context.duckdb_connection
     target_table = context.target_table
 
@@ -619,8 +615,52 @@ def enrich_table_simple(
     if duckdb_connection and target_table:
         _persist_to_duckdb(combined, duckdb_connection, target_table)
 
-    # --- Log PII summary ---
     if pii_detected_count > 0:
         logger.info("Privacy summary: %d media file(s) deleted due to PII detection", pii_detected_count)
 
     return combined
+
+
+# ---------------------------------------------------------------------------
+# Runtime context & public entry point
+
+
+@dataclass(frozen=True, slots=True)
+class EnrichmentRuntimeContext:
+    """Runtime context for enrichment execution."""
+
+    cache: EnrichmentCache
+    docs_dir: Path
+    posts_dir: Path
+    output_format: Any
+    site_root: Path | None = None
+    duckdb_connection: DuckDBBackend | None = None
+    target_table: str | None = None
+
+
+def enrich_table(
+    messages_table: Table,
+    media_mapping: dict[str, Path],
+    config: EgregoraConfig,
+    context: EnrichmentRuntimeContext,
+) -> Table:
+    """Add LLM-generated enrichment rows to Table for URLs and media."""
+
+    return enrich_table_simple(
+        messages_table=messages_table,
+        media_mapping=media_mapping,
+        config=config,
+        context=context,
+    )
+
+
+__all__ = [
+    "EnrichmentRuntimeContext",
+    "MediaEnrichmentJob",
+    "UrlEnrichmentJob",
+    "build_batch_requests",
+    "enrich_table",
+    "enrich_table_simple",
+    "map_batch_results",
+    "_iter_table_record_batches",
+]
