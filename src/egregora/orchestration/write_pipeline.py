@@ -33,7 +33,8 @@ from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig
-from egregora.database.tracking import fingerprint_window, record_run
+from egregora.database import RUNS_TABLE_SCHEMA
+from egregora.database.tracking import fingerprint_window, get_git_commit_sha
 from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
@@ -47,6 +48,7 @@ from egregora.utils.cache import EnrichmentCache
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
+    from ibis.expr.schema import Schema
 logger = logging.getLogger(__name__)
 __all__ = ["run"]
 
@@ -239,6 +241,60 @@ def _process_window_with_auto_split(
         return combined_results
 
 
+RUNS_TABLE_NAME = "runs"
+
+
+def _ensure_runs_table_exists(runs_backend: any) -> None:
+    """Create the runs tracking table if it is missing for the backend."""
+
+    try:
+        if RUNS_TABLE_NAME in set(runs_backend.list_tables()):
+            return
+    except Exception as exc:  # pragma: no cover - backend-specific error handling
+        logger.debug("Unable to list tables for runs backend: %s", exc)
+
+    try:
+        runs_backend.create_table(RUNS_TABLE_NAME, schema=RUNS_TABLE_SCHEMA)
+    except Exception as exc:
+        # If the table already exists (created externally), retrieving it should
+        # succeed; otherwise re-raise to surface the configuration issue.
+        try:
+            runs_backend.table(RUNS_TABLE_NAME)
+        except Exception as lookup_err:
+            raise RuntimeError("Failed to ensure runs tracking table exists") from lookup_err
+        else:
+            logger.debug("Runs table already present: %s", exc)
+
+
+def _write_run_record(runs_backend: any, record: dict[str, object], *, replace: bool) -> None:
+    """Insert or replace a run tracking record for the current backend."""
+
+    _ensure_runs_table_exists(runs_backend)
+
+    delete_fn = getattr(runs_backend, "delete", None)
+    if replace and callable(delete_fn):
+        try:
+            delete_fn(
+                RUNS_TABLE_NAME,
+                where=lambda t: t.run_id
+                == ibis.literal(record["run_id"], type=RUNS_TABLE_SCHEMA["run_id"]),
+            )
+        except Exception as exc:
+            logger.debug("Unable to delete existing runs record: %s", exc)
+    elif replace:
+        logger.debug(
+            "Runs backend %s does not expose a delete() method; skipping replace delete step",
+            type(runs_backend).__name__,
+        )
+
+    rows = ibis.memtable([record], schema=RUNS_TABLE_SCHEMA)
+    insert_fn = getattr(runs_backend, "insert", None)
+    if not callable(insert_fn):
+        msg = f"Runs backend {type(runs_backend).__name__} does not support insert()"
+        raise TypeError(msg)
+    insert_fn(RUNS_TABLE_NAME, rows)
+
+
 def _process_all_windows(
     windows_iterator: any, ctx: WindowProcessingContext, runs_backend: any
 ) -> dict[str, dict[str, list[str]]]:
@@ -253,8 +309,6 @@ def _process_all_windows(
         Dict mapping window labels to {'posts': [...], 'profiles': [...]}
 
     """
-    # Access underlying DuckDB connection for run tracking (needs raw SQL)
-    runs_conn = runs_backend.con
     results = {}
 
     for window in windows_iterator:
@@ -273,21 +327,34 @@ def _process_all_windows(
         started_at = datetime.now(UTC)
 
         # Record run start
+        run_record: dict[str, object] | None = None
+
         try:
             input_fingerprint = fingerprint_window(window)
 
-            record_run(
-                conn=runs_conn,
-                run_id=run_id,
-                stage=f"window_{window.window_index}",
-                status="running",
-                started_at=started_at,
-                rows_in=window.size,
-                input_fingerprint=input_fingerprint,
-                trace_id=None,
-            )
+            run_record = {
+                "run_id": run_id,
+                "tenant_id": None,
+                "stage": f"window_{window.window_index}",
+                "status": "running",
+                "error": None,
+                "input_fingerprint": input_fingerprint,
+                "code_ref": get_git_commit_sha(),
+                "config_hash": None,
+                "started_at": started_at,
+                "finished_at": None,
+                "rows_in": window.size,
+                "rows_out": None,
+                "duration_seconds": None,
+                "llm_calls": 0,
+                "tokens": 0,
+                "trace_id": None,
+            }
+
+            _write_run_record(runs_backend, run_record, replace=False)
         except Exception as e:
             logger.warning("Failed to record run start: %s", e)
+            run_record = None
 
         # Process window
         try:
@@ -300,16 +367,18 @@ def _process_all_windows(
             profiles_count = sum(len(r.get("profiles", [])) for r in window_results.values())
 
             try:
-                runs_conn.execute(
-                    """
-                    UPDATE runs
-                    SET status = 'completed',
-                        finished_at = ?,
-                        duration_seconds = ?
-                    WHERE run_id = ?
-                    """,
-                    [finished_at, (finished_at - started_at).total_seconds(), str(run_id)],
-                )
+                if run_record is not None:
+                    run_record.update(
+                        {
+                            "status": "completed",
+                            "finished_at": finished_at,
+                            "duration_seconds": (finished_at - started_at).total_seconds(),
+                            "rows_out": posts_count + profiles_count,
+                            "error": None,
+                        }
+                    )
+                    _write_run_record(runs_backend, run_record, replace=True)
+
                 logger.debug(
                     "📊 Tracked run %s: %s posts, %s profiles",
                     str(run_id)[:8],
@@ -325,17 +394,16 @@ def _process_all_windows(
             error_msg = f"{type(e).__name__}: {e!s}"
 
             try:
-                runs_conn.execute(
-                    """
-                    UPDATE runs
-                    SET status = 'failed',
-                        finished_at = ?,
-                        duration_seconds = ?,
-                        error = ?
-                    WHERE run_id = ?
-                    """,
-                    [finished_at, (finished_at - started_at).total_seconds(), error_msg, str(run_id)],
-                )
+                if run_record is not None:
+                    run_record.update(
+                        {
+                            "status": "failed",
+                            "finished_at": finished_at,
+                            "duration_seconds": (finished_at - started_at).total_seconds(),
+                            "error": error_msg,
+                        }
+                    )
+                    _write_run_record(runs_backend, run_record, replace=True)
             except Exception as update_err:
                 logger.warning("Failed to record run failure: %s", update_err)
 
@@ -421,8 +489,17 @@ def _create_database_backends(
 
     """
 
-    def _resolve_backend(value: str) -> tuple[Path | str, any]:
+    def _resolve_backend(
+        value: str, *, allow_non_duckdb_uri: bool
+    ) -> tuple[Path | str, any]:
         if _is_connection_uri(value):
+            parsed = urlparse(value)
+            scheme = parsed.scheme.lower()
+            if scheme != "duckdb" and not allow_non_duckdb_uri:
+                raise ValueError(
+                    "Runs database supports only DuckDB connections. "
+                    f"Received URI with scheme '{parsed.scheme}'."
+                )
             return value, ibis.connect(value)
 
         db_path = Path(value).expanduser()
@@ -434,8 +511,12 @@ def _create_database_backends(
         db_path.parent.mkdir(parents=True, exist_ok=True)
         return db_path, ibis.connect(f"duckdb://{db_path}")
 
-    runtime_db_path, pipeline_backend = _resolve_backend(config.database.pipeline_db)
-    runs_db_path, runs_backend = _resolve_backend(config.database.runs_db)
+    runtime_db_path, pipeline_backend = _resolve_backend(
+        config.database.pipeline_db, allow_non_duckdb_uri=True
+    )
+    runs_db_path, runs_backend = _resolve_backend(
+        config.database.runs_db, allow_non_duckdb_uri=False
+    )
 
     return runtime_db_path, pipeline_backend, runs_backend
 
@@ -936,11 +1017,19 @@ def run(
         finally:
             try:
                 if "runs_backend" in locals():
-                    runs_backend.con.close()
+                    close_method = getattr(runs_backend, "close", None)
+                    if callable(close_method):
+                        close_method()
+                    elif hasattr(runs_backend, "con") and hasattr(runs_backend.con, "close"):
+                        runs_backend.con.close()
             finally:
                 if client:
                     client.close()
         if options is not None:
             options.default_backend = old_backend
         if "backend" in locals():
-            backend.con.close()
+            backend_close = getattr(backend, "close", None)
+            if callable(backend_close):
+                backend_close()
+            elif hasattr(backend, "con") and hasattr(backend.con, "close"):
+                backend.con.close()
