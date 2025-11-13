@@ -44,7 +44,7 @@ EGREGORA_NAMESPACE (root)
 ### Implementation
 
 ```python
-from egregora.privacy.constants import NamespaceContext, deterministic_author_uuid
+from egregora.privacy.uuid_namespaces import NamespaceContext, deterministic_author_uuid
 
 # Generate tenant-scoped UUID
 ctx = NamespaceContext(tenant_id="acme-corp", source="whatsapp")
@@ -58,7 +58,7 @@ author_uuid = deterministic_author_uuid("acme-corp", "whatsapp", "Alice")
 
 ### Frozen Namespaces
 
-All base namespaces are **frozen constants** in `src/egregora/privacy/constants.py`:
+All base namespaces are **frozen constants** in `src/egregora/privacy/uuid_namespaces.py`:
 - `EGREGORA_NAMESPACE`: Root namespace for all Egregora UUIDs
 - `NAMESPACE_AUTHOR`: Base namespace for author identities
 - `NAMESPACE_EVENT`: Base namespace for event identities  
@@ -129,7 +129,7 @@ def test_source_separation():
 
 - **RFC 4122**: UUID Specification (UUID5 definition)
 - **Privacy Architecture**: `docs/features/anonymization.md`
-- **Implementation**: `src/egregora/privacy/constants.py`
+- **Implementation**: `src/egregora/privacy/uuid_namespaces.py`
 - **Tests**: `tests/unit/test_deterministic_uuids.py`
 
 ## Alternatives Considered
@@ -146,7 +146,7 @@ def test_source_separation():
 ## Decision Outcome
 
 **Accepted** with the following commitments:
-- Freeze namespace constants in `privacy/constants.py`
+- Freeze namespace constants in `privacy/uuid_namespaces.py`
 - Add property-based tests for determinism
 - Document migration path for future namespace changes
 - Include tenant_id + source in all adapter outputs

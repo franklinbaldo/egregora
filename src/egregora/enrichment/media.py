@@ -1,4 +1,18 @@
-"""Media extraction and replacement utilities for enrichment."""
+"""Enrichment-stage helpers for raw WhatsApp media exports.
+
+This module operates on the **ingestion ZIP files** produced by WhatsApp and is
+responsible for:
+
+* Discovering attachment filenames embedded in the raw chat text
+* Extracting the matching files from the exported ZIP archive
+* Rewriting chat messages so that downstream stages reference the extracted
+  UUID5 paths instead of the WhatsApp placeholders
+
+Unlike :mod:`egregora.transformations.media`, these helpers work **before** the
+messages are normalized into Markdown. They run in the enrichment stage where
+we still have direct access to the source-specific ZIP layout and attachment
+markers.
+"""
 
 import hashlib
 import os
