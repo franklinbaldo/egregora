@@ -99,7 +99,7 @@ class DummyGenaiClient:
 
 
 def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
-    monkeypatch.setattr("egregora.sources.whatsapp.pipeline.genai.Client", DummyGenaiClient)
+    monkeypatch.setattr("egregora.orchestration.write_pipeline.genai.Client", DummyGenaiClient)
     # Note: GeminiDispatcher has been removed - pipeline now uses genai.Client directly
 
     def _stub_writer(
