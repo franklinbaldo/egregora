@@ -310,12 +310,12 @@ def _calculate_max_window_size(config: EgregoraConfig) -> int:
         Maximum number of messages per window
 
     Example:
-        >>> config.writer.max_prompt_tokens = 100_000
+        >>> config.pipeline.max_prompt_tokens = 100_000
         >>> _calculate_max_window_size(config)
         16000  # (100k * 0.8) / 5
 
     """
-    max_tokens = config.writer.max_prompt_tokens
+    max_tokens = config.pipeline.max_prompt_tokens
     avg_tokens_per_message = 5  # Conservative estimate
     buffer_ratio = 0.8  # Leave 20% for system prompt, tools, etc.
 
@@ -363,7 +363,7 @@ def _process_all_windows(
     logger.debug(
         "Max window size: %d messages (based on %d token context)",
         max_window_size,
-        ctx.config.writer.max_prompt_tokens,
+        ctx.config.pipeline.max_prompt_tokens,
     )
 
     for window in windows_iterator:
