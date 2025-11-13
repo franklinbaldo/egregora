@@ -40,7 +40,7 @@ from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.input_adapters import get_adapter
-from egregora.output_adapters.mkdocs_site import resolve_site_paths
+from egregora.output_adapters.mkdocs_site import SitePaths, resolve_site_paths
 from egregora.sources.whatsapp.parser import extract_commands, filter_egregora_messages
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.transformations.media import process_media_for_window
@@ -553,6 +553,38 @@ def _create_database_backends(
     return runtime_db_uri, pipeline_backend, runs_backend
 
 
+def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> SitePaths:
+    """Resolve site paths for the configured output format."""
+
+    output_dir = output_dir.expanduser().resolve()
+    base_paths = resolve_site_paths(output_dir)
+
+    if config.output.format != "eleventy-arrow":
+        return base_paths
+
+    from egregora.output_adapters import create_output_format
+
+    output_format = create_output_format(output_dir, format_type=config.output.format)
+    site_config = output_format.resolve_paths(output_dir)
+    return SitePaths(
+        site_root=site_config.site_root,
+        mkdocs_path=None,
+        egregora_dir=base_paths.egregora_dir,
+        config_path=base_paths.config_path,
+        mkdocs_config_path=base_paths.mkdocs_config_path,
+        prompts_dir=base_paths.prompts_dir,
+        rag_dir=base_paths.rag_dir,
+        cache_dir=base_paths.cache_dir,
+        docs_dir=site_config.docs_dir,
+        blog_dir=base_paths.blog_dir,
+        posts_dir=site_config.posts_dir,
+        profiles_dir=site_config.profiles_dir,
+        media_dir=site_config.media_dir,
+        rankings_dir=base_paths.rankings_dir,
+        enriched_dir=base_paths.enriched_dir,
+    )
+
+
 def _setup_pipeline_environment(
     output_dir: Path, config: EgregoraConfig, api_key: str | None, model_override: str | None
 ) -> tuple[
@@ -580,15 +612,27 @@ def _setup_pipeline_environment(
 
     """
     output_dir = output_dir.expanduser().resolve()
-    site_paths = resolve_site_paths(output_dir)
+    site_paths = _resolve_pipeline_site_paths(output_dir, config)
+    format_type = config.output.format
 
-    if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
-        msg = f"No mkdocs.yml found for site at {output_dir}. Run 'egregora init <site-dir>' before processing exports."
-        raise ValueError(msg)
+    if format_type != "eleventy-arrow":
+        if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
+            msg = f"No mkdocs.yml found for site at {output_dir}. Run 'egregora init <site-dir>' before processing exports."
+            raise ValueError(msg)
 
-    if not site_paths.docs_dir.exists():
-        msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
-        raise ValueError(msg)
+        if not site_paths.docs_dir.exists():
+            msg = (
+                f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
+            )
+            raise ValueError(msg)
+    else:
+        if not site_paths.docs_dir.exists():
+            msg = (
+                "Eleventy content directory not found at"
+                f" {site_paths.docs_dir}. Run 'egregora init <site-dir> --output-format eleventy-arrow' "
+                "to scaffold the project before processing exports."
+            )
+            raise ValueError(msg)
 
     # Setup database backends (Ibis-based, database-agnostic)
     runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
@@ -919,13 +963,25 @@ def run(
     else:
         # If client is provided, still need to setup most things
         output_dir = output_dir.expanduser().resolve()
-        site_paths = resolve_site_paths(output_dir)
-        if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
-            msg = f"No mkdocs.yml found for site at {output_dir}. Run 'egregora init <site-dir>' before processing exports."
-            raise ValueError(msg)
-        if not site_paths.docs_dir.exists():
-            msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
-            raise ValueError(msg)
+        site_paths = _resolve_pipeline_site_paths(output_dir, config)
+        format_type = config.output.format
+        if format_type != "eleventy-arrow":
+            if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
+                msg = f"No mkdocs.yml found for site at {output_dir}. Run 'egregora init <site-dir>' before processing exports."
+                raise ValueError(msg)
+            if not site_paths.docs_dir.exists():
+                msg = (
+                    f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
+                )
+                raise ValueError(msg)
+        else:
+            if not site_paths.docs_dir.exists():
+                msg = (
+                    "Eleventy content directory not found at"
+                    f" {site_paths.docs_dir}. Run 'egregora init <site-dir> --output-format eleventy-arrow' "
+                    "to scaffold the project before processing exports."
+                )
+                raise ValueError(msg)
         runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
         cli_model_override = model_override
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
