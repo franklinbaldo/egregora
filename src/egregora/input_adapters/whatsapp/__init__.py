@@ -177,9 +177,7 @@ class WhatsAppAdapter(InputAdapter):
         """Deliver a single media file on demand."""
         zip_path = kwargs.get("zip_path")
         if zip_path is None:
-            logger.warning(
-                "zip_path keyword argument is required to deliver WhatsApp media"
-            )
+            logger.warning("zip_path keyword argument is required to deliver WhatsApp media")
             return None
 
         try:
