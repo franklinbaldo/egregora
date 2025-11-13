@@ -74,6 +74,16 @@ class NamespaceContext:
         namespace_key = f"tenant:{self.tenant_id}:source:{self.source}:thread"
         return uuid.uuid5(NAMESPACE_THREAD, namespace_key)
 
+    def author_namespace(self) -> uuid.UUID:
+        """Get tenant-scoped author namespace.
+
+        Returns:
+            UUID5 namespace for author identity within this tenant+source.
+
+        """
+        namespace_key = f"tenant:{self.tenant_id}:source:{self.source}:author"
+        return uuid.uuid5(NAMESPACE_AUTHOR, namespace_key)
+
 
 # ============================================================================
 # Helper Functions

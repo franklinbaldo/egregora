@@ -56,7 +56,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from egregora.database.ir_schema import ensure_message_schema
 from egregora.privacy.constants import (
-    NAMESPACE_AUTHOR,
+    NamespaceContext,
     deterministic_author_uuid,
     deterministic_event_uuid,
     deterministic_thread_uuid,
@@ -528,7 +528,8 @@ def create_ir_table(
 
     normalized = ensure_message_schema(table, timezone=timezone)
 
-    namespace_value = author_namespace or NAMESPACE_AUTHOR
+    namespace_context = NamespaceContext(tenant_id=tenant_id, source=source)
+    namespace_value = author_namespace or namespace_context.author_namespace()
 
     @ibis.udf.scalar.python
     def author_uuid_udf(author: str | None) -> str:

@@ -12,7 +12,7 @@ from egregora.database.validation import (
     create_ir_table,
     validate_ir_schema,
 )
-from egregora.privacy.constants import deterministic_author_uuid
+from egregora.privacy.constants import NamespaceContext, deterministic_author_uuid
 
 
 class TestIRSchema:
@@ -162,7 +162,10 @@ class TestIRSchema:
         assert len(result) == 1
         assert result["author_raw"][0] == "alice"
         assert result["text"][0] == "Test message"
-        assert result["author_uuid"][0] == str(deterministic_author_uuid("alice"))
+        tenant_namespace = NamespaceContext(tenant_id="tenant-1", source="whatsapp").author_namespace()
+        assert result["author_uuid"][0] == str(
+            deterministic_author_uuid("alice", namespace=tenant_namespace)
+        )
         assert result["attrs"][0] is None
 
     def test_create_ir_table_with_custom_timezone(self):
