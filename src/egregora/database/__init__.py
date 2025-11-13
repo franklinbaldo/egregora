@@ -12,6 +12,7 @@ This package consolidates all persistence, state management, and infrastructure:
 """
 
 from egregora.database.duckdb_manager import DuckDBStorageManager, duckdb_backend, temp_storage
+from egregora.database import ir_schema as schemas
 from egregora.database.ir_schema import (
     CONVERSATION_SCHEMA,
     MESSAGE_SCHEMA,
@@ -66,6 +67,7 @@ __all__ = [
     "record_lineage",
     "record_run",
     "run_stage_with_tracking",
+    "schemas",
     "stream_ibis",
     "temp_storage",
     "views",

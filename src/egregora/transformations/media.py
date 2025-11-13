@@ -1,19 +1,23 @@
-"""Media processing utilities for source-agnostic pipeline.
+"""Canonical media transformations for normalized Markdown conversations.
 
-This module provides utilities for processing media files referenced in messages:
-1. Extracting markdown media references from messages
-2. Content-hash based UUID generation for deduplication
-3. Lazy media delivery via source adapters
-4. Standardizing media filenames and updating message references
+Once the enrichment stage has extracted media files from their source-specific
+exports, this module takes over. It runs in the transformations layer where the
+messages are already normalized into Markdown and focuses on **source-agnostic**
+tasks:
 
-The pipeline uses markdown format for media references:
-- Images: ![alt text](filename.jpg)
-- Videos/Files: [link text](filename.mp4)
+1. Scanning Markdown text for image/link references that still point to the
+   raw filenames emitted by the adapters
+2. Asking input adapters to lazily deliver the referenced media files when they
+   are not yet present locally
+3. Computing content hashes and generating stable UUID5-based filenames to
+   deduplicate assets across tenants and sources
+4. Rewriting the Markdown references so that posts link to the standardized
+   media directory layout
 
-Media files are renamed using UUIDv5 based on content hash, enabling:
-- Deduplication: Same file content = same UUID across all sources
-- Source-agnostic: Works with any adapter that implements deliver_media()
-- Clean naming: No date prefixes, just {uuid}.{ext}
+In short: :mod:`egregora.enrichment.media` handles **extraction from raw ZIPs**,
+while this module handles **canonicalization of Markdown references** so that
+the site generator can consume the media without caring about the original
+source format.
 """
 
 from __future__ import annotations

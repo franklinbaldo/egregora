@@ -27,10 +27,10 @@
    - [ ] Test: Verify CI fails on pandas import
 
 3. **QW-4: UUID5 Namespaces** (20 min)
-   - [ ] Create `src/egregora/privacy/constants.py`
+   - [ ] Create `src/egregora/privacy/uuid_namespaces.py`
    - [ ] Update `src/egregora/privacy/anonymizer.py`
    - [ ] Create `docs/architecture/adr-002-deterministic-uuids.md`
-   - [ ] Test: `from egregora.privacy.constants import NS_AUTHORS`
+   - [ ] Test: `from egregora.privacy.uuid_namespaces import NS_AUTHORS`
 
 **Acceptance**:
 - [ ] CI fails on IR schema drift

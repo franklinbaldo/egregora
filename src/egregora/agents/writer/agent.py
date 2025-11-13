@@ -60,8 +60,7 @@ from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore, is_rag_available, query_media
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.storage.output_adapter import OutputAdapter
-from egregora.storage.url_convention import UrlContext, UrlConvention
+from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
 
 if TYPE_CHECKING:
     from pydantic_ai.result import RunResult
