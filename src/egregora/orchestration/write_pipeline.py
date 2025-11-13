@@ -48,7 +48,6 @@ from egregora.utils.cache import EnrichmentCache
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
-    from ibis.expr.schema import Schema
 logger = logging.getLogger(__name__)
 __all__ = ["run"]
 
