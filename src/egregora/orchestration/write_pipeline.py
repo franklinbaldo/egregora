@@ -555,7 +555,6 @@ def _create_database_backends(
 
 def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> SitePaths:
     """Resolve site paths for the configured output format."""
-
     output_dir = output_dir.expanduser().resolve()
     base_paths = resolve_site_paths(output_dir)
 
@@ -621,18 +620,15 @@ def _setup_pipeline_environment(
             raise ValueError(msg)
 
         if not site_paths.docs_dir.exists():
-            msg = (
-                f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
-            )
+            msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
             raise ValueError(msg)
-    else:
-        if not site_paths.docs_dir.exists():
-            msg = (
-                "Eleventy content directory not found at"
-                f" {site_paths.docs_dir}. Run 'egregora init <site-dir> --output-format eleventy-arrow' "
-                "to scaffold the project before processing exports."
-            )
-            raise ValueError(msg)
+    elif not site_paths.docs_dir.exists():
+        msg = (
+            "Eleventy content directory not found at"
+            f" {site_paths.docs_dir}. Run 'egregora init <site-dir> --output-format eleventy-arrow' "
+            "to scaffold the project before processing exports."
+        )
+        raise ValueError(msg)
 
     # Setup database backends (Ibis-based, database-agnostic)
     runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
@@ -970,18 +966,15 @@ def run(
                 msg = f"No mkdocs.yml found for site at {output_dir}. Run 'egregora init <site-dir>' before processing exports."
                 raise ValueError(msg)
             if not site_paths.docs_dir.exists():
-                msg = (
-                    f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
-                )
+                msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
                 raise ValueError(msg)
-        else:
-            if not site_paths.docs_dir.exists():
-                msg = (
-                    "Eleventy content directory not found at"
-                    f" {site_paths.docs_dir}. Run 'egregora init <site-dir> --output-format eleventy-arrow' "
-                    "to scaffold the project before processing exports."
-                )
-                raise ValueError(msg)
+        elif not site_paths.docs_dir.exists():
+            msg = (
+                "Eleventy content directory not found at"
+                f" {site_paths.docs_dir}. Run 'egregora init <site-dir> --output-format eleventy-arrow' "
+                "to scaffold the project before processing exports."
+            )
+            raise ValueError(msg)
         runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
         cli_model_override = model_override
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
