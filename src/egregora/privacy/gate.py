@@ -33,7 +33,6 @@ Example:
 from __future__ import annotations
 
 import logging
-import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from functools import wraps
@@ -241,8 +240,6 @@ class PrivacyGate:
             author_raw: str,
             author_uuid: str,
         ) -> bool:
-            import uuid
-
             if author_raw is None or author_uuid is None:
                 return False
             expected = deterministic_author_uuid(
