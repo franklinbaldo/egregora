@@ -33,6 +33,7 @@ from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig
+from egregora.database import RUNS_TABLE_SCHEMA
 from egregora.database.tracking import fingerprint_window, get_git_commit_sha
 from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
@@ -243,30 +244,6 @@ def _process_window_with_auto_split(
 RUNS_TABLE_NAME = "runs"
 
 
-def _runs_table_schema() -> Schema:
-    """Return the canonical schema for the pipeline runs tracking table."""
-    return ibis.schema(
-        {
-            "run_id": "string",
-            "tenant_id": "string",
-            "stage": "string",
-            "status": "string",
-            "error": "string",
-            "input_fingerprint": "string",
-            "code_ref": "string",
-            "config_hash": "string",
-            "started_at": "timestamp('UTC')",
-            "finished_at": "timestamp('UTC')",
-            "rows_in": "int64",
-            "rows_out": "int64",
-            "duration_seconds": "float64",
-            "llm_calls": "int64",
-            "tokens": "int64",
-            "trace_id": "string",
-        }
-    )
-
-
 def _ensure_runs_table_exists(runs_backend: any) -> None:
     """Create the runs tracking table if it is missing for the backend."""
     try:
@@ -275,10 +252,8 @@ def _ensure_runs_table_exists(runs_backend: any) -> None:
     except Exception as exc:  # pragma: no cover - backend-specific error handling
         logger.debug("Unable to list tables for runs backend: %s", exc)
 
-    schema = _runs_table_schema()
-
     try:
-        runs_backend.create_table(RUNS_TABLE_NAME, schema=schema)
+        runs_backend.create_table(RUNS_TABLE_NAME, schema=RUNS_TABLE_SCHEMA)
     except Exception as exc:
         # If the table already exists (created externally), retrieving it should
         # succeed; otherwise re-raise to surface the configuration issue.
@@ -299,7 +274,7 @@ def _write_run_record(runs_backend: any, record: dict[str, object], *, replace: 
         try:
             delete_fn(
                 RUNS_TABLE_NAME,
-                where=lambda t: t.run_id == ibis.literal(record["run_id"], dtype="string"),
+                where=lambda t: t.run_id == ibis.literal(record["run_id"], type=RUNS_TABLE_SCHEMA["run_id"]),
             )
         except Exception as exc:
             logger.debug("Unable to delete existing runs record: %s", exc)
@@ -309,7 +284,7 @@ def _write_run_record(runs_backend: any, record: dict[str, object], *, replace: 
             type(runs_backend).__name__,
         )
 
-    rows = ibis.memtable([record], schema=_runs_table_schema())
+    rows = ibis.memtable([record], schema=RUNS_TABLE_SCHEMA)
     insert_fn = getattr(runs_backend, "insert", None)
     if not callable(insert_fn):
         msg = f"Runs backend {type(runs_backend).__name__} does not support insert()"
@@ -355,7 +330,7 @@ def _process_all_windows(
             input_fingerprint = fingerprint_window(window)
 
             run_record = {
-                "run_id": str(run_id),
+                "run_id": run_id,
                 "tenant_id": None,
                 "stage": f"window_{window.window_index}",
                 "status": "running",
@@ -495,7 +470,7 @@ def _is_connection_uri(value: str) -> bool:
 def _create_database_backends(
     site_root: Path,
     config: EgregoraConfig,
-) -> tuple[Path | str, any, any]:
+) -> tuple[str, any, any]:
     """Create database backends for pipeline and runs tracking.
 
     Uses Ibis for database abstraction, allowing future migration to
@@ -506,35 +481,62 @@ def _create_database_backends(
         config: Egregora configuration
 
     Returns:
-        Tuple of (runtime_db_path, pipeline_backend, runs_backend) where
-        ``runtime_db_path`` may be a filesystem ``Path`` or a connection URI string.
+        Tuple of (runtime_db_uri, pipeline_backend, runs_backend).
+
+    Notes:
+        DuckDB file URIs with the pattern ``duckdb:///./relative/path.duckdb`` are
+        resolved relative to ``site_root`` to keep configuration portable while
+        still using proper connection strings.
 
     """
 
-    def _resolve_backend(value: str) -> tuple[Path | str, any]:
-        if _is_connection_uri(value):
-            return value, ibis.connect(value)
+    def _validate_and_connect(value: str, setting_name: str) -> tuple[str, any]:
+        if not value:
+            msg = f"Database setting '{setting_name}' must be a non-empty connection URI."
+            raise ValueError(msg)
 
-        db_path = Path(value).expanduser()
-        if not db_path.is_absolute():
-            db_path = (site_root / db_path).resolve()
-        else:
-            db_path = db_path.resolve()
+        parsed = urlparse(value)
+        if not parsed.scheme:
+            msg = (
+                "Database setting '{setting}' must be provided as an Ibis-compatible connection "
+                "URI (e.g. 'duckdb:///absolute/path/to/file.duckdb' or 'postgres://user:pass@host/db')."
+            )
+            raise ValueError(msg.format(setting=setting_name))
 
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        return db_path, ibis.connect(f"duckdb://{db_path}")
+        if len(parsed.scheme) == 1 and value[1:3] in {":/", ":\\"}:
+            msg = (
+                "Database setting '{setting}' looks like a filesystem path. Provide a full connection "
+                "URI instead (see the database settings documentation)."
+            )
+            raise ValueError(msg.format(setting=setting_name))
 
-    runtime_db_path, pipeline_backend = _resolve_backend(config.database.pipeline_db)
-    runs_db_path, runs_backend = _resolve_backend(config.database.runs_db)
+        normalized_value = value
 
-    return runtime_db_path, pipeline_backend, runs_backend
+        if parsed.scheme == "duckdb" and not parsed.netloc:
+            path_value = parsed.path
+            if path_value and path_value not in {"/:memory:", ":memory:", "memory", "memory:"}:
+                if path_value.startswith("/./"):
+                    fs_path = (site_root / Path(path_value[3:])).resolve()
+                else:
+                    fs_path = Path(path_value).resolve()
+                fs_path.parent.mkdir(parents=True, exist_ok=True)
+                normalized_value = f"duckdb:///{fs_path}"
+
+        return normalized_value, ibis.connect(normalized_value)
+
+    runtime_db_uri, pipeline_backend = _validate_and_connect(
+        config.database.pipeline_db, "database.pipeline_db"
+    )
+    runs_db_uri, runs_backend = _validate_and_connect(config.database.runs_db, "database.runs_db")
+
+    return runtime_db_uri, pipeline_backend, runs_backend
 
 
 def _setup_pipeline_environment(
     output_dir: Path, config: EgregoraConfig, api_key: str | None, model_override: str | None
 ) -> tuple[
     any,
-    Path | str,
+    str,
     any,
     any,
     str | None,
@@ -550,7 +552,7 @@ def _setup_pipeline_environment(
         model_override: Model override for CLI --model flag
 
     Returns:
-        Tuple of (site_paths, runtime_db_path, pipeline_backend, runs_backend, model_override, client, enrichment_cache)
+        Tuple of (site_paths, runtime_db_uri, pipeline_backend, runs_backend, model_override, client, enrichment_cache)
 
     Raises:
         ValueError: If mkdocs.yml or docs directory not found
@@ -568,7 +570,7 @@ def _setup_pipeline_environment(
         raise ValueError(msg)
 
     # Setup database backends (Ibis-based, database-agnostic)
-    runtime_db_path, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
+    runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
 
     # Setup Gemini client
     # Configure aggressive retry options to handle rate limits efficiently
@@ -589,7 +591,7 @@ def _setup_pipeline_environment(
 
     return (
         site_paths,
-        runtime_db_path,
+        runtime_db_uri,
         backend,
         runs_backend,
         model_override,
@@ -886,7 +888,7 @@ def run(
     if client is None:
         (
             site_paths,
-            runtime_db_path,
+            runtime_db_uri,
             backend,
             runs_backend,
             cli_model_override,
@@ -903,7 +905,7 @@ def run(
         if not site_paths.docs_dir.exists():
             msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
             raise ValueError(msg)
-        runtime_db_path, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
+        runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
         cli_model_override = model_override
         cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         enrichment_cache = EnrichmentCache(cache_dir)
