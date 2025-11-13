@@ -1,7 +1,7 @@
 """Tests for pipeline IR (Intermediate Representation) schema and validation."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import ibis
 import pytest
@@ -42,7 +42,7 @@ class TestIRSchema:
     def test_validate_ir_schema_with_valid_table(self):
         """Validation should pass for a table conforming to IR schema."""
         # Create a valid IR table
-        timestamp = datetime(2024, 1, 1, 12, tzinfo=timezone.utc)
+        timestamp = datetime(2024, 1, 1, 12, tzinfo=UTC)
         data = [
             {
                 "event_id": str(uuid.uuid4()),
@@ -74,7 +74,7 @@ class TestIRSchema:
                 "event_id": str(uuid.uuid4()),
                 "tenant_id": "tenant-1",
                 "source": "whatsapp",
-                "ts": datetime(2024, 1, 1, 12, tzinfo=timezone.utc),
+                "ts": datetime(2024, 1, 1, 12, tzinfo=UTC),
                 "author_raw": "user1",
                 "author_uuid": str(uuid.uuid4()),
             }
@@ -103,7 +103,7 @@ class TestIRSchema:
                 "media_type": None,
                 "attrs": {},
                 "pii_flags": {},
-                "created_at": datetime(2024, 1, 1, 12, tzinfo=timezone.utc),
+                "created_at": datetime(2024, 1, 1, 12, tzinfo=UTC),
                 "created_by_run": str(uuid.uuid4()),
             }
         ]
@@ -189,9 +189,7 @@ class TestIRSchema:
         result = ir_table.execute()
         assert len(result) == 1
         expected_uuid = str(
-            deterministic_author_uuid(
-                "user1", namespace=uuid.uuid5(uuid.NAMESPACE_DNS, "custom")
-            )
+            deterministic_author_uuid("user1", namespace=uuid.uuid5(uuid.NAMESPACE_DNS, "custom"))
         )
         assert result["author_uuid"][0] == expected_uuid
 
