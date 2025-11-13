@@ -137,8 +137,8 @@ class Annotation:
 
         Returns:
             Document representation of the annotation ready for serving/indexing.
-        """
 
+        """
         metadata = {
             "annotation_id": str(self.id),
             "title": f"Annotation {self.id}",
@@ -344,7 +344,6 @@ class AnnotationStore:
 
     def iter_annotation_documents(self) -> Iterable[Document]:
         """Yield all annotations transformed into :class:`Document` objects."""
-
         for annotation in self.iter_all_annotations():
             yield annotation.to_document()
 
