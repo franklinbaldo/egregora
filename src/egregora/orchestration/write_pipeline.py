@@ -48,7 +48,6 @@ from egregora.utils.cache import EnrichmentCache
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
-    from ibis.expr.schema import Schema
 logger = logging.getLogger(__name__)
 __all__ = ["run"]
 
@@ -246,7 +245,6 @@ RUNS_TABLE_NAME = "runs"
 
 def _ensure_runs_table_exists(runs_backend: any) -> None:
     """Create the runs tracking table if it is missing for the backend."""
-
     try:
         if RUNS_TABLE_NAME in set(runs_backend.list_tables()):
             return
@@ -268,7 +266,6 @@ def _ensure_runs_table_exists(runs_backend: any) -> None:
 
 def _write_run_record(runs_backend: any, record: dict[str, object], *, replace: bool) -> None:
     """Insert or replace a run tracking record for the current backend."""
-
     _ensure_runs_table_exists(runs_backend)
 
     delete_fn = getattr(runs_backend, "delete", None)
@@ -276,8 +273,7 @@ def _write_run_record(runs_backend: any, record: dict[str, object], *, replace: 
         try:
             delete_fn(
                 RUNS_TABLE_NAME,
-                where=lambda t: t.run_id
-                == ibis.literal(record["run_id"], type=RUNS_TABLE_SCHEMA["run_id"]),
+                where=lambda t: t.run_id == ibis.literal(record["run_id"], type=RUNS_TABLE_SCHEMA["run_id"]),
             )
         except Exception as exc:
             logger.debug("Unable to delete existing runs record: %s", exc)
@@ -489,9 +485,7 @@ def _create_database_backends(
 
     """
 
-    def _resolve_backend(
-        value: str, *, allow_non_duckdb_uri: bool
-    ) -> tuple[Path | str, any]:
+    def _resolve_backend(value: str, *, allow_non_duckdb_uri: bool) -> tuple[Path | str, any]:
         if _is_connection_uri(value):
             parsed = urlparse(value)
             scheme = parsed.scheme.lower()
@@ -514,9 +508,7 @@ def _create_database_backends(
     runtime_db_path, pipeline_backend = _resolve_backend(
         config.database.pipeline_db, allow_non_duckdb_uri=True
     )
-    runs_db_path, runs_backend = _resolve_backend(
-        config.database.runs_db, allow_non_duckdb_uri=False
-    )
+    runs_db_path, runs_backend = _resolve_backend(config.database.runs_db, allow_non_duckdb_uri=False)
 
     return runtime_db_path, pipeline_backend, runs_backend
 
