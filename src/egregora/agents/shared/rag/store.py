@@ -14,7 +14,7 @@ from ibis import IbisError
 from ibis.expr.types import Table
 
 from egregora.config import EMBEDDING_DIM
-from egregora.database import schemas as database_schema
+from egregora.database import ir_schema as database_schema
 
 logger = logging.getLogger(__name__)
 TABLE_NAME = "rag_chunks"
@@ -22,7 +22,6 @@ INDEX_NAME = "rag_chunks_embedding_idx"
 METADATA_TABLE_NAME = "rag_chunks_metadata"
 DEFAULT_ANN_OVERFETCH = 5
 INDEX_META_TABLE = "index_meta"
-DEFAULT_EXACT_INDEX_THRESHOLD = 1000
 
 
 class _ConnectionProxy:
@@ -47,13 +46,6 @@ class _ConnectionProxy:
         overrides = object.__getattribute__(self, "_overrides")
         overrides[name] = value
 
-    def __delattr__(self, name: str) -> None:
-        overrides = object.__getattribute__(self, "_overrides")
-        if name in overrides:
-            del overrides[name]
-            return
-        delattr(object.__getattribute__(self, "_inner"), name)
-
 
 VECTOR_STORE_SCHEMA = database_schema.RAG_CHUNKS_SCHEMA
 SEARCH_RESULT_SCHEMA = database_schema.RAG_SEARCH_RESULT_SCHEMA
@@ -77,13 +69,11 @@ class VectorStore:
         parquet_path: Path,
         *,
         connection: duckdb.DuckDBPyConnection | None = None,
-        _exact_index_threshold: int = DEFAULT_EXACT_INDEX_THRESHOLD,
     ) -> None:
         """Initialize vector store.
 
         Args:
             parquet_path: Path to Parquet file (e.g., output/rag/chunks.parquet)
-            exact_index_threshold: Maximum row count before switching to ANN indexing
 
         """
         self.parquet_path = parquet_path
@@ -505,7 +495,7 @@ class VectorStore:
         self,
         query_vec: list[float],
         top_k: int = 5,
-        min_similarity: float = 0.7,
+        min_similarity_threshold: float = 0.7,
         tag_filter: list[str] | None = None,
         date_after: date | datetime | str | None = None,
         document_type: str | None = None,
@@ -520,7 +510,7 @@ class VectorStore:
         Args:
             query_vec: Query embedding vector
             top_k: Number of results to return
-            min_similarity: Minimum cosine similarity (0-1)
+            min_similarity_threshold: Minimum cosine similarity (0-1)
             tag_filter: Filter by tags (OR logic)
             date_after: Filter by temporal boundary (``date``/``datetime``/ISO string)
             document_type: Filter by document type ("post" or "media")
@@ -541,18 +531,18 @@ class VectorStore:
         self._validate_search_parameters(nprobe)
 
         params, filters = self._build_search_filters(
-            query_vec, min_similarity, tag_filter, date_after, document_type, media_types
+            query_vec, min_similarity_threshold, tag_filter, date_after, document_type, media_types
         )
         where_clause, order_clause = self._build_query_clauses(filters, top_k)
 
         if mode_normalized == "exact":
-            return self._search_exact(where_clause, order_clause, params, min_similarity)
+            return self._search_exact(where_clause, order_clause, params, min_similarity_threshold)
 
         return self._search_ann(
             where_clause,
             order_clause,
             params,
-            min_similarity,
+            min_similarity_threshold,
             top_k,
             nprobe,
             overfetch,
@@ -599,7 +589,7 @@ class VectorStore:
     def _build_search_filters(
         self,
         query_vec: list[float],
-        min_similarity: float,
+        min_similarity_threshold: float,
         tag_filter: list[str] | None,
         date_after: date | datetime | str | None,
         document_type: str | None,
@@ -625,7 +615,7 @@ class VectorStore:
             params.append(normalized_date.isoformat())
 
         filters.append("similarity >= ?")
-        params.append(min_similarity)
+        params.append(min_similarity_threshold)
 
         return params, filters
 
@@ -646,12 +636,12 @@ class VectorStore:
         where_clause: str,
         order_clause: str,
         params: list[Any],
-        min_similarity: float,
+        min_similarity_threshold: float,
     ) -> Table:
         """Execute exact cosine similarity search."""
         query = self._build_exact_query() + where_clause + order_clause
         try:
-            return self._execute_search_query(query, params, min_similarity)
+            return self._execute_search_query(query, params, min_similarity_threshold)
         except Exception:
             logger.exception("Search failed")
             return self._empty_table(SEARCH_RESULT_SCHEMA)
@@ -661,7 +651,7 @@ class VectorStore:
         where_clause: str,
         order_clause: str,
         params: list[Any],
-        min_similarity: float,
+        min_similarity_threshold: float,
         top_k: int,
         nprobe: int | None,
         overfetch: int | None,
@@ -679,7 +669,7 @@ class VectorStore:
                 where_clause,
                 order_clause,
                 params,
-                min_similarity,
+                min_similarity_threshold,
                 ann_limit,
                 nprobe_clause,
                 embedding_dimensionality,
@@ -688,7 +678,9 @@ class VectorStore:
                 return result
             last_error = getattr(self, "_last_ann_error", None)
 
-        return self._handle_ann_failure(last_error, where_clause, order_clause, params, min_similarity)
+        return self._handle_ann_failure(
+            last_error, where_clause, order_clause, params, min_similarity_threshold
+        )
 
     def _try_ann_search(
         self,
@@ -696,7 +688,7 @@ class VectorStore:
         where_clause: str,
         order_clause: str,
         params: list[Any],
-        min_similarity: float,
+        min_similarity_threshold: float,
         ann_limit: int,
         nprobe_clause: str,
         embedding_dimensionality: int,
@@ -710,7 +702,7 @@ class VectorStore:
         )
         query = base_query + where_clause + order_clause
         try:
-            result = self._execute_search_query(query, params, min_similarity)
+            result = self._execute_search_query(query, params, min_similarity_threshold)
         except duckdb.Error as exc:
             self._last_ann_error = exc
             logger.warning("ANN search failed with %s: %s", function_name, exc)
@@ -729,14 +721,14 @@ class VectorStore:
         where_clause: str,
         order_clause: str,
         params: list[Any],
-        min_similarity: float,
+        min_similarity_threshold: float,
     ) -> Table:
         """Handle ANN search failure with fallback to exact search or error logging."""
         if last_error is not None and "does not support the supplied arguments" in str(last_error).lower():
             logger.info("Falling back to exact search due to VSS compatibility issues")
             try:
                 query = self._build_exact_query() + where_clause + order_clause
-                return self._execute_search_query(query, params, min_similarity)
+                return self._execute_search_query(query, params, min_similarity_threshold)
             except Exception:
                 logger.exception("Exact fallback search failed")
 
@@ -775,7 +767,7 @@ class VectorStore:
                 candidates.append(function_name)
         return candidates
 
-    def _execute_search_query(self, query: str, params: list[Any], min_similarity: float) -> Table:
+    def _execute_search_query(self, query: str, params: list[Any], min_similarity_threshold: float) -> Table:
         """Execute the provided search query and normalize the results."""
         cursor = self.conn.execute(query, params)
         columns = [description[0] for description in cursor.description or []]
@@ -786,7 +778,9 @@ class VectorStore:
         prepared_records = self._prepare_search_results(raw_records)
         table = self._table_from_rows(prepared_records, SEARCH_RESULT_SCHEMA)
         row_count = table.count().execute()
-        logger.info("Found %d similar chunks (min_similarity=%s)", row_count, min_similarity)
+        logger.info(
+            "Found %d similar chunks (min_similarity_threshold=%s)", row_count, min_similarity_threshold
+        )
         return table
 
     def _prepare_search_results(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1001,61 +995,3 @@ class VectorStore:
         """Close the DuckDB connection if owned by this store."""
         if self._owns_connection:
             self.conn.close()
-
-    def get_all(self) -> Table:
-        """Read entire vector store.
-
-        Useful for analytics, exports, client-side usage.
-        """
-        if not self.parquet_path.exists():
-            return self._empty_table(VECTOR_STORE_SCHEMA)
-        return self._client.read_parquet(self.parquet_path)
-
-    def stats(self) -> dict[str, Any]:
-        """Get vector store statistics."""
-        if not self.parquet_path.exists():
-            return {"total_chunks": 0, "total_posts": 0, "total_media": 0, "media_by_type": {}}
-        table = self.get_all()
-        total_chunks = table.count().execute()
-        if total_chunks == 0:
-            return {"total_chunks": 0, "total_posts": 0, "date_range": (None, None), "total_tags": 0}
-        df_executed = table.execute()
-        has_doc_type = "document_type" in df_executed.columns
-        stats = {"total_chunks": total_chunks}
-        if has_doc_type:
-            post_table = table.filter(table.document_type == "post")
-            media_table = table.filter(table.document_type == "media")
-            post_count = post_table.count().execute()
-            media_count = media_table.count().execute()
-            stats["total_posts"] = post_table.post_slug.nunique().execute() if post_count > 0 else 0
-            stats["total_media"] = media_table.media_uuid.nunique().execute() if media_count > 0 else 0
-            if media_count > 0:
-                media_types_agg = (
-                    media_table.group_by("media_type")
-                    .aggregate(count=lambda t: t.media_uuid.nunique())
-                    .execute()
-                )
-                stats["media_by_type"] = {
-                    row["media_type"]: row["count"]
-                    for _, row in media_types_agg.iterrows()
-                    if row["media_type"]
-                }
-            else:
-                stats["media_by_type"] = {}
-            if post_count > 0:
-                stats["post_date_range"] = (
-                    post_table.post_date.min().execute(),
-                    post_table.post_date.max().execute(),
-                )
-            if media_count > 0:
-                stats["media_date_range"] = (
-                    media_table.message_date.min().execute(),
-                    media_table.message_date.max().execute(),
-                )
-        else:
-            stats["total_posts"] = table.post_slug.nunique().execute()
-            stats["total_media"] = 0
-            stats["media_by_type"] = {}
-            stats["date_range"] = (table.post_date.min().execute(), table.post_date.max().execute())
-            stats["total_tags"] = table.tags.unnest().nunique().execute()
-        return stats

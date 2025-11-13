@@ -20,8 +20,8 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from egregora.database.schemas import CONVERSATION_SCHEMA
-from egregora.pipeline.tracking import fingerprint_table, record_run
+from egregora.database.ir_schema import CONVERSATION_SCHEMA
+from egregora.database.tracking import fingerprint_table, record_run
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.sources.whatsapp.parser import parse_source
@@ -101,7 +101,7 @@ def test_week1_golden_whatsapp_pipeline(
 
     # Discover chat file in ZIP
     group_name, chat_file = discover_chat_file(whatsapp_fixture)
-    from egregora.types import GroupSlug
+    from egregora.data_primitives import GroupSlug
 
     export = WhatsAppExport(
         zip_path=whatsapp_fixture,
@@ -302,7 +302,11 @@ def test_week1_schema_lockfile_validation():
 
 def test_week1_uuid5_namespaces_immutable():
     """Validate UUID5 namespaces are immutable (locked on 2025-01-08)."""
-    from egregora.privacy.constants import NAMESPACE_AUTHOR, NAMESPACE_EVENT, NAMESPACE_THREAD
+    from egregora.privacy.uuid_namespaces import (
+        NAMESPACE_AUTHOR,
+        NAMESPACE_EVENT,
+        NAMESPACE_THREAD,
+    )
 
     # These UUIDs MUST NOT change (locked in Week 1)
     # Generated on 2025-01-08 and frozen for deterministic identity mapping

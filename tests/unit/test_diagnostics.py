@@ -357,25 +357,24 @@ class TestCheckAdapters:
         assert result.details is not None
         assert "adapters" in result.details
 
-        # Should have at least whatsapp and slack
+        # Should have at least whatsapp
         adapters = result.details["adapters"]
         assert "whatsapp" in adapters
-        assert "slack" in adapters
 
-    @patch("egregora.ingestion.input_registry.list_sources")
-    def test_no_adapters_registered(self, mock_list_sources: MagicMock) -> None:
+    @patch("egregora.adapters.list_adapters")
+    def test_no_adapters_registered(self, mock_list_adapters: MagicMock) -> None:
         """Returns ERROR when no adapters are registered."""
-        mock_list_sources.return_value = []
+        mock_list_adapters.return_value = []
 
         result = check_adapters()
 
         assert result.status == HealthStatus.ERROR
         assert "No adapters registered" in result.message
 
-    @patch("egregora.ingestion.input_registry.list_sources")
-    def test_adapter_check_error(self, mock_list_sources: MagicMock) -> None:
+    @patch("egregora.adapters.list_adapters")
+    def test_adapter_check_error(self, mock_list_adapters: MagicMock) -> None:
         """Returns ERROR when adapter listing fails."""
-        mock_list_sources.side_effect = Exception("Registry error")
+        mock_list_adapters.side_effect = Exception("Registry error")
 
         result = check_adapters()
 

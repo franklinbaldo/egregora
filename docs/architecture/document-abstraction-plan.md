@@ -142,7 +142,7 @@ ctx.deps.profiles.write(author_uuid=..., content=...)
 **New behavior:**
 ```python
 # Writer agent produces Documents
-from egregora.core.document import Document, DocumentType
+from egregora.data_primitives.document import Document, DocumentType
 
 @agent.tool
 def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, content: str) -> WritePostResult:
@@ -174,7 +174,7 @@ def write_post_tool(ctx: RunContext[WriterAgentState], metadata: PostMetadata, c
 ```python
 # src/egregora/storage/documents.py
 
-from egregora.core.document import Document, DocumentType
+from egregora.data_primitives.document import Document, DocumentType
 
 @runtime_checkable
 class DocumentStorage(Protocol):

@@ -23,13 +23,6 @@ from pathlib import Path
 
 import pytest
 
-from egregora.database.streaming import (
-    copy_expr_to_ndjson,
-    copy_expr_to_parquet,
-    ensure_deterministic_order,
-    stream_ibis,
-)
-
 # Directories where pandas imports are allowed
 WHITELIST_PATHS = re.compile(r"(src/egregora/compat/|src/egregora/testing/)")
 
@@ -114,7 +107,6 @@ def test_no_pandas_imports_in_src():
         error_msg = "\n❌ Found banned pandas imports:\n\n" + "\n".join(all_errors)
         error_msg += "\n\n📖 Policy: Egregora uses Ibis + DuckDB for all DataFrame operations."
         error_msg += "\n   See CLAUDE.md section 'Ibis-First Coding Standard' for details."
-        error_msg += "\n   Use egregora.data.stream utilities for memory-efficient streaming."
         pytest.fail(error_msg)
 
 
@@ -127,12 +119,3 @@ def test_whitelisted_paths_work():
 
     for path in test_paths:
         assert WHITELIST_PATHS.search(str(path)), f"Whitelist should match {path}"
-
-
-def test_streaming_utilities_available():
-    """Verify that the Ibis-first streaming utilities are available."""
-    # Verify functions are callable
-    assert callable(stream_ibis)
-    assert callable(copy_expr_to_parquet)
-    assert callable(copy_expr_to_ndjson)
-    assert callable(ensure_deterministic_order)

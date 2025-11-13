@@ -3,7 +3,7 @@
 Requires GOOGLE_API_KEY environment variable.
 """
 
-from egregora.agents.banner.generator import (
+from egregora.agents.banner.image_generator import (
     BannerGenerator,
     BannerRequest,
     BannerResult,

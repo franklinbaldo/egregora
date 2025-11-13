@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 import ibis
 import pytest
 
-from egregora.privacy.config import PrivacyConfig
+from egregora.privacy.config import PrivacySettings
 from egregora.privacy.gate import PrivacyGate, PrivacyPass, require_privacy_pass
 
 
@@ -148,7 +148,7 @@ class TestPrivacyGate:
         }
         table = ibis.memtable(data)
 
-        config = PrivacyConfig(tenant_id="test-tenant")
+        config = PrivacySettings(tenant_id="test-tenant")
 
         anonymized, privacy_pass = PrivacyGate.run(table, config, "run-123")
 
@@ -171,7 +171,7 @@ class TestPrivacyGate:
         }
         table = ibis.memtable(data)
 
-        config = PrivacyConfig(tenant_id="test")
+        config = PrivacySettings(tenant_id="test")
         anonymized, _ = PrivacyGate.run(table, config, "run-1")
 
         result = anonymized.execute()
@@ -182,17 +182,17 @@ class TestPrivacyGate:
         assert len(author) == 8  # UUID hex format (8 chars)
 
     def test_privacy_gate_fails_with_empty_tenant_id(self):
-        """PrivacyConfig raises ValueError if tenant_id is empty."""
+        """PrivacySettings raises ValueError if tenant_id is empty."""
         table = ibis.memtable([{"author": ["test"]}])
 
         with pytest.raises(ValueError, match="tenant_id cannot be empty"):
-            config = PrivacyConfig(tenant_id="")
+            config = PrivacySettings(tenant_id="")
             PrivacyGate.run(table, config, "run-1")
 
     def test_privacy_gate_fails_with_empty_run_id(self):
         """PrivacyGate.run() raises ValueError if run_id is empty."""
         table = ibis.memtable([{"author": ["test"]}])
-        config = PrivacyConfig(tenant_id="test")
+        config = PrivacySettings(tenant_id="test")
 
         with pytest.raises(ValueError, match="run_id cannot be empty"):
             PrivacyGate.run(table, config, "")
@@ -206,8 +206,8 @@ class TestPrivacyGate:
         }
         table = ibis.memtable(data)
 
-        config_tenant1 = PrivacyConfig(tenant_id="tenant-1")
-        config_tenant2 = PrivacyConfig(tenant_id="tenant-2")
+        config_tenant1 = PrivacySettings(tenant_id="tenant-1")
+        config_tenant2 = PrivacySettings(tenant_id="tenant-2")
 
         _, pass1 = PrivacyGate.run(table, config_tenant1, "run-1")
         _, pass2 = PrivacyGate.run(table, config_tenant2, "run-1")
@@ -231,7 +231,7 @@ class TestPrivacyWorkflow:
         raw_table = ibis.memtable(raw_data)
 
         # 2. Configure privacy
-        config = PrivacyConfig(
+        config = PrivacySettings(
             tenant_id="acme-corp",
             detect_pii=True,
         )
@@ -284,7 +284,7 @@ class TestPrivacyWorkflow:
             send_to_llm(raw_table, privacy_pass="forged")  # type: ignore[arg-type]
 
         # ✅ Must go through privacy gate
-        config = PrivacyConfig(tenant_id="test")
+        config = PrivacySettings(tenant_id="test")
         anonymized, valid_pass = PrivacyGate.run(raw_table, config, "run-1")
         result = send_to_llm(anonymized, privacy_pass=valid_pass)
 

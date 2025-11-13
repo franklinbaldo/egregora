@@ -27,7 +27,7 @@ Input Source → Ibis Table → Pipeline Stages → Output Format
 ```
 src/egregora/core/
 ├── input_source.py      # InputSource ABC and registry
-├── output_format.py     # OutputFormat ABC and registry
+├── output_format.py     # OutputAdapter ABC and registry
 └── registry.py          # Auto-registration of implementations
 
 src/egregora/ingestion/
@@ -44,7 +44,7 @@ src/egregora/init/
 ### Basic Usage
 
 ```python
-from egregora.core import input_registry, output_registry
+from egregora.data_primitives import input_registry, output_registry
 
 # List available sources and formats
 print(input_registry.list_sources())    # ['whatsapp', 'slack', ...]
@@ -80,7 +80,7 @@ The registries support auto-detection:
 
 ```python
 from pathlib import Path
-from egregora.core import input_registry, output_registry
+from egregora.data_primitives import input_registry, output_registry
 
 # Detect input source automatically
 source = input_registry.detect_source(Path("export.zip"))
@@ -169,7 +169,7 @@ def register_all():
 
 ```python
 from pathlib import Path
-from egregora.core import input_registry
+from egregora.data_primitives import input_registry
 
 # Get your source
 slack = input_registry.get_source('slack')
@@ -205,9 +205,9 @@ Create a new file: `src/egregora/init/<format>_output.py`
 ```python
 from pathlib import Path
 from typing import Any
-from egregora.core.output_format import OutputFormat, SiteConfiguration
+from egregora.core.output_format import OutputAdapter, SiteConfiguration
 
-class HugoOutputFormat(OutputFormat):
+class HugoOutputAdapter(OutputAdapter):
     @property
     def format_type(self) -> str:
         return "hugo"
@@ -273,19 +273,19 @@ class HugoOutputFormat(OutputFormat):
 Add to `src/egregora/core/registry.py`:
 
 ```python
-from ..init.hugo_output import HugoOutputFormat
+from ..init.hugo_output import HugoOutputAdapter
 
 def register_all():
     # ...
-    output_registry.register(MkDocsOutputFormat)
-    output_registry.register(HugoOutputFormat)  # ← Add this
+    output_registry.register(MkDocsOutputAdapter)
+    output_registry.register(HugoOutputAdapter)  # ← Add this
 ```
 
 ### Step 3: Test Your Implementation
 
 ```python
 from pathlib import Path
-from egregora.core import output_registry
+from egregora.data_primitives import output_registry
 
 # Get your format
 hugo = output_registry.get_format('hugo')
@@ -314,7 +314,7 @@ Here's a complete example using the abstraction layer:
 
 ```python
 from pathlib import Path
-from egregora.core import input_registry, output_registry
+from egregora.data_primitives import input_registry, output_registry
 
 # Parse input from any source
 source = input_registry.get_source('whatsapp')
@@ -463,7 +463,7 @@ write_post(content, metadata, output_dir)
 ### After
 
 ```python
-from egregora.core import input_registry, output_registry
+from egregora.data_primitives import input_registry, output_registry
 
 # New way - with auto-detection
 source = input_registry.detect_source(Path("export.zip"))
@@ -505,7 +505,7 @@ The old functions still work and are used internally by the abstraction layer, s
 ### Input Source Not Detected
 
 ```python
-from egregora.core import input_registry
+from egregora.data_primitives import input_registry
 
 # Check if registered
 print(input_registry.list_sources())
@@ -518,7 +518,7 @@ print(source.supports_format(Path("my-export.zip")))
 ### Output Format Not Detected
 
 ```python
-from egregora.core import output_registry
+from egregora.data_primitives import output_registry
 
 # Check if registered
 print(output_registry.list_formats())
@@ -533,7 +533,7 @@ print(output.supports_site(Path("my-site")))
 Make sure the registry is imported in your code:
 
 ```python
-from egregora.core import input_registry, output_registry
+from egregora.data_primitives import input_registry, output_registry
 # This triggers auto-registration
 ```
 

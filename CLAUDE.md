@@ -75,6 +75,82 @@ After each commit/push, reflect on:
 
 Ask permission to update CLAUDE.md with valuable insights (non-obvious fixes, architecture decisions, design tradeoffs).
 
+## Naming Conventions (Updated 2025-01)
+
+Egregora follows PEP 8 and Python idioms for clear, consistent naming across the codebase.
+
+### Module Names
+
+- **Use descriptive snake_case**: `file_system.py` not `filesystem.py`
+- **Be specific over generic**: `duckdb_manager.py` not `storage.py`, `writer_runner.py` not `core.py`
+- **Avoid redundant names**: `llm_tools.py` not `shared/shared.py`
+
+### Class Names
+
+**Configuration (Pydantic models in `config/settings.py`)**:
+- Pattern: `*Settings` for Pydantic BaseModel configs
+- Examples: `ModelSettings`, `RAGSettings`, `PipelineSettings`, `WriterAgentSettings`
+- Distinguishes Pydantic models (persisted) from runtime dataclasses (ephemeral)
+
+**Runtime contexts (dataclasses)**:
+- Pattern: `*Context` or `*Config` for runtime-only dataclasses
+- Examples: `WriterAgentContext`, `ProcessConfig`, `RuntimeContext`
+- Never persisted, used for function parameters
+
+**Database**:
+- Pattern: `{Technology}{Purpose}` for managers
+- Examples: `DuckDBStorageManager` not `StorageManager`
+- Pattern: `{Domain}{Type}` for data models
+- Examples: `IRMessageRow` not `IRv1Row`, `IR_MESSAGE_SCHEMA` not `IR_V1_SCHEMA`
+
+**Utils**:
+- Pattern: `*Settings` for configuration dataclasses
+- Example: `ZipValidationSettings` not `ZipValidationLimits`
+
+**Adapters (System Boundaries)**:
+- Pattern: `Input*` for bringing data INTO the pipeline, `Output*` for taking data OUT
+- Examples: `InputAdapter` not `SourceAdapter`, `OutputAdapter` not `OutputFormat`
+- Registries: `InputAdapterRegistry`, `OutputAdapterRegistry`
+- Implementations: `WhatsAppAdapter`, `SlackAdapter` (implement `InputAdapter`)
+- Implementations: `MkDocsOutputAdapter`, `HugoOutputAdapter` (implement `OutputAdapter`)
+- Rationale: Creates clear symmetry defining system boundaries (IN vs OUT)
+
+### Function Names
+
+- **Use explicit verbs**: `get_adapter_metadata()` not `adapter_meta()`
+- **Be descriptive**: `embed_texts_in_batch()` not `embed_batch()`
+- **Clarify purpose**: `embed_query_text()` not `embed_query()`
+
+### Variable Names
+
+- **Source-agnostic naming**: `input_file` not `zip_file`, `input_path` not `zip_path`
+- **Explicit thresholds**: `min_similarity_threshold` not `min_similarity`
+
+### File Renames Summary
+
+| Old                                | New                                    | Rationale                          |
+|------------------------------------|----------------------------------------|------------------------------------|
+| `config/schema.py`                 | `config/settings.py`                   | Settings not schema                |
+| `database/storage.py`              | `database/duckdb_manager.py`           | Explicit technology                |
+| `database/schemas.py`              | `database/ir_schema.py`                | Focus on IR                        |
+| `utils/filesystem.py`              | `utils/file_system.py`                 | PEP 8 snake_case                   |
+| `utils/dates.py`                   | `utils/time_utils.py`                  | Broader scope                      |
+| `agents/shared/shared.py`          | `agents/shared/llm_tools.py`           | Avoid redundancy                   |
+| `agents/shared/profiler.py`        | `agents/shared/author_profiles.py`     | Noun-based clarity                 |
+| `agents/writer/core.py`            | `agents/writer/writer_runner.py`       | Explicit role                      |
+| `agents/writer/context.py`         | `agents/writer/context_builder.py`     | Action-based naming                |
+| `agents/banner/generator.py`       | `agents/banner/image_generator.py`     | Content type explicit              |
+| `storage/output_format.py`         | `storage/output_adapter.py`            | Adapter not just format            |
+| `rendering/mkdocs_output_format.py` | `output_adapters/mkdocs_output_adapter.py` | Consistent adapter naming   |
+
+### Package Renames Summary
+
+| Old                | New                      | Rationale                                    |
+|--------------------|--------------------------|----------------------------------------------|
+| `core/` + `types.py` | `data_primitives/`     | Consolidates fundamental data models         |
+| `adapters/`        | `input_adapters/`        | Explicit: brings data INTO pipeline          |
+| `rendering/`       | `output_adapters/`       | Explicit: takes data OUT of pipeline         |
+
 ## Architecture: Staged Pipeline
 
 ```
@@ -82,14 +158,16 @@ Ingestion → Privacy → Augmentation → Knowledge ← Generation → Publicat
 Parse ZIP   UUIDs     LLM enrich      RAG/Elo     Writer      MkDocs
 ```
 
+These stages are coordinated by the **orchestration layer** (`orchestration/`), which provides high-level workflows like `write_pipeline.run()` that execute the complete sequence.
+
 ### Key Stages
 
-1. **Ingestion** (`sources/whatsapp/`, `ingestion/`): `parse_source()` → `CONVERSATION_SCHEMA`
+1. **Ingestion** (`sources/`, `input_adapters/`): `InputAdapter` → `parse()` → `CONVERSATION_SCHEMA`
 2. **Privacy** (`privacy/`): Names → UUIDs, PII detection BEFORE LLM
 3. **Augmentation** (`enrichment/`): LLM URL/media descriptions, profiles
 4. **Knowledge** (`agents/tools/`): RAG (DuckDB VSS), annotations, Elo rankings
 5. **Generation** (`agents/writer/`): Pydantic-AI agent with tools (write_post, profiles, RAG)
-6. **Publication** (`rendering/`): MkDocs + Jinja2 templates
+6. **Publication** (`output_adapters/`): `OutputAdapter` → `serve()` → MkDocs/Hugo/etc.
 
 ### Design Principles
 
@@ -121,9 +199,9 @@ Parse ZIP   UUIDs     LLM enrich      RAG/Elo     Writer      MkDocs
 - Register: `@views.register("my_view")`
 - Docs: `docs/pipeline/view-registry.md`
 
-**StorageManager (C.2)**:
+**DuckDBStorageManager (C.2)**:
 - Centralized DuckDB + parquet checkpointing
-- `with StorageManager() as storage:`
+- `with DuckDBStorageManager() as storage:`
 - `storage.write_table(table, "name", checkpoint=True)`
 - `storage.execute_view("output", builder, "input")`
 - Docs: `docs/database/storage-manager.md`
@@ -139,12 +217,6 @@ Parse ZIP   UUIDs     LLM enrich      RAG/Elo     Writer      MkDocs
 - Observability only (don't depend on for pipeline logic)
 - Docs: `docs/observability/runs-tracking.md`
 
-**OpenTelemetry (D.2)**:
-- Opt-in: `EGREGORA_OTEL=1`
-- Exporters: Logfire → OTLP → Console
-- No mandatory keys
-- Functions: `get_tracer()`, `get_current_trace_id()`
-
 **Agent Skill Injection (2025-01-11)**:
 - Sub-agents via `use_skill(ctx, "skill-name", "task")`
 - Skills in `.egregora/skills/*.md`
@@ -156,37 +228,101 @@ Parse ZIP   UUIDs     LLM enrich      RAG/Elo     Writer      MkDocs
 
 ## Code Structure
 
+**Three-Layer Functional Architecture**: The codebase follows clean architecture with explicit separation of concerns. **No PipelineStage abstraction** - all transformations are pure functions (Table → Table).
+
+### Why Functional?
+
+**ELIMINATED** (2025-01-12): `PipelineStage` class hierarchy. The OOP stage abstraction added unnecessary ceremony for what are fundamentally simple functional transformations. Benefits of removal:
+
+- ✅ **Simpler**: Functions > Classes for Table → Table transforms
+- ✅ **Explicit**: `orchestration/` sequences steps directly, no dynamic discovery
+- ✅ **Functional**: Embraces "Functional transforms: Table → Table" (Design Principles)
+- ✅ **Less boilerplate**: -811 lines of code, clearer intent
+
+**Validation** still enforced via `@validate_stage` decorator (now supports plain functions):
+
+```python
+from egregora.database import validate_stage
+
+@validate_stage
+def filter_messages(data: Table, min_length: int = 0) -> Table:
+    return data.filter(data.text.length() >= min_length)
+```
+
+### Three Layers
+
+**Layer 3: Business Workflows** (`orchestration/`)
+- High-level execution flows for user-facing commands
+- Explicitly sequences functional transformations
+- `write_pipeline.py`: Complete write workflow (ingest → process → generate → publish)
+
+**Layer 2: Infrastructure** (`transformations/`, `input_adapters/`, `output_adapters/`, `database/`)
+- **`transformations/`**: Pure functional data manipulation (windowing, media processing)
+- **`database/`**: Persistence, tracking, views, validation (infrastructure + state)
+- **`input_adapters/`**: Brings external data IN to the system
+- **`output_adapters/`**: Takes structured data OUT for publication
+
+**Layer 1: Foundation** (`data_primitives/`)
+- Core data models: Document, DocumentType, GroupSlug, PostSlug
+- Universal data types used across all layers
+
 ```
 src/egregora/
-├── cli.py                    # Entry point
-├── pipeline.py               # Windowing
-├── database/
-│   ├── schema.py            # All schemas
-│   ├── storage.py           # StorageManager (C.2)
-│   └── validation.py        # IR validation
-├── config/                   # Config dataclasses
-├── pipeline/
+├── cli.py                    # Entry point → delegates to orchestration/
+├── orchestration/            # BUSINESS WORKFLOWS (Layer 3)
+│   ├── write_pipeline.py    # Write workflow: ingest → process → generate → publish
+│   ├── read_pipeline.py     # (Future) Read agent workflow
+│   └── edit_pipeline.py     # (Future) Edit agent workflow
+├── data_primitives/          # FOUNDATION (Layer 1)
+│   ├── document.py          # Document, DocumentType, DocumentCollection
+│   └── base_types.py        # GroupSlug, PostSlug
+├── transformations/          # PURE FUNCTIONAL TRANSFORMATIONS (Layer 2)
+│   ├── windowing.py         # create_windows, Window, checkpointing
+│   └── media.py             # Media reference processing
+├── database/                 # INFRASTRUCTURE & STATE (Layer 2)
+│   ├── ir_schema.py         # IR schema definitions
+│   ├── duckdb_manager.py    # DuckDB connection management (C.2)
+│   ├── validation.py        # Schema validation, @validate_stage decorator
 │   ├── views.py             # View registry (C.1)
-│   ├── tracking.py          # Run tracking (D.1)
-│   └── checkpoint.py        # Content-addressed checkpointing
-├── ingestion/base.py         # Generic interfaces
-├── sources/whatsapp/         # WhatsApp-specific
-├── privacy/                  # Anonymization, PII
-├── enrichment/               # LLM enrichment
+│   └── tracking.py          # Run tracking & observability (D.1)
+├── config/
+│   ├── settings.py          # Pydantic settings models
+│   └── ...                  # Other config files
+├── sources/                  # InputAdapter base protocol
+├── input_adapters/           # INPUT ADAPTERS (Layer 2)
+│   ├── whatsapp.py          # WhatsAppAdapter
+│   └── slack.py             # SlackAdapter
+├── privacy/                  # Anonymization, PII detection
+├── enrichment/               # LLM-powered enrichment
 ├── agents/
-│   ├── writer/              # Main agent
+│   ├── writer/
+│   │   ├── writer_runner.py # Agent coordination
+│   │   ├── context_builder.py # Prompt building
+│   │   └── agent.py         # Pydantic-AI writer agent
+│   ├── banner/
+│   │   └── image_generator.py # Banner/hero image generation
+│   ├── shared/
+│   │   ├── llm_tools.py     # Shared LLM utilities
+│   │   ├── author_profiles.py # Author profiling
+│   │   └── rag/             # RAG implementation
 │   ├── editor/              # Post refinement
-│   ├── ranking/             # Elo
-│   └── tools/               # RAG, annotations, profiler, skills
-├── utils/
-│   ├── telemetry.py         # OpenTelemetry (D.2)
-│   └── cache.py             # DiskCache
-└── rendering/               # MkDocs + templates
+│   ├── ranking/             # Elo ranking
+│   └── tools/               # Agent skills & tool injection
+├── output_adapters/          # OUTPUT ADAPTERS (Layer 2)
+│   ├── base.py              # OutputAdapter protocol
+│   ├── mkdocs_output_adapter.py  # MkDocs implementation
+│   └── mkdocs_site.py       # MkDocs site structure
+├── storage/                  # Output adapter base implementations
+│   └── output_adapter.py    # Shared adapter logic
+└── utils/
+    ├── file_system.py       # File utilities
+    ├── time_utils.py        # Date/time utilities
+    └── cache.py             # DiskCache
 ```
 
 ## Database Schemas
 
-All in `database/schema.py`:
+All in `database/ir_schema.py`:
 
 **Ephemeral** (in-memory):
 - `CONVERSATION_SCHEMA`: Pipeline data (timestamp, author, message, etc.)
@@ -254,7 +390,7 @@ settings = AnthropicModelSettings(anthropic_thinking={'type': 'enabled', 'budget
 **Token tracking**: `tokens_input`, `tokens_output`, `tokens_cache_*`, `tokens_thinking`, `tokens_reasoning`
 
 **Journal entries**: Auto-saved to `output/journal/journal_*.md`
-- Intercalated log: thinking + freeform + tool calls/returns
+- Intercalated log: thinking + journal entries + tool calls/returns
 - YAML frontmatter with timestamp
 - Benefits: transparency, debugging, audit trail, continuity
 
@@ -296,6 +432,47 @@ logging.basicConfig(level=logging.DEBUG)
 # Check VSS extension
 conn.execute("SELECT * FROM duckdb_extensions() WHERE extension_name = 'vss'")
 ```
+
+## Slug Collision Behavior (OutputFormat)
+
+**P1 Badge Response**: The `serve()` method has **intentional overwriting behavior** for slug-based paths.
+
+### Design Rationale
+
+**Posts** (slug + date):
+- Path: `posts/YYYY-MM-DD-{slug}.md`
+- Collision: **Overwrites** (second post with same slug+date replaces first)
+- Rationale: Posts are identified by (slug, date), not content. Writing the same slug twice should UPDATE the file, like `UPDATE` in SQL or `PUT` in REST. This is idempotent publishing.
+
+**Profiles** (UUID):
+- Path: `profiles/{uuid}.md`
+- Collision: **Overwrites** (updating profile for same UUID)
+- Rationale: Profiles are identified by UUID. Updating a user's profile should replace the existing file, not create duplicates.
+
+**Enrichment URLs** (content hash):
+- Path: `enrichments/{hash}.md`
+- Collision: **Detects and resolves** with suffix (`{hash}-1.md`)
+- Rationale: Hash collisions are rare but theoretically possible. Resolution adds numeric suffix.
+
+### Error Reporting (Future Enhancement)
+
+Currently `serve()` returns `None` (fire-and-forget). If collision reporting is needed:
+
+**Option 1**: Add optional return type (backward compatible)
+```python
+def serve(self, document: Document) -> ServeResult | None:
+    """Returns ServeResult if error, None if success."""
+```
+
+**Option 2**: Use exceptions for errors
+```python
+def serve(self, document: Document) -> None:
+    """Raises ServeError on collision (if strict mode enabled)."""
+    if strict and path.exists():
+        raise SlugCollisionError(...)
+```
+
+**Decision**: DEFER until needed. Current overwriting behavior is correct for idempotent publishing.
 
 ## TENET-BREAK Philosophy
 

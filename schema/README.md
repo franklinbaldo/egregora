@@ -24,7 +24,7 @@ Run the validation script to verify code schema matches lockfiles:
 python scripts/check_ir_schema.py
 ```
 
-This script compares `src/egregora/database/validation.py:IR_V1_SCHEMA` against `schema/ir_v1.json`.
+This script compares `src/egregora/database/validation.py:IR_MESSAGE_SCHEMA` against `schema/ir_v1.json`.
 
 ### Making Schema Changes
 
@@ -32,29 +32,29 @@ If you need to modify the IR schema:
 
 1. **Consider breaking changes**: If this is a breaking change, increment to `ir_v2.sql` / `ir_v2.json`
 
-2. **Update code schema**: Modify `src/egregora/database/validation.py:IR_V1_SCHEMA`
+2. **Update code schema**: Modify `src/egregora/database/validation.py:IR_MESSAGE_SCHEMA`
 
 3. **Update lockfiles**:
    ```bash
    # Update SQL schema
    vim schema/ir_v1.sql
-   
+
    # Update JSON schema to match code
    python -c "
    import json
    from pathlib import Path
    import sys
    sys.path.insert(0, 'src')
-   from egregora.database.validation import IR_V1_SCHEMA
-   
+   from egregora.database.validation import IR_MESSAGE_SCHEMA
+
    data = {
        'version': '1.1.0',  # Increment version
        'columns': {
            col: {
-               'type': str(IR_V1_SCHEMA[col]).split('(')[0].upper(),
-               'nullable': IR_V1_SCHEMA[col].nullable
+               'type': str(IR_MESSAGE_SCHEMA[col]).split('(')[0].upper(),
+               'nullable': IR_MESSAGE_SCHEMA[col].nullable
            }
-           for col in IR_V1_SCHEMA.names
+           for col in IR_MESSAGE_SCHEMA.names
        }
    }
    Path('schema/ir_v1.json').write_text(json.dumps(data, indent=2))

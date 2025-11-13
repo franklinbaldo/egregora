@@ -26,7 +26,7 @@ The **View Registry** provides a centralized system for managing pipeline view b
 ## Architecture
 
 ```python
-from egregora.pipeline.views import views, ViewRegistry
+from egregora.database.views import views, ViewRegistry
 
 # View builders are callables: Table → Table
 ViewBuilder = Callable[[Table], Table]
@@ -52,7 +52,7 @@ def my_stage(table: Table) -> Table:
 **Option 1: Decorator** (recommended)
 
 ```python
-from egregora.pipeline.views import views
+from egregora.database.views import views
 
 @views.register("enriched_messages")
 def enriched_messages(ir: Table) -> Table:
@@ -63,7 +63,7 @@ def enriched_messages(ir: Table) -> Table:
 **Option 2: Direct registration**
 
 ```python
-from egregora.pipeline.views import views
+from egregora.database.views import views
 
 def my_filter(ir: Table) -> Table:
     return ir.limit(100)
@@ -74,7 +74,7 @@ views.register_function("limited", my_filter)
 ### Using Views in Pipeline Stages
 
 ```python
-from egregora.pipeline.views import views
+from egregora.database.views import views
 
 def chunking_stage(ir_table: Table) -> Table:
     """Chunk messages into windows."""
@@ -140,7 +140,7 @@ The global registry includes these common views:
 **Usage:**
 
 ```python
-from egregora.pipeline.views import views
+from egregora.database.views import views
 
 # Get built-in view
 media_filter = views.get("messages_with_media")
@@ -152,7 +152,7 @@ result = media_filter(my_table)
 Register custom views specific to your pipeline:
 
 ```python
-from egregora.pipeline.views import views
+from egregora.database.views import views
 
 @views.register("high_engagement")
 def high_engagement_filter(ir: Table) -> Table:
@@ -178,7 +178,7 @@ def recent_month_filter(ir: Table) -> Table:
 ```python
 def test_my_stage():
     """Test pipeline stage with mocked view."""
-    from egregora.pipeline.views import ViewRegistry
+    from egregora.database.views import ViewRegistry
 
     # Create test registry
     test_views = ViewRegistry()
@@ -257,7 +257,7 @@ A view builder:
 **Global registry singleton:**
 
 ```python
-from egregora.pipeline.views import views
+from egregora.database.views import views
 
 # Pre-registered with common views
 views.list_views()
@@ -357,7 +357,7 @@ def chunking_stage(ir_table: Table) -> Table:
 **After (with registry):**
 
 ```python
-from egregora.pipeline.views import views
+from egregora.database.views import views
 
 def chunking_stage(ir_table: Table) -> Table:
     # Reference by name

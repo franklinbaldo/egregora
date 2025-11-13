@@ -109,7 +109,7 @@ class SystemIdentifier(str, Enum):
     ANONYMOUS_USER = "anonymous"
 
 
-class OutputFormat(str, Enum):
+class OutputAdapter(str, Enum):
     """Output format options for data export."""
 
     TABLE = "table"

@@ -4,7 +4,7 @@
 docs/
 dist/
 tests/
-CLAUDE.md
+
 GEMINI.md
 AGENTS.md
 
@@ -67,3 +67,4 @@ CHANGELOG.md
 CONTRIBUTING.md
 LICENSE
 README.md
+uv.lock

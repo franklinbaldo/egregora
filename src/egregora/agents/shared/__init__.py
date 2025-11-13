@@ -3,12 +3,10 @@
 This package contains tools that agents use to perform their tasks:
 - rag: Retrieval augmented generation
 - annotations: Conversation annotation storage
-- profiler: Author profiling
-- shared: Common tool functions (edit_line, query_rag, etc.)
+- author_profiles: Author profiling and active user tracking
 """
 
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.shared.profiler import get_active_authors
-from egregora.agents.shared.shared import AVAILABLE_TOOLS
+from egregora.agents.shared.author_profiles import get_active_authors
 
-__all__ = ["AVAILABLE_TOOLS", "AnnotationStore", "get_active_authors"]
+__all__ = ["AnnotationStore", "get_active_authors"]

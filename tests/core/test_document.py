@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from egregora.core.document import Document, DocumentCollection, DocumentType
+from egregora.data_primitives.document import Document, DocumentCollection, DocumentType
 
 
 class TestDocumentIdentity:

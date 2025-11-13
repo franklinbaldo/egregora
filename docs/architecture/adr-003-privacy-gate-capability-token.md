@@ -140,7 +140,7 @@ class PrivacyGate:
     @staticmethod
     def run(
         table: ibis.Table,
-        config: PrivacyConfig,
+        config: PrivacySettings,
         run_id: str,
     ) -> tuple[ibis.Table, PrivacyPass]:
         """Execute privacy gate and issue capability token.
@@ -179,11 +179,11 @@ class PrivacyGate:
         return anonymized, privacy_pass
 ```
 
-### PrivacyConfig: Tenant-Scoped Policy
+### PrivacySettings: Tenant-Scoped Policy
 
 ```python
 @dataclass(frozen=True, slots=True)
-class PrivacyConfig:
+class PrivacySettings:
     """Privacy policy configuration (immutable, tenant-scoped)."""
 
     tenant_id: str
@@ -322,7 +322,7 @@ egregora privacy reidentify \
 **Week 1**:
 
 ```python
-# Add PrivacyPass and PrivacyConfig (new code)
+# Add PrivacyPass and PrivacySettings (new code)
 # src/egregora/privacy/gate.py
 
 # Do NOT modify existing functions yet
@@ -350,7 +350,7 @@ def test_privacy_pass_immutability():
 def write_posts_with_pydantic_agent(
     prompt: str,
     config: EgregoraConfig,
-    context: WriterRuntimeContext,
+    context: WriterAgentContext,
     *,
     privacy_pass: PrivacyPass,  # New required parameter
 ) -> list[Path]:
@@ -460,7 +460,7 @@ def test_decorator_enforcement():
 def test_privacy_gate_issues_valid_token():
     """PrivacyGate.run() creates valid PrivacyPass."""
     table = create_test_table()
-    config = PrivacyConfig(tenant_id="test")
+    config = PrivacySettings(tenant_id="test")
 
     anonymized, privacy_pass = PrivacyGate.run(table, config, run_id="test-run")
 
@@ -474,8 +474,8 @@ def test_tenant_isolation():
     """Different tenants get different privacy passes."""
     table = create_test_table()
 
-    config_a = PrivacyConfig(tenant_id="tenant-a")
-    config_b = PrivacyConfig(tenant_id="tenant-b")
+    config_a = PrivacySettings(tenant_id="tenant-a")
+    config_b = PrivacySettings(tenant_id="tenant-b")
 
     _, pass_a = PrivacyGate.run(table, config_a, run_id="run-1")
     _, pass_b = PrivacyGate.run(table, config_b, run_id="run-1")
@@ -535,7 +535,7 @@ def test_tenant_isolation():
 
 ```python
 # Tenant A's token
-_, pass_a = PrivacyGate.run(table_a, PrivacyConfig(tenant_id="tenant-a"), "run-1")
+_, pass_a = PrivacyGate.run(table_a, PrivacySettings(tenant_id="tenant-a"), "run-1")
 
 # Tenant B tries to use Tenant A's token
 process_tenant_b_data(table_b, privacy_pass=pass_a)  # 🚨 Cross-tenant leak?

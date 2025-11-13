@@ -2,7 +2,7 @@
 
 import ibis
 
-from egregora.pipeline.validation import IR_SCHEMA, create_ir_table, validate_ir_schema
+from egregora.database.validation import IR_MESSAGE_SCHEMA, create_ir_table, validate_ir_schema
 
 
 class TestIRSchema:
@@ -19,7 +19,7 @@ class TestIRSchema:
             "tagged_line",
             "message_id",
         }
-        assert set(IR_SCHEMA.keys()) == required_fields
+        assert set(IR_MESSAGE_SCHEMA.keys()) == required_fields
 
     def test_validate_ir_schema_with_valid_table(self):
         """Validation should pass for a table conforming to IR schema."""
@@ -35,7 +35,7 @@ class TestIRSchema:
                 "message_id": "123",
             }
         ]
-        table = ibis.memtable(data, schema=ibis.schema(IR_SCHEMA))
+        table = ibis.memtable(data, schema=ibis.schema(IR_MESSAGE_SCHEMA))
 
         is_valid, errors = validate_ir_schema(table)
 
@@ -147,12 +147,12 @@ class TestIRSchemaContract:
 
     def test_ir_schema_has_timestamp_with_timezone(self):
         """IR schema timestamp must include timezone information."""
-        timestamp_dtype = IR_SCHEMA["timestamp"]
+        timestamp_dtype = IR_MESSAGE_SCHEMA["timestamp"]
         assert timestamp_dtype.timezone is not None
 
     def test_ir_schema_message_id_is_nullable(self):
         """IR schema message_id must be nullable for flexibility."""
-        message_id_dtype = IR_SCHEMA["message_id"]
+        message_id_dtype = IR_MESSAGE_SCHEMA["message_id"]
         assert message_id_dtype.nullable
 
     def test_ir_schema_core_fields_not_nullable(self):
@@ -161,7 +161,7 @@ class TestIRSchemaContract:
         core_fields = ["timestamp", "date", "author", "message"]
 
         for field in core_fields:
-            IR_SCHEMA[field]
+            IR_MESSAGE_SCHEMA[field]
             # Most dtypes default to nullable=False
             # We just check they exist, not strict nullability as it's schema-dependent
-            assert field in IR_SCHEMA
+            assert field in IR_MESSAGE_SCHEMA

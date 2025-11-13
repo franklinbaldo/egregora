@@ -45,12 +45,12 @@ Active authors: {{ active_authors }}
 {{ rag_context }}
 {% endif %}
 
-{% if freeform_memory %}
+{% if journal_memory %}
 ## Continuity Memory From Previous Period
 
 You wrote the following memo last period. Treat it as your raw memory:
 
-{{ freeform_memory }}
+{{ journal_memory }}
 {% else %}
 ## Continuity Memory From Previous Period
 
@@ -187,7 +187,7 @@ Keep memes relevant and don't overuse them. One well-placed meme can be more eff
 
 ## Freeform Continuity Journal (Mandatory)
 
-After you finish all tool calls (posts and profile updates), end the session with a single freeform memo emitted as plain markdown content (no tool call).
+After you finish all tool calls (posts and profile updates), end the session with a single journal memo emitted as plain markdown content (no tool call).
 
 - Title it clearly, e.g. `# Continuity Journal — {{ date }}`.
 - Explain **how and why** you wrote each post, calling out decisions and trade-offs.

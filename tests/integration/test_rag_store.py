@@ -137,7 +137,9 @@ def test_add_accepts_memtable_from_default_backend(tmp_path, monkeypatch):
             )
             store.add(second_batch)
 
-            stored_rows = store.get_all().order_by("chunk_id").execute()
+            # Read directly from parquet to verify data was stored
+            stored_table = store._client.read_parquet(store.parquet_path)
+            stored_rows = stored_table.order_by("chunk_id").execute()
             assert list(stored_rows["chunk_id"]) == ["chunk-1", "chunk-2"]
         finally:
             store.close()
@@ -462,7 +464,7 @@ def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
         baseline = store.search(
             query_vec=query_vector,
             top_k=5,
-            min_similarity=0.0,
+            min_similarity_threshold=0.0,
             mode="exact",
         ).execute()
         # Use set comparison since order depends on random embeddings
@@ -471,7 +473,7 @@ def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
         filtered_by_date = store.search(
             query_vec=query_vector,
             top_k=5,
-            min_similarity=0.0,
+            min_similarity_threshold=0.0,
             mode="exact",
             date_after=date(2024, 1, 1),
         ).execute()
@@ -481,7 +483,7 @@ def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
         filtered_by_datetime = store.search(
             query_vec=query_vector,
             top_k=5,
-            min_similarity=0.0,
+            min_similarity_threshold=0.0,
             mode="exact",
             date_after=datetime(2023, 12, 31, 18, 0),
         ).execute()
@@ -491,7 +493,7 @@ def test_search_filters_accept_temporal_inputs(tmp_path, monkeypatch):
         filtered_with_timezone = store.search(
             query_vec=query_vector,
             top_k=5,
-            min_similarity=0.0,
+            min_similarity_threshold=0.0,
             mode="exact",
             date_after="2023-12-31T23:00:00+00:00",
         ).execute()

@@ -23,30 +23,30 @@ from egregora.agents.shared.annotations import ANNOTATION_AUTHOR, Annotation, An
 logger = logging.getLogger(__name__)
 
 
-def _write_freeform_markdown(content: str, date: str, output_dir: Path) -> Path:
-    """Persist freeform LLM responses that skipped tool calls."""
-    freeform_dir = output_dir / "freeform"
-    freeform_dir.mkdir(parents=True, exist_ok=True)
+def _write_journal_markdown(content: str, date: str, output_dir: Path) -> Path:
+    """Persist journal LLM responses that skipped tool calls."""
+    journal_dir = output_dir / "journal"
+    journal_dir.mkdir(parents=True, exist_ok=True)
     base_name = f"{date}-freeform"
-    candidate_path = freeform_dir / f"{base_name}.md"
+    candidate_path = journal_dir / f"{base_name}.md"
     suffix = 1
     while candidate_path.exists():
         suffix += 1
-        candidate_path = freeform_dir / f"{base_name}-{suffix}.md"
+        candidate_path = journal_dir / f"{base_name}-{suffix}.md"
     normalized_content = content.strip()
     front_matter = "\n".join(
-        ["---", f"title: Freeform Response ({date})", f"date: {date}", "---", "", normalized_content, ""]
+        ["---", f"title: Journal Response ({date})", f"date: {date}", "---", "", normalized_content, ""]
     )
     candidate_path.write_text(front_matter, encoding="utf-8")
     return candidate_path
 
 
-def _load_freeform_memory(output_dir: Path) -> str:
-    """Return the latest freeform memo content (if any)."""
-    freeform_dir = output_dir / "freeform"
-    if not freeform_dir.exists():
+def _load_journal_memory(output_dir: Path) -> str:
+    """Return the latest journal memo content (if any)."""
+    journal_dir = output_dir / "journal"
+    if not journal_dir.exists():
         return ""
-    files = sorted(freeform_dir.glob("*.md"))
+    files = sorted(journal_dir.glob("*.md"))
     if not files:
         return ""
     latest = max(files, key=lambda path: path.stat().st_mtime)
