@@ -20,7 +20,8 @@ def test_annotation_to_document_roundtrip_metadata():
     document = annotation.to_document()
 
     assert document.type is DocumentType.ANNOTATION
-    assert document.content == annotation.commentary
+    assert document.content.endswith(annotation.commentary)
+    assert "annotation_id: 42" in document.content
     assert document.metadata["annotation_id"] == str(annotation.id)
     assert document.metadata["title"] == "Annotation 42"
     assert document.metadata["parent_id"] == annotation.parent_id
@@ -38,3 +39,30 @@ def test_store_iterates_annotations_as_documents(tmp_path):
 
     assert [doc.metadata["annotation_id"] for doc in documents] == [str(note_a.id), str(note_b.id)]
     assert all(doc.type is DocumentType.ANNOTATION for doc in documents)
+
+
+def test_annotation_documents_preserve_unique_identity():
+    created_at = datetime(2025, 1, 11, 12, 30, tzinfo=UTC)
+    first = Annotation(
+        id=1,
+        parent_id="message-123",
+        parent_type="message",
+        author=ANNOTATION_AUTHOR,
+        commentary="TODO",
+        created_at=created_at,
+    )
+    second = Annotation(
+        id=2,
+        parent_id="message-456",
+        parent_type="message",
+        author=ANNOTATION_AUTHOR,
+        commentary="TODO",
+        created_at=created_at,
+    )
+
+    doc_a = first.to_document()
+    doc_b = second.to_document()
+
+    assert doc_a.document_id != doc_b.document_id
+    assert doc_a.content.endswith(first.commentary)
+    assert doc_b.content.endswith(second.commentary)

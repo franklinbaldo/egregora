@@ -146,8 +146,16 @@ class Annotation:
             "parent_type": self.parent_type,
             "author": self.author,
         }
+        identity_header = (
+            "<!--\n"
+            f"annotation_id: {self.id}\n"
+            f"parent_type: {self.parent_type}\n"
+            f"parent_id: {self.parent_id}\n"
+            "-->\n\n"
+        )
+
         return Document(
-            content=self.commentary,
+            content=f"{identity_header}{self.commentary}",
             type=DocumentType.ANNOTATION,
             metadata=metadata,
             created_at=self.created_at,
