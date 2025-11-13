@@ -8,12 +8,15 @@ from egregora.output_adapters.hugo import HugoOutputAdapter
 # Modern Document-based implementation in mkdocs_output_adapter.py (used directly by writer)
 # Storage implementations shared via mkdocs_storage.py (used by both MkDocs and Hugo)
 from egregora.output_adapters.mkdocs import MkDocsOutputAdapter
+from egregora.output_adapters.eleventy_arrow_adapter import EleventyArrowOutputAdapter
 
 # Register output formats on module import
 output_registry.register(MkDocsOutputAdapter)
 output_registry.register(HugoOutputAdapter)
+output_registry.register(EleventyArrowOutputAdapter)
 
 __all__ = [
+    "EleventyArrowOutputAdapter",
     "HugoOutputAdapter",
     "MkDocsOutputAdapter",
     "OutputAdapter",
