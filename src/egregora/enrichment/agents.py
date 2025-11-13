@@ -216,7 +216,6 @@ def make_url_agent(
     model_name: str, prompts_dir: Path | None = None
 ) -> Agent[UrlEnrichmentDeps, EnrichmentOut]:
     """Create a URL enrichment agent using Jinja templates with grounding enabled."""
-
     model_settings = GoogleModelSettings(google_tools=[{"url_context": {}}])
 
     agent = Agent[UrlEnrichmentDeps, EnrichmentOut](
@@ -237,7 +236,6 @@ def make_media_agent(
     model_name: str, prompts_dir: Path | None = None
 ) -> Agent[MediaEnrichmentDeps, EnrichmentOut]:
     """Create a minimal media enrichment agent using Jinja templates."""
-
     agent = Agent[MediaEnrichmentDeps, EnrichmentOut](
         model=model_name,
         output_type=EnrichmentOut,
@@ -253,7 +251,6 @@ def make_media_agent(
 
 def _sanitize_prompt_input(text: str, max_length: int = 2000) -> str:
     """Sanitize user input for LLM prompts to prevent prompt injection."""
-
     text = text[:max_length]
     cleaned = "".join(char for char in text if char.isprintable() or char in "\n\t")
     return "\n".join(line for line in cleaned.split("\n") if line.strip())
@@ -263,7 +260,6 @@ def run_url_enrichment(
     agent: Agent[UrlEnrichmentDeps, EnrichmentOut], url: str | AnyUrl, prompts_dir: Path | None = None
 ) -> str:
     """Run URL enrichment with grounding to fetch actual content."""
-
     url_str = str(url)
     sanitized_url = _sanitize_prompt_input(url_str, max_length=2000)
 
@@ -286,11 +282,8 @@ def run_media_enrichment(
     prompts_dir: Path | None = None,
 ) -> str:
     """Run media enrichment with a single agent call."""
-
     deps = MediaEnrichmentDeps(prompts_dir=prompts_dir)
-    desc = (
-        "Describe this media file in 2-3 sentences, highlighting what a reader would learn by viewing it."
-    )
+    desc = "Describe this media file in 2-3 sentences, highlighting what a reader would learn by viewing it."
     sanitized_filename = _sanitize_prompt_input(file_path.name, max_length=255)
     sanitized_mime = _sanitize_prompt_input(mime_hint, max_length=50) if mime_hint else None
     hint_text = f" ({sanitized_mime})" if sanitized_mime else ""

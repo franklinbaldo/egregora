@@ -436,9 +436,9 @@ def download_avatar_from_url(
     else:
         return (avatar_uuid, avatar_path)
 
+
 def _ensure_datetime(timestamp: datetime | str) -> datetime:
     """Ensure timestamp is a datetime object."""
-
     if isinstance(timestamp, datetime):
         return timestamp
     if isinstance(timestamp, str):
@@ -465,7 +465,6 @@ def _enrich_avatar(
     context: AvatarContext,
 ) -> None:
     """Enrich avatar with LLM description using the media enrichment agent."""
-
     cache_key = make_enrichment_cache_key(kind="media", identifier=str(avatar_path))
     if context.cache:
         cached = context.cache.load(cache_key)
@@ -534,7 +533,6 @@ def _download_avatar_from_command(
     context: AvatarContext,
 ) -> str:
     """Download avatar from URL in command value and enrich it."""
-
     if not value:
         msg = "Avatar command requires a URL value"
         raise AvatarProcessingError(msg)
@@ -555,7 +553,6 @@ def process_avatar_commands(
     context: AvatarContext,
 ) -> dict[str, str]:
     """Process all avatar commands from messages table."""
-
     logger.info("Processing avatar commands from messages")
     commands = extract_commands(messages_table)
     avatar_commands = [cmd for cmd in commands if cmd.get("command", {}).get("target") == "avatar"]
@@ -598,7 +595,6 @@ def _process_set_avatar_command(
     value: str | None = None,
 ) -> str:
     """Process a 'set avatar' command with enrichment."""
-
     logger.info("Processing 'set avatar' command for %s", author_uuid)
     try:
         avatar_url = _download_avatar_from_command(value, author_uuid, timestamp, context)
@@ -620,7 +616,6 @@ def _process_set_avatar_command(
 
 def _process_unset_avatar_command(author_uuid: str, timestamp: str, profiles_dir: Path) -> str:
     """Process an 'unset avatar' command."""
-
     logger.info("Processing 'unset avatar' command for %s", author_uuid)
     try:
         remove_profile_avatar(author_uuid=author_uuid, timestamp=str(timestamp), profiles_dir=profiles_dir)

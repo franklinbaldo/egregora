@@ -12,10 +12,11 @@ import os
 import re
 import tempfile
 import uuid
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import TYPE_CHECKING, Any
 
 import ibis
 from google.genai import types as genai_types
@@ -42,9 +43,9 @@ from egregora.utils import BatchPromptRequest, BatchPromptResult, make_enrichmen
 if TYPE_CHECKING:
     import pandas as pd
     import pyarrow as pa
+    from ibis.backends.duckdb import Backend as DuckDBBackend
 
     from egregora.utils.cache import EnrichmentCache
-    from ibis.backends.duckdb import Backend as DuckDBBackend
 else:  # pragma: no cover - runtime aliases for type checking only
     EnrichmentCache = Any
     DuckDBBackend = Any
@@ -92,7 +93,6 @@ class MediaEnrichmentJob:
 
 def _ensure_datetime(value: datetime | pd.Timestamp) -> datetime:
     """Convert pandas/ibis timestamp objects to ``datetime``."""
-
     if hasattr(value, "to_pydatetime"):
         return value.to_pydatetime()
     return value
@@ -100,14 +100,12 @@ def _ensure_datetime(value: datetime | pd.Timestamp) -> datetime:
 
 def _safe_timestamp_plus_one(timestamp: datetime | pd.Timestamp) -> datetime:
     """Return timestamp + 1 second, handling pandas/ibis types."""
-
     dt_value = _ensure_datetime(timestamp)
     return dt_value + timedelta(seconds=1)
 
 
 def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Convert backend frames into dict records consistently."""
-
     if hasattr(frame, "to_dict"):
         return [dict(row) for row in frame.to_dict("records")]
     if hasattr(frame, "to_pylist"):
@@ -123,7 +121,6 @@ def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> 
 
 def _iter_table_record_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
     """Stream table rows as batches of dictionaries without loading entire table into memory."""
-
     from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 
     try:
@@ -150,7 +147,6 @@ def _iter_table_record_batches(table: Table, batch_size: int = 1000) -> Iterator
 
 def _table_to_pylist(table: Table) -> list[dict[str, Any]]:
     """Convert an Ibis table to a list of dictionaries without heavy dependencies."""
-
     results: list[dict[str, Any]] = []
     for batch in _iter_table_record_batches(table):
         results.extend(batch)
@@ -161,7 +157,6 @@ def build_batch_requests(
     records: list[dict[str, Any]], model: str, *, include_file: bool = False
 ) -> list[BatchPromptRequest]:
     """Convert prompt records into ``BatchPromptRequest`` objects."""
-
     requests: list[BatchPromptRequest] = []
     for record in records:
         parts = [genai_types.Part(text=record["prompt"])]
@@ -188,7 +183,6 @@ def build_batch_requests(
 
 def map_batch_results(responses: list[BatchPromptResult]) -> dict[str | None, BatchPromptResult]:
     """Return a mapping from result tag to the ``BatchPromptResult``."""
-
     return {result.tag: result for result in responses}
 
 
@@ -207,7 +201,6 @@ class SimpleEnrichmentResult:
 
 def _atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> None:
     """Write text to a file atomically to prevent partial writes during concurrent runs."""
-
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temp_path = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
@@ -232,7 +225,6 @@ def _create_enrichment_row(
     enrichment_id_str: str,
 ) -> dict[str, Any] | None:
     """Create an enrichment row for a given URL or media reference."""
-
     first_msg = (
         messages_table.filter(messages_table.message.contains(search_text))
         .order_by(messages_table.timestamp)
@@ -263,7 +255,6 @@ def _process_single_url(
     prompts_dir: Path | None,
 ) -> tuple[str | None, str]:
     """Process a single URL for enrichment."""
-
     cache_key = make_enrichment_cache_key(kind="url", identifier=url)
 
     cache_entry = cache.load(cache_key)
@@ -296,7 +287,6 @@ def _process_single_media(
     prompts_dir: Path | None,
 ) -> tuple[str | None, str, bool]:
     """Process a single media file for enrichment."""
-
     lookup_result = media_filename_lookup.get(ref)
     if not lookup_result:
         return None, "", False
@@ -361,7 +351,6 @@ def _enrich_urls(
     max_enrichments: int,
 ) -> list[dict[str, Any]]:
     """Extract and enrich URLs from messages table."""
-
     new_rows: list[dict[str, Any]] = []
     enrichment_count = 0
 
@@ -396,7 +385,6 @@ def _enrich_urls(
 
 def _build_media_filename_lookup(media_mapping: dict[str, Path]) -> dict[str, tuple[str, Path]]:
     """Build a lookup dict mapping media filenames to (original_filename, file_path)."""
-
     lookup: dict[str, tuple[str, Path]] = {}
     for original_filename, file_path in media_mapping.items():
         lookup[original_filename] = (original_filename, file_path)
@@ -408,7 +396,6 @@ def _extract_media_references(
     messages_table: Table, media_filename_lookup: dict[str, tuple[str, Path]]
 ) -> set[str]:
     """Extract unique media references from messages table."""
-
     media_messages = messages_table.filter(messages_table.message.notnull()).execute()
     unique_media: set[str] = set()
 
@@ -440,7 +427,6 @@ def _enrich_media(
     enrichment_count: int,
 ) -> tuple[list[dict[str, Any]], int, bool]:
     """Extract and enrich media from messages table."""
-
     new_rows: list[dict[str, Any]] = []
     pii_detected_count = 0
     pii_media_deleted = False
@@ -497,7 +483,6 @@ def _combine_enrichment_tables(
     new_rows: list[dict[str, Any]],
 ) -> Table:
     """Combine messages table with enrichment rows."""
-
     schema = CONVERSATION_SCHEMA
     messages_table_filtered = messages_table.select(*schema.names)
     messages_table_filtered = messages_table_filtered.mutate(
@@ -521,7 +506,6 @@ def _persist_to_duckdb(
     target_table: str,
 ) -> None:
     """Persist enriched table to DuckDB."""
-
     if not re.fullmatch("[A-Za-z_][A-Za-z0-9_]*", target_table):
         msg = "target_table must be a valid DuckDB identifier"
         raise ValueError(msg)
@@ -556,7 +540,6 @@ def enrich_table_simple(
     context: EnrichmentRuntimeContext,
 ) -> Table:
     """Add LLM-generated enrichment rows using thin-agent pattern."""
-
     url_model = config.models.enricher
     vision_model = config.models.enricher_vision
     max_enrichments = config.enrichment.max_enrichments
@@ -645,7 +628,6 @@ def enrich_table(
     context: EnrichmentRuntimeContext,
 ) -> Table:
     """Add LLM-generated enrichment rows to Table for URLs and media."""
-
     return enrich_table_simple(
         messages_table=messages_table,
         media_mapping=media_mapping,
@@ -658,9 +640,9 @@ __all__ = [
     "EnrichmentRuntimeContext",
     "MediaEnrichmentJob",
     "UrlEnrichmentJob",
+    "_iter_table_record_batches",
     "build_batch_requests",
     "enrich_table",
     "enrich_table_simple",
     "map_batch_results",
-    "_iter_table_record_batches",
 ]
