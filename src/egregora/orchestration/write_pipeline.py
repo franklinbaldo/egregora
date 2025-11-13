@@ -711,6 +711,21 @@ def _setup_content_directories(site_paths: any) -> None:
     }
 
     for label, directory in content_dirs.items():
+        if label == "media":
+            try:
+                directory.relative_to(site_paths.docs_dir)
+            except ValueError:
+                try:
+                    directory.relative_to(site_paths.site_root)
+                except ValueError as exc:
+                    msg = (
+                        "Media directory must reside inside the MkDocs docs_dir or the site root. "
+                        f"Expected parent {site_paths.docs_dir} or {site_paths.site_root}, got {directory}."
+                    )
+                    raise ValueError(msg) from exc
+            directory.mkdir(parents=True, exist_ok=True)
+            continue
+
         try:
             directory.relative_to(site_paths.docs_dir)
         except ValueError as exc:
