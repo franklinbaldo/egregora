@@ -39,8 +39,8 @@ from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
-from egregora.output_adapters.mkdocs_site import resolve_site_paths
 from egregora.input_adapters.whatsapp.parser import extract_commands, filter_egregora_messages
+from egregora.output_adapters.mkdocs_site import resolve_site_paths
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.transformations.media import process_media_for_window
 from egregora.utils.cache import EnrichmentCache

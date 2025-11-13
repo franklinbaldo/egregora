@@ -15,7 +15,9 @@ Example:
     >>> from egregora.input_adapters import get_global_registry
     >>> registry = get_global_registry()
     >>> adapter = registry.get("whatsapp")
+
 """
+
 from egregora.input_adapters.base import InputAdapter
 from egregora.input_adapters.registry import InputAdapterRegistry, get_global_registry
 from egregora.input_adapters.slack import SlackAdapter

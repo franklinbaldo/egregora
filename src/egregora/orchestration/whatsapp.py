@@ -1,4 +1,3 @@
-
 """WhatsApp-specific orchestration helpers."""
 
 from __future__ import annotations
@@ -19,11 +18,10 @@ logger = logging.getLogger(__name__)
 
 def discover_chat_file(zip_path: Path) -> tuple[str, str]:
     """Find the chat .txt file in the ZIP and extract group name."""
-
     with zipfile.ZipFile(zip_path) as zf:
         candidates: list[tuple[int, str, str]] = []
         for member in zf.namelist():
-            if member.endswith('.txt') and not member.startswith('__'):
+            if member.endswith(".txt") and not member.startswith("__"):
                 pattern = r"WhatsApp(?: Chat with|.*) (.+)\.txt"
                 match = re.match(pattern, Path(member).name)
                 file_info = zf.getinfo(member)
@@ -44,10 +42,10 @@ def discover_chat_file(zip_path: Path) -> tuple[str, str]:
 
 def process_whatsapp_export(
     zip_path: Path,
-    output_dir: Path = Path('output'),
+    output_dir: Path = Path("output"),
     *,
     step_size: int = 100,
-    step_unit: str = 'messages',
+    step_unit: str = "messages",
     overlap_ratio: float = 0.2,
     enable_enrichment: bool = True,
     from_date: date | None = None,
@@ -56,7 +54,7 @@ def process_whatsapp_export(
     gemini_api_key: str | None = None,
     model: str | None = None,
     batch_threshold: int = 10,
-    retrieval_mode: str = 'ann',
+    retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
     max_prompt_tokens: int = 100_000,
@@ -64,7 +62,6 @@ def process_whatsapp_export(
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """Public entry point for WhatsApp exports."""
-
     from egregora.config.settings import load_egregora_config
     from egregora.orchestration import write_pipeline
 
@@ -76,37 +73,35 @@ def process_whatsapp_export(
     egregora_config = base_config.model_copy(
         deep=True,
         update={
-            'pipeline': base_config.pipeline.model_copy(
+            "pipeline": base_config.pipeline.model_copy(
                 update={
-                    'step_size': step_size,
-                    'step_unit': step_unit,
-                    'overlap_ratio': overlap_ratio,
-                    'timezone': str(timezone) if timezone else None,
-                    'from_date': from_date.isoformat() if from_date else None,
-                    'to_date': to_date.isoformat() if to_date else None,
-                    'batch_threshold': batch_threshold,
-                    'max_prompt_tokens': max_prompt_tokens,
-                    'use_full_context_window': use_full_context_window,
+                    "step_size": step_size,
+                    "step_unit": step_unit,
+                    "overlap_ratio": overlap_ratio,
+                    "timezone": str(timezone) if timezone else None,
+                    "from_date": from_date.isoformat() if from_date else None,
+                    "to_date": to_date.isoformat() if to_date else None,
+                    "batch_threshold": batch_threshold,
+                    "max_prompt_tokens": max_prompt_tokens,
+                    "use_full_context_window": use_full_context_window,
                 },
             ),
-            'enrichment': base_config.enrichment.model_copy(update={'enabled': enable_enrichment}),
-            'rag': base_config.rag.model_copy(
+            "enrichment": base_config.enrichment.model_copy(update={"enabled": enable_enrichment}),
+            "rag": base_config.rag.model_copy(
                 update={
-                    'mode': retrieval_mode,
-                    'nprobe': retrieval_nprobe if retrieval_nprobe is not None else base_config.rag.nprobe,
-                    'overfetch': (
-                        retrieval_overfetch
-                        if retrieval_overfetch is not None
-                        else base_config.rag.overfetch
+                    "mode": retrieval_mode,
+                    "nprobe": retrieval_nprobe if retrieval_nprobe is not None else base_config.rag.nprobe,
+                    "overfetch": (
+                        retrieval_overfetch if retrieval_overfetch is not None else base_config.rag.overfetch
                     ),
                 },
             ),
         },
     )
 
-    logger.debug('Starting WhatsApp pipeline for zip=%s output=%s', zip_path, output_dir)
+    logger.debug("Starting WhatsApp pipeline for zip=%s output=%s", zip_path, output_dir)
     return write_pipeline.run(
-        source='whatsapp',
+        source="whatsapp",
         input_path=zip_path,
         output_dir=output_dir,
         config=egregora_config,

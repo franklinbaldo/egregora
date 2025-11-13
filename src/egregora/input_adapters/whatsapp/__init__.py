@@ -1,4 +1,3 @@
-
 """WhatsApp input adapter and parsing utilities."""
 
 from __future__ import annotations
@@ -38,7 +37,7 @@ class DeliverMediaKwargs(TypedDict, total=False):
 
 
 ATTACHMENT_MARKERS = ("(arquivo anexado)", "(file attached)", "(archivo adjunto)", "‎<attached:")
-WA_MEDIA_PATTERN = re.compile("\b((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)\b")
+WA_MEDIA_PATTERN = re.compile("\b((?:IMG|VID|AUD|PTT|DOC)-\\d+-WA\\d+\\.\\w+)\b")
 MEDIA_EXTENSIONS = {
     ".jpg": "image",
     ".jpeg": "image",
@@ -62,14 +61,12 @@ MEDIA_EXTENSIONS = {
 
 def _detect_media_type(filename: str) -> str:
     """Detect media type from filename for markdown alt text."""
-
     ext = Path(filename).suffix.lower()
     return MEDIA_EXTENSIONS.get(ext, "file")
 
 
 def _convert_whatsapp_media_to_markdown(message: str) -> str:
     """Convert WhatsApp media references to markdown format."""
-
     if not message:
         return message
     result = message
@@ -87,7 +84,7 @@ def _convert_whatsapp_media_to_markdown(message: str) -> str:
         else:
             markdown = f"[File]({filename})"
         for marker in ATTACHMENT_MARKERS:
-            pattern = re.escape(filename) + "\s*" + re.escape(marker)
+            pattern = re.escape(filename) + r"\s*" + re.escape(marker)
             result = re.sub(pattern, markdown, result, flags=re.IGNORECASE)
         if filename in result and markdown not in result:
             result = re.sub("\b" + re.escape(filename) + "\b", markdown, result)
@@ -107,7 +104,6 @@ class WhatsAppAdapter(InputAdapter):
 
     def get_adapter_metadata(self) -> AdapterMeta:
         """Return adapter metadata for plugin discovery."""
-
         return AdapterMeta(
             name="WhatsApp",
             version="1.0.0",
@@ -118,7 +114,6 @@ class WhatsAppAdapter(InputAdapter):
 
     def parse(self, input_path: Path, *, timezone: str | None = None, **_kwargs: _EmptyKwargs) -> Table:
         """Parse WhatsApp ZIP export into an IR-compliant table."""
-
         if not input_path.exists():
             msg = f"Input path does not exist: {input_path}"
             raise FileNotFoundError(msg)
@@ -150,16 +145,16 @@ class WhatsAppAdapter(InputAdapter):
 
     def get_metadata(self, input_path: Path, **_kwargs: Unpack[_EmptyKwargs]) -> dict[str, Any]:
         """Extract metadata for the WhatsApp export."""
-
         group_name, chat_file = discover_chat_file(input_path)
         return {
             "group_name": group_name,
             "chat_file": chat_file,
         }
 
-    def extract_media(self, input_path: Path, output_dir: Path, **_kwargs: Unpack[_EmptyKwargs]) -> dict[str, Path]:
+    def extract_media(
+        self, input_path: Path, output_dir: Path, **_kwargs: Unpack[_EmptyKwargs]
+    ) -> dict[str, Path]:
         """Extract media files bundled with the WhatsApp export."""
-
         media_mapping: dict[str, Path] = {}
         with zipfile.ZipFile(input_path) as archive:
             for member in archive.namelist():
@@ -182,7 +177,10 @@ class WhatsAppAdapter(InputAdapter):
         **kwargs: Unpack[DeliverMediaKwargs],
     ) -> None:
         """Deliver a single media file on demand."""
-
         zip_path = kwargs.get("zip_path", input_path)
-        with zipfile.ZipFile(zip_path) as archive, archive.open(media_path.name) as source, output_path.open("wb") as target:
+        with (
+            zipfile.ZipFile(zip_path) as archive,
+            archive.open(media_path.name) as source,
+            output_path.open("wb") as target,
+        ):
             target.write(source.read())

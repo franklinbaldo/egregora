@@ -28,8 +28,9 @@ from dateutil import parser as date_parser
 from egregora.constants import EgregoraCommand
 from egregora.database.ir_schema import MESSAGE_SCHEMA, ensure_message_schema
 from egregora.privacy.anonymizer import anonymize_table
-from .grammar import parse_whatsapp_line
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
+
+from .grammar import parse_whatsapp_line
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
