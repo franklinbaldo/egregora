@@ -302,7 +302,11 @@ def test_week1_schema_lockfile_validation():
 
 def test_week1_uuid5_namespaces_immutable():
     """Validate UUID5 namespaces are immutable (locked on 2025-01-08)."""
-    from egregora.privacy.constants import NAMESPACE_AUTHOR, NAMESPACE_EVENT, NAMESPACE_THREAD
+    from egregora.privacy.uuid_namespaces import (
+        NAMESPACE_AUTHOR,
+        NAMESPACE_EVENT,
+        NAMESPACE_THREAD,
+    )
 
     # These UUIDs MUST NOT change (locked in Week 1)
     # Generated on 2025-01-08 and frozen for deterministic identity mapping

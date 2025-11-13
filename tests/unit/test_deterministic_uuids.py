@@ -14,7 +14,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from egregora.privacy.constants import (
+from egregora.privacy.uuid_namespaces import (
     EGREGORA_NAMESPACE,
     NAMESPACE_AUTHOR,
     NAMESPACE_EVENT,
