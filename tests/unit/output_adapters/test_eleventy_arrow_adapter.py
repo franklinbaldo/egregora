@@ -3,10 +3,12 @@
 import tempfile
 from pathlib import Path
 
+import ibis
 import pyarrow.parquet as pq
 import pytest
 
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.output_adapters import create_output_format
 from egregora.output_adapters.eleventy_arrow_adapter import EleventyArrowAdapter
 
 
@@ -195,3 +197,37 @@ def test_list_documents():
         # Filter by type
         posts = adapter.list_documents(doc_type=DocumentType.POST)
         assert len(posts) == 3
+
+
+def test_create_output_format_registers_eleventy_arrow(tmp_path: Path):
+    """create_output_format should instantiate the Eleventy Arrow adapter."""
+
+    site_root = tmp_path
+    adapter = create_output_format(site_root, format_type="eleventy-arrow")
+
+    assert adapter.format_type == "eleventy-arrow"
+
+    window_ctx = adapter.prepare_window("window_0") or {"window_index": 0}
+
+    doc = Document(
+        content="# Title\n\nBody",
+        type=DocumentType.POST,
+        metadata={"title": "Title", "slug": "post-1"},
+        source_window="window_0",
+    )
+
+    adapter.serve(doc)
+    adapter.finalize_window("window_0", [], [], window_ctx)
+
+    parquet_path = site_root / "data" / "window_0.parquet"
+    assert parquet_path.exists()
+
+    table = adapter.list_documents()
+    assert isinstance(table, ibis.expr.types.Table)
+    assert table.count().execute() == 1
+
+    df = table.execute()
+    identifier = df.iloc[0]["storage_identifier"]
+    cache_path = adapter.resolve_document_path(identifier)
+    assert cache_path.exists()
+    assert "Title" in cache_path.read_text(encoding="utf-8")
