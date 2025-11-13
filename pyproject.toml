@@ -26,7 +26,6 @@ dependencies = [
     "pydantic-evals[logfire]>=1.0.17",
     "httpx>=0.27.0", # HTTP client for avatar downloads with SSRF protection
     "pillow>=10.0.0", # Image processing for avatar validation (dimensions, format verification)
-    "pyparsing>=3.1.0", # Parser combinators for WhatsApp message parsing (Phase 5)
 ]
 
 [project.optional-dependencies]
