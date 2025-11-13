@@ -122,6 +122,7 @@ def parse_source(export: WhatsAppExport, timezone: str | ZoneInfo | None = None)
 
     Returns:
         Parsed and anonymized Table conforming to MESSAGE_SCHEMA
+
     """
     with zipfile.ZipFile(export.zip_path) as zf:
         validate_zip_contents(zf)
@@ -335,4 +336,4 @@ def _add_message_ids(messages: Table) -> Table:
     return messages.mutate(message_id=delta_ms.cast("string") + "_" + row_number.cast("string"))
 
 
-__all__ = ["parse_source", "parse_multiple"]
+__all__ = ["parse_multiple", "parse_source"]

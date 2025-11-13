@@ -18,8 +18,6 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
-import ibis
-
 from egregora.constants import EgregoraCommand
 from egregora.sources.whatsapp.parser_sql import parse_multiple as _parse_multiple_impl
 from egregora.sources.whatsapp.parser_sql import parse_source as _parse_source_impl
