@@ -21,8 +21,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
 from pathlib import Path
-from urllib.parse import urlparse
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import ibis
@@ -384,6 +384,8 @@ def _perform_enrichment(
         config,
         enrichment_context,
     )
+
+
 def _create_database_backends(
     site_root: Path,
     config: EgregoraConfig,
@@ -444,9 +446,7 @@ def _create_database_backends(
     runtime_db_uri, pipeline_backend = _validate_and_connect(
         config.database.pipeline_db, "database.pipeline_db"
     )
-    runs_db_uri, runs_backend = _validate_and_connect(
-        config.database.runs_db, "database.runs_db"
-    )
+    runs_db_uri, runs_backend = _validate_and_connect(config.database.runs_db, "database.runs_db")
 
     return runtime_db_uri, pipeline_backend, runs_backend
 
