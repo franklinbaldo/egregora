@@ -170,17 +170,28 @@ class WhatsAppAdapter(InputAdapter):
 
     def deliver_media(
         self,
-        *,
-        input_path: Path,
-        media_path: Path,
-        output_path: Path,
+        media_reference: str,
+        temp_dir: Path,
         **kwargs: Unpack[DeliverMediaKwargs],
-    ) -> None:
+    ) -> Path | None:
         """Deliver a single media file on demand."""
-        zip_path = kwargs.get("zip_path", input_path)
-        with (
-            zipfile.ZipFile(zip_path) as archive,
-            archive.open(media_path.name) as source,
-            output_path.open("wb") as target,
-        ):
-            target.write(source.read())
+        zip_path = kwargs.get("zip_path")
+        if zip_path is None:
+            logger.warning("zip_path keyword argument is required to deliver WhatsApp media")
+            return None
+
+        try:
+            with zipfile.ZipFile(zip_path) as archive:
+                for member in archive.namelist():
+                    if Path(member).name != media_reference:
+                        continue
+                    target_path = temp_dir / Path(media_reference).name
+                    with archive.open(member) as source, target_path.open("wb") as target:
+                        target.write(source.read())
+                    return target_path
+        except FileNotFoundError:
+            logger.warning("WhatsApp export ZIP not found at %s", zip_path)
+            return None
+
+        logger.debug("Media reference '%s' not present in WhatsApp archive", media_reference)
+        return None
