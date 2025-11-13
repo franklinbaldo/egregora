@@ -3,10 +3,9 @@
 import tempfile
 from pathlib import Path
 
+import ibis
 import pyarrow.parquet as pq
 import pytest
-
-import ibis
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.output_adapters import create_output_format
@@ -211,7 +210,7 @@ def test_create_output_format_registers_eleventy_arrow(tmp_path: Path):
     window_ctx = adapter.prepare_window("window_0") or {"window_index": 0}
 
     doc = Document(
-        content="# Title\n\nBody", 
+        content="# Title\n\nBody",
         type=DocumentType.POST,
         metadata={"title": "Title", "slug": "post-1"},
         source_window="window_0",

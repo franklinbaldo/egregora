@@ -21,10 +21,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import ibis
 import pyarrow as pa
 import pyarrow.parquet as pq
-
-import ibis
 import yaml
 
 if TYPE_CHECKING:
@@ -38,14 +37,12 @@ logger = logging.getLogger(__name__)
 
 def _ensure_cache_dir(path: Path) -> Path:
     """Ensure the cache directory exists and return it."""
-
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def _default_documents_table() -> ibis.expr.types.Table:
     """Return an empty documents table with correct schema."""
-
     schema = ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"})
     return ibis.memtable([], schema=schema)
 
@@ -478,10 +475,12 @@ class EleventyArrowOutputAdapter(OutputAdapter):
         rows = []
         for document in self._document_cache.values():
             mtime_ns = int(document.created_at.timestamp() * 1_000_000_000)
-            rows.append({
-                "storage_identifier": document.document_id,
-                "mtime_ns": mtime_ns,
-            })
+            rows.append(
+                {
+                    "storage_identifier": document.document_id,
+                    "mtime_ns": mtime_ns,
+                }
+            )
 
         return ibis.memtable(rows)
 
@@ -534,7 +533,9 @@ class EleventyArrowOutputAdapter(OutputAdapter):
 
     @property
     def enrichments(self) -> Any:  # type: ignore[override]
-        msg = "EleventyArrowOutputAdapter does not expose legacy EnrichmentStorage; use serve() with Document."
+        msg = (
+            "EleventyArrowOutputAdapter does not expose legacy EnrichmentStorage; use serve() with Document."
+        )
         raise RuntimeError(msg)
 
     # ===== Modern document-based helpers =====
@@ -584,7 +585,6 @@ class EleventyArrowOutputAdapter(OutputAdapter):
 
 def _copytree(src: Path, dst: Path) -> None:
     """Copy directory tree while preserving existing files."""
-
     if src.is_file():
         dst.parent.mkdir(parents=True, exist_ok=True)
         dst.write_bytes(src.read_bytes())
