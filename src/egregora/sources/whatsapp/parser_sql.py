@@ -45,7 +45,7 @@ _IMPORT_SOURCE_COLUMN = "_import_source"
 # MUST have author and colon (to match pyparsing behavior)
 # Groups: (date, time, author, message)
 WHATSAPP_LINE_PATTERN = re.compile(
-    r"^(\d{1,2}[/\.\-]\d{1,2}[/\.\-]\d{2,4})\s+(\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)\s*[—\-]\s*([^:]+):\s*(.*)$"
+    r"^(\d{1,2}[/\.\-]\d{1,2}[/\.\-]\d{2,4})(?:,\s*|\s+)(\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)\s*[—\-]\s*([^:]+):\s*(.*)$"
 )
 
 # Text normalization
