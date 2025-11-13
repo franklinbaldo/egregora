@@ -397,13 +397,10 @@ class EleventyArrowOutputAdapter(OutputAdapter):
         was_created = not eleventy_root.exists()
         eleventy_root.mkdir(parents=True, exist_ok=True)
 
-        # Copy template files (idempotent)
+        # Copy template files without clobbering user customizations
         for item in template_dir.iterdir():
             target = eleventy_root / item.name
-            if item.is_dir():
-                _copytree(item, target)
-            else:
-                target.write_bytes(item.read_bytes())
+            _copytree(item, target)
 
         # Ensure data directory exists for Parquet output
         (site_root / "data").mkdir(parents=True, exist_ok=True)
@@ -586,6 +583,8 @@ class EleventyArrowOutputAdapter(OutputAdapter):
 def _copytree(src: Path, dst: Path) -> None:
     """Copy directory tree while preserving existing files."""
     if src.is_file():
+        if dst.exists():
+            return
         dst.parent.mkdir(parents=True, exist_ok=True)
         dst.write_bytes(src.read_bytes())
         return
@@ -593,7 +592,4 @@ def _copytree(src: Path, dst: Path) -> None:
     dst.mkdir(parents=True, exist_ok=True)
     for child in src.iterdir():
         target = dst / child.name
-        if child.is_dir():
-            _copytree(child, target)
-        else:
-            target.write_bytes(child.read_bytes())
+        _copytree(child, target)
