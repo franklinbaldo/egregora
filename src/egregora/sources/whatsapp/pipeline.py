@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 def discover_chat_file(zip_path: Path) -> tuple[str, str]:
     """Find the chat .txt file in the ZIP archive and infer the group name."""
-
     with zipfile.ZipFile(zip_path) as zf:
         candidates: list[tuple[int, str, str]] = []
         for member in zf.namelist():
@@ -67,7 +66,6 @@ def process_whatsapp_export(
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """Delegate to the orchestration pipeline for WhatsApp ZIP exports."""
-
     from egregora.orchestration.write_pipeline import process_whatsapp_export as _process
 
     return _process(

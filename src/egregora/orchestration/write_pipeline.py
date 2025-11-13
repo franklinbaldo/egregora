@@ -41,7 +41,6 @@ from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_co
 from egregora.enrichment.core import EnrichmentRuntimeContext
 from egregora.input_adapters import get_adapter
 from egregora.output_adapters.mkdocs_site import resolve_site_paths
-from egregora.sources.whatsapp.pipeline import discover_chat_file
 from egregora.sources.whatsapp.parser import extract_commands, filter_egregora_messages
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.transformations.media import process_media_for_window
@@ -50,7 +49,7 @@ from egregora.utils.cache import EnrichmentCache
 if TYPE_CHECKING:
     import ibis.expr.types as ir
 logger = logging.getLogger(__name__)
-__all__ = ["run", "process_whatsapp_export"]
+__all__ = ["process_whatsapp_export", "run"]
 
 
 def process_whatsapp_export(
@@ -75,7 +74,6 @@ def process_whatsapp_export(
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """High-level helper for processing WhatsApp ZIP exports using :func:`run`."""
-
     output_dir = output_dir.expanduser().resolve()
     site_paths = resolve_site_paths(output_dir)
 
@@ -100,15 +98,9 @@ def process_whatsapp_export(
             "rag": base_config.rag.model_copy(
                 update={
                     "mode": retrieval_mode,
-                    "nprobe": (
-                        retrieval_nprobe
-                        if retrieval_nprobe is not None
-                        else base_config.rag.nprobe
-                    ),
+                    "nprobe": (retrieval_nprobe if retrieval_nprobe is not None else base_config.rag.nprobe),
                     "overfetch": (
-                        retrieval_overfetch
-                        if retrieval_overfetch is not None
-                        else base_config.rag.overfetch
+                        retrieval_overfetch if retrieval_overfetch is not None else base_config.rag.overfetch
                     ),
                 }
             ),
