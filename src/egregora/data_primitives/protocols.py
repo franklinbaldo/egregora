@@ -1,0 +1,52 @@
+"""Protocols that define storage and URL contracts for output adapters."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Protocol, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from egregora.data_primitives.document import Document, DocumentType
+
+
+@dataclass(frozen=True, slots=True)
+class UrlContext:
+    """Context information required when generating canonical URLs."""
+
+    base_url: str = ""
+    site_prefix: str = ""
+    base_path: Path | None = None
+    locale: str | None = None
+
+
+class UrlConvention(Protocol):
+    """Contract for deterministic URL generation strategies."""
+
+    @property
+    def name(self) -> str:
+        """Return a short identifier describing the convention."""
+
+    @property
+    def version(self) -> str:
+        """Return a semantic version or timestamp string for compatibility checks."""
+
+    def canonical_url(self, document: Document, ctx: UrlContext) -> str:
+        """Calculate the canonical URL for ``document`` within ``ctx``."""
+
+
+class OutputAdapter(Protocol):
+    """Unified protocol for publishing and retrieving documents."""
+
+    @property
+    def url_convention(self) -> UrlConvention:
+        """Return the URL convention adopted by this adapter."""
+
+    def serve(self, document: Document) -> None:
+        """Publish ``document`` so that it becomes available at its canonical URL."""
+
+    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
+        """Retrieve a single document by its ``doc_type`` primary identifier."""
+
+    def list_documents(self, doc_type: DocumentType | None = None) -> list[Document]:
+        """Return all known documents, optionally filtered by ``doc_type``."""

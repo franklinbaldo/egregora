@@ -127,7 +127,7 @@ def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
     import yaml
 
     from egregora.init.scaffolding import ensure_mkdocs_project
-    from egregora.output_adapters.mkdocs_site import _ConfigLoader
+    from egregora.output_adapters.mkdocs.adapter import _ConfigLoader
 
     # Create site
     ensure_mkdocs_project(tmp_path)
