@@ -8,20 +8,24 @@ from __future__ import annotations
 
 import logging
 import mimetypes
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel
+from pydantic import AnyUrl, BaseModel
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
+from pydantic_ai.models.google import GoogleModelSettings
 
 from egregora.prompt_templates import (
     AvatarEnrichmentPromptTemplate,
     DetailedMediaEnrichmentPromptTemplate,
     DetailedUrlEnrichmentPromptTemplate,
+    MediaEnrichmentPromptTemplate,
+    UrlEnrichmentPromptTemplate,
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from pydantic_ai.result import RunResult
 logger = logging.getLogger(__name__)
 
 
@@ -183,3 +187,131 @@ def load_file_as_binary_content(file_path: Path, max_size_mb: int = 20) -> Binar
         media_type = "application/octet-stream"
     file_bytes = file_path.read_bytes()
     return BinaryContent(data=file_bytes, media_type=media_type)
+
+
+# ---------------------------------------------------------------------------
+# Thin agent helpers (one agent per enrichment call)
+
+
+class EnrichmentOut(BaseModel):
+    """Structured output for thin enrichment agents."""
+
+    markdown: str
+
+
+class UrlEnrichmentDeps(BaseModel):
+    """Dependencies for URL enrichment agent."""
+
+    url: str
+    prompts_dir: Path | None = None
+
+
+class MediaEnrichmentDeps(BaseModel):
+    """Dependencies for media enrichment agent."""
+
+    prompts_dir: Path | None = None
+
+
+def make_url_agent(
+    model_name: str, prompts_dir: Path | None = None
+) -> Agent[UrlEnrichmentDeps, EnrichmentOut]:
+    """Create a URL enrichment agent using Jinja templates with grounding enabled."""
+    model_settings = GoogleModelSettings(google_tools=[{"url_context": {}}])
+
+    agent = Agent[UrlEnrichmentDeps, EnrichmentOut](
+        model=model_name,
+        output_type=EnrichmentOut,
+        model_settings=model_settings,
+    )
+
+    @agent.system_prompt
+    def url_system_prompt(ctx: RunContext[UrlEnrichmentDeps]) -> str:
+        template = UrlEnrichmentPromptTemplate(url=ctx.deps.url, prompts_dir=ctx.deps.prompts_dir)
+        return template.render()
+
+    return agent
+
+
+def make_media_agent(
+    model_name: str, prompts_dir: Path | None = None
+) -> Agent[MediaEnrichmentDeps, EnrichmentOut]:
+    """Create a minimal media enrichment agent using Jinja templates."""
+    agent = Agent[MediaEnrichmentDeps, EnrichmentOut](
+        model=model_name,
+        output_type=EnrichmentOut,
+    )
+
+    @agent.system_prompt
+    def media_system_prompt(ctx: RunContext[MediaEnrichmentDeps]) -> str:
+        template = MediaEnrichmentPromptTemplate(prompts_dir=ctx.deps.prompts_dir)
+        return template.render()
+
+    return agent
+
+
+def _sanitize_prompt_input(text: str, max_length: int = 2000) -> str:
+    """Sanitize user input for LLM prompts to prevent prompt injection."""
+    text = text[:max_length]
+    cleaned = "".join(char for char in text if char.isprintable() or char in "\n\t")
+    return "\n".join(line for line in cleaned.split("\n") if line.strip())
+
+
+def run_url_enrichment(
+    agent: Agent[UrlEnrichmentDeps, EnrichmentOut], url: str | AnyUrl, prompts_dir: Path | None = None
+) -> str:
+    """Run URL enrichment with grounding to fetch actual content."""
+    url_str = str(url)
+    sanitized_url = _sanitize_prompt_input(url_str, max_length=2000)
+
+    deps = UrlEnrichmentDeps(url=url_str, prompts_dir=prompts_dir)
+    prompt = (
+        "Fetch and summarize the content at this URL. Include the main topic, key points, and any important metadata "
+        "(author, date, etc.).\n\nURL: {sanitized_url}"
+    )
+    prompt = prompt.format(sanitized_url=sanitized_url)
+
+    result: RunResult[EnrichmentOut] = agent.run_sync(prompt, deps=deps)
+    output = getattr(result, "data", getattr(result, "output", result))
+    return output.markdown.strip()
+
+
+def run_media_enrichment(
+    agent: Agent[MediaEnrichmentDeps, EnrichmentOut],
+    file_path: Path,
+    mime_hint: str | None = None,
+    prompts_dir: Path | None = None,
+) -> str:
+    """Run media enrichment with a single agent call."""
+    deps = MediaEnrichmentDeps(prompts_dir=prompts_dir)
+    desc = "Describe this media file in 2-3 sentences, highlighting what a reader would learn by viewing it."
+    sanitized_filename = _sanitize_prompt_input(file_path.name, max_length=255)
+    sanitized_mime = _sanitize_prompt_input(mime_hint, max_length=50) if mime_hint else None
+    hint_text = f" ({sanitized_mime})" if sanitized_mime else ""
+    prompt = f"{desc}\nFILE: {sanitized_filename}{hint_text}"
+
+    binary_content: BinaryContent = load_file_as_binary_content(file_path)
+    message_content = [prompt, binary_content]
+
+    result: RunResult[EnrichmentOut] = agent.run_sync(message_content, deps=deps)
+    output = getattr(result, "data", getattr(result, "output", result))
+    return output.markdown.strip()
+
+
+__all__ = [
+    "AvatarEnrichmentContext",
+    "AvatarModerationOutput",
+    "EnrichmentOut",
+    "EnrichmentOutput",
+    "MediaEnrichmentContext",
+    "MediaEnrichmentDeps",
+    "UrlEnrichmentContext",
+    "UrlEnrichmentDeps",
+    "create_avatar_enrichment_agent",
+    "create_media_enrichment_agent",
+    "create_url_enrichment_agent",
+    "load_file_as_binary_content",
+    "make_media_agent",
+    "make_url_agent",
+    "run_media_enrichment",
+    "run_url_enrichment",
+]

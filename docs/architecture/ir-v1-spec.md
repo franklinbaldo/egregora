@@ -334,7 +334,7 @@ All UUIDs are generated using deterministic UUID5 to ensure stability across re-
 ### Namespace Constants
 
 ```python
-# src/egregora/privacy/constants.py
+# src/egregora/privacy/uuid_namespaces.py
 
 import uuid
 

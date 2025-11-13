@@ -32,15 +32,15 @@ from egregora.agents.shared.author_profiles import filter_opted_out_authors, pro
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config import get_model_for_task
-from egregora.config.settings import EgregoraConfig
+from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database import RUN_EVENTS_SCHEMA
 from egregora.database.tracking import fingerprint_window, get_git_commit_sha
 from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
-from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
-from egregora.enrichment.core import EnrichmentRuntimeContext
+from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
+from egregora.enrichment.runners import EnrichmentRuntimeContext
 from egregora.input_adapters import get_adapter
-from egregora.output_adapters.mkdocs_site import resolve_site_paths
+from egregora.output_adapters.mkdocs import resolve_site_paths
 from egregora.sources.whatsapp.parser import extract_commands, filter_egregora_messages
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.transformations.media import process_media_for_window
@@ -49,7 +49,73 @@ from egregora.utils.cache import EnrichmentCache
 if TYPE_CHECKING:
     import ibis.expr.types as ir
 logger = logging.getLogger(__name__)
-__all__ = ["run"]
+__all__ = ["process_whatsapp_export", "run"]
+
+
+def process_whatsapp_export(
+    zip_path: Path,
+    output_dir: Path = Path("output"),
+    *,
+    step_size: int = 100,
+    step_unit: str = "messages",
+    overlap_ratio: float = 0.2,
+    enable_enrichment: bool = True,
+    from_date: date_type | None = None,
+    to_date: date_type | None = None,
+    timezone: str | ZoneInfo | None = None,
+    gemini_api_key: str | None = None,
+    model: str | None = None,
+    batch_threshold: int = 10,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
+    max_prompt_tokens: int = 100_000,
+    use_full_context_window: bool = False,
+    client: genai.Client | None = None,
+) -> dict[str, dict[str, list[str]]]:
+    """High-level helper for processing WhatsApp ZIP exports using :func:`run`."""
+    output_dir = output_dir.expanduser().resolve()
+    site_paths = resolve_site_paths(output_dir)
+
+    base_config = load_egregora_config(site_paths.site_root)
+    egregora_config = base_config.model_copy(
+        deep=True,
+        update={
+            "pipeline": base_config.pipeline.model_copy(
+                update={
+                    "step_size": step_size,
+                    "step_unit": step_unit,
+                    "overlap_ratio": overlap_ratio,
+                    "timezone": str(timezone) if timezone else None,
+                    "from_date": from_date.isoformat() if from_date else None,
+                    "to_date": to_date.isoformat() if to_date else None,
+                    "batch_threshold": batch_threshold,
+                    "max_prompt_tokens": max_prompt_tokens,
+                    "use_full_context_window": use_full_context_window,
+                }
+            ),
+            "enrichment": base_config.enrichment.model_copy(update={"enabled": enable_enrichment}),
+            "rag": base_config.rag.model_copy(
+                update={
+                    "mode": retrieval_mode,
+                    "nprobe": (retrieval_nprobe if retrieval_nprobe is not None else base_config.rag.nprobe),
+                    "overfetch": (
+                        retrieval_overfetch if retrieval_overfetch is not None else base_config.rag.overfetch
+                    ),
+                }
+            ),
+        },
+    )
+
+    return run(
+        source="whatsapp",
+        input_path=zip_path,
+        output_dir=output_dir,
+        config=egregora_config,
+        api_key=gemini_api_key,
+        model_override=model,
+        client=client,
+    )
 
 
 @dataclass
