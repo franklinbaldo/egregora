@@ -220,38 +220,38 @@ def stub_enrichment_agents(monkeypatch):
         return f"Stub enrichment for {media_path}"
 
     monkeypatch.setattr(
-        "egregora.enrichment.thin_agents.make_url_agent",
+        "egregora.enrichment.agents.make_url_agent",
         lambda model, prompts_dir=None: _stub_url_agent(model, prompts_dir),
     )
     monkeypatch.setattr(
-        "egregora.enrichment.simple_runner.make_url_agent",
+        "egregora.enrichment.runners.make_url_agent",
         lambda model, prompts_dir=None: _stub_url_agent(model, prompts_dir),
         raising=False,
     )
     monkeypatch.setattr(
-        "egregora.enrichment.thin_agents.make_media_agent",
+        "egregora.enrichment.agents.make_media_agent",
         lambda model, prompts_dir=None: _stub_media_agent(model, prompts_dir),
     )
     monkeypatch.setattr(
-        "egregora.enrichment.simple_runner.make_media_agent",
+        "egregora.enrichment.runners.make_media_agent",
         lambda model, prompts_dir=None: _stub_media_agent(model, prompts_dir),
         raising=False,
     )
     monkeypatch.setattr(
-        "egregora.enrichment.thin_agents.run_url_enrichment",
+        "egregora.enrichment.agents.run_url_enrichment",
         lambda agent, url, prompts_dir=None: _stub_url_run(agent, url, prompts_dir),
     )
     monkeypatch.setattr(
-        "egregora.enrichment.simple_runner.run_url_enrichment",
+        "egregora.enrichment.runners.run_url_enrichment",
         lambda agent, url, prompts_dir=None: _stub_url_run(agent, url, prompts_dir),
         raising=False,
     )
     monkeypatch.setattr(
-        "egregora.enrichment.thin_agents.run_media_enrichment",
+        "egregora.enrichment.agents.run_media_enrichment",
         lambda agent, file_path, **kwargs: _stub_media_run(agent, file_path, **kwargs),
     )
     monkeypatch.setattr(
-        "egregora.enrichment.simple_runner.run_media_enrichment",
+        "egregora.enrichment.runners.run_media_enrichment",
         lambda agent, file_path, **kwargs: _stub_media_run(agent, file_path, **kwargs),
         raising=False,
     )

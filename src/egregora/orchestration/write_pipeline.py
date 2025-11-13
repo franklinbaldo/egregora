@@ -37,8 +37,8 @@ from egregora.database import RUN_EVENTS_SCHEMA
 from egregora.database.tracking import fingerprint_window, get_git_commit_sha
 from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
-from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
-from egregora.enrichment.core import EnrichmentRuntimeContext
+from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
+from egregora.enrichment.runners import EnrichmentRuntimeContext
 from egregora.input_adapters import get_adapter
 from egregora.output_adapters.mkdocs_site import resolve_site_paths
 from egregora.sources.whatsapp.parser import extract_commands, filter_egregora_messages
