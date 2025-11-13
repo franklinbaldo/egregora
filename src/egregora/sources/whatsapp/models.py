@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from egregora.input_adapters.base import Export
+from egregora.sources.base import Export
 
 
 @dataclass(slots=True)

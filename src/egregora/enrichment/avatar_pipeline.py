@@ -19,7 +19,7 @@ from egregora.enrichment.agents import (
 )
 from egregora.enrichment.avatar import AvatarProcessingError, download_avatar_from_url
 from egregora.enrichment.media import detect_media_type, extract_urls
-from egregora.input_adapters.whatsapp.parser import extract_commands
+from egregora.sources.whatsapp.parser import extract_commands
 from egregora.utils import EnrichmentCache, make_enrichment_cache_key
 
 if TYPE_CHECKING:

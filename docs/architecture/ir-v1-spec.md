@@ -334,7 +334,7 @@ All UUIDs are generated using deterministic UUID5 to ensure stability across re-
 ### Namespace Constants
 
 ```python
-# src/egregora/privacy/constants.py
+# src/egregora/privacy/uuid_namespaces.py
 
 import uuid
 
@@ -413,8 +413,8 @@ validate_ir_schema(table)  # Raises SchemaError if invalid
 ### Example: WhatsApp Adapter
 
 ```python
-from egregora.input_adapters.whatsapp.parser import parse_source
-from egregora.input_adapters.whatsapp.models import WhatsAppExport
+from egregora.sources.whatsapp.parser import parse_source
+from egregora.sources.whatsapp.models import WhatsAppExport
 
 export = WhatsAppExport(
     zip_path=Path("export.zip"),
