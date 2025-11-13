@@ -239,7 +239,7 @@ class PrivacyGate:
         @ibis.udf.scalar.python
         def author_uuid_matches(
             author_raw: str,
-            author_uuid: uuid.UUID,
+            author_uuid: str,
         ) -> bool:
             import uuid
 
@@ -249,7 +249,7 @@ class PrivacyGate:
                 author_raw,
                 namespace=config.author_namespace,
             )
-            return uuid.UUID(str(author_uuid)) == expected
+            return str(expected) == author_uuid
 
         validation = table.mutate(
             _valid_author_uuid=author_uuid_matches(

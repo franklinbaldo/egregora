@@ -31,12 +31,12 @@ def _build_ir_table(
 ) -> ibis.Table:
     now = datetime.now(UTC)
     namespace = author_namespace or uuid.NAMESPACE_URL
-    author_uuid = deterministic_author_uuid(author_raw, namespace=namespace)
+    author_uuid = str(deterministic_author_uuid(author_raw, namespace=namespace))
     data = {
-        "event_id": [uuid4()],
+        "event_id": [str(uuid4())],
         "tenant_id": [tenant_id],
         "source": [source],
-        "thread_id": [uuid4()],
+        "thread_id": [str(uuid4())],
         "msg_id": ["msg-001"],
         "ts": [now],
         "author_raw": [author_raw],

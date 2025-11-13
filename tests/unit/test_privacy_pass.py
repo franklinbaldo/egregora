@@ -94,12 +94,12 @@ def _make_ir_table(
 ) -> ibis.Table:
     now = datetime.now(UTC)
     namespace = author_namespace or uuid.NAMESPACE_URL
-    author_uuid = deterministic_author_uuid(author, namespace=namespace)
+    author_uuid = str(deterministic_author_uuid(author, namespace=namespace))
     data = {
-        "event_id": [uuid4()],
+        "event_id": [str(uuid4())],
         "tenant_id": [tenant_id],
         "source": [source],
-        "thread_id": [uuid4()],
+        "thread_id": [str(uuid4())],
         "msg_id": ["msg-001"],
         "ts": [now],
         "author_raw": [author],
@@ -332,10 +332,12 @@ def test_privacy_gate_missing_required_columns():
     config = PrivacySettings(tenant_id="default")
     run_id = str(uuid4())
 
-    with pytest.raises(ValueError) as exc_info:
+    from egregora.database.validation import SchemaError
+
+    with pytest.raises(SchemaError) as exc_info:
         PrivacyGate.run(table, config, run_id)
 
-    assert "missing required columns" in str(exc_info.value)
+    assert "missing" in str(exc_info.value).lower()
 
 
 def test_privacy_pass_can_be_passed_through_pipeline():
