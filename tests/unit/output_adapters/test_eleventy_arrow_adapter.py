@@ -147,6 +147,28 @@ def test_read_document():
         assert retrieved.metadata["title"] == "My Post"
 
 
+def test_read_profile_document_by_uuid():
+    """Profiles should be retrievable using their UUID metadata."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        site_root = Path(tmpdir)
+        adapter = EleventyArrowAdapter(site_root=site_root, url_context=None)
+
+        profile = Document(
+            content="Profile biography",
+            type=DocumentType.PROFILE,
+            metadata={"uuid": "author-123"},
+            source_window="window_0",
+        )
+
+        adapter.serve(profile)
+        adapter.finalize_window("window_0", [], [], {"window_index": 0})
+
+        retrieved = adapter.read_document(DocumentType.PROFILE, "author-123")
+        assert retrieved is not None
+        assert retrieved.type == DocumentType.PROFILE
+        assert retrieved.metadata["uuid"] == "author-123"
+
+
 def test_list_documents():
     """Test list_documents() returns all documents across windows."""
     with tempfile.TemporaryDirectory() as tmpdir:
