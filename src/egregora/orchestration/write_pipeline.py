@@ -297,6 +297,51 @@ def _record_run_event(runs_backend: any, event: dict[str, object]) -> None:
         # Don't break pipeline for observability failures
 
 
+def _calculate_max_window_size(config: EgregoraConfig) -> int:
+    """Calculate maximum window size based on LLM context window.
+
+    Uses rough heuristic: 5 tokens per message average.
+    Leaves 20% buffer for prompt overhead (system prompt, tools, etc.).
+
+    Args:
+        config: Egregora configuration with model settings
+
+    Returns:
+        Maximum number of messages per window
+
+    Example:
+        >>> config.writer.max_prompt_tokens = 100_000
+        >>> _calculate_max_window_size(config)
+        16000  # (100k * 0.8) / 5
+
+    """
+    max_tokens = config.writer.max_prompt_tokens
+    avg_tokens_per_message = 5  # Conservative estimate
+    buffer_ratio = 0.8  # Leave 20% for system prompt, tools, etc.
+
+    return int((max_tokens * buffer_ratio) / avg_tokens_per_message)
+
+
+def _validate_window_size(window: any, max_size: int) -> None:
+    """Validate window doesn't exceed LLM context limits.
+
+    Args:
+        window: Window object with size attribute
+        max_size: Maximum allowed window size (messages)
+
+    Raises:
+        ValueError: If window exceeds max size
+
+    """
+    if window.size > max_size:
+        msg = (
+            f"Window {window.window_index} has {window.size} messages but max is {max_size}. "
+            f"This limit is based on your model's context window. "
+            f"Reduce --step-size to create smaller windows."
+        )
+        raise ValueError(msg)
+
+
 def _process_all_windows(
     windows_iterator: any, ctx: WindowProcessingContext, runs_backend: any
 ) -> dict[str, dict[str, list[str]]]:
@@ -313,6 +358,10 @@ def _process_all_windows(
     """
     results = {}
 
+    # Calculate max window size from LLM context (once)
+    max_window_size = _calculate_max_window_size(ctx.config)
+    logger.debug("Max window size: %d messages (based on %d token context)", max_window_size, ctx.config.writer.max_prompt_tokens)
+
     for window in windows_iterator:
         # Skip empty windows
         if window.size == 0:
@@ -323,6 +372,9 @@ def _process_all_windows(
                 window.end_time.strftime("%Y-%m-%d %H:%M"),
             )
             continue
+
+        # Validate window size doesn't exceed LLM context limits
+        _validate_window_size(window, max_window_size)
 
         # Track window processing (event-sourced)
         run_id = uuid.uuid4()

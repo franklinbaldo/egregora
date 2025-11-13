@@ -81,46 +81,32 @@ def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> 
 
 
 def _iter_table_record_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
-    """Stream table rows as batches of dictionaries without loading entire table into memory.
+    """Yield batches of table rows as dictionaries.
 
-    Uses DuckDB's native fetchmany() for true streaming. This is the ORIGINAL streaming
-    approach before it was regressed to eager execution.
+    Windows are bounded by LLM context limits (enforced at pipeline level),
+    so eager execution is justified - if it fits in the LLM, it fits in memory.
 
     Args:
-        table: Ibis table expression to stream
+        table: Ibis table expression to execute
         batch_size: Number of rows per batch
 
     Yields:
-        Lists of dictionaries representing rows (exactly batch_size per batch, except last)
+        Lists of dictionaries representing rows
 
     Note:
-        Requires DuckDB backend. Falls back to eager execution for other backends.
+        This assumes windows are reasonably sized (<20k messages). Pipeline
+        validation ensures windows don't exceed LLM context limits.
 
     """
-    from egregora.database.streaming import ensure_deterministic_order, stream_ibis
-
-    # Try to get backend for streaming
-    try:
-        backend = table._find_backend()
-    except (AttributeError, Exception):
-        backend = None
-
-    # DuckDB streaming path (primary use case)
-    if backend is not None and hasattr(backend, "con"):
-        try:
-            ordered_table = ensure_deterministic_order(table)
-            yield from stream_ibis(ordered_table, backend, batch_size=batch_size)
-            return
-        except (AttributeError, Exception):
-            pass  # Fall through to eager fallback
-
-    # Fallback for non-DuckDB backends or memtables
     # Order by timestamp for deterministic iteration
     if "timestamp" in table.columns:
         table = table.order_by("timestamp")
 
+    # Execute table and convert to records (justified by LLM context limits)
     df = table.execute()
     records = _frame_to_records(df)
+
+    # Yield in batches
     for start in range(0, len(records), batch_size):
         yield records[start : start + batch_size]
 
