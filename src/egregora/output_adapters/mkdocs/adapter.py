@@ -1241,7 +1241,7 @@ class MkDocsFilesystemAdapter(OutputProtocol):
             yaml_front = _yaml.dump(
                 document.metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
             )
-                full_content = f"---\n{yaml_front}---\n\n{document.content}"
+            full_content = f"---\n{yaml_front}---\n\n{document.content}"
             path.write_text(full_content, encoding="utf-8")
         elif document.type == DocumentType.PROFILE:
             from egregora.agents.shared.author_profiles import write_profile as write_profile_content
