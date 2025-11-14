@@ -5,8 +5,8 @@ from datetime import datetime
 import pytest
 
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.output_adapters.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
-from egregora.storage.url_convention import UrlContext
+from egregora.data_primitives.protocols import UrlContext
+from egregora.output_adapters.mkdocs import LegacyMkDocsUrlConvention
 
 
 class TestLegacyMkDocsUrlConvention:

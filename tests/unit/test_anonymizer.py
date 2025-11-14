@@ -9,9 +9,9 @@ def test_anonymize_table_redacts_author_raw():
     data = {
         "author_raw": ["John Doe", "Jane Smith", "John Doe"],
         "author_uuid": [
-            uuid.uuid4(),
-            uuid.uuid4(),
-            uuid.uuid4(),
+            str(uuid.uuid4()),
+            str(uuid.uuid4()),
+            str(uuid.uuid4()),
         ],
         "text": [
             "Hello Jane!",
@@ -30,7 +30,7 @@ def test_anonymize_table_redacts_author_raw():
 
 
 def test_anonymize_table_with_mentions():
-    author_uuid = uuid.uuid4()
+    author_uuid = str(uuid.uuid4())
     data = {
         "author_raw": ["John Doe"],
         "author_uuid": [author_uuid],

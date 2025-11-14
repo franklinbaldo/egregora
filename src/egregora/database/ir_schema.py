@@ -245,6 +245,42 @@ RUNS_TABLE_SCHEMA = ibis.schema(
     }
 )
 
+# ----------------------------------------------------------------------------
+# Run Events Table Schema (Event-Sourced Pipeline Tracking)
+# ----------------------------------------------------------------------------
+# Event-sourced alternative to RUNS_TABLE_SCHEMA that uses append-only pattern.
+# Each status change is a new event (started → completed/failed).
+# Benefits: Works with any backend supporting INSERT, no UPDATE/DELETE needed,
+# provides full audit trail of state transitions.
+
+RUN_EVENTS_SCHEMA = ibis.schema(
+    {
+        # Event identity (each status change is unique)
+        "event_id": dt.UUID,  # PRIMARY KEY - unique per event
+        "run_id": dt.UUID,  # Run identifier (multiple events per run)
+        # Multi-tenant isolation
+        "tenant_id": dt.String(nullable=True),
+        # Execution metadata
+        "stage": dt.string,  # Stage name (e.g., "window_0", "window_1")
+        "status": dt.string,  # Event type: "started", "completed", "failed"
+        "error": dt.String(nullable=True),  # Error message if status="failed"
+        # Fingerprinting
+        "input_fingerprint": dt.String(nullable=True),  # SHA256 of input (only on 'started')
+        "code_ref": dt.String(nullable=True),  # Git commit SHA
+        "config_hash": dt.String(nullable=True),  # SHA256 of config
+        # Timing - single timestamp per event (not start/finish)
+        "timestamp": dt.Timestamp(timezone="UTC"),  # When this event occurred
+        # Metrics (some only available at completion)
+        "rows_in": dt.Int64(nullable=True),  # Input rows (on 'started')
+        "rows_out": dt.Int64(nullable=True),  # Output rows (on 'completed')
+        "duration_seconds": dt.Float64(nullable=True),  # Duration (on 'completed'/'failed')
+        "llm_calls": dt.Int64(nullable=True),
+        "tokens": dt.Int64(nullable=True),
+        # Observability
+        "trace_id": dt.String(nullable=True),
+    }
+)
+
 RUNS_TABLE_DDL = """
 CREATE TABLE IF NOT EXISTS runs (
     run_id UUID PRIMARY KEY,

@@ -60,9 +60,7 @@ from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore, is_rag_available, query_media
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.database.streaming import stream_ibis
-from egregora.storage.output_adapter import OutputAdapter
-from egregora.storage.url_convention import UrlContext, UrlConvention
+from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
 
 if TYPE_CHECKING:
     from pydantic_ai.result import RunResult
@@ -667,18 +665,18 @@ def _register_writer_tools(
                 retrieval_nprobe=ctx.deps.retrieval_nprobe,
                 retrieval_overfetch=ctx.deps.retrieval_overfetch,
             )
-            items: list[MediaItem] = []
-            for batch in stream_ibis(results, ctx.deps.rag_store._client, batch_size=100):
-                items.extend(
-                    MediaItem(
-                        media_type=row.get("media_type"),
-                        media_path=row.get("media_path"),
-                        original_filename=row.get("original_filename"),
-                        description=row.get("description"),
-                        similarity=row.get("similarity"),
-                    )
-                    for row in batch.iter_rows(named=True)
+            # Execute RAG query (typically returns 5-50 rows)
+            df = results.execute()
+            items = [
+                MediaItem(
+                    media_type=row.get("media_type"),
+                    media_path=row.get("media_path"),
+                    original_filename=row.get("original_filename"),
+                    description=row.get("description"),
+                    similarity=row.get("similarity"),
                 )
+                for row in df.to_dict("records")
+            ]
             return SearchMediaResult(results=items)
 
     @agent.tool

@@ -246,10 +246,11 @@ def _build_conversation_markdown(
     lines = ["| " + " | ".join(header) + " |", "| " + " | ".join(separator) + " |"]
     for row in rows:
         msg_id = row.get("msg_id")
-        message_value = row.get("message", "")
+        # IR v1: use "text" column instead of "message"
+        message_value = row.get("text", "")
         message_annotations = annotations_map.get(msg_id, []) if msg_id else []
         merged_message = _merge_message_and_annotations(message_value, message_annotations)
-        row["message"] = merged_message
+        row["text"] = merged_message
         cells = [_escape_table_cell(row.get(column, "")) for column in column_order]
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)

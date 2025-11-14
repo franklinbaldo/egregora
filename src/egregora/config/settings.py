@@ -281,7 +281,7 @@ class OutputSettings(BaseModel):
     Specifies which output format to use for generated content.
     """
 
-    format: Literal["mkdocs", "hugo"] = Field(
+    format: Literal["mkdocs", "hugo", "eleventy-arrow"] = Field(
         default="mkdocs",
         description="Output format: 'mkdocs' (default), 'hugo', or future formats (database, s3)",
     )
@@ -289,6 +289,30 @@ class OutputSettings(BaseModel):
     mkdocs_config_path: str | None = Field(
         default=None,
         description="Path to mkdocs.yml config file, relative to site root. If None, defaults to '.egregora/mkdocs.yml'",
+    )
+
+
+class DatabaseSettings(BaseModel):
+    """Database configuration for pipeline and observability.
+
+    All values must be valid Ibis connection URIs (e.g. DuckDB, Postgres, SQLite).
+    """
+
+    pipeline_db: str = Field(
+        default="duckdb:///./.egregora/pipeline.duckdb",
+        description=(
+            "Pipeline database connection URI (e.g. 'duckdb:///absolute/path.duckdb', "
+            "'duckdb:///./.egregora/pipeline.duckdb' for a site-relative file, or "
+            "'postgres://user:pass@host:5432/dbname')."
+        ),
+    )
+    runs_db: str = Field(
+        default="duckdb:///./.egregora/runs.duckdb",
+        description=(
+            "Run tracking database connection URI (e.g. 'duckdb:///absolute/runs.duckdb', "
+            "'duckdb:///./.egregora/runs.duckdb' for a site-relative file, or "
+            "'postgres://user:pass@host:5432/dbname')."
+        ),
     )
 
 
@@ -333,6 +357,10 @@ class EgregoraConfig(BaseModel):
       step_size: 1
       step_unit: days
 
+    database:
+      pipeline_db: duckdb:///./.egregora/pipeline.duckdb
+      runs_db: duckdb:///./.egregora/runs.duckdb
+
     output:
       format: mkdocs
     ```
@@ -365,6 +393,10 @@ class EgregoraConfig(BaseModel):
     paths: PathsSettings = Field(
         default_factory=PathsSettings,
         description="Site directory paths (relative to site root)",
+    )
+    database: DatabaseSettings = Field(
+        default_factory=DatabaseSettings,
+        description="Database configuration (pipeline and run tracking)",
     )
     output: OutputSettings = Field(
         default_factory=OutputSettings,
