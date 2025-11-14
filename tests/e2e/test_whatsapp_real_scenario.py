@@ -14,7 +14,10 @@ from egregora.config.settings import create_default_config
 from egregora.enrichment.media import extract_and_replace_media
 from egregora.enrichment.runners import EnrichmentRuntimeContext, enrich_table
 from egregora.input_adapters.whatsapp.parser import filter_egregora_messages, parse_source
-from egregora.orchestration.write_pipeline import process_whatsapp_export
+from egregora.orchestration.write_pipeline import (
+    WhatsAppProcessOptions,
+    process_whatsapp_export,
+)
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
 
@@ -43,6 +46,22 @@ def _bootstrap_site(tmp_path: Path) -> Path:
     mkdocs_path = egregora_dir / "mkdocs.yml"
     mkdocs_path.write_text("site_name: Test Suite\ndocs_dir: ..\n", encoding="utf-8")
     return site_root
+
+
+def _build_options(
+    fixture: "WhatsAppFixture", gemini_api_key: str | None, **overrides
+) -> WhatsAppProcessOptions:
+    """Helper to construct WhatsApp processing options for tests."""
+
+    base_kwargs = {
+        "step_size": 100,
+        "step_unit": "messages",
+        "enable_enrichment": False,
+        "timezone": fixture.timezone,
+        "gemini_api_key": gemini_api_key,
+    }
+    base_kwargs.update(overrides)
+    return WhatsAppProcessOptions(**base_kwargs)
 
 
 class DummyGenaiClient:
@@ -313,14 +332,12 @@ def test_full_pipeline_completes_without_crash(
     processed_dates: list[str] = []
     _install_pipeline_stubs(monkeypatch, processed_dates)
 
+    options = _build_options(whatsapp_fixture, gemini_api_key)
+
     results = process_whatsapp_export(
         zip_path=whatsapp_fixture.zip_path,
         output_dir=site_root,
-        step_size=100,
-        step_unit="messages",
-        enable_enrichment=False,
-        timezone=whatsapp_fixture.timezone,
-        gemini_api_key=gemini_api_key,
+        options=options,
     )
 
     assert results
@@ -336,14 +353,12 @@ def test_pipeline_creates_expected_directory_structure(
     site_root = _bootstrap_site(tmp_path)
     _install_pipeline_stubs(monkeypatch, [])
 
+    options = _build_options(whatsapp_fixture, gemini_api_key)
+
     process_whatsapp_export(
         zip_path=whatsapp_fixture.zip_path,
         output_dir=site_root,
-        step_size=100,
-        step_unit="messages",
-        enable_enrichment=False,
-        timezone=whatsapp_fixture.timezone,
-        gemini_api_key=gemini_api_key,
+        options=options,
     )
 
     # MODERN: content at root level, not in docs/
@@ -363,16 +378,17 @@ def test_pipeline_respects_date_range_filters(
     processed_dates: list[str] = []
     _install_pipeline_stubs(monkeypatch, processed_dates)
 
+    options = _build_options(
+        whatsapp_fixture,
+        gemini_api_key,
+        from_date=date(2025, 10, 29),
+        to_date=date(2025, 10, 29),
+    )
+
     results = process_whatsapp_export(
         zip_path=whatsapp_fixture.zip_path,
         output_dir=site_root,
-        step_size=100,
-        step_unit="messages",
-        enable_enrichment=False,
-        from_date=date(2025, 10, 29),
-        to_date=date(2025, 10, 29),
-        timezone=whatsapp_fixture.timezone,
-        gemini_api_key=gemini_api_key,
+        options=options,
     )
 
     assert results == {}
@@ -467,14 +483,12 @@ def test_pipeline_handles_missing_media_gracefully(
     site_root = _bootstrap_site(tmp_path)
     _install_pipeline_stubs(monkeypatch, [])
 
+    options = _build_options(whatsapp_fixture, gemini_api_key)
+
     results = process_whatsapp_export(
         zip_path=corrupted_zip,
         output_dir=site_root,
-        step_size=100,
-        step_unit="messages",
-        enable_enrichment=False,
-        timezone=whatsapp_fixture.timezone,
-        gemini_api_key=gemini_api_key,
+        options=options,
     )
 
     assert results is not None
