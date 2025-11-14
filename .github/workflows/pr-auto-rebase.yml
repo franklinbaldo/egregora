@@ -92,5 +92,7 @@ jobs:
 
       - name: Push rebased branch
         if: ${{ steps.rebase.outcome == 'success' && github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
-          git push origin HEAD:"${{ github.event.pull_request.head.ref }}" --force-with-lease
+          git push origin HEAD:"$PR_HEAD_REF" --force-with-lease
