@@ -301,7 +301,7 @@ class TestPrivacyWorkflow:
         @require_privacy_pass
         def send_to_llm(table: ibis.Table, *, privacy_pass: PrivacyPass) -> str:
             result = table.execute()
-            return f"LLM received: {result['author'].iloc[0]}"
+            return f"LLM received: {result['author_uuid'].iloc[0]}"
 
         # ❌ Cannot call without privacy_pass
         with pytest.raises(RuntimeError, match="requires PrivacyPass capability"):

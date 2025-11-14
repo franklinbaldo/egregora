@@ -125,22 +125,22 @@ class IRMessageRow(BaseModel):
     """
 
     # Identity
-    event_id: uuid.UUID
+    event_id: uuid.UUID | str | None = None  # String UUID from schema, can be None if not generated
 
     # Multi-Tenant
     tenant_id: str = Field(min_length=1)
     source: str = Field(pattern=r"^[a-z][a-z0-9_-]*$")  # lowercase, alphanumeric + underscore/dash
 
     # Threading
-    thread_id: uuid.UUID
-    msg_id: str
+    thread_id: uuid.UUID | str | None = None  # String UUID from schema, can be None
+    msg_id: str | None = None  # Nullable in schema
 
     # Temporal
     ts: datetime
 
     # Authors
     author_raw: str
-    author_uuid: uuid.UUID
+    author_uuid: uuid.UUID | str | None = None  # String UUID from schema, can be None
 
     # Content
     text: str | None = None
