@@ -137,9 +137,7 @@ def populated_runs_db(temp_runs_db: Path) -> Path:
 
         # Completed/failed event
         if run_data["finished_at"]:
-            duration_seconds = (
-                run_data["finished_at"] - run_data["started_at"]
-            ).total_seconds()
+            duration_seconds = (run_data["finished_at"] - run_data["started_at"]).total_seconds()
             conn.execute(
                 """
                 INSERT INTO run_events (
