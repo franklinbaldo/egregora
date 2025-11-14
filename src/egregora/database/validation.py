@@ -592,7 +592,7 @@ def create_ir_table(
             normalized["date"],
         ).cast(dt.JSON(nullable=True)),
         pii_flags=ibis.null().cast(dt.JSON(nullable=True)),
-        created_at=created_at_literal,
+        created_at=ibis.literal(datetime.now(UTC), type=dt.Timestamp(timezone="UTC")),
         created_by_run=created_by_run_literal,
     )
 
