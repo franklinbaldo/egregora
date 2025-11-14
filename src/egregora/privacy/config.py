@@ -14,7 +14,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-from egregora.privacy.uuid_namespaces import NAMESPACE_AUTHOR
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,7 +56,7 @@ class PrivacySettings:
     reidentification_retention_days: int = 90
     """How long to keep re-identification escrow (default: 90 days)."""
 
-    author_namespace: uuid.UUID = NAMESPACE_AUTHOR
+    author_namespace: uuid.UUID = uuid.NAMESPACE_URL
     """Namespace used by adapters when pseudonymizing author identifiers."""
 
     def __post_init__(self) -> None:
