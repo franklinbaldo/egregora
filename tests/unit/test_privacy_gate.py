@@ -15,7 +15,7 @@ from uuid import uuid4
 
 import ibis
 import pytest
-from egregora.privacy.constants import deterministic_author_uuid
+from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 
 from egregora.database.validation import IR_MESSAGE_SCHEMA
 from egregora.privacy.config import PrivacySettings
@@ -30,8 +30,12 @@ def _build_ir_table(
     author_namespace: uuid.UUID | None = None,
 ) -> ibis.Table:
     now = datetime.now(UTC)
-    namespace = author_namespace or uuid.NAMESPACE_URL
-    author_uuid = str(deterministic_author_uuid(author_raw, namespace=namespace))
+    if author_namespace is not None:
+        namespace = author_namespace
+        normalized_author = author_raw.strip().lower()
+        author_uuid = str(uuid.uuid5(namespace, normalized_author))
+    else:
+        author_uuid = str(deterministic_author_uuid(tenant_id, source, author_raw))
     data = {
         "event_id": [str(uuid4())],
         "tenant_id": [tenant_id],

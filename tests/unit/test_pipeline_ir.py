@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 
 import ibis
 import pytest
-from egregora.privacy.constants import NamespaceContext, deterministic_author_uuid
+from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 
 from egregora.database.validation import (
     IR_MESSAGE_SCHEMA,
@@ -162,8 +162,8 @@ class TestIRSchema:
         assert len(result) == 1
         assert result["author_raw"][0] == "alice"
         assert result["text"][0] == "Test message"
-        tenant_namespace = NamespaceContext(tenant_id="tenant-1", source="whatsapp").author_namespace()
-        assert result["author_uuid"][0] == str(deterministic_author_uuid("alice", namespace=tenant_namespace))
+        expected_uuid = deterministic_author_uuid("tenant-1", "whatsapp", "alice")
+        assert result["author_uuid"][0] == str(expected_uuid)
         assert result["attrs"][0] is None
 
     def test_create_ir_table_with_custom_timezone(self):
@@ -189,9 +189,8 @@ class TestIRSchema:
         # Should not raise an error
         result = ir_table.execute()
         assert len(result) == 1
-        expected_uuid = str(
-            deterministic_author_uuid("user1", namespace=uuid.uuid5(uuid.NAMESPACE_DNS, "custom"))
-        )
+        custom_namespace = uuid.uuid5(uuid.NAMESPACE_DNS, "custom")
+        expected_uuid = str(uuid.uuid5(custom_namespace, "user1".strip().lower()))
         assert result["author_uuid"][0] == expected_uuid
 
 

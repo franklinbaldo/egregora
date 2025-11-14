@@ -14,7 +14,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 
-from egregora.privacy.constants import NAMESPACE_AUTHOR
+from egregora.privacy.uuid_namespaces import NAMESPACE_AUTHOR
 
 
 @dataclass(frozen=True, slots=True)

@@ -55,8 +55,7 @@ import ibis.expr.datatypes as dt
 from pydantic import BaseModel, Field, ValidationError
 
 from egregora.database.ir_schema import ensure_message_schema
-from egregora.privacy.constants import (
-    NamespaceContext,
+from egregora.privacy.uuid_namespaces import (
     deterministic_author_uuid,
     deterministic_event_uuid,
     deterministic_thread_uuid,
@@ -528,15 +527,17 @@ def create_ir_table(
 
     normalized = ensure_message_schema(table, timezone=timezone)
 
-    namespace_context = NamespaceContext(tenant_id=tenant_id, source=source)
-    namespace_value = author_namespace or namespace_context.author_namespace()
+    namespace_override = author_namespace
 
     @ibis.udf.scalar.python
     def author_uuid_udf(author: str | None) -> str:
         if author is None or not author.strip():
             msg = "author column cannot be empty when generating author_uuid"
             raise ValueError(msg)
-        return str(deterministic_author_uuid(author, namespace=namespace_value))
+        if namespace_override is not None:
+            normalized_author = author.strip().lower()
+            return str(uuid.uuid5(namespace_override, normalized_author))
+        return str(deterministic_author_uuid(tenant_id, source, author))
 
     @ibis.udf.scalar.python
     def event_uuid_udf(message_id: str | None, ts_value: datetime) -> str:

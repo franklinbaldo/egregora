@@ -157,3 +157,12 @@ def deterministic_event_uuid(
     # Combine message_id + timestamp for uniqueness
     event_key = f"{message_id}:{timestamp_iso}"
     return uuid.uuid5(event_namespace, event_key)
+
+
+def deterministic_thread_uuid(tenant_id: str, source: str, thread_key: str) -> uuid.UUID:
+    """Generate deterministic UUID for a thread/conversation identifier."""
+
+    ctx = NamespaceContext(tenant_id=tenant_id, source=source)
+    thread_namespace = ctx.thread_namespace()
+    normalized_key = thread_key.strip().lower()
+    return uuid.uuid5(thread_namespace, normalized_key)

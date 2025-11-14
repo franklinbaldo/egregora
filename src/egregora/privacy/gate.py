@@ -33,6 +33,7 @@ Example:
 from __future__ import annotations
 
 import logging
+import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from functools import wraps
@@ -209,7 +210,10 @@ class PrivacyGate:
         # Import here to avoid circular dependencies
         from egregora.database.validation import validate_ir_schema
         from egregora.privacy.anonymizer import anonymize_table
-        from egregora.privacy.constants import deterministic_author_uuid
+        from egregora.privacy.uuid_namespaces import (
+            NAMESPACE_AUTHOR,
+            deterministic_author_uuid,
+        )
 
         # Validate config
         if not config.tenant_id:
@@ -239,19 +243,28 @@ class PrivacyGate:
         def author_uuid_matches(
             author_raw: str,
             author_uuid: str,
+            tenant_value: str,
+            source_value: str,
         ) -> bool:
             if author_raw is None or author_uuid is None:
                 return False
-            expected = deterministic_author_uuid(
-                author_raw,
-                namespace=config.author_namespace,
-            )
-            return str(expected) == author_uuid
+            if config.author_namespace != NAMESPACE_AUTHOR:
+                normalized_author = author_raw.strip().lower()
+                expected_uuid = uuid.uuid5(config.author_namespace, normalized_author)
+            else:
+                expected_uuid = deterministic_author_uuid(
+                    tenant_value,
+                    source_value,
+                    author_raw,
+                )
+            return str(expected_uuid) == author_uuid
 
         validation = table.mutate(
             _valid_author_uuid=author_uuid_matches(
                 table.author_raw,
                 table.author_uuid,
+                table.tenant_id,
+                table.source,
             )
         )
         invalid_rows = validation.filter(~validation._valid_author_uuid).count().execute()
