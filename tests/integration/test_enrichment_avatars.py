@@ -21,7 +21,7 @@ from egregora.enrichment.avatar import (
     _validate_image_format,
     _validate_url_for_ssrf,
 )
-from egregora.sources.whatsapp.parser import parse_egregora_command
+from egregora.input_adapters.whatsapp.parser import parse_egregora_command
 
 
 class TestCommandParsing:

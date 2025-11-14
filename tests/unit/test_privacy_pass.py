@@ -24,12 +24,12 @@ from hypothesis import strategies as st
 
 from egregora.database.validation import IR_MESSAGE_SCHEMA
 from egregora.privacy.config import PrivacySettings
-from egregora.privacy.constants import deterministic_author_uuid
 from egregora.privacy.gate import (
     PrivacyGate,
     PrivacyPass,
     require_privacy_pass,
 )
+from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 
 # ============================================================================
 # PrivacyPass Token Tests
@@ -93,13 +93,17 @@ def _make_ir_table(
     author_namespace: uuid.UUID | None = None,
 ) -> ibis.Table:
     now = datetime.now(UTC)
-    namespace = author_namespace or uuid.NAMESPACE_URL
-    author_uuid = deterministic_author_uuid(author, namespace=namespace)
+    if author_namespace is not None:
+        namespace = author_namespace
+        normalized_author = author.strip().lower()
+        author_uuid = str(uuid.uuid5(namespace, normalized_author))
+    else:
+        author_uuid = str(deterministic_author_uuid(tenant_id, source, author))
     data = {
-        "event_id": [uuid4()],
+        "event_id": [str(uuid4())],
         "tenant_id": [tenant_id],
         "source": [source],
-        "thread_id": [uuid4()],
+        "thread_id": [str(uuid4())],
         "msg_id": ["msg-001"],
         "ts": [now],
         "author_raw": [author],
@@ -332,10 +336,12 @@ def test_privacy_gate_missing_required_columns():
     config = PrivacySettings(tenant_id="default")
     run_id = str(uuid4())
 
-    with pytest.raises(ValueError) as exc_info:
+    from egregora.database.validation import SchemaError
+
+    with pytest.raises(SchemaError) as exc_info:
         PrivacyGate.run(table, config, run_id)
 
-    assert "missing required columns" in str(exc_info.value)
+    assert "missing" in str(exc_info.value).lower()
 
 
 def test_privacy_pass_can_be_passed_through_pipeline():

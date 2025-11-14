@@ -18,8 +18,8 @@ import pytest
 
 from egregora.database.validation import IR_MESSAGE_SCHEMA
 from egregora.privacy.config import PrivacySettings
-from egregora.privacy.constants import deterministic_author_uuid
 from egregora.privacy.gate import PrivacyGate, PrivacyPass, require_privacy_pass
+from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 
 
 def _build_ir_table(
@@ -30,13 +30,17 @@ def _build_ir_table(
     author_namespace: uuid.UUID | None = None,
 ) -> ibis.Table:
     now = datetime.now(UTC)
-    namespace = author_namespace or uuid.NAMESPACE_URL
-    author_uuid = deterministic_author_uuid(author_raw, namespace=namespace)
+    if author_namespace is not None:
+        namespace = author_namespace
+        normalized_author = author_raw.strip().lower()
+        author_uuid = str(uuid.uuid5(namespace, normalized_author))
+    else:
+        author_uuid = str(deterministic_author_uuid(tenant_id, source, author_raw))
     data = {
-        "event_id": [uuid4()],
+        "event_id": [str(uuid4())],
         "tenant_id": [tenant_id],
         "source": [source],
-        "thread_id": [uuid4()],
+        "thread_id": [str(uuid4())],
         "msg_id": ["msg-001"],
         "ts": [now],
         "author_raw": [author_raw],
@@ -297,7 +301,7 @@ class TestPrivacyWorkflow:
         @require_privacy_pass
         def send_to_llm(table: ibis.Table, *, privacy_pass: PrivacyPass) -> str:
             result = table.execute()
-            return f"LLM received: {result['author'].iloc[0]}"
+            return f"LLM received: {result['author_uuid'].iloc[0]}"
 
         # ❌ Cannot call without privacy_pass
         with pytest.raises(RuntimeError, match="requires PrivacyPass capability"):

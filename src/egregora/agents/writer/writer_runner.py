@@ -30,13 +30,10 @@ from egregora.agents.writer.formatting import _build_conversation_markdown, _loa
 from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import UrlContext
 from egregora.output_adapters import create_output_format, output_registry
-from egregora.output_adapters.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
-from egregora.output_adapters.mkdocs_output_adapter import MkDocsOutputAdapter
+from egregora.output_adapters.mkdocs import LegacyMkDocsUrlConvention, MkDocsFilesystemAdapter
 from egregora.prompt_templates import WriterPromptTemplate
-
-# from egregora.storage.legacy_adapter import LegacyStorageAdapter  # DEPRECATED Phase 5
-from egregora.storage.url_convention import UrlContext
 
 if TYPE_CHECKING:
     from google import genai
@@ -435,8 +432,8 @@ def _write_posts_for_window_pydantic(
 
     # Create format-specific runtime output format
     if format_type == "mkdocs":
-        # Use NEW MkDocsOutputAdapter with constructor injection (has url_convention property)
-        runtime_output_format = MkDocsOutputAdapter(site_root=storage_root, url_context=url_context)
+        # Use NEW MkDocsFilesystemAdapter with constructor injection (has url_convention property)
+        runtime_output_format = MkDocsFilesystemAdapter(site_root=storage_root, url_context=url_context)
         url_convention = runtime_output_format.url_convention
     else:
         # For other formats (Hugo, etc.), fall back to old pattern for now

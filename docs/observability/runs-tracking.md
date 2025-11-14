@@ -57,7 +57,7 @@ CREATE TABLE runs (
     tokens BIGINT,                        -- Total tokens consumed (future)
 
     -- Observability
-    trace_id VARCHAR                      -- OpenTelemetry trace ID (future)
+    trace_id VARCHAR                      -- Unused (OTEL support removed)
 );
 ```
 
@@ -287,30 +287,36 @@ record_run(
 SELECT * FROM runs WHERE tenant_id = 'acme-corp'
 ```
 
-## Observability Integration (Future)
+## Observability Integration
 
-**Status**: Planned (Priority D.2)
+**Status**: Simplified (2025-11-12)
 
-### OpenTelemetry Tracing
+### Tracing
 
-The `trace_id` column is reserved for OpenTelemetry integration:
+The `trace_id` column is currently unused (set to `None`). OpenTelemetry support was **intentionally removed** in favor of simplicity:
 
 ```python
-# Link run to distributed trace
+# trace_id is always None (no telemetry)
 record_run(
     conn=runs_conn,
     run_id=run_id,
-    trace_id=current_span.trace_id,  # Link to OTel trace
+    trace_id=None,  # No telemetry integration
     ...
 )
 ```
 
+**Rationale**: For a single-user alpha tool, standard Python logging with Rich console is sufficient. OTEL/Logfire added optional complexity without clear value.
+
+**Alternative**: Use `run_id` for correlation across stages. Each window gets a unique `run_id` that links all stages together.
+
 ### Metrics Export
 
-Future support for exporting metrics:
-- Prometheus metrics endpoint
-- StatsD integration
-- Custom webhooks
+Run tracking provides built-in observability via CLI:
+- `egregora runs tail` - Recent runs
+- `egregora runs show <run_id>` - Detailed run information
+- Direct SQL queries on `.egregora/runs.duckdb`
+
+External metrics export is not planned.
 
 ## Database Maintenance
 

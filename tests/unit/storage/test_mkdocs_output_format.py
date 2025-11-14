@@ -1,4 +1,4 @@
-"""Tests for MkDocsOutputAdapter implementation.
+"""Tests for MkDocsFilesystemAdapter implementation.
 
 Runs conformance tests and format-specific tests for MkDocs filesystem backend.
 """
@@ -8,23 +8,22 @@ from datetime import datetime
 import pytest
 
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.output_adapters.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
-from egregora.output_adapters.mkdocs_output_adapter import MkDocsOutputAdapter
-from egregora.storage.url_convention import UrlContext
+from egregora.data_primitives.protocols import UrlContext
+from egregora.output_adapters.mkdocs import LegacyMkDocsUrlConvention, MkDocsFilesystemAdapter
 from tests.unit.storage.test_output_format_conformance import OutputFormatConformanceTests
 
 
 class TestMkDocsOutputFormatConformance(OutputFormatConformanceTests):
-    """Conformance tests for MkDocsOutputAdapter.
+    """Conformance tests for MkDocsFilesystemAdapter.
 
     Inherits all conformance tests from OutputFormatConformanceTests.
     """
 
     @pytest.fixture
     def output_format(self, tmp_path):
-        """Create MkDocsOutputAdapter instance."""
+        """Create MkDocsFilesystemAdapter instance."""
         ctx = UrlContext(base_url="https://example.com")
-        return MkDocsOutputAdapter(site_root=tmp_path, url_context=ctx)
+        return MkDocsFilesystemAdapter(site_root=tmp_path, url_context=ctx)
 
     @pytest.fixture
     def url_convention(self):
@@ -38,13 +37,13 @@ class TestMkDocsOutputFormatConformance(OutputFormatConformanceTests):
 
 
 class TestMkDocsOutputFormatSpecific:
-    """Format-specific tests for MkDocsOutputAdapter."""
+    """Format-specific tests for MkDocsFilesystemAdapter."""
 
     @pytest.fixture
     def output_format(self, tmp_path):
-        """Create MkDocsOutputAdapter instance."""
+        """Create MkDocsFilesystemAdapter instance."""
         ctx = UrlContext(base_url="https://example.com")
-        return MkDocsOutputAdapter(site_root=tmp_path, url_context=ctx)
+        return MkDocsFilesystemAdapter(site_root=tmp_path, url_context=ctx)
 
     @pytest.fixture
     def ctx(self):

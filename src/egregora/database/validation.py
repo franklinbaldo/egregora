@@ -55,8 +55,7 @@ import ibis.expr.datatypes as dt
 from pydantic import BaseModel, Field, ValidationError
 
 from egregora.database.ir_schema import ensure_message_schema
-from egregora.privacy.constants import (
-    NAMESPACE_AUTHOR,
+from egregora.privacy.uuid_namespaces import (
     deterministic_author_uuid,
     deterministic_event_uuid,
     deterministic_thread_uuid,
@@ -85,18 +84,18 @@ class SchemaError(Exception):
 IR_MESSAGE_SCHEMA = ibis.schema(
     {
         # Identity
-        "event_id": dt.UUID,
+        "event_id": dt.string,  # UUID as string for PyArrow compatibility
         # Multi-Tenant
         "tenant_id": dt.string,
         "source": dt.string,
         # Threading
-        "thread_id": dt.UUID,
+        "thread_id": dt.string,  # UUID as string for PyArrow compatibility
         "msg_id": dt.string,
         # Temporal
         "ts": dt.Timestamp(timezone="UTC"),
         # Authors (PRIVACY BOUNDARY)
         "author_raw": dt.string,
-        "author_uuid": dt.UUID,
+        "author_uuid": dt.string,  # UUID as string for PyArrow compatibility
         # Content
         "text": dt.String(nullable=True),
         "media_url": dt.String(nullable=True),
@@ -106,7 +105,7 @@ IR_MESSAGE_SCHEMA = ibis.schema(
         "pii_flags": dt.JSON(nullable=True),
         # Lineage
         "created_at": dt.Timestamp(timezone="UTC"),
-        "created_by_run": dt.UUID(nullable=True),
+        "created_by_run": dt.String(nullable=True),  # UUID as string for PyArrow compatibility
     }
 )
 
@@ -126,22 +125,22 @@ class IRMessageRow(BaseModel):
     """
 
     # Identity
-    event_id: uuid.UUID
+    event_id: uuid.UUID | str | None = None  # String UUID from schema, can be None if not generated
 
     # Multi-Tenant
     tenant_id: str = Field(min_length=1)
     source: str = Field(pattern=r"^[a-z][a-z0-9_-]*$")  # lowercase, alphanumeric + underscore/dash
 
     # Threading
-    thread_id: uuid.UUID
-    msg_id: str
+    thread_id: uuid.UUID | str | None = None  # String UUID from schema, can be None
+    msg_id: str | None = None  # Nullable in schema
 
     # Temporal
     ts: datetime
 
     # Authors
     author_raw: str
-    author_uuid: uuid.UUID
+    author_uuid: uuid.UUID | str | None = None  # String UUID from schema, can be None
 
     # Content
     text: str | None = None
@@ -528,22 +527,25 @@ def create_ir_table(
 
     normalized = ensure_message_schema(table, timezone=timezone)
 
-    namespace_value = author_namespace or NAMESPACE_AUTHOR
+    namespace_override = author_namespace
 
     @ibis.udf.scalar.python
-    def author_uuid_udf(author: str | None) -> uuid.UUID:
+    def author_uuid_udf(author: str | None) -> str:
         if author is None or not author.strip():
             msg = "author column cannot be empty when generating author_uuid"
             raise ValueError(msg)
-        return deterministic_author_uuid(author, namespace=namespace_value)
+        if namespace_override is not None:
+            normalized_author = author.strip().lower()
+            return str(uuid.uuid5(namespace_override, normalized_author))
+        return str(deterministic_author_uuid(tenant_id, source, author))
 
     @ibis.udf.scalar.python
-    def event_uuid_udf(message_id: str | None, ts_value: datetime) -> uuid.UUID:
+    def event_uuid_udf(message_id: str | None, ts_value: datetime) -> str:
         if ts_value is None:
             msg = "timestamp is required to generate event_id"
             raise ValueError(msg)
         key = message_id or ts_value.isoformat()
-        return deterministic_event_uuid(tenant_id, source, key, ts_value)
+        return str(deterministic_event_uuid(tenant_id, source, key, ts_value))
 
     @ibis.udf.scalar.python
     def attrs_udf(
@@ -561,13 +563,13 @@ def create_ir_table(
         return data or None
 
     thread_identifier = thread_key or tenant_id
-    thread_uuid = deterministic_thread_uuid(tenant_id, source, thread_identifier)
+    thread_uuid = str(deterministic_thread_uuid(tenant_id, source, thread_identifier))
 
     created_at_literal = ibis.literal(datetime.now(UTC), type=dt.Timestamp(timezone="UTC"))
     if run_id is not None:
-        created_by_run_literal = ibis.literal(run_id, type=dt.UUID)
+        created_by_run_literal = ibis.literal(str(run_id), type=dt.string)
     else:
-        created_by_run_literal = ibis.null().cast(dt.UUID(nullable=True))
+        created_by_run_literal = ibis.null().cast(dt.String(nullable=True))
 
     ir_table = normalized.mutate(
         event_id=event_uuid_udf(
@@ -576,7 +578,7 @@ def create_ir_table(
         ),
         tenant_id=ibis.literal(tenant_id, type=dt.string),
         source=ibis.literal(source, type=dt.string),
-        thread_id=ibis.literal(thread_uuid, type=dt.UUID),
+        thread_id=ibis.literal(thread_uuid, type=dt.string),
         msg_id=normalized["message_id"].cast(dt.string),
         ts=normalized["timestamp"].cast(dt.Timestamp(timezone="UTC")),
         author_raw=normalized["author"],
@@ -590,7 +592,7 @@ def create_ir_table(
             normalized["date"],
         ).cast(dt.JSON(nullable=True)),
         pii_flags=ibis.null().cast(dt.JSON(nullable=True)),
-        created_at=created_at_literal,
+        created_at=ibis.literal(datetime.now(UTC), type=dt.Timestamp(timezone="UTC")),
         created_by_run=created_by_run_literal,
     )
 

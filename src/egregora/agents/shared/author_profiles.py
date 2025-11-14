@@ -405,7 +405,7 @@ def filter_opted_out_authors(
     enrichment, or any processing.
 
     Args:
-        table: Ibis Table with 'author_uuid' column (falls back to legacy 'author')
+        table: Ibis Table with 'author_uuid' column
         profiles_dir: Where profiles are stored
 
     Returns:
@@ -424,12 +424,12 @@ def filter_opted_out_authors(
         author_column = table.author
 
     original_count = table.count().execute()
-    filtered_table = table.filter(~author_column.isin(list(opted_out)))
+    filtered_table = table.filter(~table.author_uuid.isin(list(opted_out)))
     removed_count = original_count - filtered_table.count().execute()
     if removed_count > 0:
         logger.warning("⚠️  Removed %s messages from %s opted-out users", removed_count, len(opted_out))
         for author in opted_out:
-            author_msg_count = table.filter(author_column == author).count().execute()
+            author_msg_count = table.filter(table.author_uuid == author).count().execute()
             if author_msg_count > 0:
                 logger.warning("   - %s: %s messages removed", author, author_msg_count)
     return (filtered_table, removed_count)
