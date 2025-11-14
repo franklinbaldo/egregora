@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 _IMPORT_ORDER_COLUMN = "_import_order"
 _IMPORT_SOURCE_COLUMN = "_import_source"
+_AUTHOR_UUID_HEX_COLUMN = "_author_uuid_hex"
 
 # WhatsApp message line pattern
 # Matches: "28/10/2025 14:10 - Franklin: message text"
@@ -107,7 +108,12 @@ def _parse_message_time(time_token: str) -> datetime.time | None:
         return None
 
 
-def parse_source(export: WhatsAppExport, timezone: str | ZoneInfo | None = None) -> Table:
+def parse_source(
+    export: WhatsAppExport,
+    timezone: str | ZoneInfo | None = None,
+    *,
+    expose_raw_author: bool = False,
+) -> Table:
     """Parse WhatsApp export using pure Ibis/DuckDB operations.
 
     This function replaces pyparsing with vectorized SQL operations:
@@ -120,9 +126,13 @@ def parse_source(export: WhatsAppExport, timezone: str | ZoneInfo | None = None)
     Args:
         export: WhatsApp export metadata
         timezone: Timezone for timestamp normalization
+        expose_raw_author: When True, keep the original WhatsApp author names in the
+            returned table. Defaults to False so downstream consumers continue
+            receiving anonymized author identifiers.
 
     Returns:
-        Parsed and anonymized Table conforming to MESSAGE_SCHEMA
+        Parsed Table conforming to MESSAGE_SCHEMA. Authors are anonymized by
+        default unless ``expose_raw_author`` is set.
 
     """
     with zipfile.ZipFile(export.zip_path) as zf:
@@ -161,20 +171,28 @@ def parse_source(export: WhatsAppExport, timezone: str | ZoneInfo | None = None)
 
     messages = anonymize_table(messages)
 
-    helper_columns = sorted({"author_raw", "author_uuid"} & set(messages.columns))
+    if not expose_raw_author and _AUTHOR_UUID_HEX_COLUMN in messages.columns:
+        messages = messages.mutate(author=messages[_AUTHOR_UUID_HEX_COLUMN].substr(0, 8))
+
+    helper_columns = sorted({"author_raw", "author_uuid", _AUTHOR_UUID_HEX_COLUMN} & set(messages.columns))
     if helper_columns:
         messages = messages.drop(*helper_columns)
 
     return ensure_message_schema(messages, timezone=timezone)
 
 
-def parse_multiple(exports: Sequence[WhatsAppExport], timezone: str | ZoneInfo | None = None) -> Table:
+def parse_multiple(
+    exports: Sequence[WhatsAppExport],
+    timezone: str | ZoneInfo | None = None,
+    *,
+    expose_raw_author: bool = False,
+) -> Table:
     """Parse multiple exports and concatenate them ordered by timestamp."""
     tables: list[Table] = []
 
     for export in exports:
         try:
-            table = parse_source(export, timezone=timezone)
+            table = parse_source(export, timezone=timezone, expose_raw_author=expose_raw_author)
             # Add import source tracking
             if table.count().execute() > 0:
                 table = table.mutate(**{_IMPORT_SOURCE_COLUMN: ibis.literal(len(tables))})
@@ -304,14 +322,14 @@ def _finalize_message(msg: dict, tenant_id: str, source: str) -> dict:
 
     author_raw = msg["author_raw"]
     author_uuid = deterministic_author_uuid(tenant_id, source, author_raw)
-    anonymized_author = author_uuid.hex[:8]
 
     return {
         "timestamp": msg["timestamp"],
         "date": msg["date"],
-        "author": anonymized_author,
+        "author": author_raw,
         "author_raw": author_raw,
         "author_uuid": str(author_uuid),
+        _AUTHOR_UUID_HEX_COLUMN: author_uuid.hex,
         "message": message_text,
         "original_line": original_text or None,
         "tagged_line": None,
