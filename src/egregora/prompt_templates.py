@@ -78,6 +78,7 @@ def create_prompt_environment(prompts_dir: Path | None = None) -> Environment:
 
     Args:
         prompts_dir: Custom prompts directory (e.g., site_root/.egregora/prompts)
+            or site root (auto-detects .egregora/prompts subdirectory)
 
     Returns:
         Configured Jinja2 Environment with fallback search paths
@@ -90,10 +91,16 @@ def create_prompt_environment(prompts_dir: Path | None = None) -> Environment:
     # Build search paths with priority order
     search_paths: list[Path] = []
 
-    # Add custom prompts directory if it exists
+    # Add custom prompts directory if it exists. Support both explicit prompt
+    # directories and site roots that contain .egregora/prompts/.
     if prompts_dir and prompts_dir.is_dir():
-        search_paths.append(prompts_dir)
-        logger.info("Custom prompts directory: %s", prompts_dir)
+        egregora_prompts = prompts_dir / ".egregora" / "prompts"
+        if egregora_prompts.is_dir():
+            search_paths.append(egregora_prompts)
+            logger.info("Custom prompts directory: %s", egregora_prompts)
+        else:
+            search_paths.append(prompts_dir)
+            logger.info("Custom prompts directory: %s", prompts_dir)
 
     # Always add package prompts as fallback
     search_paths.append(PACKAGE_PROMPTS_DIR)
