@@ -631,14 +631,8 @@ def _is_connection_uri(value: str) -> bool:
         return False
 
     parsed = urlparse(value)
-    if not parsed.scheme:
-        return False
-
     # Handle Windows drive letters (e.g. C:/path or C:\path)
-    if len(parsed.scheme) == 1 and value[1:3] in {":/", ":\\"}:
-        return False
-
-    return True
+    return bool(parsed.scheme) and not (len(parsed.scheme) == 1 and value[1:3] in {":/", ":\\"})
 
 
 def _create_database_backends(
