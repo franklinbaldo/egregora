@@ -172,9 +172,7 @@ def parse_source(
     messages = anonymize_table(messages)
 
     if not expose_raw_author and _AUTHOR_UUID_HEX_COLUMN in messages.columns:
-        messages = messages.mutate(
-            author=messages[_AUTHOR_UUID_HEX_COLUMN].substr(0, 8)
-        )
+        messages = messages.mutate(author=messages[_AUTHOR_UUID_HEX_COLUMN].substr(0, 8))
 
     helper_columns = sorted({"author_raw", "author_uuid", _AUTHOR_UUID_HEX_COLUMN} & set(messages.columns))
     if helper_columns:
