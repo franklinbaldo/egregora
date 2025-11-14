@@ -19,7 +19,7 @@ def test_calculate_max_window_size_full_context_respects_model_limits() -> None:
     """Full-context mode should use model limits and honor CLI overrides."""
 
     config = EgregoraConfig(
-        pipeline={"use_full_context_window": True},
+        pipeline={"use_full_context_window": True, "max_prompt_tokens": 2_000},
         models={"writer": "google-gla:gemini-pro"},
     )
 

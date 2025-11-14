@@ -309,11 +309,21 @@ def _resolve_context_token_limit(config: EgregoraConfig, cli_model_override: str
         Maximum number of prompt tokens available for a window.
 
     """
-    if getattr(config.pipeline, "use_full_context_window", False):
-        writer_model = get_model_for_task("writer", config, cli_override=cli_model_override)
-        return get_model_context_limit(writer_model)
+    use_full_window = getattr(config.pipeline, "use_full_context_window", False)
 
-    return config.pipeline.max_prompt_tokens
+    if use_full_window:
+        writer_model = get_model_for_task("writer", config, cli_override=cli_model_override)
+        limit = get_model_context_limit(writer_model)
+        logger.debug(
+            "Using full context window for writer model %s (limit=%d tokens)",
+            writer_model,
+            limit,
+        )
+        return limit
+
+    limit = config.pipeline.max_prompt_tokens
+    logger.debug("Using configured max_prompt_tokens cap: %d tokens", limit)
+    return limit
 
 
 def _calculate_max_window_size(config: EgregoraConfig, cli_model_override: str | None = None) -> int:
