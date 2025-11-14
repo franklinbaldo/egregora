@@ -67,7 +67,6 @@ SMART_QUOTES_TRANSLATION = str.maketrans(
 @ibis.udf.scalar.python
 def normalize_smart_quotes(value: str | None) -> str:
     """Normalize smart quotes in command text for vectorized parsing."""
-
     if value is None:
         return ""
     return value.translate(SMART_QUOTES_TRANSLATION)
@@ -76,7 +75,6 @@ def normalize_smart_quotes(value: str | None) -> str:
 @ibis.udf.scalar.python
 def strip_wrapping_quotes(value: str | None) -> str | None:
     """Strip wrapping single/double quotes from string values."""
-
     if value is None:
         return None
     return value.strip("\"'")

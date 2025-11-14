@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import ibis
 
@@ -12,17 +12,17 @@ def test_extract_commands_handles_plain_and_smart_quotes() -> None:
         [
             {
                 "author": "alice",
-                "timestamp": datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc),
+                "timestamp": datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
                 "message": '/egregora set alias "Frank"',
             },
             {
                 "author": "bob",
-                "timestamp": datetime(2024, 1, 1, 12, 1, tzinfo=timezone.utc),
+                "timestamp": datetime(2024, 1, 1, 12, 1, tzinfo=UTC),
                 "message": "/egregora set alias “Franklin”",
             },
             {
                 "author": "carol",
-                "timestamp": datetime(2024, 1, 1, 12, 2, tzinfo=timezone.utc),
+                "timestamp": datetime(2024, 1, 1, 12, 2, tzinfo=UTC),
                 "message": "hello there",
             },
         ]
@@ -34,13 +34,13 @@ def test_extract_commands_handles_plain_and_smart_quotes() -> None:
     assert commands == [
         {
             "author": "alice",
-            "timestamp": datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc),
+            "timestamp": datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
             "message": '/egregora set alias "Frank"',
             "command": {"command": "set", "target": "alias", "value": "Frank"},
         },
         {
             "author": "bob",
-            "timestamp": datetime(2024, 1, 1, 12, 1, tzinfo=timezone.utc),
+            "timestamp": datetime(2024, 1, 1, 12, 1, tzinfo=UTC),
             "message": "/egregora set alias “Franklin”",
             "command": {"command": "set", "target": "alias", "value": "Franklin"},
         },
