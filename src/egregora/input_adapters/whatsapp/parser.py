@@ -52,6 +52,13 @@ def _parse_remove_command(args: str) -> dict:
 
 COMMAND_REGISTRY = {"set": _parse_set_command, "remove": _parse_remove_command}
 
+SMART_QUOTES_TRANSLATION = str.maketrans({
+    "“": '"',
+    "”": '"',
+    "‘": "'",
+    "’": "'",
+})
+
 
 def parse_egregora_command(message: str) -> dict | None:
     """Parse egregora commands from message text.
@@ -67,6 +74,9 @@ def parse_egregora_command(message: str) -> dict | None:
     - /egregora unset avatar
     - /egregora opt-out
     - /egregora opt-in
+
+    Smart quotes are normalized to their ASCII equivalents before parsing, so
+    commands like `/egregora set alias “Franklin”` are accepted.
 
     Args:
         message: Message text to parse
@@ -89,8 +99,7 @@ def parse_egregora_command(message: str) -> dict | None:
         }
 
     """
-    message = message.replace(""", '"').replace(""", '"')
-    message = message.replace("'", "'").replace("'", "'")
+    message = message.translate(SMART_QUOTES_TRANSLATION)
     simple_cmd = message.strip().lower()
 
     # Handle simple commands with dictionary lookup
@@ -132,18 +141,24 @@ def extract_commands(messages: Table) -> list[dict]:
         }]
 
     """
-    if int(messages.count().execute()) == 0:
+    rows = list(messages.execute().itertuples(index=False))
+    if not rows:
         return []
     commands = []
-    rows = messages.execute().to_dict("records")
     for row in rows:
-        message = row.get("message", "")
+        row_dict = row._asdict()
+        message = row_dict.get("message", "")
         if not message:
             continue
         cmd = parse_egregora_command(message)
         if cmd:
             commands.append(
-                {"author": row["author"], "timestamp": row["timestamp"], "command": cmd, "message": message}
+                {
+                    "author": row_dict["author"],
+                    "timestamp": row_dict["timestamp"],
+                    "command": cmd,
+                    "message": message,
+                }
             )
     if commands:
         logger.info("Found %s egregora commands", len(commands))
@@ -170,9 +185,10 @@ def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
         (filtered_table, num_removed)
 
     """
-    if int(messages.count().execute()) == 0:
+    count_expr = messages.count()
+    original_count = int(count_expr.execute())
+    if original_count == 0:
         return (messages, 0)
-    original_count = int(messages.count().execute())
     # IR v1 schema exposes the conversation text in the `message` column
     filtered_messages = messages.filter(~messages.message.lower().startswith("/egregora"))
     removed_count = original_count - int(filtered_messages.count().execute())
