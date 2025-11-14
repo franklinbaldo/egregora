@@ -29,7 +29,6 @@ async def query_rag(
     Falls back to informative status messages when the index is missing or
     the similarity search fails.
     """
-
     if not rag_dir.exists():
         return "RAG system not available (no posts indexed yet)"
 
@@ -64,7 +63,6 @@ async def ask_llm(
     cli_model: str | None,
 ) -> str:
     """Ask the configured editor model a free-form question."""
-
     try:
         model_google = get_model_for_task("editor", egregora_config, cli_model)
         if ":" in model_google:
