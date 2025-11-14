@@ -52,14 +52,12 @@ def _parse_remove_command(args: str) -> dict:
 
 COMMAND_REGISTRY = {"set": _parse_set_command, "remove": _parse_remove_command}
 
-SMART_QUOTES_TRANSLATION = str.maketrans(
-    {
-        "“": '"',
-        "”": '"',
-        "‘": "'",
-        "’": "'",
-    }
-)
+SMART_QUOTES_TRANSLATION = str.maketrans({
+    "“": '"',
+    "”": '"',
+    "‘": "'",
+    "’": "'",
+})
 
 
 def parse_egregora_command(message: str) -> dict | None:
@@ -78,7 +76,8 @@ def parse_egregora_command(message: str) -> dict | None:
     - /egregora opt-in
 
     Smart quotes are normalized to their ASCII equivalents before parsing, so
-    commands like `/egregora set alias “Franklin”` are accepted.
+    commands like `/egregora set alias “Franklin”` or `/egregora set alias ‘Franklin’`
+    are accepted.
 
     Args:
         message: Message text to parse
@@ -187,13 +186,18 @@ def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
         (filtered_table, num_removed)
 
     """
-    count_expr = messages.count()
-    original_count = int(count_expr.execute())
+    mask = messages.message.lower().startswith("/egregora")
+    counts_df = messages.aggregate(
+        original_count=messages.count(),
+        removed_count=mask.sum(),
+    ).execute()
+    counts_row = counts_df.iloc[0]
+    original_count = int(counts_row.get("original_count", 0) or 0)
     if original_count == 0:
         return (messages, 0)
+    removed_count = int(counts_row.get("removed_count", 0) or 0)
     # IR v1 schema exposes the conversation text in the `message` column
-    filtered_messages = messages.filter(~messages.message.lower().startswith("/egregora"))
-    removed_count = original_count - int(filtered_messages.count().execute())
+    filtered_messages = messages.filter(~mask)
     if removed_count > 0:
         logger.info("Removed %s /egregora messages from table", removed_count)
     return (filtered_messages, removed_count)
