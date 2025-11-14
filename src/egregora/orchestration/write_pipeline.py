@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import tempfile
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
@@ -137,6 +138,33 @@ class WindowProcessingContext:
     retrieval_nprobe: int
     retrieval_overfetch: int
     client: genai.Client
+
+
+@dataclass(slots=True)
+class PipelineEnvironment:
+    """Resources required to execute the write pipeline."""
+
+    adapter: any
+    site_paths: any
+    runtime_db_uri: str
+    backend: any
+    runs_backend: any
+    cli_model_override: str | None
+    client: genai.Client
+    enrichment_cache: EnrichmentCache
+
+
+@dataclass(slots=True)
+class PreprocessingArtifacts:
+    """Artifacts produced during preprocessing before window execution."""
+
+    messages_table: "ir.Table"
+    windows_iterator: Iterable[any]
+    window_ctx_kwargs: dict[str, any]
+    output_format: any
+    checkpoint_path: Path
+    enable_enrichment: bool
+    embedding_model: str
 
 
 def _process_single_window(
@@ -732,7 +760,11 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> Si
 
 
 def _setup_pipeline_environment(
-    output_dir: Path, config: EgregoraConfig, api_key: str | None, model_override: str | None
+    output_dir: Path,
+    config: EgregoraConfig,
+    api_key: str | None,
+    model_override: str | None,
+    client: genai.Client | None = None,
 ) -> tuple[
     any,
     str,
@@ -780,18 +812,19 @@ def _setup_pipeline_environment(
     # Setup database backends (Ibis-based, database-agnostic)
     runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
 
-    # Setup Gemini client
-    # Configure aggressive retry options to handle rate limits efficiently
-    http_options = genai.types.HttpOptions(
-        retryOptions=genai.types.HttpRetryOptions(
-            attempts=5,  # Max retry attempts
-            initialDelay=2.0,  # Start with 2s delay
-            maxDelay=15.0,  # Cap at 15s (reduced from default 60s)
-            expBase=2.0,  # Exponential backoff multiplier
-            httpStatusCodes=[429, 503],  # Retry on rate limit and service unavailable
+    # Setup Gemini client when not provided by caller
+    if client is None:
+        # Configure aggressive retry options to handle rate limits efficiently
+        http_options = genai.types.HttpOptions(
+            retryOptions=genai.types.HttpRetryOptions(
+                attempts=5,  # Max retry attempts
+                initialDelay=2.0,  # Start with 2s delay
+                maxDelay=15.0,  # Cap at 15s (reduced from default 60s)
+                expBase=2.0,  # Exponential backoff multiplier
+                httpStatusCodes=[429, 503],  # Retry on rate limit and service unavailable
+            )
         )
-    )
-    client = genai.Client(api_key=api_key, http_options=http_options)
+        client = genai.Client(api_key=api_key, http_options=http_options)
 
     # Setup enrichment cache
     cache_dir = Path(".egregora-cache") / site_paths.site_root.name
@@ -806,6 +839,167 @@ def _setup_pipeline_environment(
         client,
         enrichment_cache,
     )
+
+
+def _prepare_adapter_and_environment(
+    source: str,
+    output_dir: Path,
+    config: EgregoraConfig,
+    api_key: str | None,
+    model_override: str | None,
+    client: genai.Client | None,
+) -> PipelineEnvironment:
+    """Resolve the adapter and supporting infrastructure for the pipeline."""
+
+    adapter = get_adapter(source)
+    (
+        site_paths,
+        runtime_db_uri,
+        backend,
+        runs_backend,
+        cli_model_override,
+        resolved_client,
+        enrichment_cache,
+    ) = _setup_pipeline_environment(output_dir, config, api_key, model_override, client)
+
+    return PipelineEnvironment(
+        adapter=adapter,
+        site_paths=site_paths,
+        runtime_db_uri=runtime_db_uri,
+        backend=backend,
+        runs_backend=runs_backend,
+        cli_model_override=cli_model_override,
+        client=resolved_client,
+        enrichment_cache=enrichment_cache,
+    )
+
+
+def _preprocess_messages(
+    env: PipelineEnvironment,
+    input_path: Path,
+    output_dir: Path,
+    config: EgregoraConfig,
+) -> PreprocessingArtifacts:
+    """Parse, enrich, and window messages prior to execution."""
+
+    timezone = config.pipeline.timezone
+    step_size = config.pipeline.step_size
+    step_unit = config.pipeline.step_unit
+    overlap_ratio = config.pipeline.overlap_ratio
+    max_window_time_hours = config.pipeline.max_window_time
+    max_window_time = timedelta(hours=max_window_time_hours) if max_window_time_hours else None
+    enable_enrichment = config.enrichment.enabled
+    retrieval_mode = config.rag.mode
+    retrieval_nprobe = config.rag.nprobe
+    retrieval_overfetch = config.rag.overfetch
+
+    from_date: date_type | None = None
+    to_date: date_type | None = None
+    if config.pipeline.from_date:
+        from_date = date_type.fromisoformat(config.pipeline.from_date)
+    if config.pipeline.to_date:
+        to_date = date_type.fromisoformat(config.pipeline.to_date)
+
+    vision_model = get_model_for_task("enricher_vision", config, env.cli_model_override)
+    embedding_model = get_model_for_task("embedding", config, env.cli_model_override)
+
+    messages_table = _parse_and_validate_source(env.adapter, input_path, timezone)
+    _setup_content_directories(env.site_paths)
+
+    messages_table = _process_commands_and_avatars(
+        messages_table,
+        env.site_paths,
+        vision_model,
+        env.enrichment_cache,
+    )
+
+    checkpoint_path = env.site_paths.site_root / ".egregora" / "checkpoint.json"
+    messages_table = _apply_filters(
+        messages_table,
+        env.site_paths,
+        from_date,
+        to_date,
+        checkpoint_path,
+    )
+
+    logger.info(" [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
+    windows_iterator = create_windows(
+        messages_table,
+        step_size=step_size,
+        step_unit=step_unit,
+        overlap_ratio=overlap_ratio,
+        max_window_time=max_window_time,
+    )
+
+    from egregora.output_adapters import create_output_format
+
+    output_format = create_output_format(output_dir, format_type=config.output.format)
+
+    window_ctx_kwargs = {
+        "adapter": env.adapter,
+        "input_path": input_path,
+        "site_paths": env.site_paths,
+        "posts_dir": env.site_paths.posts_dir,
+        "profiles_dir": env.site_paths.profiles_dir,
+        "config": config,
+        "enrichment_cache": env.enrichment_cache,
+        "output_format": output_format,
+        "enable_enrichment": enable_enrichment,
+        "cli_model_override": env.cli_model_override,
+        "retrieval_mode": retrieval_mode,
+        "retrieval_nprobe": retrieval_nprobe,
+        "retrieval_overfetch": retrieval_overfetch,
+        "client": env.client,
+    }
+
+    return PreprocessingArtifacts(
+        messages_table=messages_table,
+        windows_iterator=windows_iterator,
+        window_ctx_kwargs=window_ctx_kwargs,
+        output_format=output_format,
+        checkpoint_path=checkpoint_path,
+        enable_enrichment=enable_enrichment,
+        embedding_model=embedding_model,
+    )
+
+
+def _execute_windows_and_finalize(
+    preprocessed: PreprocessingArtifacts,
+    runs_backend: any,
+    site_paths: any,
+    config: EgregoraConfig,
+) -> dict[str, dict[str, list[str]]]:
+    """Execute window processing and handle post-processing tasks."""
+
+    if config.rag.enabled:
+        logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
+        try:
+            from egregora.agents.writer.writer_runner import index_documents_for_rag
+
+            indexed_count = index_documents_for_rag(
+                preprocessed.output_format,
+                site_paths.rag_dir,
+                embedding_model=preprocessed.embedding_model,
+            )
+            if indexed_count > 0:
+                logger.info("[green]✓ Indexed[/] %s documents into RAG", indexed_count)
+            else:
+                logger.info("[dim]No new documents to index[/]")
+        except Exception:
+            logger.exception("[yellow]⚠️  Failed to index documents into RAG[/]")
+
+    window_ctx = WindowProcessingContext(**preprocessed.window_ctx_kwargs)
+    results = _process_all_windows(preprocessed.windows_iterator, window_ctx, runs_backend)
+
+    _index_media_into_rag(
+        preprocessed.enable_enrichment,
+        results,
+        site_paths,
+        preprocessed.embedding_model,
+    )
+    _save_checkpoint(results, preprocessed.messages_table, preprocessed.checkpoint_path)
+
+    return results
 
 
 def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) -> ir.Table:
@@ -1102,174 +1296,52 @@ def run(
 
     """
     logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", source)
-    adapter = get_adapter(source)
-
-    # Setup environment (paths, backends, clients)
-    if client is None:
-        (
-            site_paths,
-            runtime_db_uri,
-            backend,
-            runs_backend,
-            cli_model_override,
-            client,
-            enrichment_cache,
-        ) = _setup_pipeline_environment(output_dir, config, api_key, model_override)
-    else:
-        # If client is provided, still need to setup most things
-        output_dir = output_dir.expanduser().resolve()
-        site_paths = _resolve_pipeline_site_paths(output_dir, config)
-        format_type = config.output.format
-        if format_type != "eleventy-arrow":
-            if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
-                msg = f"No mkdocs.yml found for site at {output_dir}. Run 'egregora init <site-dir>' before processing exports."
-                raise ValueError(msg)
-            if not site_paths.docs_dir.exists():
-                msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
-                raise ValueError(msg)
-        elif not site_paths.docs_dir.exists():
-            msg = (
-                "Eleventy content directory not found at"
-                f" {site_paths.docs_dir}. Run 'egregora init <site-dir> --output-format eleventy-arrow' "
-                "to scaffold the project before processing exports."
-            )
-            raise ValueError(msg)
-        runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
-        cli_model_override = model_override
-        cache_dir = Path(".egregora-cache") / site_paths.site_root.name
-        enrichment_cache = EnrichmentCache(cache_dir)
+    client_provided = client is not None
+    env: PipelineEnvironment | None = None
 
     options = getattr(ibis, "options", None)
     old_backend = getattr(options, "default_backend", None) if options else None
     try:
+        env = _prepare_adapter_and_environment(
+            source,
+            output_dir,
+            config,
+            api_key,
+            model_override,
+            client,
+        )
+
         if options is not None:
-            options.default_backend = backend
+            options.default_backend = env.backend
 
-        # Extract config values
-        timezone = config.pipeline.timezone
-        step_size = config.pipeline.step_size
-        step_unit = config.pipeline.step_unit
-        overlap_ratio = config.pipeline.overlap_ratio
-        max_window_time_hours = config.pipeline.max_window_time
-        max_window_time = timedelta(hours=max_window_time_hours) if max_window_time_hours else None
-        enable_enrichment = config.enrichment.enabled
-        retrieval_mode = config.rag.mode
-        retrieval_nprobe = config.rag.nprobe
-        retrieval_overfetch = config.rag.overfetch
-
-        # Parse date filters
-        from_date: date_type | None = None
-        to_date: date_type | None = None
-        if config.pipeline.from_date:
-            from_date = date_type.fromisoformat(config.pipeline.from_date)
-        if config.pipeline.to_date:
-            to_date = date_type.fromisoformat(config.pipeline.to_date)
-
-        # Get model identifiers
-        vision_model = get_model_for_task("enricher_vision", config, cli_model_override)
-        embedding_model = get_model_for_task("embedding", config, cli_model_override)
-
-        # Parse and validate source
-        messages_table = _parse_and_validate_source(adapter, input_path, timezone)
-
-        # Setup content directories
-        _setup_content_directories(site_paths)
-
-        # Process commands and avatars
-        messages_table = _process_commands_and_avatars(
-            messages_table, site_paths, vision_model, enrichment_cache
+        preprocessed = _preprocess_messages(env, input_path, output_dir, config)
+        results = _execute_windows_and_finalize(
+            preprocessed, env.runs_backend, env.site_paths, config
         )
-
-        # Apply all filters
-        checkpoint_path = site_paths.site_root / ".egregora" / "checkpoint.json"
-        messages_table = _apply_filters(messages_table, site_paths, from_date, to_date, checkpoint_path)
-
-        logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
-        windows_iterator = create_windows(
-            messages_table,
-            step_size=step_size,
-            step_unit=step_unit,
-            overlap_ratio=overlap_ratio,
-            max_window_time=max_window_time,
-        )
-
-        posts_dir = site_paths.posts_dir
-        profiles_dir = site_paths.profiles_dir
-
-        # Create OutputAdapter for RAG indexing (storage-agnostic)
-        from egregora.output_adapters import create_output_format
-
-        format_type = config.output.format
-        output_format = create_output_format(output_dir, format_type=format_type)
-
-        # Phase 7.5: Index all existing documents for RAG before window processing
-        # This ensures the writer agent has full context from previous runs
-        # Uses OutputAdapter.list_documents() - no filesystem assumptions
-        if config.rag.enabled:
-            logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
-            try:
-                from egregora.agents.writer.writer_runner import index_documents_for_rag
-
-                indexed_count = index_documents_for_rag(
-                    output_format, site_paths.rag_dir, embedding_model=embedding_model
-                )
-                if indexed_count > 0:
-                    logger.info("[green]✓ Indexed[/] %s documents into RAG", indexed_count)
-                else:
-                    logger.info("[dim]No new documents to index[/]")
-            except Exception:
-                # RAG indexing failure should not block pipeline
-                logger.exception("[yellow]⚠️  Failed to index documents into RAG[/]")
-
-        # Create window processing context
-        window_ctx = WindowProcessingContext(
-            adapter=adapter,
-            input_path=input_path,
-            site_paths=site_paths,
-            posts_dir=posts_dir,
-            profiles_dir=profiles_dir,
-            config=config,
-            enrichment_cache=enrichment_cache,
-            output_format=output_format,
-            enable_enrichment=enable_enrichment,
-            cli_model_override=cli_model_override,
-            retrieval_mode=retrieval_mode,
-            retrieval_nprobe=retrieval_nprobe,
-            retrieval_overfetch=retrieval_overfetch,
-            client=client,
-        )
-
-        # Process all windows with tracking
-        results = _process_all_windows(windows_iterator, window_ctx, runs_backend)
-
-        # Index media enrichments into RAG
-        _index_media_into_rag(enable_enrichment, results, site_paths, embedding_model)
-
-        # Save checkpoint after successful processing
-        _save_checkpoint(results, messages_table, checkpoint_path)
 
         logger.info("[bold green]🎉 Pipeline completed successfully![/]")
         return results
     finally:
         try:
-            if "enrichment_cache" in locals():
-                enrichment_cache.close()
+            if env is not None and env.enrichment_cache is not None:
+                env.enrichment_cache.close()
         finally:
             try:
-                if "runs_backend" in locals():
-                    close_method = getattr(runs_backend, "close", None)
+                if env is not None and env.runs_backend is not None:
+                    close_method = getattr(env.runs_backend, "close", None)
                     if callable(close_method):
                         close_method()
-                    elif hasattr(runs_backend, "con") and hasattr(runs_backend.con, "close"):
-                        runs_backend.con.close()
+                    elif hasattr(env.runs_backend, "con") and hasattr(env.runs_backend.con, "close"):
+                        env.runs_backend.con.close()
             finally:
-                if client:
-                    client.close()
+                if env is not None and env.client is not None and not client_provided:
+                    env.client.close()
         if options is not None:
             options.default_backend = old_backend
-        if "backend" in locals():
-            backend_close = getattr(backend, "close", None)
+        if env is not None and env.backend is not None:
+            backend_close = getattr(env.backend, "close", None)
             if callable(backend_close):
                 backend_close()
-            elif hasattr(backend, "con") and hasattr(backend.con, "close"):
-                backend.con.close()
+            elif hasattr(env.backend, "con") and hasattr(env.backend.con, "close"):
+                env.backend.con.close()
+
