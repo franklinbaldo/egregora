@@ -15,7 +15,6 @@ import uuid
 from dataclasses import dataclass
 
 
-
 @dataclass(frozen=True, slots=True)
 class PrivacySettings:
     """Privacy policy configuration (immutable, tenant-scoped).
