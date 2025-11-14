@@ -204,12 +204,8 @@ def resolve_site_paths(start: Annotated[Path, "Search root"]) -> SitePaths:
     else:
         blog_content_root = (docs_dir / blog_path).resolve()
 
-    # Posts and profiles continue to live under the site root because the
-    # filesystem adapter persists them there regardless of docs_dir/blog_dir
-    # customizations. Keep these directories aligned with the runtime to avoid
-    # generating incorrect relative links or missing profile data.
-    posts_dir = (site_root / "posts").resolve()
-    profiles_dir = (site_root / PROFILES_DIR_NAME).resolve()
+    posts_dir = (blog_content_root / "posts").resolve()
+    profiles_dir = (docs_dir / PROFILES_DIR_NAME).resolve()
     media_dir = (docs_dir / MEDIA_DIR_NAME).resolve()
     rankings_dir = (docs_dir / "rankings").resolve()
     enriched_dir = (docs_dir / "enriched").resolve()

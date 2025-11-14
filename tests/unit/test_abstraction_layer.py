@@ -232,10 +232,8 @@ output:
 
         expected_docs_dir = docs_dir.resolve()
         assert site_paths.docs_dir == expected_docs_dir
-        # Posts and profiles remain at the site root because MkDocsFilesystemAdapter
-        # persists them there regardless of docs_dir customization.
-        assert site_paths.posts_dir == (site_root / "posts").resolve()
-        assert site_paths.profiles_dir == (site_root / "profiles").resolve()
+        assert site_paths.posts_dir == (expected_docs_dir / "posts").resolve()
+        assert site_paths.profiles_dir == (expected_docs_dir / "profiles").resolve()
         assert site_paths.media_dir == (expected_docs_dir / "media").resolve()
 
     def test_write_post(self, tmp_path):
