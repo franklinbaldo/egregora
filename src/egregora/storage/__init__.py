@@ -1,6 +1,9 @@
 """Storage protocols for backend-agnostic document persistence.
 
-MODERN (Phase 5+6): Consolidated to single OutputAdapter abstraction with read/write support.
+DEPRECATED: This module re-exports protocols from data_primitives for backward compatibility.
+New code should import directly from data_primitives.protocols:
+
+    from egregora.data_primitives.protocols import OutputAdapter, UrlConvention, UrlContext
 
 The old storage protocols (PostStorage, ProfileStorage, JournalStorage) have been
 removed in favor of the unified OutputAdapter protocol that handles all document types.
@@ -20,8 +23,8 @@ Migration Guide:
 - ProfileStorage.read() → output_format.read_document(DocumentType.PROFILE, uuid)
 """
 
-from egregora.storage.output_adapter import OutputAdapter
-from egregora.storage.url_convention import UrlContext, UrlConvention
+# Re-export from data_primitives for backward compatibility
+from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
 
 __all__ = [
     # Backend-agnostic abstractions (Phase 4+5)

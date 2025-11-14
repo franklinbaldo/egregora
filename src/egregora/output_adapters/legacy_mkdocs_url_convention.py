@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from egregora.data_primitives.document import Document
-    from egregora.storage.url_convention import UrlContext
+    from egregora.data_primitives.protocols import UrlContext
 
 from egregora.data_primitives.document import DocumentType
 
