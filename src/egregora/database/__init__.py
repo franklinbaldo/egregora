@@ -17,9 +17,11 @@ from egregora.database.ir_schema import (
     CONVERSATION_SCHEMA,
     MESSAGE_SCHEMA,
     RUN_EVENTS_SCHEMA,
+    RUN_EVENTS_TABLE_DDL,
     RUNS_TABLE_DDL,
     RUNS_TABLE_SCHEMA,
     WHATSAPP_CONVERSATION_SCHEMA,
+    create_run_events_table,
     create_runs_table,
     ensure_runs_table_exists,
 )
@@ -46,6 +48,7 @@ __all__ = [
     "RUNS_TABLE_DDL",
     "RUNS_TABLE_SCHEMA",
     "RUN_EVENTS_SCHEMA",
+    "RUN_EVENTS_TABLE_DDL",
     "WHATSAPP_CONVERSATION_SCHEMA",
     # Storage
     "DuckDBStorageManager",
@@ -58,6 +61,7 @@ __all__ = [
     "copy_expr_to_ndjson",
     "copy_expr_to_parquet",
     # Runs table utilities
+    "create_run_events_table",
     "create_runs_table",
     "duckdb_backend",
     "ensure_deterministic_order",
