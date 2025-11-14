@@ -158,56 +158,81 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
         console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
         raise typer.Exit(1)
 
-    # Load or create EgregoraConfig (Phase 2: reduces parameters)
-    base_config = load_egregora_config(output_dir)
-
-    # Override config values from CLI flags using model_copy
-    egregora_config = base_config.model_copy(
-        deep=True,
-        update={
-            "pipeline": base_config.pipeline.model_copy(
-                update={
-                    "step_size": config.step_size,
-                    "step_unit": config.step_unit,
-                    "overlap_ratio": config.overlap_ratio,
-                    "timezone": config.timezone,
-                    "from_date": config.from_date.isoformat() if config.from_date else None,
-                    "to_date": config.to_date.isoformat() if config.to_date else None,
-                    "max_prompt_tokens": config.max_prompt_tokens,
-                    "use_full_context_window": config.use_full_context_window,
-                }
-            ),
-            "enrichment": base_config.enrichment.model_copy(update={"enabled": config.enable_enrichment}),
-            "rag": base_config.rag.model_copy(
-                update={
-                    "mode": config.retrieval_mode or base_config.rag.mode,
-                    "nprobe": config.retrieval_nprobe
-                    if config.retrieval_nprobe is not None
-                    else base_config.rag.nprobe,
-                    "overfetch": config.retrieval_overfetch
-                    if config.retrieval_overfetch is not None
-                    else base_config.rag.overfetch,
-                }
-            ),
-        },
-    )
-
     try:
         console.print(
             Panel(
-                f"[cyan]Source:[/cyan] {source}\n[cyan]Input:[/cyan] {config.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {config.step_size} {config.step_unit}",
+                f"[cyan]Source:[/cyan] {source}
+[cyan]Input:[/cyan] {config.input_file}
+[cyan]Output:[/cyan] {output_dir}
+[cyan]Windowing:[/cyan] {config.step_size} {config.step_unit}",
                 title="⚙️  Egregora Pipeline",
                 border_style="cyan",
             )
         )
-        write_pipeline.run(
-            source=source,
-            input_path=config.input_file,
-            output_dir=config.output_dir,
-            config=egregora_config,
-            api_key=api_key,
-            model_override=config.model,
-        )
+        if source == "whatsapp":
+            options = write_pipeline.WhatsAppProcessOptions(
+                output_dir=output_dir,
+                step_size=config.step_size,
+                step_unit=config.step_unit,
+                overlap_ratio=config.overlap_ratio,
+                enable_enrichment=config.enable_enrichment,
+                from_date=config.from_date,
+                to_date=config.to_date,
+                timezone=config.timezone,
+                gemini_api_key=api_key,
+                model=config.model,
+                retrieval_mode=config.retrieval_mode,
+                retrieval_nprobe=config.retrieval_nprobe,
+                retrieval_overfetch=config.retrieval_overfetch,
+                max_prompt_tokens=config.max_prompt_tokens,
+                use_full_context_window=config.use_full_context_window,
+            )
+            write_pipeline.process_whatsapp_export(
+                zip_path=config.input_file,
+                options=options,
+            )
+        else:
+            base_config = load_egregora_config(output_dir)
+            egregora_config = base_config.model_copy(
+                deep=True,
+                update={
+                    "pipeline": base_config.pipeline.model_copy(
+                        update={
+                            "step_size": config.step_size,
+                            "step_unit": config.step_unit,
+                            "overlap_ratio": config.overlap_ratio,
+                            "timezone": config.timezone,
+                            "from_date": config.from_date.isoformat() if config.from_date else None,
+                            "to_date": config.to_date.isoformat() if config.to_date else None,
+                            "max_prompt_tokens": config.max_prompt_tokens,
+                            "use_full_context_window": config.use_full_context_window,
+                        }
+                    ),
+                    "enrichment": base_config.enrichment.model_copy(
+                        update={"enabled": config.enable_enrichment}
+                    ),
+                    "rag": base_config.rag.model_copy(
+                        update={
+                            "mode": config.retrieval_mode or base_config.rag.mode,
+                            "nprobe": config.retrieval_nprobe
+                            if config.retrieval_nprobe is not None
+                            else base_config.rag.nprobe,
+                            "overfetch": config.retrieval_overfetch
+                            if config.retrieval_overfetch is not None
+                            else base_config.rag.overfetch,
+                        }
+                    ),
+                },
+            )
+            write_pipeline.run(
+                source=source,
+                input_path=config.input_file,
+                output_dir=config.output_dir,
+                config=egregora_config,
+                api_key=api_key,
+                model_override=config.model,
+            )
+
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:
         console.print(f"[red]Pipeline failed: {e}[/red]")
