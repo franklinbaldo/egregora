@@ -20,8 +20,7 @@ import pytest
 from typer.testing import CliRunner
 
 from egregora.cli import app
-from egregora.database.ir_schema import create_runs_table
-from egregora.database.tracking import record_run
+from egregora.database.ir_schema import create_run_events_table
 
 # Create a CLI runner for testing
 runner = CliRunner()
@@ -32,14 +31,14 @@ def temp_runs_db(tmp_path: Path) -> Path:
     """Create a temporary runs database for testing."""
     db_path = tmp_path / "runs.duckdb"
     conn = duckdb.connect(str(db_path))
-    create_runs_table(conn)
+    create_run_events_table(conn)
     conn.close()
     return db_path
 
 
 @pytest.fixture
 def populated_runs_db(temp_runs_db: Path) -> Path:
-    """Create a runs database with sample data for testing."""
+    """Create a runs database with sample data for testing (event-sourced pattern)."""
     conn = duckdb.connect(str(temp_runs_db))
 
     # Create sample runs with different statuses and timestamps
@@ -116,22 +115,50 @@ def populated_runs_db(temp_runs_db: Path) -> Path:
         },
     ]
 
+    # Insert events using event-sourced pattern (started + completed/failed)
     for i, run_data in enumerate(runs):
-        record_run(
-            conn=conn,
-            run_id=run_data["run_id"],
-            stage=run_data["stage"],
-            status=run_data["status"],
-            started_at=run_data["started_at"],
-            finished_at=run_data.get("finished_at"),
-            input_fingerprint=f"sha256:test-fingerprint-{i}",
-            rows_in=run_data.get("rows_in"),
-            rows_out=run_data.get("rows_out"),
-            llm_calls=run_data.get("llm_calls", 0),
-            tokens=run_data.get("tokens", 0),
-            error=run_data.get("error"),
-            trace_id=run_data.get("trace_id"),
+        # Started event
+        conn.execute(
+            """
+            INSERT INTO run_events (
+                event_id, run_id, stage, status, timestamp,
+                input_fingerprint, rows_in
+            ) VALUES (?, ?, ?, 'started', ?, ?, ?)
+            """,
+            [
+                str(uuid.uuid4()),
+                str(run_data["run_id"]),
+                run_data["stage"],
+                run_data["started_at"],
+                f"sha256:test-fingerprint-{i}",
+                run_data.get("rows_in"),
+            ],
         )
+
+        # Completed/failed event
+        if run_data["finished_at"]:
+            duration_seconds = (run_data["finished_at"] - run_data["started_at"]).total_seconds()
+            conn.execute(
+                """
+                INSERT INTO run_events (
+                    event_id, run_id, stage, status, timestamp,
+                    rows_out, duration_seconds, llm_calls, tokens, error, trace_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    str(uuid.uuid4()),
+                    str(run_data["run_id"]),
+                    run_data["stage"],
+                    run_data["status"],
+                    run_data["finished_at"],
+                    run_data.get("rows_out"),
+                    duration_seconds,
+                    run_data.get("llm_calls", 0),
+                    run_data.get("tokens", 0),
+                    run_data.get("error"),
+                    run_data.get("trace_id"),
+                ],
+            )
 
     conn.close()
     return temp_runs_db
@@ -254,7 +281,7 @@ class TestRunsShow:
         """Test show command with full run UUID."""
         # Get first run ID from database
         conn = duckdb.connect(str(populated_runs_db), read_only=True)
-        result = conn.execute("SELECT CAST(run_id AS VARCHAR) FROM runs LIMIT 1").fetchone()
+        result = conn.execute("SELECT CAST(run_id AS VARCHAR) FROM run_events LIMIT 1").fetchone()
         conn.close()
 
         if result:
@@ -270,7 +297,7 @@ class TestRunsShow:
         """Test show command with UUID prefix matching."""
         # Get first run ID from database
         conn = duckdb.connect(str(populated_runs_db), read_only=True)
-        result = conn.execute("SELECT CAST(run_id AS VARCHAR) FROM runs LIMIT 1").fetchone()
+        result = conn.execute("SELECT CAST(run_id AS VARCHAR) FROM run_events LIMIT 1").fetchone()
         conn.close()
 
         if result:
@@ -286,7 +313,7 @@ class TestRunsShow:
         """Test that show command displays output in panel format."""
         conn = duckdb.connect(str(populated_runs_db), read_only=True)
         result = conn.execute(
-            "SELECT CAST(run_id AS VARCHAR) FROM runs WHERE status = 'completed' LIMIT 1"
+            "SELECT CAST(run_id AS VARCHAR) FROM run_events WHERE status = 'completed' LIMIT 1"
         ).fetchone()
         conn.close()
 
@@ -302,7 +329,7 @@ class TestRunsShow:
         """Test show command displays completed run with metrics."""
         conn = duckdb.connect(str(populated_runs_db), read_only=True)
         result = conn.execute(
-            "SELECT CAST(run_id AS VARCHAR) FROM runs WHERE stage = 'generation' LIMIT 1"
+            "SELECT CAST(run_id AS VARCHAR) FROM run_events WHERE stage = 'generation' LIMIT 1"
         ).fetchone()
         conn.close()
 
@@ -322,7 +349,7 @@ class TestRunsShow:
         """Test show command displays failed run with error message."""
         conn = duckdb.connect(str(populated_runs_db), read_only=True)
         result = conn.execute(
-            "SELECT CAST(run_id AS VARCHAR) FROM runs WHERE status = 'failed' LIMIT 1"
+            "SELECT CAST(run_id AS VARCHAR) FROM run_events WHERE status = 'failed' LIMIT 1"
         ).fetchone()
         conn.close()
 
@@ -338,7 +365,7 @@ class TestRunsShow:
         """Test show command displays trace ID when available."""
         conn = duckdb.connect(str(populated_runs_db), read_only=True)
         result = conn.execute(
-            "SELECT CAST(run_id AS VARCHAR) FROM runs WHERE trace_id IS NOT NULL LIMIT 1"
+            "SELECT CAST(run_id AS VARCHAR) FROM run_events WHERE trace_id IS NOT NULL LIMIT 1"
         ).fetchone()
         conn.close()
 
@@ -517,7 +544,7 @@ class TestRunsClear:
         """Test clear command with force flag (no confirmation)."""
         # Get initial run count
         conn = duckdb.connect(str(populated_runs_db), read_only=True)
-        initial_count = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+        initial_count = conn.execute("SELECT COUNT(DISTINCT run_id) FROM run_events").fetchone()[0]
         conn.close()
 
         result = runner.invoke(
@@ -532,7 +559,7 @@ class TestRunsClear:
 
             # Database may be cleared
             conn = duckdb.connect(str(populated_runs_db), read_only=True)
-            final_count = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+            final_count = conn.execute("SELECT COUNT(DISTINCT run_id) FROM run_events").fetchone()[0]
             conn.close()
 
             # Count should be less than or equal to initial
@@ -558,7 +585,7 @@ class TestRunsCommandsIntegration:
 
         # 2. Get a run ID from the tail output and view details
         conn = duckdb.connect(str(populated_runs_db), read_only=True)
-        run_result = conn.execute("SELECT CAST(run_id AS VARCHAR) FROM runs LIMIT 1").fetchone()
+        run_result = conn.execute("SELECT CAST(run_id AS VARCHAR) FROM run_events LIMIT 1").fetchone()
         conn.close()
 
         if run_result:
@@ -570,7 +597,7 @@ class TestRunsCommandsIntegration:
         """Test that read-only runs commands don't modify database."""
         # Get initial state
         conn = duckdb.connect(str(populated_runs_db), read_only=True)
-        initial_count = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+        initial_count = conn.execute("SELECT COUNT(DISTINCT run_id) FROM run_events").fetchone()[0]
         conn.close()
 
         # Run commands
@@ -579,7 +606,7 @@ class TestRunsCommandsIntegration:
 
         # Verify database unchanged
         conn = duckdb.connect(str(populated_runs_db), read_only=True)
-        final_count = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+        final_count = conn.execute("SELECT COUNT(DISTINCT run_id) FROM run_events").fetchone()[0]
         conn.close()
 
         assert initial_count == final_count
@@ -624,7 +651,7 @@ class TestRunsCommandsEdgeCases:
     def test_runs_show_case_insensitive_prefix(self, populated_runs_db: Path):
         """Test show command with case variations in run ID prefix."""
         conn = duckdb.connect(str(populated_runs_db), read_only=True)
-        result = conn.execute("SELECT CAST(run_id AS VARCHAR) FROM runs LIMIT 1").fetchone()
+        result = conn.execute("SELECT CAST(run_id AS VARCHAR) FROM run_events LIMIT 1").fetchone()
         conn.close()
 
         if result:

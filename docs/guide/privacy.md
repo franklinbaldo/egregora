@@ -6,28 +6,26 @@ Privacy is core to Egregora's design. Real names **never** reach the LLM - all c
 
 ### Deterministic UUIDs
 
-When you process a chat, Egregora replaces names with UUIDs:
+Input adapters anonymize author names **before** the data enters the core
+pipeline. Each adapter chooses the namespace that best matches its privacy
+requirements and calls `deterministic_author_uuid()` while constructing the IR
+table:
 
 ```python
-from egregora.privacy import anonymize_dataframe
+import uuid
 
-df = parse_whatsapp_export("chat.zip")
-df_anon = anonymize_dataframe(df)
+from egregora.privacy.constants import NAMESPACE_AUTHOR, deterministic_author_uuid
 
-# Before:
-# author: "Alice"
-# message: "Hey Bob, what do you think?"
-
-# After:
-# author: "a3f2b91c"
-# message: "Hey b7e4d23a, what do you think?"
+tenant_namespace = uuid.uuid5(NAMESPACE_AUTHOR, "tenant:family-chat:source:whatsapp")
+author_uuid = deterministic_author_uuid("Alice", namespace=tenant_namespace)
 ```
 
 **Key properties**:
 
-- **Deterministic**: Same person always gets the same UUID
-- **Collision-resistant**: Uses SHA-256 hashing
-- **Reversible**: Original mapping stored locally (never sent to LLM)
+- **Deterministic**: Same namespace + author → same UUID
+- **Scoped anonymity**: Opt into tenant-specific namespaces when isolation is needed
+- **Local control**: Namespace selection lives inside the adapter, so projects can
+  decide how aggressively to separate identities
 
 ### Process Flow
 
@@ -38,8 +36,8 @@ sequenceDiagram
     participant LLM
 
     User->>Egregora: WhatsApp export (real names)
-    Egregora->>Egregora: Generate UUIDs
-    Egregora->>Egregora: Replace all names
+    Egregora->>Egregora: Adapter derives namespace + UUIDs
+    Egregora->>Egregora: Core validates anonymized IR
     Egregora->>LLM: Anonymized conversation
     LLM->>Egregora: Blog post (with UUIDs)
     Egregora->>Egregora: Reverse mapping (optional)

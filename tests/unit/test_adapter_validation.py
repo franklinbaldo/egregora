@@ -9,14 +9,15 @@ Tests cover:
 
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 
 import ibis
 import pytest
 
 from egregora.database.validation import SchemaError, validate_adapter_output
+from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.input_adapters.registry import InputAdapterRegistry, ValidatedAdapter
-from egregora.sources.base import AdapterMeta, InputAdapter
 
 
 class MockAdapter(InputAdapter):
@@ -75,7 +76,7 @@ class MockAdapter(InputAdapter):
                     "text": ["Test message"],
                     "media_url": [None],
                     "media_type": [None],
-                    "attrs": [{}],
+                    "attrs": [None],
                     "pii_flags": [{}],
                     "created_at": [datetime.now(UTC)],
                     "created_by_run": [test_run_id],  # Use actual UUID to avoid null type
@@ -257,7 +258,6 @@ class TestSchemaValidationErrors:
 
     def test_extra_columns_allowed(self) -> None:
         """Test that extra columns are allowed (schema is superset)."""
-        import uuid
         from datetime import UTC, datetime
 
         import pandas as pd
@@ -275,7 +275,7 @@ class TestSchemaValidationErrors:
             "text": ["Test message"],
             "media_url": [None],
             "media_type": [None],
-            "attrs": [{}],
+            "attrs": [None],
             "pii_flags": [{}],
             "created_at": [datetime.now(UTC)],
             "created_by_run": [None],

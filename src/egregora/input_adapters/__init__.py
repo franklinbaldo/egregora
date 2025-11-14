@@ -18,10 +18,10 @@ Example:
 
 """
 
+from egregora.input_adapters.base import InputAdapter
 from egregora.input_adapters.registry import InputAdapterRegistry, get_global_registry
 from egregora.input_adapters.slack import SlackAdapter
 from egregora.input_adapters.whatsapp import WhatsAppAdapter
-from egregora.sources.base import InputAdapter
 
 # Legacy registry (deprecated in favor of InputAdapterRegistry)
 ADAPTER_REGISTRY: dict[str, type] = {"whatsapp": WhatsAppAdapter, "slack": SlackAdapter}

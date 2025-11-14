@@ -12,7 +12,7 @@ from rich.logging import RichHandler
 from rich.panel import Panel
 
 from egregora.config import ProcessConfig, load_egregora_config
-from egregora.config.validation import parse_date_arg, validate_retrieval_config
+from egregora.config.config_validation import parse_date_arg, validate_retrieval_config
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration import write_pipeline
 

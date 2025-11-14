@@ -1,4 +1,18 @@
-"""Media extraction and replacement utilities for enrichment."""
+"""Enrichment-stage helpers for raw WhatsApp media exports.
+
+This module operates on the **ingestion ZIP files** produced by WhatsApp and is
+responsible for:
+
+* Discovering attachment filenames embedded in the raw chat text
+* Extracting the matching files from the exported ZIP archive
+* Rewriting chat messages so that downstream stages reference the extracted
+  UUID5 paths instead of the WhatsApp placeholders
+
+Unlike :mod:`egregora.transformations.media`, these helpers work **before** the
+messages are normalized into Markdown. They run in the enrichment stage where
+we still have direct access to the source-specific ZIP layout and attachment
+markers.
+"""
 
 import hashlib
 import os
@@ -10,8 +24,6 @@ from typing import Annotated
 
 import ibis
 from ibis.expr.types import Table
-
-from egregora.enrichment.batch import _iter_table_record_batches
 
 ATTACHMENT_MARKERS = ("(arquivo anexado)", "(file attached)", "(archivo adjunto)", "\u200e<attached:")
 MEDIA_EXTENSIONS = {
@@ -185,6 +197,8 @@ def extract_and_replace_media(
         - Media mapping (original → extracted path)
 
     """
+    from egregora.enrichment.runners import _iter_table_record_batches
+
     all_media = set()
     batch_size = 1000
     for batch_records in _iter_table_record_batches(messages_table, batch_size):
@@ -202,7 +216,8 @@ def extract_and_replace_media(
     def replace_in_message(message: str) -> str:
         return replace_media_mentions(message, media_mapping, docs_dir, posts_dir) if message else message
 
-    updated_table = messages_table.mutate(message=replace_in_message(messages_table.message))
+    # IR v1: use .text column
+    updated_table = messages_table.mutate(text=replace_in_message(messages_table.text))
     return (updated_table, media_mapping)
 
 

@@ -30,11 +30,10 @@ from egregora.agents.writer.formatting import _build_conversation_markdown, _loa
 from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import UrlContext
 from egregora.output_adapters import create_output_format, output_registry
-from egregora.output_adapters.legacy_mkdocs_url_convention import LegacyMkDocsUrlConvention
-from egregora.output_adapters.mkdocs_output_adapter import MkDocsOutputAdapter
+from egregora.output_adapters.mkdocs import LegacyMkDocsUrlConvention, MkDocsFilesystemAdapter
 from egregora.prompt_templates import WriterPromptTemplate
-from egregora.storage.url_convention import UrlContext
 
 if TYPE_CHECKING:
     from google import genai
@@ -363,7 +362,16 @@ def _write_posts_for_window_pydantic(
     embedding_model = get_model_for_task("embedding", config.egregora_config, config.cli_model)
 
     annotations_store = AnnotationStore(config.rag_dir / "annotations.duckdb")
-    messages_table = table.to_pyarrow()
+
+    # IR v1: Cast UUID columns to strings for PyArrow compatibility
+    # PyArrow doesn't support Python UUID objects, needs string serialization
+    table_with_str_uuids = table.mutate(
+        event_id=table.event_id.cast(str),
+        author_uuid=table.author_uuid.cast(str),
+        thread_id=table.thread_id.cast(str),
+        created_by_run=table.created_by_run.cast(str),
+    )
+    messages_table = table_with_str_uuids.to_pyarrow()
     conversation_md = _build_conversation_markdown(messages_table, annotations_store)
     rag_context = ""
     if config.enable_rag:
@@ -377,9 +385,10 @@ def _write_posts_for_window_pydantic(
             retrieval_overfetch=config.retrieval_overfetch,
             use_pydantic_helpers=True,
         )
-    profiles_context = _load_profiles_context(table, config.profiles_dir)
+    # IR v1: Use table with string UUIDs for pandas/PyArrow operations
+    profiles_context = _load_profiles_context(table_with_str_uuids, config.profiles_dir)
     journal_memory = _load_journal_memory(config.rag_dir)
-    active_authors = get_active_authors(table)
+    active_authors = get_active_authors(table_with_str_uuids)
 
     # Use site_root from config for custom prompt overrides
     # site_root is where the .egregora/ directory lives
@@ -423,8 +432,8 @@ def _write_posts_for_window_pydantic(
 
     # Create format-specific runtime output format
     if format_type == "mkdocs":
-        # Use NEW MkDocsOutputAdapter with constructor injection (has url_convention property)
-        runtime_output_format = MkDocsOutputAdapter(site_root=storage_root, url_context=url_context)
+        # Use NEW MkDocsFilesystemAdapter with constructor injection (has url_convention property)
+        runtime_output_format = MkDocsFilesystemAdapter(site_root=storage_root, url_context=url_context)
         url_convention = runtime_output_format.url_convention
     else:
         # For other formats (Hugo, etc.), fall back to old pattern for now
