@@ -64,9 +64,10 @@ def extract_markdown_media_refs(table: Table) -> set[str]:
 
     """
     references = set()
-    messages = table.select("message").execute()
+    # IR v1: use "text" column instead of "message"
+    messages = table.select("text").execute()
     for row in messages.itertuples(index=False):
-        message = row.message
+        message = row.text
         if not message:
             continue
         for match in MARKDOWN_IMAGE_PATTERN.finditer(message):
@@ -121,7 +122,8 @@ def replace_markdown_media_refs(
                 relative_link = "/" + absolute_path.relative_to(docs_dir).as_posix()
             except ValueError:
                 relative_link = absolute_path.as_posix()
-        df["message"] = df["message"].str.replace(f"]({original_ref})", f"]({relative_link})", regex=False)
+        # IR v1: use "text" column instead of "message"
+        df["text"] = df["text"].str.replace(f"]({original_ref})", f"]({relative_link})", regex=False)
     updated_table = ibis.memtable(df)
     logger.debug("Replaced %s media references in messages", len(media_mapping))
     return updated_table

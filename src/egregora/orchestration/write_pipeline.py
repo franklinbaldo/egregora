@@ -705,11 +705,8 @@ def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) ->
     logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
     messages_table = adapter.parse(input_path, timezone=timezone)
 
-    is_valid, errors = validate_ir_schema(messages_table)
-    if not is_valid:
-        raise ValueError(
-            "Source adapter produced invalid IR schema. Errors:\n" + "\n".join(f"  - {err}" for err in errors)
-        )
+    # Validate IR schema (raises SchemaError if invalid)
+    validate_ir_schema(messages_table)
 
     total_messages = messages_table.count().execute()
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)
@@ -834,7 +831,7 @@ def _save_checkpoint(results: dict, messages_table: ir.Table, checkpoint_path: P
 
     # Checkpoint based on messages in the filtered table
     checkpoint_stats = messages_table.aggregate(
-        max_timestamp=messages_table.timestamp.max(),
+        max_timestamp=messages_table.ts.max(),
         total_processed=messages_table.count(),
     ).execute()
 
@@ -883,14 +880,14 @@ def _apply_filters(
         original_count = messages_table.count().execute()
         if from_date and to_date:
             messages_table = messages_table.filter(
-                (messages_table.timestamp.date() >= from_date) & (messages_table.timestamp.date() <= to_date)
+                (messages_table.ts.date() >= from_date) & (messages_table.ts.date() <= to_date)
             )
             logger.info("📅 [cyan]Filtering[/] from %s to %s", from_date, to_date)
         elif from_date:
-            messages_table = messages_table.filter(messages_table.timestamp.date() >= from_date)
+            messages_table = messages_table.filter(messages_table.ts.date() >= from_date)
             logger.info("📅 [cyan]Filtering[/] from %s onwards", from_date)
         elif to_date:
-            messages_table = messages_table.filter(messages_table.timestamp.date() <= to_date)
+            messages_table = messages_table.filter(messages_table.ts.date() <= to_date)
             logger.info("📅 [cyan]Filtering[/] up to %s", to_date)
         filtered_count = messages_table.count().execute()
         removed_by_date = original_count - filtered_count
@@ -911,7 +908,7 @@ def _apply_filters(
             last_timestamp = last_timestamp.astimezone(utc_zone)
 
         original_count = messages_table.count().execute()
-        messages_table = messages_table.filter(messages_table.timestamp > last_timestamp)
+        messages_table = messages_table.filter(messages_table.ts > last_timestamp)
         filtered_count = messages_table.count().execute()
         resumed_count = original_count - filtered_count
 

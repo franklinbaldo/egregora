@@ -361,16 +361,28 @@ def deterministic_event_uuid(source: str, msg_id: str) -> uuid.UUID:
     key = f"{source}:{msg_id}"
     return uuid.uuid5(NS_EVENTS, key)
 
-def deterministic_author_uuid(tenant_id: str, source: str, author_raw: str) -> uuid.UUID:
-    """Generate deterministic author UUID."""
-    key = f"{tenant_id}:{source}:{author_raw}"
-    return uuid.uuid5(NS_AUTHORS, key)
+def deterministic_author_uuid(author_raw: str, *, namespace: uuid.UUID = NS_AUTHORS) -> uuid.UUID:
+    """Generate deterministic author UUID within a namespace."""
+    return uuid.uuid5(namespace, author_raw.strip().lower())
 
 def deterministic_thread_uuid(tenant_id: str, source: str, thread_key: str) -> uuid.UUID:
     """Generate deterministic thread UUID."""
     key = f"{tenant_id}:{source}:{thread_key}"
     return uuid.uuid5(NS_THREADS, key)
 ```
+
+Adapters **must** call `deterministic_author_uuid()` while parsing source data so
+that the IR table already contains anonymized identities. Passing a custom
+`namespace` derived from tenant or source metadata keeps pseudonyms isolated
+when required:
+
+```python
+tenant_namespace = uuid.uuid5(NS_AUTHORS, f"tenant:{tenant_id}:source:{source}")
+author_uuid = deterministic_author_uuid(author_raw, namespace=tenant_namespace)
+```
+
+The core validation layer assumes the adapter already performed this step and
+will not back-fill missing pseudonyms.
 
 ---
 
