@@ -413,53 +413,56 @@ app.add_typer(views_app)
 @views_app.command(name="list")
 def views_list(
     db_path: Annotated[
-        Path | None, typer.Option(help="Database file path (uses in-memory DB if not specified)")
+        Path | None, typer.Option(help="Database file path (shows materialization status if provided)")
     ] = None,
 ) -> None:
-    """List all registered views.
+    """List registered pipeline views from the global registry.
 
     Examples:
         egregora views list
         egregora views list --db-path=pipeline.db
 
     """
-    import duckdb
+    from inspect import getdoc
 
-    from egregora.database.views import ViewRegistry, register_common_views
+    from egregora.database.duckdb_manager import DuckDBStorageManager
+    from egregora.database.views import views
 
-    # Connect to database
-    conn = duckdb.connect(str(db_path) if db_path else ":memory:")
+    registered_views = views.list_views()
 
-    try:
-        # Create registry and register common views
-        registry = ViewRegistry(conn)
-        register_common_views(registry)
+    if not registered_views:
+        console.print("[yellow]No views registered[/yellow]")
+        return
 
-        views = registry.list_views()
+    console.print(f"[cyan]Registered views ({len(registered_views)}):[/cyan]")
+    console.print()
 
-        if not views:
-            console.print("[yellow]No views registered[/yellow]")
-            return
+    materialized: dict[str, bool] = {}
+    if db_path is not None:
+        if not db_path.exists():
+            console.print(f"[yellow]Warning: Database file not found: {db_path}[/yellow]")
+        else:
+            with DuckDBStorageManager(db_path=db_path) as storage:
+                materialized = {name: storage.table_exists(name) for name in registered_views}
 
-        console.print(f"[cyan]Registered views ({len(views)}):[/cyan]")
+    for view_name in registered_views:
+        status = materialized.get(view_name)
+        if status is True:
+            status_text = "[green]materialized[/green]"
+        elif status is False:
+            status_text = "[dim]not materialized[/dim]"
+        else:
+            status_text = "[dim]registry-only[/dim]"
+
+        console.print(f"  • [bold]{view_name}[/bold] ({status_text})")
+
+        builder = views.get(view_name)
+        doc = getdoc(builder)
+        if doc:
+            first_line = doc.strip().splitlines()[0]
+            console.print(f"    {first_line}", style="dim")
+
         console.print()
-
-        for view_name in sorted(views):
-            view = registry.get_view(view_name)
-            materialized = "📊 materialized" if view.materialized else "👁️  view"
-            console.print(f"  • [bold]{view_name}[/bold] [{materialized}]")
-
-            if view.description:
-                console.print(f"    {view.description}", style="dim")
-
-            if view.dependencies:
-                deps = ", ".join(view.dependencies)
-                console.print(f"    Dependencies: {deps}", style="dim")
-
-            console.print()
-
-    finally:
-        conn.close()
 
 
 @views_app.command(name="create")
@@ -477,44 +480,46 @@ def views_create(
         egregora views create pipeline.db --force  # Recreate existing views
 
     """
-    import duckdb
-
-    from egregora.database.views import ViewRegistry, register_common_views
+    from egregora.database.duckdb_manager import DuckDBStorageManager
+    from egregora.database.views import views
 
     if not db_path.exists():
         console.print(f"[red]Error: Database file not found: {db_path}[/red]")
         raise typer.Exit(1)
 
-    # Connect to database
-    conn = duckdb.connect(str(db_path))
+    with DuckDBStorageManager(db_path=db_path) as storage:
+        if not storage.table_exists(table_name):
+            available = ", ".join(storage.list_tables())
+            console.print(f"[red]Error: Table '{table_name}' not found in database[/red]")
+            console.print(f"Available tables: {available}" if available else "[dim]Database has no tables[/dim]")
+            raise typer.Exit(1)
 
-    # Verify table exists
-    tables = conn.execute("SELECT table_name FROM information_schema.tables").fetchall()
-    table_names = [t[0] for t in tables]
+        view_names = views.list_views()
 
-    if table_name not in table_names:
-        conn.close()
-        console.print(f"[red]Error: Table '{table_name}' not found in database[/red]")
-        console.print(f"Available tables: {', '.join(table_names)}")
-        raise typer.Exit(1)
+        if not view_names:
+            console.print("[yellow]No views registered to create[/yellow]")
+            return
 
-    try:
-        # Create registry and register common views
-        registry = ViewRegistry(conn)
-        register_common_views(registry, table_name=table_name)
+        console.print(f"[cyan]Creating {len(view_names)} views from registry...[/cyan]")
 
-        # Create views
-        console.print(f"[cyan]Creating {len(registry.list_views())} views...[/cyan]")
-        registry.create_all(force=force)
+        created = 0
+        for view_name in view_names:
+            if not force and storage.table_exists(view_name):
+                console.print(
+                    f"[yellow]Skipping existing view table: {view_name}. Use --force to recreate.[/yellow]"
+                )
+                continue
 
-        console.print(f"[green]✅ Created {len(registry.list_views())} views[/green]")
+            if force and storage.table_exists(view_name):
+                storage.drop_table(view_name, checkpoint_too=True)
 
-    except Exception as e:
-        console.print(f"[red]Error creating views: {e}[/red]")
-        raise typer.Exit(1) from e
+            builder = views.get(view_name)
 
-    finally:
-        conn.close()
+            console.print(f"  • Materializing [bold]{view_name}[/bold] from '{table_name}'")
+            storage.execute_view(view_name, builder, table_name, checkpoint=True)
+            created += 1
+
+        console.print(f"[green]✅ Created {created} view tables[/green]")
 
 
 @views_app.command(name="refresh")
@@ -532,60 +537,51 @@ def views_refresh(
         egregora views refresh pipeline.db --view-name=author_message_counts  # Refresh specific view
 
     """
-    import duckdb
-
-    from egregora.database.views import ViewRegistry, register_common_views
+    from egregora.database.duckdb_manager import DuckDBStorageManager
+    from egregora.database.views import views
 
     if not db_path.exists():
         console.print(f"[red]Error: Database file not found: {db_path}[/red]")
         raise typer.Exit(1)
 
-    # Connect to database
-    conn = duckdb.connect(str(db_path))
-
-    # Create registry and register common views
-    registry = ViewRegistry(conn)
-    register_common_views(registry, table_name=table_name)
-
-    if view_name:
-        # Validate specific view
-        if view_name not in registry.list_views():
-            conn.close()
-            console.print(f"[red]Error: View '{view_name}' not registered[/red]")
-            console.print(f"Available views: {', '.join(registry.list_views())}")
+    with DuckDBStorageManager(db_path=db_path) as storage:
+        if not storage.table_exists(table_name):
+            available = ", ".join(storage.list_tables())
+            console.print(f"[red]Error: Table '{table_name}' not found in database[/red]")
+            console.print(f"Available tables: {available}" if available else "[dim]Database has no tables[/dim]")
             raise typer.Exit(1)
 
-        view = registry.get_view(view_name)
-        if not view.materialized:
-            conn.close()
-            console.print(f"[yellow]Warning: '{view_name}' is not materialized (cannot refresh)[/yellow]")
-            raise typer.Exit(1)
-
-    try:
         if view_name:
-            # Refresh specific view
+            if not views.has(view_name):
+                console.print(f"[red]Error: View '{view_name}' not registered[/red]")
+                console.print(f"Available views: {', '.join(views.list_views())}")
+                raise typer.Exit(1)
+
+            if not storage.table_exists(view_name):
+                console.print(
+                    f"[yellow]Warning: View table '{view_name}' not materialized yet. Run 'egregora views create' first.[/yellow]"
+                )
+                raise typer.Exit(1)
+
             console.print(f"[cyan]Refreshing view: {view_name}...[/cyan]")
-            registry.refresh(view_name)
+            builder = views.get(view_name)
+            storage.execute_view(view_name, builder, table_name, checkpoint=True)
             console.print(f"[green]✅ Refreshed {view_name}[/green]")
+            return
 
-        else:
-            # Refresh all materialized views
-            materialized_views = [name for name, view in registry.views.items() if view.materialized]
+        view_names = [name for name in views.list_views() if storage.table_exists(name)]
 
-            if not materialized_views:
-                console.print("[yellow]No materialized views to refresh[/yellow]")
-                return
+        if not view_names:
+            console.print("[yellow]No materialized views to refresh[/yellow]")
+            return
 
-            console.print(f"[cyan]Refreshing {len(materialized_views)} materialized views...[/cyan]")
-            registry.refresh_all()
-            console.print(f"[green]✅ Refreshed {len(materialized_views)} views[/green]")
+        console.print(f"[cyan]Refreshing {len(view_names)} materialized views...[/cyan]")
 
-    except Exception as e:
-        console.print(f"[red]Error refreshing views: {e}[/red]")
-        raise typer.Exit(1) from e
+        for name in view_names:
+            builder = views.get(name)
+            storage.execute_view(name, builder, table_name, checkpoint=True)
 
-    finally:
-        conn.close()
+        console.print(f"[green]✅ Refreshed {len(view_names)} views[/green]")
 
 
 @views_app.command(name="drop")
@@ -606,72 +602,56 @@ def views_drop(
         egregora views drop pipeline.db --force         # Skip confirmation
 
     """
-    import duckdb
-
-    from egregora.database.views import ViewRegistry, register_common_views
+    from egregora.database.duckdb_manager import DuckDBStorageManager
+    from egregora.database.views import views
 
     if not db_path.exists():
         console.print(f"[red]Error: Database file not found: {db_path}[/red]")
         raise typer.Exit(1)
 
-    # Connect to database
-    conn = duckdb.connect(str(db_path))
-
-    # Create registry and register common views
-    registry = ViewRegistry(conn)
-    register_common_views(registry, table_name=table_name)
-
-    if view_name:
-        # Validate specific view
-        if view_name not in registry.list_views():
-            conn.close()
-            console.print(f"[red]Error: View '{view_name}' not registered[/red]")
-            console.print(f"Available views: {', '.join(registry.list_views())}")
+    with DuckDBStorageManager(db_path=db_path) as storage:
+        if not storage.table_exists(table_name):
+            available = ", ".join(storage.list_tables())
+            console.print(f"[red]Error: Table '{table_name}' not found in database[/red]")
+            console.print(f"Available tables: {available}" if available else "[dim]Database has no tables[/dim]")
             raise typer.Exit(1)
 
-        # Confirm before dropping (unless --force)
-        if not force:
-            console.print(f"[yellow]About to drop view: {view_name}[/yellow]")
-            confirm = typer.confirm("Continue?")
-            if not confirm:
-                conn.close()
-                console.print("[cyan]Cancelled[/cyan]")
-                raise typer.Exit(0)
-    else:
-        # Check if there are views to drop
-        view_count = len(registry.list_views())
+        if view_name:
+            if not views.has(view_name):
+                console.print(f"[red]Error: View '{view_name}' not registered[/red]")
+                console.print(f"Available views: {', '.join(views.list_views())}")
+                raise typer.Exit(1)
 
-        if view_count == 0:
-            conn.close()
-            console.print("[yellow]No views to drop[/yellow]")
+            if not storage.table_exists(view_name):
+                console.print(f"[yellow]View table '{view_name}' not found. Nothing to drop.[/yellow]")
+                return
+
+            if not force:
+                console.print(f"[yellow]About to drop view table: {view_name}[/yellow]")
+                if not typer.confirm("Continue?"):
+                    console.print("[cyan]Cancelled[/cyan]")
+                    raise typer.Exit(0)
+
+            storage.drop_table(view_name, checkpoint_too=True)
+            console.print(f"[green]✅ Dropped {view_name}[/green]")
             return
 
-        # Confirm before dropping (unless --force)
+        view_tables = [name for name in views.list_views() if storage.table_exists(name)]
+
+        if not view_tables:
+            console.print("[yellow]No materialized view tables to drop[/yellow]")
+            return
+
         if not force:
-            console.print(f"[yellow]About to drop {view_count} views[/yellow]")
-            confirm = typer.confirm("Continue?")
-            if not confirm:
-                conn.close()
+            console.print(f"[yellow]About to drop {len(view_tables)} view tables[/yellow]")
+            if not typer.confirm("Continue?"):
                 console.print("[cyan]Cancelled[/cyan]")
                 raise typer.Exit(0)
 
-    try:
-        if view_name:
-            # Drop specific view
-            registry.drop(view_name)
-            console.print(f"[green]✅ Dropped {view_name}[/green]")
-        else:
-            # Drop all views
-            view_count = len(registry.list_views())
-            registry.drop_all()
-            console.print(f"[green]✅ Dropped {view_count} views[/green]")
+        for name in view_tables:
+            storage.drop_table(name, checkpoint_too=True)
 
-    except Exception as e:
-        console.print(f"[red]Error dropping views: {e}[/red]")
-        raise typer.Exit(1) from e
-
-    finally:
-        conn.close()
+        console.print(f"[green]✅ Dropped {len(view_tables)} views[/green]")
 
 
 # ==============================================================================
