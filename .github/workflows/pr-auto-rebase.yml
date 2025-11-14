@@ -1,0 +1,74 @@
+name: Auto rebase pull requests
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+jobs:
+  auto-rebase:
+    if: ${{ github.event.pull_request.base.ref == 'develop' || github.event.pull_request.base.ref == 'dev' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Check out base repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.ref }}
+
+      - name: Fetch pull request branch
+        env:
+          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.clone_url }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          git remote remove pr || true
+          git remote add pr "$PR_HEAD_REPO"
+          git fetch pr "$PR_HEAD_REF"
+          git checkout -B "$PR_HEAD_REF" FETCH_HEAD
+
+      - name: Fetch base branch
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          git fetch origin "$BASE_REF"
+
+      - name: Rebase onto base branch
+        id: rebase
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -o pipefail
+          git rebase "origin/$BASE_REF" 2>&1 | tee /tmp/rebase.log
+
+      - name: Push rebased branch
+        if: steps.rebase.outcome == 'success' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          git push --force-with-lease origin "$PR_HEAD_REF"
+
+      - name: Abort rebase on failure
+        if: steps.rebase.outcome == 'failure'
+        run: |
+          git rebase --abort || git reset --hard
+
+      - name: Create Codex reconciliation task
+        if: steps.rebase.outcome == 'failure'
+        env:
+          CODEX_API_TOKEN: ${{ secrets.CODEX_API_TOKEN }}
+          PR_NUMBER: ${{ github.event.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          python scripts/github/create_codex_task.py \
+            --pr-number "$PR_NUMBER" \
+            --author "$PR_AUTHOR" \
+            --pr-url "$PR_URL" \
+            --log-file /tmp/rebase.log
