@@ -3,12 +3,11 @@
 This package consolidates all persistence, state management, and infrastructure:
 - Schemas: IR schema definitions and validation
 - Storage: DuckDB connection management
-- Streaming: Memory-efficient data streaming (DuckDB fetchmany)
+- Streaming: Memory-efficient data access utilities
 - Tracking: Run observability and lineage
 - Views: Transformation registry
 
 **Philosophy**: Centralized infrastructure for state, side effects, and registries.
-
 """
 
 from egregora.database import ir_schema as schemas
@@ -52,19 +51,20 @@ __all__ = [
     "WHATSAPP_CONVERSATION_SCHEMA",
     # Storage
     "DuckDBStorageManager",
+    # Streaming
+    "copy_expr_to_ndjson",
+    "copy_expr_to_parquet",
+    "ensure_deterministic_order",
+    "stream_ibis",
     # Tracking & Observability
     "RunContext",
     # View Registry
     "ViewBuilder",
     "ViewRegistry",
-    # Streaming
-    "copy_expr_to_ndjson",
-    "copy_expr_to_parquet",
     # Runs table utilities
     "create_run_events_table",
     "create_runs_table",
     "duckdb_backend",
-    "ensure_deterministic_order",
     "ensure_runs_table_exists",
     "fingerprint_table",
     "get_git_commit_sha",
@@ -72,7 +72,6 @@ __all__ = [
     "record_run",
     "run_stage_with_tracking",
     "schemas",
-    "stream_ibis",
     "temp_storage",
     "views",
 ]

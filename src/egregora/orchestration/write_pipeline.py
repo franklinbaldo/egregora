@@ -28,6 +28,7 @@ from zoneinfo import ZoneInfo
 import ibis
 from google import genai
 
+from egregora.agents.model_limits import get_model_context_limit
 from egregora.agents.shared.author_profiles import filter_opted_out_authors, process_commands
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
@@ -363,6 +364,80 @@ def _record_run_event(runs_backend: any, event: dict[str, object]) -> None:
         # Don't break pipeline for observability failures
 
 
+def _resolve_context_token_limit(config: EgregoraConfig, cli_model_override: str | None = None) -> int:
+    """Resolve the effective context window token limit for the writer model.
+
+    Args:
+        config: Egregora configuration with model settings.
+        cli_model_override: Optional CLI model override to respect.
+
+    Returns:
+        Maximum number of prompt tokens available for a window.
+
+    """
+    use_full_window = getattr(config.pipeline, "use_full_context_window", False)
+
+    if use_full_window:
+        writer_model = get_model_for_task("writer", config, cli_override=cli_model_override)
+        limit = get_model_context_limit(writer_model)
+        logger.debug(
+            "Using full context window for writer model %s (limit=%d tokens)",
+            writer_model,
+            limit,
+        )
+        return limit
+
+    limit = config.pipeline.max_prompt_tokens
+    logger.debug("Using configured max_prompt_tokens cap: %d tokens", limit)
+    return limit
+
+
+def _calculate_max_window_size(config: EgregoraConfig, cli_model_override: str | None = None) -> int:
+    """Calculate maximum window size based on LLM context window.
+
+    Uses rough heuristic: 5 tokens per message average.
+    Leaves 20% buffer for prompt overhead (system prompt, tools, etc.).
+
+    Args:
+        config: Egregora configuration with model settings
+        cli_model_override: Optional CLI model override for the writer model
+
+    Returns:
+        Maximum number of messages per window
+
+    Example:
+        >>> config.pipeline.max_prompt_tokens = 100_000
+        >>> _calculate_max_window_size(config)
+        16000  # (100k * 0.8) / 5
+
+    """
+    max_tokens = _resolve_context_token_limit(config, cli_model_override)
+    avg_tokens_per_message = 5  # Conservative estimate
+    buffer_ratio = 0.8  # Leave 20% for system prompt, tools, etc.
+
+    return int((max_tokens * buffer_ratio) / avg_tokens_per_message)
+
+
+def _validate_window_size(window: any, max_size: int) -> None:
+    """Validate window doesn't exceed LLM context limits.
+
+    Args:
+        window: Window object with size attribute
+        max_size: Maximum allowed window size (messages)
+
+    Raises:
+        ValueError: If window exceeds max size
+
+    """
+    if window.size > max_size:
+        msg = (
+            f"Window {window.window_index} has {window.size} messages but max is {max_size}. "
+            f"This limit is based on your model's context window. "
+            f"Reduce --step-size to create smaller windows."
+        )
+        raise ValueError(msg)
+
+
 def _process_all_windows(
     windows_iterator: any, ctx: WindowProcessingContext, runs_backend: any
 ) -> dict[str, dict[str, list[str]]]:
@@ -379,6 +454,15 @@ def _process_all_windows(
     """
     results = {}
 
+    # Calculate max window size from LLM context (once)
+    max_window_size = _calculate_max_window_size(ctx.config, ctx.cli_model_override)
+    effective_token_limit = _resolve_context_token_limit(ctx.config, ctx.cli_model_override)
+    logger.debug(
+        "Max window size: %d messages (based on %d token context)",
+        max_window_size,
+        effective_token_limit,
+    )
+
     for window in windows_iterator:
         # Skip empty windows
         if window.size == 0:
@@ -389,6 +473,9 @@ def _process_all_windows(
                 window.end_time.strftime("%Y-%m-%d %H:%M"),
             )
             continue
+
+        # Validate window size doesn't exceed LLM context limits
+        _validate_window_size(window, max_window_size)
 
         # Track window processing (event-sourced)
         run_id = uuid.uuid4()
