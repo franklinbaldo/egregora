@@ -1,58 +1,54 @@
-"""Simple UUID5-based anonymization for authors and mentions.
+"""Privacy-preserving anonymization utilities for IR tables."""
 
-Privacy-first approach: All author names are converted to UUID5 pseudonyms
-before any LLM interaction. This ensures real names never reach the LLM.
-
-Documentation:
-- Privacy & Anonymization: docs/features/anonymization.md
-- Architecture (Privacy Boundary): docs/guides/architecture.md#2-anonymizer-anonymizerpy
-- Core Concepts: docs/getting-started/concepts.md#privacy-model
-"""
+from __future__ import annotations
 
 import re
-import uuid
 
 import ibis
 from ibis.expr.types import Table
 
-NAMESPACE_AUTHOR = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
-SYSTEM_AUTHOR = "system"
+DEFAULT_REDACTED = "[redacted]"
 MENTION_PATTERN = re.compile("\\u2068(?P<name>.*?)\\u2069")
 
 
-def anonymize_author(author: str) -> str:
-    """Generate deterministic UUID5 pseudonym for author."""
-    normalized = author.strip().lower()
-    author_uuid = uuid.uuid5(NAMESPACE_AUTHOR, normalized)
-    return author_uuid.hex[:8]
-
-
-def anonymize_mentions(text: str) -> str:
-    """Replace WhatsApp mentions (Unicode markers) with UUID5 pseudonyms."""
+def _sanitize_mentions(text: str, mapping: dict[str, str]) -> str:
     if not text or "\u2068" not in text:
         return text
 
-    def replace_mention(match: re.Match[str]) -> str:
+    def replace(match: re.Match[str]) -> str:
         name = match.group("name")
-        return anonymize_author(name)
+        return mapping.get(name, DEFAULT_REDACTED)
 
-    return MENTION_PATTERN.sub(replace_mention, text)
+    return MENTION_PATTERN.sub(replace, text)
 
 
-def anonymize_table(table: Table) -> Table:
-    """Anonymize author column and mentions in message column using vectorized operations."""
-    unique_authors_result = table.select("author").distinct().execute()
-    unique_authors = unique_authors_result["author"].dropna().tolist()
-    author_mapping = {author: anonymize_author(author) for author in unique_authors}
-    author_expr = table.author
-    anonymized_author = author_expr.substitute(author_mapping, else_=SYSTEM_AUTHOR)
-    anonymized_table = table.mutate(author=anonymized_author)
-    if "message" in anonymized_table.columns:
+def anonymize_table(table: Table, *, redact_token: str = DEFAULT_REDACTED) -> Table:
+    """Redact author_raw values while preserving deterministic author_uuid."""
+    required = {"author_raw", "author_uuid"}
+    missing = required - set(table.columns)
+    if missing:
+        missing_cols = ", ".join(sorted(missing))
+        msg = f"Table is missing required columns for anonymization: {missing_cols}"
+        raise ValueError(msg)
+
+    unique = table.select("author_raw", "author_uuid").distinct().execute()
+    mapping = {
+        row["author_raw"]: str(row["author_uuid"])
+        for row in unique.to_dict("records")
+        if row.get("author_raw")
+    }
+
+    sanitized_author = table["author_raw"].substitute(mapping, else_=redact_token)
+    anonymized = table.mutate(author_raw=sanitized_author)
+
+    if "text" in anonymized.columns:
 
         @ibis.udf.scalar.python
-        def anonymize_mentions_udf(text: str) -> str:
-            """UDF wrapper for anonymize_mentions."""
-            return anonymize_mentions(text) if text else text
+        def redact_mentions(message: str | None) -> str | None:
+            if message is None:
+                return None
+            return _sanitize_mentions(message, mapping)
 
-        anonymized_table = anonymized_table.mutate(message=anonymize_mentions_udf(anonymized_table.message))
-    return anonymized_table
+        anonymized = anonymized.mutate(text=redact_mentions(anonymized.text))
+
+    return anonymized

@@ -10,7 +10,7 @@ import pytest
 
 from egregora.config.settings import create_default_config
 from egregora.database.ir_schema import CONVERSATION_SCHEMA
-from egregora.enrichment.core import EnrichmentRuntimeContext, enrich_table
+from egregora.enrichment.runners import EnrichmentRuntimeContext, enrich_table
 from egregora.utils import BatchPromptResult, EnrichmentCache
 from tests.helpers.storage import InMemoryEnrichmentStorage
 
