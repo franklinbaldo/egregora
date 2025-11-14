@@ -41,6 +41,9 @@ from typing import Any, TypeVar
 
 import duckdb
 import ibis
+import pyarrow as pa
+
+from egregora.database.streaming import ensure_deterministic_order
 
 # Type variable for stage function return type
 T = TypeVar("T")
@@ -153,19 +156,45 @@ def fingerprint_table(table: ibis.Table) -> str:
 
     """
     # Hash schema (column names + types)
-    schema_str = str(table.schema())
+    schema = table.schema()
+    schema_bytes = str(schema).encode("utf-8")
 
-    # Hash sample of data (first 1000 rows)
-    # FIXME: This is non-deterministic if table order changes
-    # Better approach: hash sorted data or use table metadata
-    sample = table.limit(1000).execute()
-    data_str = sample.to_csv(index=False)
+    # Ensure deterministic ordering before sampling rows
+    ordered_table = ensure_deterministic_order(table)
+    if ordered_table is table and schema.names:
+        # Fallback to ordering by all column names when no canonical key is found
+        try:
+            ordered_table = table.order_by(sorted(schema.names))
+        except Exception:  # pragma: no cover - backend-specific ordering failures
+            ordered_table = table
+
+    sample_expr = ordered_table.limit(1000)
+
+    # Prefer hashing PyArrow serialization when available to avoid CSV conversions
+    data_bytes: bytes | None = None
+    try:
+        arrow_table = sample_expr.to_pyarrow()
+    except (AttributeError, NotImplementedError):
+        arrow_table = None
+    except Exception:  # pragma: no cover - backend-specific failures
+        arrow_table = None
+
+    if arrow_table is not None:
+        arrow_table = arrow_table.combine_chunks()
+        sink = pa.BufferOutputStream()
+        with pa.ipc.new_stream(sink, arrow_table.schema) as writer:
+            writer.write_table(arrow_table)
+        data_bytes = sink.getvalue().to_pybytes()
+
+    if data_bytes is None:
+        sample = sample_expr.execute()
+        data_bytes = sample.to_csv(index=False).encode("utf-8")
 
     # Combine schema + data
-    combined = f"{schema_str}\n{data_str}"
+    combined = schema_bytes + b"\n" + data_bytes
 
     # SHA256 hash
-    hash_obj = hashlib.sha256(combined.encode("utf-8"))
+    hash_obj = hashlib.sha256(combined)
     return f"sha256:{hash_obj.hexdigest()}"
 
 
