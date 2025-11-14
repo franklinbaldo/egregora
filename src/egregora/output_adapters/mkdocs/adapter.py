@@ -359,8 +359,7 @@ class MkDocsOutputAdapter(OutputAdapter):
         # 3. Check legacy location: root mkdocs.yml
         return any(
             (
-                mkdocs_path_from_config
-                and mkdocs_path_from_config.exists(),
+                mkdocs_path_from_config and mkdocs_path_from_config.exists(),
                 (site_root / ".egregora" / "mkdocs.yml").exists(),
                 (site_root / "mkdocs.yml").exists(),
             )
@@ -1286,8 +1285,7 @@ class MkDocsFilesystemAdapter(OutputProtocol):
                     loaded_metadata = yaml.safe_load(parts[1]) or {}
                     metadata = loaded_metadata if isinstance(loaded_metadata, dict) else {}
                     body = parts[2]
-                    if body.startswith("\n"):
-                        body = body[1:]
+                    body = body.removeprefix("\n")
             except yaml.YAMLError as exc:
                 logger.warning("Failed to parse frontmatter for %s: %s", path, exc)
                 metadata = {}
@@ -1484,9 +1482,7 @@ class MkDocsPostStorage:
 
     def exists(self, slug: str) -> bool:
         """Return True when a post with ``slug`` exists."""
-        return any(self.posts_dir.glob(f"*-{slug}.md")) or (
-            self.posts_dir / f"{slug}.md"
-        ).exists()
+        return any(self.posts_dir.glob(f"*-{slug}.md")) or (self.posts_dir / f"{slug}.md").exists()
 
     def list_posts(self) -> list[str]:
         """Return the list of slugs present in the posts directory."""
