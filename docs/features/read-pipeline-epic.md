@@ -593,9 +593,10 @@ def migrate_rankings(old_db: Path, new_db: Path):
 - Comment truncation/validation
 
 ### Integration Tests
-- DuckDB store CRUD operations
+- DuckDB store CRUD operations (`tests/integration/test_reader_store.py`)
 - Reader agent with VCR cassettes
 - Profile loading
+- Reader pipeline orchestration (`tests/integration/test_read_pipeline.py`)
 
 ### E2E Tests
 - Full read pipeline on test site
@@ -683,4 +684,4 @@ def migrate_rankings(old_db: Path, new_db: Path):
 - Rename proposal: `git show d1c036d`
 - Current write pipeline: `src/egregora/orchestration/write_pipeline.py`
 - Document abstraction: `src/egregora/data_primitives/document.py`
-- ELO schema (old): Tests in `tests/integration/test_ranking_store.py`
+- Reader store integration tests: `tests/integration/test_reader_store.py`
