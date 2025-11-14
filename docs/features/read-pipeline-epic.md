@@ -554,6 +554,52 @@ Pairwise “games” should remain queryable via the annotation store. Each read
 Add to `config/settings.py`:
 
 ```python
+class ReaderSettings(BaseModel):
+    """Reader agent configuration."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable the reader pipeline",
+    )
+    model: PydanticModelName = Field(
+        default=DEFAULT_MODEL,
+        description="Model used for reader/feedback comparisons",
+    )
+    default_strategy: str = Field(
+        default="fewest_games",
+        description="Default post selection strategy",
+    )
+    k_factor: int = Field(
+        default=32,
+        ge=1,
+        description="ELO K-factor",
+    )
+    default_elo: float = Field(
+        default=1500.0,
+        description="Starting ELO score for posts",
+    )
+    min_stars: int = Field(
+        default=1,
+        ge=1,
+        le=5,
+        description="Minimum star rating",
+    )
+    max_stars: int = Field(
+        default=5,
+        ge=1,
+        le=5,
+        description="Maximum star rating",
+    )
+    max_comment_length: int = Field(
+        default=250,
+        ge=0,
+        description="Maximum feedback comment length",
+    )
+    feedback_rounds_default: int = Field(
+        default=50,
+        ge=1,
+        description="Default number of feedback comparisons per run",
+    )
 from pydantic import BaseModel, Field
 
 
@@ -573,6 +619,15 @@ class ReaderSettings(BaseModel):
 
 class EgregoraConfig(BaseModel):
     # ... existing fields ...
+    reader: ReaderSettings = Field(
+        default_factory=ReaderSettings,
+        description="Reader agent configuration",
+    )
+```
+
+`load_egregora_config` and `create_default_config` already rely on `EgregoraConfig(**data)` and `EgregoraConfig()` respectively, so no additional logic is required—adding the `reader` field ensures the new defaults are injected whenever the section is missing from disk, and `save_egregora_config` will persist the populated values automatically.
+
+Update `.egregora/config.yml` defaults to align with the Pydantic schema:
     reader: ReaderSettings = Field(default_factory=ReaderSettings)
 ```
 
@@ -583,7 +638,7 @@ Add to `.egregora/config.yml`:
 ```yaml
 reader:
   enabled: true
-  model: google-gla:gemini-2.0-flash-exp
+  model: google-gla:gemini-flash-latest
   default_strategy: fewest_games
   k_factor: 32
   default_elo: 1500.0
