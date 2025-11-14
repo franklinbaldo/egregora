@@ -158,7 +158,7 @@ class PipelineEnvironment:
 class PreprocessingArtifacts:
     """Artifacts produced during preprocessing before window execution."""
 
-    messages_table: "ir.Table"
+    messages_table: ir.Table
     windows_iterator: Iterable[any]
     window_ctx_kwargs: dict[str, any]
     output_format: any
@@ -850,7 +850,6 @@ def _prepare_adapter_and_environment(
     client: genai.Client | None,
 ) -> PipelineEnvironment:
     """Resolve the adapter and supporting infrastructure for the pipeline."""
-
     adapter = get_adapter(source)
     (
         site_paths,
@@ -881,7 +880,6 @@ def _preprocess_messages(
     config: EgregoraConfig,
 ) -> PreprocessingArtifacts:
     """Parse, enrich, and window messages prior to execution."""
-
     timezone = config.pipeline.timezone
     step_size = config.pipeline.step_size
     step_unit = config.pipeline.step_unit
@@ -970,7 +968,6 @@ def _execute_windows_and_finalize(
     config: EgregoraConfig,
 ) -> dict[str, dict[str, list[str]]]:
     """Execute window processing and handle post-processing tasks."""
-
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
@@ -1315,9 +1312,7 @@ def run(
             options.default_backend = env.backend
 
         preprocessed = _preprocess_messages(env, input_path, output_dir, config)
-        results = _execute_windows_and_finalize(
-            preprocessed, env.runs_backend, env.site_paths, config
-        )
+        results = _execute_windows_and_finalize(preprocessed, env.runs_backend, env.site_paths, config)
 
         logger.info("[bold green]🎉 Pipeline completed successfully![/]")
         return results
@@ -1344,4 +1339,3 @@ def run(
                 backend_close()
             elif hasattr(env.backend, "con") and hasattr(env.backend.con, "close"):
                 env.backend.con.close()
-

@@ -98,7 +98,9 @@ def _stub_get_adapter(source: str) -> SimpleNamespace:
     return SimpleNamespace(source_name=source)
 
 
-def test_run_closes_managed_client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, site_paths: SimpleNamespace) -> None:
+def test_run_closes_managed_client(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, site_paths: SimpleNamespace
+) -> None:
     """When run manages the client lifecycle it should close it on exit."""
 
     created_clients: list[NamedClosable] = []
@@ -159,7 +161,9 @@ def test_run_closes_managed_client(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     assert env.backend.closed
 
 
-def test_run_preserves_provided_client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, site_paths: SimpleNamespace) -> None:
+def test_run_preserves_provided_client(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, site_paths: SimpleNamespace
+) -> None:
     """Caller-supplied client should not be closed by the pipeline."""
 
     monkeypatch.setattr(write_pipeline, "get_adapter", _stub_get_adapter)
@@ -265,4 +269,3 @@ def test_setup_pipeline_environment_reuses_existing_client(
     assert returned_client is existing_client
     assert isinstance(cache, DummyCache)
     assert cache.directory.name == site_paths.site_root.name
-
