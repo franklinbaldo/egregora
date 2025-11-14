@@ -1,4 +1,5 @@
 """Write command implementation."""
+
 from __future__ import annotations
 
 import logging
@@ -63,7 +64,7 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
         try:
             ZoneInfo(config.timezone)
             console.print(f"[green]Using timezone: {config.timezone}[/green]")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             console.print(f"[red]Invalid timezone '{config.timezone}': {e}[/red]")
             raise typer.Exit(1) from e
 
@@ -139,7 +140,7 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
             model_override=config.model,
         )
         console.print("[green]Processing completed successfully.[/green]")
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         console.print(f"[red]Pipeline failed: {e}[/red]")
         if config.debug:
             raise
@@ -153,14 +154,11 @@ def write(
     source: Annotated[str, typer.Option(help="Source type: 'whatsapp' or 'slack'")] = "whatsapp",
     output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path("output"),
     step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
-    step_unit: Annotated[
-        str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days'")
-    ] = "days",
+    step_unit: Annotated[str, typer.Option(help="Unit for windowing: 'messages', 'hours', 'days'")] = "days",
     overlap: Annotated[
         float, typer.Option(help="Overlap ratio between windows (0.0-0.5, default 0.2 = 20%)")
     ] = 0.2,
-    enable_enrichment: Annotated[bool, typer.Option(help="Enable LLM enrichment for URLs/media")]
-    = True,
+    enable_enrichment: Annotated[bool, typer.Option(help="Enable LLM enrichment for URLs/media")] = True,
     from_date: Annotated[
         str | None, typer.Option(help="Only process messages from this date onwards (YYYY-MM-DD)")
     ] = None,
@@ -191,8 +189,7 @@ def write(
     use_full_context_window: Annotated[
         bool, typer.Option(help="Use full model context window (overrides --max-prompt-tokens)")
     ] = False,
-    debug: Annotated[bool, typer.Option(help="Enable debug logging")]
-    = False,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> None:
     """Write blog posts from chat exports using LLM-powered synthesis."""
     from_date_obj = None

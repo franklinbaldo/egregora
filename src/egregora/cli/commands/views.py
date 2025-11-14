@@ -1,4 +1,5 @@
 """View management commands for the CLI."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -53,8 +54,7 @@ def views_create(
     db_path: Annotated[Path, typer.Argument(help="Database file path")],
     *,
     table_name: Annotated[str, typer.Option(help="Name of the messages table")] = "messages",
-    force: Annotated[bool, typer.Option("--force", "-f", help="Drop existing views before creating")]
-    = False,
+    force: Annotated[bool, typer.Option("--force", "-f", help="Drop existing views before creating")] = False,
 ) -> None:
     """Create all registered views in the database."""
     import duckdb
@@ -85,7 +85,7 @@ def views_create(
 
         console.print(f"[green]✅ Created {len(registry.list_views())} views[/green]")
 
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         console.print(f"[red]Error creating views: {exc}[/red]")
         raise typer.Exit(1) from exc
     finally:
@@ -133,8 +133,7 @@ def views_drop(
         str | None, typer.Option(help="Specific view to drop (drops all if not specified)")
     ] = None,
     table_name: Annotated[str, typer.Option(help="Name of the messages table")] = "messages",
-    force: Annotated[bool, typer.Option("--force", "-f", help="Skip confirmation prompt")]
-    = False,
+    force: Annotated[bool, typer.Option("--force", "-f", help="Skip confirmation prompt")] = False,
 ) -> None:
     """Drop views from the database."""
     with view_registry_context(console, db_path, table_name=table_name, require_db=True) as (_, registry):

@@ -1,19 +1,22 @@
 """Shared helpers for DuckDB view management commands."""
+
 from __future__ import annotations
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
 
 if TYPE_CHECKING:  # pragma: no cover - imported for type checking only
     from duckdb import DuckDBPyConnection
+
     from egregora.database.views import ViewRegistry
 
 
-def _connect_duckdb(db_path: Path | None, *, read_only: bool) -> "DuckDBPyConnection":
+def _connect_duckdb(db_path: Path | None, *, read_only: bool) -> DuckDBPyConnection:
     """Return a DuckDB connection for the provided path."""
     import duckdb
 
@@ -21,7 +24,7 @@ def _connect_duckdb(db_path: Path | None, *, read_only: bool) -> "DuckDBPyConnec
     return duckdb.connect(target, read_only=read_only)
 
 
-def _create_registry(conn: "DuckDBPyConnection", table_name: str) -> "ViewRegistry":
+def _create_registry(conn: DuckDBPyConnection, table_name: str) -> ViewRegistry:
     """Instantiate and populate a view registry for the given connection."""
     from egregora.database.views import ViewRegistry, register_common_views
 
@@ -38,7 +41,7 @@ def view_registry_context(
     table_name: str = "messages",
     require_db: bool = False,
     read_only: bool = False,
-) -> Iterator[tuple["DuckDBPyConnection", "ViewRegistry"]]:
+) -> Iterator[tuple[DuckDBPyConnection, ViewRegistry]]:
     """Yield a DuckDB connection and populated view registry with shared error handling."""
     if require_db:
         if db_path is None:
@@ -50,13 +53,13 @@ def view_registry_context(
 
     try:
         conn = _connect_duckdb(db_path, read_only=read_only)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         console.print(f"[red]Error connecting to database: {exc}[/red]")
         raise typer.Exit(1) from exc
 
     try:
         registry = _create_registry(conn, table_name)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         console.print(f"[red]Error preparing view registry: {exc}[/red]")
         conn.close()
         raise typer.Exit(1) from exc
@@ -67,9 +70,7 @@ def view_registry_context(
         conn.close()
 
 
-def ensure_view_registered(
-    console: Console, registry: "ViewRegistry", view_name: str
-) -> None:
+def ensure_view_registered(console: Console, registry: ViewRegistry, view_name: str) -> None:
     """Validate the requested view exists, printing helpful diagnostics when missing."""
     if view_name not in registry.list_views():
         console.print(f"[red]Error: View '{view_name}' not registered[/red]")

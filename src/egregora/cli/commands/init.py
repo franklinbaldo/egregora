@@ -1,4 +1,5 @@
 """Initialize MkDocs site command."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -13,9 +14,7 @@ from egregora.init import ensure_mkdocs_project
 
 @app.command()
 def init(
-    output_dir: Annotated[
-        Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")
-    ],
+    output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
 ) -> None:
     """Initialize a new MkDocs site scaffold for serving Egregora posts."""
     site_root = output_dir.resolve()

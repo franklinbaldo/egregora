@@ -1,4 +1,5 @@
 """Tests for CLI view utility helpers."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -43,9 +44,8 @@ def test_view_registry_closes_on_registry_error(monkeypatch: pytest.MonkeyPatch,
 
     monkeypatch.setattr(views_utils, "_create_registry", failing_registry)
 
-    with pytest.raises(typer.Exit):
-        with views_utils.view_registry_context(console, db_path, require_db=True):
-            pass
+    with pytest.raises(typer.Exit), views_utils.view_registry_context(console, db_path, require_db=True):
+        pass
 
     assert connection.closed is True
 

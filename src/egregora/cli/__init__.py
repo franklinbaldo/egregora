@@ -1,4 +1,5 @@
 """Typer-based CLI for Egregora v2."""
+
 from __future__ import annotations
 
 import logging
