@@ -28,6 +28,7 @@ from zoneinfo import ZoneInfo
 import ibis
 from google import genai
 
+from egregora.agents.model_limits import get_model_context_limit
 from egregora.agents.shared.author_profiles import filter_opted_out_authors, process_commands
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
@@ -297,7 +298,25 @@ def _record_run_event(runs_backend: any, event: dict[str, object]) -> None:
         # Don't break pipeline for observability failures
 
 
-def _calculate_max_window_size(config: EgregoraConfig) -> int:
+def _resolve_context_token_limit(config: EgregoraConfig, cli_model_override: str | None = None) -> int:
+    """Resolve the effective context window token limit for the writer model.
+
+    Args:
+        config: Egregora configuration with model settings.
+        cli_model_override: Optional CLI model override to respect.
+
+    Returns:
+        Maximum number of prompt tokens available for a window.
+    """
+
+    if getattr(config.pipeline, "use_full_context_window", False):
+        writer_model = get_model_for_task("writer", config, cli_override=cli_model_override)
+        return get_model_context_limit(writer_model)
+
+    return config.pipeline.max_prompt_tokens
+
+
+def _calculate_max_window_size(config: EgregoraConfig, cli_model_override: str | None = None) -> int:
     """Calculate maximum window size based on LLM context window.
 
     Uses rough heuristic: 5 tokens per message average.
@@ -305,6 +324,7 @@ def _calculate_max_window_size(config: EgregoraConfig) -> int:
 
     Args:
         config: Egregora configuration with model settings
+        cli_model_override: Optional CLI model override for the writer model
 
     Returns:
         Maximum number of messages per window
@@ -315,7 +335,7 @@ def _calculate_max_window_size(config: EgregoraConfig) -> int:
         16000  # (100k * 0.8) / 5
 
     """
-    max_tokens = config.pipeline.max_prompt_tokens
+    max_tokens = _resolve_context_token_limit(config, cli_model_override)
     avg_tokens_per_message = 5  # Conservative estimate
     buffer_ratio = 0.8  # Leave 20% for system prompt, tools, etc.
 
@@ -359,11 +379,12 @@ def _process_all_windows(
     results = {}
 
     # Calculate max window size from LLM context (once)
-    max_window_size = _calculate_max_window_size(ctx.config)
+    max_window_size = _calculate_max_window_size(ctx.config, ctx.cli_model_override)
+    effective_token_limit = _resolve_context_token_limit(ctx.config, ctx.cli_model_override)
     logger.debug(
         "Max window size: %d messages (based on %d token context)",
         max_window_size,
-        ctx.config.pipeline.max_prompt_tokens,
+        effective_token_limit,
     )
 
     for window in windows_iterator:
