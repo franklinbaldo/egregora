@@ -218,7 +218,11 @@ class WhatsAppAdapter(InputAdapter):
             chat_file=chat_file,
             media_files=[],
         )
-        messages_table = parse_source(export, timezone=timezone)  # Phase 6: parse_source renamed
+        messages_table = parse_source(
+            export,
+            timezone=timezone,
+            expose_raw_author=True,
+        )  # Phase 6: parse_source renamed
 
         @ibis.udf.scalar.python
         def convert_media_to_markdown(message: str | None) -> str | None:
@@ -236,6 +240,7 @@ class WhatsAppAdapter(InputAdapter):
             timezone=timezone,
             author_namespace=self._author_namespace,
         )
+
         logger.debug("Parsed WhatsApp export with %s messages", ir_table.count().execute())
         return ir_table
 

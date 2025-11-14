@@ -27,6 +27,7 @@ from dateutil import parser as date_parser
 
 from egregora.database.ir_schema import MESSAGE_SCHEMA, ensure_message_schema
 from egregora.privacy.anonymizer import anonymize_table
+from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 if TYPE_CHECKING:
@@ -39,6 +40,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 _IMPORT_ORDER_COLUMN = "_import_order"
 _IMPORT_SOURCE_COLUMN = "_import_source"
+_AUTHOR_UUID_HEX_COLUMN = "_author_uuid_hex"
 
 # WhatsApp message line pattern
 # Matches: "28/10/2025 14:10 - Franklin: message text"
@@ -106,7 +108,12 @@ def _parse_message_time(time_token: str) -> datetime.time | None:
         return None
 
 
-def parse_source(export: WhatsAppExport, timezone: str | ZoneInfo | None = None) -> Table:
+def parse_source(
+    export: WhatsAppExport,
+    timezone: str | ZoneInfo | None = None,
+    *,
+    expose_raw_author: bool = False,
+) -> Table:
     """Parse WhatsApp export using pure Ibis/DuckDB operations.
 
     This function replaces pyparsing with vectorized SQL operations:
@@ -119,9 +126,13 @@ def parse_source(export: WhatsAppExport, timezone: str | ZoneInfo | None = None)
     Args:
         export: WhatsApp export metadata
         timezone: Timezone for timestamp normalization
+        expose_raw_author: When True, keep the original WhatsApp author names in the
+            returned table. Defaults to False so downstream consumers continue
+            receiving anonymized author identifiers.
 
     Returns:
-        Parsed and anonymized Table conforming to MESSAGE_SCHEMA
+        Parsed Table conforming to MESSAGE_SCHEMA. Authors are anonymized by
+        default unless ``expose_raw_author`` is set.
 
     """
     with zipfile.ZipFile(export.zip_path) as zf:
@@ -158,17 +169,30 @@ def parse_source(export: WhatsAppExport, timezone: str | ZoneInfo | None = None)
     if _IMPORT_ORDER_COLUMN in messages.columns:
         messages = messages.drop(_IMPORT_ORDER_COLUMN)
 
-    messages = ensure_message_schema(messages, timezone=timezone)
-    return anonymize_table(messages)
+    messages = anonymize_table(messages)
+
+    if not expose_raw_author and _AUTHOR_UUID_HEX_COLUMN in messages.columns:
+        messages = messages.mutate(author=messages[_AUTHOR_UUID_HEX_COLUMN].substr(0, 8))
+
+    helper_columns = sorted({"author_raw", "author_uuid", _AUTHOR_UUID_HEX_COLUMN} & set(messages.columns))
+    if helper_columns:
+        messages = messages.drop(*helper_columns)
+
+    return ensure_message_schema(messages, timezone=timezone)
 
 
-def parse_multiple(exports: Sequence[WhatsAppExport], timezone: str | ZoneInfo | None = None) -> Table:
+def parse_multiple(
+    exports: Sequence[WhatsAppExport],
+    timezone: str | ZoneInfo | None = None,
+    *,
+    expose_raw_author: bool = False,
+) -> Table:
     """Parse multiple exports and concatenate them ordered by timestamp."""
     tables: list[Table] = []
 
     for export in exports:
         try:
-            table = parse_source(export, timezone=timezone)
+            table = parse_source(export, timezone=timezone, expose_raw_author=expose_raw_author)
             # Add import source tracking
             if table.count().execute() > 0:
                 table = table.mutate(**{_IMPORT_SOURCE_COLUMN: ibis.literal(len(tables))})
@@ -213,6 +237,8 @@ def _parse_messages_pure_python(
     current_message: dict | None = None
     position = 0
     tz = _resolve_timezone(timezone)
+    tenant_id = str(export.group_slug)
+    source_identifier = "whatsapp"
 
     for raw_line in lines:
         # Normalize line
@@ -239,7 +265,7 @@ def _parse_messages_pure_python(
 
         # Finalize previous message
         if current_message is not None:
-            finalized = _finalize_message(current_message)
+            finalized = _finalize_message(current_message, tenant_id, source_identifier)
             # Skip empty messages (WhatsApp exports occasionally include blank lines)
             if finalized and finalized["message"] and finalized["message"].strip():
                 finalized[_IMPORT_ORDER_COLUMN] = position
@@ -273,13 +299,14 @@ def _parse_messages_pure_python(
             "timestamp": timestamp,
             "date": msg_date,
             "author": author,
+            "author_raw": author,
             "_continuation_lines": [message],
             "_original_lines": [normalized],
         }
 
     # Finalize last message
     if current_message is not None:
-        finalized = _finalize_message(current_message)
+        finalized = _finalize_message(current_message, tenant_id, source_identifier)
         # Skip empty messages (WhatsApp exports occasionally include blank lines)
         if finalized and finalized["message"] and finalized["message"].strip():
             finalized[_IMPORT_ORDER_COLUMN] = position
@@ -288,15 +315,21 @@ def _parse_messages_pure_python(
     return rows
 
 
-def _finalize_message(msg: dict) -> dict:
+def _finalize_message(msg: dict, tenant_id: str, source: str) -> dict:
     """Finalize a message by joining continuation lines."""
     message_text = "\n".join(msg["_continuation_lines"]).strip()
     original_text = "\n".join(msg["_original_lines"]).strip()
 
+    author_raw = msg["author_raw"]
+    author_uuid = deterministic_author_uuid(tenant_id, source, author_raw)
+
     return {
         "timestamp": msg["timestamp"],
         "date": msg["date"],
-        "author": msg["author"],
+        "author": author_raw,
+        "author_raw": author_raw,
+        "author_uuid": str(author_uuid),
+        _AUTHOR_UUID_HEX_COLUMN: author_uuid.hex,
         "message": message_text,
         "original_line": original_text or None,
         "tagged_line": None,

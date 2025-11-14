@@ -173,15 +173,20 @@ def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
     if int(messages.count().execute()) == 0:
         return (messages, 0)
     original_count = int(messages.count().execute())
-    # IR v1: Use .text column instead of .message
-    filtered_messages = messages.filter(~messages.text.lower().startswith("/egregora"))
+    # IR v1 schema exposes the conversation text in the `message` column
+    filtered_messages = messages.filter(~messages.message.lower().startswith("/egregora"))
     removed_count = original_count - int(filtered_messages.count().execute())
     if removed_count > 0:
         logger.info("Removed %s /egregora messages from table", removed_count)
     return (filtered_messages, removed_count)
 
 
-def parse_source(export: WhatsAppExport, timezone: str | ZoneInfo | None = None) -> Table:
+def parse_source(
+    export: WhatsAppExport,
+    timezone: str | ZoneInfo | None = None,
+    *,
+    expose_raw_author: bool = False,
+) -> Table:
     """Parse an individual WhatsApp export into an Ibis Table.
 
     Phase 8: Pure Ibis/DuckDB implementation without pyparsing.
@@ -189,15 +194,24 @@ def parse_source(export: WhatsAppExport, timezone: str | ZoneInfo | None = None)
     Args:
         export: WhatsApp export metadata
         timezone: ZoneInfo timezone object (phone's timezone)
+        expose_raw_author: When True, keep original author names for downstream
+            processing (e.g., IR generation). Defaults to False so callers
+            receive anonymized identifiers.
 
     Returns:
-        Parsed and anonymized Table with correct timezone
+        Parsed Table with correct timezone. Authors remain anonymized unless
+        ``expose_raw_author`` is requested.
 
     """
-    return _parse_source_impl(export, timezone=timezone)
+    return _parse_source_impl(export, timezone=timezone, expose_raw_author=expose_raw_author)
 
 
-def parse_multiple(exports: Sequence[WhatsAppExport], timezone: str | ZoneInfo | None = None) -> Table:
+def parse_multiple(
+    exports: Sequence[WhatsAppExport],
+    timezone: str | ZoneInfo | None = None,
+    *,
+    expose_raw_author: bool = False,
+) -> Table:
     """Parse multiple exports and concatenate them ordered by timestamp.
 
     Args:
@@ -205,7 +219,11 @@ def parse_multiple(exports: Sequence[WhatsAppExport], timezone: str | ZoneInfo |
         timezone: Timezone name (e.g., 'America/Sao_Paulo') or ZoneInfo object. Defaults to UTC if None.
 
     """
-    return _parse_multiple_impl(exports, timezone=timezone)
+    return _parse_multiple_impl(
+        exports,
+        timezone=timezone,
+        expose_raw_author=expose_raw_author,
+    )
 
 
 # Note: All parsing implementation has been moved to parser_sql.py (Phase 8)
