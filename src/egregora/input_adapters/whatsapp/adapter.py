@@ -240,6 +240,7 @@ class WhatsAppAdapter(InputAdapter):
             timezone=timezone,
             author_namespace=self._author_namespace,
         )
+
         logger.debug("Parsed WhatsApp export with %s messages", ir_table.count().execute())
         return ir_table
 
