@@ -113,7 +113,11 @@ mkdocs build
 3. Describe your changes clearly
 4. Link any related issues
 
-When a pull request targets `dev`/`develop`, automation will attempt to rebase your branch onto the latest base commit. Successful rebases are force-pushed back to the branch when the PR originates from this repository. If the rebase fails, the workflow aborts, captures the git output, and files a Codex reconciliation task so a maintainer can follow up with the author.
+When a pull request targets `dev`/`develop`, the **Auto rebase pull requests** workflow (`.github/workflows/pr-auto-rebase.yml`) runs on every open, synchronize, and reopen event:
+
+- Rebases the PR branch onto the latest `dev`/`develop` commit.
+- Force-pushes the rebased branch back to GitHub when the PR comes from this repository (forks are skipped).
+- Captures the git output and creates a Codex reconciliation task if the rebase fails so maintainers can coordinate with the author.
 
 #### Required GitHub secrets for maintainers
 
