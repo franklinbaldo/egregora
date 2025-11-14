@@ -72,13 +72,12 @@ class DocumentIndexPlan:
     """Container for pending RAG indexing work."""
 
     to_index: object  # pandas.DataFrame but kept generic to avoid optional import
-    store: "VectorStore"
+    store: VectorStore
     total_documents: int
 
     @property
     def skipped_count(self) -> int:
         """Number of documents skipped because they were already indexed."""
-
         return self.total_documents - len(self.to_index)
 
 
@@ -88,7 +87,7 @@ class WriterEnvironment:
 
     writer_config: WriterConfig
     egregora_config: EgregoraConfig
-    output_format: "OutputAdapter"
+    output_format: OutputAdapter
     runtime_context: WriterAgentContext
     annotations_store: AnnotationStore
     rag_store: VectorStore
@@ -215,7 +214,6 @@ def _load_document_from_path(path: Path) -> Document | None:
 
 def _fetch_format_documents(output_format: OutputAdapter) -> tuple[ibis.Table, int] | tuple[None, int]:
     """Return all documents known to the output adapter and their count."""
-
     format_documents = output_format.list_documents()
     doc_count = format_documents.count().execute()
 
@@ -227,9 +225,7 @@ def _fetch_format_documents(output_format: OutputAdapter) -> tuple[ibis.Table, i
     return format_documents, doc_count
 
 
-def _resolve_document_paths(
-    format_documents: ibis.Table, output_format: OutputAdapter
-) -> ibis.Table | None:
+def _resolve_document_paths(format_documents: ibis.Table, output_format: OutputAdapter) -> ibis.Table | None:
     """Attach resolved filesystem paths to the adapter document listing."""
 
     def resolve_identifier(identifier: str) -> str:
@@ -254,7 +250,6 @@ def _detect_changed_documents(
     docs_table: ibis.Table, rag_dir: Path, *, total_documents: int
 ) -> DocumentIndexPlan:
     """Identify documents that must be indexed or re-indexed."""
-
     store = VectorStore(rag_dir / "chunks.parquet")
     indexed_table = store.get_indexed_sources_table()
     indexed_count_val = indexed_table.count().execute()
@@ -267,8 +262,7 @@ def _detect_changed_documents(
     joined = docs_table.left_join(indexed_renamed, docs_table.source_path == indexed_renamed.indexed_path)
 
     new_or_changed = joined.filter(
-        (joined.indexed_mtime.isnull())
-        | (joined.mtime_ns != joined.indexed_mtime)
+        (joined.indexed_mtime.isnull()) | (joined.mtime_ns != joined.indexed_mtime)
     ).select(
         storage_identifier=joined.storage_identifier,
         source_path=joined.source_path,
@@ -281,7 +275,6 @@ def _detect_changed_documents(
 
 def _index_documents(plan: DocumentIndexPlan, *, embedding_model: str) -> int:
     """Index the provided documents using the supplied vector store."""
-
     indexed_count = 0
     for row in plan.to_index.itertuples():
         try:
@@ -374,7 +367,6 @@ def index_documents_for_rag(output_format: OutputAdapter, rag_dir: Path, *, embe
 
 def _cast_uuid_columns_to_str(table: Table) -> Table:
     """Ensure UUID-like columns are serialised to strings for downstream consumers."""
-
     return table.mutate(
         event_id=table.event_id.cast(str),
         author_uuid=table.author_uuid.cast(str),
@@ -390,7 +382,6 @@ def _build_writer_environment(
     client: genai.Client,
 ) -> WriterEnvironment:
     """Construct the configuration and runtime context required by the writer agent."""
-
     embedding_model = get_model_for_task("embedding", config.egregora_config, config.cli_model)
     annotations_store = AnnotationStore(config.rag_dir / "annotations.duckdb")
 
@@ -466,7 +457,6 @@ def _build_writer_prompt_context(
     client: genai.Client,
 ) -> WriterPromptContext:
     """Collect contextual inputs used when rendering the writer prompt."""
-
     messages_table = table_with_str_uuids.to_pyarrow()
     conversation_md = _build_conversation_markdown(messages_table, environment.annotations_store)
 
@@ -501,7 +491,6 @@ def _render_writer_prompt(
     prompt_context: WriterPromptContext, environment: WriterEnvironment, *, date_range: str
 ) -> str:
     """Render the final writer prompt text."""
-
     format_instructions = environment.output_format.get_format_instructions()
     custom_instructions = environment.egregora_config.writer.custom_instructions or ""
 

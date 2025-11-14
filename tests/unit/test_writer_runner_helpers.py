@@ -16,9 +16,9 @@ from egregora.agents.writer.writer_runner import (
     WriterPromptContext,
     _build_writer_environment,
     _build_writer_prompt_context,
+    _detect_changed_documents,
     _fetch_format_documents,
     _index_documents,
-    _detect_changed_documents,
     _render_writer_prompt,
     _resolve_document_paths,
 )
@@ -110,7 +110,9 @@ def test_resolve_document_paths_filters_invalid() -> None:
     }
 
 
-def test_detect_changed_documents_identifies_new_and_changed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_detect_changed_documents_identifies_new_and_changed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     df = pd.DataFrame(
         {
             "storage_identifier": ["same", "changed", "new"],
