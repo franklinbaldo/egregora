@@ -198,11 +198,17 @@ def resolve_site_paths(start: Annotated[Path, "Search root"]) -> SitePaths:
 
     docs_dir = _resolve_docs_dir(mkdocs_path, config)
     blog_dir = _extract_blog_dir(config) or DEFAULT_BLOG_DIR
-    posts_dir = (site_root / "posts").resolve()
-    profiles_dir = (site_root / PROFILES_DIR_NAME).resolve()
-    media_dir = (site_root / MEDIA_DIR_NAME).resolve()
-    rankings_dir = (site_root / "rankings").resolve()
-    enriched_dir = (site_root / "enriched").resolve()
+    blog_path = Path(blog_dir)
+    if blog_path.is_absolute():
+        blog_content_root = blog_path.resolve()
+    else:
+        blog_content_root = (docs_dir / blog_path).resolve()
+
+    posts_dir = (blog_content_root / "posts").resolve()
+    profiles_dir = (docs_dir / PROFILES_DIR_NAME).resolve()
+    media_dir = (docs_dir / MEDIA_DIR_NAME).resolve()
+    rankings_dir = (docs_dir / "rankings").resolve()
+    enriched_dir = (docs_dir / "enriched").resolve()
 
     return SitePaths(
         site_root=site_root,
