@@ -241,13 +241,6 @@ class WhatsAppAdapter(InputAdapter):
             author_namespace=self._author_namespace,
         )
 
-        @ibis.udf.scalar.python
-        def _anonymize_author(author_uuid: str | None) -> str | None:
-            if author_uuid is None:
-                return None
-            return author_uuid.replace("-", "")[:8]
-
-        ir_table = ir_table.mutate(author_raw=_anonymize_author(ir_table.author_uuid))
         logger.debug("Parsed WhatsApp export with %s messages", ir_table.count().execute())
         return ir_table
 
