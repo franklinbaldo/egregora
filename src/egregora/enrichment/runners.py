@@ -114,8 +114,6 @@ def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> 
         except (ValueError, TypeError, AttributeError) as exc:  # pragma: no cover - defensive
             msg = f"Failed to convert frame to records. Original error: {exc}"
             raise RuntimeError(msg) from exc
-    if isinstance(frame, list):
-        return [dict(row) for row in frame]
     return [dict(row) for row in frame]
 
 
