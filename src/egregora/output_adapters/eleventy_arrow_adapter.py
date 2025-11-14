@@ -192,7 +192,7 @@ class EleventyArrowAdapter:
 
         # Write to Parquet
         parquet_path = self.data_dir / f"window_{window_index}.parquet"
-        pq.write_table(table, parquet_path)
+        pq.write_table(table, parquet_path, compression=None)
 
         logger.info(
             "Window %s: wrote %d documents to %s (%.2f KB)",
