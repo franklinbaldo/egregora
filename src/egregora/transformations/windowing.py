@@ -211,9 +211,7 @@ def create_windows(
             overlap_ratio=normalized_ratio,
         )
     else:
-        msg = (
-            f"Unknown step_unit: {step_unit}. Must be 'messages', 'hours', 'days', or 'bytes'."
-        )
+        msg = f"Unknown step_unit: {step_unit}. Must be 'messages', 'hours', 'days', or 'bytes'."
         raise ValueError(msg)
 
 
@@ -225,7 +223,6 @@ def _prepare_message_windows(
     max_window_time: timedelta | None,
 ) -> Iterator[Window]:
     """Normalize message-based inputs and generate windows."""
-
     overlap = int(step_size * overlap_ratio)
 
     if max_window_time:
@@ -246,7 +243,6 @@ def _prepare_time_windows(
     max_window_time: timedelta | None,
 ) -> Iterator[Window]:
     """Normalize time-based inputs (including max_window_time) and generate windows."""
-
     effective_step_size = step_size
     effective_step_unit = step_unit
 
@@ -291,7 +287,6 @@ def _prepare_byte_windows(
     overlap_ratio: float,
 ) -> Iterator[Window]:
     """Normalize byte-based inputs and generate windows."""
-
     overlap_bytes = int(max_bytes_per_window * overlap_ratio)
     yield from _window_by_bytes(table, max_bytes_per_window, overlap_bytes)
 

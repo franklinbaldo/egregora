@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import ibis
 
@@ -13,11 +13,8 @@ def _memtable(rows: list[dict]) -> ibis.Table:
 
 
 def test_create_windows_message_overlap_clamps_ratio():
-    base = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    rows = [
-        {"ts": base + timedelta(minutes=i), "text": f"msg-{i}"}
-        for i in range(6)
-    ]
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    rows = [{"ts": base + timedelta(minutes=i), "text": f"msg-{i}"} for i in range(6)]
 
     table = _memtable(rows)
 
@@ -42,11 +39,8 @@ def test_create_windows_message_overlap_clamps_ratio():
 
 
 def test_create_windows_time_overlap_and_max_window_time_adjustment():
-    base = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    rows = [
-        {"ts": base + timedelta(hours=6 * i), "text": f"msg-{i}"}
-        for i in range(12)
-    ]
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    rows = [{"ts": base + timedelta(hours=6 * i), "text": f"msg-{i}"} for i in range(12)]
 
     table = _memtable(rows)
 
@@ -77,11 +71,8 @@ def test_create_windows_time_overlap_and_max_window_time_adjustment():
 
 
 def test_create_windows_byte_overlap_applies_ratio():
-    base = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    rows = [
-        {"ts": base + timedelta(minutes=5 * i), "text": f"message-{i}"}
-        for i in range(6)
-    ]
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    rows = [{"ts": base + timedelta(minutes=5 * i), "text": f"message-{i}"} for i in range(6)]
 
     table = _memtable(rows)
 
