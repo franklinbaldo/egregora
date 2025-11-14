@@ -217,6 +217,25 @@ output:
         assert site_paths.docs_dir == site_root
         assert site_paths.docs_dir != site_root.parent
 
+    def test_content_paths_respect_docs_dir(self, tmp_path):
+        """Content directories should be nested under docs_dir when configured."""
+        from egregora.output_adapters.mkdocs import resolve_site_paths
+
+        site_root = tmp_path / "mkdocs-site"
+        docs_dir = site_root / "docs"
+        docs_dir.mkdir(parents=True)
+
+        mkdocs_yml = site_root / "mkdocs.yml"
+        mkdocs_yml.write_text("site_name: Test\n")
+
+        site_paths = resolve_site_paths(site_root)
+
+        expected_docs_dir = docs_dir.resolve()
+        assert site_paths.docs_dir == expected_docs_dir
+        assert site_paths.posts_dir == (expected_docs_dir / "posts").resolve()
+        assert site_paths.profiles_dir == (expected_docs_dir / "profiles").resolve()
+        assert site_paths.media_dir == (expected_docs_dir / "media").resolve()
+
     def test_write_post(self, tmp_path):
         """Test writing a blog post."""
         output = output_registry.get_format("mkdocs")
