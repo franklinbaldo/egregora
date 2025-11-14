@@ -491,7 +491,9 @@ def views_create(
         if not storage.table_exists(table_name):
             available = ", ".join(storage.list_tables())
             console.print(f"[red]Error: Table '{table_name}' not found in database[/red]")
-            console.print(f"Available tables: {available}" if available else "[dim]Database has no tables[/dim]")
+            console.print(
+                f"Available tables: {available}" if available else "[dim]Database has no tables[/dim]"
+            )
             raise typer.Exit(1)
 
         view_names = views.list_views()
@@ -548,7 +550,9 @@ def views_refresh(
         if not storage.table_exists(table_name):
             available = ", ".join(storage.list_tables())
             console.print(f"[red]Error: Table '{table_name}' not found in database[/red]")
-            console.print(f"Available tables: {available}" if available else "[dim]Database has no tables[/dim]")
+            console.print(
+                f"Available tables: {available}" if available else "[dim]Database has no tables[/dim]"
+            )
             raise typer.Exit(1)
 
         if view_name:
@@ -613,7 +617,9 @@ def views_drop(
         if not storage.table_exists(table_name):
             available = ", ".join(storage.list_tables())
             console.print(f"[red]Error: Table '{table_name}' not found in database[/red]")
-            console.print(f"Available tables: {available}" if available else "[dim]Database has no tables[/dim]")
+            console.print(
+                f"Available tables: {available}" if available else "[dim]Database has no tables[/dim]"
+            )
             raise typer.Exit(1)
 
         if view_name:
