@@ -1,15 +1,53 @@
 # Branch Reconciliation Report: PR #675
 
 **Date:** 2025-11-14
-**Target Branch:** `claude/take-a-look-01Cn7TmpuQaWm3kh55H6E4Zw` (PR #675)
-**Source Branch:** `origin/dev`
-**Current Working Branch:** `claude/reconciliate-branch-with-dev-01W53WJMzB146rSxhAnJrieu`
+**PR #675 Source Branch:** `claude/refactor-naming-consistency-011CV43H5oLaSiz5qhvk4CKE` ✅ **CORRECT**
+**Target Branch:** `origin/dev`
+**Analysis Branch:** `claude/reconciliate-branch-with-dev-01W53WJMzB146rSxhAnJrieu`
+
+**Note:** Initial report incorrectly analyzed `claude/take-a-look-01Cn7TmpuQaWm3kh55H6E4Zw`. Corrected after discovering actual PR #675 source via GitHub.
 
 ## Executive Summary
 
-✅ **Merge Status: CLEAN (No Conflicts)**
+❌ **Merge Status: 6 CONFLICTS DETECTED**
 
-The merge of `origin/dev` into `claude/take-a-look-01Cn7TmpuQaWm3kh55H6E4Zw` completed successfully without any conflicts. The PR #675 branch is behind `dev` by **130+ commits** and can be safely fast-forwarded or merged.
+**CORRECTION:** Initial analysis was performed on the wrong branch. PR #675 is actually from `claude/refactor-naming-consistency-011CV43H5oLaSiz5qhvk4CKE`, not `claude/take-a-look-01Cn7TmpuQaWm3kh55H6E4Zw`.
+
+The merge of PR #675 into `dev` has **6 conflicts** requiring manual resolution. These conflicts stem from major code consolidation in dev that occurred after PR #675 was created.
+
+**Detailed conflict analysis and resolution strategy available in:** `CONFLICT_RESOLUTION_STRATEGY.md`
+
+## Conflict Summary
+
+### 6 Conflicts Detected:
+
+1. **`src/egregora/enrichment/batch.py`** 🔴 **CRITICAL** (Modify/Delete)
+   - Dev deleted entire file (consolidation)
+   - PR modified it (added streaming utilities)
+   - **Resolution:** Accept deletion, port streaming logic if needed
+
+2. **`src/egregora/agents/shared/llm_tools.py`** 🔴 **CRITICAL** (Content)
+   - PR has full RAG implementation (88 lines)
+   - Dev has stub/placeholder (9 lines, marked as unused)
+   - **Resolution:** Accept dev (RAG moved to context_builder)
+
+3. **`src/egregora/agents/shared/__init__.py`** ⚠️ **TRIVIAL** (Content)
+   - Docstring difference (simple vs detailed)
+   - **Resolution:** Accept dev (better docs)
+
+4. **`src/egregora/database/__init__.py`** ⚠️ **TRIVIAL** (Content)
+   - Duplicate export in `__all__`
+   - **Resolution:** Remove duplicate, keep both branches' exports
+
+5. **`src/egregora/prompt_templates.py`** ⚠️ **MINOR** (Content)
+   - Comment/whitespace differences (3 locations)
+   - **Resolution:** Accept dev (better inline comments)
+
+6. **`docs/refactoring/consolidation-plan.md`** 🟡 **MODERATE** (Add/Add)
+   - Both branches added file
+   - PR version: future planning (TODOs)
+   - Dev version: reflects completed work
+   - **Resolution:** Accept dev (current state)
 
 ## Branch Status
 
@@ -149,37 +187,57 @@ The branches diverged after commit `82df0b6`. The `dev` branch has received sign
 
 ## Conflict Analysis
 
-### ✅ No Conflicts Detected
+### ❌ 6 Conflicts Detected
 
-The automated merge completed successfully without conflicts. This indicates:
+**IMPORTANT:** See `CONFLICT_RESOLUTION_STRATEGY.md` for detailed analysis and step-by-step resolution instructions.
 
-1. **No overlapping changes** - PR #675 and dev modified different files/sections
-2. **Clean divergence** - Changes are additive or non-overlapping
-3. **Safe to merge** - No manual resolution required
+The conflicts indicate **architectural divergence**:
+
+1. **PR #675 Focus:** Window validation, streaming optimizations, token limit improvements
+2. **Dev Focus:** Code consolidation, dead code removal, file reorganization
+3. **Core Issue:** Dev consolidated/deleted files that PR #675 was modifying
+
+**Impact:** Most conflicts can be resolved by accepting dev's consolidation and verifying PR #675's window validation logic is preserved in non-conflicting files.
 
 ## Recommendations
 
-### Option 1: Direct Merge (RECOMMENDED)
+### Option 1: Manual Conflict Resolution (RECOMMENDED)
+
+**See `CONFLICT_RESOLUTION_STRATEGY.md` for complete step-by-step instructions.**
+
+**Quick Summary:**
 ```bash
-git checkout claude/take-a-look-01Cn7TmpuQaWm3kh55H6E4Zw
+git checkout claude/refactor-naming-consistency-011CV43H5oLaSiz5qhvk4CKE
 git merge origin/dev
-git push origin claude/take-a-look-01Cn7TmpuQaWm3kh55H6E4Zw
+# Resolve conflicts (accept most dev changes)
+git rm src/egregora/enrichment/batch.py
+git checkout --theirs src/egregora/agents/shared/llm_tools.py
+git checkout --theirs src/egregora/agents/shared/__init__.py
+git checkout --theirs src/egregora/prompt_templates.py
+git checkout --theirs docs/refactoring/consolidation-plan.md
+# Manually edit database/__init__.py to remove duplicate
+git add .
+git commit -m "chore: resolve merge conflicts with dev - accept consolidation changes"
+uv run pytest tests/
+git push origin claude/refactor-naming-consistency-011CV43H5oLaSiz5qhvk4CKE
 ```
 
 **Pros:**
-- Preserves full history
-- Shows divergence clearly
-- No conflicts to resolve
+- Preserves PR history
+- Clear resolution strategy
+- Accepts intentional consolidation work
 
 **Cons:**
-- Creates merge commit
-- History may be complex
+- Manual conflict resolution required
+- Must verify window validation logic not lost
+- Requires careful testing
 
-### Option 2: Rebase onto Dev
+### Option 2: Rebase onto Dev (ALTERNATIVE)
 ```bash
-git checkout claude/take-a-look-01Cn7TmpuQaWm3kh55H6E4Zw
+git checkout claude/refactor-naming-consistency-011CV43H5oLaSiz5qhvk4CKE
 git rebase origin/dev
-git push -f origin claude/take-a-look-01Cn7TmpuQaWm3kh55H6E4Zw
+# Resolve conflicts interactively (same resolutions as Option 1)
+git push -f origin claude/refactor-naming-consistency-011CV43H5oLaSiz5qhvk4CKE
 ```
 
 **Pros:**
@@ -188,8 +246,9 @@ git push -f origin claude/take-a-look-01Cn7TmpuQaWm3kh55H6E4Zw
 
 **Cons:**
 - Requires force push
-- May affect PR review history
-- **NOT RECOMMENDED** if PR has been reviewed
+- More complex conflict resolution
+- Rewrites history (may affect PR review)
+- **NOT RECOMMENDED** if PR has been reviewed extensively
 
 ### Option 3: Close PR #675 and Create New PR from Dev
 ```bash
@@ -294,9 +353,27 @@ After merging, verify:
 
 ## Conclusion
 
-The reconciliation of PR #675 with dev is **technically feasible and low-risk** from a merge conflict perspective. However, the **semantic changes are significant** (refactoring, renames, new features) and require thorough testing.
+The reconciliation of PR #675 with dev requires **manual conflict resolution** due to architectural divergence between the branches. Dev's code consolidation (intentional cleanup) conflicts with PR #675's modifications to files that were subsequently deleted.
 
-**Recommended Action:** Merge `origin/dev` into PR #675 branch, run full test suite, and verify critical paths (privacy, UUID generation, pipeline execution) before finalizing the PR.
+**Key Finding:** The conflicts are **expected and manageable**. Dev's consolidation was intentional and well-documented. The resolution strategy is straightforward: accept dev's changes and verify PR #675's window validation improvements are preserved.
+
+**Recommended Action:**
+1. Follow **Option 1** from `CONFLICT_RESOLUTION_STRATEGY.md`
+2. Accept dev's consolidation (delete `batch.py`, accept stub `llm_tools.py`)
+3. Verify window validation logic in `orchestration/write_pipeline.py`
+4. Run full test suite
+5. Push resolved branch and update PR #675
+
+**Estimated Time:** 1-2 hours (resolution + testing)
+**Risk Level:** Medium (requires verification that window validation logic not lost)
+
+---
+
+## Additional Resources
+
+- **Detailed Conflict Analysis:** `CONFLICT_RESOLUTION_STRATEGY.md`
+- **Step-by-Step Resolution:** See Option A in strategy document
+- **Conflict Files:** All 6 files documented with context and reasoning
 
 ---
 **Report Generated:** 2025-11-14
