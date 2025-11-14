@@ -57,8 +57,15 @@ def consolidate_messages_to_markdown(table: Table) -> str:
         Markdown-formatted string suitable for chunk_markdown()
 
     """
-    # Execute table to dataframe
-    df = table.select("timestamp", "author", "message").execute()
+    # Execute table to dataframe with deterministic ordering
+    order_columns: list[Any] = []
+    if "timestamp" in table.columns:
+        order_columns.append(table["timestamp"])
+    if "message_id" in table.columns:
+        order_columns.append(table["message_id"])
+
+    ordered_table = table.order_by(order_columns) if order_columns else table
+    df = ordered_table.select("timestamp", "author", "message").execute()
 
     if df.empty:
         return ""
