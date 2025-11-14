@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 import frontmatter
 
 if TYPE_CHECKING:
-    from egregora.core.document import Document
+    from egregora.data_primitives.document import Document
 
 logger = logging.getLogger(__name__)
 

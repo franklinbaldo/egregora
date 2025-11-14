@@ -50,17 +50,32 @@ def _within_any(span: tuple[int, int], ranges: Sequence[tuple[int, int]]) -> boo
     return any((r_start <= start and end <= r_end for r_start, r_end in ranges))
 
 
-def validate_newsletter_privacy(newsletter_text: str) -> bool:
-    """Ensure newsletter text does not contain phone number patterns."""
-    uuid_spans = [(match.start(), match.end()) for match in _UUID_PATTERN.finditer(newsletter_text)]
+def validate_text_privacy(text: str) -> bool:
+    """Ensure text does not contain PII patterns (phone numbers, emails, etc.).
+
+    Args:
+        text: Text content to validate for privacy violations
+
+    Returns:
+        True if no PII detected
+
+    Raises:
+        PrivacyViolationError: If PII patterns are found outside UUID contexts
+
+    """
+    uuid_spans = [(match.start(), match.end()) for match in _UUID_PATTERN.finditer(text)]
     for pattern in _PII_PATTERNS:
-        for match in pattern.regex.finditer(newsletter_text):
+        for match in pattern.regex.finditer(text):
             span = match.span()
             if _within_any(span, uuid_spans):
                 continue
-            msg = f"Possible phone number leak detected: {pattern.description}"
+            msg = f"Possible PII leak detected: {pattern.description}"
             raise PrivacyViolationError(msg)
     return True
 
 
-__all__ = ["PrivacyViolationError", "validate_newsletter_privacy"]
+# Legacy alias for backward compatibility (deprecated)
+validate_newsletter_privacy = validate_text_privacy
+
+
+__all__ = ["PrivacyViolationError", "validate_newsletter_privacy", "validate_text_privacy"]

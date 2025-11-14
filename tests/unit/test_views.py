@@ -1,507 +1,253 @@
-"""Tests for database view registry."""
+"""Tests for database view registry (ViewBuilder pattern)."""
 
-import duckdb
 import ibis
 import pytest
 
-from egregora.database.views import ViewDefinition, ViewRegistry, register_common_views
+from egregora.database.views import ViewRegistry, views
 
 
 @pytest.fixture
-def connection():
-    """Create in-memory DuckDB connection."""
-    return duckdb.connect(":memory:")
+def registry():
+    """Create fresh ViewRegistry for testing."""
+    return ViewRegistry()
 
 
 @pytest.fixture
-def backend(connection):
-    """Create Ibis backend."""
-    return ibis.duckdb.from_connection(connection)
-
-
-@pytest.fixture
-def sample_table(connection):
-    """Create sample messages table."""
-    connection.execute("""
-        CREATE TABLE messages (
-            timestamp TIMESTAMP,
-            author VARCHAR,
-            message VARCHAR,
-            media_path VARCHAR
-        )
-    """)
-
-    # Insert sample data
-    connection.execute("""
-        INSERT INTO messages VALUES
-            ('2025-01-01 10:00:00', 'alice', 'Hello', NULL),
-            ('2025-01-01 10:30:00', 'bob', 'Hi', '/media/img1.jpg'),
-            ('2025-01-01 11:00:00', 'alice', 'How are you?', NULL),
-            ('2025-01-01 11:30:00', 'charlie', 'Good morning', NULL),
-            ('2025-01-01 12:00:00', 'bob', 'Nice day', '/media/img2.jpg'),
-            ('2025-01-02 09:00:00', 'alice', 'New day', NULL)
-    """)
-
-    return connection
-
-
-@pytest.fixture
-def registry(connection):
-    """Create ViewRegistry instance."""
-    return ViewRegistry(connection)
-
-
-class TestViewDefinition:
-    """Tests for ViewDefinition dataclass."""
-
-    def test_create_minimal(self) -> None:
-        """ViewDefinition can be created with minimal fields."""
-        view = ViewDefinition(
-            name="test_view",
-            sql="SELECT * FROM messages",
-        )
-
-        assert view.name == "test_view"
-        assert view.sql == "SELECT * FROM messages"
-        assert view.materialized is False
-        assert view.dependencies == ()
-        assert view.description == ""
-
-    def test_create_full(self) -> None:
-        """ViewDefinition can be created with all fields."""
-        view = ViewDefinition(
-            name="test_view",
-            sql="SELECT * FROM messages",
-            materialized=True,
-            dependencies=("messages", "users"),
-            description="Test view",
-        )
-
-        assert view.materialized is True
-        assert view.dependencies == ("messages", "users")
-        assert view.description == "Test view"
-
-    def test_immutable(self) -> None:
-        """ViewDefinition is immutable (frozen)."""
-        view = ViewDefinition(name="test", sql="SELECT 1")
-
-        with pytest.raises(AttributeError):
-            view.name = "changed"  # type: ignore[misc]
+def sample_table():
+    """Create sample Ibis table for testing."""
+    data = {
+        "id": [1, 2, 3, 4, 5],
+        "author": ["alice", "bob", "alice", "charlie", "bob"],
+        "message": ["Hello", "Hi", "How are you?", "Good morning", "Nice day"],
+        "timestamp": [
+            "2025-01-01 10:00",
+            "2025-01-01 11:00",
+            "2025-01-01 12:00",
+            "2025-01-02 09:00",
+            "2025-01-02 10:00",
+        ],
+    }
+    return ibis.memtable(data)
 
 
 class TestViewRegistry:
-    """Tests for ViewRegistry."""
+    """Tests for ViewRegistry class."""
 
-    def test_register_view(self, registry: ViewRegistry) -> None:
-        """register() adds view to registry."""
-        view = ViewDefinition(name="test_view", sql="SELECT 1")
+    def test_init(self, registry: ViewRegistry):
+        """ViewRegistry initializes with empty views dict."""
+        assert registry.list_views() == []
 
-        registry.register(view)
+    def test_register_decorator(self, registry: ViewRegistry, sample_table: ibis.Table):
+        """@register decorator registers view builder."""
 
-        assert "test_view" in registry.views
-        assert registry.views["test_view"] == view
+        @registry.register("test_view")
+        def test_builder(ir: ibis.Table) -> ibis.Table:
+            return ir.limit(2)
 
-    def test_register_duplicate_raises(self, registry: ViewRegistry) -> None:
-        """register() raises ValueError for duplicate names."""
-        view1 = ViewDefinition(name="test_view", sql="SELECT 1")
-        view2 = ViewDefinition(name="test_view", sql="SELECT 2")
+        assert registry.has("test_view")
+        builder = registry.get("test_view")
+        result = builder(sample_table)
+        assert result.count().execute() == 2
 
-        registry.register(view1)
+    def test_register_function(self, registry: ViewRegistry, sample_table: ibis.Table):
+        """register_function() registers builder without decorator."""
+
+        def test_builder(ir: ibis.Table) -> ibis.Table:
+            return ir.filter(ir.author == "alice")
+
+        registry.register_function("alice_messages", test_builder)
+
+        assert registry.has("alice_messages")
+        builder = registry.get("alice_messages")
+        result = builder(sample_table)
+        assert result.count().execute() == 2  # alice has 2 messages
+
+    def test_register_duplicate_raises(self, registry: ViewRegistry):
+        """Registering duplicate view name raises ValueError."""
+
+        @registry.register("duplicate")
+        def first(ir: ibis.Table) -> ibis.Table:
+            return ir
 
         with pytest.raises(ValueError, match="already registered"):
-            registry.register(view2)
-
-    def test_register_many(self, registry: ViewRegistry) -> None:
-        """register_many() registers multiple views."""
-        views = [
-            ViewDefinition(name="view1", sql="SELECT 1"),
-            ViewDefinition(name="view2", sql="SELECT 2"),
-        ]
-
-        registry.register_many(views)
-
-        assert len(registry.views) == 2
-        assert "view1" in registry.views
-        assert "view2" in registry.views
-
-    def test_create_view(self, sample_table: duckdb.DuckDBPyConnection) -> None:
-        """create() creates view in database."""
-        registry = ViewRegistry(sample_table)
-        view = ViewDefinition(
-            name="alice_messages",
-            sql="SELECT * FROM messages WHERE author = 'alice'",
-        )
-
-        registry.register(view)
-        registry.create("alice_messages")
-
-        # Verify view exists
-        result = sample_table.execute("SELECT COUNT(*) FROM alice_messages").fetchone()
-        assert result[0] == 3  # alice has 3 messages
-
-    def test_create_materialized_view(self, sample_table: duckdb.DuckDBPyConnection) -> None:
-        """create() creates materialized view (table) in database."""
-        registry = ViewRegistry(sample_table)
-        view = ViewDefinition(
-            name="author_counts",
-            sql="SELECT author, COUNT(*) as count FROM messages GROUP BY author",
-            materialized=True,
-        )
-
-        registry.register(view)
-        registry.create("author_counts")
-
-        # Verify materialized view exists as table
-        result = sample_table.execute("SELECT * FROM author_counts ORDER BY count DESC").fetchall()
-        assert len(result) == 3  # 3 authors
-        assert result[0][0] == "alice"  # alice has most messages
-        assert result[0][1] == 3
-
-    def test_create_nonexistent_raises(self, registry: ViewRegistry) -> None:
-        """create() raises KeyError for unregistered view."""
-        with pytest.raises(KeyError, match="not registered"):
-            registry.create("nonexistent")
-
-    def test_create_all(self, sample_table: duckdb.DuckDBPyConnection) -> None:
-        """create_all() creates all views in dependency order."""
-        registry = ViewRegistry(sample_table)
-
-        # Register views with dependencies
-        registry.register_many(
-            [
-                ViewDefinition(
-                    name="base_stats",
-                    sql="SELECT author, COUNT(*) as count FROM messages GROUP BY author",
-                    materialized=True,
-                ),
-                ViewDefinition(
-                    name="top_authors",
-                    sql="SELECT author FROM base_stats WHERE count > 1 ORDER BY count DESC",
-                    dependencies=("base_stats",),
-                ),
-            ]
-        )
-
-        registry.create_all()
-
-        # Verify both views exist
-        result1 = sample_table.execute("SELECT COUNT(*) FROM base_stats").fetchone()
-        assert result1[0] == 3
-
-        result2 = sample_table.execute("SELECT COUNT(*) FROM top_authors").fetchone()
-        assert result2[0] == 2  # alice and bob have >1 messages
-
-    def test_create_all_force(self, sample_table: duckdb.DuckDBPyConnection) -> None:
-        """create_all(force=True) recreates existing views."""
-        registry = ViewRegistry(sample_table)
-        view = ViewDefinition(name="test_view", sql="SELECT 1 as value")
-
-        registry.register(view)
-        registry.create_all()
-
-        # Verify initial view
-        result1 = sample_table.execute("SELECT value FROM test_view").fetchone()
-        assert result1[0] == 1
-
-        # Change view definition and recreate
-        registry.views["test_view"] = ViewDefinition(name="test_view", sql="SELECT 2 as value")
-        registry.create_all(force=True)
-
-        # Verify updated view
-        result2 = sample_table.execute("SELECT value FROM test_view").fetchone()
-        assert result2[0] == 2
-
-    def test_refresh_materialized_view(self, sample_table: duckdb.DuckDBPyConnection) -> None:
-        """refresh() updates materialized view with fresh data."""
-        registry = ViewRegistry(sample_table)
-        view = ViewDefinition(
-            name="message_count",
-            sql="SELECT COUNT(*) as count FROM messages",
-            materialized=True,
-        )
-
-        registry.register(view)
-        registry.create("message_count")
-
-        # Initial count
-        result1 = sample_table.execute("SELECT count FROM message_count").fetchone()
-        assert result1[0] == 6
-
-        # Insert more messages
-        sample_table.execute("INSERT INTO messages VALUES ('2025-01-02 10:00:00', 'dave', 'Hi', NULL)")
-
-        # Refresh materialized view
-        registry.refresh("message_count")
-
-        # Verify updated count
-        result2 = sample_table.execute("SELECT count FROM message_count").fetchone()
-        assert result2[0] == 7
-
-    def test_refresh_regular_view_raises(self, registry: ViewRegistry) -> None:
-        """refresh() raises ValueError for non-materialized views."""
-        view = ViewDefinition(name="test_view", sql="SELECT 1")
-
-        registry.register(view)
-
-        with pytest.raises(ValueError, match="not materialized"):
-            registry.refresh("test_view")
-
-    def test_refresh_all(self, sample_table: duckdb.DuckDBPyConnection) -> None:
-        """refresh_all() updates all materialized views."""
-        registry = ViewRegistry(sample_table)
-
-        # Register multiple materialized views
-        registry.register_many(
-            [
-                ViewDefinition(
-                    name="total_messages",
-                    sql="SELECT COUNT(*) as count FROM messages",
-                    materialized=True,
-                ),
-                ViewDefinition(
-                    name="total_authors",
-                    sql="SELECT COUNT(DISTINCT author) as count FROM messages",
-                    materialized=True,
-                ),
-            ]
-        )
-
-        registry.create_all()
-
-        # Insert more data
-        sample_table.execute("INSERT INTO messages VALUES ('2025-01-02 11:00:00', 'eve', 'Hello', NULL)")
-
-        # Refresh all
-        registry.refresh_all()
-
-        # Verify both views updated
-        result1 = sample_table.execute("SELECT count FROM total_messages").fetchone()
-        assert result1[0] == 7
-
-        result2 = sample_table.execute("SELECT count FROM total_authors").fetchone()
-        assert result2[0] == 4
-
-    def test_query(self, sample_table: duckdb.DuckDBPyConnection) -> None:
-        """query() returns results as DataFrame."""
-        registry = ViewRegistry(sample_table)
-        view = ViewDefinition(
-            name="alice_messages",
-            sql="SELECT * FROM messages WHERE author = 'alice' ORDER BY timestamp",
-        )
-
-        registry.register(view)
-        registry.create("alice_messages")
-
-        result = registry.query("alice_messages")
-
-        assert len(result) == 3
-        assert result["author"].tolist() == ["alice", "alice", "alice"]
-
-    def test_query_nonexistent_raises(self, registry: ViewRegistry) -> None:
-        """query() raises KeyError for unregistered view."""
-        with pytest.raises(KeyError, match="not registered"):
-            registry.query("nonexistent")
-
-    def test_query_ibis(self, sample_table: duckdb.DuckDBPyConnection, backend: ibis.BaseBackend) -> None:
-        """query_ibis() returns Ibis table."""
-        registry = ViewRegistry(sample_table)
-        view = ViewDefinition(
-            name="test_view",
-            sql="SELECT author, COUNT(*) as count FROM messages GROUP BY author",
-        )
-
-        registry.register(view)
-        registry.create("test_view")
-
-        table = registry.query_ibis("test_view", backend)
-
-        assert isinstance(table, ibis.expr.types.Table)
-        assert "author" in table.columns
-        assert "count" in table.columns
-
-    def test_drop_view(self, sample_table: duckdb.DuckDBPyConnection) -> None:
-        """drop() removes view from database."""
-        registry = ViewRegistry(sample_table)
-        view = ViewDefinition(name="test_view", sql="SELECT 1")
-
-        registry.register(view)
-        registry.create("test_view")
-
-        # Verify view exists
-        result1 = sample_table.execute("SELECT * FROM test_view").fetchone()
-        assert result1[0] == 1
-
-        # Drop view
-        registry.drop("test_view")
-
-        # Verify view removed
-        with pytest.raises(duckdb.CatalogException):
-            sample_table.execute("SELECT * FROM test_view")
-
-    def test_drop_all(self, sample_table: duckdb.DuckDBPyConnection) -> None:
-        """drop_all() removes all views."""
-        registry = ViewRegistry(sample_table)
-        registry.register_many(
-            [
-                ViewDefinition(name="view1", sql="SELECT 1"),
-                ViewDefinition(name="view2", sql="SELECT 2"),
-            ]
-        )
-
-        registry.create_all()
-        registry.drop_all()
-
-        # Verify both views removed
-        with pytest.raises(duckdb.CatalogException):
-            sample_table.execute("SELECT * FROM view1")
-
-        with pytest.raises(duckdb.CatalogException):
-            sample_table.execute("SELECT * FROM view2")
-
-    def test_list_views(self, registry: ViewRegistry) -> None:
-        """list_views() returns all registered view names."""
-        registry.register_many(
-            [
-                ViewDefinition(name="view1", sql="SELECT 1"),
-                ViewDefinition(name="view2", sql="SELECT 2"),
-            ]
-        )
-
-        views = registry.list_views()
-
-        assert set(views) == {"view1", "view2"}
-
-    def test_get_view(self, registry: ViewRegistry) -> None:
-        """get_view() returns view definition."""
-        view = ViewDefinition(name="test_view", sql="SELECT 1")
-        registry.register(view)
-
-        retrieved = registry.get_view("test_view")
-
-        assert retrieved == view
-
-    def test_get_view_nonexistent_raises(self, registry: ViewRegistry) -> None:
-        """get_view() raises KeyError for unregistered view."""
-        with pytest.raises(KeyError, match="not registered"):
-            registry.get_view("nonexistent")
-
-    def test_topological_sort_simple(self, registry: ViewRegistry) -> None:
-        """_topological_sort() orders views by dependencies."""
-        registry.register_many(
-            [
-                ViewDefinition(name="base", sql="SELECT 1"),
-                ViewDefinition(name="derived", sql="SELECT * FROM base", dependencies=("base",)),
-            ]
-        )
-
-        sorted_views = registry._topological_sort()
-
-        # base must come before derived
-        assert sorted_views.index("base") < sorted_views.index("derived")
-
-    def test_topological_sort_complex(self, registry: ViewRegistry) -> None:
-        """_topological_sort() handles complex dependency graphs."""
-        registry.register_many(
-            [
-                ViewDefinition(name="a", sql="SELECT 1"),
-                ViewDefinition(name="b", sql="SELECT 1"),
-                ViewDefinition(name="c", sql="SELECT * FROM a", dependencies=("a",)),
-                ViewDefinition(name="d", sql="SELECT * FROM b, c", dependencies=("b", "c")),
-            ]
-        )
-
-        sorted_views = registry._topological_sort()
-
-        # Verify all dependencies satisfied
-        assert sorted_views.index("a") < sorted_views.index("c")
-        assert sorted_views.index("b") < sorted_views.index("d")
-        assert sorted_views.index("c") < sorted_views.index("d")
-
-    def test_topological_sort_circular_raises(self, registry: ViewRegistry) -> None:
-        """_topological_sort() raises ValueError for circular dependencies."""
-        registry.register_many(
-            [
-                ViewDefinition(name="view1", sql="SELECT * FROM view2", dependencies=("view2",)),
-                ViewDefinition(name="view2", sql="SELECT * FROM view1", dependencies=("view1",)),
-            ]
-        )
-
-        with pytest.raises(ValueError, match="Circular dependencies"):
-            registry._topological_sort()
-
-
-class TestRegisterCommonViews:
-    """Tests for register_common_views()."""
-
-    def test_register_common_views(self, sample_table: duckdb.DuckDBPyConnection) -> None:
-        """register_common_views() registers standard views."""
-        registry = ViewRegistry(sample_table)
-
-        register_common_views(registry, table_name="messages")
-
-        # Verify expected views registered
-        views = registry.list_views()
-        assert "author_message_counts" in views
-        assert "active_authors" in views
-        assert "messages_with_media" in views
-        assert "hourly_message_stats" in views
-        assert "daily_message_stats" in views
-
-    def test_author_message_counts(self, sample_table: duckdb.DuckDBPyConnection) -> None:
-        """author_message_counts view works correctly."""
-        registry = ViewRegistry(sample_table)
-        register_common_views(registry)
-        registry.create_all()
-
-        result = registry.query("author_message_counts")
-
-        assert len(result) == 3  # 3 authors
-        assert result.loc[result["author"] == "alice", "message_count"].iloc[0] == 3
-        assert result.loc[result["author"] == "bob", "message_count"].iloc[0] == 2
-
-    def test_active_authors(self, sample_table: duckdb.DuckDBPyConnection) -> None:
-        """active_authors view filters authors with >1 message."""
-        registry = ViewRegistry(sample_table)
-        register_common_views(registry)
-        registry.create_all()
-
-        result = registry.query("active_authors")
-
-        assert len(result) == 2  # alice and bob
-        assert "charlie" not in result["author"].tolist()
-
-    def test_messages_with_media(self, sample_table: duckdb.DuckDBPyConnection) -> None:
-        """messages_with_media view filters messages with attachments."""
-        registry = ViewRegistry(sample_table)
-        register_common_views(registry)
-        registry.create_all()
-
-        result = registry.query("messages_with_media")
-
-        assert len(result) == 2  # 2 messages with media
-        assert all(result["media_path"].notna())
-
-    def test_hourly_message_stats(self, sample_table: duckdb.DuckDBPyConnection) -> None:
-        """hourly_message_stats view aggregates by hour."""
-        registry = ViewRegistry(sample_table)
-        register_common_views(registry)
-        registry.create_all()
-
-        result = registry.query("hourly_message_stats")
-
-        # We have messages in: 10:00, 11:00, 12:00 (Jan 1), 09:00 (Jan 2)
-        assert len(result) == 4
-        assert all(result["message_count"] > 0)
-
-    def test_daily_message_stats(self, sample_table: duckdb.DuckDBPyConnection) -> None:
-        """daily_message_stats view aggregates by day."""
-        registry = ViewRegistry(sample_table)
-        register_common_views(registry)
-        registry.create_all()
-
-        result = registry.query("daily_message_stats")
-
-        # We have messages on 2 days
+
+            @registry.register("duplicate")
+            def second(ir: ibis.Table) -> ibis.Table:
+                return ir
+
+    def test_register_function_duplicate_raises(self, registry: ViewRegistry):
+        """register_function() raises ValueError for duplicates."""
+
+        def builder(ir: ibis.Table) -> ibis.Table:
+            return ir
+
+        registry.register_function("test", builder)
+
+        with pytest.raises(ValueError, match="already registered"):
+            registry.register_function("test", builder)
+
+    def test_get(self, registry: ViewRegistry):
+        """get() returns registered builder."""
+
+        def builder(ir: ibis.Table) -> ibis.Table:
+            return ir
+
+        registry.register_function("test", builder)
+        retrieved = registry.get("test")
+
+        assert retrieved is builder
+
+    def test_get_nonexistent_raises(self, registry: ViewRegistry):
+        """get() raises KeyError for unregistered view."""
+        with pytest.raises(KeyError, match="View not found"):
+            registry.get("nonexistent")
+
+    def test_has(self, registry: ViewRegistry):
+        """has() returns True for registered views, False otherwise."""
+
+        @registry.register("exists")
+        def builder(ir: ibis.Table) -> ibis.Table:
+            return ir
+
+        assert registry.has("exists") is True
+        assert registry.has("does_not_exist") is False
+
+    def test_list_views(self, registry: ViewRegistry):
+        """list_views() returns sorted list of view names."""
+
+        @registry.register("view_c")
+        def c(ir: ibis.Table) -> ibis.Table:
+            return ir
+
+        @registry.register("view_a")
+        def a(ir: ibis.Table) -> ibis.Table:
+            return ir
+
+        @registry.register("view_b")
+        def b(ir: ibis.Table) -> ibis.Table:
+            return ir
+
+        views_list = registry.list_views()
+        assert views_list == ["view_a", "view_b", "view_c"]  # sorted
+
+    def test_unregister(self, registry: ViewRegistry):
+        """unregister() removes view from registry."""
+
+        @registry.register("temp")
+        def builder(ir: ibis.Table) -> ibis.Table:
+            return ir
+
+        assert registry.has("temp")
+        registry.unregister("temp")
+        assert not registry.has("temp")
+
+    def test_unregister_nonexistent_raises(self, registry: ViewRegistry):
+        """unregister() raises KeyError for nonexistent view."""
+        with pytest.raises(KeyError, match="View not found"):
+            registry.unregister("nonexistent")
+
+    def test_clear(self, registry: ViewRegistry):
+        """clear() removes all views."""
+
+        @registry.register("view1")
+        def v1(ir: ibis.Table) -> ibis.Table:
+            return ir
+
+        @registry.register("view2")
+        def v2(ir: ibis.Table) -> ibis.Table:
+            return ir
+
+        assert len(registry.list_views()) == 2
+        registry.clear()
+        assert len(registry.list_views()) == 0
+
+
+class TestViewBuilders:
+    """Tests for actual view builder functions."""
+
+    def test_filter_view(self, registry: ViewRegistry, sample_table: ibis.Table):
+        """View builder can filter rows."""
+
+        @registry.register("bob_only")
+        def bob_messages(ir: ibis.Table) -> ibis.Table:
+            return ir.filter(ir.author == "bob")
+
+        builder = registry.get("bob_only")
+        result = builder(sample_table).execute()
+
         assert len(result) == 2
-        assert result.loc[0, "message_count"] == 5  # Jan 1
-        assert result.loc[1, "message_count"] == 1  # Jan 2
+        assert all(result["author"] == "bob")
+
+    def test_mutate_view(self, registry: ViewRegistry, sample_table: ibis.Table):
+        """View builder can add computed columns."""
+
+        @registry.register("with_length")
+        def add_length(ir: ibis.Table) -> ibis.Table:
+            return ir.mutate(msg_length=ir.message.length())
+
+        builder = registry.get("with_length")
+        result = builder(sample_table).execute()
+
+        assert "msg_length" in result.columns
+        assert result["msg_length"].iloc[0] == len("Hello")
+
+    def test_aggregate_view(self, registry: ViewRegistry, sample_table: ibis.Table):
+        """View builder can perform aggregations."""
+
+        @registry.register("author_counts")
+        def count_by_author(ir: ibis.Table) -> ibis.Table:
+            return ir.group_by("author").aggregate(count=ir.count())
+
+        builder = registry.get("author_counts")
+        result = builder(sample_table).execute()
+
+        assert len(result) == 3  # 3 unique authors
+        alice_count = result[result["author"] == "alice"]["count"].iloc[0]
+        assert alice_count == 2
+
+    def test_chained_views(self, registry: ViewRegistry, sample_table: ibis.Table):
+        """Views can be chained together."""
+
+        @registry.register("filtered")
+        def filter_step(ir: ibis.Table) -> ibis.Table:
+            return ir.filter(ir.author.isin(["alice", "bob"]))
+
+        @registry.register("with_length")
+        def mutate_step(ir: ibis.Table) -> ibis.Table:
+            return ir.mutate(msg_length=ir.message.length())
+
+        # Chain: filter then mutate
+        filtered = registry.get("filtered")
+        with_length = registry.get("with_length")
+
+        result = with_length(filtered(sample_table)).execute()
+
+        assert len(result) == 4  # alice(2) + bob(2), charlie filtered out
+        assert "msg_length" in result.columns
+
+
+class TestGlobalViewsRegistry:
+    """Tests for the global views registry instance."""
+
+    def test_global_registry_exists(self):
+        """Global 'views' registry is available for import."""
+        assert isinstance(views, ViewRegistry)
+
+    def test_global_registry_can_register(self, sample_table: ibis.Table):
+        """Can register views on global registry."""
+        # Clean up first (in case test ran before)
+        if views.has("test_global"):
+            views.unregister("test_global")
+
+        @views.register("test_global")
+        def test(ir: ibis.Table) -> ibis.Table:
+            return ir.limit(1)
+
+        try:
+            assert views.has("test_global")
+            builder = views.get("test_global")
+            result = builder(sample_table)
+            assert result.count().execute() == 1
+        finally:
+            # Clean up
+            views.unregister("test_global")

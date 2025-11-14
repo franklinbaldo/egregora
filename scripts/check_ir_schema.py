@@ -37,15 +37,15 @@ def load_lockfile_schema(lockfile_path: Path) -> dict:
 
 
 def load_code_schema():
-    """Load IR_V1_SCHEMA from code."""
+    """Load IR_MESSAGE_SCHEMA from code."""
     try:
         # Add src to path to import egregora
         src_path = Path(__file__).parent.parent / "src"
         sys.path.insert(0, str(src_path))
 
-        from egregora.database.validation import IR_V1_SCHEMA
+        from egregora.database.validation import IR_MESSAGE_SCHEMA
 
-        return IR_V1_SCHEMA
+        return IR_MESSAGE_SCHEMA
     except ImportError:
         sys.exit(2)
 

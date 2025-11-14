@@ -85,7 +85,7 @@ models:
 rag:
   enabled: true
   top_k: 5                    # Number of results to retrieve
-  min_similarity: 0.7         # Minimum similarity threshold (0-1)
+  min_similarity_threshold: 0.7         # Minimum similarity threshold (0-1)
   mode: ann                   # "ann" (fast) or "exact" (precise)
   nprobe: 10                  # ANN quality (higher = better, slower)
   embedding_dimensions: 768

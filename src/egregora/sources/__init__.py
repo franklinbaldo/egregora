@@ -27,9 +27,9 @@ Each platform has its own subdirectory under `sources/`:
 
 **How Sources Implement InputSource:**
 Each source must implement the `InputSource` abstract base class from
-`ingestion/base.py`. This ensures consistent behavior across all parsers:
+`sources/base.py`. This ensures consistent behavior across all parsers:
 
-    from egregora.ingestion.base import InputSource, InputMetadata
+    from egregora.sources.base import InputSource, InputMetadata
     from pathlib import Path
     from ibis.expr.types import Table
 
@@ -64,7 +64,7 @@ To add support for a new chat platform:
 2. Implement the InputSource interface:
 
     # sources/discord/input.py
-    from egregora.ingestion.base import InputSource, InputMetadata
+    from egregora.sources.base import InputSource, InputMetadata
     from pathlib import Path
     import ibis
 
@@ -111,7 +111,7 @@ To add support for a new chat platform:
 
 5. Register with the registry (in your application code):
 
-    from egregora.ingestion.base import input_registry
+    from egregora.sources.base import input_registry
     from egregora.sources.discord import DiscordInputSource
 
     input_registry.register(DiscordInputSource)
@@ -126,7 +126,7 @@ To add support for a new chat platform:
 - (Future) `slack/` - Slack export parser (currently in ingestion/slack_input.py)
 
 See Also:
-    - `ingestion/base.py` - InputSource interface definition
+    - `sources/base.py` - InputSource interface definition
     - `database/schema.py` - MESSAGE_SCHEMA that all sources must conform to
     - `sources/whatsapp/` - Reference implementation
 

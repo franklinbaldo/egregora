@@ -17,8 +17,8 @@ from pydantic_ai.messages import (
 
 from egregora.agents.writer.agent import (
     JournalEntry,
-    _extract_freeform_content,
     _extract_intercalated_log,
+    _extract_journal_content,
     _extract_thinking_content,
     _save_journal_to_file,
 )
@@ -69,7 +69,7 @@ def test_extract_thinking_content_mixed_parts():
         ModelResponse(
             parts=[
                 ThinkingPart(content="Thinking content..."),
-                TextPart(content="Freeform content..."),
+                TextPart(content="Journal content..."),
             ],
             timestamp=datetime(2025, 1, 15, 10, 0, tzinfo=UTC),
         )
@@ -79,27 +79,27 @@ def test_extract_thinking_content_mixed_parts():
     assert result[0] == "Thinking content..."
 
 
-def test_extract_freeform_content_empty():
-    """Test freeform extraction with no messages."""
+def test_extract_journal_content_empty():
+    """Test journal extraction with no messages."""
     messages: list = []
-    result = _extract_freeform_content(messages)
+    result = _extract_journal_content(messages)
     assert result == ""
 
 
-def test_extract_freeform_content_single():
-    """Test freeform extraction with single TextPart."""
+def test_extract_journal_content_single():
+    """Test journal extraction with single TextPart."""
     messages = [
         ModelResponse(
             parts=[TextPart(content="This is a reflection on the conversation...")],
             timestamp=datetime(2025, 1, 15, 10, 0, tzinfo=UTC),
         )
     ]
-    result = _extract_freeform_content(messages)
+    result = _extract_journal_content(messages)
     assert result == "This is a reflection on the conversation..."
 
 
-def test_extract_freeform_content_multiple():
-    """Test freeform extraction joins multiple TextParts."""
+def test_extract_journal_content_multiple():
+    """Test journal extraction joins multiple TextParts."""
     messages = [
         ModelResponse(
             parts=[TextPart(content="First reflection...")],
@@ -110,23 +110,23 @@ def test_extract_freeform_content_multiple():
             timestamp=datetime(2025, 1, 15, 10, 1, tzinfo=UTC),
         ),
     ]
-    result = _extract_freeform_content(messages)
+    result = _extract_journal_content(messages)
     assert result == "First reflection...\n\nSecond reflection..."
 
 
-def test_extract_freeform_content_mixed_parts():
-    """Test freeform extraction ignores non-TextParts."""
+def test_extract_journal_content_mixed_parts():
+    """Test journal extraction ignores non-TextParts."""
     messages = [
         ModelResponse(
             parts=[
                 ThinkingPart(content="Thinking content..."),
-                TextPart(content="Freeform content..."),
+                TextPart(content="Journal content..."),
             ],
             timestamp=datetime(2025, 1, 15, 10, 0, tzinfo=UTC),
         )
     ]
-    result = _extract_freeform_content(messages)
-    assert result == "Freeform content..."
+    result = _extract_journal_content(messages)
+    assert result == "Journal content..."
 
 
 def test_extract_intercalated_log_empty():
@@ -151,8 +151,8 @@ def test_extract_intercalated_log_thinking_only():
     assert result[0].timestamp == datetime(2025, 1, 15, 10, 0, tzinfo=UTC)
 
 
-def test_extract_intercalated_log_freeform_only():
-    """Test intercalated log with only freeform content."""
+def test_extract_intercalated_log_journal_only():
+    """Test intercalated log with only journal content."""
     messages = [
         ModelResponse(
             parts=[TextPart(content="Reflection...")],
@@ -161,7 +161,7 @@ def test_extract_intercalated_log_freeform_only():
     ]
     result = _extract_intercalated_log(messages)
     assert len(result) == 1
-    assert result[0].entry_type == "freeform"
+    assert result[0].entry_type == "journal"
     assert result[0].content == "Reflection..."
 
 
@@ -198,7 +198,7 @@ def test_extract_intercalated_log_with_tool_calls():
     assert "write_post" in result[1].content
     assert result[2].entry_type == "tool_return"
     assert "success" in result[2].content
-    assert result[3].entry_type == "freeform"
+    assert result[3].entry_type == "journal"
     assert "Post created successfully." in result[3].content
 
 
@@ -250,15 +250,22 @@ def test_save_journal_to_file_creates_directory(tmp_path: Path):
 
 
 def test_save_journal_to_file_sanitizes_filename(tmp_path: Path):
-    """Test journal saving sanitizes window label in identifier."""
+    """Test journal saving sanitizes window label in storage key."""
     journals = InMemoryJournalStorage()
 
     log = [JournalEntry(entry_type="thinking", content="Test")]
     result = _save_journal_to_file(log, "2025-01-15 10:00 to 12:00", journals)
 
     assert result is not None
-    # Identifier should have sanitized label (colons→hyphens, spaces→underscores)
-    assert result == "memory://journal/2025-01-15_10-00_to_12-00"
+    # Result is now a document_id (UUID format)
+    import uuid
+
+    uuid.UUID(result)  # Validates it's a proper UUID, raises ValueError if not
+
+    # Verify journal was stored with sanitized label (colons→hyphens, spaces→underscores)
+    content = journals.get_by_label("2025-01-15 10:00 to 12:00")
+    assert content is not None
+    assert "Test" in content
 
 
 def test_save_journal_to_file_contains_frontmatter(tmp_path: Path):

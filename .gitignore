@@ -37,7 +37,10 @@ htmlcov/
 
 # Egregora-specific
 .egregora-cache/
-site/
+# Ignore generated MkDocs sites, but not source templates
+/site/
+**/output/site/
+!src/egregora/rendering/templates/site/
 
 # Environment
 .env

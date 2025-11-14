@@ -11,8 +11,12 @@ Tests cover:
 import pytest
 from pydantic import ValidationError
 
-from egregora.config.loader import create_default_config, find_egregora_config, load_egregora_config
-from egregora.config.schema import EgregoraConfig
+from egregora.config.settings import (
+    EgregoraConfig,
+    create_default_config,
+    find_egregora_config,
+    load_egregora_config,
+)
 
 
 def test_egregora_config_defaults():
@@ -28,7 +32,7 @@ def test_egregora_config_defaults():
     # RAG defaults
     assert config.rag.enabled is True
     assert config.rag.top_k == 5
-    assert config.rag.min_similarity == 0.7
+    assert config.rag.min_similarity_threshold == 0.7
     assert config.rag.mode == "ann"
 
     # Writer defaults
@@ -51,7 +55,7 @@ def test_egregora_config_defaults():
 
 
 def test_rag_config_validation_invalid_mode():
-    """Test RAGConfig validation rejects invalid mode."""
+    """Test RAGSettings validation rejects invalid mode."""
     with pytest.raises(ValidationError) as exc_info:
         EgregoraConfig(rag={"mode": "invalid"})
 
@@ -60,7 +64,7 @@ def test_rag_config_validation_invalid_mode():
 
 
 def test_rag_config_validation_top_k_out_of_range():
-    """Test RAGConfig validation rejects top_k out of range."""
+    """Test RAGSettings validation rejects top_k out of range."""
     # Too low
     with pytest.raises(ValidationError):
         EgregoraConfig(rag={"top_k": 0})
@@ -71,18 +75,18 @@ def test_rag_config_validation_top_k_out_of_range():
 
 
 def test_rag_config_validation_min_similarity_out_of_range():
-    """Test RAGConfig validation rejects min_similarity out of range."""
+    """Test RAGSettings validation rejects min_similarity_threshold out of range."""
     # Too low
     with pytest.raises(ValidationError):
-        EgregoraConfig(rag={"min_similarity": -0.1})
+        EgregoraConfig(rag={"min_similarity_threshold": -0.1})
 
     # Too high
     with pytest.raises(ValidationError):
-        EgregoraConfig(rag={"min_similarity": 1.5})
+        EgregoraConfig(rag={"min_similarity_threshold": 1.5})
 
 
 def test_pipeline_config_validation_step_unit():
-    """Test PipelineConfig validation for step_unit."""
+    """Test PipelineSettings validation for step_unit."""
     # Valid units
     for unit in ["messages", "hours", "days", "bytes"]:
         config = EgregoraConfig(pipeline={"step_unit": unit})
@@ -94,7 +98,7 @@ def test_pipeline_config_validation_step_unit():
 
 
 def test_pipeline_config_validation_overlap_ratio():
-    """Test PipelineConfig validation for overlap_ratio."""
+    """Test PipelineSettings validation for overlap_ratio."""
     # Too low
     with pytest.raises(ValidationError):
         EgregoraConfig(pipeline={"overlap_ratio": -0.1})
@@ -163,7 +167,7 @@ models:
 rag:
   enabled: true
   top_k: 10
-  min_similarity: 0.8
+  min_similarity_threshold: 0.8
 writer:
   custom_instructions: "Write in a casual tone"
 """
@@ -173,7 +177,7 @@ writer:
     assert config.models.writer == "google-gla:gemini-2.0-flash-exp"
     assert config.models.embedding == "models/text-embedding-004"
     assert config.rag.top_k == 10
-    assert config.rag.min_similarity == 0.8
+    assert config.rag.min_similarity_threshold == 0.8
     assert config.writer.custom_instructions == "Write in a casual tone"
 
 
@@ -233,12 +237,12 @@ def test_create_default_config(tmp_path):
 
 def test_config_roundtrip(tmp_path):
     """Test that config can be saved and loaded without loss."""
-    from egregora.config.loader import save_egregora_config
+    from egregora.config.settings import save_egregora_config
 
     # Create custom config
     custom_config = EgregoraConfig(
         models={"writer": "google-gla:custom-model"},
-        rag={"top_k": 15, "min_similarity": 0.9},
+        rag={"top_k": 15, "min_similarity_threshold": 0.9},
         writer={"custom_instructions": "Test instructions"},
     )
 
@@ -251,7 +255,7 @@ def test_config_roundtrip(tmp_path):
     # Compare
     assert loaded_config.models.writer == "google-gla:custom-model"
     assert loaded_config.rag.top_k == 15
-    assert loaded_config.rag.min_similarity == 0.9
+    assert loaded_config.rag.min_similarity_threshold == 0.9
     assert loaded_config.writer.custom_instructions == "Test instructions"
 
 

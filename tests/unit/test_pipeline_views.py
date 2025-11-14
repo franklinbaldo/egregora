@@ -4,7 +4,7 @@ import ibis
 import pytest
 from ibis.expr.types import Table
 
-from egregora.pipeline.views import ViewRegistry, views
+from egregora.database.views import ViewRegistry, views
 
 
 class TestViewRegistry:

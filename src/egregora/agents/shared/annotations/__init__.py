@@ -59,7 +59,7 @@ Example:
 
 Privacy & Security:
     All commentary is validated against PII patterns before persistence using
-    validate_newsletter_privacy() to ensure no personal information leaks into
+    validate_text_privacy() to ensure no personal information leaks into
     the annotation storage.
 
 Note:
@@ -78,8 +78,8 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 
-from egregora.database import schemas as database_schema
-from egregora.privacy.detector import PrivacyViolationError, validate_newsletter_privacy
+from egregora.database import ir_schema as database_schema
+from egregora.privacy.detector import PrivacyViolationError, validate_text_privacy
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -247,7 +247,7 @@ class AnnotationStore:
             msg = "commentary must not be empty"
             raise ValueError(msg)
         try:
-            validate_newsletter_privacy(sanitized_commentary)
+            validate_text_privacy(sanitized_commentary)
         except PrivacyViolationError as exc:
             raise ValueError(str(exc)) from exc
         created_at = datetime.now(UTC)

@@ -152,14 +152,32 @@ class InMemoryJournalStorage:
     """In-memory journal storage for testing.
 
     Data is stored in a dictionary mapping safe labels to content strings.
+    Implements OutputAdapter protocol's serve() method for compatibility with new agent code.
     """
 
     def __init__(self):
         """Initialize empty in-memory journal storage."""
         self._journals: dict[str, str] = {}
 
+    def serve(self, document) -> None:
+        """Store document (OutputAdapter protocol).
+
+        Args:
+            document: Document object with content and metadata
+
+        """
+        # Extract window_label from metadata, fallback to source_window
+        window_label = document.metadata.get("window_label")
+        if window_label is None and hasattr(document, "source_window"):
+            window_label = document.source_window
+        if window_label is None:
+            window_label = "unknown"
+
+        safe_label = self._sanitize_label(window_label)
+        self._journals[safe_label] = document.content
+
     def write(self, window_label: str, content: str) -> str:
-        """Store journal entry in memory.
+        """Store journal entry in memory (legacy method).
 
         Args:
             window_label: Human-readable window label
@@ -211,6 +229,7 @@ class InMemoryJournalStorage:
 class InMemoryEnrichmentStorage:
     """In-memory enrichment storage for testing.
 
+    Implements OutputAdapter protocol with serve() method.
     URL enrichments are stored with slugified URLs (like filesystem version).
     Media enrichments are stored by filename.
     """
@@ -220,8 +239,28 @@ class InMemoryEnrichmentStorage:
         self._url_enrichments: dict[str, str] = {}
         self._media_enrichments: dict[str, str] = {}
 
+    def serve(self, document) -> None:
+        """Store document (OutputAdapter protocol).
+
+        Args:
+            document: Document object with content, type, and metadata
+
+        """
+        from egregora.data_primitives.document import DocumentType
+
+        if document.type == DocumentType.ENRICHMENT_URL:
+            url = document.metadata.get("url", "")
+            url_prefix = slugify(url, max_len=40)
+            url_uuid = str(uuid_lib.uuid5(uuid_lib.NAMESPACE_URL, url))
+            url_hash = url_uuid.replace("-", "")[:8]
+            filename = f"{url_prefix}-{url_hash}"
+            self._url_enrichments[filename] = document.content
+        elif document.type == DocumentType.ENRICHMENT_MEDIA:
+            filename = document.metadata.get("filename", "unknown")
+            self._media_enrichments[filename] = document.content
+
     def write_url_enrichment(self, url: str, content: str) -> str:
-        """Store URL enrichment in memory.
+        """Store URL enrichment in memory (legacy method).
 
         Args:
             url: Full URL that was enriched
@@ -242,7 +281,7 @@ class InMemoryEnrichmentStorage:
         return f"memory://enrichments/urls/{filename}"
 
     def write_media_enrichment(self, filename: str, content: str) -> str:
-        """Store media enrichment in memory.
+        """Store media enrichment in memory (legacy method).
 
         Args:
             filename: Original media filename

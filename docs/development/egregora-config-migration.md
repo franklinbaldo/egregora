@@ -21,7 +21,7 @@ This document describes the migration from embedding Egregora configuration in `
 **PR #623** (`claude/replace-periods-with-windowing-011CUsvZWfA3SEo5nM6193ck`) implements Phase 1 of this plan **PLUS** windowing:
 
 - ✅ Pydantic V2 schema (`config/schema.py`) with `EgregoraConfig` - **CONFIRMED in commit 4754862**
-  - 8 config classes: `ModelsConfig`, `RAGConfig`, `WriterConfig`, `PrivacyConfig`, `EnrichmentConfig`, `PipelineConfig`, `FeaturesConfig`, `EgregoraConfig`
+  - 8 config classes: `ModelSettings`, `RAGSettings`, `WriterConfig`, `PrivacySettings`, `EnrichmentSettings`, `PipelineSettings`, `FeaturesSettings`, `EgregoraConfig`
 - ✅ Config loader (`config/loader.py`) - **CONFIRMED**
   - 4 functions: `find_egregora_config()`, `load_egregora_config()`, `create_default_config()`, `save_egregora_config()`
 - ✅ Config facade pattern (`config/__init__.py`) - **CONFIRMED**
@@ -53,7 +53,7 @@ extra:
     rag:
       enabled: true
       top_k: 5
-      min_similarity: 0.7
+      min_similarity_threshold: 0.7
     profiles:
       top_authors_count: 20
       include_in_context: true
@@ -147,7 +147,7 @@ writer:
 rag:
   enabled: true
   top_k: 5                              # Number of results to retrieve
-  min_similarity: 0.7                   # Minimum similarity threshold (0-1)
+  min_similarity_threshold: 0.7                   # Minimum similarity threshold (0-1)
   mode: ann                             # 'ann' (approximate) or 'exact'
   nprobe: 10                            # ANN search quality (1-100, higher = better + slower)
   overfetch: 3                          # Overfetch multiplier for ANN candidate pool
@@ -227,18 +227,18 @@ This phase has been completed with the following implementations:
 
 Complete Pydantic V2 models with validation:
 - `EgregoraConfig` - Root config model
-- `ModelsConfig` - LLM model configuration
-- `RAGConfig` - Retrieval settings (renamed fields: `mode`, `nprobe` instead of `retrieval_mode`, `retrieval_nprobe`)
+- `ModelSettings` - LLM model configuration
+- `RAGSettings` - Retrieval settings (renamed fields: `mode`, `nprobe` instead of `retrieval_mode`, `retrieval_nprobe`)
 - `WriterConfig` - Writer agent settings (includes `max_prompt_tokens`, `use_full_context_window`)
-- `PrivacyConfig` - Anonymization settings
-- `EnrichmentConfig` - URL/media enrichment settings
-- `PipelineConfig` - **NEW**: Windowing parameters (`step_size`, `step_unit`, `min_window_size`, `overlap_ratio`, `max_window_time`)
-- `FeaturesConfig` - Feature flags (`ranking_enabled`, `annotations_enabled`)
+- `PrivacySettings` - Anonymization settings
+- `EnrichmentSettings` - URL/media enrichment settings
+- `PipelineSettings` - **NEW**: Windowing parameters (`step_size`, `step_unit`, `min_window_size`, `overlap_ratio`, `max_window_time`)
+- `FeaturesSettings` - Feature flags (`ranking_enabled`, `annotations_enabled`)
 
 **Key differences from original plan**:
 - Uses Pydantic V2 with `ConfigDict` instead of V1
 - `extra="forbid"` prevents unknown fields
-- `PipelineConfig` replaces period-based grouping with windowing
+- `PipelineSettings` replaces period-based grouping with windowing
 - RAG fields renamed: `mode`/`nprobe`/`overfetch` (not `retrieval_mode`/`retrieval_nprobe`)
 - Writer: `custom_instructions` (not `prompt`), `enable_banners` (not `enable_memes`)
 
@@ -264,7 +264,7 @@ Functions:
 **Implemented**: `src/egregora/config/__init__.py`
 
 Facade pattern exports:
-- All schema models (`EgregoraConfig`, `ModelsConfig`, `RAGConfig`, etc.)
+- All schema models (`EgregoraConfig`, `ModelSettings`, `RAGSettings`, etc.)
 - Loader functions (`load_egregora_config`, `create_default_config`, `save_egregora_config`, `find_egregora_config`)
 - Model utilities (`ModelConfig`, `ModelType`, `get_model_config`)
 - Site paths (`SitePaths`, `resolve_site_paths`, `load_mkdocs_config`)
@@ -453,7 +453,7 @@ writer:
 rag:
   enabled: true
   top_k: 5                      # Number of results to retrieve
-  min_similarity: 0.7           # Minimum similarity threshold (0-1)
+  min_similarity_threshold: 0.7           # Minimum similarity threshold (0-1)
   retrieval_mode: ann           # 'ann' (approximate) or 'exact'
   retrieval_nprobe: 10          # ANN search quality (1-100, higher = better + slower)
   embedding_dimensions: 768     # Vector dimensions (fixed for gemini-embedding-001)
@@ -711,7 +711,7 @@ models:
 rag:
   enabled: true
   top_k: 5
-  min_similarity: 0.7
+  min_similarity_threshold: 0.7
   retrieval_mode: ann
   retrieval_nprobe: 10
 
@@ -778,7 +778,7 @@ writer:
 rag:
   enabled: true
   top_k: 5
-  min_similarity: 0.7
+  min_similarity_threshold: 0.7
   retrieval_mode: ann
   retrieval_nprobe: 10
   embedding_dimensions: 768
@@ -867,7 +867,7 @@ import pytest
 from pathlib import Path
 from pydantic import ValidationError
 
-from egregora.config.schema import EgregoraConfig, RAGConfig
+from egregora.config.settings import EgregoraConfig, RAGSettings
 from egregora.config.site import find_egregora_dir, load_egregora_config
 
 def test_egregora_config_defaults():
@@ -888,9 +888,9 @@ def test_egregora_config_validation():
     with pytest.raises(ValidationError):
         EgregoraConfig(rag={"top_k": -1})
 
-    # Invalid min_similarity (out of range)
+    # Invalid min_similarity_threshold (out of range)
     with pytest.raises(ValidationError):
-        EgregoraConfig(rag={"min_similarity": 1.5})
+        EgregoraConfig(rag={"min_similarity_threshold": 1.5})
 
 def test_find_egregora_dir_upward_search(tmp_path):
     """Test upward search for .egregora directory."""
@@ -1211,7 +1211,7 @@ models:
 | **Phase 1: Config Infrastructure** | ✅ Complete | PR #623 | Pydantic V2 schema, config loader, facade pattern, windowing |
 | **Phase 2: Custom Prompt Overrides** | ✅ Complete | Current branch | `find_prompts_dir()`, `create_prompt_environment()`, site_root param in all templates |
 | **Phase 3: Site Scaffolding** | ✅ Complete | Current branch | `config.yml.jinja`, `prompts/README.md.jinja`, updated `scaffolding.py`, removed `extra.egregora` from mkdocs |
-| **Phase 4: Update Config Consumers** | ✅ Complete | Current branch | site_root in all agent deps (WriterRuntimeContext, EditorAgentState, enrichment contexts), renderer-agnostic design |
+| **Phase 4: Update Config Consumers** | ✅ Complete | Current branch | site_root in all agent deps (WriterAgentContext, EditorAgentState, enrichment contexts), renderer-agnostic design |
 | **Phase 5: Documentation** | ✅ Complete | Current branch | Updated CLAUDE.md, configuration.md with .egregora/ structure, custom prompts, EgregoraConfig references |
 | **Phase 6: Testing** | ✅ Complete | Current branch | 32 comprehensive tests: config loading (16), prompt overrides (11), scaffolding (5) |
 

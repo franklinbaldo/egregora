@@ -1,10 +1,10 @@
 """Agent systems for Egregora.
 
 This package contains all LLM-powered agent behaviors including
-writing, editing, ranking, and banner generation.
+writing and banner generation.
 """
 
-from egregora.agents import banner, editor, ranking, writer
+from egregora.agents import banner, writer
 from egregora.agents.registry import AgentResolver, ToolRegistry, load_agent
 
-__all__ = ["AgentResolver", "ToolRegistry", "banner", "editor", "load_agent", "ranking", "writer"]
+__all__ = ["AgentResolver", "ToolRegistry", "banner", "load_agent", "writer"]

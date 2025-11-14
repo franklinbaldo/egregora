@@ -89,7 +89,7 @@ IR_SCHEMA = {
 
 ### 2. Source Adapters
 
-**Abstract Interface**: `SourceAdapter`
+**Abstract Interface**: `InputAdapter`
 
 **Required Methods**:
 - `parse(input_path, timezone) → Table`: Convert raw export to IR-compliant table
@@ -125,14 +125,14 @@ IR_SCHEMA = {
 The **CoreOrchestrator** is the source-agnostic execution engine:
 
 ```python
-from egregora.pipeline import CoreOrchestrator, PipelineConfig
-from egregora.adapters import get_adapter
+from egregora.pipeline import CoreOrchestrator, PipelineSettings
+from egregora.input_adapters import get_adapter
 
 # Get adapter
 adapter = get_adapter("whatsapp")
 
 # Configure pipeline
-config = PipelineConfig(
+config = PipelineSettings(
     input_path=Path("export.zip"),
     output_dir=Path("output"),
     period="day",
@@ -170,10 +170,10 @@ To add support for a new chat platform:
 ```python
 # src/egregora/adapters/discord.py
 
-from egregora.pipeline.adapters import SourceAdapter
+from egregora.pipeline.adapters import InputAdapter
 from egregora.pipeline.validation import create_ir_table
 
-class DiscordAdapter(SourceAdapter):
+class DiscordAdapter(InputAdapter):
     @property
     def source_name(self) -> str:
         return "Discord"
@@ -206,7 +206,7 @@ class DiscordAdapter(SourceAdapter):
 ```python
 # src/egregora/adapters/__init__.py
 
-from egregora.adapters.discord import DiscordAdapter
+from egregora.input_adapters.discord import DiscordAdapter
 
 ADAPTER_REGISTRY = {
     "whatsapp": WhatsAppAdapter,
@@ -421,7 +421,7 @@ class TestWhatsAppAdapterIntegration:
 
     def test_parse_real_export_structure(self):
         """Test parsing actual WhatsApp export structure."""
-        from egregora.adapters import WhatsAppAdapter
+        from egregora.input_adapters import WhatsAppAdapter
 
         adapter = WhatsAppAdapter()
         table = adapter.parse(
@@ -486,7 +486,7 @@ integration-tests:
 
 ### Phase 1 (Current)
 - ✅ IR schema definition
-- ✅ SourceAdapter interface
+- ✅ InputAdapter interface
 - ✅ WhatsApp adapter
 - ✅ Slack stub adapter
 - ✅ Core orchestrator

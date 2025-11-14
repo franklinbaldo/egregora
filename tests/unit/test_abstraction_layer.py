@@ -1,34 +1,10 @@
-"""Tests for input/output abstraction layer."""
+"""Tests for output abstraction layer."""
 
-import zipfile
 from pathlib import Path
 
 import pytest
 
-from egregora.ingestion import input_registry  # Import from ingestion to trigger registration
-from egregora.rendering.base import OutputFormat, output_registry
-from egregora.sources.base import InputSource
-
-
-class TestInputRegistry:
-    """Test input source registry functionality."""
-
-    def test_list_sources(self):
-        """Test listing registered input sources."""
-        sources = input_registry.list_sources()
-        assert isinstance(sources, list)
-        assert "whatsapp" in sources
-
-    def test_get_whatsapp_source(self):
-        """Test getting WhatsApp input source."""
-        source = input_registry.get_source("whatsapp")
-        assert isinstance(source, InputSource)
-        assert source.source_type == "whatsapp"
-
-    def test_get_invalid_source(self):
-        """Test getting non-existent input source."""
-        with pytest.raises(KeyError, match="not found"):
-            input_registry.get_source("nonexistent")
+from egregora.output_adapters.base import OutputAdapter, output_registry
 
 
 class TestOutputRegistry:
@@ -43,48 +19,13 @@ class TestOutputRegistry:
     def test_get_mkdocs_format(self):
         """Test getting MkDocs output format."""
         output = output_registry.get_format("mkdocs")
-        assert isinstance(output, OutputFormat)
+        assert isinstance(output, OutputAdapter)
         assert output.format_type == "mkdocs"
 
     def test_get_invalid_format(self):
         """Test getting non-existent output format."""
         with pytest.raises(KeyError, match="not found"):
             output_registry.get_format("nonexistent")
-
-
-class TestWhatsAppInputSource:
-    """Test WhatsApp input source implementation."""
-
-    def test_source_type(self):
-        """Test WhatsApp source type identifier."""
-        source = input_registry.get_source("whatsapp")
-        assert source.source_type == "whatsapp"
-
-    def test_supports_format_invalid(self):
-        """Test format detection for invalid paths."""
-        source = input_registry.get_source("whatsapp")
-
-        # Non-existent path
-        assert not source.supports_format(Path("/nonexistent.zip"))
-
-        # Non-ZIP file
-        assert not source.supports_format(Path(__file__))
-
-    def test_detect_whatsapp_zip(self, tmp_path):
-        """Test auto-detection of WhatsApp ZIP."""
-        # Create a mock WhatsApp ZIP
-
-        zip_path = tmp_path / "test.zip"
-        with zipfile.ZipFile(zip_path, "w") as zf:
-            zf.writestr("_chat.txt", "Test content")
-
-        source = input_registry.get_source("whatsapp")
-        assert source.supports_format(zip_path)
-
-        # Test auto-detection
-        detected = input_registry.detect_source(zip_path)
-        assert detected is not None
-        assert detected.source_type == "whatsapp"
 
 
 class TestMkDocsOutputFormat:
@@ -194,7 +135,7 @@ class TestMkDocsOutputFormat:
 
     def test_custom_mkdocs_config_path(self, tmp_path):
         """Test that custom mkdocs_config_path in .egregora/config.yml is respected."""
-        from egregora.rendering.mkdocs_site import resolve_site_paths
+        from egregora.output_adapters.mkdocs import resolve_site_paths
 
         site_root = tmp_path / "test-site"
         site_root.mkdir(parents=True)
@@ -257,7 +198,7 @@ output:
 
     def test_docs_dir_resolved_relative_to_mkdocs(self, tmp_path):
         """Test that docs_dir is resolved relative to mkdocs.yml location, not site root."""
-        from egregora.rendering.mkdocs_site import resolve_site_paths
+        from egregora.output_adapters.mkdocs import resolve_site_paths
 
         site_root = tmp_path / "test-site"
         site_root.mkdir(parents=True)
@@ -275,6 +216,25 @@ output:
         # NOT the parent of site_root (which would happen if resolved relative to site_root)
         assert site_paths.docs_dir == site_root
         assert site_paths.docs_dir != site_root.parent
+
+    def test_content_paths_respect_docs_dir(self, tmp_path):
+        """Content directories should be nested under docs_dir when configured."""
+        from egregora.output_adapters.mkdocs import resolve_site_paths
+
+        site_root = tmp_path / "mkdocs-site"
+        docs_dir = site_root / "docs"
+        docs_dir.mkdir(parents=True)
+
+        mkdocs_yml = site_root / "mkdocs.yml"
+        mkdocs_yml.write_text("site_name: Test\n")
+
+        site_paths = resolve_site_paths(site_root)
+
+        expected_docs_dir = docs_dir.resolve()
+        assert site_paths.docs_dir == expected_docs_dir
+        assert site_paths.posts_dir == (expected_docs_dir / "posts").resolve()
+        assert site_paths.profiles_dir == (expected_docs_dir / "profiles").resolve()
+        assert site_paths.media_dir == (expected_docs_dir / "media").resolve()
 
     def test_write_post(self, tmp_path):
         """Test writing a blog post."""
@@ -341,16 +301,10 @@ output:
 
 
 class TestIntegration:
-    """Integration tests for the abstraction layer."""
+    """Integration tests for the output abstraction layer."""
 
-    def test_auto_detection(self, tmp_path):
-        """Test automatic detection of input sources and output formats."""
-        # Create WhatsApp ZIP
-
-        zip_path = tmp_path / "test.zip"
-        with zipfile.ZipFile(zip_path, "w") as zf:
-            zf.writestr("_chat.txt", "Test")
-
+    def test_auto_detection_output_format(self, tmp_path):
+        """Test automatic detection of output formats."""
         # Create MkDocs site (MODERN: mkdocs.yml in .egregora/)
         site_root = tmp_path / "site"
         site_root.mkdir(parents=True, exist_ok=True)
@@ -359,10 +313,7 @@ class TestIntegration:
         (egregora_dir / "mkdocs.yml").write_text("site_name: Test\n")
 
         # Auto-detect
-        source = input_registry.detect_source(zip_path)
         output = output_registry.detect_format(site_root)
 
-        assert source is not None
-        assert source.source_type == "whatsapp"
         assert output is not None
         assert output.format_type == "mkdocs"

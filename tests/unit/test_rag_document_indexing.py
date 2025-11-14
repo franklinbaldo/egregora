@@ -16,7 +16,7 @@ import pytest
 from egregora.agents.shared.rag import VectorStore
 from egregora.agents.shared.rag.chunker import chunk_from_document
 from egregora.agents.shared.rag.retriever import index_document
-from egregora.core.document import Document, DocumentType
+from egregora.data_primitives.document import Document, DocumentType
 
 
 @pytest.fixture

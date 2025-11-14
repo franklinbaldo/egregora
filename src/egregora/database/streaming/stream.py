@@ -11,15 +11,12 @@ Core Principles:
 
 Usage:
     >>> import ibis
-    >>> from egregora.data import stream_ibis, copy_expr_to_parquet
+    >>> from egregora.database.streaming import stream_ibis
     >>>
     >>> # Stream large table in batches
     >>> for batch in stream_ibis(expr, con, batch_size=1000):
     >>>     for row in batch:
     >>>         process(row)
-    >>>
-    >>> # Write directly to Parquet (no materialization)
-    >>> copy_expr_to_parquet(expr, con, "output.parquet")
 """
 
 from __future__ import annotations

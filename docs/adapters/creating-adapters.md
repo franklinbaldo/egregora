@@ -7,21 +7,21 @@ This guide explains how to create custom source adapters for Egregora, enabling 
 Egregora uses a **plugin architecture** for source adapters. Adapters:
 - Convert platform-specific exports → standardized IR (Intermediate Representation)
 - Are automatically discovered via Python entry points
-- Must implement the `SourceAdapter` protocol
+- Must implement the `InputAdapter` protocol
 - Support IR v1 schema
 
 ## Quick Start
 
 ### 1. Create Adapter Class
 
-Create a Python class that implements `SourceAdapter`:
+Create a Python class that implements `InputAdapter`:
 
 ```python
 from pathlib import Path
-from egregora.pipeline.adapters import SourceAdapter, AdapterMeta
+from egregora.pipeline.adapters import InputAdapter, AdapterMeta
 import ibis
 
-class DiscordAdapter(SourceAdapter):
+class DiscordAdapter(InputAdapter):
     """Adapter for Discord JSON exports."""
 
     @property
@@ -32,7 +32,7 @@ class DiscordAdapter(SourceAdapter):
     def source_identifier(self) -> str:
         return "discord"
 
-    def adapter_meta(self) -> AdapterMeta:
+    def get_adapter_metadata(self) -> AdapterMeta:
         """Return adapter metadata for plugin discovery."""
         return AdapterMeta(
             name="Discord",
@@ -99,11 +99,11 @@ def source_identifier(self) -> str:
 
 ### Required Methods
 
-#### `adapter_meta()` → `AdapterMeta`
+#### `get_adapter_metadata()` → `AdapterMeta`
 Return adapter metadata for plugin discovery and validation.
 
 ```python
-def adapter_meta(self) -> AdapterMeta:
+def get_adapter_metadata(self) -> AdapterMeta:
     return AdapterMeta(
         name="Discord",           # Human-readable name
         version="1.0.0",          # Semantic version
@@ -259,7 +259,7 @@ from typing import Any
 from uuid import uuid5, UUID
 
 import ibis
-from egregora.pipeline.adapters import SourceAdapter, AdapterMeta
+from egregora.pipeline.adapters import InputAdapter, AdapterMeta
 
 logger = logging.getLogger(__name__)
 
@@ -267,7 +267,7 @@ logger = logging.getLogger(__name__)
 DISCORD_NAMESPACE = UUID("8f3c5a2e-4b1d-4c7e-9f6a-2d8e3f1b9c4a")
 
 
-class DiscordAdapter(SourceAdapter):
+class DiscordAdapter(InputAdapter):
     """Source adapter for Discord JSON exports.
 
     Discord exports are JSON files with structure:
@@ -292,7 +292,7 @@ class DiscordAdapter(SourceAdapter):
     def source_identifier(self) -> str:
         return "discord"
 
-    def adapter_meta(self) -> AdapterMeta:
+    def get_adapter_metadata(self) -> AdapterMeta:
         return AdapterMeta(
             name="Discord",
             version="1.0.0",
@@ -445,7 +445,7 @@ from egregora_discord import DiscordAdapter
 def test_adapter_meta():
     """Test adapter metadata."""
     adapter = DiscordAdapter()
-    meta = adapter.adapter_meta()
+    meta = adapter.get_adapter_metadata()
 
     assert meta["name"] == "Discord"
     assert meta["version"] == "1.0.0"
@@ -491,14 +491,14 @@ Egregora validates IR versions during plugin loading:
 
 ```python
 # ❌ This adapter will be REJECTED
-def adapter_meta(self) -> AdapterMeta:
+def get_adapter_metadata(self) -> AdapterMeta:
     return AdapterMeta(
         ...,
         ir_version="v2"  # INVALID - only "v1" supported
     )
 
 # ✅ This adapter will be ACCEPTED
-def adapter_meta(self) -> AdapterMeta:
+def get_adapter_metadata(self) -> AdapterMeta:
     return AdapterMeta(
         ...,
         ir_version="v1"  # VALID
@@ -541,7 +541,7 @@ Use `@validate_adapter_output` to automatically validate adapter methods:
 ```python
 from egregora.database.validation import validate_adapter_output
 
-class DiscordAdapter(SourceAdapter):
+class DiscordAdapter(InputAdapter):
     @validate_adapter_output
     def parse(self, input_path: Path, **kwargs) -> Table:
         """Parse Discord export - output automatically validated."""
@@ -556,13 +556,13 @@ class DiscordAdapter(SourceAdapter):
 
 ### Registry-Level Validation
 
-Enable automatic validation for **all** adapters via `AdapterRegistry`:
+Enable automatic validation for **all** adapters via `InputAdapterRegistry`:
 
 ```python
-from egregora.adapters import AdapterRegistry
+from egregora.input_adapters import InputAdapterRegistry
 
 # Create registry with validation enabled
-registry = AdapterRegistry(validate_outputs=True)
+registry = InputAdapterRegistry(validate_outputs=True)
 
 # All adapter outputs automatically validated
 adapter = registry.get("discord")
@@ -687,13 +687,13 @@ How Egregora discovers your adapter:
    ```
 
 2. **Validation**:
-   - Check `adapter_meta()` exists
+   - Check `get_adapter_metadata()` exists
    - Validate `ir_version == "v1"`
    - Verify `source` matches identifier
 
 3. **Registration**:
    ```python
-   meta = adapter.adapter_meta()
+   meta = adapter.get_adapter_metadata()
    registry[meta["source"]] = adapter
    ```
 

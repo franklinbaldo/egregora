@@ -78,6 +78,7 @@ def create_prompt_environment(prompts_dir: Path | None = None) -> Environment:
 
     Args:
         prompts_dir: Custom prompts directory (e.g., site_root/.egregora/prompts)
+                     or site root (will auto-detect .egregora/prompts subdirectory)
 
     Returns:
         Configured Jinja2 Environment with fallback search paths
@@ -92,8 +93,15 @@ def create_prompt_environment(prompts_dir: Path | None = None) -> Environment:
 
     # Add custom prompts directory if it exists
     if prompts_dir and prompts_dir.is_dir():
-        search_paths.append(prompts_dir)
-        logger.info("Custom prompts directory: %s", prompts_dir)
+        # Check if prompts_dir is a site root with .egregora/prompts subdirectory
+        egregora_prompts = prompts_dir / ".egregora" / "prompts"
+        if egregora_prompts.is_dir():
+            search_paths.append(egregora_prompts)
+            logger.info("Custom prompts directory: %s", egregora_prompts)
+        else:
+            # Use prompts_dir directly
+            search_paths.append(prompts_dir)
+            logger.info("Custom prompts directory: %s", prompts_dir)
 
     # Always add package prompts as fallback
     search_paths.append(PACKAGE_PROMPTS_DIR)
@@ -166,7 +174,7 @@ class WriterPromptTemplate(PromptTemplate):
     format_instructions: str = ""  # Output format conventions (MkDocs, Hugo, etc.)
     profiles_context: str = ""
     rag_context: str = ""
-    freeform_memory: str = ""
+    journal_memory: str = ""
     enable_memes: bool = False
     prompts_dir: Path | None = None  # Custom prompts directory
     env: Environment | None = None
@@ -184,7 +192,7 @@ class WriterPromptTemplate(PromptTemplate):
             format_instructions=self.format_instructions,
             profiles_context=self.profiles_context,
             rag_context=self.rag_context,
-            freeform_memory=self.freeform_memory,
+            journal_memory=self.journal_memory,
             enable_memes=self.enable_memes,
         )
 
@@ -302,93 +310,13 @@ class AvatarEnrichmentPromptTemplate(PromptTemplate):
         )
 
 
-@dataclass(slots=True)
-class EditorPromptTemplate(PromptTemplate):
-    """Prompt template for the editor agent.
-
-    Supports custom prompts via prompts_dir/system/editor.jinja
-    """
-
-    post_content: str
-    doc_id: str
-    version: int
-    lines: dict[int, str]
-    context: dict[str, Any] | None = None
-    prompts_dir: Path | None = None
-    env: Environment | None = None
-    template_name: ClassVar[str] = "system/editor.jinja"
-
-    def render(self) -> str:
-        return self._render(
-            env=self.env,
-            prompts_dir=self.prompts_dir,
-            post_content=self.post_content,
-            doc_id=self.doc_id,
-            version=self.version,
-            lines=self.lines,
-            context=self.context or {},
-        )
-
-
-@dataclass(slots=True)
-class RankingSystemPromptTemplate(PromptTemplate):
-    """Prompt template for the ranking agent system prompt.
-
-    Supports custom prompts via prompts_dir/system/ranking.jinja
-    """
-
-    prompts_dir: Path | None = None
-    env: Environment | None = None
-    template_name: ClassVar[str] = "system/ranking.jinja"
-
-    def render(self) -> str:
-        return self._render(env=self.env, prompts_dir=self.prompts_dir)
-
-
-@dataclass(slots=True)
-class RankingComparisonPromptTemplate(PromptTemplate):
-    """Prompt template for the ranking agent comparison prompt.
-
-    Supports custom prompts via prompts_dir/ranking/comparison.jinja
-    """
-
-    alias_or_uuid: str
-    bio: str | None
-    post_a_id: str
-    content_a: str
-    post_b_id: str
-    content_b: str
-    comments_a_display: str
-    comments_b_display: str
-    prompts_dir: Path | None = None
-    env: Environment | None = None
-    template_name: ClassVar[str] = "ranking/comparison.jinja"
-
-    def render(self) -> str:
-        return self._render(
-            env=self.env,
-            prompts_dir=self.prompts_dir,
-            alias_or_uuid=self.alias_or_uuid,
-            bio=self.bio,
-            post_a_id=self.post_a_id,
-            content_a=self.content_a,
-            post_b_id=self.post_b_id,
-            content_b=self.content_b,
-            comments_a_display=self.comments_a_display,
-            comments_b_display=self.comments_b_display,
-        )
-
-
 __all__ = [
     "PACKAGE_PROMPTS_DIR",
     "AvatarEnrichmentPromptTemplate",
     "DetailedMediaEnrichmentPromptTemplate",
     "DetailedUrlEnrichmentPromptTemplate",
-    "EditorPromptTemplate",
     "MediaEnrichmentPromptTemplate",
     "PromptTemplate",
-    "RankingComparisonPromptTemplate",
-    "RankingSystemPromptTemplate",
     "UrlEnrichmentPromptTemplate",
     "WriterPromptTemplate",
     "create_prompt_environment",
