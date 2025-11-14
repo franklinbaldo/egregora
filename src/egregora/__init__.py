@@ -7,7 +7,7 @@ __version__ = "2.0.0"
 __all__ = [
     "WhatsAppAdapter",
     "WhatsAppExport",
-    "discover_chat_file",
     "WhatsAppProcessOptions",
+    "discover_chat_file",
     "process_whatsapp_export",
 ]

@@ -49,7 +49,7 @@ def _bootstrap_site(tmp_path: Path) -> Path:
 
 
 def _build_options(
-    fixture: "WhatsAppFixture", gemini_api_key: str | None, **overrides
+    fixture: WhatsAppFixture, gemini_api_key: str | None, **overrides
 ) -> WhatsAppProcessOptions:
     """Helper to construct WhatsApp processing options for tests."""
 

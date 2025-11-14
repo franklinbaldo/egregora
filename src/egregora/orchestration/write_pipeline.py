@@ -85,7 +85,6 @@ def process_whatsapp_export(
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """High-level helper for processing WhatsApp ZIP exports using :func:`run`."""
-
     resolved_options = options or WhatsAppProcessOptions()
     output_dir = output_dir.expanduser().resolve()
     site_paths = resolve_site_paths(output_dir)
@@ -99,9 +98,7 @@ def process_whatsapp_export(
         "step_unit": resolved_options.step_unit,
         "overlap_ratio": resolved_options.overlap_ratio,
         "timezone": timezone_str,
-        "from_date": (
-            resolved_options.from_date.isoformat() if resolved_options.from_date else None
-        ),
+        "from_date": (resolved_options.from_date.isoformat() if resolved_options.from_date else None),
         "to_date": resolved_options.to_date.isoformat() if resolved_options.to_date else None,
         "batch_threshold": resolved_options.batch_threshold,
         "max_prompt_tokens": resolved_options.max_prompt_tokens,
@@ -246,7 +243,6 @@ def _process_single_window(
 
 def _warn_if_window_too_small(window_count: int, indent: str, window_label: str) -> None:
     """Log a warning when a split attempt happens on a very small window."""
-
     min_window_size = 5
     if window_count < min_window_size:
         logger.warning(
@@ -259,7 +255,6 @@ def _warn_if_window_too_small(window_count: int, indent: str, window_label: str)
 
 def _ensure_split_depth(depth: int, max_depth: int, indent: str, window_label: str) -> None:
     """Raise if recursive split depth exceeds the configured safety limit."""
-
     if depth < max_depth:
         return
 
@@ -279,7 +274,6 @@ def _plan_window_splits(
     window_label: str,
 ) -> list:
     """Determine how a window should be split after exceeding prompt limits."""
-
     from egregora.agents.model_limits import PromptTooLargeError
     from egregora.transformations import split_window_into_n_parts
 
@@ -310,7 +304,6 @@ def _process_window_with_auto_split(
     window: any, ctx: WindowProcessingContext, *, depth: int = 0, max_depth: int = 5
 ) -> dict[str, dict[str, list[str]]]:
     """Process a window with automatic splitting if prompt exceeds model limit."""
-
     from egregora.agents.model_limits import PromptTooLargeError
 
     combined_results: dict[str, dict[str, list[str]]] = {}
@@ -319,9 +312,7 @@ def _process_window_with_auto_split(
     while queue:
         current_window, current_depth = queue.popleft()
         indent = "  " * current_depth
-        window_label = (
-            f"{current_window.start_time:%Y-%m-%d %H:%M} to {current_window.end_time:%H:%M}"
-        )
+        window_label = f"{current_window.start_time:%Y-%m-%d %H:%M} to {current_window.end_time:%H:%M}"
         window_count = current_window.size
 
         _warn_if_window_too_small(window_count, indent, window_label)
@@ -333,9 +324,7 @@ def _process_window_with_auto_split(
             split_windows = _plan_window_splits(current_window, exc, indent, window_label)
             total_parts = len(split_windows)
             for index, split_window in enumerate(split_windows, 1):
-                split_label = (
-                    f"{split_window.start_time:%Y-%m-%d %H:%M} to {split_window.end_time:%H:%M}"
-                )
+                split_label = f"{split_window.start_time:%Y-%m-%d %H:%M} to {split_window.end_time:%H:%M}"
                 logger.info(
                     "%s↳ [dim]Processing part %d/%d: %s[/]",
                     indent,
@@ -777,7 +766,6 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> Si
 
 def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> SitePaths:
     """Resolve site paths and validate required scaffolding exists."""
-
     site_paths = _resolve_pipeline_site_paths(output_dir, config)
     format_type = config.output.format
 
@@ -883,7 +871,7 @@ class PipelineRuntime:
 class PreparedDataset:
     """Dataset artifacts prepared prior to window iteration."""
 
-    messages_table: "ir.Table"
+    messages_table: ir.Table
     windows_iterator: any
     checkpoint_path: Path
     window_context: WindowProcessingContext
@@ -893,7 +881,6 @@ class PreparedDataset:
 
 def _close_backend(backend: any) -> None:
     """Close an Ibis backend if it exposes a closeable interface."""
-
     if backend is None:
         return
 
@@ -913,7 +900,6 @@ def _pipeline_resources(
     client: genai.Client | None,
 ) -> PipelineRuntime:
     """Context manager that provisions and tears down pipeline resources."""
-
     options = getattr(ibis, "options", None)
     previous_backend = getattr(options, "default_backend", None) if options else None
 
@@ -1085,7 +1071,6 @@ def _prepare_dataset(
     runtime: PipelineRuntime,
 ) -> PreparedDataset:
     """Prepare dataset, filters, and window context prior to iteration."""
-
     timezone = config.pipeline.timezone
     step_size = config.pipeline.step_size
     step_unit = config.pipeline.step_unit
@@ -1114,15 +1099,11 @@ def _prepare_dataset(
     )
 
     checkpoint_path = runtime.site_paths.site_root / ".egregora" / "checkpoint.json"
-    messages_table = _apply_filters(
-        messages_table, runtime.site_paths, from_date, to_date, checkpoint_path
-    )
+    messages_table = _apply_filters(messages_table, runtime.site_paths, from_date, to_date, checkpoint_path)
 
     from egregora.output_adapters import create_output_format
 
-    output_format = create_output_format(
-        runtime.site_paths.site_root, format_type=config.output.format
-    )
+    output_format = create_output_format(runtime.site_paths.site_root, format_type=config.output.format)
 
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
@@ -1241,13 +1222,8 @@ def _save_checkpoint(results: dict, messages_table: ir.Table, checkpoint_path: P
 
 def _execute_windows(dataset: PreparedDataset, runtime: PipelineRuntime) -> dict[str, dict[str, list[str]]]:
     """Run window iteration, enrichment indexing, and checkpoint persistence."""
-
-    results = _process_all_windows(
-        dataset.windows_iterator, dataset.window_context, runtime.runs_backend
-    )
-    _index_media_into_rag(
-        dataset.enable_enrichment, results, runtime.site_paths, dataset.embedding_model
-    )
+    results = _process_all_windows(dataset.windows_iterator, dataset.window_context, runtime.runs_backend)
+    _index_media_into_rag(dataset.enable_enrichment, results, runtime.site_paths, dataset.embedding_model)
     _save_checkpoint(results, dataset.messages_table, dataset.checkpoint_path)
     logger.info("[bold green]🎉 Pipeline completed successfully![/]")
     return results
@@ -1376,8 +1352,6 @@ def run(
     logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", source)
     adapter = get_adapter(source)
 
-    with _pipeline_resources(
-        output_dir, config, api_key, model_override, client
-    ) as runtime:
+    with _pipeline_resources(output_dir, config, api_key, model_override, client) as runtime:
         dataset = _prepare_dataset(adapter, input_path, config, runtime)
         return _execute_windows(dataset, runtime)
