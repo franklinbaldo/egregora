@@ -119,10 +119,14 @@ data_primitives/
   └── reader_models.py       # NEW - Reader-specific models
 
 agents/
+  ├── shared/
+  │   └── annotations/       # EXTEND - unified annotation storage
+  │       ├── store.py       # Persist writer + reader feedback
+  │       └── models.py
   └── reader/                # NEW
       ├── agent.py           # Pydantic AI reader agent
-      ├── elo.py             # ELO rating system
-      ├── store.py           # DuckDB ranking store
+      ├── elo.py             # ELO rating system (pure functions)
+      ├── elo_store.py       # Aggregated ELO ratings
       └── strategies.py      # Selection strategies
 ```
 
@@ -203,12 +207,13 @@ track_run_event("reader_comparison", metadata={
    - Port ELO calculation logic
    - Add type annotations (Annotated with descriptions)
    - Support multiple rating strategies (global, per-author, per-topic)
+   - Provide helpers for `elo_store.py` to persist aggregated ratings derived from annotation history
 
-3. **Rebuild ranking store** (`agents/reader/store.py`)
-   - DuckDB-backed persistence
-   - Schema using `database/ir_schema.py` patterns
-   - Add to centralized schema definitions
-   - Export to Parquet for analytics
+3. **Extend shared annotation store** (`agents/shared/annotations/store.py`)
+   - Add metadata keys for reader feedback (stars, comparison ids, winners)
+   - Ensure annotations capture pairwise comparison context for replay
+   - Tag reader feedback via `annotation_type="reader_feedback"`
+   - Preserve unified DuckDB persistence alongside writer annotations
 
 4. **Define reader models** (`data_primitives/reader_models.py`)
    ```python
@@ -460,15 +465,12 @@ CREATE INDEX idx_ratings_games ON elo_ratings(games_played);
 ```sql
 CREATE TABLE elo_history (
     comparison_id VARCHAR PRIMARY KEY,
+    annotation_id VARCHAR NOT NULL,        -- FK into annotations table
     timestamp TIMESTAMP NOT NULL,
     reader_profile_id VARCHAR NOT NULL,   -- UUID of reader persona
     post_a VARCHAR NOT NULL,
     post_b VARCHAR NOT NULL,
     winner VARCHAR NOT NULL CHECK (winner IN ('A', 'B')),
-    comment_a VARCHAR NOT NULL,
-    stars_a INTEGER NOT NULL CHECK (stars_a BETWEEN 1 AND 5),
-    comment_b VARCHAR NOT NULL,
-    stars_b INTEGER NOT NULL CHECK (stars_b BETWEEN 1 AND 5),
     elo_a_before DOUBLE,                   -- Track ELO changes
     elo_a_after DOUBLE,
     elo_b_before DOUBLE,
@@ -477,13 +479,36 @@ CREATE TABLE elo_history (
 
 CREATE INDEX idx_history_post_a ON elo_history(post_a);
 CREATE INDEX idx_history_post_b ON elo_history(post_b);
+CREATE INDEX idx_history_annotation ON elo_history(annotation_id);
 CREATE INDEX idx_history_timestamp ON elo_history(timestamp);
 CREATE INDEX idx_history_reader ON elo_history(reader_profile_id);
 ```
 
 ### Location
 
-Add to `database/ir_schema.py`:
+Update the existing `ELO_RATINGS_SCHEMA` and `ELO_HISTORY_SCHEMA` entries in
+`src/egregora/database/ir_schema.py` to match the new structure. Apply the
+changes in place so the centralized schema module stays the single source of
+truth.
+
+**`ELO_RATINGS_SCHEMA` adjustments**
+
+- ➕ Add `elo_by_profile` (`dt.json`) to store per-reader persona scores.
+- 🔁 Rename `num_comparisons` → `games_played` (`dt.int64`).
+- ➕ Add `created_at` (`dt.Timestamp(timezone="UTC")`) alongside `last_updated`.
+
+**`ELO_HISTORY_SCHEMA` adjustments**
+
+- 🔁 Replace `winner_id`/`loser_id` with `post_a`, `post_b`, and `winner` (all
+  `dt.string`).
+- ➖ Remove the `tie` flag; ties are represented through the new winner logic.
+- ➖ Remove `elo_change` and instead ➕ add
+  `elo_a_before`/`elo_a_after`/`elo_b_before`/`elo_b_after` (`dt.float64`).
+- ➕ Add `reader_profile_id` (`dt.string`) for persona tracking.
+- ➕ Add structured feedback fields: `comment_a`, `comment_b` (`dt.string`) and
+  `stars_a`, `stars_b` (`dt.int64`).
+Update the existing constants in `database/ir_schema.py` so their definitions include the new fields:
+
 ```python
 ELO_RATINGS_SCHEMA = ibis.schema({
     "post_id": dt.string,
@@ -496,15 +521,12 @@ ELO_RATINGS_SCHEMA = ibis.schema({
 
 ELO_HISTORY_SCHEMA = ibis.schema({
     "comparison_id": dt.string,
+    "annotation_id": dt.string,
     "timestamp": dt.Timestamp(timezone="UTC"),
     "reader_profile_id": dt.string,
     "post_a": dt.string,
     "post_b": dt.string,
     "winner": dt.string,
-    "comment_a": dt.string,
-    "stars_a": dt.int64,
-    "comment_b": dt.string,
-    "stars_b": dt.int64,
     "elo_a_before": dt.float64,
     "elo_a_after": dt.float64,
     "elo_b_before": dt.float64,
@@ -512,30 +534,49 @@ ELO_HISTORY_SCHEMA = ibis.schema({
 })
 ```
 
+**Migration considerations**
+
+- DuckDB tables created from the previous schema will need `ALTER TABLE`
+  operations (or table recreation) to add, rename, and drop the columns listed
+  above.
+- Backfill scripts must populate the new fields (for example, initialize
+  `elo_by_profile` with an empty JSON object and carry over
+  `num_comparisons` → `games_played`).
+- Historical records need transformation to split `winner_id`/`loser_id` into
+  `post_a`/`post_b`/`winner` fields and compute before/after ELO values prior to
+  inserting into the updated history table.
+> **Migration note:** Alter the corresponding DuckDB tables (or rebuild them) so the additional columns and JSON payloads exist before enabling the reader pipeline.
+
+Pairwise “games” should remain queryable via the annotation store. Each reader comparison persists a unified annotation record containing the comparison identifier, the two post ids, the winner, and the structured metadata. ELO aggregates in `elo_store.py` can then recompute ratings from the full history when needed.
+
 ## Configuration
 
 Add to `config/settings.py`:
 
 ```python
-@dataclass
-class ReaderSettings:
+from pydantic import BaseModel, Field
+
+
+class ReaderSettings(BaseModel):
     """Reader agent configuration."""
 
-    enabled: bool = True
-    model: str = "google-gla:gemini-2.0-flash-exp"
-    default_strategy: str = "fewest_games"
-    k_factor: int = 32  # ELO K-factor
-    default_elo: float = 1500.0
-    min_stars: int = 1
-    max_stars: int = 5
-    max_comment_length: int = 250
-    feedback_rounds_default: int = 50
+    enabled: bool = Field(default=True, description="Enable the reader pipeline")
+    model: str = Field(default="google-gla:gemini-2.0-flash-exp")
+    default_strategy: str = Field(default="fewest_games")
+    k_factor: int = Field(default=32, description="ELO K-factor")
+    default_elo: float = Field(default=1500.0)
+    min_stars: int = Field(default=1)
+    max_stars: int = Field(default=5)
+    max_comment_length: int = Field(default=250)
+    feedback_rounds_default: int = Field(default=50)
 
-@dataclass
-class EgregoraConfig:
+
+class EgregoraConfig(BaseModel):
     # ... existing fields ...
-    reader: ReaderSettings = field(default_factory=ReaderSettings)
+    reader: ReaderSettings = Field(default_factory=ReaderSettings)
 ```
+
+Update any config loader helpers (e.g., `load_egregora_config`) so they continue to round-trip the new `reader` section.
 
 Add to `.egregora/config.yml`:
 
@@ -546,6 +587,9 @@ reader:
   default_strategy: fewest_games
   k_factor: 32
   default_elo: 1500.0
+  min_stars: 1
+  max_stars: 5
+  max_comment_length: 250
   feedback_rounds_default: 50
 ```
 
@@ -685,3 +729,4 @@ def migrate_rankings(old_db: Path, new_db: Path):
 - Current write pipeline: `src/egregora/orchestration/write_pipeline.py`
 - Document abstraction: `src/egregora/data_primitives/document.py`
 - Reader store integration tests: `tests/integration/test_reader_store.py`
+- Reader pipeline integration tests should live in `tests/integration/test_reader_pipeline.py`
