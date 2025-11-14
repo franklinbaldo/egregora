@@ -21,6 +21,11 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.base.ref }}
 
+      - name: Stage Codex helper script from base revision
+        run: |
+          mkdir -p /tmp/codex_helper
+          cp scripts/github/create_codex_task.py /tmp/codex_helper/
+
       - name: Fetch pull request branch
         env:
           PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.clone_url }}
@@ -67,7 +72,7 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
-          python scripts/github/create_codex_task.py \
+          python /tmp/codex_helper/create_codex_task.py \
             --pr-number "$PR_NUMBER" \
             --author "$PR_AUTHOR" \
             --pr-url "$PR_URL" \
