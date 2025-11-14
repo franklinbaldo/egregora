@@ -486,6 +486,27 @@ CREATE INDEX idx_history_reader ON elo_history(reader_profile_id);
 
 ### Location
 
+Update the existing `ELO_RATINGS_SCHEMA` and `ELO_HISTORY_SCHEMA` entries in
+`src/egregora/database/ir_schema.py` to match the new structure. Apply the
+changes in place so the centralized schema module stays the single source of
+truth.
+
+**`ELO_RATINGS_SCHEMA` adjustments**
+
+- ➕ Add `elo_by_profile` (`dt.json`) to store per-reader persona scores.
+- 🔁 Rename `num_comparisons` → `games_played` (`dt.int64`).
+- ➕ Add `created_at` (`dt.Timestamp(timezone="UTC")`) alongside `last_updated`.
+
+**`ELO_HISTORY_SCHEMA` adjustments**
+
+- 🔁 Replace `winner_id`/`loser_id` with `post_a`, `post_b`, and `winner` (all
+  `dt.string`).
+- ➖ Remove the `tie` flag; ties are represented through the new winner logic.
+- ➖ Remove `elo_change` and instead ➕ add
+  `elo_a_before`/`elo_a_after`/`elo_b_before`/`elo_b_after` (`dt.float64`).
+- ➕ Add `reader_profile_id` (`dt.string`) for persona tracking.
+- ➕ Add structured feedback fields: `comment_a`, `comment_b` (`dt.string`) and
+  `stars_a`, `stars_b` (`dt.int64`).
 Update the existing constants in `database/ir_schema.py` so their definitions include the new fields:
 
 ```python
@@ -513,6 +534,17 @@ ELO_HISTORY_SCHEMA = ibis.schema({
 })
 ```
 
+**Migration considerations**
+
+- DuckDB tables created from the previous schema will need `ALTER TABLE`
+  operations (or table recreation) to add, rename, and drop the columns listed
+  above.
+- Backfill scripts must populate the new fields (for example, initialize
+  `elo_by_profile` with an empty JSON object and carry over
+  `num_comparisons` → `games_played`).
+- Historical records need transformation to split `winner_id`/`loser_id` into
+  `post_a`/`post_b`/`winner` fields and compute before/after ELO values prior to
+  inserting into the updated history table.
 > **Migration note:** Alter the corresponding DuckDB tables (or rebuild them) so the additional columns and JSON payloads exist before enabling the reader pipeline.
 
 Pairwise “games” should remain queryable via the annotation store. Each reader comparison persists a unified annotation record containing the comparison identifier, the two post ids, the winner, and the structured metadata. ELO aggregates in `elo_store.py` can then recompute ratings from the full history when needed.
