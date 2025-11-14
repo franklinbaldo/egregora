@@ -192,7 +192,7 @@ class EleventyArrowAdapter:
 
         # Write to Parquet
         parquet_path = self.data_dir / f"window_{window_index}.parquet"
-        pq.write_table(table, parquet_path, compression="snappy")
+        pq.write_table(table, parquet_path)
 
         logger.info(
             "Window %s: wrote %d documents to %s (%.2f KB)",
@@ -404,6 +404,7 @@ class EleventyArrowOutputAdapter(OutputAdapter):
 
         # Ensure data directory exists for Parquet output
         (site_root / "data").mkdir(parents=True, exist_ok=True)
+        (eleventy_root / "src" / "media").mkdir(parents=True, exist_ok=True)
 
         config_file = eleventy_root / ".eleventy.js"
         return config_file, was_created
@@ -413,7 +414,7 @@ class EleventyArrowOutputAdapter(OutputAdapter):
         docs_dir = eleventy_root / "src"
         posts_dir = docs_dir / "posts"
         profiles_dir = docs_dir / "profiles"
-        media_dir = site_root / "data"
+        media_dir = docs_dir / "media"
         additional_paths = {
             "eleventy_root": eleventy_root,
             "data_dir": site_root / "data",
