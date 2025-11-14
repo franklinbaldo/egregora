@@ -37,7 +37,6 @@ __all__ = ["WhatsAppAdapter", "discover_chat_file"]
 
 def discover_chat_file(zip_path: Path) -> tuple[str, str]:
     """Find the chat ``.txt`` file in ``zip_path`` and infer the group name."""
-
     with zipfile.ZipFile(zip_path) as zf:
         candidates: list[tuple[int, str, str]] = []
         for member in zf.namelist():
