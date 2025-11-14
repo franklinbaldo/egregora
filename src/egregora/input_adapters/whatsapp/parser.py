@@ -18,6 +18,8 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
+import ibis
+
 from egregora.constants import EgregoraCommand
 from egregora.input_adapters.whatsapp.parser_sql import parse_multiple as _parse_multiple_impl
 from egregora.input_adapters.whatsapp.parser_sql import parse_source as _parse_source_impl
@@ -60,6 +62,22 @@ SMART_QUOTES_TRANSLATION = str.maketrans(
         "’": "'",
     }
 )
+
+
+@ibis.udf.scalar.python
+def normalize_smart_quotes(value: str | None) -> str:
+    """Normalize smart quotes in command text for vectorized parsing."""
+    if value is None:
+        return ""
+    return value.translate(SMART_QUOTES_TRANSLATION)
+
+
+@ibis.udf.scalar.python
+def strip_wrapping_quotes(value: str | None) -> str | None:
+    """Strip wrapping single/double quotes from string values."""
+    if value is None:
+        return None
+    return value.strip("\"'")
 
 
 def parse_egregora_command(message: str) -> dict | None:
@@ -144,25 +162,97 @@ def extract_commands(messages: Table) -> list[dict]:
         }]
 
     """
-    rows = list(messages.execute().itertuples(index=False))
-    if not rows:
+    normalized = messages.mutate(normalized_message=normalize_smart_quotes(messages.message))
+    filtered = normalized.filter(normalized.normalized_message.lower().startswith("/egregora"))
+
+    trimmed = filtered.mutate(trimmed_message=filtered.normalized_message.strip())
+
+    parsed = trimmed.mutate(
+        action=trimmed.trimmed_message.re_extract(r"^/egregora\s+([^\s]+)", 1).lower(),
+        args_raw=trimmed.trimmed_message.re_extract(r"^/egregora\s+[^\s]+\s*(.*)$", 1),
+    )
+
+    enriched = parsed.mutate(
+        args_trimmed=ibis.coalesce(parsed.args_raw, ibis.literal("")),
+    )
+    enriched = enriched.mutate(
+        args_trimmed=enriched.args_trimmed.strip(),
+    )
+
+    enriched = enriched.mutate(
+        target_candidate=enriched.args_trimmed.re_extract(r"^([^\s]+)", 1),
+        value_candidate=enriched.args_trimmed.re_extract(r"^[^\s]+\s*(.*)$", 1),
+    )
+
+    enriched = enriched.mutate(
+        set_has_value=ibis.coalesce(
+            enriched.args_trimmed.length()
+            > ibis.coalesce(enriched.target_candidate.length(), ibis.literal(0)),
+            ibis.literal(False),
+        ),
+    )
+
+    command_cases = enriched.mutate(
+        command_name=(
+            ibis.case()
+            .when((enriched.action == "set") & enriched.set_has_value, ibis.literal("set"))
+            .when(enriched.action.isin(["remove", "unset", "opt-out", "opt-in"]), enriched.action)
+            .else_(ibis.null())
+            .end()
+        ),
+    )
+
+    command_cases = command_cases.mutate(
+        command_target=(
+            ibis.case()
+            .when(command_cases.command_name == "set", command_cases.target_candidate.lower())
+            .when(command_cases.command_name == "remove", command_cases.args_trimmed.lower())
+            .when(command_cases.command_name == "unset", command_cases.args_trimmed.lower())
+            .else_(ibis.null())
+            .end()
+        ),
+        command_value=(
+            ibis.case()
+            .when(command_cases.command_name == "set", strip_wrapping_quotes(command_cases.value_candidate))
+            .else_(ibis.null())
+            .end()
+        ),
+    )
+
+    commands_table = command_cases.filter(command_cases.command_name.notnull()).select(
+        command_cases.author,
+        command_cases.timestamp,
+        command_cases.message,
+        command_cases.command_name,
+        command_cases.command_target,
+        command_cases.command_value,
+    )
+
+    result_df = commands_table.execute()
+    if result_df.empty:
         return []
-    commands = []
-    for row in rows:
-        row_dict = row._asdict()
-        message = row_dict.get("message", "")
-        if not message:
-            continue
-        cmd = parse_egregora_command(message)
-        if cmd:
-            commands.append(
-                {
-                    "author": row_dict["author"],
-                    "timestamp": row_dict["timestamp"],
-                    "command": cmd,
-                    "message": message,
-                }
-            )
+
+    commands: list[dict] = []
+    for row in result_df.to_dict(orient="records"):
+        command_payload = {"command": row["command_name"]}
+
+        target = row.get("command_target")
+        if target is not None and target == target:
+            command_payload["target"] = target
+
+        value = row.get("command_value")
+        if value is not None and value == value:
+            command_payload["value"] = value
+
+        commands.append(
+            {
+                "author": row["author"],
+                "timestamp": row["timestamp"],
+                "command": command_payload,
+                "message": row["message"],
+            }
+        )
+
     if commands:
         logger.info("Found %s egregora commands", len(commands))
     return commands
