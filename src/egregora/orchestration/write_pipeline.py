@@ -20,7 +20,7 @@ import tempfile
 import uuid
 from collections import deque
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
 from pathlib import Path
@@ -83,9 +83,36 @@ def process_whatsapp_export(
     *,
     options: WhatsAppProcessOptions | None = None,
     client: genai.Client | None = None,
+    **legacy_kwargs,
 ) -> dict[str, dict[str, list[str]]]:
-    """High-level helper for processing WhatsApp ZIP exports using :func:`run`."""
+    """High-level helper for processing WhatsApp ZIP exports using :func:`run`.
+
+    The ``WhatsAppProcessOptions`` dataclass is the preferred extension point, but
+    legacy keyword arguments (``step_size``, ``timezone``, ``gemini_api_key``, etc.)
+    remain supported to preserve the public API contract.
+    """
     resolved_options = options or WhatsAppProcessOptions()
+
+    if legacy_kwargs:
+        option_field_names = set(WhatsAppProcessOptions.__annotations__)
+        option_updates: dict[str, object] = {}
+        unsupported: dict[str, object] = {}
+
+        for key, value in legacy_kwargs.items():
+            if key in option_field_names:
+                option_updates[key] = value
+            else:
+                unsupported[key] = value
+
+        if option_updates:
+            resolved_options = replace(resolved_options, **option_updates)
+
+        if unsupported:
+            logger.warning(
+                "Ignoring unsupported legacy keyword arguments for process_whatsapp_export: %s",
+                ", ".join(sorted(unsupported)),
+            )
+
     output_dir = output_dir.expanduser().resolve()
     site_paths = resolve_site_paths(output_dir)
 
