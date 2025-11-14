@@ -78,7 +78,14 @@ class TestRagErrorHandling:
     @patch("egregora.agents.writer.context_builder.chunk_markdown")
     @patch("egregora.agents.writer.context_builder.query_rag_per_chunk")
     def test_no_hits_returns_failure_result(
-        self, mock_query_chunks, mock_chunk, mock_consolidate, mock_store, mock_table, mock_batch_client, test_rag_dir
+        self,
+        mock_query_chunks,
+        mock_chunk,
+        mock_consolidate,
+        mock_store,
+        mock_table,
+        mock_batch_client,
+        test_rag_dir,
     ):
         """Test that no hits return Failure result."""
         # Mock consolidation and empty chunk query results
@@ -102,7 +109,14 @@ class TestRagErrorHandling:
     @patch("egregora.agents.writer.context_builder.chunk_markdown")
     @patch("egregora.agents.writer.context_builder.query_rag_per_chunk")
     def test_successful_query_returns_success_result(
-        self, mock_query_chunks, mock_chunk, mock_consolidate, mock_store, mock_table, mock_batch_client, test_rag_dir
+        self,
+        mock_query_chunks,
+        mock_chunk,
+        mock_consolidate,
+        mock_store,
+        mock_table,
+        mock_batch_client,
+        test_rag_dir,
     ):
         """Test that successful queries return Success result."""
         # Mock the full chunked pipeline
@@ -149,7 +163,14 @@ class TestRagErrorHandling:
     @patch("egregora.agents.writer.context_builder.chunk_markdown")
     @patch("egregora.agents.writer.context_builder.query_rag_per_chunk")
     def test_return_records_backward_compatibility(
-        self, mock_query_chunks, mock_chunk, mock_consolidate, mock_store, mock_table, mock_batch_client, test_rag_dir
+        self,
+        mock_query_chunks,
+        mock_chunk,
+        mock_consolidate,
+        mock_store,
+        mock_table,
+        mock_batch_client,
+        test_rag_dir,
     ):
         """Test that return_records=True maintains backward compatibility."""
         # Mock the full chunked pipeline

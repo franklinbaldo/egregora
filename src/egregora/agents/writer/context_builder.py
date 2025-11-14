@@ -12,7 +12,7 @@ from ibis.expr.types import Table
 from returns.result import Failure, Result, Success
 
 from egregora.agents.shared.author_profiles import get_active_authors, read_profile
-from egregora.agents.shared.rag import VectorStore, build_rag_context_for_writer, query_similar_posts
+from egregora.agents.shared.rag import VectorStore, build_rag_context_for_writer
 from egregora.agents.shared.rag.chunker import chunk_markdown
 from egregora.agents.shared.rag.embedder import embed_query_text
 
@@ -55,6 +55,7 @@ def consolidate_messages_to_markdown(table: Table) -> str:
 
     Returns:
         Markdown-formatted string suitable for chunk_markdown()
+
     """
     # Execute table to dataframe
     df = table.select("timestamp", "author", "message").execute()
@@ -97,6 +98,7 @@ def deduplicate_by_document(results: list[dict], n: int = 1) -> list[dict]:
             {'document_id': 'post-123', 'similarity': 0.90, 'content': 'chunk 0'},
             {'document_id': 'post-456', 'similarity': 0.88, 'content': 'chunk 0'}
         ]
+
     """
     # Group by document_id
     by_doc: dict[str, list[dict]] = defaultdict(list)
@@ -150,6 +152,7 @@ def query_rag_per_chunk(
             - post_title: post title
             - chunk_index: chunk index within document
             - metadata: additional metadata
+
     """
     all_results = []
 

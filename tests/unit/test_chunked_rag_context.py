@@ -8,7 +8,7 @@ Tests the new chunked RAG augmentation implementation:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import ibis
 import pytest
@@ -27,7 +27,7 @@ class TestConsolidateMessagesToMarkdown:
 
     def test_single_message(self):
         """Single message formats correctly."""
-        dt = datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+        dt = datetime(2025, 1, 15, 10, 30, 0, tzinfo=UTC)
         table = ibis.memtable(
             [{"timestamp": dt, "author": "uuid-123", "message": "Hello world"}],
             schema={"timestamp": "timestamp", "author": "string", "message": "string"},
@@ -41,9 +41,9 @@ class TestConsolidateMessagesToMarkdown:
 
     def test_multiple_messages(self):
         """Multiple messages format correctly with proper numbering."""
-        dt1 = datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
-        dt2 = datetime(2025, 1, 15, 10, 35, 0, tzinfo=timezone.utc)
-        dt3 = datetime(2025, 1, 15, 10, 40, 0, tzinfo=timezone.utc)
+        dt1 = datetime(2025, 1, 15, 10, 30, 0, tzinfo=UTC)
+        dt2 = datetime(2025, 1, 15, 10, 35, 0, tzinfo=UTC)
+        dt3 = datetime(2025, 1, 15, 10, 40, 0, tzinfo=UTC)
         table = ibis.memtable(
             [
                 {"timestamp": dt1, "author": "uuid-123", "message": "First message"},
@@ -67,7 +67,7 @@ class TestConsolidateMessagesToMarkdown:
     def test_message_with_multiline_content(self):
         """Messages with multiple lines preserve formatting."""
         multiline_message = "Line 1\nLine 2\nLine 3"
-        dt = datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+        dt = datetime(2025, 1, 15, 10, 30, 0, tzinfo=UTC)
         table = ibis.memtable(
             [{"timestamp": dt, "author": "uuid-123", "message": multiline_message}],
             schema={"timestamp": "timestamp", "author": "string", "message": "string"},
@@ -78,8 +78,8 @@ class TestConsolidateMessagesToMarkdown:
 
     def test_paragraph_boundaries(self):
         """Output has paragraph boundaries (double newlines) for chunking."""
-        dt1 = datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
-        dt2 = datetime(2025, 1, 15, 10, 35, 0, tzinfo=timezone.utc)
+        dt1 = datetime(2025, 1, 15, 10, 30, 0, tzinfo=UTC)
+        dt2 = datetime(2025, 1, 15, 10, 35, 0, tzinfo=UTC)
         table = ibis.memtable(
             [
                 {"timestamp": dt1, "author": "uuid-123", "message": "Message 1"},
