@@ -1,7 +1,7 @@
 """Unit tests for write pipeline utilities."""
 
 from egregora.agents.model_limits import get_model_context_limit
-from egregora.config import EgregoraConfig
+from egregora.config.settings import EgregoraConfig
 from egregora.orchestration.write_pipeline import _calculate_max_window_size
 
 
