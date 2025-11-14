@@ -125,22 +125,22 @@ class IRMessageRow(BaseModel):
     """
 
     # Identity
-    event_id: uuid.UUID | str | None = None  # String UUID from schema, can be None if not generated
+    event_id: uuid.UUID | str  # String UUID from schema, required to match canonical table
 
     # Multi-Tenant
     tenant_id: str = Field(min_length=1)
     source: str = Field(pattern=r"^[a-z][a-z0-9_-]*$")  # lowercase, alphanumeric + underscore/dash
 
     # Threading
-    thread_id: uuid.UUID | str | None = None  # String UUID from schema, can be None
-    msg_id: str | None = None  # Nullable in schema
+    thread_id: uuid.UUID | str  # String UUID from schema, required to match canonical table
+    msg_id: str  # Required identifier in canonical schema
 
     # Temporal
     ts: datetime
 
     # Authors
     author_raw: str
-    author_uuid: uuid.UUID | str | None = None  # String UUID from schema, can be None
+    author_uuid: uuid.UUID | str  # String UUID from schema, required to match canonical table
 
     # Content
     text: str | None = None
