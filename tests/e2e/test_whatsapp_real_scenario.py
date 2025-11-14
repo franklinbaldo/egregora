@@ -205,6 +205,19 @@ def test_anonymization_removes_real_author_names(whatsapp_fixture: WhatsAppFixtu
     assert any("@" in message and "teste de menção" in message for message in messages)
 
 
+def test_parse_source_exposes_raw_authors_when_requested(whatsapp_fixture: WhatsAppFixture):
+    export = create_export_from_fixture(whatsapp_fixture)
+    table = parse_source(
+        export,
+        timezone=whatsapp_fixture.timezone,
+        expose_raw_author=True,
+    )
+
+    authors = table.select("author").distinct().execute()["author"].tolist()
+    for expected in ("Franklin", "Iuri Brasil", "Você", "Eurico Max"):
+        assert expected in authors
+
+
 def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table_one = parse_source(export, timezone=whatsapp_fixture.timezone)
