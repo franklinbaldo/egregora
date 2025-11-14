@@ -354,18 +354,16 @@ class MkDocsOutputAdapter(OutputAdapter):
         # Check known locations (no upward directory search)
         # 1. Check .egregora/config.yml for custom mkdocs_config_path
         mkdocs_path_from_config = _try_load_mkdocs_path_from_config(site_root)
-        if mkdocs_path_from_config and mkdocs_path_from_config.exists():
-            return True
 
         # 2. Check default location: .egregora/mkdocs.yml
-        if (site_root / ".egregora" / "mkdocs.yml").exists():
-            return True
-
         # 3. Check legacy location: root mkdocs.yml
-        if (site_root / "mkdocs.yml").exists():
-            return True
-
-        return False
+        return any(
+            (
+                mkdocs_path_from_config and mkdocs_path_from_config.exists(),
+                (site_root / ".egregora" / "mkdocs.yml").exists(),
+                (site_root / "mkdocs.yml").exists(),
+            )
+        )
 
     def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure.
@@ -1270,7 +1268,39 @@ class MkDocsFilesystemAdapter(OutputProtocol):
     def _get_document_id_at_path(self, path: Path) -> str | None:
         if not path.exists():
             return None
-        return None
+
+        try:
+            raw_content = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            logger.warning("Failed to read existing document at %s: %s", path, exc)
+            return None
+
+        body = raw_content
+        metadata: dict[str, Any] = {}
+
+        if raw_content.startswith("---\n"):
+            try:
+                parts = raw_content.split("---\n", 2)
+                if len(parts) >= 3:
+                    loaded_metadata = yaml.safe_load(parts[1]) or {}
+                    metadata = loaded_metadata if isinstance(loaded_metadata, dict) else {}
+                    body = parts[2]
+                    body = body.removeprefix("\n")
+            except yaml.YAMLError as exc:
+                logger.warning("Failed to parse frontmatter for %s: %s", path, exc)
+                metadata = {}
+                body = raw_content
+
+        metadata_copy = dict(metadata)
+        parent_id = metadata_copy.pop("parent_id", None)
+
+        document = Document(
+            content=body,
+            type=DocumentType.ENRICHMENT_URL,
+            metadata=metadata_copy,
+            parent_id=parent_id,
+        )
+        return document.document_id
 
     def _resolve_collision(self, path: Path, document_id: str) -> Path:
         stem = path.stem
@@ -1452,9 +1482,7 @@ class MkDocsPostStorage:
 
     def exists(self, slug: str) -> bool:
         """Return True when a post with ``slug`` exists."""
-        if any(self.posts_dir.glob(f"*-{slug}.md")):
-            return True
-        return (self.posts_dir / f"{slug}.md").exists()
+        return any(self.posts_dir.glob(f"*-{slug}.md")) or (self.posts_dir / f"{slug}.md").exists()
 
     def list_posts(self) -> list[str]:
         """Return the list of slugs present in the posts directory."""
