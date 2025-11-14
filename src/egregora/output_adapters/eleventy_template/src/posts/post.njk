@@ -1,0 +1,29 @@
+---
+pagination:
+  data: collections.posts
+  size: 1
+  alias: post
+permalink: "/posts/{{ post.slug }}/"
+layout: "base.njk"
+---
+
+<article class="post">
+  <header>
+    <h1>{{ post.title }}</h1>
+    <time datetime="{{ post.created_at }}">{{ post.created_at | date: "%B %d, %Y" }}</time>
+  </header>
+
+  <div class="content">
+    {{ post.body_md | markdown | safe }}
+  </div>
+
+  {% if post.metadata.tags %}
+  <footer>
+    <div class="tags">
+      {% for tag in post.metadata.tags %}
+      <span class="tag">{{ tag }}</span>
+      {% endfor %}
+    </div>
+  </footer>
+  {% endif %}
+</article>

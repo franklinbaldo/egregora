@@ -32,16 +32,16 @@ from egregora.agents.shared.author_profiles import filter_opted_out_authors, pro
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config import get_model_for_task
-from egregora.config.settings import EgregoraConfig
+from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database import RUN_EVENTS_SCHEMA
 from egregora.database.tracking import fingerprint_window, get_git_commit_sha
 from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
-from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
-from egregora.enrichment.core import EnrichmentRuntimeContext
+from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
+from egregora.enrichment.runners import EnrichmentRuntimeContext
 from egregora.input_adapters import get_adapter
-from egregora.output_adapters.mkdocs_site import resolve_site_paths
-from egregora.sources.whatsapp.parser import extract_commands, filter_egregora_messages
+from egregora.input_adapters.whatsapp.parser import extract_commands, filter_egregora_messages
+from egregora.output_adapters.mkdocs import resolve_site_paths
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.transformations.media import process_media_for_window
 from egregora.utils.cache import EnrichmentCache
@@ -49,7 +49,73 @@ from egregora.utils.cache import EnrichmentCache
 if TYPE_CHECKING:
     import ibis.expr.types as ir
 logger = logging.getLogger(__name__)
-__all__ = ["run"]
+__all__ = ["process_whatsapp_export", "run"]
+
+
+def process_whatsapp_export(
+    zip_path: Path,
+    output_dir: Path = Path("output"),
+    *,
+    step_size: int = 100,
+    step_unit: str = "messages",
+    overlap_ratio: float = 0.2,
+    enable_enrichment: bool = True,
+    from_date: date_type | None = None,
+    to_date: date_type | None = None,
+    timezone: str | ZoneInfo | None = None,
+    gemini_api_key: str | None = None,
+    model: str | None = None,
+    batch_threshold: int = 10,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
+    max_prompt_tokens: int = 100_000,
+    use_full_context_window: bool = False,
+    client: genai.Client | None = None,
+) -> dict[str, dict[str, list[str]]]:
+    """High-level helper for processing WhatsApp ZIP exports using :func:`run`."""
+    output_dir = output_dir.expanduser().resolve()
+    site_paths = resolve_site_paths(output_dir)
+
+    base_config = load_egregora_config(site_paths.site_root)
+    egregora_config = base_config.model_copy(
+        deep=True,
+        update={
+            "pipeline": base_config.pipeline.model_copy(
+                update={
+                    "step_size": step_size,
+                    "step_unit": step_unit,
+                    "overlap_ratio": overlap_ratio,
+                    "timezone": str(timezone) if timezone else None,
+                    "from_date": from_date.isoformat() if from_date else None,
+                    "to_date": to_date.isoformat() if to_date else None,
+                    "batch_threshold": batch_threshold,
+                    "max_prompt_tokens": max_prompt_tokens,
+                    "use_full_context_window": use_full_context_window,
+                }
+            ),
+            "enrichment": base_config.enrichment.model_copy(update={"enabled": enable_enrichment}),
+            "rag": base_config.rag.model_copy(
+                update={
+                    "mode": retrieval_mode,
+                    "nprobe": (retrieval_nprobe if retrieval_nprobe is not None else base_config.rag.nprobe),
+                    "overfetch": (
+                        retrieval_overfetch if retrieval_overfetch is not None else base_config.rag.overfetch
+                    ),
+                }
+            ),
+        },
+    )
+
+    return run(
+        source="whatsapp",
+        input_path=zip_path,
+        output_dir=output_dir,
+        config=egregora_config,
+        api_key=gemini_api_key,
+        model_override=model,
+        client=client,
+    )
 
 
 @dataclass
@@ -553,6 +619,37 @@ def _create_database_backends(
     return runtime_db_uri, pipeline_backend, runs_backend
 
 
+def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> SitePaths:
+    """Resolve site paths for the configured output format."""
+    output_dir = output_dir.expanduser().resolve()
+    base_paths = resolve_site_paths(output_dir)
+
+    if config.output.format != "eleventy-arrow":
+        return base_paths
+
+    from egregora.output_adapters import create_output_format
+
+    output_format = create_output_format(output_dir, format_type=config.output.format)
+    site_config = output_format.resolve_paths(output_dir)
+    return SitePaths(
+        site_root=site_config.site_root,
+        mkdocs_path=None,
+        egregora_dir=base_paths.egregora_dir,
+        config_path=base_paths.config_path,
+        mkdocs_config_path=base_paths.mkdocs_config_path,
+        prompts_dir=base_paths.prompts_dir,
+        rag_dir=base_paths.rag_dir,
+        cache_dir=base_paths.cache_dir,
+        docs_dir=site_config.docs_dir,
+        blog_dir=base_paths.blog_dir,
+        posts_dir=site_config.posts_dir,
+        profiles_dir=site_config.profiles_dir,
+        media_dir=site_config.media_dir,
+        rankings_dir=base_paths.rankings_dir,
+        enriched_dir=base_paths.enriched_dir,
+    )
+
+
 def _setup_pipeline_environment(
     output_dir: Path, config: EgregoraConfig, api_key: str | None, model_override: str | None
 ) -> tuple[
@@ -580,14 +677,23 @@ def _setup_pipeline_environment(
 
     """
     output_dir = output_dir.expanduser().resolve()
-    site_paths = resolve_site_paths(output_dir)
+    site_paths = _resolve_pipeline_site_paths(output_dir, config)
+    format_type = config.output.format
 
-    if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
-        msg = f"No mkdocs.yml found for site at {output_dir}. Run 'egregora init <site-dir>' before processing exports."
-        raise ValueError(msg)
+    if format_type != "eleventy-arrow":
+        if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
+            msg = f"No mkdocs.yml found for site at {output_dir}. Run 'egregora init <site-dir>' before processing exports."
+            raise ValueError(msg)
 
-    if not site_paths.docs_dir.exists():
-        msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
+        if not site_paths.docs_dir.exists():
+            msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
+            raise ValueError(msg)
+    elif not site_paths.docs_dir.exists():
+        msg = (
+            "Eleventy content directory not found at"
+            f" {site_paths.docs_dir}. Run 'egregora init <site-dir> --output-format eleventy-arrow' "
+            "to scaffold the project before processing exports."
+        )
         raise ValueError(msg)
 
     # Setup database backends (Ibis-based, database-agnostic)
@@ -639,11 +745,8 @@ def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) ->
     logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
     messages_table = adapter.parse(input_path, timezone=timezone)
 
-    is_valid, errors = validate_ir_schema(messages_table)
-    if not is_valid:
-        raise ValueError(
-            "Source adapter produced invalid IR schema. Errors:\n" + "\n".join(f"  - {err}" for err in errors)
-        )
+    # Validate IR schema (raises SchemaError if invalid)
+    validate_ir_schema(messages_table)
 
     total_messages = messages_table.count().execute()
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)
@@ -671,6 +774,21 @@ def _setup_content_directories(site_paths: any) -> None:
     }
 
     for label, directory in content_dirs.items():
+        if label == "media":
+            try:
+                directory.relative_to(site_paths.docs_dir)
+            except ValueError:
+                try:
+                    directory.relative_to(site_paths.site_root)
+                except ValueError as exc:
+                    msg = (
+                        "Media directory must reside inside the MkDocs docs_dir or the site root. "
+                        f"Expected parent {site_paths.docs_dir} or {site_paths.site_root}, got {directory}."
+                    )
+                    raise ValueError(msg) from exc
+            directory.mkdir(parents=True, exist_ok=True)
+            continue
+
         try:
             directory.relative_to(site_paths.docs_dir)
         except ValueError as exc:
@@ -768,7 +886,7 @@ def _save_checkpoint(results: dict, messages_table: ir.Table, checkpoint_path: P
 
     # Checkpoint based on messages in the filtered table
     checkpoint_stats = messages_table.aggregate(
-        max_timestamp=messages_table.timestamp.max(),
+        max_timestamp=messages_table.ts.max(),
         total_processed=messages_table.count(),
     ).execute()
 
@@ -817,14 +935,14 @@ def _apply_filters(
         original_count = messages_table.count().execute()
         if from_date and to_date:
             messages_table = messages_table.filter(
-                (messages_table.timestamp.date() >= from_date) & (messages_table.timestamp.date() <= to_date)
+                (messages_table.ts.date() >= from_date) & (messages_table.ts.date() <= to_date)
             )
             logger.info("📅 [cyan]Filtering[/] from %s to %s", from_date, to_date)
         elif from_date:
-            messages_table = messages_table.filter(messages_table.timestamp.date() >= from_date)
+            messages_table = messages_table.filter(messages_table.ts.date() >= from_date)
             logger.info("📅 [cyan]Filtering[/] from %s onwards", from_date)
         elif to_date:
-            messages_table = messages_table.filter(messages_table.timestamp.date() <= to_date)
+            messages_table = messages_table.filter(messages_table.ts.date() <= to_date)
             logger.info("📅 [cyan]Filtering[/] up to %s", to_date)
         filtered_count = messages_table.count().execute()
         removed_by_date = original_count - filtered_count
@@ -845,7 +963,7 @@ def _apply_filters(
             last_timestamp = last_timestamp.astimezone(utc_zone)
 
         original_count = messages_table.count().execute()
-        messages_table = messages_table.filter(messages_table.timestamp > last_timestamp)
+        messages_table = messages_table.filter(messages_table.ts > last_timestamp)
         filtered_count = messages_table.count().execute()
         resumed_count = original_count - filtered_count
 
@@ -919,12 +1037,21 @@ def run(
     else:
         # If client is provided, still need to setup most things
         output_dir = output_dir.expanduser().resolve()
-        site_paths = resolve_site_paths(output_dir)
-        if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
-            msg = f"No mkdocs.yml found for site at {output_dir}. Run 'egregora init <site-dir>' before processing exports."
-            raise ValueError(msg)
-        if not site_paths.docs_dir.exists():
-            msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
+        site_paths = _resolve_pipeline_site_paths(output_dir, config)
+        format_type = config.output.format
+        if format_type != "eleventy-arrow":
+            if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
+                msg = f"No mkdocs.yml found for site at {output_dir}. Run 'egregora init <site-dir>' before processing exports."
+                raise ValueError(msg)
+            if not site_paths.docs_dir.exists():
+                msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
+                raise ValueError(msg)
+        elif not site_paths.docs_dir.exists():
+            msg = (
+                "Eleventy content directory not found at"
+                f" {site_paths.docs_dir}. Run 'egregora init <site-dir> --output-format eleventy-arrow' "
+                "to scaffold the project before processing exports."
+            )
             raise ValueError(msg)
         runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
         cli_model_override = model_override

@@ -10,8 +10,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
-    from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
-
 # Constants
 ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
 FILENAME_PARTS_WITH_EXTENSION = 2  # Parts when splitting filename by "." (name, extension)

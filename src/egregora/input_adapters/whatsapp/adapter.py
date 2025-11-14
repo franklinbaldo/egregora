@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import re
+import uuid
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,17 +23,44 @@ import ibis
 
 from egregora.data_primitives import GroupSlug
 from egregora.database.validation import create_ir_table
-from egregora.sources.base import AdapterMeta, InputAdapter
-from egregora.sources.whatsapp.models import WhatsAppExport
-from egregora.sources.whatsapp.parser import (
+from egregora.input_adapters.base import AdapterMeta, InputAdapter
+from egregora.input_adapters.whatsapp.models import WhatsAppExport
+from egregora.input_adapters.whatsapp.parser import (
     parse_source,
 )  # Phase 6: Renamed from parse_export (alpha - breaking)
-from egregora.sources.whatsapp.pipeline import discover_chat_file
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 logger = logging.getLogger(__name__)
-__all__ = ["WhatsAppAdapter"]
+__all__ = ["WhatsAppAdapter", "discover_chat_file"]
+
+
+def discover_chat_file(zip_path: Path) -> tuple[str, str]:
+    """Find the chat ``.txt`` file in ``zip_path`` and infer the group name."""
+    with zipfile.ZipFile(zip_path) as zf:
+        candidates: list[tuple[int, str, str]] = []
+        for member in zf.namelist():
+            if not member.endswith(".txt") or member.startswith("__"):
+                continue
+
+            pattern = r"WhatsApp(?: Chat with|.*) (.+)\\.txt"
+            match = re.match(pattern, Path(member).name)
+            file_info = zf.getinfo(member)
+            score = file_info.file_size
+            if match:
+                score += 1_000_000
+                group_name = match.group(1)
+            else:
+                group_name = Path(member).stem
+            candidates.append((score, group_name, member))
+
+        if not candidates:
+            msg = f"No WhatsApp chat file found in {zip_path}"
+            raise ValueError(msg)
+
+        candidates.sort(reverse=True, key=lambda item: item[0])
+        _, group_name, member = candidates[0]
+        return (group_name, member)
 
 
 class _EmptyKwargs(TypedDict):
@@ -129,6 +157,9 @@ class WhatsAppAdapter(InputAdapter):
 
     """
 
+    def __init__(self, *, author_namespace: uuid.UUID | None = None) -> None:
+        self._author_namespace = author_namespace
+
     @property
     def source_name(self) -> str:
         return "WhatsApp"
@@ -196,7 +227,15 @@ class WhatsAppAdapter(InputAdapter):
             return _convert_whatsapp_media_to_markdown(message)
 
         messages_table = messages_table.mutate(message=convert_media_to_markdown(messages_table.message))
-        ir_table = create_ir_table(messages_table, timezone=timezone)
+        tenant_id = str(export.group_slug)
+        ir_table = create_ir_table(
+            messages_table,
+            tenant_id=tenant_id,
+            source=self.source_identifier,
+            thread_key=tenant_id,
+            timezone=timezone,
+            author_namespace=self._author_namespace,
+        )
         logger.debug("Parsed WhatsApp export with %s messages", ir_table.count().execute())
         return ir_table
 
