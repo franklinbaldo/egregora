@@ -517,35 +517,76 @@ ELO_HISTORY_SCHEMA = ibis.schema({
 Add to `config/settings.py`:
 
 ```python
-@dataclass
-class ReaderSettings:
+class ReaderSettings(BaseModel):
     """Reader agent configuration."""
 
-    enabled: bool = True
-    model: str = "google-gla:gemini-2.0-flash-exp"
-    default_strategy: str = "fewest_games"
-    k_factor: int = 32  # ELO K-factor
-    default_elo: float = 1500.0
-    min_stars: int = 1
-    max_stars: int = 5
-    max_comment_length: int = 250
-    feedback_rounds_default: int = 50
+    enabled: bool = Field(
+        default=True,
+        description="Enable the reader pipeline",
+    )
+    model: PydanticModelName = Field(
+        default=DEFAULT_MODEL,
+        description="Model used for reader/feedback comparisons",
+    )
+    default_strategy: str = Field(
+        default="fewest_games",
+        description="Default post selection strategy",
+    )
+    k_factor: int = Field(
+        default=32,
+        ge=1,
+        description="ELO K-factor",
+    )
+    default_elo: float = Field(
+        default=1500.0,
+        description="Starting ELO score for posts",
+    )
+    min_stars: int = Field(
+        default=1,
+        ge=1,
+        le=5,
+        description="Minimum star rating",
+    )
+    max_stars: int = Field(
+        default=5,
+        ge=1,
+        le=5,
+        description="Maximum star rating",
+    )
+    max_comment_length: int = Field(
+        default=250,
+        ge=0,
+        description="Maximum feedback comment length",
+    )
+    feedback_rounds_default: int = Field(
+        default=50,
+        ge=1,
+        description="Default number of feedback comparisons per run",
+    )
 
-@dataclass
-class EgregoraConfig:
+
+class EgregoraConfig(BaseModel):
     # ... existing fields ...
-    reader: ReaderSettings = field(default_factory=ReaderSettings)
+    reader: ReaderSettings = Field(
+        default_factory=ReaderSettings,
+        description="Reader agent configuration",
+    )
 ```
 
-Add to `.egregora/config.yml`:
+`load_egregora_config` and `create_default_config` already rely on `EgregoraConfig(**data)` and `EgregoraConfig()` respectively, so no additional logic is required—adding the `reader` field ensures the new defaults are injected whenever the section is missing from disk, and `save_egregora_config` will persist the populated values automatically.
+
+Update `.egregora/config.yml` defaults to align with the Pydantic schema:
 
 ```yaml
 reader:
   enabled: true
-  model: google-gla:gemini-2.0-flash-exp
+  model: google-gla:gemini-flash-latest
   default_strategy: fewest_games
   k_factor: 32
   default_elo: 1500.0
+  min_stars: 1
+  max_stars: 5
+  max_comment_length: 250
   feedback_rounds_default: 50
 ```
 
