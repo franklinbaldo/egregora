@@ -16,7 +16,10 @@ import pytest
 from pydantic_ai.models.test import TestModel
 
 from egregora.config import resolve_site_paths
-from egregora.orchestration.write_pipeline import process_whatsapp_export
+from egregora.orchestration.write_pipeline import (
+    WhatsAppProcessOptions,
+    process_whatsapp_export,
+)
 from tests.utils.mock_batch_client import create_mock_genai_client
 
 if TYPE_CHECKING:
@@ -97,8 +100,7 @@ def test_pipeline_with_golden_fixtures(
     client = create_mock_genai_client()
 
     # Run the pipeline - enrichment remains disabled because we do not stub binary uploads here.
-    process_whatsapp_export(
-        zip_path=whatsapp_fixture.zip_path,
+    options = WhatsAppProcessOptions(
         output_dir=output_dir,
         step_size=100,
         step_unit="messages",
@@ -106,6 +108,10 @@ def test_pipeline_with_golden_fixtures(
         enable_enrichment=False,  # Binary uploads remain hard to stub in this test harness
         retrieval_mode="exact",  # Exact mode avoids VSS extension dependency (see docstring)
         client=client,
+    )
+    process_whatsapp_export(
+        whatsapp_fixture.zip_path,
+        options=options,
     )
 
     # Verify that the basic output structure was created
