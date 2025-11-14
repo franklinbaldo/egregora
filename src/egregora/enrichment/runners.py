@@ -380,10 +380,7 @@ def _enrich_urls(
                     continue
 
                 existing_ts = existing.get("timestamp")
-                if (
-                    timestamp_value is not None
-                    and (existing_ts is None or timestamp_value < existing_ts)
-                ):
+                if timestamp_value is not None and (existing_ts is None or timestamp_value < existing_ts):
                     existing["timestamp"] = timestamp_value
 
         if discovered_count >= max_enrichments:
@@ -456,10 +453,7 @@ def _extract_media_references(
                     continue
 
                 existing_ts = existing.get("timestamp")
-                if (
-                    timestamp_value is not None
-                    and (existing_ts is None or timestamp_value < existing_ts)
-                ):
+                if timestamp_value is not None and (existing_ts is None or timestamp_value < existing_ts):
                     existing["timestamp"] = timestamp_value
 
     return unique_media, metadata_lookup
@@ -481,9 +475,7 @@ def _enrich_media(
     pii_media_deleted = False
 
     media_filename_lookup = _build_media_filename_lookup(media_mapping)
-    unique_media, metadata_lookup = _extract_media_references(
-        messages_table, media_filename_lookup
-    )
+    unique_media, metadata_lookup = _extract_media_references(messages_table, media_filename_lookup)
 
     sorted_media = sorted(
         unique_media,
