@@ -21,6 +21,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Stage Codex helper script from base revision
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/trusted_codex
+          cp scripts/github/create_codex_task.py /tmp/trusted_codex/
+
       - name: Fetch pull request branch
         env:
           PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.clone_url }}
@@ -78,7 +84,7 @@ jobs:
         env:
           CODEX_API_TOKEN: ${{ secrets.CODEX_API_TOKEN }}
         run: |
-          python3 scripts/github/create_codex_task.py \
+          python3 /tmp/trusted_codex/create_codex_task.py \
             --pr-number "${{ github.event.pull_request.number }}" \
             --author "${{ github.event.pull_request.user.login }}" \
             --pr-url "${{ github.event.pull_request.html_url }}" \
