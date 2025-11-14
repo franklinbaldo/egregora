@@ -168,7 +168,11 @@ def fingerprint_table(table: ibis.Table) -> str:
             # Some backends may not support ordering by complex column types
             ordered_table = table
 
-    sample = ordered_table.limit(1000).execute()
+    try:
+        sample = ordered_table.limit(1000).execute()
+    except (IbisError, NotImplementedError, TypeError):
+        # Ordering can fail during execution even if building the expression succeeds
+        sample = table.limit(1000).execute()
     data_str = sample.to_csv(index=False)
 
     # Combine schema + data
