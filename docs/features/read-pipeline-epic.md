@@ -139,16 +139,31 @@ from egregora.data_primitives import Document, DocumentType
 posts = output_adapter.list_documents(doc_type=DocumentType.POST)
 ```
 
-**OutputAdapter:**
-```python
-# Read posts from site structure
-class OutputAdapter:
-    def read_document(self, document_id: str) -> Document:
-        """Load document content for reading."""
+**OutputAdapter (CRITICAL - Format Independence):**
 
-    def list_documents(self, doc_type: DocumentType) -> list[Document]:
-        """List all documents of a type."""
+The reader CLI **MUST use OutputAdapter** to read posts, not hardcode MkDocs/Hugo paths.
+
+```python
+# List all documents (returns Ibis table)
+docs_table = output_adapter.list_documents()
+# → storage_identifier (e.g., "posts/2025-01-10-post.md"), mtime_ns
+
+# Resolve identifier to filesystem path
+for doc in docs_table.execute().itertuples():
+    path = output_adapter.resolve_document_path(doc.storage_identifier)
+    content = path.read_text()
+    metadata, body = output_adapter.parse_frontmatter(content)
+    # Now have: post title, date, tags, etc. + content
+
+# Use storage properties for type-specific access
+posts_storage = output_adapter.posts
+profile_storage = output_adapter.profiles
 ```
+
+**Why this matters:**
+- ✅ Works with MkDocs, Hugo, Database backends, S3 storage
+- ✅ No hardcoded paths (filesystem-agnostic)
+- ✅ Future-proof (new formats need zero reader changes)
 
 **RAG/Vector Store:**
 ```python
@@ -247,12 +262,41 @@ track_run_event("reader_comparison", metadata={
    ) -> ReadPipelineResult:
        """Execute the read pipeline workflow.
 
-       1. Load existing posts from site (via OutputAdapter)
-       2. Select posts to compare (via strategy)
-       3. Run reader agent comparisons
-       4. Update ELO ratings
-       5. Generate insights/reports
+       1. Initialize OutputAdapter (format-independent!)
+       2. Load existing posts via OutputAdapter.list_documents()
+       3. Select posts to compare (via strategy)
+       4. Run reader agent comparisons
+       5. Update ELO ratings
+       6. Generate insights/reports
+
+       CRITICAL: Uses OutputAdapter for format independence.
+       Works with MkDocs, Hugo, Database, S3, etc.
        """
+       # Step 1: Initialize OutputAdapter
+       from egregora.output_adapters import output_registry
+
+       output_adapter = output_registry.detect_format(site_dir)
+       if not output_adapter:
+           raise ValueError(f"No output format detected for {site_dir}")
+
+       output_adapter.initialize(site_dir)
+
+       # Step 2: Load posts (format-independent!)
+       docs_table = output_adapter.list_documents()
+       posts = []
+       for doc in docs_table.execute().itertuples():
+           path = output_adapter.resolve_document_path(doc.storage_identifier)
+           content = path.read_text()
+           metadata, body = output_adapter.parse_frontmatter(content)
+           posts.append({
+               "post_id": Path(doc.storage_identifier).stem,
+               "title": metadata.get("title"),
+               "content": body,
+               "metadata": metadata,
+           })
+
+       # Step 3-6: Run comparisons, update ratings, generate insights
+       ...
    ```
 
 2. **Define selection strategies** (`agents/reader/strategies.py`)
