@@ -52,12 +52,14 @@ def _parse_remove_command(args: str) -> dict:
 
 COMMAND_REGISTRY = {"set": _parse_set_command, "remove": _parse_remove_command}
 
-SMART_QUOTES_TRANSLATION = str.maketrans({
-    "“": '"',
-    "”": '"',
-    "‘": "'",
-    "’": "'",
-})
+SMART_QUOTES_TRANSLATION = str.maketrans(
+    {
+        "“": '"',
+        "”": '"',
+        "‘": "'",
+        "’": "'",
+    }
+)
 
 
 def parse_egregora_command(message: str) -> dict | None:

@@ -14,7 +14,6 @@ __all__ = [
 
 def __getattr__(name: str) -> Any:  # pragma: no cover - convenience import shim
     """Lazily import heavy modules to keep optional dependencies optional."""
-
     if name in {"WhatsAppAdapter", "WhatsAppExport", "discover_chat_file"}:
         module = import_module("egregora.input_adapters.whatsapp")
         return getattr(module, name)
