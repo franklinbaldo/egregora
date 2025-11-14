@@ -131,7 +131,7 @@ class WhatsAppAdapter(InputAdapter):
     """
 
     def __init__(self, *, author_namespace: uuid.UUID | None = None) -> None:
-        self._author_namespace = author_namespace or uuid.NAMESPACE_URL
+        self._author_namespace = author_namespace
 
     @property
     def source_name(self) -> str:

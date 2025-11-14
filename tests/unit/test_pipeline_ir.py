@@ -37,7 +37,7 @@ class TestIRSchema:
             "created_at",
             "created_by_run",
         }
-        assert set(IR_MESSAGE_SCHEMA.keys()) == required_fields
+        assert set(IR_MESSAGE_SCHEMA.names) == required_fields
 
     def test_validate_ir_schema_with_valid_table(self):
         """Validation should pass for a table conforming to IR schema."""

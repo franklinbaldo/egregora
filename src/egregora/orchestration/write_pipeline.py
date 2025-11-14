@@ -831,7 +831,7 @@ def _save_checkpoint(results: dict, messages_table: ir.Table, checkpoint_path: P
 
     # Checkpoint based on messages in the filtered table
     checkpoint_stats = messages_table.aggregate(
-        max_timestamp=messages_table.timestamp.max(),
+        max_timestamp=messages_table.ts.max(),
         total_processed=messages_table.count(),
     ).execute()
 
@@ -880,14 +880,14 @@ def _apply_filters(
         original_count = messages_table.count().execute()
         if from_date and to_date:
             messages_table = messages_table.filter(
-                (messages_table.timestamp.date() >= from_date) & (messages_table.timestamp.date() <= to_date)
+                (messages_table.ts.date() >= from_date) & (messages_table.ts.date() <= to_date)
             )
             logger.info("📅 [cyan]Filtering[/] from %s to %s", from_date, to_date)
         elif from_date:
-            messages_table = messages_table.filter(messages_table.timestamp.date() >= from_date)
+            messages_table = messages_table.filter(messages_table.ts.date() >= from_date)
             logger.info("📅 [cyan]Filtering[/] from %s onwards", from_date)
         elif to_date:
-            messages_table = messages_table.filter(messages_table.timestamp.date() <= to_date)
+            messages_table = messages_table.filter(messages_table.ts.date() <= to_date)
             logger.info("📅 [cyan]Filtering[/] up to %s", to_date)
         filtered_count = messages_table.count().execute()
         removed_by_date = original_count - filtered_count
@@ -908,7 +908,7 @@ def _apply_filters(
             last_timestamp = last_timestamp.astimezone(utc_zone)
 
         original_count = messages_table.count().execute()
-        messages_table = messages_table.filter(messages_table.timestamp > last_timestamp)
+        messages_table = messages_table.filter(messages_table.ts > last_timestamp)
         filtered_count = messages_table.count().execute()
         resumed_count = original_count - filtered_count
 
