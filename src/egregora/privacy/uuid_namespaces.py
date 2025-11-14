@@ -161,7 +161,6 @@ def deterministic_event_uuid(
 
 def deterministic_thread_uuid(tenant_id: str, source: str, thread_key: str) -> uuid.UUID:
     """Generate deterministic UUID for a thread/conversation identifier."""
-
     ctx = NamespaceContext(tenant_id=tenant_id, source=source)
     thread_namespace = ctx.thread_namespace()
     normalized_key = thread_key.strip().lower()

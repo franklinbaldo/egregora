@@ -19,7 +19,6 @@ from uuid import uuid4
 
 import ibis
 import pytest
-from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -30,6 +29,7 @@ from egregora.privacy.gate import (
     PrivacyPass,
     require_privacy_pass,
 )
+from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 
 # ============================================================================
 # PrivacyPass Token Tests

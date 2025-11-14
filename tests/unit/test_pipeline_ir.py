@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 
 import ibis
 import pytest
-from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 
 from egregora.database.validation import (
     IR_MESSAGE_SCHEMA,
@@ -13,6 +12,7 @@ from egregora.database.validation import (
     create_ir_table,
     validate_ir_schema,
 )
+from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 
 
 class TestIRSchema:

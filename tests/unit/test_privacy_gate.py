@@ -15,11 +15,11 @@ from uuid import uuid4
 
 import ibis
 import pytest
-from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 
 from egregora.database.validation import IR_MESSAGE_SCHEMA
 from egregora.privacy.config import PrivacySettings
 from egregora.privacy.gate import PrivacyGate, PrivacyPass, require_privacy_pass
+from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 
 
 def _build_ir_table(
