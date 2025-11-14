@@ -40,8 +40,8 @@ from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
 from egregora.enrichment.runners import EnrichmentRuntimeContext
 from egregora.input_adapters import get_adapter
+from egregora.input_adapters.whatsapp.parser import extract_commands, filter_egregora_messages
 from egregora.output_adapters.mkdocs import resolve_site_paths
-from egregora.sources.whatsapp.parser import extract_commands, filter_egregora_messages
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.transformations.media import process_media_for_window
 from egregora.utils.cache import EnrichmentCache

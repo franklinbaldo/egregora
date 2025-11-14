@@ -19,8 +19,8 @@ import re
 from typing import TYPE_CHECKING
 
 from egregora.constants import EgregoraCommand
-from egregora.sources.whatsapp.parser_sql import parse_multiple as _parse_multiple_impl
-from egregora.sources.whatsapp.parser_sql import parse_source as _parse_source_impl
+from egregora.input_adapters.whatsapp.parser_sql import parse_multiple as _parse_multiple_impl
+from egregora.input_adapters.whatsapp.parser_sql import parse_source as _parse_source_impl
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
     from ibis.expr.types import Table
 
-    from egregora.sources.whatsapp.models import WhatsAppExport
+    from egregora.input_adapters.whatsapp.models import WhatsAppExport
 
 SET_COMMAND_PARTS = 2
 logger = logging.getLogger(__name__)

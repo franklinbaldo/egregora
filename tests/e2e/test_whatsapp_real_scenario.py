@@ -13,8 +13,8 @@ import pytest
 from egregora.config.settings import create_default_config
 from egregora.enrichment.media import extract_and_replace_media
 from egregora.enrichment.runners import EnrichmentRuntimeContext, enrich_table
-from egregora.sources.whatsapp import process_whatsapp_export
-from egregora.sources.whatsapp.parser import filter_egregora_messages, parse_source
+from egregora.input_adapters.whatsapp.parser import filter_egregora_messages, parse_source
+from egregora.orchestration.write_pipeline import process_whatsapp_export
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
 

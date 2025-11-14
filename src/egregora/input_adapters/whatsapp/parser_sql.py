@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
     from ibis.expr.types import Table
 
-    from egregora.sources.whatsapp.models import WhatsAppExport
+    from egregora.input_adapters.whatsapp.models import WhatsAppExport
 
 logger = logging.getLogger(__name__)
 _IMPORT_ORDER_COLUMN = "_import_order"
