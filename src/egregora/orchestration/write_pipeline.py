@@ -307,8 +307,8 @@ def _resolve_context_token_limit(config: EgregoraConfig, cli_model_override: str
 
     Returns:
         Maximum number of prompt tokens available for a window.
-    """
 
+    """
     if getattr(config.pipeline, "use_full_context_window", False):
         writer_model = get_model_for_task("writer", config, cli_override=cli_model_override)
         return get_model_context_limit(writer_model)
