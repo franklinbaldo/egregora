@@ -28,7 +28,7 @@ from egregora.enrichment.agents import (
     load_file_as_binary_content,
 )
 from egregora.enrichment.media import detect_media_type, extract_urls
-from egregora.sources.whatsapp.parser import extract_commands
+from egregora.input_adapters.whatsapp.parser import extract_commands
 from egregora.utils import EnrichmentCache, make_enrichment_cache_key
 
 if TYPE_CHECKING:
