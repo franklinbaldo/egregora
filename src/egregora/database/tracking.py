@@ -41,6 +41,7 @@ from typing import Any, TypeVar
 
 import duckdb
 import ibis
+from ibis.common.exceptions import IbisError
 
 # Type variable for stage function return type
 T = TypeVar("T")
@@ -156,9 +157,18 @@ def fingerprint_table(table: ibis.Table) -> str:
     schema_str = str(table.schema())
 
     # Hash sample of data (first 1000 rows)
-    # FIXME: This is non-deterministic if table order changes
-    # Better approach: hash sorted data or use table metadata
-    sample = table.limit(1000).execute()
+    # Order rows deterministically so fingerprint is stable across executions
+    ordered_table = table
+    column_names = table.schema().names
+    if column_names:
+        order_by_exprs = [table[name] for name in column_names]
+        try:
+            ordered_table = table.order_by(order_by_exprs)
+        except (IbisError, NotImplementedError, TypeError):
+            # Some backends may not support ordering by complex column types
+            ordered_table = table
+
+    sample = ordered_table.limit(1000).execute()
     data_str = sample.to_csv(index=False)
 
     # Combine schema + data
