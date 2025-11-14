@@ -153,7 +153,8 @@ def create_windows(
         table: Table with timestamp column
         step_size: Size of each window (ignored for bytes mode)
         step_unit: Unit for windowing ("messages", "hours", "days", "bytes")
-        overlap_ratio: Fraction of window to overlap (0.0-0.5, default 0.2 = 20%)
+        overlap_ratio: Fraction of window to overlap (0.0-0.5, default 0.2 = 20%).
+            Values outside this range are clamped before processing.
         max_window_time: Optional maximum time span per window **step** (not
             including overlap). Actual window duration will be
             max_window_time × (1 + overlap_ratio). To strictly bound total
@@ -176,69 +177,123 @@ def create_windows(
     if table.count().execute() == 0:
         return
 
-    # Sort by timestamp (IR v1: use .ts column)
+    normalized_unit = step_unit.lower()
+    normalized_ratio = max(0.0, min(overlap_ratio, 0.5))
+
+    if normalized_ratio != overlap_ratio:
+        logger.info(
+            "Adjusted overlap_ratio from %s to %s (supported range: 0.0-0.5)",
+            overlap_ratio,
+            normalized_ratio,
+        )
+
     sorted_table = table.order_by(table.ts)
 
-    # Calculate overlap in messages
-    overlap = int(step_size * overlap_ratio)
-
-    if step_unit == "messages":
-        windows = _window_by_count(sorted_table, step_size, overlap)
-        if max_window_time:
-            logger.warning(
-                "⚠️  max_window_time constraint not enforced for message-based windowing. "
-                "Use time-based windowing (--step-unit=hours/days) for strict time limits."
-            )
-    elif step_unit in ("hours", "days"):
-        # Dynamically reduce step_size if max_window_time constraint would be exceeded
-        effective_step_size = step_size
-        effective_step_unit = step_unit
-
-        if max_window_time:
-            # Convert step_size to timedelta
-            if step_unit == "hours":
-                requested_delta = timedelta(hours=step_size)
-            else:  # days
-                requested_delta = timedelta(days=step_size)
-
-            # If requested window exceeds max, reduce to max
-            if requested_delta > max_window_time:
-                # Account for overlap: window_duration = step_size * (1 + overlap_ratio)
-                # So: effective_step_size = max_window_time / (1 + overlap_ratio)
-                max_with_overlap = max_window_time / (1 + overlap_ratio)
-
-                # Convert to appropriate unit
-                max_hours = max_with_overlap.total_seconds() / 3600
-                if max_hours < HOURS_PER_DAY:
-                    # Use hours if < 1 day (floor to avoid exceeding)
-                    effective_step_size = math.floor(max_hours)
-                    effective_step_size = max(effective_step_size, 1)  # Minimum 1 hour
-                    effective_step_unit = "hours"
-                else:
-                    # Use days if >= 1 day (floor to avoid exceeding)
-                    effective_step_size = math.floor(max_with_overlap.days)
-                    effective_step_size = max(effective_step_size, 1)  # Minimum 1 day
-                    effective_step_unit = "days"
-
-                logger.info(
-                    "🔧 [yellow]Adjusted window size:[/] %s %s → %s %s (max_window_time=%s)",
-                    step_size,
-                    step_unit,
-                    effective_step_size,
-                    effective_step_unit,
-                    max_window_time,
-                )
-
-        windows = _window_by_time(sorted_table, effective_step_size, effective_step_unit, overlap_ratio)
-    elif step_unit == "bytes":
-        # Byte-packing mode: maximize messages per window up to byte limit
-        overlap_bytes = int(max_bytes_per_window * overlap_ratio)
-        windows = _window_by_bytes(sorted_table, max_bytes_per_window, overlap_bytes)
+    if normalized_unit == "messages":
+        yield from _prepare_message_windows(
+            sorted_table,
+            step_size=step_size,
+            overlap_ratio=normalized_ratio,
+            max_window_time=max_window_time,
+        )
+    elif normalized_unit in {"hours", "days"}:
+        yield from _prepare_time_windows(
+            sorted_table,
+            step_size=step_size,
+            step_unit=normalized_unit,
+            overlap_ratio=normalized_ratio,
+            max_window_time=max_window_time,
+        )
+    elif normalized_unit == "bytes":
+        yield from _prepare_byte_windows(
+            sorted_table,
+            max_bytes_per_window=max_bytes_per_window,
+            overlap_ratio=normalized_ratio,
+        )
     else:
-        msg = f"Unknown step_unit: {step_unit}. Must be 'messages', 'hours', 'days', or 'bytes'."
+        msg = (
+            f"Unknown step_unit: {step_unit}. Must be 'messages', 'hours', 'days', or 'bytes'."
+        )
         raise ValueError(msg)
 
-    yield from windows
+
+def _prepare_message_windows(
+    table: Table,
+    *,
+    step_size: int,
+    overlap_ratio: float,
+    max_window_time: timedelta | None,
+) -> Iterator[Window]:
+    """Normalize message-based inputs and generate windows."""
+
+    overlap = int(step_size * overlap_ratio)
+
+    if max_window_time:
+        logger.warning(
+            "⚠️  max_window_time constraint not enforced for message-based windowing. "
+            "Use time-based windowing (--step-unit=hours/days) for strict time limits."
+        )
+
+    yield from _window_by_count(table, step_size, overlap)
+
+
+def _prepare_time_windows(
+    table: Table,
+    *,
+    step_size: int,
+    step_unit: str,
+    overlap_ratio: float,
+    max_window_time: timedelta | None,
+) -> Iterator[Window]:
+    """Normalize time-based inputs (including max_window_time) and generate windows."""
+
+    effective_step_size = step_size
+    effective_step_unit = step_unit
+
+    if max_window_time:
+        if step_unit == "hours":
+            requested_delta = timedelta(hours=step_size)
+        else:
+            requested_delta = timedelta(days=step_size)
+
+        if requested_delta > max_window_time:
+            max_with_overlap = max_window_time / (1 + overlap_ratio)
+            max_hours = max_with_overlap.total_seconds() / 3600
+
+            if max_hours < HOURS_PER_DAY:
+                effective_step_size = max(math.floor(max_hours), 1)
+                effective_step_unit = "hours"
+            else:
+                effective_step_size = max(math.floor(max_with_overlap.days), 1)
+                effective_step_unit = "days"
+
+            logger.info(
+                "🔧 [yellow]Adjusted window size:[/] %s %s → %s %s (max_window_time=%s)",
+                step_size,
+                step_unit,
+                effective_step_size,
+                effective_step_unit,
+                max_window_time,
+            )
+
+    yield from _window_by_time(
+        table,
+        effective_step_size,
+        effective_step_unit,
+        overlap_ratio,
+    )
+
+
+def _prepare_byte_windows(
+    table: Table,
+    *,
+    max_bytes_per_window: int,
+    overlap_ratio: float,
+) -> Iterator[Window]:
+    """Normalize byte-based inputs and generate windows."""
+
+    overlap_bytes = int(max_bytes_per_window * overlap_ratio)
+    yield from _window_by_bytes(table, max_bytes_per_window, overlap_bytes)
 
 
 def _window_by_count(
