@@ -203,7 +203,7 @@ def extract_and_replace_media(
     batch_size = 1000
     for batch_records in _iter_table_record_batches(messages_table, batch_size):
         for row in batch_records:
-            message = row.get("message", "")
+            message = row.get("content", "")
             media_refs = find_media_references(message)
             all_media.update(media_refs)
     # Compute media_dir from docs_dir (MkDocs convention: media/ subdirectory)
@@ -216,8 +216,7 @@ def extract_and_replace_media(
     def replace_in_message(message: str) -> str:
         return replace_media_mentions(message, media_mapping, docs_dir, posts_dir) if message else message
 
-    # IR v1: use .text column
-    updated_table = messages_table.mutate(text=replace_in_message(messages_table.text))
+    updated_table = messages_table.mutate(content=replace_in_message(messages_table.content))
     return (updated_table, media_mapping)
 
 

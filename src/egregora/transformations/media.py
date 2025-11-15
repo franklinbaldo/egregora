@@ -43,31 +43,30 @@ __all__ = ["process_media_for_window"]
 
 
 def extract_markdown_media_refs(table: Table) -> set[str]:
-    """Extract all markdown media references from message column.
+    """Extract all markdown media references from content column.
 
     Finds both image references ![alt](ref) and link references [text](ref)
-    in the 'message' column of the table.
+    in the 'content' column of the table.
 
     Args:
-        table: Ibis table with 'message' column
+        table: Ibis table with MESSAGE_SCHEMA
 
     Returns:
         Set of unique media references (e.g., {"photo.jpg", "video.mp4"})
 
     Example:
         >>> table = ibis.memtable([
-        ...     {"message": "Check this ![photo](IMG-001.jpg)"},
-        ...     {"message": "Video here [video](VID-002.mp4)"},
+        ...     {"content": "Check this ![photo](IMG-001.jpg)"},
+        ...     {"content": "Video here [video](VID-002.mp4)"},
         ... ])
         >>> extract_markdown_media_refs(table)
         {'IMG-001.jpg', 'VID-002.mp4'}
 
     """
     references = set()
-    # IR v1: use "text" column instead of "message"
-    messages = table.select("text").execute()
+    messages = table.select("content").execute()
     for row in messages.itertuples(index=False):
-        message = row.text
+        message = row.content
         if not message:
             continue
         for match in MARKDOWN_IMAGE_PATTERN.finditer(message):
@@ -86,12 +85,12 @@ def replace_markdown_media_refs(
 ) -> Table:
     """Replace markdown media references with standardized paths.
 
-    Updates message column by replacing original references with standardized
+    Updates content column by replacing original references with standardized
     UUID-based filenames from the media mapping. Computes relative paths from
     posts_dir to the media files for markdown links.
 
     Args:
-        table: Ibis table with 'message' column
+        table: Ibis table with MESSAGE_SCHEMA
         media_mapping: Dict mapping original reference to absolute file path
                       Example: {"photo.jpg": Path("/abs/path/docs/media/images/a1b2c3d4.jpg")}
         docs_dir: MkDocs docs directory (for fallback relative path computation)
@@ -101,14 +100,14 @@ def replace_markdown_media_refs(
         Updated table with replaced references
 
     Example:
-        >>> table = ibis.memtable([{"message": "See ![photo](IMG-001.jpg)"}])
+        >>> table = ibis.memtable([{"content": "See ![photo](IMG-001.jpg)"}])
         >>> mapping = {"IMG-001.jpg": Path("/site/docs/media/abc123.jpg")}
         >>> updated = replace_markdown_media_refs(
         ...     table, mapping,
         ...     docs_dir=Path("/site/docs"),
         ...     posts_dir=Path("/site/docs/posts")
         ... )
-        >>> # Message is now: "See ![photo](../media/abc123.jpg)"
+        >>> # Content is now: "See ![photo](../media/abc123.jpg)"
 
     """
     if not media_mapping:
@@ -122,8 +121,7 @@ def replace_markdown_media_refs(
                 relative_link = "/" + absolute_path.relative_to(docs_dir).as_posix()
             except ValueError:
                 relative_link = absolute_path.as_posix()
-        # IR v1: use "text" column instead of "message"
-        df["text"] = df["text"].str.replace(f"]({original_ref})", f"]({relative_link})", regex=False)
+        df["content"] = df["content"].str.replace(f"]({original_ref})", f"]({relative_link})", regex=False)
     updated_table = ibis.memtable(df)
     logger.debug("Replaced %s media references in messages", len(media_mapping))
     return updated_table
@@ -145,10 +143,10 @@ def process_media_for_window(
     2. Calls adapter.deliver_media() to obtain actual files
     3. Computes content hashes and generates UUIDs
     4. Moves files to media_dir with standardized names
-    5. Updates message references to point to standardized paths
+    5. Updates content references to point to standardized paths
 
     Args:
-        window_table: Ibis table for this window (with 'message' column)
+        window_table: Ibis table with MESSAGE_SCHEMA
         adapter: Source adapter that implements deliver_media()
         media_dir: Directory where standardized media files should be stored
         temp_dir: Temporary directory for intermediate files
