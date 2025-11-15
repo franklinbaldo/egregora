@@ -9,7 +9,7 @@ import pytest
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext
-from egregora.output_adapters.mkdocs import LegacyMkDocsUrlConvention, MkDocsFilesystemAdapter
+from egregora.output_adapters.mkdocs import LegacyMkDocsUrlConvention, MkDocsAdapter
 from tests.unit.storage.test_output_format_conformance import OutputFormatConformanceTests
 
 
@@ -21,9 +21,11 @@ class TestMkDocsOutputFormatConformance(OutputFormatConformanceTests):
 
     @pytest.fixture
     def output_format(self, tmp_path):
-        """Create MkDocsFilesystemAdapter instance."""
+        """Create MkDocsAdapter instance."""
+        adapter = MkDocsAdapter()
         ctx = UrlContext(base_url="https://example.com")
-        return MkDocsFilesystemAdapter(site_root=tmp_path, url_context=ctx)
+        adapter.initialize(tmp_path, url_context=ctx)
+        return adapter
 
     @pytest.fixture
     def url_convention(self):
@@ -37,13 +39,15 @@ class TestMkDocsOutputFormatConformance(OutputFormatConformanceTests):
 
 
 class TestMkDocsOutputFormatSpecific:
-    """Format-specific tests for MkDocsFilesystemAdapter."""
+    """Format-specific tests for MkDocsAdapter."""
 
     @pytest.fixture
     def output_format(self, tmp_path):
-        """Create MkDocsFilesystemAdapter instance."""
+        """Create MkDocsAdapter instance."""
+        adapter = MkDocsAdapter()
         ctx = UrlContext(base_url="https://example.com")
-        return MkDocsFilesystemAdapter(site_root=tmp_path, url_context=ctx)
+        adapter.initialize(tmp_path, url_context=ctx)
+        return adapter
 
     @pytest.fixture
     def ctx(self):

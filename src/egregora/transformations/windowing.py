@@ -35,67 +35,12 @@ from zoneinfo import ZoneInfo
 import ibis
 from ibis.expr.types import Table
 
+from egregora.constants import WindowUnit
+
 logger = logging.getLogger(__name__)
 
 # Constants
 HOURS_PER_DAY = 24  # Hours in a day for time unit conversion
-
-
-# ============================================================================
-# Checkpoint / Sentinel File Utilities
-# ============================================================================
-
-
-def load_checkpoint(checkpoint_path: Path) -> dict | None:
-    """Load processing checkpoint from sentinel file.
-
-    Args:
-        checkpoint_path: Path to .egregora/checkpoint.json
-
-    Returns:
-        Checkpoint dict with 'last_processed_timestamp' or None if not found
-
-    """
-    if not checkpoint_path.exists():
-        return None
-
-    try:
-        with checkpoint_path.open() as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        logger.warning("Failed to load checkpoint from %s: %s", checkpoint_path, e)
-        return None
-
-
-def save_checkpoint(checkpoint_path: Path, last_timestamp: datetime, messages_processed: int) -> None:
-    """Save processing checkpoint to sentinel file.
-
-    Args:
-        checkpoint_path: Path to .egregora/checkpoint.json
-        last_timestamp: Timestamp of last processed message
-        messages_processed: Total count of messages processed
-
-    """
-    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-
-    utc_zone = ZoneInfo("UTC")
-    if last_timestamp.tzinfo is None:
-        last_timestamp = last_timestamp.replace(tzinfo=utc_zone)
-    else:
-        last_timestamp = last_timestamp.astimezone(utc_zone)
-
-    checkpoint = {
-        "last_processed_timestamp": last_timestamp.isoformat(),
-        "messages_processed": int(messages_processed),
-        "schema_version": "1.0",
-    }
-
-    try:
-        with checkpoint_path.open("w") as f:
-            json.dump(checkpoint, f, indent=2)
-        logger.info("Checkpoint saved: %s", checkpoint_path)
-    except OSError as e:
-        logger.warning("Failed to save checkpoint to %s: %s", checkpoint_path, e)
 
 
 # ============================================================================
@@ -128,115 +73,43 @@ def create_windows(
     table: Table,
     *,
     step_size: int = 100,
-    step_unit: str = "messages",
+    step_unit: WindowUnit = WindowUnit.MESSAGES,
     overlap_ratio: float = 0.2,
     max_window_time: timedelta | None = None,
     max_bytes_per_window: int = 320_000,
 ) -> Iterator[Window]:
-    """Create processing windows from messages with overlap for context continuity.
-
-    Replaces period-based grouping with flexible windowing:
-    - By message count: step_size=100, step_unit="messages"
-    - By time: step_size=2, step_unit="days"
-    - By byte packing: step_unit="bytes" (maximizes context per window)
-
-    Overlap provides conversation context across window boundaries, improving
-    LLM understanding and blog post quality at the cost of ~20% more tokens.
-
-    Byte packing mode (step_unit="bytes") ignores time boundaries and packs
-    messages to maximize context usage (~4 bytes/token). This minimizes
-    API calls but may produce less time-coherent posts.
-
-    All windows are processed - the LLM decides if content warrants a post.
-
-    Args:
-        table: Table with timestamp column
-        step_size: Size of each window (ignored for bytes mode)
-        step_unit: Unit for windowing ("messages", "hours", "days", "bytes")
-        overlap_ratio: Fraction of window to overlap (0.0-0.5, default 0.2 = 20%)
-        max_window_time: Optional maximum time span per window **step** (not
-            including overlap). Actual window duration will be
-            max_window_time × (1 + overlap_ratio). To strictly bound total
-            duration, set max_window_time = desired_max / (1 + overlap_ratio)
-        max_bytes_per_window: Max bytes per window (for bytes mode, ~4 bytes/token)
-
-    Yields:
-        Window objects with overlapping message sets
-
-    Examples:
-        >>> # 100 messages per window with 20% overlap
-        >>> for window in create_windows(table, step_size=100, step_unit="messages"):
-        ...     print(f"Processing window {window.window_index}: {window.size} messages")
-        >>>
-        >>> # No overlap (old behavior)
-        >>> for window in create_windows(table, step_size=100, overlap_ratio=0.0):
-        ...     pass
-
-    """
+    """Create processing windows from messages with overlap for context continuity."""
     if table.count().execute() == 0:
         return
 
-    # Sort by timestamp (IR v1: use .ts column)
     sorted_table = table.order_by(table.ts)
-
-    # Calculate overlap in messages
     overlap = int(step_size * overlap_ratio)
 
-    if step_unit == "messages":
+    if step_unit == WindowUnit.MESSAGES:
         windows = _window_by_count(sorted_table, step_size, overlap)
         if max_window_time:
-            logger.warning(
-                "⚠️  max_window_time constraint not enforced for message-based windowing. "
-                "Use time-based windowing (--step-unit=hours/days) for strict time limits."
-            )
-    elif step_unit in ("hours", "days"):
-        # Dynamically reduce step_size if max_window_time constraint would be exceeded
+            logger.warning("max_window_time constraint not enforced for message-based windowing.")
+    elif step_unit in (WindowUnit.HOURS, WindowUnit.DAYS):
         effective_step_size = step_size
-        effective_step_unit = step_unit
-
         if max_window_time:
-            # Convert step_size to timedelta
-            if step_unit == "hours":
-                requested_delta = timedelta(hours=step_size)
-            else:  # days
-                requested_delta = timedelta(days=step_size)
+            if step_unit == WindowUnit.HOURS:
+                max_step_size_in_unit = max_window_time.total_seconds() / 3600
+            else:  # DAYS
+                max_step_size_in_unit = max_window_time.total_seconds() / (3600 * HOURS_PER_DAY)
 
-            # If requested window exceeds max, reduce to max
-            if requested_delta > max_window_time:
-                # Account for overlap: window_duration = step_size * (1 + overlap_ratio)
-                # So: effective_step_size = max_window_time / (1 + overlap_ratio)
-                max_with_overlap = max_window_time / (1 + overlap_ratio)
-
-                # Convert to appropriate unit
-                max_hours = max_with_overlap.total_seconds() / 3600
-                if max_hours < HOURS_PER_DAY:
-                    # Use hours if < 1 day (floor to avoid exceeding)
-                    effective_step_size = math.floor(max_hours)
-                    effective_step_size = max(effective_step_size, 1)  # Minimum 1 hour
-                    effective_step_unit = "hours"
-                else:
-                    # Use days if >= 1 day (floor to avoid exceeding)
-                    effective_step_size = math.floor(max_with_overlap.days)
-                    effective_step_size = max(effective_step_size, 1)  # Minimum 1 day
-                    effective_step_unit = "days"
-
+            if step_size > max_step_size_in_unit:
                 logger.info(
-                    "🔧 [yellow]Adjusted window size:[/] %s %s → %s %s (max_window_time=%s)",
-                    step_size,
-                    step_unit,
-                    effective_step_size,
-                    effective_step_unit,
-                    max_window_time,
+                    f"Window step_size ({step_size} {step_unit.value}) exceeds max_window_time ({max_window_time}). "
+                    f"Reducing to {max_step_size_in_unit:.2f} {step_unit.value} to respect time limit."
                 )
+                effective_step_size = int(max_step_size_in_unit)
 
-        windows = _window_by_time(sorted_table, effective_step_size, effective_step_unit, overlap_ratio)
-    elif step_unit == "bytes":
-        # Byte-packing mode: maximize messages per window up to byte limit
+        windows = _window_by_time(sorted_table, effective_step_size, step_unit, overlap_ratio)
+    elif step_unit == WindowUnit.BYTES:
         overlap_bytes = int(max_bytes_per_window * overlap_ratio)
         windows = _window_by_bytes(sorted_table, max_bytes_per_window, overlap_bytes)
     else:
-        msg = f"Unknown step_unit: {step_unit}. Must be 'messages', 'hours', 'days', or 'bytes'."
-        raise ValueError(msg)
+        raise ValueError(f"Unknown step_unit: {step_unit}")
 
     yield from windows
 
@@ -293,7 +166,7 @@ def _window_by_count(
 def _window_by_time(
     table: Table,
     step_size: int,
-    step_unit: str,
+    step_unit: WindowUnit,
     overlap_ratio: float = 0.0,
 ) -> Iterator[Window]:
     """Generate windows of fixed time duration with optional overlap.
@@ -306,7 +179,7 @@ def _window_by_time(
     Args:
         table: Sorted table of messages
         step_size: Duration of each window
-        step_unit: "hours" or "days"
+        step_unit: "hours" or "days" from the WindowingStrategy enum
         overlap_ratio: Fraction of time window to overlap (0.0-0.5)
 
     Yields:
@@ -318,9 +191,9 @@ def _window_by_time(
     max_ts = _get_max_timestamp(table)
 
     # Calculate window duration
-    if step_unit == "hours":
+    if step_unit == WindowingStrategy.HOURS:
         delta = timedelta(hours=step_size)
-    else:  # days
+    else:  # DAYS
         delta = timedelta(days=step_size)
 
     # Calculate overlap duration

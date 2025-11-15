@@ -29,7 +29,10 @@ from egregora.privacy.gate import (
     PrivacyPass,
     require_privacy_pass,
 )
-from egregora.privacy.uuid_namespaces import deterministic_author_uuid
+from egregora.privacy.uuid_namespaces import (
+    NAMESPACE_AUTHOR,
+    deterministic_author_uuid,
+)
 
 # ============================================================================
 # PrivacyPass Token Tests
@@ -203,7 +206,7 @@ def test_privacy_config_defaults():
     assert config.allowed_media_domains == ()
     assert config.enable_reidentification_escrow is False
     assert config.reidentification_retention_days == 90
-    assert config.author_namespace == uuid.NAMESPACE_URL
+    assert config.author_namespace == NAMESPACE_AUTHOR
 
 
 def test_privacy_config_with_custom_values():

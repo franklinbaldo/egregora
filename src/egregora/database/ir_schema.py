@@ -74,6 +74,7 @@ MESSAGE_SCHEMA: dict[str, dt.DataType] = {
     "original_line": dt.String(),
     "tagged_line": dt.String(),
     "message_id": dt.String(nullable=True),
+    "event_id": dt.UUID(nullable=True),
 }
 
 # Legacy alias

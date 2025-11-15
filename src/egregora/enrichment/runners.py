@@ -340,6 +340,8 @@ def _process_single_media(
     return enrichment_id_str, markdown_content, pii_detected
 
 
+from .extractors import extract_unique_urls, extract_unique_media_references, _build_media_filename_lookup
+
 def _enrich_urls(
     messages_table: Table,
     url_agent: Any,
@@ -348,24 +350,12 @@ def _enrich_urls(
     prompts_dir: Path | None,
     max_enrichments: int,
 ) -> list[dict[str, Any]]:
-    """Extract and enrich URLs from messages table."""
+    """Enrich unique URLs found in the messages table."""
     new_rows: list[dict[str, Any]] = []
-    enrichment_count = 0
+    unique_urls = extract_unique_urls(messages_table, max_enrichments)
 
-    url_messages = messages_table.filter(messages_table.message.notnull()).execute()
-    unique_urls: set[str] = set()
-
-    for row in url_messages.itertuples():
-        if enrichment_count >= max_enrichments:
-            break
-        urls = extract_urls(row.message)
-        for url in urls[:3]:
-            if enrichment_count >= max_enrichments:
-                break
-            unique_urls.add(url)
-
-    for url in sorted(unique_urls)[:max_enrichments]:
-        if enrichment_count >= max_enrichments:
+    for i, url in enumerate(sorted(unique_urls)):
+        if i >= max_enrichments:
             break
 
         enrichment_id_str, _markdown = _process_single_url(url, url_agent, cache, context, prompts_dir)
@@ -376,43 +366,7 @@ def _enrich_urls(
         if enrichment_row:
             new_rows.append(enrichment_row)
 
-        enrichment_count += 1
-
     return new_rows
-
-
-def _build_media_filename_lookup(media_mapping: dict[str, Path]) -> dict[str, tuple[str, Path]]:
-    """Build a lookup dict mapping media filenames to (original_filename, file_path)."""
-    lookup: dict[str, tuple[str, Path]] = {}
-    for original_filename, file_path in media_mapping.items():
-        lookup[original_filename] = (original_filename, file_path)
-        lookup[file_path.name] = (original_filename, file_path)
-    return lookup
-
-
-def _extract_media_references(
-    messages_table: Table, media_filename_lookup: dict[str, tuple[str, Path]]
-) -> set[str]:
-    """Extract unique media references from messages table."""
-    media_messages = messages_table.filter(messages_table.message.notnull()).execute()
-    unique_media: set[str] = set()
-
-    for row in media_messages.itertuples():
-        refs = find_media_references(row.message)
-        markdown_refs = re.findall("!\\[[^\\]]*\\]\\([^)]*?([a-f0-9\\-]+\\.\\w+)\\)", row.message)
-        uuid_refs = re.findall(
-            "\\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.\\w+)",
-            row.message,
-        )
-        refs.extend(markdown_refs)
-        refs.extend(uuid_refs)
-
-        for ref in set(refs):
-            if ref in media_filename_lookup:
-                unique_media.add(ref)
-
-    return unique_media
-
 
 def _enrich_media(
     messages_table: Table,
@@ -424,13 +378,13 @@ def _enrich_media(
     max_enrichments: int,
     enrichment_count: int,
 ) -> tuple[list[dict[str, Any]], int, bool]:
-    """Extract and enrich media from messages table."""
+    """Enrich unique media references found in the messages table."""
     new_rows: list[dict[str, Any]] = []
     pii_detected_count = 0
     pii_media_deleted = False
 
     media_filename_lookup = _build_media_filename_lookup(media_mapping)
-    unique_media = _extract_media_references(messages_table, media_filename_lookup)
+    unique_media = extract_unique_media_references(messages_table, media_mapping)
 
     for ref in sorted(unique_media)[: max_enrichments - enrichment_count]:
         lookup_result = media_filename_lookup.get(ref)
@@ -456,8 +410,6 @@ def _enrich_media(
         if enrichment_row:
             new_rows.append(enrichment_row)
 
-        enrichment_count += 1
-
     return new_rows, pii_detected_count, pii_media_deleted
 
 
@@ -476,60 +428,7 @@ def _replace_pii_media_references(
     return messages_table.mutate(message=replace_media_udf(messages_table.message))
 
 
-def _combine_enrichment_tables(
-    messages_table: Table,
-    new_rows: list[dict[str, Any]],
-) -> Table:
-    """Combine messages table with enrichment rows."""
-    schema = CONVERSATION_SCHEMA
-    messages_table_filtered = messages_table.select(*schema.names)
-    messages_table_filtered = messages_table_filtered.mutate(
-        timestamp=messages_table_filtered.timestamp.cast("timestamp('UTC', 9)")
-    ).cast(schema)
-
-    if new_rows:
-        normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]
-        enrichment_table = ibis.memtable(normalized_rows).cast(schema)
-        combined = messages_table_filtered.union(enrichment_table, distinct=False)
-        combined = combined.order_by("timestamp")
-    else:
-        combined = messages_table_filtered
-
-    return combined
-
-
-def _persist_to_duckdb(
-    combined: Table,
-    duckdb_connection: DuckDBBackend,
-    target_table: str,
-) -> None:
-    """Persist enriched table to DuckDB."""
-    if not re.fullmatch("[A-Za-z_][A-Za-z0-9_]*", target_table):
-        msg = "target_table must be a valid DuckDB identifier"
-        raise ValueError(msg)
-
-    schemas.create_table_if_not_exists(duckdb_connection, target_table, CONVERSATION_SCHEMA)
-    quoted_table = schemas.quote_identifier(target_table)
-    column_list = ", ".join(schemas.quote_identifier(col) for col in CONVERSATION_SCHEMA.names)
-    temp_view = f"_egregora_enrichment_{uuid.uuid4().hex}"
-
-    try:
-        duckdb_connection.create_view(temp_view, combined, overwrite=True)
-        quoted_view = schemas.quote_identifier(temp_view)
-        duckdb_connection.raw_sql("BEGIN TRANSACTION")
-        try:
-            duckdb_connection.raw_sql(f"DELETE FROM {quoted_table}")  # nosec B608 - quoted identifiers
-            duckdb_connection.raw_sql(
-                f"INSERT INTO {quoted_table} ({column_list}) SELECT {column_list} FROM {quoted_view}"
-            )
-            duckdb_connection.raw_sql("COMMIT")
-        except Exception:
-            logger.exception("Transaction failed during DuckDB persistence, rolling back")
-            duckdb_connection.raw_sql("ROLLBACK")
-            raise
-    finally:
-        duckdb_connection.drop_view(temp_view, force=True)
-
+from egregora.database.persistence import combine_with_enrichment_rows, persist_to_duckdb
 
 def enrich_table_simple(
     messages_table: Table,
@@ -584,7 +483,7 @@ def enrich_table_simple(
     if pii_media_deleted:
         messages_table = _replace_pii_media_references(messages_table, media_mapping, docs_dir, posts_dir)
 
-    combined = _combine_enrichment_tables(messages_table, new_rows)
+    combined = combine_with_enrichment_rows(messages_table, new_rows)
 
     duckdb_connection = context.duckdb_connection
     target_table = context.target_table
@@ -594,7 +493,7 @@ def enrich_table_simple(
         raise ValueError(msg)
 
     if duckdb_connection and target_table:
-        _persist_to_duckdb(combined, duckdb_connection, target_table)
+        persist_to_duckdb(combined, duckdb_connection, target_table)
 
     if pii_detected_count > 0:
         logger.info("Privacy summary: %d media file(s) deleted due to PII detection", pii_detected_count)

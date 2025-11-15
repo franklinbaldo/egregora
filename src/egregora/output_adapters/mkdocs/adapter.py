@@ -224,119 +224,138 @@ def resolve_site_paths(start: Annotated[Path, "Search root"]) -> SitePaths:
     )
 
 
-class MkDocsOutputAdapter(OutputAdapter):
-    """MkDocs output format with Material theme support.
-
-    Creates blog sites using:
-    - MkDocs static site generator
-    - Material for MkDocs theme
-    - Blog plugin for post management
-    - YAML front matter for metadata
-
-    Coordinates all storage operations for MkDocs-based sites and provides
-    storage protocol implementations through properties.
-    """
+class MkDocsAdapter(OutputAdapter):
+    """Unified MkDocs output adapter."""
 
     def __init__(self) -> None:
-        """Initialize MkDocsOutputAdapter with uninitialized storage."""
-        self._site_root: Path | None = None
-        self._posts_impl: MkDocsPostStorage | None = None
-        self._profiles_impl: MkDocsProfileStorage | None = None
-        self._journals_impl: MkDocsJournalStorage | None = None
-        self._enrichments_impl: MkDocsEnrichmentStorage | None = None
+        """Initializes the adapter."""
+        self._initialized = False
+        self.site_root = None
+        self._url_convention = LegacyMkDocsUrlConvention()
+        self._index: dict[str, Path] = {}
+        self._ctx: UrlContext | None = None
+
+    def initialize(self, site_root: Path, url_context: UrlContext | None = None) -> None:
+        """Initializes the adapter with all necessary paths and dependencies."""
+        self.site_root = site_root
+        self._ctx = url_context or UrlContext(base_url="")
+        self.posts_dir = site_root / "posts"
+        self.profiles_dir = site_root / "profiles"
+        self.journal_dir = site_root / "posts" / "journal"
+        self.urls_dir = site_root / "docs" / "media" / "urls"
+        self.media_dir = site_root / "docs" / "media"
+
+        self.posts_dir.mkdir(parents=True, exist_ok=True)
+        self.profiles_dir.mkdir(parents=True, exist_ok=True)
+        self.journal_dir.mkdir(parents=True, exist_ok=True)
+        self.urls_dir.mkdir(parents=True, exist_ok=True)
+        self.media_dir.mkdir(parents=True, exist_ok=True)
+        self._initialized = True
+
+    @property
+    def posts(self):
+        return self
+
+    @property
+    def profiles(self):
+        return self
+
+    @property
+    def journals(self):
+        return self
+
+    @property
+    def enrichments(self):
+        return self
 
     @property
     def format_type(self) -> str:
         """Return 'mkdocs' as the format type identifier."""
         return "mkdocs"
 
-    def initialize(self, site_root: Path) -> None:
-        """Initialize MkDocs storage implementations.
-
-        Creates all necessary directories and initializes storage protocol
-        implementations for MkDocs filesystem structure.
-
-        Args:
-            site_root: Root directory of the MkDocs site
-
-        Raises:
-            ValueError: If site_root is invalid
-            RuntimeError: If storage initialization fails
-
-        """
-        self._site_root = site_root
-
-        # Create storage implementations (now defined in this module)
-        self._posts_impl = MkDocsPostStorage(site_root, output_format=self)
-        self._profiles_impl = MkDocsProfileStorage(site_root)
-        self._journals_impl = MkDocsJournalStorage(site_root)
-        self._enrichments_impl = MkDocsEnrichmentStorage(site_root)
-
-        logger.debug("Initialized MkDocs storage for %s", site_root)
-
     @property
-    def posts(self) -> MkDocsPostStorage:
-        """Get MkDocs post storage implementation.
+    def url_convention(self) -> UrlConvention:
+        return self._url_convention
 
-        Returns:
-            MkDocsPostStorage instance
+    def serve(self, document: Document) -> None:
+        doc_id = document.document_id
+        url = self._url_convention.canonical_url(document, self._ctx)
+        path = self._url_to_path(url, document)
 
-        Raises:
-            RuntimeError: If format not initialized (call initialize() first)
+        if doc_id in self._index:
+            old_path = self._index[doc_id]
+            if old_path != path and old_path.exists():
+                logger.info("Moving document %s: %s → %s", doc_id[:8], old_path, path)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                if path.exists():
+                    old_path.unlink()
+                else:
+                    old_path.rename(path)
 
-        """
-        if self._posts_impl is None:
-            msg = "MkDocsOutputAdapter not initialized - call initialize(site_root) first"
-            raise RuntimeError(msg)
-        return self._posts_impl
+        if path.exists() and document.type == DocumentType.ENRICHMENT_URL:
+            existing_doc_id = self._get_document_id_at_path(path)
+            if existing_doc_id and existing_doc_id != doc_id:
+                path = self._resolve_collision(path, doc_id)
+                logger.warning("Hash collision for %s, using %s", doc_id[:8], path)
 
-    @property
-    def profiles(self) -> MkDocsProfileStorage:
-        """Get MkDocs profile storage implementation.
+        self._write_document(document, path)
+        self._index[doc_id] = path
+        logger.debug("Served document %s at %s", doc_id, path)
 
-        Returns:
-            MkDocsProfileStorage instance
+    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
+        if isinstance(doc_type, str):
+            doc_type = DocumentType(doc_type)
+        path: Path | None = None
 
-        Raises:
-            RuntimeError: If format not initialized (call initialize() first)
+        if doc_type == DocumentType.PROFILE:
+            path = self.profiles_dir / f"{identifier}.md"
+        elif doc_type == DocumentType.POST:
+            matches = list(self.posts_dir.glob(f"*-{identifier}.md"))
+            if matches:
+                path = max(matches, key=lambda p: p.stat().st_mtime)
+        elif doc_type == DocumentType.JOURNAL:
+            safe_label = identifier.replace(" ", "_").replace(":", "-")
+            path = self.journal_dir / f"journal_{safe_label}.md"
+        elif doc_type == DocumentType.ENRICHMENT_URL:
+            path = self.urls_dir / f"{identifier}.md"
+        elif doc_type == DocumentType.ENRICHMENT_MEDIA:
+            path = self.media_dir / f"{identifier}.md"
+        elif doc_type == DocumentType.MEDIA:
+            path = self.media_dir / identifier
 
-        """
-        if self._profiles_impl is None:
-            msg = "MkDocsOutputAdapter not initialized - call initialize(site_root) first"
-            raise RuntimeError(msg)
-        return self._profiles_impl
+        if path is None or not path.exists():
+            logger.debug(
+                "Document not found: %s/%s",
+                doc_type.value if isinstance(doc_type, DocumentType) else doc_type,
+                identifier,
+            )
+            return None
 
-    @property
-    def journals(self) -> MkDocsJournalStorage:
-        """Get MkDocs journal storage implementation.
+        try:
+            if doc_type == DocumentType.MEDIA:
+                raw_bytes = path.read_bytes()
+                content = raw_bytes.decode("utf-8", errors="ignore")
+                metadata: dict[str, Any] = {"filename": path.name}
+                actual_content = content
+            else:
+                content = path.read_text(encoding="utf-8")
+                metadata = {}
+                actual_content = content
 
-        Returns:
-            MkDocsJournalStorage instance
+                if content.startswith("---\n"):
+                    try:
+                        parts = content.split("---\n", 2)
+                        if len(parts) >= 3:
+                            frontmatter_yaml = parts[1]
+                            actual_content = parts[2].strip()
+                            metadata = yaml.safe_load(frontmatter_yaml) or {}
+                    except (ImportError, yaml.YAMLError) as exc:
+                        logger.warning("Failed to parse frontmatter for %s: %s", path, exc)
+        except OSError:
+            logger.exception("Failed to read document at %s", path)
+            return None
 
-        Raises:
-            RuntimeError: If format not initialized (call initialize() first)
-
-        """
-        if self._journals_impl is None:
-            msg = "MkDocsOutputAdapter not initialized - call initialize(site_root) first"
-            raise RuntimeError(msg)
-        return self._journals_impl
-
-    @property
-    def enrichments(self) -> MkDocsEnrichmentStorage:
-        """Get MkDocs enrichment storage implementation.
-
-        Returns:
-            MkDocsEnrichmentStorage instance
-
-        Raises:
-            RuntimeError: If format not initialized (call initialize() first)
-
-        """
-        if self._enrichments_impl is None:
-            msg = "MkDocsOutputAdapter not initialized - call initialize(site_root) first"
-            raise RuntimeError(msg)
-        return self._enrichments_impl
+        return Document(content=actual_content, type=doc_type, metadata=metadata)
 
     def supports_site(self, site_root: Path) -> bool:
         """Check if the site root contains a mkdocs.yml file.
@@ -1053,27 +1072,6 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
         return (self._site_root / identifier).resolve()
 
 
-class MkDocsFilesystemAdapter(OutputProtocol):
-    """Filesystem-backed output adapter that implements the unified protocol."""
-
-    def __init__(self, site_root: Path, url_context: UrlContext) -> None:
-        self.site_root = site_root
-        self._ctx = url_context
-        self._url_convention = LegacyMkDocsUrlConvention()
-
-        self.posts_dir = site_root / "posts"
-        self.profiles_dir = site_root / "profiles"
-        self.journal_dir = site_root / "posts" / "journal"
-        self.urls_dir = site_root / "docs" / "media" / "urls"
-        self.media_dir = site_root / "docs" / "media"
-
-        self.posts_dir.mkdir(parents=True, exist_ok=True)
-        self.profiles_dir.mkdir(parents=True, exist_ok=True)
-        self.journal_dir.mkdir(parents=True, exist_ok=True)
-        self.urls_dir.mkdir(parents=True, exist_ok=True)
-        self.media_dir.mkdir(parents=True, exist_ok=True)
-
-        self._index: dict[str, Path] = {}
 
     @property
     def url_convention(self) -> UrlConvention:
@@ -1417,169 +1415,3 @@ def secure_path_join(base_dir: Path, user_path: str) -> Path:
     return full_path
 
 
-class MkDocsPostStorage:
-    """Filesystem storage for MkDocs posts using YAML front matter."""
-
-    def __init__(self, site_root: Path, output_format: OutputAdapter | None = None) -> None:
-        self.site_root = site_root
-        self.posts_dir = site_root / "posts"
-        self.posts_dir.mkdir(parents=True, exist_ok=True)
-        self.output_format = output_format
-
-    def write(self, slug: str, metadata: dict[str, Any], content: str) -> str:
-        """Write a post to disk applying slug normalisation and deduplication."""
-        date_str = metadata.get("date", "")
-
-        if self.output_format:
-            normalized_slug = self.output_format.normalize_slug(slug)
-            date_prefix = self.output_format.extract_date_prefix(str(date_str))
-            filename_pattern = f"{date_prefix}-{normalized_slug}.md"
-            path = self.output_format.generate_unique_filename(self.posts_dir, filename_pattern)
-
-            final_filename = path.stem
-            if final_filename.startswith(date_prefix):
-                final_slug = final_filename[len(date_prefix) + 1 :]
-            else:
-                final_slug = final_filename
-
-            metadata = metadata.copy()
-            metadata["slug"] = final_slug
-        else:
-            path = self.posts_dir / f"{slug}.md"
-
-        frontmatter = yaml.dump(metadata, sort_keys=False, allow_unicode=True)
-        full_content = f"---\n{frontmatter}---\n\n{content}"
-        path.write_text(full_content, encoding="utf-8")
-        return str(path.relative_to(self.site_root))
-
-    def read(self, slug: str) -> tuple[dict, str] | None:
-        """Read a post by slug, supporting both dated and undated filenames."""
-        matching_files = list(self.posts_dir.glob(f"*-{slug}.md"))
-        if matching_files:
-            path = max(matching_files, key=lambda p: p.stat().st_mtime)
-        else:
-            path = self.posts_dir / f"{slug}.md"
-
-        if not path.exists():
-            return None
-
-        content = path.read_text(encoding="utf-8")
-        metadata, body = MkDocsOutputAdapter.parse_frontmatter(content)
-        return metadata, body
-
-    def delete(self, slug: str) -> bool:
-        """Delete posts with the provided slug."""
-        deleted = False
-        for path in self.posts_dir.glob(f"*-{slug}.md"):
-            path.unlink(missing_ok=True)
-            deleted = True
-
-        fallback = self.posts_dir / f"{slug}.md"
-        if fallback.exists():
-            fallback.unlink()
-            deleted = True
-        return deleted
-
-    def exists(self, slug: str) -> bool:
-        """Return True when a post with ``slug`` exists."""
-        return any(self.posts_dir.glob(f"*-{slug}.md")) or (self.posts_dir / f"{slug}.md").exists()
-
-    def list_posts(self) -> list[str]:
-        """Return the list of slugs present in the posts directory."""
-        posts: list[str] = []
-        for path in self.posts_dir.glob("*.md"):
-            metadata, _ = MkDocsOutputAdapter.parse_frontmatter(path.read_text(encoding="utf-8"))
-            slug_value = metadata.get("slug")
-            if slug_value:
-                posts.append(slug_value)
-        return posts
-
-
-class MkDocsProfileStorage:
-    """Filesystem storage for MkDocs author profiles."""
-
-    def __init__(self, site_root: Path) -> None:
-        self.site_root = site_root
-        self.profiles_dir = site_root / "profiles"
-        self.profiles_dir.mkdir(parents=True, exist_ok=True)
-
-    def write(self, author_uuid: str, content: str) -> str:
-        """Persist a profile and update ``.authors.yml`` accordingly."""
-        absolute_path = write_profile_content(author_uuid, content, self.profiles_dir)
-        return str(Path(absolute_path).relative_to(self.site_root))
-
-    def read(self, author_uuid: str) -> str | None:
-        """Return profile content when available."""
-        path = self.profiles_dir / f"{author_uuid}.md"
-        return path.read_text(encoding="utf-8") if path.exists() else None
-
-    def exists(self, author_uuid: str) -> bool:
-        """Check whether a profile exists for ``author_uuid``."""
-        return (self.profiles_dir / f"{author_uuid}.md").exists()
-
-
-class MkDocsJournalStorage:
-    """Filesystem storage for agent journal entries."""
-
-    def __init__(self, site_root: Path) -> None:
-        self.site_root = site_root
-        self.journal_dir = site_root / "posts" / "journal"
-        self.journal_dir.mkdir(parents=True, exist_ok=True)
-
-    def write(self, window_label: str, content: str) -> str:
-        safe_label = window_label.replace(" ", "_").replace(":", "-")
-        path = self.journal_dir / f"journal_{safe_label}.md"
-        path.write_text(content, encoding="utf-8")
-        return str(path.relative_to(self.site_root))
-
-    def read(self, window_label: str) -> str | None:
-        safe_label = window_label.replace(" ", "_").replace(":", "-")
-        path = self.journal_dir / f"journal_{safe_label}.md"
-        return path.read_text(encoding="utf-8") if path.exists() else None
-
-    def exists(self, window_label: str) -> bool:
-        safe_label = window_label.replace(" ", "_").replace(":", "-")
-        return (self.journal_dir / f"journal_{safe_label}.md").exists()
-
-
-class MkDocsEnrichmentStorage:
-    """Filesystem storage for MkDocs enrichment documents."""
-
-    URLS_DIR_NAME = "media/urls"
-    MEDIA_DIR_NAME = "media"
-
-    def __init__(self, site_root: Path) -> None:
-        self.site_root = site_root
-        self.urls_dir = site_root / "docs" / self.URLS_DIR_NAME
-        self.urls_dir.mkdir(parents=True, exist_ok=True)
-        self.media_dir = site_root / "docs" / self.MEDIA_DIR_NAME
-        self.media_dir.mkdir(parents=True, exist_ok=True)
-
-    def write_url(self, url: str, content: str, metadata: dict[str, Any] | None = None) -> str:
-        metadata = metadata or {}
-        identifier = metadata.get("slug") or slugify(url)
-        if not identifier:
-            identifier = uuid_lib.uuid5(uuid_lib.NAMESPACE_URL, url).hex
-
-        path = self.urls_dir / f"{identifier}.md"
-
-        document_metadata = metadata.copy()
-        document_metadata.setdefault("url", url)
-
-        if document_metadata:
-            yaml_front = yaml.dump(
-                document_metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
-            )
-            full_content = f"---\n{yaml_front}---\n\n{content}"
-        else:
-            full_content = content
-
-        path.write_text(full_content, encoding="utf-8")
-        return str(path.relative_to(self.site_root))
-
-    def write_media(self, filename: str, content: str) -> str:
-        media_path = secure_path_join(self.site_root, filename)
-        enrichment_path = media_path.with_suffix(media_path.suffix + ".md")
-        enrichment_path.parent.mkdir(parents=True, exist_ok=True)
-        enrichment_path.write_text(content, encoding="utf-8")
-        return str(enrichment_path.relative_to(self.site_root))
