@@ -100,23 +100,25 @@ from egregora.config.settings import (
 # - MEDIA_DIR_NAME, PROFILES_DIR_NAME: Subdirectory names
 #
 # New code should import from egregora.output_adapters.mkdocs directly.
-from egregora.output_adapters.mkdocs import (
-    DEFAULT_BLOG_DIR,
-    DEFAULT_DOCS_DIR,
-    MEDIA_DIR_NAME,
-    PROFILES_DIR_NAME,
-    SitePaths,
-    find_mkdocs_file,
-    load_mkdocs_config,
-    resolve_site_paths,
-)
+#
+# TEMPORARILY DISABLED: These imports create a circular dependency:
+# config -> mkdocs.adapter -> agents.shared -> database -> utils -> config
+# Use direct imports from egregora.output_adapters.mkdocs instead.
+# from egregora.output_adapters.mkdocs import (
+#     DEFAULT_BLOG_DIR,
+#     DEFAULT_DOCS_DIR,
+#     MEDIA_DIR_NAME,
+#     PROFILES_DIR_NAME,
+#     SitePaths,
+#     find_mkdocs_file,
+#     load_mkdocs_config,
+#     resolve_site_paths,
+# )
 
 __all__ = [
-    "DEFAULT_BLOG_DIR",  # Default blog directory name
-    "DEFAULT_DOCS_DIR",  # Default docs directory name
     "EMBEDDING_DIM",  # Embedding vector dimensions
-    "MEDIA_DIR_NAME",  # Media subdirectory name
-    "PROFILES_DIR_NAME",  # Profiles subdirectory name
+    # Note: DEFAULT_BLOG_DIR, DEFAULT_DOCS_DIR, MEDIA_DIR_NAME, PROFILES_DIR_NAME
+    # moved to egregora.output_adapters.mkdocs to avoid circular imports
     # ==========================================================================
     # Core Pydantic V2 Config Models (PRIMARY - Phase 2 modernization)
     # ==========================================================================
