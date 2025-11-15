@@ -150,7 +150,7 @@ def extract_commands(messages: Table) -> list[dict]:
     like aliases, bios, links, etc.
 
     Args:
-        messages: Parsed Table with columns: timestamp, author, message
+        messages: Parsed Table with IR schema (columns: timestamp, author, text, etc.)
 
     Returns:
         List of command dicts:
@@ -162,7 +162,8 @@ def extract_commands(messages: Table) -> list[dict]:
         }]
 
     """
-    normalized = messages.mutate(normalized_message=normalize_smart_quotes(messages.message))
+    # IR v1: use 'text' column instead of 'message'
+    normalized = messages.mutate(normalized_message=normalize_smart_quotes(messages.text))
     filtered = normalized.filter(normalized.normalized_message.lower().startswith("/egregora"))
 
     trimmed = filtered.mutate(trimmed_message=filtered.normalized_message.strip())
@@ -194,35 +195,32 @@ def extract_commands(messages: Table) -> list[dict]:
 
     command_cases = enriched.mutate(
         command_name=(
-            ibis.case()
-            .when((enriched.action == "set") & enriched.set_has_value, ibis.literal("set"))
-            .when(enriched.action.isin(["remove", "unset", "opt-out", "opt-in"]), enriched.action)
-            .else_(ibis.null())
-            .end()
+            ibis.cases(
+                ((enriched.action == "set") & enriched.set_has_value, ibis.literal("set")),
+                (enriched.action.isin(["remove", "unset", "opt-out", "opt-in"]), enriched.action),
+                else_=ibis.null(),
+            )
         ),
     )
 
     command_cases = command_cases.mutate(
-        command_target=(
-            ibis.case()
-            .when(command_cases.command_name == "set", command_cases.target_candidate.lower())
-            .when(command_cases.command_name == "remove", command_cases.args_trimmed.lower())
-            .when(command_cases.command_name == "unset", command_cases.args_trimmed.lower())
-            .else_(ibis.null())
-            .end()
+        command_target=ibis.cases(
+            (command_cases.command_name == "set", command_cases.target_candidate.lower()),
+            (command_cases.command_name == "remove", command_cases.args_trimmed.lower()),
+            (command_cases.command_name == "unset", command_cases.args_trimmed.lower()),
+            else_=ibis.null(),
         ),
-        command_value=(
-            ibis.case()
-            .when(command_cases.command_name == "set", strip_wrapping_quotes(command_cases.value_candidate))
-            .else_(ibis.null())
-            .end()
+        command_value=ibis.cases(
+            (command_cases.command_name == "set", strip_wrapping_quotes(command_cases.value_candidate)),
+            else_=ibis.null(),
         ),
     )
 
+    # IR v1: select IR columns (text not message, author_uuid not author, ts not timestamp)
     commands_table = command_cases.filter(command_cases.command_name.notnull()).select(
-        command_cases.author,
-        command_cases.timestamp,
-        command_cases.message,
+        command_cases.author_uuid,
+        command_cases.ts,  # IR v1: ts not timestamp
+        command_cases.text,
         command_cases.command_name,
         command_cases.command_target,
         command_cases.command_value,
@@ -246,10 +244,10 @@ def extract_commands(messages: Table) -> list[dict]:
 
         commands.append(
             {
-                "author": row["author"],
-                "timestamp": row["timestamp"],
+                "author": row["author_uuid"],  # IR v1: use author_uuid
+                "timestamp": row["ts"],  # IR v1: use ts (not timestamp)
                 "command": command_payload,
-                "message": row["message"],
+                "message": row["text"],  # IR v1: use text (not message)
             }
         )
 
@@ -272,23 +270,23 @@ def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
     - /egregora set alias "Name" (command)
 
     Args:
-        messages: Ibis Table with 'message' column
+        messages: Ibis Table with IR schema ('text' column)
 
     Returns:
         (filtered_table, num_removed)
 
     """
-    mask = messages.message.lower().startswith("/egregora")
-    counts_df = messages.aggregate(
+    # IR v1: use 'text' column instead of 'message'
+    mask = messages.text.lower().startswith("/egregora")
+    # Use pure Ibis (no pandas)
+    counts = messages.aggregate(
         original_count=messages.count(),
         removed_count=mask.sum(),
     ).execute()
-    counts_row = counts_df.iloc[0]
-    original_count = int(counts_row.get("original_count", 0) or 0)
+    original_count = int(counts["original_count"][0] or 0)
     if original_count == 0:
         return (messages, 0)
-    removed_count = int(counts_row.get("removed_count", 0) or 0)
-    # IR v1 schema exposes the conversation text in the `message` column
+    removed_count = int(counts["removed_count"][0] or 0)
     filtered_messages = messages.filter(~mask)
     if removed_count > 0:
         logger.info("Removed %s /egregora messages from table", removed_count)

@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 import ibis
 from dateutil import parser as date_parser
 
-from egregora.database.ir_schema import MESSAGE_SCHEMA, ensure_message_schema
+from egregora.database.ir_schema import MESSAGE_SCHEMA
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
@@ -148,21 +148,24 @@ def parse_source(
 
     if not lines:
         logger.warning("No messages found in %s", export.zip_path)
+        # IR v1: Return empty table with IR schema directly (no validation needed)
         empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
-        return ensure_message_schema(empty_table, timezone=timezone)
+        return empty_table
 
     # Parse lines with pure Python (will be replaced with SQL in next step)
     rows = _parse_messages_pure_python(lines, export, timezone)
 
     if not rows:
+        # IR v1: Return empty table with IR schema directly (no validation needed)
         empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
-        return ensure_message_schema(empty_table, timezone=timezone)
+        return empty_table
 
     messages = ibis.memtable(rows)
+    # IR v1: use 'ts' column instead of 'timestamp'
     if _IMPORT_ORDER_COLUMN in messages.columns:
-        messages = messages.order_by([messages.timestamp, messages[_IMPORT_ORDER_COLUMN]])
+        messages = messages.order_by([messages.ts, messages[_IMPORT_ORDER_COLUMN]])
     else:
-        messages = messages.order_by("timestamp")
+        messages = messages.order_by("ts")
 
     messages = _add_message_ids(messages)
 
@@ -171,14 +174,14 @@ def parse_source(
 
     messages = anonymize_table(messages)
 
-    if not expose_raw_author and _AUTHOR_UUID_HEX_COLUMN in messages.columns:
-        messages = messages.mutate(author=messages[_AUTHOR_UUID_HEX_COLUMN].substr(0, 8))
+    # IR v1: Drop internal helper columns, keep author_raw and author_uuid for IR schema
+    helper_columns = [_AUTHOR_UUID_HEX_COLUMN]
+    columns_to_drop = [col for col in helper_columns if col in messages.columns]
+    if columns_to_drop:
+        messages = messages.drop(*columns_to_drop)
 
-    helper_columns = sorted({"author_raw", "author_uuid", _AUTHOR_UUID_HEX_COLUMN} & set(messages.columns))
-    if helper_columns:
-        messages = messages.drop(*helper_columns)
-
-    return ensure_message_schema(messages, timezone=timezone)
+    # IR v1: Adapter returns IR schema directly (ts, text, author_raw, author_uuid)
+    return messages
 
 
 def parse_multiple(
@@ -202,15 +205,17 @@ def parse_multiple(
             continue
 
     if not tables:
+        # IR v1: Return empty table with IR schema directly (no validation needed)
         empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
-        return ensure_message_schema(empty_table, timezone=timezone)
+        return empty_table
 
     combined = tables[0]
     for table in tables[1:]:
         combined = combined.union(table, distinct=False)
 
     # Re-order and add message IDs
-    order_keys = [combined.timestamp]
+    # IR v1: use 'ts' column instead of 'timestamp'
+    order_keys = [combined.ts]
     if _IMPORT_SOURCE_COLUMN in combined.columns:
         order_keys.append(combined[_IMPORT_SOURCE_COLUMN])
     combined = combined.order_by(order_keys)
@@ -221,7 +226,8 @@ def parse_multiple(
     if _IMPORT_SOURCE_COLUMN in combined.columns:
         combined = combined.drop(_IMPORT_SOURCE_COLUMN)
 
-    return ensure_message_schema(combined, timezone=timezone)
+    # IR v1: Adapter returns IR schema directly (no validation needed)
+    return combined
 
 
 def _parse_messages_pure_python(
@@ -267,7 +273,8 @@ def _parse_messages_pure_python(
         if current_message is not None:
             finalized = _finalize_message(current_message, tenant_id, source_identifier)
             # Skip empty messages (WhatsApp exports occasionally include blank lines)
-            if finalized and finalized["message"] and finalized["message"].strip():
+            # IR v1: use 'text' instead of 'message'
+            if finalized and finalized["text"] and finalized["text"].strip():
                 finalized[_IMPORT_ORDER_COLUMN] = position
                 rows.append(finalized)
                 position += 1
@@ -308,7 +315,8 @@ def _parse_messages_pure_python(
     if current_message is not None:
         finalized = _finalize_message(current_message, tenant_id, source_identifier)
         # Skip empty messages (WhatsApp exports occasionally include blank lines)
-        if finalized and finalized["message"] and finalized["message"].strip():
+        # IR v1: use 'text' instead of 'message'
+        if finalized and finalized["text"] and finalized["text"].strip():
             finalized[_IMPORT_ORDER_COLUMN] = position
             rows.append(finalized)
 
@@ -316,21 +324,22 @@ def _parse_messages_pure_python(
 
 
 def _finalize_message(msg: dict, tenant_id: str, source: str) -> dict:
-    """Finalize a message by joining continuation lines."""
+    """Finalize a message by joining continuation lines - returns IR schema format."""
     message_text = "\n".join(msg["_continuation_lines"]).strip()
     original_text = "\n".join(msg["_original_lines"]).strip()
 
     author_raw = msg["author_raw"]
     author_uuid = deterministic_author_uuid(tenant_id, source, author_raw)
 
+    # IR v1: use 'ts' and 'text' column names
     return {
-        "timestamp": msg["timestamp"],
+        "ts": msg["timestamp"],  # IR v1: ts not timestamp
         "date": msg["date"],
         "author": author_raw,
         "author_raw": author_raw,
         "author_uuid": str(author_uuid),
         _AUTHOR_UUID_HEX_COLUMN: author_uuid.hex,
-        "message": message_text,
+        "text": message_text,  # IR v1: text not message
         "original_line": original_text or None,
         "tagged_line": None,
     }
@@ -350,19 +359,26 @@ def _add_message_ids(messages: Table) -> Table:
     if int(messages.count().execute()) == 0:
         return messages
 
-    min_timestamp = messages.timestamp.min()
+    # IR v1: use 'ts' column instead of 'timestamp'
+    min_ts = messages.ts.min()
     delta_ms = (
-        ((messages.timestamp.epoch_seconds() - min_timestamp.epoch_seconds()) * 1000).round().cast("int64")
+        ((messages.ts.epoch_seconds() - min_ts.epoch_seconds()) * 1000).round().cast("int64")
     )
 
-    order_columns = [messages.timestamp]
+    order_columns = [messages.ts]
     if _IMPORT_SOURCE_COLUMN in messages.columns:
         order_columns.append(messages[_IMPORT_SOURCE_COLUMN])
     if _IMPORT_ORDER_COLUMN in messages.columns:
         order_columns.append(messages[_IMPORT_ORDER_COLUMN])
-    if "author" in messages.columns:
+    # IR v1: use 'author_raw' instead of 'author'
+    if "author_raw" in messages.columns:
+        order_columns.append(messages.author_raw)
+    elif "author" in messages.columns:
         order_columns.append(messages.author)
-    if "message" in messages.columns:
+    # IR v1: use 'text' instead of 'message'
+    if "text" in messages.columns:
+        order_columns.append(messages.text)
+    elif "message" in messages.columns:
         order_columns.append(messages.message)
 
     row_number = ibis.row_number().over(order_by=order_columns)

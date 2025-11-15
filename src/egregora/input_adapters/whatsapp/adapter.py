@@ -230,7 +230,8 @@ class WhatsAppAdapter(InputAdapter):
                 return None
             return _convert_whatsapp_media_to_markdown(message)
 
-        messages_table = messages_table.mutate(message=convert_media_to_markdown(messages_table.message))
+        # IR v1: use 'text' column instead of 'message'
+        messages_table = messages_table.mutate(text=convert_media_to_markdown(messages_table.text))
         tenant_id = str(export.group_slug)
         ir_table = create_ir_table(
             messages_table,

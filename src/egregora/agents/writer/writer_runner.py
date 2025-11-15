@@ -130,25 +130,26 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     """Get top N active authors by message count.
 
     Args:
-        table: Table with 'author' column
+        table: Table with IR schema (uses 'author_uuid' column)
         limit: Max number of authors (default 20)
 
     Returns:
         List of author UUIDs (most active first)
 
     """
+    # IR v1: use 'author_uuid' instead of 'author'
     author_counts = (
-        table.filter(~table.author.isin(["system", "egregora"]))
-        .filter(table.author.notnull())
-        .filter(table.author != "")
-        .group_by("author")
+        table.filter(~table.author_uuid.cast("string").isin(["system", "egregora"]))
+        .filter(table.author_uuid.notnull())
+        .filter(table.author_uuid.cast("string") != "")
+        .group_by("author_uuid")
         .aggregate(count=ibis._.count())
         .order_by(ibis.desc("count"))
         .limit(limit)
     )
     if author_counts.count().execute() == 0:
         return []
-    return author_counts.author.execute().tolist()
+    return author_counts.author_uuid.cast("string").execute().tolist()
 
 
 def _load_document_from_path(path: Path) -> Document | None:
