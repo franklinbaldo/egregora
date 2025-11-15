@@ -60,9 +60,7 @@ def validate_privacy(table: Table) -> None:
     sentinel_authors = {"system"}
 
     non_anonymized = [
-        author
-        for author in authors
-        if author not in sentinel_authors and not hex_pattern.match(author)
+        author for author in authors if author not in sentinel_authors and not hex_pattern.match(author)
     ]
 
     if non_anonymized:
