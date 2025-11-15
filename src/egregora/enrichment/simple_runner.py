@@ -285,13 +285,17 @@ def _enrich_urls(
     enrichment_count = 0
 
     # MESSAGE_SCHEMA uses 'content' column (not 'message')
-    # Vectorized: get all content as pandas Series and apply extraction
-    df = messages_table.filter(messages_table.content.notnull()).select("content").execute()
-    content_series = df["content"]
+    # Use Ibis UDF for extraction (execute once at the end)
+    @ibis.udf.scalar.python
+    def extract_urls_udf(content: str) -> list[str]:
+        return extract_urls(content)[:3] if content else []
 
-    # Vectorized URL extraction using pandas apply
-    all_urls_lists = content_series.apply(lambda text: extract_urls(text)[:3])
-    unique_urls = set().union(*all_urls_lists.tolist()) if len(all_urls_lists) > 0 else set()
+    # Apply UDF and collect unique URLs (single execute)
+    urls_table = messages_table.filter(messages_table.content.notnull()).select(
+        urls=extract_urls_udf(messages_table.content)
+    )
+    df = urls_table.execute()
+    unique_urls = set().union(*df["urls"].tolist()) if len(df) > 0 else set()
 
     # Process each unique URL
     for url in sorted(unique_urls)[:max_enrichments]:
@@ -343,13 +347,12 @@ def _extract_media_references(
 
     """
     # MESSAGE_SCHEMA uses 'content' column (not 'message')
-    # Vectorized: get all content as pandas Series and apply extraction
-    df = messages_table.filter(messages_table.content.notnull()).select("content").execute()
-    content_series = df["content"]
-
-    # Vectorized extraction using pandas apply
-    def extract_all_refs(content_text: str) -> list[str]:
+    # Use Ibis UDF for extraction (execute once at the end)
+    @ibis.udf.scalar.python
+    def extract_all_refs_udf(content_text: str) -> list[str]:
         """Extract all media references from content."""
+        if not content_text:
+            return []
         refs = find_media_references(content_text)
         markdown_refs = re.findall("!\\[[^\\]]*\\]\\([^)]*?([a-f0-9\\-]+\\.\\w+)\\)", content_text)
         uuid_refs = re.findall(
@@ -359,8 +362,12 @@ def _extract_media_references(
         refs.extend(uuid_refs)
         return refs
 
-    all_refs_lists = content_series.apply(extract_all_refs)
-    all_refs = set().union(*all_refs_lists.tolist()) if len(all_refs_lists) > 0 else set()
+    # Apply UDF and collect results (single execute)
+    refs_table = messages_table.filter(messages_table.content.notnull()).select(
+        refs=extract_all_refs_udf(messages_table.content)
+    )
+    df = refs_table.execute()
+    all_refs = set().union(*df["refs"].tolist()) if len(df) > 0 else set()
 
     # Filter to only refs in media_mapping
     unique_media = {ref for ref in all_refs if ref in media_filename_lookup}

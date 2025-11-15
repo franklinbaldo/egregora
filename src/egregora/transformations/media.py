@@ -60,12 +60,12 @@ def extract_markdown_media_refs(table: Table) -> set[str]:
 
     """
     # MESSAGE_SCHEMA uses 'content' column (not 'message')
-    # Vectorized: execute once, process with pandas apply
-    df = table.select("content").execute()
-    messages_series = df["content"].dropna()
-
-    def extract_refs(message: str) -> list[str]:
+    # Use Ibis UDF for extraction (execute once at the end)
+    @ibis.udf.scalar.python
+    def extract_refs_udf(message: str) -> list[str]:
         """Extract media references from a single message."""
+        if not message:
+            return []
         refs = []
         for match in MARKDOWN_IMAGE_PATTERN.finditer(message):
             refs.append(match.group(2))
@@ -75,9 +75,10 @@ def extract_markdown_media_refs(table: Table) -> set[str]:
                 refs.append(reference)
         return refs
 
-    # Vectorized apply
-    all_refs_lists = messages_series.apply(extract_refs)
-    references = set().union(*all_refs_lists.tolist()) if len(all_refs_lists) > 0 else set()
+    # Apply UDF and collect results (single execute)
+    refs_table = table.select(refs=extract_refs_udf(table.content))
+    df = refs_table.execute()
+    references = set().union(*df["refs"].tolist()) if len(df) > 0 else set()
 
     logger.debug("Extracted %s unique media references", len(references))
     return references
@@ -117,9 +118,8 @@ def replace_markdown_media_refs(
         return table
 
     # MESSAGE_SCHEMA uses 'content' column (not 'message')
-    df = table.execute()
-
-    # Vectorized replacement using pandas str.replace
+    # Build replacement mapping
+    replacement_map = {}
     for original_ref, absolute_path in media_mapping.items():
         try:
             relative_link = Path(os.path.relpath(absolute_path, posts_dir)).as_posix()
@@ -128,10 +128,19 @@ def replace_markdown_media_refs(
                 relative_link = "/" + absolute_path.relative_to(docs_dir).as_posix()
             except ValueError:
                 relative_link = absolute_path.as_posix()
-        # Vectorized string replacement (already vectorized via pandas)
-        df["content"] = df["content"].str.replace(f"]({original_ref})", f"]({relative_link})", regex=False)
+        replacement_map[f"]({original_ref})"] = f"]({relative_link})"
 
-    updated_table = ibis.memtable(df)
+    # Use Ibis UDF for string replacement (avoids pandas boundary crossing)
+    @ibis.udf.scalar.python
+    def replace_refs_udf(content: str) -> str:
+        if not content:
+            return content
+        result = content
+        for old_ref, new_ref in replacement_map.items():
+            result = result.replace(old_ref, new_ref)
+        return result
+
+    updated_table = table.mutate(content=replace_refs_udf(table.content))
     logger.debug("Replaced %s media references in content", len(media_mapping))
     return updated_table
 

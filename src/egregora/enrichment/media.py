@@ -184,13 +184,17 @@ def extract_and_replace_media(
 
     """
     # MESSAGE_SCHEMA uses 'content' column (not 'message')
-    # Vectorized: get all content as pandas Series and apply function
-    df = messages_table.select("content").execute()
-    content_series = df["content"].dropna()
+    # Use Ibis UDF for extraction (execute once at the end)
+    @ibis.udf.scalar.python
+    def extract_media_udf(content: str) -> list[str]:
+        return find_media_references(content) if content else []
 
-    # Vectorized extraction using pandas apply
-    all_media_lists = content_series.apply(find_media_references)
-    all_media = set().union(*all_media_lists.tolist())
+    # Apply UDF and collect results (single execute)
+    media_refs_table = messages_table.select(
+        media_refs=extract_media_udf(messages_table.content)
+    )
+    df = media_refs_table.execute()
+    all_media = set().union(*df["media_refs"].tolist()) if len(df) > 0 else set()
 
     # Compute media_dir from docs_dir (MkDocs convention: media/ subdirectory)
     media_dir = docs_dir / "media"
