@@ -22,8 +22,9 @@ from dataclasses import dataclass
 EGREGORA_NAMESPACE = uuid.UUID("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
 
 # Author identity namespace (for author_raw → author_uuid mapping)
-# Generated from: uuid.uuid5(EGREGORA_NAMESPACE, "author")
-NAMESPACE_AUTHOR = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+# Using the stable URL namespace keeps compatibility with historical exports
+# that expected uuid.NAMESPACE_URL semantics.
+NAMESPACE_AUTHOR = uuid.NAMESPACE_URL
 
 # Event identity namespace (for deterministic event_id generation)
 # Generated from: uuid.uuid5(EGREGORA_NAMESPACE, "event")
