@@ -36,70 +36,9 @@ from egregora.constants import WindowUnit
 logger = logging.getLogger(__name__)
 
 
-@app.callback(invoke_without_command=True)
-def main(
-    ctx: typer.Context,
-    output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path("output"),
-    step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
-    step_unit: Annotated[
-        WindowUnit,
-        typer.Option(help="Unit for windowing", case_sensitive=False),
-    ] = WindowUnit.DAYS,
-    overlap: Annotated[
-        float, typer.Option(help="Overlap ratio between windows (0.0-0.5, default 0.2 = 20%)")
-    ] = 0.2,
-    enable_enrichment: Annotated[bool, typer.Option(help="Enable LLM enrichment for URLs/media")] = True,
-    from_date: Annotated[
-        str | None, typer.Option(help="Only process messages from this date onwards (YYYY-MM-DD)")
-    ] = None,
-    to_date: Annotated[
-        str | None, typer.Option(help="Only process messages up to this date (YYYY-MM-DD)")
-    ] = None,
-    timezone: Annotated[
-        str | None, typer.Option(help="Timezone for date parsing (e.g., 'America/New_York')")
-    ] = None,
-    gemini_key: Annotated[
-        str | None, typer.Option(help="Google Gemini API key (flag overrides GOOGLE_API_KEY env var)")
-    ] = None,
-    model: Annotated[
-        str | None, typer.Option(help="Gemini model to use (or configure in mkdocs.yml)")
-    ] = None,
-    retrieval_mode: Annotated[
-        str, typer.Option(help="Retrieval strategy: 'ann' (default) or 'exact'", case_sensitive=False)
-    ] = "ann",
-    retrieval_nprobe: Annotated[
-        int | None, typer.Option(help="Advanced: override DuckDB VSS nprobe for ANN retrieval")
-    ] = None,
-    retrieval_overfetch: Annotated[
-        int | None, typer.Option(help="Advanced: multiply ANN candidate pool before filtering")
-    ] = None,
-    max_prompt_tokens: Annotated[
-        int, typer.Option(help="Maximum tokens per prompt (default 100k cap, prevents overflow)")
-    ] = 100_000,
-    use_full_context_window: Annotated[
-        bool, typer.Option(help="Use full model context window (overrides --max-prompt-tokens)")
-    ] = False,
-    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
-):
-    """Egregora CLI."""
-    ctx.meta["process_config"] = ProcessConfig(
-        output_dir=output,
-        step_size=step_size,
-        step_unit=step_unit,
-        overlap_ratio=overlap,
-        enable_enrichment=enable_enrichment,
-        from_date=from_date,
-        to_date=to_date,
-        timezone=timezone,
-        gemini_key=gemini_key,
-        model=model,
-        retrieval_mode=retrieval_mode,
-        retrieval_nprobe=retrieval_nprobe,
-        retrieval_overfetch=retrieval_overfetch,
-        max_prompt_tokens=max_prompt_tokens,
-        use_full_context_window=use_full_context_window,
-        debug=debug,
-    )
+@app.callback()
+def main() -> None:
+    """Initialize CLI (placeholder for future setup)."""
 
 
 def _resolve_gemini_key(cli_override: str | None) -> str | None:
@@ -260,29 +199,107 @@ def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -
 
 @app.command()
 def write(
-    ctx: typer.Context,
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
+    *,
     source: Annotated[str, typer.Option(help="Source type: 'whatsapp' or 'slack'")] = "whatsapp",
+    output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path("output"),
+    step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
+    step_unit: Annotated[
+        WindowUnit,
+        typer.Option(help="Unit for windowing", case_sensitive=False),
+    ] = WindowUnit.DAYS,
+    overlap: Annotated[
+        float, typer.Option(help="Overlap ratio between windows (0.0-0.5, default 0.2 = 20%)")
+    ] = 0.2,
+    enable_enrichment: Annotated[bool, typer.Option(help="Enable LLM enrichment for URLs/media")] = True,
+    from_date: Annotated[
+        str | None, typer.Option(help="Only process messages from this date onwards (YYYY-MM-DD)")
+    ] = None,
+    to_date: Annotated[
+        str | None, typer.Option(help="Only process messages up to this date (YYYY-MM-DD)")
+    ] = None,
+    timezone: Annotated[
+        str | None, typer.Option(help="Timezone for date parsing (e.g., 'America/New_York')")
+    ] = None,
+    gemini_key: Annotated[
+        str | None, typer.Option(help="Google Gemini API key (flag overrides GOOGLE_API_KEY env var)")
+    ] = None,
+    model: Annotated[
+        str | None, typer.Option(help="Gemini model to use (or configure in mkdocs.yml)")
+    ] = None,
+    retrieval_mode: Annotated[
+        str, typer.Option(help="Retrieval strategy: 'ann' (default) or 'exact'", case_sensitive=False)
+    ] = "ann",
+    retrieval_nprobe: Annotated[
+        int | None, typer.Option(help="Advanced: override DuckDB VSS nprobe for ANN retrieval")
+    ] = None,
+    retrieval_overfetch: Annotated[
+        int | None, typer.Option(help="Advanced: multiply ANN candidate pool before filtering")
+    ] = None,
+    max_prompt_tokens: Annotated[
+        int, typer.Option(help="Maximum tokens per prompt (default 100k cap, prevents overflow)")
+    ] = 100_000,
+    use_full_context_window: Annotated[
+        bool, typer.Option(help="Use full model context window (overrides --max-prompt-tokens)")
+    ] = False,
+    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> None:
-    """Write blog posts from chat exports using LLM-powered synthesis."""
-    config = ctx.meta["process_config"]
-    config.input_file = input_file
+    """Write blog posts from chat exports using LLM-powered synthesis.
 
-    from_date = config.from_date
-    to_date = config.to_date
-    if isinstance(from_date, str):
+    Supports multiple sources (WhatsApp, Slack, etc.) via the --source flag.
+
+    Windowing:
+        Control how messages are grouped into posts using --step-size and --step-unit:
+
+        By time (default):
+            egregora write export.zip --step-size=1 --step-unit=days
+            egregora write export.zip --step-size=7 --step-unit=days
+            egregora write export.zip --step-size=24 --step-unit=hours
+
+        By message count:
+            egregora write export.zip --step-size=100 --step-unit=messages
+
+    The LLM decides:
+    - What's worth writing about (filters noise automatically)
+    - How many posts per window (0-N)
+    - All metadata (title, slug, tags, summary, etc)
+    - Which author profiles to update based on contributions
+    """
+    # Parse date arguments
+    from_date_obj = None
+    to_date_obj = None
+    if from_date:
         try:
-            config.from_date = parse_date_arg(from_date, "from_date")
+            from_date_obj = parse_date_arg(from_date, "from_date")
         except ValueError as e:
             console.print(f"[red]{e}[/red]")
             raise typer.Exit(1) from e
-    if isinstance(to_date, str):
+    if to_date:
         try:
-            config.to_date = parse_date_arg(to_date, "to_date")
+            to_date_obj = parse_date_arg(to_date, "to_date")
         except ValueError as e:
             console.print(f"[red]{e}[/red]")
             raise typer.Exit(1) from e
 
+    config = ProcessConfig(
+        input_file=input_file,
+        output_dir=output,
+        step_size=step_size,
+        step_unit=step_unit,
+        overlap_ratio=overlap,
+        enable_enrichment=enable_enrichment,
+        from_date=from_date_obj,
+        to_date=to_date_obj,
+        timezone=timezone,
+        gemini_key=gemini_key,
+        model=model,
+        retrieval_mode=retrieval_mode,
+        retrieval_nprobe=retrieval_nprobe,
+        retrieval_overfetch=retrieval_overfetch,
+        max_prompt_tokens=max_prompt_tokens,
+        use_full_context_window=use_full_context_window,
+        debug=debug,
+    )
     _validate_and_run_process(config, source=source)
 
 
