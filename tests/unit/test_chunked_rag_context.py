@@ -92,6 +92,53 @@ class TestConsolidateMessagesToMarkdown:
         # Should have double newlines between messages for paragraph-based chunking
         assert "\n\n" in result
 
+    def test_ir_message_schema_support(self):
+        """Function works with IR_MESSAGE_SCHEMA columns (ts, author_uuid, text)."""
+        dt = datetime(2025, 1, 15, 10, 30, 0, tzinfo=UTC)
+        table = ibis.memtable(
+            [{"ts": dt, "author_uuid": "uuid-ir-123", "text": "IR schema message"}],
+            schema={"ts": "timestamp", "author_uuid": "string", "text": "string"},
+        )
+        result = consolidate_messages_to_markdown(table)
+
+        assert "## Message 1" in result
+        assert "**Author:** uuid-ir-123" in result
+        assert "IR schema message" in result
+
+    def test_ir_schema_with_msg_id_ordering(self):
+        """IR schema uses msg_id for secondary ordering."""
+        dt = datetime(2025, 1, 15, 10, 30, 0, tzinfo=UTC)
+        table = ibis.memtable(
+            [
+                {"ts": dt, "author_uuid": "uuid-1", "text": "Message 1", "msg_id": "001"},
+                {"ts": dt, "author_uuid": "uuid-2", "text": "Message 2", "msg_id": "002"},
+            ],
+            schema={"ts": "timestamp", "author_uuid": "string", "text": "string", "msg_id": "string"},
+        )
+        result = consolidate_messages_to_markdown(table)
+
+        # Should have both messages in order
+        assert "Message 1" in result
+        assert "Message 2" in result
+        # Message 1 should appear before Message 2 (by msg_id ordering)
+        assert result.index("Message 1") < result.index("Message 2")
+
+    def test_missing_required_columns_raises_error(self):
+        """Missing required columns raises ValueError with helpful message."""
+        table = ibis.memtable(
+            [{"some_col": "value"}],
+            schema={"some_col": "string"},
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            consolidate_messages_to_markdown(table)
+
+        error_msg = str(exc_info.value)
+        assert "missing required columns" in error_msg.lower()
+        assert "timestamp/ts" in error_msg
+        assert "author/author_uuid" in error_msg
+        assert "message/text" in error_msg
+
 
 class TestDeduplicateByDocument:
     """Tests for deduplicate_by_document()."""
