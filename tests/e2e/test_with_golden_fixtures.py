@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import pytest
 from pydantic_ai.models.test import TestModel
 
-from egregora.config import resolve_site_paths
+from egregora.output_adapters.mkdocs import resolve_site_paths
 from egregora.orchestration.write_pipeline import (
     WhatsAppProcessOptions,
     process_whatsapp_export,
