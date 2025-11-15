@@ -49,52 +49,20 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEZONE = "UTC"
 
-# Primary conversation schema used throughout the pipeline
-CONVERSATION_SCHEMA = ibis.schema(
-    {
-        "timestamp": dt.Timestamp(timezone="UTC", scale=9),  # nanosecond precision
-        "date": dt.date,
-        "author": dt.string,  # Anonymized UUID after privacy stage
-        "message": dt.string,
-        "original_line": dt.string,  # Raw line from WhatsApp export
-        "tagged_line": dt.string,  # Processed line with mentions
-        "message_id": dt.String(nullable=True),  # milliseconds since first message (group creation)
-    }
-)
-
-# Alias for CONVERSATION_SCHEMA - represents WhatsApp export data
-WHATSAPP_CONVERSATION_SCHEMA = CONVERSATION_SCHEMA
-
-# Message schema as dict (used by message_schema.py utilities)
-MESSAGE_SCHEMA: dict[str, dt.DataType] = {
-    "timestamp": dt.Timestamp(timezone=DEFAULT_TIMEZONE, scale=9),
-    "date": dt.Date(),
-    "author": dt.String(),
-    "message": dt.String(),
-    "original_line": dt.String(),
-    "tagged_line": dt.String(),
-    "message_id": dt.String(nullable=True),
-    "event_id": dt.UUID(nullable=True),
-}
-
-# Legacy alias
-WHATSAPP_SCHEMA = MESSAGE_SCHEMA
-
 # ============================================================================
-# NEW MESSAGE_SCHEMA (2025-01-15 Redesign)
+# MESSAGE_SCHEMA (2025-01-15 Redesign)
 # ============================================================================
-# Minimal, provider-agnostic schema replacing old MESSAGE_SCHEMA
+# Minimal, provider-agnostic schema (7 columns)
 # See: docs/architecture/message-schema-redesign.md
 #
-# Key improvements:
-# - 7 columns (down from 8+)
+# Key improvements over old schema:
 # - Provider-agnostic (works for WhatsApp, Slack, Discord, etc.)
 # - Two-level source identity (provider_type + provider_instance)
 # - Privacy-first (author is anonymized 8-char hex, author_raw never stored)
 # - Generic field names (no whatsapp_*, slack_* columns)
 # - Flexible metadata (JSON escape hatch for provider-specific features)
 
-NEW_MESSAGE_SCHEMA = ibis.schema(
+MESSAGE_SCHEMA = ibis.schema(
     {
         # Identity
         "message_id": dt.string,  # UUID5 deterministic ID
@@ -110,34 +78,39 @@ NEW_MESSAGE_SCHEMA = ibis.schema(
         "author": dt.string,  # Anonymized 8-char hex (NEVER raw name)
 
         # Content
-        "content": dt.string,  # Message text (renamed from "message")
+        "content": dt.string,  # Message text
 
         # Metadata (escape hatch for provider-specific features)
         "metadata": dt.JSON(nullable=True),  # Generic JSON for threads, reactions, media, etc.
     }
 )
 
+# Legacy aliases for compatibility during transition
+CONVERSATION_SCHEMA = MESSAGE_SCHEMA
+WHATSAPP_CONVERSATION_SCHEMA = MESSAGE_SCHEMA
+WHATSAPP_SCHEMA = {col: dtype for col, dtype in MESSAGE_SCHEMA.items()}
+
 
 class SchemaValidationError(Exception):
     """Raised when table schema doesn't match expected MESSAGE_SCHEMA."""
 
 
-def validate_new_message_schema(table: Table) -> None:
-    """Validate table conforms to NEW_MESSAGE_SCHEMA.
+def validate_message_schema(table: Table) -> None:
+    """Validate table conforms to MESSAGE_SCHEMA.
 
     Args:
         table: Ibis Table to validate
 
     Raises:
-        SchemaValidationError: If schema doesn't match NEW_MESSAGE_SCHEMA
+        SchemaValidationError: If schema doesn't match MESSAGE_SCHEMA
 
     Example:
         >>> table = adapter.parse(zip_path)
-        >>> validate_new_message_schema(table)  # Raises if invalid
+        >>> validate_message_schema(table)  # Raises if invalid
 
     """
     actual_schema = table.schema()
-    expected_schema = NEW_MESSAGE_SCHEMA
+    expected_schema = MESSAGE_SCHEMA
 
     # Required columns
     required_cols = {"message_id", "provider_type", "provider_instance", "timestamp", "author", "content"}
@@ -167,7 +140,7 @@ def validate_new_message_schema(table: Table) -> None:
                 )
                 raise SchemaValidationError(msg)
 
-    logger.debug("✅ Schema validation passed: NEW_MESSAGE_SCHEMA")
+    logger.debug("✅ Schema validation passed: MESSAGE_SCHEMA")
 
 
 # ============================================================================

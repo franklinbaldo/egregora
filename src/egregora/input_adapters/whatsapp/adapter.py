@@ -1,16 +1,24 @@
-"""WhatsApp source adapter - parses WhatsApp ZIP exports into IR format.
+"""WhatsApp source adapter - parses WhatsApp ZIP exports into NEW_MESSAGE_SCHEMA.
 
 This adapter wraps the existing WhatsApp parsing logic and exposes it through
 the standard InputAdapter interface, making WhatsApp just another source in
 the pipeline.
 
+NEW_MESSAGE_SCHEMA Support:
+- parse_new() produces NEW_MESSAGE_SCHEMA (7 columns, provider-agnostic)
+- parse() still produces old IR format (for backward compatibility)
+- Uses lazy Ibis operations throughout
+- Immediate anonymization (author_raw never persisted)
+
 Media Handling:
-- parse() converts WhatsApp media references to markdown format
+- parse_new() converts WhatsApp media references to markdown format
 - deliver_media() extracts specific files from ZIP on demand
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import re
 import uuid
@@ -20,10 +28,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 
 import ibis
+import ibis.expr.datatypes as dt
 
 from egregora.data_primitives import GroupSlug
-from egregora.database.validation import create_ir_table
+from egregora.database.ir_schema import MESSAGE_SCHEMA, SchemaValidationError, validate_message_schema
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
+from egregora.privacy.validation import validate_privacy
 from egregora.input_adapters.whatsapp.models import WhatsAppExport
 from egregora.input_adapters.whatsapp.parser import (
     parse_source,
@@ -33,6 +43,49 @@ if TYPE_CHECKING:
     from ibis.expr.types import Table
 logger = logging.getLogger(__name__)
 __all__ = ["WhatsAppAdapter", "discover_chat_file"]
+
+# Namespace for deterministic UUID5 message IDs
+NAMESPACE_MESSAGE = uuid.UUID("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
+
+# Namespace for author anonymization (deterministic 8-char hex)
+NAMESPACE_AUTHOR = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+
+
+def _anonymize_author(author: str) -> str:
+    """Generate deterministic 8-char hex pseudonym for author.
+
+    Args:
+        author: Raw author name
+
+    Returns:
+        8-character hex string (deterministic based on author name)
+
+    Example:
+        >>> _anonymize_author("John Doe")
+        'a1b2c3d4'
+
+    """
+    normalized = author.strip().lower()
+    author_uuid = uuid.uuid5(NAMESPACE_AUTHOR, normalized)
+    return author_uuid.hex[:8]
+
+
+def _generate_message_id(provider_type: str, provider_instance: str, timestamp: str, author: str, content: str) -> str:
+    """Generate deterministic UUID5 message ID.
+
+    Args:
+        provider_type: Platform (e.g., "whatsapp")
+        provider_instance: Group/channel name
+        timestamp: ISO timestamp
+        author: Anonymized author
+        content: Message content
+
+    Returns:
+        UUID5 string
+
+    """
+    composite_key = f"{provider_type}:{provider_instance}:{timestamp}:{author}:{content}"
+    return str(uuid.uuid5(NAMESPACE_MESSAGE, composite_key))
 
 
 def discover_chat_file(zip_path: Path) -> tuple[str, str]:
@@ -184,11 +237,14 @@ class WhatsAppAdapter(InputAdapter):
         )
 
     def parse(self, input_path: Path, *, timezone: str | None = None, **_kwargs: _EmptyKwargs) -> Table:
-        """Parse WhatsApp ZIP export into IR-compliant table.
+        """Parse WhatsApp ZIP export into MESSAGE_SCHEMA.
 
-        Converts WhatsApp media references to standard markdown format:
-        - "IMG-001.jpg (file attached)" → "![Image](IMG-001.jpg)"
-        - "VID-001.mp4 (arquivo anexado)" → "[Video](VID-001.mp4)"
+        Uses lazy Ibis operations to transform WhatsApp data to MESSAGE_SCHEMA:
+        - Immediate anonymization (author_raw never persisted)
+        - Two-level source (provider_type + provider_instance)
+        - Deterministic UUID5 message IDs
+        - Media references converted to markdown
+        - WhatsApp-specific data moved to metadata JSON
 
         Args:
             input_path: Path to WhatsApp ZIP export
@@ -196,19 +252,22 @@ class WhatsAppAdapter(InputAdapter):
             **kwargs: Additional parameters (unused)
 
         Returns:
-            Ibis Table conforming to IR_SCHEMA with markdown media references
+            Ibis Table conforming to MESSAGE_SCHEMA
 
         Raises:
             ValueError: If ZIP is invalid or chat file not found
             FileNotFoundError: If input_path does not exist
 
         """
+        # Validate input
         if not input_path.exists():
             msg = f"Input path does not exist: {input_path}"
             raise FileNotFoundError(msg)
         if not input_path.is_file() or not str(input_path).endswith(".zip"):
             msg = f"Expected a ZIP file, got: {input_path}"
             raise ValueError(msg)
+
+        # Discover group info
         group_name, chat_file = discover_chat_file(input_path)
         export = WhatsAppExport(
             zip_path=input_path,
@@ -218,31 +277,100 @@ class WhatsAppAdapter(InputAdapter):
             chat_file=chat_file,
             media_files=[],
         )
-        messages_table = parse_source(
+
+        # Parse raw WhatsApp format (returns table with: timestamp, author, message, original_line, tagged_line)
+        raw_table = parse_source(
             export,
             timezone=timezone,
             expose_raw_author=True,
-        )  # Phase 6: parse_source renamed
+        )
 
+        # Transform to MESSAGE_SCHEMA using lazy Ibis operations
+        table = self._transform_to_message_schema(raw_table, group_name)
+
+        # Validate schema
+        validate_message_schema(table)
+        validate_privacy(table)
+
+        logger.debug("Parsed WhatsApp export: %s messages from %s", table.count().execute(), group_name)
+        return table
+
+    def _transform_to_message_schema(self, raw_table: Table, provider_instance: str) -> Table:
+        """Transform raw WhatsApp table to MESSAGE_SCHEMA using lazy Ibis operations.
+
+        Args:
+            raw_table: Raw table from parse_source (timestamp, author, message, original_line, tagged_line)
+            provider_instance: Group name
+
+        Returns:
+            Table conforming to MESSAGE_SCHEMA
+
+        """
+        # Step 1: Add provider fields (lazy - no execute)
+        table = raw_table.mutate(
+            provider_type=ibis.literal("whatsapp"),
+            provider_instance=ibis.literal(provider_instance),
+        )
+
+        # Step 2: Anonymize authors using Ibis UDF (lazy)
         @ibis.udf.scalar.python
-        def convert_media_to_markdown(message: str | None) -> str | None:
+        def anonymize_udf(author: str) -> str:
+            return _anonymize_author(author) if author else "system"
+
+        table = table.mutate(author_anon=anonymize_udf(table.author))
+
+        # Step 3: Convert media to markdown using Ibis UDF (lazy)
+        @ibis.udf.scalar.python
+        def convert_media_udf(message: str | None) -> str | None:
             if message is None:
                 return None
             return _convert_whatsapp_media_to_markdown(message)
 
-        messages_table = messages_table.mutate(message=convert_media_to_markdown(messages_table.message))
-        tenant_id = str(export.group_slug)
-        ir_table = create_ir_table(
-            messages_table,
-            tenant_id=tenant_id,
-            source=self.source_identifier,
-            thread_key=tenant_id,
-            timezone=timezone,
-            author_namespace=self._author_namespace,
+        table = table.mutate(content=convert_media_udf(table.message))
+
+        # Step 4: Generate deterministic message IDs using Ibis UDF (lazy)
+        @ibis.udf.scalar.python
+        def generate_id_udf(provider_type: str, provider_instance: str, timestamp: str, author: str, content: str) -> str:
+            return _generate_message_id(provider_type, provider_instance, str(timestamp), author, content)
+
+        table = table.mutate(
+            message_id=generate_id_udf(
+                table.provider_type,
+                table.provider_instance,
+                table.timestamp.cast(dt.string),
+                table.author_anon,
+                table.content,
+            )
         )
 
-        logger.debug("Parsed WhatsApp export with %s messages", ir_table.count().execute())
-        return ir_table
+        # Step 5: Create metadata JSON with WhatsApp-specific fields (lazy)
+        @ibis.udf.scalar.python
+        def create_metadata_udf(original_line: str | None, tagged_line: str | None) -> str | None:
+            """Create metadata JSON with WhatsApp-specific data."""
+            metadata = {}
+            if original_line:
+                metadata["original_line"] = original_line
+            if tagged_line:
+                metadata["tagged_line"] = tagged_line
+            return json.dumps(metadata) if metadata else None
+
+        table = table.mutate(
+            metadata=create_metadata_udf(table.original_line, table.tagged_line).cast(dt.JSON(nullable=True))
+        )
+
+        # Step 6: Select only MESSAGE_SCHEMA columns and rename author_anon → author (lazy)
+        table = table.select(
+            message_id=table.message_id,
+            provider_type=table.provider_type,
+            provider_instance=table.provider_instance,
+            timestamp=table.timestamp,
+            author=table.author_anon,  # Rename: author_anon → author
+            content=table.content,
+            metadata=table.metadata,
+        )
+
+        # Return lazy table (no .execute() called)
+        return table
 
     def deliver_media(
         self, media_reference: str, temp_dir: Path, **kwargs: Unpack[DeliverMediaKwargs]
