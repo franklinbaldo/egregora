@@ -176,6 +176,9 @@ class EnrichmentSettings(BaseModel):
     )
 
 
+from egregora.constants import WindowUnit
+
+
 class PipelineSettings(BaseModel):
     """Pipeline execution settings."""
 
@@ -184,8 +187,8 @@ class PipelineSettings(BaseModel):
         ge=1,
         description="Size of each processing window (number of messages, hours, days, etc.)",
     )
-    step_unit: Literal["messages", "hours", "days", "bytes"] = Field(
-        default="days",
+    step_unit: WindowUnit = Field(
+        default=WindowUnit.DAYS,
         description="Unit for windowing: 'messages' (count), 'hours'/'days' (time), 'bytes' (max packing)",
     )
     overlap_ratio: float = Field(
@@ -514,7 +517,7 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
     config_path = egregora_dir / "config.yml"
 
     # Export as dict
-    data = config.model_dump(exclude_defaults=False, mode="python")
+    data = config.model_dump(exclude_defaults=False, mode="json")
 
     # Write with nice formatting
     yaml_str = yaml.dump(
@@ -537,6 +540,9 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
 # They replace parameter soup (12-16 params → 3-6 params).
 
 
+from egregora.constants import WindowUnit
+
+
 @dataclass
 class ProcessConfig:
     """Configuration for chat export processing (source-agnostic).
@@ -544,10 +550,10 @@ class ProcessConfig:
     Replaces long parameter lists (15+ params) with structured config object.
     """
 
-    input_file: Annotated[Path, "Path to the chat export file (ZIP, JSON, etc.)"]
     output_dir: Annotated[Path, "Directory for the generated site"]
+    input_file: Annotated[Path | None, "Path to the chat export file (ZIP, JSON, etc.)"] = None
     step_size: Annotated[int, "Size of each processing window"] = 1
-    step_unit: Annotated[str, "Unit for windowing: 'messages', 'hours', 'days'"] = "days"
+    step_unit: Annotated[WindowUnit, "Unit for windowing strategy"] = WindowUnit.DAYS
     overlap_ratio: Annotated[float, "Fraction of window to overlap (0.0-0.5)"] = 0.2
     max_window_time: Annotated[timedelta | None, "Optional maximum time span per window"] = None
     enable_enrichment: Annotated[bool, "Enable LLM enrichment for URLs/media"] = True

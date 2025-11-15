@@ -110,9 +110,7 @@ def process_whatsapp_export(
                 update={
                     "mode": opts.retrieval_mode,
                     "nprobe": (
-                        opts.retrieval_nprobe
-                        if opts.retrieval_nprobe is not None
-                        else base_config.rag.nprobe
+                        opts.retrieval_nprobe if opts.retrieval_nprobe is not None else base_config.rag.nprobe
                     ),
                     "overfetch": (
                         opts.retrieval_overfetch
@@ -172,7 +170,7 @@ class PipelineEnvironment:
 class PreparedPipelineData:
     """Artifacts produced during dataset preparation."""
 
-    messages_table: "ir.Table"
+    messages_table: ir.Table
     windows_iterator: any
     checkpoint_path: Path
     window_context: WindowProcessingContext
@@ -264,7 +262,6 @@ def _process_window_with_auto_split(
     window: any, ctx: WindowProcessingContext, *, depth: int = 0, max_depth: int = 5
 ) -> dict[str, dict[str, list[str]]]:
     """Process a window with automatic splitting if prompt exceeds model limit."""
-
     from egregora.agents.model_limits import PromptTooLargeError
     from egregora.transformations import split_window_into_n_parts
 
@@ -275,9 +272,7 @@ def _process_window_with_auto_split(
     while queue:
         current_window, current_depth = queue.popleft()
         indent = "  " * current_depth
-        window_label = (
-            f"{current_window.start_time:%Y-%m-%d %H:%M} to {current_window.end_time:%H:%M}"
-        )
+        window_label = f"{current_window.start_time:%Y-%m-%d %H:%M} to {current_window.end_time:%H:%M}"
 
         _warn_if_window_too_small(current_window.size, indent, window_label, min_window_size)
         _ensure_split_depth(current_depth, max_depth, indent, window_label)
@@ -355,9 +350,7 @@ def _split_window_for_retry(
 
     scheduled: list[tuple[any, int]] = []
     for index, split_window in enumerate(split_windows, 1):
-        split_label = (
-            f"{split_window.start_time:%Y-%m-%d %H:%M} to {split_window.end_time:%H:%M}"
-        )
+        split_label = f"{split_window.start_time:%Y-%m-%d %H:%M} to {split_window.end_time:%H:%M}"
         logger.info(
             "%s↳ [dim]Processing part %d/%d: %s[/]",
             indent,
@@ -368,6 +361,7 @@ def _split_window_for_retry(
         scheduled.append((split_window, depth + 1))
 
     return scheduled
+
 
 RUN_EVENTS_TABLE_NAME = "run_events"
 
@@ -764,7 +758,6 @@ def _create_database_backends(
 
 def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> any:
     """Resolve site paths for the configured output format and validate structure."""
-
     site_paths = _resolve_pipeline_site_paths(output_dir, config)
     format_type = config.output.format
 
@@ -826,7 +819,6 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> Si
 
 def _create_gemini_client(api_key: str | None) -> genai.Client:
     """Create a Gemini client with retry configuration suitable for the pipeline."""
-
     http_options = genai.types.HttpOptions(
         retryOptions=genai.types.HttpRetryOptions(
             attempts=5,
@@ -847,7 +839,6 @@ def _setup_pipeline_environment(
     client: genai.Client | None,
 ) -> PipelineEnvironment:
     """Set up pipeline environment including paths, backends, and clients."""
-
     resolved_output = output_dir.expanduser().resolve()
     site_paths = _resolve_site_paths_or_raise(resolved_output, config)
     runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
@@ -876,7 +867,6 @@ def _pipeline_environment(
     client: genai.Client | None,
 ):
     """Context manager that provisions and tears down pipeline resources."""
-
     options = getattr(ibis, "options", None)
     old_backend = getattr(options, "default_backend", None) if options else None
     env = _setup_pipeline_environment(output_dir, config, api_key, model_override, client)
@@ -910,6 +900,7 @@ def _pipeline_environment(
                         backend_close()
                     elif hasattr(backend, "con") and hasattr(backend.con, "close"):
                         backend.con.close()
+
 
 def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) -> ir.Table:
     """Parse source and validate IR schema.
@@ -1021,7 +1012,6 @@ def _process_commands_and_avatars(
     return messages_table
 
 
-
 def _prepare_pipeline_data(
     adapter: any,
     input_path: Path,
@@ -1030,7 +1020,6 @@ def _prepare_pipeline_data(
     output_dir: Path,
 ) -> PreparedPipelineData:
     """Prepare messages, filters, and windowing context for processing."""
-
     timezone = config.pipeline.timezone
     step_size = config.pipeline.step_size
     step_unit = config.pipeline.step_unit
@@ -1058,7 +1047,7 @@ def _prepare_pipeline_data(
         messages_table, env.site_paths, vision_model, env.enrichment_cache
     )
 
-    checkpoint_path = env.site_paths.site_root / \".egregora\" / \"checkpoint.json\"
+    checkpoint_path = env.site_paths.site_root / ".egregora" / "checkpoint.json"
     messages_table = _apply_filters(
         messages_table,
         env.site_paths,
@@ -1123,6 +1112,7 @@ def _prepare_pipeline_data(
         enable_enrichment=enable_enrichment,
         embedding_model=embedding_model,
     )
+
 
 def _index_media_into_rag(
     enable_enrichment: bool,
@@ -1277,7 +1267,6 @@ def run(
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """Run the complete write pipeline workflow."""
-
     logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", source)
     adapter = get_adapter(source)
 
@@ -1289,4 +1278,3 @@ def run(
 
         logger.info("[bold green]🎉 Pipeline completed successfully![/]")
         return results
-

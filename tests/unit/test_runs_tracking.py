@@ -19,12 +19,12 @@ import pytest
 
 from egregora.database.tracking import (
     RunContext,
-    fingerprint_table,
     get_git_commit_sha,
     record_lineage,
     record_run,
     run_stage_with_tracking,
 )
+from egregora.utils.fingerprinting import fingerprint_table
 
 
 @pytest.fixture

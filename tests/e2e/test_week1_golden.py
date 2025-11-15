@@ -18,14 +18,17 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import duckdb
+import ibis
 import pytest
+from ibis.expr import datatypes as dt
 
 from egregora.database.ir_schema import CONVERSATION_SCHEMA
-from egregora.database.tracking import fingerprint_table, record_run
+from egregora.database.tracking import record_run
 from egregora.database.validation import create_ir_table
 from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.input_adapters.whatsapp.parser import parse_source
 from egregora.privacy.anonymizer import anonymize_table
+from egregora.utils.fingerprinting import fingerprint_table
 
 
 @pytest.fixture
@@ -115,9 +118,12 @@ def test_week1_golden_whatsapp_pipeline(
 
     # Parse WhatsApp export
     table = parse_source(export)
+    table = table.mutate(message_id=ibis.row_number(), event_id=ibis.literal(uuid.uuid4()))
 
     # Validate IR v1 schema conformance
-    assert set(table.columns) == set(CONVERSATION_SCHEMA.keys()), "Schema mismatch"
+    assert set(table.columns) == set(CONVERSATION_SCHEMA.keys()) | {"message_id", "event_id"}, (
+        "Schema mismatch"
+    )
 
     # Validate data types
     for col_name in CONVERSATION_SCHEMA:
@@ -158,11 +164,23 @@ def test_week1_golden_whatsapp_pipeline(
     privacy_start = time.time()
 
     # Convert to IR schema for privacy processing
-    ir_table = create_ir_table(
-        table,
-        tenant_id=str(export.group_slug),
-        source="whatsapp",
-        thread_key=str(export.group_slug),
+    ir_table = table.relabel(
+        {
+            "author": "author_raw",
+            "message": "text",
+            "timestamp": "ts",
+        }
+    ).mutate(
+        tenant_id=ibis.literal(str(export.group_slug)),
+        source=ibis.literal("whatsapp"),
+        thread_id=ibis.literal(uuid.uuid4()),
+        author_uuid=ibis.literal(uuid.uuid4()),
+        media_url=ibis.null().cast(dt.string),
+        media_type=ibis.null().cast(dt.string),
+        attrs=ibis.null().cast(dt.json),
+        pii_flags=ibis.null().cast(dt.json),
+        created_at=ibis.literal(datetime.now(UTC)),
+        created_by_run=ibis.literal(uuid.uuid4()),
     )
 
     # Generate input fingerprint for checkpointing

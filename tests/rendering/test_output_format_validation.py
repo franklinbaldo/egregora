@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from egregora.output_adapters.base import OutputAdapter
-from egregora.output_adapters.mkdocs import MkDocsOutputAdapter
+from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
 
 
 class TestNormalizeSlug:
@@ -133,7 +133,7 @@ tags: [tag1, tag2]
 
 Body content here."""
 
-        format_instance = MkDocsOutputAdapter()
+        format_instance = MkDocsAdapter()
         metadata, body = format_instance.parse_frontmatter(content)
 
         assert metadata["title"] == "Test Post"
@@ -146,7 +146,7 @@ Body content here."""
         """Returns empty dict for content without frontmatter."""
         content = "Just plain content"
 
-        format_instance = MkDocsOutputAdapter()
+        format_instance = MkDocsAdapter()
         metadata, body = format_instance.parse_frontmatter(content)
 
         assert metadata == {}
@@ -159,7 +159,7 @@ Body content here."""
 
 Body content."""
 
-        format_instance = MkDocsOutputAdapter()
+        format_instance = MkDocsAdapter()
         metadata, body = format_instance.parse_frontmatter(content)
 
         # Empty frontmatter is treated as no frontmatter (implementation detail)
@@ -174,14 +174,14 @@ class TestMkDocsPostStorageIntegration:
 
     def test_write_with_output_format_normalizes_slug(self, tmp_path: Path):
         """write() normalizes slug when output_format provided."""
-        output_format = MkDocsOutputAdapter()
+        output_format = MkDocsAdapter()
         output_format.initialize(tmp_path)
 
-        post_storage = output_format.posts
-        result = post_storage.write(
+        result = output_format.write_post(
             slug="My Post With Spaces",
             metadata={"title": "Test", "date": "2025-01-10"},
             content="Content",
+            output_dir=output_format.posts_dir,
         )
 
         # Check that filename uses normalized slug
@@ -190,14 +190,14 @@ class TestMkDocsPostStorageIntegration:
 
     def test_write_with_output_format_adds_date_prefix(self, tmp_path: Path):
         """write() adds date prefix when output_format provided."""
-        output_format = MkDocsOutputAdapter()
+        output_format = MkDocsAdapter()
         output_format.initialize(tmp_path)
 
-        post_storage = output_format.posts
-        result = post_storage.write(
+        result = output_format.write_post(
             slug="test-post",
             metadata={"title": "Test", "date": "2025-01-10"},
             content="Content",
+            output_dir=output_format.posts_dir,
         )
 
         # Check that filename has date prefix
@@ -206,23 +206,23 @@ class TestMkDocsPostStorageIntegration:
 
     def test_write_with_output_format_prevents_overwrite(self, tmp_path: Path):
         """write() generates unique filename for duplicate slugs."""
-        output_format = MkDocsOutputAdapter()
+        output_format = MkDocsAdapter()
         output_format.initialize(tmp_path)
 
-        post_storage = output_format.posts
-
         # Write first post
-        result1 = post_storage.write(
+        result1 = output_format.write_post(
             slug="duplicate-slug",
             metadata={"title": "Post 1", "date": "2025-01-10"},
             content="Content 1",
+            output_dir=output_format.posts_dir,
         )
 
         # Write second post with same slug
-        result2 = post_storage.write(
+        result2 = output_format.write_post(
             slug="duplicate-slug",
             metadata={"title": "Post 2", "date": "2025-01-10"},
             content="Content 2",
+            output_dir=output_format.posts_dir,
         )
 
         # Should have different filenames
@@ -231,13 +231,13 @@ class TestMkDocsPostStorageIntegration:
 
     def test_write_without_output_format_fallback(self, tmp_path: Path):
         """write() falls back to simple format without output_format."""
-        from egregora.output_adapters.mkdocs_storage import MkDocsPostStorage
+        from egregora.output_adapters.mkdocs.adapter import _write_mkdocs_post
 
-        post_storage = MkDocsPostStorage(tmp_path)  # No output_format parameter
-        result = post_storage.write(
+        result = _write_mkdocs_post(
             slug="simple-post",
-            metadata={"title": "Test"},
+            metadata={"title": "Test", "date": "2025-01-10"},
             content="Content",
+            output_dir=tmp_path / "posts",
         )
 
         # Should use simple filename format
@@ -245,36 +245,32 @@ class TestMkDocsPostStorageIntegration:
 
     def test_read_handles_both_formats(self, tmp_path: Path):
         """read() can find posts in both date-prefixed and simple formats."""
-        from egregora.output_adapters.mkdocs_storage import MkDocsPostStorage
-
-        post_storage = MkDocsPostStorage(tmp_path)
+        output_format = MkDocsAdapter()
+        output_format.initialize(tmp_path)
         posts_dir = tmp_path / "posts"
-        # posts_dir already created by MkDocsPostStorage.__init__
+        posts_dir.mkdir(exist_ok=True)
 
         # Write date-prefixed file
         (posts_dir / "2025-01-10-my-post.md").write_text("---\ntitle: Test\n---\n\nContent")
 
         # Should be able to read with just the slug
-        result = post_storage.read("my-post")
+        result = output_format.read_document("post", "my-post")
         assert result is not None
-        metadata, content = result
-        assert metadata["title"] == "Test"
-        assert content.strip() == "Content"
+        assert result.metadata["title"] == "Test"
+        assert result.content.strip() == "Content"
 
     def test_exists_handles_both_formats(self, tmp_path: Path):
         """exists() returns True for both date-prefixed and simple formats."""
-        from egregora.output_adapters.mkdocs_storage import MkDocsPostStorage
-
-        post_storage = MkDocsPostStorage(tmp_path)
-        posts_dir = tmp_path / "posts"
-        # posts_dir already created by MkDocsPostStorage.__init__
+        output_format = MkDocsAdapter()
+        output_format.initialize(tmp_path)
+        posts_dir = output_format.posts_dir
 
         # Write date-prefixed file
         (posts_dir / "2025-01-10-my-post.md").write_text("content")
 
         # Should find with just the slug
-        assert post_storage.exists("my-post") is True
-        assert post_storage.exists("nonexistent") is False
+        assert output_format.read_document("post", "my-post") is not None
+        assert output_format.read_document("post", "nonexistent") is None
 
 
 if __name__ == "__main__":

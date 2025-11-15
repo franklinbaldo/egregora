@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import re
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+from egregora.privacy.patterns import PII_PATTERNS, UUID_PATTERN
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -12,36 +12,6 @@ if TYPE_CHECKING:
 
 class PrivacyViolationError(RuntimeError):
     """Raised when generated content exposes sensitive data."""
-
-
-@dataclass(frozen=True)
-class _PrivacyPattern:
-    description: str
-    regex: re.Pattern[str]
-
-
-_PHONE_PATTERNS: tuple[_PrivacyPattern, ...] = (
-    _PrivacyPattern(
-        description="international phone number", regex=re.compile("\\+\\d{2}\\s?\\d{2}\\s?\\d{4,5}-?\\d{4}")
-    ),
-    _PrivacyPattern(description="local phone number with hyphen", regex=re.compile("\\b\\d{3,5}-\\d{4}\\b")),
-    _PrivacyPattern(
-        description="parenthesized local phone number",
-        regex=re.compile("\\(\\s*\\d{2,3}\\s*\\)\\s*\\d{3,5}-\\d{4}"),
-    ),
-)
-_EMAIL_PATTERN = _PrivacyPattern(
-    description="email address",
-    regex=re.compile("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}", re.IGNORECASE),
-)
-_BRAZILIAN_ID_PATTERNS: tuple[_PrivacyPattern, ...] = (
-    _PrivacyPattern(description="CPF identifier", regex=re.compile("\\b\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}\\b")),
-    _PrivacyPattern(
-        description="CNPJ identifier", regex=re.compile("\\b\\d{2}\\.\\d{3}\\.\\d{3}/\\d{4}-\\d{2}\\b")
-    ),
-)
-_PII_PATTERNS: tuple[_PrivacyPattern, ...] = (*_PHONE_PATTERNS, _EMAIL_PATTERN, *_BRAZILIAN_ID_PATTERNS)
-_UUID_PATTERN = re.compile("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 
 
 def _within_any(span: tuple[int, int], ranges: Sequence[tuple[int, int]]) -> bool:
@@ -63,8 +33,8 @@ def validate_text_privacy(text: str) -> bool:
         PrivacyViolationError: If PII patterns are found outside UUID contexts
 
     """
-    uuid_spans = [(match.start(), match.end()) for match in _UUID_PATTERN.finditer(text)]
-    for pattern in _PII_PATTERNS:
+    uuid_spans = [(match.start(), match.end()) for match in UUID_PATTERN.finditer(text)]
+    for pattern in PII_PATTERNS:
         for match in pattern.regex.finditer(text):
             span = match.span()
             if _within_any(span, uuid_spans):
@@ -74,8 +44,4 @@ def validate_text_privacy(text: str) -> bool:
     return True
 
 
-# Legacy alias for backward compatibility (deprecated)
-validate_newsletter_privacy = validate_text_privacy
-
-
-__all__ = ["PrivacyViolationError", "validate_newsletter_privacy", "validate_text_privacy"]
+__all__ = ["PrivacyViolationError", "validate_text_privacy"]

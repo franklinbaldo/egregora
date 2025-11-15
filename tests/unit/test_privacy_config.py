@@ -13,6 +13,7 @@ import uuid
 import pytest
 
 from egregora.privacy.config import PrivacySettings
+from egregora.privacy.uuid_namespaces import NAMESPACE_AUTHOR
 
 
 class TestPrivacyConfig:
@@ -34,7 +35,7 @@ class TestPrivacyConfig:
         assert config.allowed_media_domains == ()
         assert config.enable_reidentification_escrow is False
         assert config.reidentification_retention_days == 90
-        assert config.author_namespace == uuid.NAMESPACE_URL
+        assert config.author_namespace == NAMESPACE_AUTHOR
 
     def test_privacy_config_custom_values(self):
         """PrivacySettings accepts custom values."""

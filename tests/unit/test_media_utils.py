@@ -19,8 +19,8 @@ class TestExtractMarkdownMediaRefs:
         """Test extracting image references."""
         table = ibis.memtable(
             [
-                {"message": "Check this ![photo](IMG-001.jpg)"},
-                {"message": "Another ![image](IMG-002.png)"},
+                {"text": "Check this ![photo](IMG-001.jpg)"},
+                {"text": "Another ![image](IMG-002.png)"},
             ]
         )
 
@@ -32,8 +32,8 @@ class TestExtractMarkdownMediaRefs:
         """Test extracting non-image link references."""
         table = ibis.memtable(
             [
-                {"message": "Watch [video](VID-001.mp4)"},
-                {"message": "Listen [audio](AUD-001.opus)"},
+                {"text": "Watch [video](VID-001.mp4)"},
+                {"text": "Listen [audio](AUD-001.opus)"},
             ]
         )
 
@@ -45,7 +45,7 @@ class TestExtractMarkdownMediaRefs:
         """Test extracting both images and links."""
         table = ibis.memtable(
             [
-                {"message": "Photo ![img](IMG-001.jpg) and [video](VID-001.mp4)"},
+                {"text": "Photo ![img](IMG-001.jpg) and [video](VID-001.mp4)"},
             ]
         )
 
@@ -57,7 +57,7 @@ class TestExtractMarkdownMediaRefs:
         """Test that HTTP/HTTPS URLs are excluded."""
         table = ibis.memtable(
             [
-                {"message": "[Link](https://example.com) and ![img](photo.jpg)"},
+                {"text": "[Link](https://example.com) and ![img](photo.jpg)"},
             ]
         )
 
@@ -70,9 +70,9 @@ class TestExtractMarkdownMediaRefs:
         """Test extraction with empty or None messages."""
         table = ibis.memtable(
             [
-                {"message": "![img](photo.jpg)"},
-                {"message": ""},
-                {"message": None},
+                {"text": "![img](photo.jpg)"},
+                {"text": ""},
+                {"text": None},
             ]
         )
 
@@ -84,9 +84,9 @@ class TestExtractMarkdownMediaRefs:
         """Test that duplicate references are deduplicated."""
         table = ibis.memtable(
             [
-                {"message": "![img](photo.jpg)"},
-                {"message": "Another ![img2](photo.jpg)"},
-                {"message": "[link](photo.jpg)"},
+                {"text": "![img](photo.jpg)"},
+                {"text": "Another ![img2](photo.jpg)"},
+                {"text": "[link](photo.jpg)"},
             ]
         )
 
@@ -172,7 +172,7 @@ class TestReplaceMarkdownMediaRefs:
 
             table = ibis.memtable(
                 [
-                    {"message": "Check this ![photo](IMG-001.jpg)"},
+                    {"text": "Check this ![photo](IMG-001.jpg)"},
                 ]
             )
 
@@ -181,7 +181,7 @@ class TestReplaceMarkdownMediaRefs:
 
             result = updated.execute()
             # Should create relative path from posts to media
-            assert "../media/abc123.jpg" in result["message"][0]
+            assert "../media/abc123.jpg" in result["text"][0]
 
     def test_replace_link_reference(self):
         """Test replacing link markdown reference."""
@@ -200,7 +200,7 @@ class TestReplaceMarkdownMediaRefs:
 
             table = ibis.memtable(
                 [
-                    {"message": "Watch [video](VID-001.mp4)"},
+                    {"text": "Watch [video](VID-001.mp4)"},
                 ]
             )
 
@@ -208,7 +208,7 @@ class TestReplaceMarkdownMediaRefs:
             updated = replace_markdown_media_refs(table, mapping, docs_dir, posts_dir)
 
             result = updated.execute()
-            assert "../media/xyz789.mp4" in result["message"][0]
+            assert "../media/xyz789.mp4" in result["text"][0]
 
     def test_replace_multiple_references(self):
         """Test replacing multiple references in one message."""
@@ -229,7 +229,7 @@ class TestReplaceMarkdownMediaRefs:
 
             table = ibis.memtable(
                 [
-                    {"message": "Photo ![img](IMG-001.jpg) and [video](VID-001.mp4)"},
+                    {"text": "Photo ![img](IMG-001.jpg) and [video](VID-001.mp4)"},
                 ]
             )
 
@@ -240,8 +240,8 @@ class TestReplaceMarkdownMediaRefs:
             updated = replace_markdown_media_refs(table, mapping, docs_dir, posts_dir)
 
             result = updated.execute()
-            assert "../media/abc.jpg" in result["message"][0]
-            assert "../media/xyz.mp4" in result["message"][0]
+            assert "../media/abc.jpg" in result["text"][0]
+            assert "../media/xyz.mp4" in result["text"][0]
 
     def test_replace_with_empty_mapping(self):
         """Test that empty mapping returns unchanged table."""
@@ -254,14 +254,14 @@ class TestReplaceMarkdownMediaRefs:
 
             table = ibis.memtable(
                 [
-                    {"message": "Check this ![photo](IMG-001.jpg)"},
+                    {"text": "Check this ![photo](IMG-001.jpg)"},
                 ]
             )
 
             updated = replace_markdown_media_refs(table, {}, docs_dir, posts_dir)
 
             result = updated.execute()
-            assert result["message"][0] == "Check this ![photo](IMG-001.jpg)"
+            assert result["text"][0] == "Check this ![photo](IMG-001.jpg)"
 
     def test_replace_only_matching_references(self):
         """Test that only references in mapping are replaced."""
@@ -280,7 +280,7 @@ class TestReplaceMarkdownMediaRefs:
 
             table = ibis.memtable(
                 [
-                    {"message": "![img1](IMG-001.jpg) and ![img2](IMG-002.jpg)"},
+                    {"text": "![img1](IMG-001.jpg) and ![img2](IMG-002.jpg)"},
                 ]
             )
 
@@ -288,5 +288,5 @@ class TestReplaceMarkdownMediaRefs:
             updated = replace_markdown_media_refs(table, mapping, docs_dir, posts_dir)
 
             result = updated.execute()
-            assert "../media/abc.jpg" in result["message"][0]
-            assert "IMG-002.jpg" in result["message"][0]  # Unchanged
+            assert "../media/abc.jpg" in result["text"][0]
+            assert "IMG-002.jpg" in result["text"][0]  # Unchanged

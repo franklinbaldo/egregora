@@ -84,18 +84,18 @@ class SchemaError(Exception):
 IR_MESSAGE_SCHEMA = ibis.schema(
     {
         # Identity
-        "event_id": dt.string,  # UUID as string for PyArrow compatibility
+        "event_id": dt.uuid,
         # Multi-Tenant
         "tenant_id": dt.string,
         "source": dt.string,
         # Threading
-        "thread_id": dt.string,  # UUID as string for PyArrow compatibility
+        "thread_id": dt.uuid,
         "msg_id": dt.string,
         # Temporal
         "ts": dt.Timestamp(timezone="UTC"),
         # Authors (PRIVACY BOUNDARY)
         "author_raw": dt.string,
-        "author_uuid": dt.string,  # UUID as string for PyArrow compatibility
+        "author_uuid": dt.uuid,
         # Content
         "text": dt.String(nullable=True),
         "media_url": dt.String(nullable=True),
@@ -105,7 +105,7 @@ IR_MESSAGE_SCHEMA = ibis.schema(
         "pii_flags": dt.JSON(nullable=True),
         # Lineage
         "created_at": dt.Timestamp(timezone="UTC"),
-        "created_by_run": dt.String(nullable=True),  # UUID as string for PyArrow compatibility
+        "created_by_run": dt.uuid,
     }
 )
 
@@ -125,22 +125,22 @@ class IRMessageRow(BaseModel):
     """
 
     # Identity
-    event_id: uuid.UUID | str  # String UUID from schema, required to match canonical table
+    event_id: uuid.UUID | None = None
 
     # Multi-Tenant
     tenant_id: str = Field(min_length=1)
     source: str = Field(pattern=r"^[a-z][a-z0-9_-]*$")  # lowercase, alphanumeric + underscore/dash
 
     # Threading
-    thread_id: uuid.UUID | str  # String UUID from schema, required to match canonical table
-    msg_id: str  # Required identifier in canonical schema
+    thread_id: uuid.UUID
+    msg_id: str | None = None  # Required identifier in canonical schema
 
     # Temporal
     ts: datetime
 
     # Authors
     author_raw: str
-    author_uuid: uuid.UUID | str  # String UUID from schema, required to match canonical table
+    author_uuid: uuid.UUID
 
     # Content
     text: str | None = None
@@ -526,6 +526,8 @@ def create_ir_table(
         raise ValueError(msg)
 
     normalized = ensure_message_schema(table, timezone=timezone)
+    if "message_id" not in normalized.columns:
+        normalized = normalized.mutate(message_id=ibis.row_number().cast(dt.string))
 
     namespace_override = author_namespace
 
@@ -563,26 +565,26 @@ def create_ir_table(
         return data or None
 
     thread_identifier = thread_key or tenant_id
-    thread_uuid = str(deterministic_thread_uuid(tenant_id, source, thread_identifier))
+    thread_uuid = deterministic_thread_uuid(tenant_id, source, thread_identifier)
 
     created_at_literal = ibis.literal(datetime.now(UTC), type=dt.Timestamp(timezone="UTC"))
     if run_id is not None:
-        created_by_run_literal = ibis.literal(str(run_id), type=dt.string)
+        created_by_run_literal = ibis.literal(run_id, type=dt.uuid)
     else:
-        created_by_run_literal = ibis.null().cast(dt.String(nullable=True))
+        created_by_run_literal = ibis.null().cast(dt.uuid)
 
     ir_table = normalized.mutate(
         event_id=event_uuid_udf(
             normalized["message_id"].cast(dt.string),
             normalized["timestamp"].cast(dt.Timestamp()),
-        ),
+        ).cast(dt.uuid),
         tenant_id=ibis.literal(tenant_id, type=dt.string),
         source=ibis.literal(source, type=dt.string),
-        thread_id=ibis.literal(thread_uuid, type=dt.string),
+        thread_id=ibis.literal(thread_uuid, type=dt.uuid),
         msg_id=normalized["message_id"].cast(dt.string),
         ts=normalized["timestamp"].cast(dt.Timestamp(timezone="UTC")),
         author_raw=normalized["author"],
-        author_uuid=author_uuid_udf(normalized["author"]),
+        author_uuid=author_uuid_udf(normalized["author"]).cast(dt.uuid),
         text=normalized["message"],
         media_url=ibis.null().cast(dt.String(nullable=True)),
         media_type=ibis.null().cast(dt.String(nullable=True)),

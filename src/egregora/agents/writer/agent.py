@@ -17,20 +17,23 @@ import json
 import logging
 import os
 import time
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from types import TracebackType
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from pydantic import BaseModel, ConfigDict, Field
+
+from .schemas import (
+    WriterAgentReturn,
+    WriterAgentState,
+)
 
 try:
     from pydantic_ai import Agent, ModelMessagesTypeAdapter, RunContext
 except ImportError:
-    from pydantic_ai import Agent, RunContext
+    from pydantic_ai import Agent
 
     class ModelMessagesTypeAdapter:
         """Lightweight shim mirroring the adapter interface used in tests."""
@@ -55,9 +58,9 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
-from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
+from egregora.agents.banner import is_banner_generation_available
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.shared.rag import VectorStore, is_rag_available, query_media
+from egregora.agents.shared.rag import VectorStore, is_rag_available
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
@@ -76,133 +79,17 @@ AgentModel = Any  # Model specification (string or configured model object)
 
 @dataclass(frozen=True, slots=True)
 class WriterAgentContext:
-    """Runtime context for writer agent execution.
+    """Runtime context for writer agent execution."""
 
-    MODERN (Phase 2): Bundles runtime parameters to reduce function signatures.
-    MODERN (Phase 4): Uses OutputAdapter for all document persistence.
-    MODERN (Phase 5): Removed redundant storage protocols in favor of OutputAdapter.
-
-    Windows are identified by (start_time, end_time) tuple, not artificial IDs.
-    This makes them stable across config changes and more meaningful for logging.
-
-    Architecture (Phase 5 - Simplified, Phase 6 - Read Support):
-    - Core calculates URLs using url_convention directly
-    - Core requests persistence via output_format.serve(document)
-    - Core reads documents via output_format.read_document()
-    - Single abstraction (OutputAdapter) replaces all storage protocols
-    """
-
-    # Time window
     start_time: datetime
     end_time: datetime
-
-    # MODERN Phase 4+6: Backend-agnostic publishing (single abstraction)
     url_convention: UrlConvention
     url_context: UrlContext
     output_format: OutputAdapter
-
-    # Pre-constructed stores (injected, not built from paths)
     rag_store: VectorStore
     annotations_store: AnnotationStore | None
-
-    # LLM client
     client: LLMClient
-
-    # Prompt templates directory (resolved by caller, not constructed here)
     prompts_dir: Path | None = None
-
-
-class PostMetadata(BaseModel):
-    """Metadata schema for the write_post tool."""
-
-    title: str
-    slug: str
-    date: str
-    tags: list[str] = Field(default_factory=list)
-    summary: str | None = None
-    authors: list[str] = Field(default_factory=list)
-    category: str | None = None
-
-
-class WritePostResult(BaseModel):
-    status: str
-    path: str
-
-
-class WriteProfileResult(BaseModel):
-    status: str
-    path: str
-
-
-class ReadProfileResult(BaseModel):
-    content: str
-
-
-class MediaItem(BaseModel):
-    media_type: str | None = None
-    media_path: str | None = None
-    original_filename: str | None = None
-    description: str | None = None
-    similarity: float | None = None
-
-
-class SearchMediaResult(BaseModel):
-    results: list[MediaItem]
-
-
-class AnnotationResult(BaseModel):
-    status: str
-    annotation_id: str | None = None
-    parent_id: str | None = None
-    parent_type: str | None = None
-
-
-class BannerResult(BaseModel):
-    status: str
-    path: str | None = None
-
-
-class WriterAgentReturn(BaseModel):
-    """Final assistant response when the agent finishes."""
-
-    summary: str | None = None
-    notes: str | None = None
-
-
-class WriterAgentState(BaseModel):
-    """Immutable dependencies passed to agent tools.
-
-    MODERN (Phase 1): This is now frozen to prevent mutation in tools.
-    MODERN (Phase 4): Uses OutputAdapter for all document persistence.
-    MODERN (Phase 5): Removed redundant storage protocols in favor of OutputAdapter.
-    MODERN (Phase 6): OutputAdapter now supports reading documents.
-    Results are extracted from the agent's message history instead of being
-    tracked via mutation.
-    """
-
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
-
-    # Window identification
-    window_id: str
-
-    # MODERN Phase 4+6: Backend-agnostic publishing (single abstraction with read support)
-    # Note: Using Any for protocol types since Pydantic can't validate Protocols
-    url_convention: Any  # UrlConvention protocol
-    url_context: Any  # UrlContext dataclass
-    output_format: Any  # OutputAdapter protocol (read + write)
-
-    # Pre-constructed stores
-    rag_store: Any  # VectorStore
-    annotations_store: Any | None  # AnnotationStore protocol
-
-    # LLM client
-    batch_client: LLMClient
-
-    # RAG configuration
-    embedding_model: str
-    retrieval_mode: str
-    retrieval_nprobe: int | None
-    retrieval_overfetch: int | None
 
 
 def _extract_thinking_content(messages: MessageHistory) -> list[str]:
@@ -570,148 +457,25 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
     return (saved_posts, saved_profiles)
 
 
-def _register_writer_tools(
-    agent: Agent[WriterAgentState, WriterAgentReturn],
-    *,
-    enable_banner: bool = False,
-    enable_rag: bool = False,
-) -> None:
-    """Attach tool implementations to the agent.
+from .tools import register_writer_tools
 
-    NOTE: This function is 140 lines long and should be refactored. Consider:
-    - Extracting each tool decorator into separate functions
-    - Using a tool registry pattern
-    - Separating conditional tool registration logic
 
-    Args:
-        agent: The writer agent to register tools with
-        enable_banner: Whether to register banner generation tool (requires GOOGLE_API_KEY)
-        enable_rag: Whether to register RAG search tools (requires GOOGLE_API_KEY)
-
-    """
-
-    @agent.tool
-    def write_post_tool(
-        ctx: RunContext[WriterAgentState], metadata: PostMetadata, content: str
-    ) -> WritePostResult:
-        # MODERN (Phase 4): Backend-agnostic publishing
-        # 1. Create Document object
-        doc = Document(
-            content=content,
-            type=DocumentType.POST,
-            metadata=metadata.model_dump(exclude_none=True),
-            source_window=ctx.deps.window_id,
-        )
-
-        # 2. Calculate URL using convention (Core's responsibility)
-        url = ctx.deps.url_convention.canonical_url(doc, ctx.deps.url_context)
-
-        # 3. Request persistence (Format's responsibility)
-        ctx.deps.output_format.serve(doc)
-
-        logger.info("Writer agent saved post at URL: %s (doc_id: %s)", url, doc.document_id)
-        return WritePostResult(status="success", path=url)  # Return URL as "path"
-
-    @agent.tool
-    def read_profile_tool(ctx: RunContext[WriterAgentState], author_uuid: str) -> ReadProfileResult:
-        # MODERN Phase 6: Read via OutputAdapter (backend-agnostic)
-        doc = ctx.deps.output_format.read_document(DocumentType.PROFILE, author_uuid)
-        if doc:
-            content = doc.content
-        else:
-            content = "No profile exists yet."
-        return ReadProfileResult(content=content)
-
-    @agent.tool
-    def write_profile_tool(
-        ctx: RunContext[WriterAgentState], author_uuid: str, content: str
-    ) -> WriteProfileResult:
-        # MODERN (Phase 4): Backend-agnostic publishing
-        # 1. Create Document object
-        doc = Document(
-            content=content,
-            type=DocumentType.PROFILE,
-            metadata={"uuid": author_uuid},
-            source_window=ctx.deps.window_id,
-        )
-
-        # 2. Calculate URL using convention (Core's responsibility)
-        url = ctx.deps.url_convention.canonical_url(doc, ctx.deps.url_context)
-
-        # 3. Request persistence (Format's responsibility)
-        ctx.deps.output_format.serve(doc)
-
-        logger.info("Writer agent saved profile at URL: %s (doc_id: %s)", url, doc.document_id)
-        return WriteProfileResult(status="success", path=url)  # Return URL as "path"
-
-    if enable_rag:
-
-        @agent.tool
-        def search_media_tool(
-            ctx: RunContext[WriterAgentState],
-            query: str,
-            media_types: list[str] | None = None,
-            limit: int = 5,
-        ) -> SearchMediaResult:
-            # Use pre-constructed rag_store instead of building from path
-            results = query_media(
-                query=query,
-                store=ctx.deps.rag_store,
-                media_types=media_types,
-                top_k=limit,
-                min_similarity_threshold=0.7,
-                embedding_model=ctx.deps.embedding_model,
-                retrieval_mode=ctx.deps.retrieval_mode,
-                retrieval_nprobe=ctx.deps.retrieval_nprobe,
-                retrieval_overfetch=ctx.deps.retrieval_overfetch,
-            )
-            # Execute RAG query (typically returns 5-50 rows)
-            df = results.execute()
-            items = [
-                MediaItem(
-                    media_type=row.get("media_type"),
-                    media_path=row.get("media_path"),
-                    original_filename=row.get("original_filename"),
-                    description=row.get("description"),
-                    similarity=row.get("similarity"),
-                )
-                for row in df.to_dict("records")
-            ]
-            return SearchMediaResult(results=items)
-
-    @agent.tool
-    def annotate_conversation_tool(
-        ctx: RunContext[WriterAgentState], parent_id: str, parent_type: str, commentary: str
-    ) -> AnnotationResult:
-        if ctx.deps.annotations_store is None:
-            msg = "Annotation store is not configured"
-            raise RuntimeError(msg)
-        annotation = ctx.deps.annotations_store.save_annotation(
-            parent_id=parent_id, parent_type=parent_type, commentary=commentary
-        )
-        return AnnotationResult(
-            status="success",
-            annotation_id=annotation.id,
-            parent_id=annotation.parent_id,
-            parent_type=annotation.parent_type,
-        )
-
-    if enable_banner:
-
-        @agent.tool
-        def generate_banner_tool(
-            ctx: RunContext[WriterAgentState], post_slug: str, title: str, summary: str
-        ) -> BannerResult:
-            # Save banners to media/images/ (use output_format.media_dir to respect format abstraction)
-            # Banners will be enriched through the same pipeline as other media
-            banner_output_dir = ctx.deps.output_format.media_dir / "images"
-
-            banner_path = generate_banner_for_post(
-                post_title=title, post_summary=summary, output_dir=banner_output_dir, slug=post_slug
-            )
-            if banner_path:
-                return BannerResult(status="success", path=str(banner_path))
-            return BannerResult(status="failed", path=None)
+def _create_writer_agent_state(context: WriterAgentContext, config: EgregoraConfig) -> WriterAgentState:
+    """Creates a WriterAgentState from the given context and config."""
+    window_label = f"{context.start_time:%Y-%m-%d %H:%M} to {context.end_time:%H:%M}"
+    return WriterAgentState(
+        window_id=window_label,
+        url_convention=context.url_convention,
+        url_context=context.url_context,
+        output_format=context.output_format,
+        rag_store=context.rag_store,
+        annotations_store=context.annotations_store,
+        batch_client=context.client,
+        embedding_model=config.models.embedding,
+        retrieval_mode=config.rag.mode,
+        retrieval_nprobe=config.rag.nprobe,
+        retrieval_overfetch=config.rag.overfetch,
+    )
 
 
 def _setup_agent_and_state(
@@ -719,51 +483,15 @@ def _setup_agent_and_state(
     context: WriterAgentContext,
     test_model: AgentModel | None = None,
 ) -> tuple[Agent[WriterAgentState, WriterAgentReturn], WriterAgentState, str]:
-    """Set up writer agent and execution state.
-
-    Args:
-        config: Egregora configuration
-        context: Runtime context
-        test_model: Optional test model override (string or configured model object)
-
-    Returns:
-        Tuple of (agent, state, window_label)
-
-    """
-    # Extract model names from config
+    """Set up writer agent and execution state."""
     model_name = test_model if test_model is not None else config.models.writer
-    embedding_model = config.models.embedding
-    retrieval_mode = config.rag.mode
-    retrieval_nprobe = config.rag.nprobe
-    retrieval_overfetch = config.rag.overfetch
-
-    # Create and configure agent
     agent = Agent[WriterAgentState, WriterAgentReturn](model=model_name, deps_type=WriterAgentState)
-    _register_writer_tools(
+    register_writer_tools(
         agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available()
     )
 
-    # Generate window label for logging
+    state = _create_writer_agent_state(context, config)
     window_label = f"{context.start_time:%Y-%m-%d %H:%M} to {context.end_time:%H:%M}"
-
-    # Build execution state
-    state = WriterAgentState(
-        window_id=window_label,
-        # MODERN Phase 6: OutputAdapter with read support
-        url_convention=context.url_convention,
-        url_context=context.url_context,
-        output_format=context.output_format,
-        # Stores
-        rag_store=context.rag_store,
-        annotations_store=context.annotations_store,
-        # LLM client
-        batch_client=context.client,
-        # RAG configuration
-        embedding_model=embedding_model,
-        retrieval_mode=retrieval_mode,
-        retrieval_nprobe=retrieval_nprobe,
-        retrieval_overfetch=retrieval_overfetch,
-    )
 
     return agent, state, window_label
 
@@ -945,20 +673,7 @@ def write_posts_with_pydantic_agent(
     context: WriterAgentContext,
     test_model: AgentModel | None = None,
 ) -> tuple[list[str], list[str]]:
-    """Execute the writer flow using Pydantic-AI agent tooling.
-
-    MODERN (Phase 2): Reduced from 12 parameters to 3 (prompt, config, context).
-
-    Args:
-        prompt: System prompt for the writer agent
-        config: Egregora configuration (models, RAG, writer settings)
-        context: Runtime context (paths, client, period info)
-        test_model: Optional test model for unit tests (string or configured model object)
-
-    Returns:
-        Tuple (saved_posts, saved_profiles) as lists of document IDs
-
-    """
+    """Execute the writer flow using Pydantic-AI agent tooling."""
     logger.info("Running writer via Pydantic-AI backend")
 
     # Setup: Create agent, state, and window label
@@ -985,126 +700,3 @@ def write_posts_with_pydantic_agent(
     _record_agent_conversation(result, context)
 
     return saved_posts, saved_profiles
-
-
-class WriterStreamResult:
-    """Result from streaming writer agent.
-
-    This class is an async context manager that properly wraps pydantic-ai's
-    run_stream() async context manager and adds logfire observability spans.
-
-    Usage:
-        >>> async with write_posts_with_pydantic_agent_stream(...) as result:
-        ...     async for chunk in result.stream():
-        ...         print(chunk)
-        ...     posts, profiles = result.get_output_paths()
-
-    """
-
-    def __init__(
-        self,
-        agent: Agent[WriterAgentState, WriterAgentReturn],
-        state: WriterAgentState,
-        prompt: str,
-        context: WriterAgentContext,
-        model_name: str,
-    ) -> None:
-        self.agent = agent
-        self.state = state
-        self.prompt = prompt
-        self.context = context
-        self.model_name = model_name
-        self._response = None
-
-    async def __aenter__(self) -> Self:
-        self._stream_manager = self.agent.run_stream(self.prompt, deps=self.state)
-        self._response = await self._stream_manager.__aenter__()
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        if hasattr(self, "_stream_manager") and self._stream_manager:
-            await self._stream_manager.__aexit__(exc_type, exc_val, exc_tb)
-
-    async def stream(self) -> AsyncGenerator[str, None]:
-        if not self._response:
-            msg = "WriterStreamResult must be used as async context manager"
-            raise RuntimeError(msg)
-        async for chunk in self._response.stream_text():
-            yield chunk
-
-    def get_output_paths(self) -> tuple[list[str], list[str]]:
-        """Return (saved_posts, saved_profiles) after agent completes."""
-        if not self._response:
-            msg = "WriterStreamResult must be used as async context manager (use: async with write_posts_with_pydantic_agent_stream(...) as result)"
-            raise RuntimeError(msg)
-
-        # Extract from message history
-        all_messages = getattr(self._response, "all_messages", list)()
-        saved_posts, saved_profiles = _extract_tool_results(all_messages)
-        return (saved_posts, saved_profiles)
-
-
-async def write_posts_with_pydantic_agent_stream(
-    *,
-    prompt: str,
-    config: EgregoraConfig,
-    context: WriterAgentContext,
-    test_model: AgentModel | None = None,
-) -> WriterStreamResult:
-    """Execute writer with streaming output.
-
-    MODERN (Phase 2): Reduced from 12 parameters to 3 (prompt, config, context).
-
-    Args:
-        prompt: System prompt for the writer agent
-        config: Egregora configuration (models, RAG, writer settings)
-        context: Runtime context (paths, client, period info)
-        test_model: Optional test model for unit tests (string or configured model object)
-
-    Returns:
-        WriterStreamResult async context manager for streaming
-
-    """
-    logger.info("Running writer via Pydantic-AI backend (streaming)")
-
-    # Extract values from config and context (Phase 2)
-    model_name = test_model if test_model is not None else config.models.writer
-    embedding_model = config.models.embedding
-    retrieval_mode = config.rag.mode
-    retrieval_nprobe = config.rag.nprobe
-    retrieval_overfetch = config.rag.overfetch
-
-    # Generate window label from timestamps (Phase 7)
-    window_label = f"{context.start_time:%Y-%m-%d %H:%M} to {context.end_time:%H:%M}"
-
-    agent = Agent[WriterAgentState, WriterAgentReturn](model=model_name, deps_type=WriterAgentState)
-    if os.environ.get("EGREGORA_STRUCTURED_OUTPUT") and test_model is None:
-        _register_writer_tools(
-            agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available()
-        )
-    else:
-        agent = Agent[WriterAgentState, str](model=model_name, deps_type=WriterAgentState)
-
-    state = WriterAgentState(
-        window_id=window_label,
-        # MODERN Phase 6: OutputAdapter with read support
-        url_convention=context.url_convention,
-        url_context=context.url_context,
-        output_format=context.output_format,
-        # Pre-constructed stores
-        rag_store=context.rag_store,
-        annotations_store=context.annotations_store,
-        # LLM client
-        batch_client=context.client,
-        # RAG configuration
-        embedding_model=embedding_model,
-        retrieval_mode=retrieval_mode,
-        retrieval_nprobe=retrieval_nprobe,
-        retrieval_overfetch=retrieval_overfetch,
-    )
-    return WriterStreamResult(agent, state, prompt, context, model_name)

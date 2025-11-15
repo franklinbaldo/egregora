@@ -32,7 +32,7 @@ from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext
 from egregora.output_adapters import create_output_format, output_registry
-from egregora.output_adapters.mkdocs import LegacyMkDocsUrlConvention, MkDocsFilesystemAdapter
+from egregora.output_adapters.mkdocs import LegacyMkDocsUrlConvention, MkDocsAdapter
 from egregora.prompt_templates import WriterPromptTemplate
 
 if TYPE_CHECKING:
@@ -407,7 +407,7 @@ def _build_writer_environment(
     url_context = UrlContext(base_url="", site_prefix="", base_path=storage_root)
 
     if format_type == "mkdocs":
-        runtime_output_format = MkDocsFilesystemAdapter(site_root=storage_root, url_context=url_context)
+        runtime_output_format = MkDocsAdapter(site_root=storage_root, url_context=url_context)
         url_convention = runtime_output_format.url_convention
     else:
         runtime_output_format = output_format

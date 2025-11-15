@@ -19,7 +19,7 @@ import duckdb
 import pytest
 from typer.testing import CliRunner
 
-from egregora.cli import app
+from egregora.cli.main import app
 from egregora.database.ir_schema import create_run_events_table
 
 # Create a CLI runner for testing
@@ -181,7 +181,7 @@ class TestRunsTail:
         # Should exit with code 0 (graceful handling)
         assert result.exit_code == 0
         # Should show helpful message
-        assert "No runs database found" in result.stdout or "No runs" in result.stdout
+        assert "No runs database found" in result.stdout
 
     def test_runs_tail_with_empty_database(self, temp_runs_db: Path):
         """Test tail command with empty runs database."""
@@ -200,7 +200,7 @@ class TestRunsTail:
         assert "Run ID" in result.stdout
         assert "Stage" in result.stdout
         assert "Status" in result.stdout
-        assert "started" in result.stdout.lower() or "Duration" in result.stdout
+        assert "started at" in result.stdout.lower() or "Duration" in result.stdout
 
     def test_runs_tail_custom_limit(self, populated_runs_db: Path):
         """Test tail command with custom limit."""

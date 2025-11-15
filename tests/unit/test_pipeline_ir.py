@@ -163,7 +163,7 @@ class TestIRSchema:
         assert result["author_raw"][0] == "alice"
         assert result["text"][0] == "Test message"
         expected_uuid = deterministic_author_uuid("tenant-1", "whatsapp", "alice")
-        assert result["author_uuid"][0] == str(expected_uuid)
+        assert result["author_uuid"][0] == expected_uuid
         assert result["attrs"][0] is None
 
     def test_create_ir_table_with_custom_timezone(self):
@@ -190,7 +190,7 @@ class TestIRSchema:
         result = ir_table.execute()
         assert len(result) == 1
         custom_namespace = uuid.uuid5(uuid.NAMESPACE_DNS, "custom")
-        expected_uuid = str(uuid.uuid5(custom_namespace, "user1".strip().lower()))
+        expected_uuid = uuid.uuid5(custom_namespace, "user1".strip().lower())
         assert result["author_uuid"][0] == expected_uuid
 
 
