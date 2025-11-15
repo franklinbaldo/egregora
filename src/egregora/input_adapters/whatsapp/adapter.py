@@ -369,6 +369,7 @@ class WhatsAppAdapter(InputAdapter):
             timestamp=table.timestamp,
             author=table.author_anon,  # Rename: author_anon → author
             content=table.content,
+            message=table.content,
             metadata=table.metadata,
         )
 

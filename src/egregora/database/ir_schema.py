@@ -75,6 +75,7 @@ MESSAGE_SCHEMA = ibis.schema(
         "author": dt.string,  # Anonymized 8-char hex (NEVER raw name)
         # Content
         "content": dt.string,  # Message text
+        "message": dt.string,  # Legacy alias for .content during migration
         # Metadata (escape hatch for provider-specific features)
         "metadata": dt.JSON(nullable=True),  # Generic JSON for threads, reactions, media, etc.
     }
@@ -108,7 +109,15 @@ def validate_message_schema(table: Table) -> None:
     expected_schema = MESSAGE_SCHEMA
 
     # Required columns
-    required_cols = {"message_id", "provider_type", "provider_instance", "timestamp", "author", "content"}
+    required_cols = {
+        "message_id",
+        "provider_type",
+        "provider_instance",
+        "timestamp",
+        "author",
+        "content",
+        "message",
+    }
     actual_cols = set(actual_schema.names)
 
     # Check required columns exist
