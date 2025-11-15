@@ -87,8 +87,7 @@ def consolidate_messages_to_markdown(table: Table) -> str:
         if not message_col:
             missing.append("message/text")
         raise ValueError(
-            f"Table missing required columns: {', '.join(missing)}. "
-            f"Available columns: {', '.join(cols)}"
+            f"Table missing required columns: {', '.join(missing)}. Available columns: {', '.join(cols)}"
         )
 
     # Deterministic ordering
