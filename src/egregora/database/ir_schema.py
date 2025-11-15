@@ -66,20 +66,15 @@ MESSAGE_SCHEMA = ibis.schema(
     {
         # Identity
         "message_id": dt.string,  # UUID5 deterministic ID
-
         # Source (two-level hierarchy)
-        "provider_type": dt.string,      # Platform: "whatsapp", "slack", "discord"
+        "provider_type": dt.string,  # Platform: "whatsapp", "slack", "discord"
         "provider_instance": dt.string,  # Specific: "family-chat", "#engineering", "server/channel"
-
         # Temporal
         "timestamp": dt.Timestamp(timezone="UTC", scale=9),  # nanosecond precision
-
         # Authorship (privacy boundary)
         "author": dt.string,  # Anonymized 8-char hex (NEVER raw name)
-
         # Content
         "content": dt.string,  # Message text
-
         # Metadata (escape hatch for provider-specific features)
         "metadata": dt.JSON(nullable=True),  # Generic JSON for threads, reactions, media, etc.
     }
@@ -134,10 +129,7 @@ def validate_message_schema(table: Table) -> None:
             actual_base = type(actual_type)
 
             if expected_base != actual_base:
-                msg = (
-                    f"Type mismatch for column '{col}': "
-                    f"expected {expected_type}, got {actual_type}"
-                )
+                msg = f"Type mismatch for column '{col}': expected {expected_type}, got {actual_type}"
                 raise SchemaValidationError(msg)
 
     logger.debug("✅ Schema validation passed: MESSAGE_SCHEMA")

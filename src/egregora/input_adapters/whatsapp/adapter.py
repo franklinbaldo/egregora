@@ -17,7 +17,6 @@ Media Handling:
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import re
@@ -31,13 +30,13 @@ import ibis
 import ibis.expr.datatypes as dt
 
 from egregora.data_primitives import GroupSlug
-from egregora.database.ir_schema import MESSAGE_SCHEMA, SchemaValidationError, validate_message_schema
+from egregora.database.ir_schema import validate_message_schema
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
-from egregora.privacy.validation import validate_privacy
 from egregora.input_adapters.whatsapp.models import WhatsAppExport
 from egregora.input_adapters.whatsapp.parser import (
     parse_source,
 )  # Phase 6: Renamed from parse_export (alpha - breaking)
+from egregora.privacy.validation import validate_privacy
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -70,7 +69,9 @@ def _anonymize_author(author: str) -> str:
     return author_uuid.hex[:8]
 
 
-def _generate_message_id(provider_type: str, provider_instance: str, timestamp: str, author: str, content: str) -> str:
+def _generate_message_id(
+    provider_type: str, provider_instance: str, timestamp: str, author: str, content: str
+) -> str:
     """Generate deterministic UUID5 message ID.
 
     Args:
@@ -330,7 +331,9 @@ class WhatsAppAdapter(InputAdapter):
 
         # Step 4: Generate deterministic message IDs using Ibis UDF (lazy)
         @ibis.udf.scalar.python
-        def generate_id_udf(provider_type: str, provider_instance: str, timestamp: str, author: str, content: str) -> str:
+        def generate_id_udf(
+            provider_type: str, provider_instance: str, timestamp: str, author: str, content: str
+        ) -> str:
             return _generate_message_id(provider_type, provider_instance, str(timestamp), author, content)
 
         table = table.mutate(
