@@ -219,8 +219,8 @@ class TestWriteCommandConfiguration:
         )
 
         # Should fail or handle gracefully
-        # The exact behavior depends on validation in the pipeline
-        assert result.exit_code in (0, 1), "Invalid step-unit should either fail or be handled gracefully"
+        # Exit code 2 = CLI validation error, 1 = runtime error, 0 = success
+        assert result.exit_code in (0, 1, 2), "Invalid step-unit should either fail or be handled gracefully"
 
 
 class TestWriteCommandDateFiltering:
