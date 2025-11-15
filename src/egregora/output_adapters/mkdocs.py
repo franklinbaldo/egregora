@@ -32,6 +32,7 @@ from egregora.output_adapters.mkdocs_storage import (
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
+    from egregora.data_primitives import Document
     from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
 
 logger = logging.getLogger(__name__)
@@ -868,3 +869,62 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
 
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
+
+    def serve(self, document: Document) -> None:
+        """Serve a Document using the appropriate storage backend.
+
+        This method provides compatibility with the modern Document-based API
+        by dispatching to the legacy write_* methods based on document type.
+
+        Args:
+            document: Document to serve (from egregora.data_primitives)
+
+        Raises:
+            ValueError: If document type is not supported
+            RuntimeError: If adapter not initialized
+
+        """
+        from egregora.data_primitives import DocumentType
+
+        if not hasattr(self, "_site_root") or self._site_root is None:
+            msg = "MkDocsOutputAdapter not initialized - call initialize() first"
+            raise RuntimeError(msg)
+
+        # Dispatch based on document type
+        if document.type == DocumentType.POST:
+            # Posts: use write_post
+            posts_dir = self._site_root / "posts"
+            self.write_post(
+                content=document.content,
+                metadata=document.metadata or {},
+                output_dir=posts_dir,
+            )
+        elif document.type == DocumentType.PROFILE:
+            # Profiles: use write_profile
+            profiles_dir = self._site_root / "profiles"
+            author_id = document.metadata.get("author_uuid", document.document_id)
+            self.write_profile(
+                author_id=author_id,
+                profile_data=document.metadata or {},
+                profiles_dir=profiles_dir,
+            )
+        elif document.type == DocumentType.ENRICHMENT_URL:
+            # URL enrichments: extract URL from metadata
+            url = document.metadata.get("url", "")
+            if not url:
+                msg = f"URL enrichment document {document.document_id} missing 'url' in metadata"
+                raise ValueError(msg)
+            self.enrichments.write_url_enrichment(url=url, content=document.content)
+        elif document.type == DocumentType.ENRICHMENT_MEDIA:
+            # Media enrichments: extract filename from metadata
+            filename = document.metadata.get("filename", "")
+            if not filename:
+                msg = f"Media enrichment document {document.document_id} missing 'filename' in metadata"
+                raise ValueError(msg)
+            self.enrichments.write_media_enrichment(filename=filename, content=document.content)
+        elif document.type == DocumentType.JOURNAL:
+            # Journals: use journals storage
+            self.journals.write(document)
+        else:
+            msg = f"Unsupported document type: {document.type}"
+            raise ValueError(msg)

@@ -35,7 +35,6 @@ from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig
 from egregora.database import RUN_EVENTS_SCHEMA
 from egregora.database.tracking import fingerprint_window, get_git_commit_sha
-from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
@@ -622,7 +621,7 @@ def _setup_pipeline_environment(
 
 
 def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) -> ir.Table:
-    """Parse source and validate IR schema.
+    """Parse source and validate schema.
 
     Args:
         adapter: Source adapter instance
@@ -633,18 +632,37 @@ def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) ->
         messages_table: Validated messages table
 
     Raises:
-        ValueError: If IR schema validation fails
+        ValueError: If schema validation fails
+
+    Note:
+        Currently validates against CONVERSATION_SCHEMA (MESSAGE_SCHEMA).
+        IR_MESSAGE_SCHEMA implementation is planned for future release.
+        See docs/ux-testing-2025-11-15.md for details.
 
     """
     logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
     messages_table = adapter.parse(input_path, timezone=timezone)
 
-    is_valid, errors = validate_ir_schema(messages_table)
-    if not is_valid:
-        raise ValueError(
-            "Source adapter produced invalid IR schema. Errors:\n" + "\n".join(f"  - {err}" for err in errors)
-        )
+    # Validate against CONVERSATION_SCHEMA (current implementation)
+    # TODO: Migrate to IR_MESSAGE_SCHEMA validation (multi-tenant schema)
+    from egregora.database.ir_schema import CONVERSATION_SCHEMA
 
+    actual_schema = messages_table.schema()
+    expected_cols = set(CONVERSATION_SCHEMA.names)
+    actual_cols = set(actual_schema.names)
+
+    if expected_cols != actual_cols:
+        missing = expected_cols - actual_cols
+        extra = actual_cols - expected_cols
+        error_parts = []
+        if missing:
+            error_parts.append(f"Missing columns: {', '.join(sorted(missing))}")
+        if extra:
+            error_parts.append(f"Extra columns: {', '.join(sorted(extra))}")
+        msg = "Source adapter schema mismatch:\n  " + "\n  ".join(error_parts)
+        raise ValueError(msg)
+
+    logger.debug("Schema validation passed: %s", actual_schema)
     total_messages = messages_table.count().execute()
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)
 
