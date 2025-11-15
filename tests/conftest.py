@@ -288,7 +288,7 @@ def mock_batch_client(monkeypatch):
     Usage:
         def test_with_mock(mock_batch_client):
             # All API calls are now mocked
-            process_whatsapp_export(...)
+            process_whatsapp_export(..., options=WhatsAppProcessOptions())
     """
     # Patch genai.Client - this is the main client used everywhere
     monkeypatch.setattr(

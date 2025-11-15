@@ -216,24 +216,20 @@ def _atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> Non
 
 
 def _create_enrichment_row(
-    messages_table: Table,
-    search_text: str,
+    message_metadata: dict[str, Any] | None,
     enrichment_type: str,
     identifier: str,
     enrichment_id_str: str,
 ) -> dict[str, Any] | None:
-    """Create an enrichment row for a given URL or media reference."""
-    first_msg = (
-        messages_table.filter(messages_table.message.contains(search_text))
-        .order_by(messages_table.timestamp)
-        .limit(1)
-        .execute()
-    )
-
-    if len(first_msg) == 0:
+    """Create an enrichment row for a given URL or media reference using cached metadata."""
+    if not message_metadata:
         return None
 
-    timestamp = first_msg.iloc[0]["timestamp"]
+    timestamp = message_metadata.get("timestamp")
+    if timestamp is None:
+        return None
+
+    timestamp = _ensure_datetime(timestamp)
     enrichment_timestamp = _safe_timestamp_plus_one(timestamp)
     return {
         "timestamp": enrichment_timestamp,
@@ -350,33 +346,59 @@ def _enrich_urls(
 ) -> list[dict[str, Any]]:
     """Extract and enrich URLs from messages table."""
     new_rows: list[dict[str, Any]] = []
-    enrichment_count = 0
+    discovered_count = 0
 
-    url_messages = messages_table.filter(messages_table.message.notnull()).execute()
-    unique_urls: set[str] = set()
+    url_metadata: dict[str, dict[str, Any]] = {}
 
-    for row in url_messages.itertuples():
-        if enrichment_count >= max_enrichments:
-            break
-        urls = extract_urls(row.message)
-        for url in urls[:3]:
-            if enrichment_count >= max_enrichments:
+    for batch in _iter_table_record_batches(
+        messages_table.select(messages_table.timestamp, messages_table.message)
+    ):
+        for row in batch:
+            if discovered_count >= max_enrichments:
                 break
-            unique_urls.add(url)
 
-    for url in sorted(unique_urls)[:max_enrichments]:
-        if enrichment_count >= max_enrichments:
+            message = row.get("message")
+            if not message:
+                continue
+
+            urls = extract_urls(message)
+            if not urls:
+                continue
+
+            timestamp = row.get("timestamp")
+            timestamp_value = _ensure_datetime(timestamp) if timestamp is not None else None
+
+            for url in urls[:3]:
+                existing = url_metadata.get(url)
+                if existing is None:
+                    url_metadata[url] = {"timestamp": timestamp_value}
+                    discovered_count += 1
+
+                    if discovered_count >= max_enrichments:
+                        break
+
+                    continue
+
+                existing_ts = existing.get("timestamp")
+                if timestamp_value is not None and (existing_ts is None or timestamp_value < existing_ts):
+                    existing["timestamp"] = timestamp_value
+
+        if discovered_count >= max_enrichments:
             break
 
+    sorted_urls = sorted(
+        url_metadata.items(),
+        key=lambda item: (item[1]["timestamp"] is None, item[1]["timestamp"]),
+    )
+
+    for url, metadata in sorted_urls[:max_enrichments]:
         enrichment_id_str, _markdown = _process_single_url(url, url_agent, cache, context, prompts_dir)
         if enrichment_id_str is None:
             continue
 
-        enrichment_row = _create_enrichment_row(messages_table, url, "URL", url, enrichment_id_str)
+        enrichment_row = _create_enrichment_row(metadata, "URL", url, enrichment_id_str)
         if enrichment_row:
             new_rows.append(enrichment_row)
-
-        enrichment_count += 1
 
     return new_rows
 
@@ -392,26 +414,49 @@ def _build_media_filename_lookup(media_mapping: dict[str, Path]) -> dict[str, tu
 
 def _extract_media_references(
     messages_table: Table, media_filename_lookup: dict[str, tuple[str, Path]]
-) -> set[str]:
-    """Extract unique media references from messages table."""
-    media_messages = messages_table.filter(messages_table.message.notnull()).execute()
+) -> tuple[set[str], dict[str, dict[str, Any]]]:
+    """Extract unique media references from messages table and cache metadata."""
     unique_media: set[str] = set()
+    metadata_lookup: dict[str, dict[str, Any]] = {}
 
-    for row in media_messages.itertuples():
-        refs = find_media_references(row.message)
-        markdown_refs = re.findall("!\\[[^\\]]*\\]\\([^)]*?([a-f0-9\\-]+\\.\\w+)\\)", row.message)
-        uuid_refs = re.findall(
-            "\\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.\\w+)",
-            row.message,
-        )
-        refs.extend(markdown_refs)
-        refs.extend(uuid_refs)
+    for batch in _iter_table_record_batches(
+        messages_table.select(messages_table.timestamp, messages_table.message)
+    ):
+        for row in batch:
+            message = row.get("message")
+            if not message:
+                continue
 
-        for ref in set(refs):
-            if ref in media_filename_lookup:
-                unique_media.add(ref)
+            refs = find_media_references(message)
+            markdown_refs = re.findall("!\\[[^\\]]*\\]\\([^)]*?([a-f0-9\\-]+\\.\\w+)\\)", message)
+            uuid_refs = re.findall(
+                "\\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.\\w+)",
+                message,
+            )
+            refs.extend(markdown_refs)
+            refs.extend(uuid_refs)
 
-    return unique_media
+            if not refs:
+                continue
+
+            timestamp = row.get("timestamp")
+            timestamp_value = _ensure_datetime(timestamp) if timestamp is not None else None
+
+            for ref in set(refs):
+                if ref not in media_filename_lookup:
+                    continue
+
+                existing = metadata_lookup.get(ref)
+                if existing is None:
+                    unique_media.add(ref)
+                    metadata_lookup[ref] = {"timestamp": timestamp_value}
+                    continue
+
+                existing_ts = existing.get("timestamp")
+                if timestamp_value is not None and (existing_ts is None or timestamp_value < existing_ts):
+                    existing["timestamp"] = timestamp_value
+
+    return unique_media, metadata_lookup
 
 
 def _enrich_media(
@@ -430,9 +475,17 @@ def _enrich_media(
     pii_media_deleted = False
 
     media_filename_lookup = _build_media_filename_lookup(media_mapping)
-    unique_media = _extract_media_references(messages_table, media_filename_lookup)
+    unique_media, metadata_lookup = _extract_media_references(messages_table, media_filename_lookup)
 
-    for ref in sorted(unique_media)[: max_enrichments - enrichment_count]:
+    sorted_media = sorted(
+        unique_media,
+        key=lambda item: (
+            metadata_lookup.get(item, {}).get("timestamp") is None,
+            metadata_lookup.get(item, {}).get("timestamp"),
+        ),
+    )
+
+    for ref in sorted_media[: max_enrichments - enrichment_count]:
         lookup_result = media_filename_lookup.get(ref)
         if not lookup_result:
             continue
@@ -451,7 +504,7 @@ def _enrich_media(
             pii_media_deleted = True
 
         enrichment_row = _create_enrichment_row(
-            messages_table, ref, "Media", file_path.name, enrichment_id_str
+            metadata_lookup.get(ref), "Media", file_path.name, enrichment_id_str
         )
         if enrichment_row:
             new_rows.append(enrichment_row)
