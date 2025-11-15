@@ -18,7 +18,6 @@ Media Handling:
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import re
 import zipfile
@@ -294,7 +293,9 @@ class WhatsAppAdapter(InputAdapter):
         df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
 
         # Step 7: Ensure column order matches MESSAGE_SCHEMA
-        df = df[["message_id", "provider_type", "provider_instance", "timestamp", "author", "content", "metadata"]]
+        df = df[
+            ["message_id", "provider_type", "provider_instance", "timestamp", "author", "content", "metadata"]
+        ]
 
         return df
 
@@ -310,7 +311,8 @@ class WhatsAppAdapter(InputAdapter):
             # Add media if present
             if row["media_files"]:
                 meta["media"] = [
-                    {"filename": filename, "type": _detect_media_type(filename)} for filename in row["media_files"]
+                    {"filename": filename, "type": _detect_media_type(filename)}
+                    for filename in row["media_files"]
                 ]
 
             # Add original line for debugging (if exists)
@@ -322,7 +324,9 @@ class WhatsAppAdapter(InputAdapter):
         df["metadata"] = df.apply(build_metadata, axis=1)
 
         # Convert media to markdown in content (vectorized)
-        df["content"] = df.apply(lambda row: _convert_media_to_markdown(row["content"], row["media_files"]), axis=1)
+        df["content"] = df.apply(
+            lambda row: _convert_media_to_markdown(row["content"], row["media_files"]), axis=1
+        )
 
         # Drop temp column
         df = df.drop(columns=["media_files"])
