@@ -221,7 +221,11 @@ def _create_enrichment_row(
     identifier: str,
     enrichment_id_str: str,
 ) -> dict[str, Any] | None:
-    """Create an enrichment row for a given URL or media reference using cached metadata."""
+    """Create an enrichment row for a given URL or media reference using cached metadata.
+
+    Copies required IR_MESSAGE_SCHEMA fields from the source message to ensure
+    enrichment rows can be properly linked to their thread and validated.
+    """
     if not message_metadata:
         return None
 
@@ -231,13 +235,36 @@ def _create_enrichment_row(
 
     timestamp = _ensure_datetime(timestamp)
     enrichment_timestamp = _safe_timestamp_plus_one(timestamp)
+
+    # Generate new event_id for this enrichment entry
+    import uuid
+    enrichment_event_id = uuid.uuid4()
+
+    # Create enrichment row with all required IR_MESSAGE_SCHEMA fields
     return {
+        # Identity
+        "event_id": enrichment_event_id,
+        # Multi-Tenant (copy from source message)
+        "tenant_id": message_metadata.get("tenant_id", ""),
+        "source": message_metadata.get("source", ""),
+        # Threading (copy from source message to link to same thread)
+        "thread_id": message_metadata.get("thread_id"),
+        "msg_id": f"enrichment-{enrichment_event_id}",
+        # Temporal
         "ts": enrichment_timestamp,
-        "date": enrichment_timestamp.date(),
-        "author": "egregora",
+        # Authors (enrichment author is "egregora" system)
+        "author_raw": "egregora",
+        "author_uuid": message_metadata.get("author_uuid"),  # Link to original author for context
+        # Content
         "text": f"[{enrichment_type} Enrichment] {identifier}\nEnrichment saved: {enrichment_id_str}",
-        "original_line": "",
-        "tagged_line": "",
+        "media_url": None,
+        "media_type": None,
+        # Metadata
+        "attrs": {"enrichment_type": enrichment_type, "enrichment_id": enrichment_id_str},
+        "pii_flags": None,
+        # Lineage (copy from source message)
+        "created_at": message_metadata.get("created_at"),
+        "created_by_run": message_metadata.get("created_by_run"),
     }
 
 
@@ -350,7 +377,20 @@ def _enrich_urls(
 
     url_metadata: dict[str, dict[str, Any]] = {}
 
-    for batch in _iter_table_record_batches(messages_table.select(messages_table.ts, messages_table.text)):
+    # Select all IR_MESSAGE_SCHEMA fields needed for enrichment rows
+    for batch in _iter_table_record_batches(
+        messages_table.select(
+            messages_table.ts,
+            messages_table.text,
+            messages_table.event_id,
+            messages_table.tenant_id,
+            messages_table.source,
+            messages_table.thread_id,
+            messages_table.author_uuid,
+            messages_table.created_at,
+            messages_table.created_by_run,
+        )
+    ):
         for row in batch:
             if discovered_count >= max_enrichments:
                 break
@@ -366,10 +406,22 @@ def _enrich_urls(
             timestamp = row.get("ts")
             timestamp_value = _ensure_datetime(timestamp) if timestamp is not None else None
 
+            # Collect all IR metadata from this row
+            row_metadata = {
+                "ts": timestamp_value,
+                "event_id": row.get("event_id"),
+                "tenant_id": row.get("tenant_id"),
+                "source": row.get("source"),
+                "thread_id": row.get("thread_id"),
+                "author_uuid": row.get("author_uuid"),
+                "created_at": row.get("created_at"),
+                "created_by_run": row.get("created_by_run"),
+            }
+
             for url in urls[:3]:
                 existing = url_metadata.get(url)
                 if existing is None:
-                    url_metadata[url] = {"ts": timestamp_value}
+                    url_metadata[url] = row_metadata.copy()
                     discovered_count += 1
 
                     if discovered_count >= max_enrichments:
@@ -377,9 +429,10 @@ def _enrich_urls(
 
                     continue
 
+                # Update to earliest timestamp for this URL
                 existing_ts = existing.get("ts")
                 if timestamp_value is not None and (existing_ts is None or timestamp_value < existing_ts):
-                    existing["ts"] = timestamp_value
+                    existing.update(row_metadata)
 
         if discovered_count >= max_enrichments:
             break
@@ -417,7 +470,20 @@ def _extract_media_references(
     unique_media: set[str] = set()
     metadata_lookup: dict[str, dict[str, Any]] = {}
 
-    for batch in _iter_table_record_batches(messages_table.select(messages_table.ts, messages_table.text)):
+    # Select all IR_MESSAGE_SCHEMA fields needed for enrichment rows
+    for batch in _iter_table_record_batches(
+        messages_table.select(
+            messages_table.ts,
+            messages_table.text,
+            messages_table.event_id,
+            messages_table.tenant_id,
+            messages_table.source,
+            messages_table.thread_id,
+            messages_table.author_uuid,
+            messages_table.created_at,
+            messages_table.created_by_run,
+        )
+    ):
         for row in batch:
             message = row.get("text")
             if not message:
@@ -438,6 +504,18 @@ def _extract_media_references(
             timestamp = row.get("ts")
             timestamp_value = _ensure_datetime(timestamp) if timestamp is not None else None
 
+            # Collect all IR metadata from this row
+            row_metadata = {
+                "ts": timestamp_value,
+                "event_id": row.get("event_id"),
+                "tenant_id": row.get("tenant_id"),
+                "source": row.get("source"),
+                "thread_id": row.get("thread_id"),
+                "author_uuid": row.get("author_uuid"),
+                "created_at": row.get("created_at"),
+                "created_by_run": row.get("created_by_run"),
+            }
+
             for ref in set(refs):
                 if ref not in media_filename_lookup:
                     continue
@@ -445,12 +523,13 @@ def _extract_media_references(
                 existing = metadata_lookup.get(ref)
                 if existing is None:
                     unique_media.add(ref)
-                    metadata_lookup[ref] = {"ts": timestamp_value}
+                    metadata_lookup[ref] = row_metadata.copy()
                     continue
 
+                # Update to earliest timestamp for this media reference
                 existing_ts = existing.get("ts")
                 if timestamp_value is not None and (existing_ts is None or timestamp_value < existing_ts):
-                    existing["ts"] = timestamp_value
+                    existing.update(row_metadata)
 
     return unique_media, metadata_lookup
 
