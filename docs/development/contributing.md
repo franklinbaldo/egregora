@@ -109,9 +109,19 @@ mkdocs build
 ### 6. Submit a Pull Request
 
 1. Push your branch to GitHub
-2. Open a pull request against `main`
+2. Open a pull request against `dev` (or `develop`, if present)
 3. Describe your changes clearly
 4. Link any related issues
+
+When a pull request targets `dev`/`develop`, the **Auto rebase pull requests** workflow (`.github/workflows/pr-auto-rebase.yml`) runs on every open, synchronize, and reopen event:
+
+- Rebases the PR branch onto the latest `dev`/`develop` commit.
+- Force-pushes the rebased branch back to GitHub when the PR comes from this repository (forks are skipped).
+- Captures the git output and creates a Codex reconciliation task if the rebase fails so maintainers can coordinate with the author.
+
+#### Required GitHub secrets for maintainers
+
+- `CODEX_API_TOKEN`: Used by the rebase workflow to authenticate with the Codex API when a rebase failure needs escalation.
 
 ## Code Style
 

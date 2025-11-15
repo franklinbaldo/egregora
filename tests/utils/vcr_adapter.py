@@ -134,8 +134,9 @@ class VCRCompatibleClient:
         >>> api_key = os.getenv("GOOGLE_API_KEY")
         >>> client = VCRCompatibleClient(api_key)
         >>>
-        >>> # Use in pipeline just like genai.Client
-        >>> process_whatsapp_export(..., client=client)
+        >>> from egregora.orchestration.write_pipeline import WhatsAppProcessOptions
+        >>> options = WhatsAppProcessOptions(client=client)
+        >>> process_whatsapp_export(..., options=options)
 
     """
 

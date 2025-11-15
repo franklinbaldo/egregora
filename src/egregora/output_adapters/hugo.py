@@ -23,7 +23,12 @@ if TYPE_CHECKING:
 
     from ibis.expr.types import Table
 
-    from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
+    from egregora.output_adapters.mkdocs import (
+        MkDocsEnrichmentStorage,
+        MkDocsJournalStorage,
+        MkDocsPostStorage,
+        MkDocsProfileStorage,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -68,10 +73,10 @@ class HugoOutputAdapter(OutputAdapter):
     def __init__(self) -> None:
         """Initialize HugoOutputAdapter with uninitialized storage."""
         self._site_root: Path | None = None
-        self._posts_impl: PostStorage | None = None
-        self._profiles_impl: ProfileStorage | None = None
-        self._journals_impl: JournalStorage | None = None
-        self._enrichments_impl: EnrichmentStorage | None = None
+        self._posts_impl: MkDocsPostStorage | None = None
+        self._profiles_impl: MkDocsProfileStorage | None = None
+        self._journals_impl: MkDocsJournalStorage | None = None
+        self._enrichments_impl: MkDocsEnrichmentStorage | None = None
 
     @property
     def format_type(self) -> str:
@@ -93,7 +98,7 @@ class HugoOutputAdapter(OutputAdapter):
             RuntimeError: If storage initialization fails
 
         """
-        from egregora.output_adapters.mkdocs_storage import (
+        from egregora.output_adapters.mkdocs import (
             MkDocsEnrichmentStorage,
             MkDocsJournalStorage,
             MkDocsPostStorage,
@@ -111,7 +116,7 @@ class HugoOutputAdapter(OutputAdapter):
         logger.debug("Initialized Hugo storage for %s", site_root)
 
     @property
-    def posts(self) -> PostStorage:
+    def posts(self) -> MkDocsPostStorage:
         """Get Hugo post storage implementation.
 
         Returns:
@@ -127,7 +132,7 @@ class HugoOutputAdapter(OutputAdapter):
         return self._posts_impl
 
     @property
-    def profiles(self) -> ProfileStorage:
+    def profiles(self) -> MkDocsProfileStorage:
         """Get Hugo profile storage implementation.
 
         Returns:
@@ -143,7 +148,7 @@ class HugoOutputAdapter(OutputAdapter):
         return self._profiles_impl
 
     @property
-    def journals(self) -> JournalStorage:
+    def journals(self) -> MkDocsJournalStorage:
         """Get Hugo journal storage implementation.
 
         Returns:
@@ -159,7 +164,7 @@ class HugoOutputAdapter(OutputAdapter):
         return self._journals_impl
 
     @property
-    def enrichments(self) -> EnrichmentStorage:
+    def enrichments(self) -> MkDocsEnrichmentStorage:
         """Get Hugo enrichment storage implementation.
 
         Returns:

@@ -129,7 +129,7 @@ _install_google_stubs()
 
 # Imports below require sys.path setup above
 from egregora.data_primitives import GroupSlug
-from egregora.sources.whatsapp import WhatsAppExport, discover_chat_file
+from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.utils.zip import validate_zip_contents
 from tests.utils.mock_batch_client import MockGeminiClient
 
@@ -220,38 +220,38 @@ def stub_enrichment_agents(monkeypatch):
         return f"Stub enrichment for {media_path}"
 
     monkeypatch.setattr(
-        "egregora.enrichment.thin_agents.make_url_agent",
+        "egregora.enrichment.agents.make_url_agent",
         lambda model, prompts_dir=None: _stub_url_agent(model, prompts_dir),
     )
     monkeypatch.setattr(
-        "egregora.enrichment.simple_runner.make_url_agent",
+        "egregora.enrichment.runners.make_url_agent",
         lambda model, prompts_dir=None: _stub_url_agent(model, prompts_dir),
         raising=False,
     )
     monkeypatch.setattr(
-        "egregora.enrichment.thin_agents.make_media_agent",
+        "egregora.enrichment.agents.make_media_agent",
         lambda model, prompts_dir=None: _stub_media_agent(model, prompts_dir),
     )
     monkeypatch.setattr(
-        "egregora.enrichment.simple_runner.make_media_agent",
+        "egregora.enrichment.runners.make_media_agent",
         lambda model, prompts_dir=None: _stub_media_agent(model, prompts_dir),
         raising=False,
     )
     monkeypatch.setattr(
-        "egregora.enrichment.thin_agents.run_url_enrichment",
+        "egregora.enrichment.agents.run_url_enrichment",
         lambda agent, url, prompts_dir=None: _stub_url_run(agent, url, prompts_dir),
     )
     monkeypatch.setattr(
-        "egregora.enrichment.simple_runner.run_url_enrichment",
+        "egregora.enrichment.runners.run_url_enrichment",
         lambda agent, url, prompts_dir=None: _stub_url_run(agent, url, prompts_dir),
         raising=False,
     )
     monkeypatch.setattr(
-        "egregora.enrichment.thin_agents.run_media_enrichment",
+        "egregora.enrichment.agents.run_media_enrichment",
         lambda agent, file_path, **kwargs: _stub_media_run(agent, file_path, **kwargs),
     )
     monkeypatch.setattr(
-        "egregora.enrichment.simple_runner.run_media_enrichment",
+        "egregora.enrichment.runners.run_media_enrichment",
         lambda agent, file_path, **kwargs: _stub_media_run(agent, file_path, **kwargs),
         raising=False,
     )
@@ -288,7 +288,7 @@ def mock_batch_client(monkeypatch):
     Usage:
         def test_with_mock(mock_batch_client):
             # All API calls are now mocked
-            process_whatsapp_export(...)
+            process_whatsapp_export(..., options=WhatsAppProcessOptions())
     """
     # Patch genai.Client - this is the main client used everywhere
     monkeypatch.setattr(
@@ -297,7 +297,7 @@ def mock_batch_client(monkeypatch):
     )
     # Patch where genai is imported in egregora modules
     monkeypatch.setattr(
-        "egregora.sources.whatsapp.pipeline.genai.Client",
+        "egregora.orchestration.write_pipeline.genai.Client",
         MockGeminiClient,
     )
 

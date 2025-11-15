@@ -1,0 +1,98 @@
+name: Auto rebase pull requests
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches:
+      - develop
+      - dev
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  rebase:
+    if: ${{ github.event.pull_request.base.ref == 'develop' || github.event.pull_request.base.ref == 'dev' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout base repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Stage Codex helper script from base revision
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/trusted_codex
+          cp scripts/github/create_codex_task.py /tmp/trusted_codex/
+
+      - name: Fetch pull request branch
+        env:
+          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.clone_url }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          git remote remove pr || true
+          git remote add pr "$PR_HEAD_REPO"
+          git fetch pr "$PR_HEAD_REF"
+          git checkout -B "$PR_HEAD_REF" FETCH_HEAD
+
+      - name: Fetch base branch
+        id: base
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          TARGET_BRANCH="$BASE_REF"
+          if git fetch --no-tags origin "$BASE_REF"; then
+            TARGET_BRANCH="$BASE_REF"
+          else
+            if [ "$BASE_REF" = "develop" ]; then
+              FALLBACK="dev"
+            else
+              FALLBACK="develop"
+            fi
+
+            echo "Base branch $BASE_REF not found on origin; falling back to $FALLBACK"
+            if git fetch --no-tags origin "$FALLBACK"; then
+              TARGET_BRANCH="$FALLBACK"
+            else
+              echo "::error::Unable to fetch either $BASE_REF or $FALLBACK from origin."
+              exit 1
+            fi
+          fi
+
+          echo "target-branch=$TARGET_BRANCH" >>"$GITHUB_OUTPUT"
+
+      - name: Attempt rebase onto origin/${{ steps.base.outputs['target-branch'] }}
+        id: rebase
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          TARGET="${{ steps.base.outputs['target-branch'] }}"
+          echo "Rebasing onto origin/$TARGET"
+          git rebase "origin/$TARGET" 2>&1 | tee rebase.log
+
+      - name: Abort failed rebase
+        if: ${{ steps.rebase.outcome == 'failure' }}
+        run: |
+          git rebase --abort || git reset --hard HEAD
+
+      - name: Create Codex reconciliation task
+        if: ${{ steps.rebase.outcome == 'failure' }}
+        env:
+          CODEX_API_TOKEN: ${{ secrets.CODEX_API_TOKEN }}
+        run: |
+          python3 /tmp/trusted_codex/create_codex_task.py \
+            --pr-number "${{ github.event.pull_request.number }}" \
+            --author "${{ github.event.pull_request.user.login }}" \
+            --pr-url "${{ github.event.pull_request.html_url }}" \
+            --log-file rebase.log
+
+      - name: Push rebased branch
+        if: ${{ steps.rebase.outcome == 'success' && github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          git push origin HEAD:"$PR_HEAD_REF" --force-with-lease

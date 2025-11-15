@@ -11,7 +11,10 @@ Related ADR: docs/architecture/adr-003-privacy-gate-capability-token.md
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
+
+from egregora.privacy.uuid_namespaces import NAMESPACE_AUTHOR
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +27,7 @@ class PrivacySettings:
         allowed_media_domains: Allowlist for media URLs
         enable_reidentification_escrow: Store author_raw → author_uuid mapping
         reidentification_retention_days: How long to keep escrow data
+        author_namespace: Namespace used to pseudonymize author identifiers
 
     Example:
         >>> config = PrivacySettings(
@@ -53,6 +57,9 @@ class PrivacySettings:
     reidentification_retention_days: int = 90
     """How long to keep re-identification escrow (default: 90 days)."""
 
+    author_namespace: uuid.UUID = NAMESPACE_AUTHOR
+    """Namespace used by adapters when pseudonymizing author identifiers."""
+
     def __post_init__(self) -> None:
         """Validate configuration."""
         if not self.tenant_id:
@@ -61,4 +68,8 @@ class PrivacySettings:
 
         if self.reidentification_retention_days < 1:
             msg = "reidentification_retention_days must be >= 1"
+            raise ValueError(msg)
+
+        if not isinstance(self.author_namespace, uuid.UUID):
+            msg = "author_namespace must be a uuid.UUID instance"
             raise ValueError(msg)

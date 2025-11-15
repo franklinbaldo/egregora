@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -281,7 +281,7 @@ class OutputSettings(BaseModel):
     Specifies which output format to use for generated content.
     """
 
-    format: Literal["mkdocs", "hugo"] = Field(
+    format: Literal["mkdocs", "hugo", "eleventy-arrow"] = Field(
         default="mkdocs",
         description="Output format: 'mkdocs' (default), 'hugo', or future formats (database, s3)",
     )
@@ -460,14 +460,21 @@ def load_egregora_config(site_root: Path) -> EgregoraConfig:
     logger.info("Loading config from %s", config_path)
 
     try:
-        data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        raw_config = config_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        logger.error("Failed to read config from %s: %s", config_path, exc)
+        raise
+
+    try:
+        data = yaml.safe_load(raw_config) or {}
+    except yaml.YAMLError as exc:
+        logger.error("Failed to parse YAML in %s: %s", config_path, exc)
+        raise
+
+    try:
         return EgregoraConfig(**data)
-    except yaml.YAMLError:
-        logger.exception("Failed to parse %s", config_path)
-        logger.warning("Creating default config due to YAML error")
-        return create_default_config(site_root)
-    except Exception:
-        logger.exception("Invalid config in %s", config_path)
+    except ValidationError as exc:
+        logger.error("Validation failed for %s: %s", config_path, exc)
         logger.warning("Creating default config due to validation error")
         return create_default_config(site_root)
 
