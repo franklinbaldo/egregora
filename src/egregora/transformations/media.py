@@ -113,7 +113,9 @@ def replace_markdown_media_refs(
     """
     if not media_mapping:
         return table
-    df = table.execute()
+
+    # Use Ibis string operations instead of pandas
+    updated_table = table
     for original_ref, absolute_path in media_mapping.items():
         try:
             relative_link = Path(os.path.relpath(absolute_path, posts_dir)).as_posix()
@@ -122,9 +124,11 @@ def replace_markdown_media_refs(
                 relative_link = "/" + absolute_path.relative_to(docs_dir).as_posix()
             except ValueError:
                 relative_link = absolute_path.as_posix()
-        # IR v1: use "text" column instead of "message"
-        df["text"] = df["text"].str.replace(f"]({original_ref})", f"]({relative_link})", regex=False)
-    updated_table = ibis.memtable(df)
+        # Replace in text column using Ibis string replace
+        updated_table = updated_table.mutate(
+            text=updated_table.text.replace(f"]({original_ref})", f"]({relative_link})")
+        )
+
     logger.debug("Replaced %s media references in messages", len(media_mapping))
     return updated_table
 
