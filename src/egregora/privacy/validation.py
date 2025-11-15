@@ -57,7 +57,13 @@ def validate_privacy(table: Table) -> None:
     authors = authors_df["author"].dropna().tolist()
 
     hex_pattern = re.compile(r"^[0-9a-f]{8}$")
-    non_anonymized = [author for author in authors if not hex_pattern.match(author)]
+    sentinel_authors = {"system"}
+
+    non_anonymized = [
+        author
+        for author in authors
+        if author not in sentinel_authors and not hex_pattern.match(author)
+    ]
 
     if non_anonymized:
         # Show first 5 for debugging
