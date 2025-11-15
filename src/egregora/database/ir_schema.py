@@ -49,35 +49,100 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEZONE = "UTC"
 
-# Primary conversation schema used throughout the pipeline
-CONVERSATION_SCHEMA = ibis.schema(
+# ============================================================================
+# MESSAGE_SCHEMA (New Minimal Schema - 2025-01-15)
+# ============================================================================
+# Replaces both CONVERSATION_SCHEMA and IR_MESSAGE_SCHEMA with unified minimal schema.
+# See: docs/architecture/message-schema-redesign.md
+#
+# Design principles:
+# - Minimal core fields (7 required)
+# - Provider-agnostic (works for WhatsApp, Slack, Discord, etc.)
+# - Two-level source identity (provider_type + provider_instance)
+# - Privacy-first (author is anonymized, author_raw never stored)
+# - Flexible metadata (JSON column for provider-specific features)
+
+MESSAGE_SCHEMA = ibis.schema(
     {
+        # Identity
+        "message_id": dt.string,  # UUID5 deterministic ID
+
+        # Source (two-level hierarchy)
+        "provider_type": dt.string,      # Platform: "whatsapp", "slack", "discord"
+        "provider_instance": dt.string,  # Specific: "family-chat", "#engineering", "server/channel"
+
+        # Temporal
         "timestamp": dt.Timestamp(timezone="UTC", scale=9),  # nanosecond precision
-        "date": dt.date,
-        "author": dt.string,  # Anonymized UUID after privacy stage
-        "message": dt.string,
-        "original_line": dt.string,  # Raw line from WhatsApp export
-        "tagged_line": dt.string,  # Processed line with mentions
-        "message_id": dt.String(nullable=True),  # milliseconds since first message (group creation)
+
+        # Authorship (privacy boundary)
+        "author": dt.string,  # Anonymized 8-char hex (NEVER raw name)
+
+        # Content
+        "content": dt.string,  # Message text
+
+        # Metadata (escape hatch for provider-specific features)
+        "metadata": dt.JSON(nullable=True),  # Generic JSON for threads, reactions, media, etc.
     }
 )
 
-# Alias for CONVERSATION_SCHEMA - represents WhatsApp export data
-WHATSAPP_CONVERSATION_SCHEMA = CONVERSATION_SCHEMA
+# Legacy aliases (deprecated, will be removed in future)
+# Use MESSAGE_SCHEMA directly instead
+CONVERSATION_SCHEMA = MESSAGE_SCHEMA
+WHATSAPP_CONVERSATION_SCHEMA = MESSAGE_SCHEMA
+WHATSAPP_SCHEMA = {col: dtype for col, dtype in MESSAGE_SCHEMA.items()}
 
-# Message schema as dict (used by message_schema.py utilities)
-MESSAGE_SCHEMA: dict[str, dt.DataType] = {
-    "timestamp": dt.Timestamp(timezone=DEFAULT_TIMEZONE, scale=9),
-    "date": dt.Date(),
-    "author": dt.String(),
-    "message": dt.String(),
-    "original_line": dt.String(),
-    "tagged_line": dt.String(),
-    "message_id": dt.String(nullable=True),
-}
 
-# Legacy alias
-WHATSAPP_SCHEMA = MESSAGE_SCHEMA
+class SchemaValidationError(Exception):
+    """Raised when table schema doesn't match MESSAGE_SCHEMA."""
+
+
+def validate_message_schema(table: Table) -> None:
+    """Validate table conforms to MESSAGE_SCHEMA.
+
+    Args:
+        table: Ibis Table to validate
+
+    Raises:
+        SchemaValidationError: If schema doesn't match MESSAGE_SCHEMA
+
+    Example:
+        >>> table = adapter.parse(zip_path)
+        >>> validate_message_schema(table)  # Raises if invalid
+
+    """
+    actual_schema = table.schema()
+    expected_schema = MESSAGE_SCHEMA
+
+    # Required columns
+    required_cols = {"message_id", "provider_type", "provider_instance", "timestamp", "author", "content"}
+    actual_cols = set(actual_schema.names)
+
+    # Check required columns exist
+    if not required_cols.issubset(actual_cols):
+        missing = required_cols - actual_cols
+        msg = f"Missing required columns: {sorted(missing)}"
+        raise SchemaValidationError(msg)
+
+    # Check column types match (for required columns)
+    for col in required_cols:
+        expected_type = expected_schema[col]
+        actual_type = actual_schema[col]
+
+        # Allow some type flexibility (e.g., nullable differences)
+        if expected_type != actual_type:
+            # Check if base types match (ignoring nullable)
+            expected_base = type(expected_type)
+            actual_base = type(actual_type)
+
+            if expected_base != actual_base:
+                msg = (
+                    f"Type mismatch for column '{col}': "
+                    f"expected {expected_type}, got {actual_type}"
+                )
+                raise SchemaValidationError(msg)
+
+    logger.debug("✅ Schema validation passed: MESSAGE_SCHEMA")
+
 
 # ============================================================================
 # Persistent Schemas
@@ -842,6 +907,9 @@ __all__ = [
     "RUNS_TABLE_SCHEMA",
     "WHATSAPP_CONVERSATION_SCHEMA",
     "WHATSAPP_SCHEMA",
+    # Schema validation
+    "SchemaValidationError",
+    "validate_message_schema",
     # General utilities
     "add_primary_key",
     "create_index",

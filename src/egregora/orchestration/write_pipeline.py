@@ -35,7 +35,8 @@ from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig
 from egregora.database import RUN_EVENTS_SCHEMA
 from egregora.database.tracking import fingerprint_window, get_git_commit_sha
-from egregora.database.validation import validate_ir_schema
+from egregora.database.ir_schema import SchemaValidationError, validate_message_schema
+from egregora.privacy.validation import PrivacyError, validate_privacy
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
@@ -622,7 +623,11 @@ def _setup_pipeline_environment(
 
 
 def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) -> ir.Table:
-    """Parse source and validate IR schema.
+    """Parse source and validate MESSAGE_SCHEMA.
+
+    Validates:
+    1. Schema conforms to MESSAGE_SCHEMA (7 required columns)
+    2. Privacy: No raw author names, all authors anonymized
 
     Args:
         adapter: Source adapter instance
@@ -633,23 +638,33 @@ def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) ->
         messages_table: Validated messages table
 
     Raises:
-        ValueError: If IR schema validation fails
+        SchemaValidationError: If MESSAGE_SCHEMA validation fails
+        PrivacyError: If privacy validation fails
 
     """
     logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
     messages_table = adapter.parse(input_path, timezone=timezone)
 
-    is_valid, errors = validate_ir_schema(messages_table)
-    if not is_valid:
-        raise ValueError(
-            "Source adapter produced invalid IR schema. Errors:\n" + "\n".join(f"  - {err}" for err in errors)
-        )
+    # Validate MESSAGE_SCHEMA
+    try:
+        validate_message_schema(messages_table)
+    except SchemaValidationError as e:
+        raise ValueError(f"Adapter produced invalid MESSAGE_SCHEMA: {e}") from e
+
+    # Validate privacy (no raw names)
+    try:
+        validate_privacy(messages_table)
+    except PrivacyError as e:
+        raise ValueError(f"Privacy validation failed: {e}") from e
 
     total_messages = messages_table.count().execute()
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)
 
+    # Log provider info
     metadata = adapter.get_metadata(input_path)
-    logger.info("[yellow]👥 Group:[/] %s", metadata.get("group_name", "Unknown"))
+    provider_type = metadata.get("provider_type", "unknown")
+    provider_instance = metadata.get("provider_instance", metadata.get("group_name", "unknown"))
+    logger.info("[yellow]👥 Provider:[/] %s (%s)", provider_instance, provider_type)
 
     return messages_table
 
