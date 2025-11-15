@@ -25,7 +25,7 @@ from ibis.expr.types import Table
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database import schemas
-from egregora.database.ir_schema import CONVERSATION_SCHEMA
+from egregora.database.validation import IR_MESSAGE_SCHEMA
 from egregora.enrichment.agents import (
     make_media_agent,
     make_url_agent,
@@ -63,7 +63,7 @@ class UrlEnrichmentJob:
 
     key: str
     url: str
-    original_message: str
+    original_text: str
     sender_uuid: str
     timestamp: Any
     path: Path
@@ -79,7 +79,7 @@ class MediaEnrichmentJob:
     key: str
     original_filename: str
     file_path: Path
-    original_message: str
+    original_text: str
     sender_uuid: str
     timestamp: Any
     path: Path
@@ -134,8 +134,8 @@ def _iter_table_record_batches(table: Table, batch_size: int = 1000) -> Iterator
         except (AttributeError, Exception):  # pragma: no cover - fallback path
             pass
 
-    if "timestamp" in table.columns:
-        table = table.order_by("timestamp")
+    if "ts" in table.columns:
+        table = table.order_by("ts")
 
     df = table.execute()
     records = _frame_to_records(df)
@@ -225,17 +225,17 @@ def _create_enrichment_row(
     if not message_metadata:
         return None
 
-    timestamp = message_metadata.get("timestamp")
+    timestamp = message_metadata.get("ts")
     if timestamp is None:
         return None
 
     timestamp = _ensure_datetime(timestamp)
     enrichment_timestamp = _safe_timestamp_plus_one(timestamp)
     return {
-        "timestamp": enrichment_timestamp,
+        "ts": enrichment_timestamp,
         "date": enrichment_timestamp.date(),
         "author": "egregora",
-        "message": f"[{enrichment_type} Enrichment] {identifier}\nEnrichment saved: {enrichment_id_str}",
+        "text": f"[{enrichment_type} Enrichment] {identifier}\nEnrichment saved: {enrichment_id_str}",
         "original_line": "",
         "tagged_line": "",
     }
@@ -351,13 +351,13 @@ def _enrich_urls(
     url_metadata: dict[str, dict[str, Any]] = {}
 
     for batch in _iter_table_record_batches(
-        messages_table.select(messages_table.timestamp, messages_table.message)
+        messages_table.select(messages_table.ts, messages_table.text)
     ):
         for row in batch:
             if discovered_count >= max_enrichments:
                 break
 
-            message = row.get("message")
+            message = row.get("text")
             if not message:
                 continue
 
@@ -365,13 +365,13 @@ def _enrich_urls(
             if not urls:
                 continue
 
-            timestamp = row.get("timestamp")
+            timestamp = row.get("ts")
             timestamp_value = _ensure_datetime(timestamp) if timestamp is not None else None
 
             for url in urls[:3]:
                 existing = url_metadata.get(url)
                 if existing is None:
-                    url_metadata[url] = {"timestamp": timestamp_value}
+                    url_metadata[url] = {"ts": timestamp_value}
                     discovered_count += 1
 
                     if discovered_count >= max_enrichments:
@@ -379,16 +379,16 @@ def _enrich_urls(
 
                     continue
 
-                existing_ts = existing.get("timestamp")
+                existing_ts = existing.get("ts")
                 if timestamp_value is not None and (existing_ts is None or timestamp_value < existing_ts):
-                    existing["timestamp"] = timestamp_value
+                    existing["ts"] = timestamp_value
 
         if discovered_count >= max_enrichments:
             break
 
     sorted_urls = sorted(
         url_metadata.items(),
-        key=lambda item: (item[1]["timestamp"] is None, item[1]["timestamp"]),
+        key=lambda item: (item[1]["ts"] is None, item[1]["ts"]),
     )
 
     for url, metadata in sorted_urls[:max_enrichments]:
@@ -420,10 +420,10 @@ def _extract_media_references(
     metadata_lookup: dict[str, dict[str, Any]] = {}
 
     for batch in _iter_table_record_batches(
-        messages_table.select(messages_table.timestamp, messages_table.message)
+        messages_table.select(messages_table.ts, messages_table.text)
     ):
         for row in batch:
-            message = row.get("message")
+            message = row.get("text")
             if not message:
                 continue
 
@@ -439,7 +439,7 @@ def _extract_media_references(
             if not refs:
                 continue
 
-            timestamp = row.get("timestamp")
+            timestamp = row.get("ts")
             timestamp_value = _ensure_datetime(timestamp) if timestamp is not None else None
 
             for ref in set(refs):
@@ -449,12 +449,12 @@ def _extract_media_references(
                 existing = metadata_lookup.get(ref)
                 if existing is None:
                     unique_media.add(ref)
-                    metadata_lookup[ref] = {"timestamp": timestamp_value}
+                    metadata_lookup[ref] = {"ts": timestamp_value}
                     continue
 
-                existing_ts = existing.get("timestamp")
+                existing_ts = existing.get("ts")
                 if timestamp_value is not None and (existing_ts is None or timestamp_value < existing_ts):
-                    existing["timestamp"] = timestamp_value
+                    existing["ts"] = timestamp_value
 
     return unique_media, metadata_lookup
 
@@ -480,8 +480,8 @@ def _enrich_media(
     sorted_media = sorted(
         unique_media,
         key=lambda item: (
-            metadata_lookup.get(item, {}).get("timestamp") is None,
-            metadata_lookup.get(item, {}).get("timestamp"),
+            metadata_lookup.get(item, {}).get("ts") is None,
+            metadata_lookup.get(item, {}).get("ts"),
         ),
     )
 
@@ -523,10 +523,10 @@ def _replace_pii_media_references(
     """Replace media references in messages after PII deletion."""
 
     @ibis.udf.scalar.python
-    def replace_media_udf(message: str) -> str:
-        return replace_media_mentions(message, media_mapping, docs_dir, posts_dir) if message else message
+    def replace_media_udf(text: str) -> str:
+        return replace_media_mentions(text, media_mapping, docs_dir, posts_dir) if text else text
 
-    return messages_table.mutate(message=replace_media_udf(messages_table.message))
+    return messages_table.mutate(text=replace_media_udf(messages_table.text))
 
 
 def _combine_enrichment_tables(
@@ -534,17 +534,17 @@ def _combine_enrichment_tables(
     new_rows: list[dict[str, Any]],
 ) -> Table:
     """Combine messages table with enrichment rows."""
-    schema = CONVERSATION_SCHEMA
+    schema = IR_MESSAGE_SCHEMA
     messages_table_filtered = messages_table.select(*schema.names)
     messages_table_filtered = messages_table_filtered.mutate(
-        timestamp=messages_table_filtered.timestamp.cast("timestamp('UTC', 9)")
+        ts=messages_table_filtered.ts.cast("timestamp('UTC')")
     ).cast(schema)
 
     if new_rows:
         normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]
         enrichment_table = ibis.memtable(normalized_rows).cast(schema)
         combined = messages_table_filtered.union(enrichment_table, distinct=False)
-        combined = combined.order_by("timestamp")
+        combined = combined.order_by("ts")
     else:
         combined = messages_table_filtered
 
@@ -561,9 +561,9 @@ def _persist_to_duckdb(
         msg = "target_table must be a valid DuckDB identifier"
         raise ValueError(msg)
 
-    schemas.create_table_if_not_exists(duckdb_connection, target_table, CONVERSATION_SCHEMA)
+    schemas.create_table_if_not_exists(duckdb_connection, target_table, IR_MESSAGE_SCHEMA)
     quoted_table = schemas.quote_identifier(target_table)
-    column_list = ", ".join(schemas.quote_identifier(col) for col in CONVERSATION_SCHEMA.names)
+    column_list = ", ".join(schemas.quote_identifier(col) for col in IR_MESSAGE_SCHEMA.names)
     temp_view = f"_egregora_enrichment_{uuid.uuid4().hex}"
 
     try:
