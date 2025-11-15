@@ -35,7 +35,6 @@ from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig
 from egregora.database import RUN_EVENTS_SCHEMA
 from egregora.database.tracking import fingerprint_window, get_git_commit_sha
-from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar_pipeline import AvatarContext, process_avatar_commands
 from egregora.enrichment.core import EnrichmentRuntimeContext
@@ -660,7 +659,7 @@ def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) ->
             error_parts.append(f"Missing columns: {', '.join(sorted(missing))}")
         if extra:
             error_parts.append(f"Extra columns: {', '.join(sorted(extra))}")
-        msg = f"Source adapter schema mismatch:\n  " + "\n  ".join(error_parts)
+        msg = "Source adapter schema mismatch:\n  " + "\n  ".join(error_parts)
         raise ValueError(msg)
 
     logger.debug("Schema validation passed: %s", actual_schema)
