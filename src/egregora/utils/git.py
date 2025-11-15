@@ -1,5 +1,7 @@
 """Git-related utility functions."""
+
 import subprocess
+
 
 def get_git_commit_sha() -> str | None:
     """Get current git commit SHA for reproducibility tracking.

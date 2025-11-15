@@ -10,17 +10,15 @@ from typing import TYPE_CHECKING, TypedDict
 import ibis
 from ibis.expr.types import Table
 
-from egregora.agents.shared.rag.chunker import chunk_document, chunk_from_document
+from egregora.agents.shared.rag.chunker import chunk_document
 from egregora.agents.shared.rag.embedder import embed_chunks, embed_query_text
 from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA, VectorStore
-from egregora.data_primitives.document import DocumentType
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from ibis.expr.types import Table
 
-    from egregora.data_primitives.document import Document
 
 logger = logging.getLogger(__name__)
 
@@ -103,8 +101,6 @@ def index_post(post_path: Path, store: VectorStore, *, embedding_model: str) -> 
     store.add(chunks_table)
     logger.info("Indexed %s chunks from %s", len(chunks), post_path.name)
     return len(chunks)
-
-
 
 
 def query_similar_posts(

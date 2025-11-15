@@ -17,24 +17,15 @@ import json
 import logging
 import os
 import time
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from types import TracebackType
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from pydantic import BaseModel, ConfigDict, Field
+
 from .schemas import (
-    PostMetadata,
-    WritePostResult,
-    ReadProfileResult,
-    WriteProfileResult,
-    MediaItem,
-    SearchMediaResult,
-    AnnotationResult,
-    BannerResult,
     WriterAgentReturn,
     WriterAgentState,
 )
@@ -42,7 +33,7 @@ from .schemas import (
 try:
     from pydantic_ai import Agent, ModelMessagesTypeAdapter, RunContext
 except ImportError:
-    from pydantic_ai import Agent, RunContext
+    from pydantic_ai import Agent
 
     class ModelMessagesTypeAdapter:
         """Lightweight shim mirroring the adapter interface used in tests."""
@@ -67,9 +58,9 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
-from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
+from egregora.agents.banner import is_banner_generation_available
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.shared.rag import VectorStore, is_rag_available, query_media
+from egregora.agents.shared.rag import VectorStore, is_rag_available
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
@@ -486,6 +477,7 @@ def _create_writer_agent_state(context: WriterAgentContext, config: EgregoraConf
         retrieval_overfetch=config.rag.overfetch,
     )
 
+
 def _setup_agent_and_state(
     config: EgregoraConfig,
     context: WriterAgentContext,
@@ -494,7 +486,9 @@ def _setup_agent_and_state(
     """Set up writer agent and execution state."""
     model_name = test_model if test_model is not None else config.models.writer
     agent = Agent[WriterAgentState, WriterAgentReturn](model=model_name, deps_type=WriterAgentState)
-    register_writer_tools(agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available())
+    register_writer_tools(
+        agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available()
+    )
 
     state = _create_writer_agent_state(context, config)
     window_label = f"{context.start_time:%Y-%m-%d %H:%M} to {context.end_time:%H:%M}"

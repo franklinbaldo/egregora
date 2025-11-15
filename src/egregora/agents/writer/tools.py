@@ -1,23 +1,27 @@
 """Tool definitions for the Pydantic-AI powered writer agent."""
+
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING
+
 from pydantic_ai import RunContext
 
 from egregora.agents.banner import generate_banner_for_post
-from egregora.data_primitives.document import Document, DocumentType
 from egregora.agents.shared.rag.retriever import query_media
+from egregora.data_primitives.document import Document, DocumentType
+
 from .schemas import (
-    WriterAgentState,
-    WriterAgentReturn,
-    PostMetadata,
-    WritePostResult,
-    ReadProfileResult,
-    WriteProfileResult,
-    SearchMediaResult,
-    MediaItem,
     AnnotationResult,
     BannerResult,
+    MediaItem,
+    PostMetadata,
+    ReadProfileResult,
+    SearchMediaResult,
+    WritePostResult,
+    WriteProfileResult,
+    WriterAgentReturn,
+    WriterAgentState,
 )
 
 if TYPE_CHECKING:
@@ -71,6 +75,7 @@ def register_writer_tools(
         return WriteProfileResult(status="success", path=url)
 
     if enable_rag:
+
         @agent.tool
         def search_media_tool(
             ctx: RunContext[WriterAgentState],
@@ -110,6 +115,7 @@ def register_writer_tools(
         )
 
     if enable_banner:
+
         @agent.tool
         def generate_banner_tool(
             ctx: RunContext[WriterAgentState], post_slug: str, title: str, summary: str

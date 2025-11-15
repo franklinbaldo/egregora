@@ -30,8 +30,6 @@ Usage:
     )
 """
 
-import hashlib
-import subprocess
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -114,8 +112,6 @@ class RunContext:
 
 
 from egregora.utils.git import get_git_commit_sha
-
-
 
 
 def record_run(
@@ -244,6 +240,7 @@ def record_lineage(
 
 from contextlib import contextmanager
 
+
 @contextmanager
 def track_stage_run(context: RunContext, input_table: ibis.Table | None = None):
     """A context manager to automatically track the start, success, and failure of a stage."""
@@ -252,14 +249,21 @@ def track_stage_run(context: RunContext, input_table: ibis.Table | None = None):
     conn = duckdb.connect(str(db_path))
 
     from egregora.utils.fingerprinting import fingerprint_table
+
     input_fingerprint = fingerprint_table(input_table) if input_table is not None else None
     rows_in = input_table.count().execute() if input_table is not None else None
 
     started_at = datetime.now(UTC)
     record_run(
-        conn=conn, run_id=context.run_id, stage=context.stage, status="running",
-        started_at=started_at, tenant_id=context.tenant_id,
-        input_fingerprint=input_fingerprint, rows_in=rows_in, trace_id=context.trace_id,
+        conn=conn,
+        run_id=context.run_id,
+        stage=context.stage,
+        status="running",
+        started_at=started_at,
+        tenant_id=context.tenant_id,
+        input_fingerprint=input_fingerprint,
+        rows_in=rows_in,
+        trace_id=context.trace_id,
     )
 
     if context.parent_run_ids:
@@ -269,19 +273,25 @@ def track_stage_run(context: RunContext, input_table: ibis.Table | None = None):
         yield
         finished_at = datetime.now(UTC)
         duration = (finished_at - started_at).total_seconds()
-        conn.execute("UPDATE runs SET status = 'completed', finished_at = ?, duration_seconds = ? WHERE run_id = ?", [finished_at, duration, str(context.run_id)])
+        conn.execute(
+            "UPDATE runs SET status = 'completed', finished_at = ?, duration_seconds = ? WHERE run_id = ?",
+            [finished_at, duration, str(context.run_id)],
+        )
     except Exception as e:
         finished_at = datetime.now(UTC)
         duration = (finished_at - started_at).total_seconds()
         error_msg = f"{type(e).__name__}: {e!s}"
-        conn.execute("UPDATE runs SET status = 'failed', finished_at = ?, duration_seconds = ?, error = ? WHERE run_id = ?", [finished_at, duration, error_msg, str(context.run_id)])
+        conn.execute(
+            "UPDATE runs SET status = 'failed', finished_at = ?, duration_seconds = ?, error = ? WHERE run_id = ?",
+            [finished_at, duration, error_msg, str(context.run_id)],
+        )
         raise
     finally:
         conn.close()
 
+
 def run_stage_with_tracking[T](
-    stage_func: Callable[..., T], *, context: RunContext,
-    input_table: ibis.Table | None = None, **kwargs: Any
+    stage_func: Callable[..., T], *, context: RunContext, input_table: ibis.Table | None = None, **kwargs: Any
 ) -> tuple[T, uuid.UUID]:
     """Executes a pipeline stage with automatic run tracking using a context manager."""
     with track_stage_run(context, input_table):

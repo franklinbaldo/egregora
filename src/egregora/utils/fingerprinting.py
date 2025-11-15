@@ -1,7 +1,10 @@
 """Utilities for creating deterministic fingerprints of data."""
+
 import hashlib
 from typing import Any
+
 import ibis
+
 
 def fingerprint_table(table: ibis.Table) -> str:
     """Generate a deterministic SHA256 fingerprint of an Ibis table."""
@@ -17,6 +20,7 @@ def fingerprint_table(table: ibis.Table) -> str:
 
     hash_obj = hashlib.sha256(combined.encode("utf-8"))
     return f"sha256:{hash_obj.hexdigest()}"
+
 
 def fingerprint_window(window: Any) -> str:
     """Generate SHA256 fingerprint of a window slice."""

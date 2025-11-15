@@ -10,6 +10,7 @@ Key Functions:
 - `extract_commands`: Iterates over a message table to find all commands.
 - `filter_egregora_messages`: Removes command messages from a table.
 """
+
 import logging
 import re
 from typing import TYPE_CHECKING
@@ -32,6 +33,7 @@ CMD_OPT_IN = "opt-in"
 # Regex for complex commands like /egregora set <target> <value>
 EGREGORA_COMMAND_PATTERN = re.compile(f"^{CMD_PREFIX}\\s+(\\w+)\\s+(.+)$", re.IGNORECASE)
 SET_COMMAND_PARTS = 2
+
 
 def _parse_set_command(args: str) -> dict | None:
     """Parse a 'set' command's arguments."""

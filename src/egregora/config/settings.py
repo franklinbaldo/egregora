@@ -177,6 +177,8 @@ class EnrichmentSettings(BaseModel):
 
 
 from egregora.constants import WindowUnit
+
+
 class PipelineSettings(BaseModel):
     """Pipeline execution settings."""
 
@@ -532,6 +534,7 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
 
 
 from egregora.constants import WindowUnit
+
 
 @dataclass
 class ProcessConfig:

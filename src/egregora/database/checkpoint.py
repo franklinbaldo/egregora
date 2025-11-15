@@ -1,4 +1,5 @@
 """Utilities for managing processing checkpoints."""
+
 import json
 import logging
 from datetime import datetime
@@ -6,6 +7,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
+
 
 def load_checkpoint(checkpoint_path: Path) -> dict | None:
     """Load processing checkpoint from sentinel file."""
@@ -17,6 +19,7 @@ def load_checkpoint(checkpoint_path: Path) -> dict | None:
     except (json.JSONDecodeError, OSError) as e:
         logger.warning("Failed to load checkpoint from %s: %s", checkpoint_path, e)
         return None
+
 
 def save_checkpoint(checkpoint_path: Path, last_timestamp: datetime, messages_processed: int) -> None:
     """Save processing checkpoint to sentinel file."""

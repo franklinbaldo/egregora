@@ -35,8 +35,7 @@ from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database import RUN_EVENTS_SCHEMA
-from egregora.utils.fingerprinting import fingerprint_window
-from egregora.utils.git import get_git_commit_sha
+from egregora.database.checkpoint import load_checkpoint, save_checkpoint
 from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
@@ -44,10 +43,11 @@ from egregora.enrichment.runners import EnrichmentRuntimeContext
 from egregora.input_adapters import get_adapter
 from egregora.input_adapters.whatsapp.parser import extract_commands, filter_egregora_messages
 from egregora.output_adapters.mkdocs import resolve_site_paths
-from egregora.database.checkpoint import load_checkpoint, save_checkpoint
-from egregora.transformations.windowing import create_windows
 from egregora.transformations.media import process_media_for_window
+from egregora.transformations.windowing import create_windows
 from egregora.utils.cache import EnrichmentCache
+from egregora.utils.fingerprinting import fingerprint_window
+from egregora.utils.git import get_git_commit_sha
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
@@ -414,6 +414,7 @@ def _resolve_context_token_limit(config: EgregoraConfig, cli_model_override: str
 AVG_TOKENS_PER_MESSAGE = 5  # A conservative estimate for the average number of tokens per message.
 PROMPT_BUFFER_RATIO = 0.8  # Leave 20% of the context window for system prompts, tools, etc.
 
+
 def _calculate_max_window_size(config: EgregoraConfig, cli_model_override: str | None = None) -> int:
     """Calculate maximum window size based on LLM context window.
 
@@ -426,6 +427,7 @@ def _calculate_max_window_size(config: EgregoraConfig, cli_model_override: str |
 
     Returns:
         Maximum number of messages per window.
+
     """
     max_tokens = _resolve_context_token_limit(config, cli_model_override)
     return int((max_tokens * PROMPT_BUFFER_RATIO) / AVG_TOKENS_PER_MESSAGE)
@@ -1078,27 +1080,45 @@ def _load_and_prepare_data(adapter, input_path, config, site_paths, vision_model
 
 
 def _execute_pipeline(
-    adapter, input_path, output_dir, config, site_paths, messages_table,
-    enrichment_cache, cli_model_override, client, runs_backend, embedding_model
+    adapter,
+    input_path,
+    output_dir,
+    config,
+    site_paths,
+    messages_table,
+    enrichment_cache,
+    cli_model_override,
+    client,
+    runs_backend,
+    embedding_model,
 ):
     """Creates and processes windows, then finalizes the pipeline."""
     from egregora.transformations.windowing import WindowingStrategy
-    logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", config.pipeline.step_size, config.pipeline.step_unit)
+
+    logger.info(
+        "🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s",
+        config.pipeline.step_size,
+        config.pipeline.step_unit,
+    )
     windows_iterator = create_windows(
         messages_table,
         step_size=config.pipeline.step_size,
         step_unit=WindowingStrategy(config.pipeline.step_unit),
         overlap_ratio=config.pipeline.overlap_ratio,
-        max_window_time=timedelta(hours=config.pipeline.max_window_time) if config.pipeline.max_window_time else None,
+        max_window_time=timedelta(hours=config.pipeline.max_window_time)
+        if config.pipeline.max_window_time
+        else None,
     )
 
     from egregora.output_adapters import create_output_format
+
     output_format = create_output_format(output_dir, format_type=config.output.format)
 
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
             from egregora.agents.writer.writer_runner import index_documents_for_rag
+
             indexed_count = index_documents_for_rag(
                 output_format, site_paths.rag_dir, embedding_model=embedding_model
             )
@@ -1132,6 +1152,7 @@ def _execute_pipeline(
     checkpoint_path = site_paths.site_root / ".egregora" / "checkpoint.json"
     _save_checkpoint(results, messages_table, checkpoint_path)
     return results
+
 
 def run(
     source: str,
@@ -1172,8 +1193,17 @@ def run(
         )
 
         results = _execute_pipeline(
-            adapter, input_path, output_dir, config, site_paths, messages_table,
-            enrichment_cache, cli_model_override, client, runs_backend, embedding_model
+            adapter,
+            input_path,
+            output_dir,
+            config,
+            site_paths,
+            messages_table,
+            enrichment_cache,
+            cli_model_override,
+            client,
+            runs_backend,
+            embedding_model,
         )
 
         logger.info("[bold green]🎉 Pipeline completed successfully![/]")

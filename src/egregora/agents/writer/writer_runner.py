@@ -24,23 +24,18 @@ from egregora.agents.model_limits import PromptTooLargeError
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.author_profiles import get_active_authors
 from egregora.agents.shared.rag import VectorStore
-from egregora.agents.shared.rag.indexing import index_documents_for_rag
 from egregora.agents.writer.agent import WriterAgentContext, write_posts_with_pydantic_agent
 from egregora.agents.writer.context_builder import _load_profiles_context, build_rag_context_for_prompt
 from egregora.agents.writer.formatting import _build_conversation_markdown, _load_journal_memory
 from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig, create_default_config
-from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext
-from egregora.output_adapters import create_output_format, output_registry
-from egregora.output_adapters.mkdocs import MkDocsAdapter
+from egregora.output_adapters import output_registry
 from egregora.prompt_templates import WriterPromptTemplate
 
 if TYPE_CHECKING:
     from google import genai
     from ibis.expr.types import Table
-
-    from egregora.output_adapters.base import OutputAdapter
 
 
 logger = logging.getLogger(__name__)
@@ -125,13 +120,17 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     return author_counts.author.execute().tolist()
 
 
-
-
-
-
 def _build_writer_prompt(
-    table_with_str_uuids, annotations_store, config, client, embedding_model,
-    start_time, end_time, output_format, egregora_config, runtime_context
+    table_with_str_uuids,
+    annotations_store,
+    config,
+    client,
+    embedding_model,
+    start_time,
+    end_time,
+    output_format,
+    egregora_config,
+    runtime_context,
 ):
     """Builds the prompt for the writer agent."""
     messages_table = table_with_str_uuids.to_pyarrow()
@@ -139,7 +138,9 @@ def _build_writer_prompt(
     rag_context = ""
     if config.enable_rag:
         rag_context = build_rag_context_for_prompt(
-            conversation_md, config.rag_dir, client,
+            conversation_md,
+            config.rag_dir,
+            client,
             embedding_model=embedding_model,
             retrieval_mode=config.retrieval_mode,
             retrieval_nprobe=config.retrieval_nprobe,
@@ -168,9 +169,13 @@ def _build_writer_prompt(
     )
     return template.render()
 
+
 def write_posts_for_window(
-    table: Table, start_time: datetime, end_time: datetime,
-    client: genai.Client, config: WriterConfig | None = None
+    table: Table,
+    start_time: datetime,
+    end_time: datetime,
+    client: genai.Client,
+    config: WriterConfig | None = None,
 ) -> dict[str, list[str]]:
     """Orchestrates the post writing process for a given window."""
     if config is None:
@@ -200,22 +205,39 @@ def write_posts_for_window(
 
     storage_root = site_root if site_root else config.output_dir.parent
     rag_store = VectorStore(config.rag_dir / "chunks.parquet")
-    prompts_dir = (storage_root / ".egregora" / "prompts" if (storage_root / ".egregora" / "prompts").is_dir() else None)
+    prompts_dir = (
+        storage_root / ".egregora" / "prompts" if (storage_root / ".egregora" / "prompts").is_dir() else None
+    )
 
     output_format, runtime_output_format, url_convention = _create_runtime_output_handler(
-        egregora_config.output.format, storage_root, UrlContext(base_url="", site_prefix="", base_path=storage_root)
+        egregora_config.output.format,
+        storage_root,
+        UrlContext(base_url="", site_prefix="", base_path=storage_root),
     )
 
     runtime_context = WriterAgentContext(
-        start_time=start_time, end_time=end_time,
-        url_convention=url_convention, url_context=UrlContext(base_url="", site_prefix="", base_path=storage_root),
-        output_format=runtime_output_format, rag_store=rag_store,
-        annotations_store=annotations_store, client=client, prompts_dir=prompts_dir
+        start_time=start_time,
+        end_time=end_time,
+        url_convention=url_convention,
+        url_context=UrlContext(base_url="", site_prefix="", base_path=storage_root),
+        output_format=runtime_output_format,
+        rag_store=rag_store,
+        annotations_store=annotations_store,
+        client=client,
+        prompts_dir=prompts_dir,
     )
 
     prompt = _build_writer_prompt(
-        table_with_str_uuids, annotations_store, config, client, embedding_model,
-        start_time, end_time, output_format, egregora_config, runtime_context
+        table_with_str_uuids,
+        annotations_store,
+        config,
+        client,
+        embedding_model,
+        start_time,
+        end_time,
+        output_format,
+        egregora_config,
+        runtime_context,
     )
 
     try:
@@ -232,13 +254,13 @@ def write_posts_for_window(
 
     date_range = f"{start_time:%Y-%m-%d %H:%M} to {end_time:%H:%M}"
     output_format.finalize_window(
-        window_label=date_range, posts_created=saved_posts,
-        profiles_updated=saved_profiles, metadata=None
+        window_label=date_range, posts_created=saved_posts, profiles_updated=saved_profiles, metadata=None
     )
 
     if config.enable_rag and (saved_posts or saved_profiles):
         try:
             from egregora.agents.shared.rag.indexing import index_documents_for_rag
+
             indexed_count = index_documents_for_rag(
                 output_format, config.rag_dir, embedding_model=embedding_model
             )

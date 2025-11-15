@@ -1,9 +1,10 @@
 """Pydantic schemas for the writer agent's tools and state."""
+
 from __future__ import annotations
+
 from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
-from datetime import datetime
-from pathlib import Path
 
 
 class PostMetadata(BaseModel):
@@ -65,6 +66,7 @@ class WriterAgentReturn(BaseModel):
 
 class WriterAgentState(BaseModel):
     """Immutable dependencies passed to agent tools."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
     window_id: str
     url_convention: Any

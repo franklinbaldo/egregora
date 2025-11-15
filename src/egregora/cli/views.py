@@ -1,4 +1,5 @@
 """CLI commands for managing database views."""
+
 from pathlib import Path
 from typing import Annotated
 
@@ -12,6 +13,7 @@ views_app = typer.Typer(
     help="Manage database views and materialized views",
 )
 
+
 @views_app.command(name="list")
 def views_list(
     db_path: Annotated[
@@ -20,6 +22,7 @@ def views_list(
 ) -> None:
     """List all registered views."""
     import duckdb
+
     from egregora.database.views import ViewRegistry, register_common_views
 
     conn = duckdb.connect(str(db_path) if db_path else ":memory:")
@@ -55,6 +58,7 @@ def views_create(
 ) -> None:
     """Create all registered views in the database."""
     import duckdb
+
     from egregora.database.views import ViewRegistry, register_common_views
 
     if not db_path.exists():
@@ -85,11 +89,14 @@ def views_create(
 @views_app.command(name="refresh")
 def views_refresh(
     db_path: Annotated[Path, typer.Argument(help="Database file path")],
-    view_name: Annotated[str | None, typer.Option(help="Specific view to refresh (refreshes all if not specified)")] = None,
+    view_name: Annotated[
+        str | None, typer.Option(help="Specific view to refresh (refreshes all if not specified)")
+    ] = None,
     table_name: Annotated[str, typer.Option(help="Name of the messages table")] = "messages",
 ) -> None:
     """Refresh materialized views with fresh data."""
     import duckdb
+
     from egregora.database.views import ViewRegistry, register_common_views
 
     if not db_path.exists():
@@ -135,12 +142,15 @@ def views_refresh(
 def views_drop(
     db_path: Annotated[Path, typer.Argument(help="Database file path")],
     *,
-    view_name: Annotated[str | None, typer.Option(help="Specific view to drop (drops all if not specified)")] = None,
+    view_name: Annotated[
+        str | None, typer.Option(help="Specific view to drop (drops all if not specified)")
+    ] = None,
     table_name: Annotated[str, typer.Option(help="Name of the messages table")] = "messages",
     force: Annotated[bool, typer.Option("--force", "-f", help="Skip confirmation prompt")] = False,
 ) -> None:
     """Drop views from the database."""
     import duckdb
+
     from egregora.database.views import ViewRegistry, register_common_views
 
     if not db_path.exists():

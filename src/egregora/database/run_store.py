@@ -1,6 +1,9 @@
 """Data access layer for pipeline run history."""
-import duckdb
+
 from pathlib import Path
+
+import duckdb
+
 
 class RunStore:
     def __init__(self, db_path: Path):

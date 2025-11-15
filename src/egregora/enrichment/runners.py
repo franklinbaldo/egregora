@@ -9,9 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 import tempfile
-import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -24,8 +22,6 @@ from ibis.expr.types import Table
 
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.database import schemas
-from egregora.database.ir_schema import CONVERSATION_SCHEMA
 from egregora.enrichment.agents import (
     make_media_agent,
     make_url_agent,
@@ -34,8 +30,6 @@ from egregora.enrichment.agents import (
 )
 from egregora.enrichment.media import (
     detect_media_type,
-    extract_urls,
-    find_media_references,
     replace_media_mentions,
 )
 from egregora.utils import BatchPromptRequest, BatchPromptResult, make_enrichment_cache_key
@@ -340,7 +334,8 @@ def _process_single_media(
     return enrichment_id_str, markdown_content, pii_detected
 
 
-from .extractors import extract_unique_urls, extract_unique_media_references, _build_media_filename_lookup
+from .extractors import _build_media_filename_lookup, extract_unique_media_references, extract_unique_urls
+
 
 def _enrich_urls(
     messages_table: Table,
@@ -367,6 +362,7 @@ def _enrich_urls(
             new_rows.append(enrichment_row)
 
     return new_rows
+
 
 def _enrich_media(
     messages_table: Table,
@@ -429,6 +425,7 @@ def _replace_pii_media_references(
 
 
 from egregora.database.persistence import combine_with_enrichment_rows, persist_to_duckdb
+
 
 def enrich_table_simple(
     messages_table: Table,

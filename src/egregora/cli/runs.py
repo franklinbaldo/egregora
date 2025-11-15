@@ -1,4 +1,5 @@
 """CLI commands for viewing and managing pipeline run history."""
+
 from pathlib import Path
 from typing import Annotated
 
@@ -15,6 +16,7 @@ runs_app = typer.Typer(
 )
 
 from egregora.database.run_store import RunStore
+
 
 @runs_app.command(name="tail")
 def runs_tail(
@@ -45,11 +47,20 @@ def runs_tail(
                 rows_in_text = str(rows_in) if rows_in is not None else "-"
                 rows_out_text = str(rows_out) if rows_out is not None else "-"
                 run_id_short = str(run_id)[:8]
-                table.add_row(run_id_short, stage, status_text, str(started_at), rows_in_text, rows_out_text, duration_text)
+                table.add_row(
+                    run_id_short,
+                    stage,
+                    status_text,
+                    str(started_at),
+                    rows_in_text,
+                    rows_out_text,
+                    duration_text,
+                )
             console.print(table)
     except FileNotFoundError:
         console.print(f"[yellow]No runs database found at {db_path}[/yellow]")
         console.print("[dim]Runs will be tracked after first pipeline execution[/dim]")
+
 
 def _format_status(status: str) -> str:
     """Return color-coded status string."""
@@ -61,7 +72,25 @@ def _format_status(status: str) -> str:
         return f"[yellow]{status}[/yellow]"
     return status
 
-def _build_run_panel_content(run_id, tenant_id, stage, status, error, input_fingerprint, code_ref, config_hash, started_at, finished_at, duration_seconds, rows_in, rows_out, llm_calls, tokens, trace_id) -> str:
+
+def _build_run_panel_content(
+    run_id,
+    tenant_id,
+    stage,
+    status,
+    error,
+    input_fingerprint,
+    code_ref,
+    config_hash,
+    started_at,
+    finished_at,
+    duration_seconds,
+    rows_in,
+    rows_out,
+    llm_calls,
+    tokens,
+    trace_id,
+) -> str:
     """Build formatted panel content from run data."""
     lines = []
     status_display = _format_status(status)
@@ -122,8 +151,42 @@ def runs_show(
                 console.print(f"[red]Run not found: {run_id}[/red]")
                 raise typer.Exit(1)
 
-            (run_id_full, tenant_id, stage, status, error, input_fingerprint, code_ref, config_hash, started_at, finished_at, duration_seconds, rows_in, rows_out, llm_calls, tokens, trace_id) = result
-            panel_content = _build_run_panel_content(run_id_full, tenant_id, stage, status, error, input_fingerprint, code_ref, config_hash, started_at, finished_at, duration_seconds, rows_in, rows_out, llm_calls, tokens, trace_id)
+            (
+                run_id_full,
+                tenant_id,
+                stage,
+                status,
+                error,
+                input_fingerprint,
+                code_ref,
+                config_hash,
+                started_at,
+                finished_at,
+                duration_seconds,
+                rows_in,
+                rows_out,
+                llm_calls,
+                tokens,
+                trace_id,
+            ) = result
+            panel_content = _build_run_panel_content(
+                run_id_full,
+                tenant_id,
+                stage,
+                status,
+                error,
+                input_fingerprint,
+                code_ref,
+                config_hash,
+                started_at,
+                finished_at,
+                duration_seconds,
+                rows_in,
+                rows_out,
+                llm_calls,
+                tokens,
+                trace_id,
+            )
             panel = Panel(panel_content, title=f"[bold]Run Details: {stage}[/bold]", border_style="cyan")
             console.print(panel)
     except FileNotFoundError:

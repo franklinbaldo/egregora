@@ -1,7 +1,9 @@
 """Privacy utilities to guard against personal data leaks."""
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
+
 from egregora.privacy.patterns import PII_PATTERNS, UUID_PATTERN
 
 if TYPE_CHECKING:

@@ -1,10 +1,14 @@
 """Database persistence utilities."""
+
 from __future__ import annotations
+
 import logging
 import re
 import uuid
 from typing import TYPE_CHECKING
+
 import ibis
+
 from . import schemas
 from .ir_schema import CONVERSATION_SCHEMA
 
@@ -13,6 +17,7 @@ if TYPE_CHECKING:
     from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
+
 
 def combine_with_enrichment_rows(
     messages_table: Table,
@@ -34,6 +39,7 @@ def combine_with_enrichment_rows(
         combined = messages_table_filtered
 
     return combined
+
 
 def persist_to_duckdb(
     table: Table,

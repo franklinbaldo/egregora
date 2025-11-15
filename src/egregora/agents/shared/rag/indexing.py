@@ -5,10 +5,13 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
+
 import ibis
 
 from egregora.agents.model_limits import PromptTooLargeError
 from egregora.agents.shared.rag.store import VectorStore
+
+
 def _load_document_from_path(path: Path) -> Document | None:
     """Load a Document from a filesystem path."""
     try:
@@ -55,7 +58,10 @@ def _load_document_from_path(path: Path) -> Document | None:
         type=doc_type,
         metadata=metadata,
     )
+
+
 from egregora.data_primitives.document import Document
+
 if TYPE_CHECKING:
     from egregora.output_adapters.base import OutputAdapter
 
@@ -64,9 +70,10 @@ logger = logging.getLogger(__name__)
 
 from egregora.agents.shared.rag.chunker import chunk_from_document
 from egregora.agents.shared.rag.embedder import embed_chunks
+from egregora.agents.shared.rag.retriever import _coerce_message_datetime, _coerce_post_date
 from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA
 from egregora.data_primitives.document import DocumentType
-from egregora.agents.shared.rag.retriever import _coerce_post_date, _coerce_message_datetime
+
 
 def index_document(
     document: Document,
@@ -195,6 +202,7 @@ def index_documents_for_rag(output_format: OutputAdapter, rag_dir: Path, *, embe
 
     Returns:
         Number of NEW documents indexed (not total indexed documents)
+
     """
     try:
         format_documents = output_format.list_documents()
@@ -237,8 +245,7 @@ def index_documents_for_rag(output_format: OutputAdapter, rag_dir: Path, *, embe
         joined = docs_table.left_join(indexed_renamed, docs_table.source_path == indexed_renamed.indexed_path)
 
         new_or_changed = joined.filter(
-            (joined.indexed_mtime.isnull())
-            | (joined.mtime_ns > joined.indexed_mtime)
+            (joined.indexed_mtime.isnull()) | (joined.mtime_ns > joined.indexed_mtime)
         ).select(
             storage_identifier=joined.storage_identifier,
             source_path=joined.source_path,

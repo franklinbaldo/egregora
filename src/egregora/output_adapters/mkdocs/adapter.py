@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import os
-import uuid as uuid_lib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
@@ -24,7 +23,6 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 from egregora.agents.shared.author_profiles import write_profile as write_profile_content
 from egregora.config.settings import create_default_config
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import OutputAdapter as OutputProtocol
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 from egregora.output_adapters.mkdocs.url_convention import LegacyMkDocsUrlConvention
@@ -1071,8 +1069,6 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
 
-
-
     @property
     def url_convention(self) -> UrlConvention:
         return self._url_convention
@@ -1413,5 +1409,3 @@ def secure_path_join(base_dir: Path, user_path: str) -> Path:
         msg = f"Path traversal detected: {user_path!r} escapes base directory {base_dir}"
         raise ValueError(msg) from exc
     return full_path
-
-

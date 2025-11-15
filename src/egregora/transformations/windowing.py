@@ -23,14 +23,10 @@ DESIGN PHILOSOPHY: Calculate, Don't Iterate
   cannot enforce time limits without knowing message density beforehand
 """
 
-import json
 import logging
-import math
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import ibis
 from ibis.expr.types import Table
