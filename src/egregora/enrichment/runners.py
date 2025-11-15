@@ -350,9 +350,7 @@ def _enrich_urls(
 
     url_metadata: dict[str, dict[str, Any]] = {}
 
-    for batch in _iter_table_record_batches(
-        messages_table.select(messages_table.ts, messages_table.text)
-    ):
+    for batch in _iter_table_record_batches(messages_table.select(messages_table.ts, messages_table.text)):
         for row in batch:
             if discovered_count >= max_enrichments:
                 break
@@ -419,9 +417,7 @@ def _extract_media_references(
     unique_media: set[str] = set()
     metadata_lookup: dict[str, dict[str, Any]] = {}
 
-    for batch in _iter_table_record_batches(
-        messages_table.select(messages_table.ts, messages_table.text)
-    ):
+    for batch in _iter_table_record_batches(messages_table.select(messages_table.ts, messages_table.text)):
         for row in batch:
             message = row.get("text")
             if not message:
