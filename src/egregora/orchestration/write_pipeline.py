@@ -843,6 +843,11 @@ def _setup_pipeline_environment(
     site_paths = _resolve_site_paths_or_raise(resolved_output, config)
     runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
 
+    # Initialize database tables (CREATE TABLE IF NOT EXISTS)
+    from egregora.database import initialize_database
+
+    initialize_database(backend)
+
     client_instance = client or _create_gemini_client(api_key)
     cache_dir = Path(".egregora-cache") / site_paths.site_root.name
     enrichment_cache = EnrichmentCache(cache_dir)
