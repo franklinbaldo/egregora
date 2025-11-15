@@ -8,7 +8,10 @@ Tests cover:
 - Error handling
 """
 
+from pathlib import Path
+
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from egregora.config.settings import (
@@ -181,17 +184,16 @@ writer:
     assert config.writer.custom_instructions == "Write in a casual tone"
 
 
-def test_load_egregora_config_handles_yaml_error(tmp_path):
-    """Test that load_egregora_config handles YAML parsing errors gracefully."""
+def test_load_egregora_config_raises_on_yaml_error(tmp_path):
+    """Test that load_egregora_config surfaces YAML parsing errors."""
     egregora_dir = tmp_path / ".egregora"
     egregora_dir.mkdir()
 
     # Invalid YAML
     (egregora_dir / "config.yml").write_text("{ invalid yaml")
 
-    # Should fall back to default config
-    config = load_egregora_config(tmp_path)
-    assert config.models.writer == "google-gla:gemini-flash-latest"
+    with pytest.raises(yaml.YAMLError):
+        load_egregora_config(tmp_path)
 
 
 def test_load_egregora_config_handles_validation_error(tmp_path):
@@ -209,6 +211,27 @@ rag:
     # Should fall back to default config
     config = load_egregora_config(tmp_path)
     assert config.rag.top_k == 5  # Default
+
+
+def test_load_egregora_config_propagates_os_error(tmp_path, monkeypatch):
+    """Test that load_egregora_config re-raises OS errors after logging."""
+    egregora_dir = tmp_path / ".egregora"
+    egregora_dir.mkdir()
+
+    config_path = egregora_dir / "config.yml"
+    config_path.write_text("models: {}", encoding="utf-8")
+
+    original_read_text = Path.read_text
+
+    def raise_os_error(self, *args, **kwargs):  # pragma: no cover - simple helper
+        if self == config_path:
+            raise OSError("boom")
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", raise_os_error)
+
+    with pytest.raises(OSError):
+        load_egregora_config(tmp_path)
 
 
 def test_create_default_config(tmp_path):

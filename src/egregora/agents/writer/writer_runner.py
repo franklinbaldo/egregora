@@ -67,6 +67,33 @@ class WriterConfig:
 MAX_CONVERSATION_TURNS = 10
 
 
+@dataclass
+class DocumentIndexPlan:
+    """Container for pending RAG indexing work."""
+
+    to_index: object  # pandas.DataFrame but kept generic to avoid optional import
+    store: VectorStore
+    total_documents: int
+
+    @property
+    def skipped_count(self) -> int:
+        """Number of documents skipped because they were already indexed."""
+        return self.total_documents - len(self.to_index)
+
+
+@dataclass
+class WriterEnvironment:
+    """Precomputed resources required to run the writer agent."""
+
+    writer_config: WriterConfig
+    egregora_config: EgregoraConfig
+    output_format: OutputAdapter
+    runtime_context: WriterAgentContext
+    annotations_store: AnnotationStore
+    rag_store: VectorStore
+    embedding_model: str
+
+
 def load_format_instructions(site_root: Path | None) -> str:
     """Load output format instructions for the writer agent.
 
@@ -185,6 +212,97 @@ def _load_document_from_path(path: Path) -> Document | None:
     )
 
 
+def _fetch_format_documents(output_format: OutputAdapter) -> tuple[ibis.Table, int] | tuple[None, int]:
+    """Return all documents known to the output adapter and their count."""
+    format_documents = output_format.list_documents()
+    doc_count = format_documents.count().execute()
+
+    if doc_count == 0:
+        logger.debug("No documents found by output format")
+        return None, 0
+
+    logger.debug("OutputAdapter reported %d documents", doc_count)
+    return format_documents, doc_count
+
+
+def _resolve_document_paths(format_documents: ibis.Table, output_format: OutputAdapter) -> ibis.Table | None:
+    """Attach resolved filesystem paths to the adapter document listing."""
+
+    def resolve_identifier(identifier: str) -> str:
+        try:
+            return str(output_format.resolve_document_path(identifier))
+        except (ValueError, RuntimeError, OSError) as e:
+            logger.warning("Failed to resolve identifier %s: %s", identifier, e)
+            return ""
+
+    docs_df = format_documents.execute()
+    docs_df["source_path"] = docs_df["storage_identifier"].apply(resolve_identifier)
+    docs_df = docs_df[docs_df["source_path"] != ""]
+
+    if docs_df.empty:
+        logger.warning("All document identifiers failed to resolve to paths")
+        return None
+
+    return ibis.memtable(docs_df)
+
+
+def _detect_changed_documents(
+    docs_table: ibis.Table, rag_dir: Path, *, total_documents: int
+) -> DocumentIndexPlan:
+    """Identify documents that must be indexed or re-indexed."""
+    store = VectorStore(rag_dir / "chunks.parquet")
+    indexed_table = store.get_indexed_sources_table()
+    indexed_count_val = indexed_table.count().execute()
+    logger.debug("Found %d already indexed sources in RAG", indexed_count_val)
+
+    indexed_renamed = indexed_table.select(
+        indexed_path=indexed_table.source_path, indexed_mtime=indexed_table.source_mtime_ns
+    )
+
+    joined = docs_table.left_join(indexed_renamed, docs_table.source_path == indexed_renamed.indexed_path)
+
+    new_or_changed = joined.filter(
+        (joined.indexed_mtime.isnull()) | (joined.mtime_ns != joined.indexed_mtime)
+    ).select(
+        storage_identifier=joined.storage_identifier,
+        source_path=joined.source_path,
+        mtime_ns=joined.mtime_ns,
+    )
+
+    to_index = new_or_changed.execute()
+    return DocumentIndexPlan(to_index=to_index, store=store, total_documents=total_documents)
+
+
+def _index_documents(plan: DocumentIndexPlan, *, embedding_model: str) -> int:
+    """Index the provided documents using the supplied vector store."""
+    indexed_count = 0
+    for row in plan.to_index.itertuples():
+        try:
+            document_path = Path(row.source_path)
+            doc = _load_document_from_path(document_path)
+            if doc is None:
+                logger.warning("Failed to load document %s, skipping", row.storage_identifier)
+                continue
+
+            index_document(
+                doc,
+                plan.store,
+                embedding_model=embedding_model,
+                source_path=str(document_path),
+                source_mtime_ns=row.mtime_ns,
+            )
+            indexed_count += 1
+            logger.debug("Indexed document: %s", row.storage_identifier)
+        except Exception as e:  # noqa: BLE001 - logging and continuing is intentional
+            logger.warning("Failed to index document %s: %s", row.storage_identifier, e)
+            continue
+
+    if indexed_count > 0:
+        logger.info("Indexed %d new/changed documents in RAG (incremental)", indexed_count)
+
+    return indexed_count
+
+
 def index_documents_for_rag(output_format: OutputAdapter, rag_dir: Path, *, embedding_model: str) -> int:
     """Index new/changed documents using incremental indexing via OutputAdapter.
 
@@ -217,110 +335,27 @@ def index_documents_for_rag(output_format: OutputAdapter, rag_dir: Path, *, embe
 
     """
     try:
-        # Phase 1: Get all documents from OutputAdapter as Ibis table
-        format_documents = output_format.list_documents()
-
-        # Check if empty
-        doc_count = format_documents.count().execute()
-        if doc_count == 0:
-            logger.debug("No documents found by output format")
+        format_documents, doc_count = _fetch_format_documents(output_format)
+        if format_documents is None:
             return 0
 
-        logger.debug("OutputAdapter reported %d documents", doc_count)
-
-        # Phase 2: Resolve storage identifiers to absolute paths
-        # Add source_path column by resolving each identifier
-        def resolve_identifier(identifier: str) -> str:
-            try:
-                return str(output_format.resolve_document_path(identifier))
-            except (ValueError, RuntimeError, OSError) as e:
-                logger.warning("Failed to resolve identifier %s: %s", identifier, e)
-                return ""
-
-        # Convert table to pandas to add resolved paths (Ibis doesn't support UDFs easily)
-        docs_df = format_documents.execute()
-        docs_df["source_path"] = docs_df["storage_identifier"].apply(resolve_identifier)
-
-        # Filter out failed resolutions
-        docs_df = docs_df[docs_df["source_path"] != ""]
-
-        if docs_df.empty:
-            logger.warning("All document identifiers failed to resolve to paths")
+        docs_table = _resolve_document_paths(format_documents, output_format)
+        if docs_table is None:
             return 0
 
-        # Convert back to Ibis table
-        docs_table = ibis.memtable(docs_df)
+        plan = _detect_changed_documents(docs_table, rag_dir, total_documents=doc_count)
 
-        # Phase 3: Get already indexed sources from RAG as Ibis table
-        store = VectorStore(rag_dir / "chunks.parquet")
-        indexed_table = store.get_indexed_sources_table()
-
-        indexed_count_val = indexed_table.count().execute()
-        logger.debug("Found %d already indexed sources in RAG", indexed_count_val)
-
-        # Phase 4: Delta detection using Ibis joins
-        # Rename columns in indexed_table to avoid conflicts
-        indexed_renamed = indexed_table.select(
-            indexed_path=indexed_table.source_path, indexed_mtime=indexed_table.source_mtime_ns
-        )
-
-        # Left join format_documents with indexed_sources on source_path
-        joined = docs_table.left_join(indexed_renamed, docs_table.source_path == indexed_renamed.indexed_path)
-
-        # Find new or changed documents
-        new_or_changed = joined.filter(
-            (joined.indexed_mtime.isnull())  # New documents (not in RAG)
-            | (joined.mtime_ns > joined.indexed_mtime)  # Changed documents
-        ).select(
-            storage_identifier=joined.storage_identifier,
-            source_path=joined.source_path,
-            mtime_ns=joined.mtime_ns,
-        )
-
-        # Materialize results
-        to_index = new_or_changed.execute()
-
-        if to_index.empty:
+        if plan.to_index.empty:
             logger.debug("All documents already indexed with current mtime - no work needed")
             return 0
 
         logger.info(
             "Incremental indexing: %d new/changed documents (skipped %d unchanged)",
-            len(to_index),
-            doc_count - len(to_index),
+            len(plan.to_index),
+            plan.skipped_count,
         )
 
-        # Phase 5: Index only new/changed files using Document abstraction
-        indexed_count = 0
-        for row in to_index.itertuples():
-            try:
-                document_path = Path(row.source_path)
-
-                # MODERN (Phase 4): Load Document from filesystem path
-                doc = _load_document_from_path(document_path)
-                if doc is None:
-                    logger.warning("Failed to load document %s, skipping", row.storage_identifier)
-                    continue
-
-                # Index using Document-based RAG indexing
-                index_document(
-                    doc,
-                    store,
-                    embedding_model=embedding_model,
-                    source_path=str(document_path),
-                    source_mtime_ns=row.mtime_ns,
-                )
-                indexed_count += 1
-                logger.debug("Indexed document: %s", row.storage_identifier)
-            except Exception as e:
-                # Don't let one failing document break incremental indexing
-                logger.warning("Failed to index document %s: %s", row.storage_identifier, e)
-                continue
-
-        if indexed_count > 0:
-            logger.info("Indexed %d new/changed documents in RAG (incremental)", indexed_count)
-
-        return indexed_count
+        return _index_documents(plan, embedding_model=embedding_model)
 
     except PromptTooLargeError:
         raise
@@ -328,6 +363,150 @@ def index_documents_for_rag(output_format: OutputAdapter, rag_dir: Path, *, embe
         # RAG indexing is non-critical - log error but don't fail pipeline
         logger.exception("Failed to index documents in RAG")
         return 0
+
+
+def _cast_uuid_columns_to_str(table: Table) -> Table:
+    """Ensure UUID-like columns are serialised to strings for downstream consumers."""
+    return table.mutate(
+        event_id=table.event_id.cast(str),
+        author_uuid=table.author_uuid.cast(str),
+        thread_id=table.thread_id.cast(str),
+        created_by_run=table.created_by_run.cast(str),
+    )
+
+
+def _build_writer_environment(
+    config: WriterConfig,
+    start_time: datetime,
+    end_time: datetime,
+    client: genai.Client,
+) -> WriterEnvironment:
+    """Construct the configuration and runtime context required by the writer agent."""
+    embedding_model = get_model_for_task("embedding", config.egregora_config, config.cli_model)
+    annotations_store = AnnotationStore(config.rag_dir / "annotations.duckdb")
+
+    site_root = config.site_root
+    if config.egregora_config is None:
+        egregora_config = create_default_config(site_root) if site_root else create_default_config(Path.cwd())
+    else:
+        egregora_config = config.egregora_config.model_copy(deep=True)
+
+    if config.cli_model:
+        egregora_config.models.writer = config.cli_model
+        egregora_config.models.embedding = config.cli_model
+
+    storage_root = site_root if site_root else config.output_dir.parent
+    format_type = egregora_config.output.format
+    output_format = create_output_format(storage_root, format_type=format_type)
+    rag_store = VectorStore(config.rag_dir / "chunks.parquet")
+
+    prompts_dir = (
+        storage_root / ".egregora" / "prompts" if (storage_root / ".egregora" / "prompts").is_dir() else None
+    )
+
+    url_context = UrlContext(base_url="", site_prefix="", base_path=storage_root)
+
+    if format_type == "mkdocs":
+        runtime_output_format = MkDocsFilesystemAdapter(site_root=storage_root, url_context=url_context)
+        url_convention = runtime_output_format.url_convention
+    else:
+        runtime_output_format = output_format
+        url_convention = LegacyMkDocsUrlConvention()
+        logger.warning(
+            "Format %s does not support NEW url_convention pattern yet, using fallback",
+            format_type,
+        )
+
+    runtime_context = WriterAgentContext(
+        start_time=start_time,
+        end_time=end_time,
+        url_convention=url_convention,
+        url_context=url_context,
+        output_format=runtime_output_format,
+        rag_store=rag_store,
+        annotations_store=annotations_store,
+        client=client,
+        prompts_dir=prompts_dir,
+    )
+
+    return WriterEnvironment(
+        writer_config=config,
+        egregora_config=egregora_config,
+        output_format=output_format,
+        runtime_context=runtime_context,
+        annotations_store=annotations_store,
+        rag_store=rag_store,
+        embedding_model=embedding_model,
+    )
+
+
+@dataclass
+class WriterPromptContext:
+    """Values used to populate the writer prompt template."""
+
+    conversation_md: str
+    rag_context: str
+    profiles_context: str
+    journal_memory: str
+    active_authors: list[str]
+
+
+def _build_writer_prompt_context(
+    table_with_str_uuids: Table,
+    environment: WriterEnvironment,
+    client: genai.Client,
+) -> WriterPromptContext:
+    """Collect contextual inputs used when rendering the writer prompt."""
+    messages_table = table_with_str_uuids.to_pyarrow()
+    conversation_md = _build_conversation_markdown(messages_table, environment.annotations_store)
+
+    if environment.writer_config.enable_rag:
+        rag_context = build_rag_context_for_prompt(
+            conversation_md,
+            environment.writer_config.rag_dir,
+            client,
+            embedding_model=environment.embedding_model,
+            retrieval_mode=environment.writer_config.retrieval_mode,
+            retrieval_nprobe=environment.writer_config.retrieval_nprobe,
+            retrieval_overfetch=environment.writer_config.retrieval_overfetch,
+            use_pydantic_helpers=True,
+        )
+    else:
+        rag_context = ""
+
+    profiles_context = _load_profiles_context(table_with_str_uuids, environment.writer_config.profiles_dir)
+    journal_memory = _load_journal_memory(environment.writer_config.rag_dir)
+    active_authors = get_active_authors(table_with_str_uuids)
+
+    return WriterPromptContext(
+        conversation_md=conversation_md,
+        rag_context=rag_context,
+        profiles_context=profiles_context,
+        journal_memory=journal_memory,
+        active_authors=active_authors,
+    )
+
+
+def _render_writer_prompt(
+    prompt_context: WriterPromptContext, environment: WriterEnvironment, *, date_range: str
+) -> str:
+    """Render the final writer prompt text."""
+    format_instructions = environment.output_format.get_format_instructions()
+    custom_instructions = environment.egregora_config.writer.custom_instructions or ""
+
+    template = WriterPromptTemplate(
+        date=date_range,
+        markdown_table=prompt_context.conversation_md,
+        active_authors=", ".join(prompt_context.active_authors),
+        custom_instructions=custom_instructions,
+        format_instructions=format_instructions,
+        profiles_context=prompt_context.profiles_context,
+        rag_context=prompt_context.rag_context,
+        journal_memory=prompt_context.journal_memory,
+        enable_memes=False,
+        prompts_dir=environment.runtime_context.prompts_dir,
+    )
+    return template.render()
 
 
 def _write_posts_for_window_pydantic(
@@ -358,139 +537,19 @@ def _write_posts_for_window_pydantic(
     if table.count().execute() == 0:
         return {"posts": [], "profiles": []}
 
-    # Get embedding model for RAG
-    embedding_model = get_model_for_task("embedding", config.egregora_config, config.cli_model)
+    environment = _build_writer_environment(config, start_time, end_time, client)
 
-    annotations_store = AnnotationStore(config.rag_dir / "annotations.duckdb")
+    table_with_str_uuids = _cast_uuid_columns_to_str(table)
+    prompt_context = _build_writer_prompt_context(table_with_str_uuids, environment, client)
 
-    # IR v1: Cast UUID columns to strings for PyArrow compatibility
-    # PyArrow doesn't support Python UUID objects, needs string serialization
-    table_with_str_uuids = table.mutate(
-        event_id=table.event_id.cast(str),
-        author_uuid=table.author_uuid.cast(str),
-        thread_id=table.thread_id.cast(str),
-        created_by_run=table.created_by_run.cast(str),
-    )
-    messages_table = table_with_str_uuids.to_pyarrow()
-    conversation_md = _build_conversation_markdown(messages_table, annotations_store)
-    rag_context = ""
-    if config.enable_rag:
-        rag_context = build_rag_context_for_prompt(
-            conversation_md,
-            config.rag_dir,
-            client,
-            embedding_model=embedding_model,
-            retrieval_mode=config.retrieval_mode,
-            retrieval_nprobe=config.retrieval_nprobe,
-            retrieval_overfetch=config.retrieval_overfetch,
-            use_pydantic_helpers=True,
-        )
-    # IR v1: Use table with string UUIDs for pandas/PyArrow operations
-    profiles_context = _load_profiles_context(table_with_str_uuids, config.profiles_dir)
-    journal_memory = _load_journal_memory(config.rag_dir)
-    active_authors = get_active_authors(table_with_str_uuids)
-
-    # Use site_root from config for custom prompt overrides
-    # site_root is where the .egregora/ directory lives
-    site_root = config.site_root
-
-    # MODERN (Phase 2): Get EgregoraConfig from WriterConfig
-    if config.egregora_config is None:
-        egregora_config = create_default_config(site_root) if site_root else create_default_config(Path.cwd())
-    else:
-        # Create a copy so we don't mutate the shared config
-        egregora_config = config.egregora_config.model_copy(deep=True)
-
-    # Apply CLI model overrides if provided
-    if config.cli_model:
-        egregora_config.models.writer = config.cli_model
-        egregora_config.models.embedding = config.cli_model
-
-    # Create OutputAdapter coordinator (MODERN: OutputAdapter Coordinator Pattern)
-    # Determine site_root for storage (use output_dir parent if site_root not set)
-    storage_root = site_root if site_root else config.output_dir.parent
-
-    # Get output format from config (industry standard: configuration-driven factory)
-    format_type = egregora_config.output.format
-    output_format = create_output_format(storage_root, format_type=format_type)
-
-    # Create pre-constructed stores
-    rag_store = VectorStore(config.rag_dir / "chunks.parquet")
-
-    # Resolve prompts directory
-    prompts_dir = (
-        storage_root / ".egregora" / "prompts" if (storage_root / ".egregora" / "prompts").is_dir() else None
-    )
-
-    # DEPRECATED Phase 5: LegacyStorageAdapter removed
-    # All document persistence now uses OutputAdapter directly
-
-    # MODERN (Phase 4+6): Create runtime output format based on configuration
-    # Different from line 474 which uses registry (old pattern) for instructions only
-    # Runtime needs NEW pattern with constructor injection for url_convention support
-    url_context = UrlContext(base_url="", site_prefix="", base_path=storage_root)
-
-    # Create format-specific runtime output format
-    if format_type == "mkdocs":
-        # Use NEW MkDocsFilesystemAdapter with constructor injection (has url_convention property)
-        runtime_output_format = MkDocsFilesystemAdapter(site_root=storage_root, url_context=url_context)
-        url_convention = runtime_output_format.url_convention
-    else:
-        # For other formats (Hugo, etc.), fall back to old pattern for now
-        # TODO: Implement NEW pattern for Hugo with url_convention support
-        runtime_output_format = output_format
-        url_convention = LegacyMkDocsUrlConvention()  # Temporary fallback
-        logger.warning(
-            "Format %s does not support NEW url_convention pattern yet, using fallback",
-            format_type,
-        )
-
-    # Create runtime context for writer agent (MODERN Phase 6: OutputAdapter with read support)
-    runtime_context = WriterAgentContext(
-        start_time=start_time,
-        end_time=end_time,
-        # Backend-agnostic publishing (MODERN Phase 4+6)
-        url_convention=url_convention,
-        url_context=url_context,
-        output_format=runtime_output_format,
-        # Pre-constructed stores
-        rag_store=rag_store,
-        annotations_store=annotations_store,
-        # LLM client
-        client=client,
-        # Prompt templates directory
-        prompts_dir=prompts_dir,
-    )
-
-    # Format timestamps for LLM prompt (human-readable)
     date_range = f"{start_time:%Y-%m-%d %H:%M} to {end_time:%H:%M}"
-
-    # Load output format instructions from OutputAdapter (MkDocs, Hugo, etc.)
-    format_instructions = output_format.get_format_instructions()
-
-    # Get custom instructions from .egregora/config.yml (not mkdocs.yml)
-    custom_instructions = egregora_config.writer.custom_instructions or ""
-
-    # Render prompt using runtime context
-    template = WriterPromptTemplate(
-        date=date_range,
-        markdown_table=conversation_md,
-        active_authors=", ".join(active_authors),
-        custom_instructions=custom_instructions,
-        format_instructions=format_instructions,
-        profiles_context=profiles_context,
-        rag_context=rag_context,
-        journal_memory=journal_memory,
-        enable_memes=False,  # Meme generation removed in Phase 3
-        prompts_dir=runtime_context.prompts_dir,
-    )
-    prompt = template.render()
+    prompt = _render_writer_prompt(prompt_context, environment, date_range=date_range)
 
     try:
         saved_posts, saved_profiles = write_posts_with_pydantic_agent(
             prompt=prompt,
-            config=egregora_config,
-            context=runtime_context,
+            config=environment.egregora_config,
+            context=environment.runtime_context,
         )
     except PromptTooLargeError:
         raise
@@ -500,7 +559,7 @@ def _write_posts_for_window_pydantic(
         raise RuntimeError(msg) from exc
 
     # Call format-specific finalization hook (e.g., update .authors.yml, regenerate indexes)
-    output_format.finalize_window(
+    environment.output_format.finalize_window(
         window_label=date_range,
         posts_created=saved_posts,
         profiles_updated=saved_profiles,
@@ -512,9 +571,9 @@ def _write_posts_for_window_pydantic(
     if config.enable_rag and (saved_posts or saved_profiles):
         try:
             indexed_count = index_documents_for_rag(
-                output_format,
+                environment.output_format,
                 config.rag_dir,
-                embedding_model=embedding_model,
+                embedding_model=environment.embedding_model,
             )
             if indexed_count > 0:
                 logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
