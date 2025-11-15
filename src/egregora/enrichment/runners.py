@@ -350,6 +350,19 @@ def _process_single_media(
     if not markdown_content:
         markdown_content = f"[No enrichment generated for media: {file_path.name}]"
 
+    # Determine subdirectory based on media type
+    media_subdir_map = {
+        "image": "images",
+        "video": "videos",
+        "audio": "audio",
+        "document": "documents",
+    }
+    media_subdir = media_subdir_map.get(media_type, "files")
+
+    # Suggest path: media/{subdir}/{filename}.md
+    # The .md extension will be added by OutputAdapter based on DocumentType
+    suggested_path = f"media/{media_subdir}/{file_path.stem}"
+
     doc = Document(
         content=markdown_content,
         type=DocumentType.ENRICHMENT_MEDIA,
@@ -357,6 +370,7 @@ def _process_single_media(
             "filename": file_path.name,
             "media_type": media_type,
         },
+        suggested_path=suggested_path,
     )
     context.output_format.serve(doc)
     enrichment_id_str = doc.document_id

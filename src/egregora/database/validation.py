@@ -525,6 +525,12 @@ def create_ir_table(
         msg = "source is required when constructing IR table"
         raise ValueError(msg)
 
+    # Check if table already has IR schema (has 'text' column instead of 'message')
+    # If so, skip ensure_message_schema() to avoid converting IR → MESSAGE → IR
+    if "text" in table.columns:
+        # Already IR schema, just return as-is
+        return table
+
     normalized = ensure_message_schema(table, timezone=timezone)
     if "message_id" not in normalized.columns:
         normalized = normalized.mutate(message_id=ibis.row_number().cast(dt.string))
@@ -573,6 +579,9 @@ def create_ir_table(
     else:
         created_by_run_literal = ibis.null().cast(dt.uuid)
 
+    # Determine the text column name (CONVERSATION_SCHEMA uses "message", IR uses "text")
+    text_col = "text" if "text" in normalized.columns else "message"
+
     ir_table = normalized.mutate(
         event_id=event_uuid_udf(
             normalized["message_id"].cast(dt.string),
@@ -585,7 +594,7 @@ def create_ir_table(
         ts=normalized["timestamp"].cast(dt.Timestamp(timezone="UTC")),
         author_raw=normalized["author"],
         author_uuid=author_uuid_udf(normalized["author"]).cast(dt.uuid),
-        text=normalized["message"],
+        text=normalized[text_col],
         media_url=ibis.null().cast(dt.String(nullable=True)),
         media_type=ibis.null().cast(dt.String(nullable=True)),
         attrs=attrs_udf(
