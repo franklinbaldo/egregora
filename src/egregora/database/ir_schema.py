@@ -81,6 +81,96 @@ MESSAGE_SCHEMA: dict[str, dt.DataType] = {
 WHATSAPP_SCHEMA = MESSAGE_SCHEMA
 
 # ============================================================================
+# NEW MESSAGE_SCHEMA (2025-01-15 Redesign)
+# ============================================================================
+# Minimal, provider-agnostic schema replacing old MESSAGE_SCHEMA
+# See: docs/architecture/message-schema-redesign.md
+#
+# Key improvements:
+# - 7 columns (down from 8+)
+# - Provider-agnostic (works for WhatsApp, Slack, Discord, etc.)
+# - Two-level source identity (provider_type + provider_instance)
+# - Privacy-first (author is anonymized 8-char hex, author_raw never stored)
+# - Generic field names (no whatsapp_*, slack_* columns)
+# - Flexible metadata (JSON escape hatch for provider-specific features)
+
+NEW_MESSAGE_SCHEMA = ibis.schema(
+    {
+        # Identity
+        "message_id": dt.string,  # UUID5 deterministic ID
+
+        # Source (two-level hierarchy)
+        "provider_type": dt.string,      # Platform: "whatsapp", "slack", "discord"
+        "provider_instance": dt.string,  # Specific: "family-chat", "#engineering", "server/channel"
+
+        # Temporal
+        "timestamp": dt.Timestamp(timezone="UTC", scale=9),  # nanosecond precision
+
+        # Authorship (privacy boundary)
+        "author": dt.string,  # Anonymized 8-char hex (NEVER raw name)
+
+        # Content
+        "content": dt.string,  # Message text (renamed from "message")
+
+        # Metadata (escape hatch for provider-specific features)
+        "metadata": dt.JSON(nullable=True),  # Generic JSON for threads, reactions, media, etc.
+    }
+)
+
+
+class SchemaValidationError(Exception):
+    """Raised when table schema doesn't match expected MESSAGE_SCHEMA."""
+
+
+def validate_new_message_schema(table: Table) -> None:
+    """Validate table conforms to NEW_MESSAGE_SCHEMA.
+
+    Args:
+        table: Ibis Table to validate
+
+    Raises:
+        SchemaValidationError: If schema doesn't match NEW_MESSAGE_SCHEMA
+
+    Example:
+        >>> table = adapter.parse(zip_path)
+        >>> validate_new_message_schema(table)  # Raises if invalid
+
+    """
+    actual_schema = table.schema()
+    expected_schema = NEW_MESSAGE_SCHEMA
+
+    # Required columns
+    required_cols = {"message_id", "provider_type", "provider_instance", "timestamp", "author", "content"}
+    actual_cols = set(actual_schema.names)
+
+    # Check required columns exist
+    if not required_cols.issubset(actual_cols):
+        missing = required_cols - actual_cols
+        msg = f"Missing required columns: {sorted(missing)}"
+        raise SchemaValidationError(msg)
+
+    # Check column types match (for required columns)
+    for col in required_cols:
+        expected_type = expected_schema[col]
+        actual_type = actual_schema[col]
+
+        # Allow some type flexibility (e.g., nullable differences)
+        if expected_type != actual_type:
+            # Check if base types match (ignoring nullable)
+            expected_base = type(expected_type)
+            actual_base = type(actual_type)
+
+            if expected_base != actual_base:
+                msg = (
+                    f"Type mismatch for column '{col}': "
+                    f"expected {expected_type}, got {actual_type}"
+                )
+                raise SchemaValidationError(msg)
+
+    logger.debug("✅ Schema validation passed: NEW_MESSAGE_SCHEMA")
+
+
+# ============================================================================
 # Persistent Schemas
 # ============================================================================
 
