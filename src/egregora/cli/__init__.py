@@ -4,7 +4,7 @@ from egregora.cli.main import app
 from egregora.cli.runs import runs_app
 from egregora.cli.views import views_app
 
-__all__ = ["app", "runs_app", "views_app", "main"]
+__all__ = ["app", "main", "runs_app", "views_app"]
 
 
 def main() -> None:
