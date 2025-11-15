@@ -238,6 +238,7 @@ def _create_enrichment_row(
 
     # Generate new event_id for this enrichment entry
     import uuid
+
     enrichment_event_id = uuid.uuid4()
 
     # Create enrichment row with all required IR_MESSAGE_SCHEMA fields
