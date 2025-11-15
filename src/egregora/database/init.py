@@ -40,6 +40,7 @@ def initialize_database(backend: BaseBackend) -> None:
         >>> backend = ibis.duckdb.connect("pipeline.db")
         >>> initialize_database(backend)
         >>> # All tables now exist and can be used
+
     """
     logger.info("Initializing database tables...")
 
