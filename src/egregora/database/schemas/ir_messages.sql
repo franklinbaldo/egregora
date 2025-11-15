@@ -2,7 +2,10 @@
 -- Main table for all conversation messages in the pipeline
 -- This table is created at pipeline initialization and used throughout
 
-CREATE TABLE IF NOT EXISTS ir_messages (
+-- CLEAN BREAK: Drop old table if it exists (schema migration)
+DROP TABLE IF EXISTS ir_messages;
+
+CREATE TABLE ir_messages (
     -- Event identity
     event_id UUID NOT NULL,
 
