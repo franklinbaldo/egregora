@@ -38,7 +38,8 @@ from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database import RUN_EVENTS_SCHEMA
 from egregora.database.tracking import fingerprint_window, get_git_commit_sha
-from egregora.database.validation import validate_ir_schema
+from egregora.database.ir_schema import validate_message_schema
+from egregora.privacy.validation import validate_privacy
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
 from egregora.enrichment.runners import EnrichmentRuntimeContext
@@ -903,7 +904,7 @@ def _pipeline_environment(
 
 
 def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) -> ir.Table:
-    """Parse source and validate IR schema.
+    """Parse source and validate MESSAGE_SCHEMA.
 
     Args:
         adapter: Source adapter instance
@@ -914,20 +915,30 @@ def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) ->
         messages_table: Validated messages table
 
     Raises:
-        ValueError: If IR schema validation fails
+        ValueError: If MESSAGE_SCHEMA or privacy validation fails
 
     """
     logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
     messages_table = adapter.parse(input_path, timezone=timezone)
 
-    # Validate IR schema (raises SchemaError if invalid)
-    validate_ir_schema(messages_table)
+    # Validate MESSAGE_SCHEMA (raises SchemaValidationError if invalid)
+    validate_message_schema(messages_table)
+
+    # Validate privacy requirements (raises PrivacyError if violations found)
+    validate_privacy(messages_table)
 
     total_messages = messages_table.count().execute()
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)
 
     metadata = adapter.get_metadata(input_path)
     logger.info("[yellow]👥 Group:[/] %s", metadata.get("group_name", "Unknown"))
+
+    # Log provider information from MESSAGE_SCHEMA
+    sample_row = messages_table.limit(1).execute()
+    if len(sample_row) > 0:
+        provider_type = sample_row.iloc[0]["provider_type"]
+        provider_instance = sample_row.iloc[0]["provider_instance"]
+        logger.info("[cyan]📍 Provider:[/] %s / %s", provider_type, provider_instance)
 
     return messages_table
 
@@ -1163,7 +1174,7 @@ def _save_checkpoint(results: dict, messages_table: ir.Table, checkpoint_path: P
 
     # Checkpoint based on messages in the filtered table
     checkpoint_stats = messages_table.aggregate(
-        max_timestamp=messages_table.ts.max(),
+        max_timestamp=messages_table.timestamp.max(),
         total_processed=messages_table.count(),
     ).execute()
 
@@ -1212,14 +1223,14 @@ def _apply_filters(
         original_count = messages_table.count().execute()
         if from_date and to_date:
             messages_table = messages_table.filter(
-                (messages_table.ts.date() >= from_date) & (messages_table.ts.date() <= to_date)
+                (messages_table.timestamp.date() >= from_date) & (messages_table.timestamp.date() <= to_date)
             )
             logger.info("📅 [cyan]Filtering[/] from %s to %s", from_date, to_date)
         elif from_date:
-            messages_table = messages_table.filter(messages_table.ts.date() >= from_date)
+            messages_table = messages_table.filter(messages_table.timestamp.date() >= from_date)
             logger.info("📅 [cyan]Filtering[/] from %s onwards", from_date)
         elif to_date:
-            messages_table = messages_table.filter(messages_table.ts.date() <= to_date)
+            messages_table = messages_table.filter(messages_table.timestamp.date() <= to_date)
             logger.info("📅 [cyan]Filtering[/] up to %s", to_date)
         filtered_count = messages_table.count().execute()
         removed_by_date = original_count - filtered_count
@@ -1240,7 +1251,7 @@ def _apply_filters(
             last_timestamp = last_timestamp.astimezone(utc_zone)
 
         original_count = messages_table.count().execute()
-        messages_table = messages_table.filter(messages_table.ts > last_timestamp)
+        messages_table = messages_table.filter(messages_table.timestamp > last_timestamp)
         filtered_count = messages_table.count().execute()
         resumed_count = original_count - filtered_count
 
