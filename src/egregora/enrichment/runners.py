@@ -233,29 +233,40 @@ def _create_enrichment_row(
     if timestamp is None:
         return None
 
+    # Ensure required IR fields are present so we don't emit NULL columns
+    required_fields = (
+        "event_id",
+        "tenant_id",
+        "source",
+        "thread_id",
+        "msg_id",
+        "author_raw",
+        "author_uuid",
+        "created_at",
+        "created_by_run",
+    )
+    for field in required_fields:
+        if message_metadata.get(field) is None:
+            return None
+
     timestamp = _ensure_datetime(timestamp)
     enrichment_timestamp = _safe_timestamp_plus_one(timestamp)
 
-    # Generate new event_id for this enrichment entry
-    import uuid
-
-    enrichment_event_id = uuid.uuid4()
-
     # Create enrichment row with all required IR_MESSAGE_SCHEMA fields
     return {
-        # Identity
-        "event_id": enrichment_event_id,
+        # Identity (reuse source identifiers to keep enrichment tied to source row)
+        "event_id": message_metadata["event_id"],
         # Multi-Tenant (copy from source message)
-        "tenant_id": message_metadata.get("tenant_id", ""),
-        "source": message_metadata.get("source", ""),
+        "tenant_id": message_metadata["tenant_id"],
+        "source": message_metadata["source"],
         # Threading (copy from source message to link to same thread)
-        "thread_id": message_metadata.get("thread_id"),
-        "msg_id": f"enrichment-{enrichment_event_id}",
+        "thread_id": message_metadata["thread_id"],
+        "msg_id": message_metadata["msg_id"],
         # Temporal
         "ts": enrichment_timestamp,
-        # Authors (enrichment author is "egregora" system)
-        "author_raw": "egregora",
-        "author_uuid": message_metadata.get("author_uuid"),  # Link to original author for context
+        # Authors (copy from original message)
+        "author_raw": message_metadata["author_raw"],
+        "author_uuid": message_metadata["author_uuid"],
         # Content
         "text": f"[{enrichment_type} Enrichment] {identifier}\nEnrichment saved: {enrichment_id_str}",
         "media_url": None,
@@ -264,8 +275,8 @@ def _create_enrichment_row(
         "attrs": {"enrichment_type": enrichment_type, "enrichment_id": enrichment_id_str},
         "pii_flags": None,
         # Lineage (copy from source message)
-        "created_at": message_metadata.get("created_at"),
-        "created_by_run": message_metadata.get("created_by_run"),
+        "created_at": message_metadata["created_at"],
+        "created_by_run": message_metadata["created_by_run"],
     }
 
 
@@ -384,9 +395,11 @@ def _enrich_urls(
             messages_table.ts,
             messages_table.text,
             messages_table.event_id,
+            messages_table.msg_id,
             messages_table.tenant_id,
             messages_table.source,
             messages_table.thread_id,
+            messages_table.author_raw,
             messages_table.author_uuid,
             messages_table.created_at,
             messages_table.created_by_run,
@@ -411,9 +424,11 @@ def _enrich_urls(
             row_metadata = {
                 "ts": timestamp_value,
                 "event_id": row.get("event_id"),
+                "msg_id": row.get("msg_id"),
                 "tenant_id": row.get("tenant_id"),
                 "source": row.get("source"),
                 "thread_id": row.get("thread_id"),
+                "author_raw": row.get("author_raw"),
                 "author_uuid": row.get("author_uuid"),
                 "created_at": row.get("created_at"),
                 "created_by_run": row.get("created_by_run"),
@@ -477,9 +492,11 @@ def _extract_media_references(
             messages_table.ts,
             messages_table.text,
             messages_table.event_id,
+            messages_table.msg_id,
             messages_table.tenant_id,
             messages_table.source,
             messages_table.thread_id,
+            messages_table.author_raw,
             messages_table.author_uuid,
             messages_table.created_at,
             messages_table.created_by_run,
@@ -509,9 +526,11 @@ def _extract_media_references(
             row_metadata = {
                 "ts": timestamp_value,
                 "event_id": row.get("event_id"),
+                "msg_id": row.get("msg_id"),
                 "tenant_id": row.get("tenant_id"),
                 "source": row.get("source"),
                 "thread_id": row.get("thread_id"),
+                "author_raw": row.get("author_raw"),
                 "author_uuid": row.get("author_uuid"),
                 "created_at": row.get("created_at"),
                 "created_by_run": row.get("created_by_run"),
