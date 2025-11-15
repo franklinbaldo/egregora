@@ -209,13 +209,35 @@ track_run_event("reader_comparison", metadata={
    - Support multiple rating strategies (global, per-author, per-topic)
    - Provide helpers for `elo_store.py` to persist aggregated ratings derived from annotation history
 
-3. **Extend shared annotation store** (`agents/shared/annotations/store.py`)
-   - Add metadata keys for reader feedback (stars, comparison ids, winners)
-   - Ensure annotations capture pairwise comparison context for replay
+3. **Extend AnnotationStore for reader feedback** (`agents/shared/annotations/store.py`)
+   - **Reuse existing annotation infrastructure** for reader comments
+   - Add `annotation_type` to metadata to distinguish reader feedback from writer notes
+   - Store stars, comparison context, reader profile in `metadata` JSON field
    - Tag reader feedback via `annotation_type="reader_feedback"`
    - Preserve unified DuckDB persistence alongside writer annotations
+   ```python
+   # Save reader feedback as annotation
+   annotation_store.save_annotation(
+       document_id=post_id,
+       source="reader_agent",
+       content=comment_text,
+       metadata={
+           "annotation_type": "reader_feedback",
+           "stars": 4,
+           "comparison_id": "cmp-abc123",
+           "reader_profile_id": "profile-uuid",
+           "winner": "A"
+       }
+   )
+   ```
 
-4. **Define reader models** (`data_primitives/reader_models.py`)
+4. **Create lightweight EloStore** (`agents/reader/elo_store.py`)
+   - **Separate store for computed aggregates only** (ELO ratings)
+   - DuckDB-backed, much simpler than original RankingStore
+   - Just tracks: post_id, elo_global, elo_by_profile, games_played
+   - **Not for comments** (those go in AnnotationStore)
+
+5. **Define reader models** (`data_primitives/reader_models.py`)
    ```python
    @dataclass(frozen=True, slots=True)
    class Comparison:
@@ -300,7 +322,65 @@ track_run_event("reader_comparison", metadata={
                "metadata": metadata,
            })
 
-       # Step 3-6: Run comparisons, update ratings, generate insights
+       # Step 3: Initialize stores (unified architecture)
+       from egregora.agents.shared.annotations import AnnotationStore
+       from egregora.agents.reader.elo_store import EloStore
+
+       annotation_store = AnnotationStore(site_dir / ".egregora" / "annotations.db")
+       elo_store = EloStore(site_dir / ".egregora" / "elo_ratings.db")
+
+       # Step 4: Run comparisons
+       from egregora.agents.reader import ReaderAgent
+
+       reader = ReaderAgent(model=config.reader.model)
+
+       for round_num in range(feedback_rounds):
+           # Select posts via strategy
+           post_a, post_b = select_posts(posts, strategy, elo_store)
+
+           # Run three-turn comparison
+           result = reader.compare_posts(
+               post_a=post_a,
+               post_b=post_b,
+               reader_profile=reader_profile
+           )
+
+           # Step 5: Save feedback to AnnotationStore (unified!)
+           annotation_store.save_annotation(
+               document_id=post_a["post_id"],
+               source="reader_agent",
+               content=result.comment_a,
+               metadata={
+                   "annotation_type": "reader_feedback",
+                   "stars": result.stars_a,
+                   "comparison_id": result.comparison_id,
+                   "reader_profile_id": result.reader_profile_id,
+                   "winner": result.winner
+               }
+           )
+
+           annotation_store.save_annotation(
+               document_id=post_b["post_id"],
+               source="reader_agent",
+               content=result.comment_b,
+               metadata={
+                   "annotation_type": "reader_feedback",
+                   "stars": result.stars_b,
+                   "comparison_id": result.comparison_id,
+                   "reader_profile_id": result.reader_profile_id,
+                   "winner": result.winner
+               }
+           )
+
+           # Step 6: Update ELO ratings in EloStore
+           elo_store.update_ratings(
+               post_a_id=post_a["post_id"],
+               post_b_id=post_b["post_id"],
+               winner=result.winner,
+               reader_profile_id=result.reader_profile_id
+           )
+
+       # Step 7: Generate insights (query both stores)
        ...
    ```
 
@@ -376,8 +456,15 @@ track_run_event("reader_comparison", metadata={
 
 1. **Ranking analytics** (`agents/reader/analytics.py`)
    ```python
-   def generate_ranking_report(store: RankingStore) -> RankingReport:
+   def generate_ranking_report(
+       elo_store: EloStore,
+       annotation_store: AnnotationStore
+   ) -> RankingReport:
        """Generate comprehensive ranking insights.
+
+       Queries both stores for unified analysis:
+       - elo_store: ELO ratings, games played
+       - annotation_store: Reader feedback comments and stars
 
        Returns:
            - Top 10 posts by ELO
@@ -385,7 +472,19 @@ track_run_event("reader_comparison", metadata={
            - Consensus posts (high agreement across readers)
            - Controversial posts (high variance in ratings)
            - Quality trends over time
+           - Best/worst comments per post
        """
+       # Query ELO ratings
+       top_posts = elo_store.get_top_posts(limit=10)
+
+       # Query reader feedback from annotations
+       for post in top_posts:
+           feedback = annotation_store.get_annotations(
+               document_id=post.post_id,
+               filters={"annotation_type": "reader_feedback"}
+           )
+           # Aggregate stars, extract representative comments
+           ...
    ```
 
 2. **Visualization exports**
@@ -444,7 +543,35 @@ track_run_event("reader_comparison", metadata={
 
 ## Database Schema
 
-### ELO Ratings Table
+### Unified Architecture: Two Stores
+
+**1. AnnotationStore** (existing, extend for reader feedback)
+- **Purpose**: Store all commentary (writer notes + reader feedback)
+- **Location**: `agents/shared/annotations/store.py`
+- **Schema**: `ANNOTATIONS_SCHEMA` (already exists in `database/ir_schema.py`)
+
+Reader feedback stored via `annotation_type` metadata:
+```python
+{
+    "document_id": "post-2025-01-10-example",
+    "source": "reader_agent",
+    "content": "Great post! Clear explanations and good examples.",
+    "metadata": {
+        "annotation_type": "reader_feedback",      # Distinguish from writer notes
+        "stars": 4,                                # 1-5 rating
+        "comparison_id": "cmp-abc123",            # Link to comparison
+        "reader_profile_id": "profile-uuid",      # Which reader persona
+        "winner": "A"                             # If this post won comparison
+    }
+}
+```
+
+**2. EloStore** (new, lightweight)
+- **Purpose**: Store computed ELO ratings only (not comments)
+- **Location**: `agents/reader/elo_store.py`
+- **Schemas**: `ELO_RATINGS_SCHEMA` + `ELO_HISTORY_SCHEMA`
+
+### ELO Ratings Table (EloStore)
 
 ```sql
 CREATE TABLE elo_ratings (
@@ -460,7 +587,9 @@ CREATE INDEX idx_ratings_elo ON elo_ratings(elo_global);
 CREATE INDEX idx_ratings_games ON elo_ratings(games_played);
 ```
 
-### Comparison History Table
+### ELO History Table (EloStore)
+
+Tracks ELO changes over time (NOT comments - those are in AnnotationStore):
 
 ```sql
 CREATE TABLE elo_history (
@@ -483,6 +612,9 @@ CREATE INDEX idx_history_annotation ON elo_history(annotation_id);
 CREATE INDEX idx_history_timestamp ON elo_history(timestamp);
 CREATE INDEX idx_history_reader ON elo_history(reader_profile_id);
 ```
+
+**Note:** Original schema had `comment_a`, `stars_a`, `comment_b`, `stars_b` columns.
+These now live in AnnotationStore (linked via `comparison_id`).
 
 ### Location
 
