@@ -870,7 +870,7 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
 
-    def serve(self, document: "Document") -> None:
+    def serve(self, document: Document) -> None:
         """Serve a Document using the appropriate storage backend.
 
         This method provides compatibility with the modern Document-based API
