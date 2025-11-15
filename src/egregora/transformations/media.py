@@ -28,8 +28,6 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import ibis
-
 from egregora.enrichment.media import get_media_subfolder
 
 if TYPE_CHECKING:
