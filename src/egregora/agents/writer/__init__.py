@@ -9,7 +9,7 @@ Documentation:
 - Core Concepts (Editorial Control): docs/getting-started/concepts.md#editorial-control-llm-decision-making
 """
 
-from egregora.agents.writer.agent import PostMetadata
+from egregora.agents.writer.schemas import PostMetadata
 from egregora.agents.writer.writer_runner import (
     WriterConfig,
     get_top_authors,

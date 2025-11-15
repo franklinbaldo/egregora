@@ -1058,7 +1058,7 @@ def _prepare_pipeline_data(
         messages_table, env.site_paths, vision_model, env.enrichment_cache
     )
 
-    checkpoint_path = env.site_paths.site_root / \".egregora\" / \"checkpoint.json\"
+    checkpoint_path = env.site_paths.site_root / ".egregora" / "checkpoint.json"
     messages_table = _apply_filters(
         messages_table,
         env.site_paths,

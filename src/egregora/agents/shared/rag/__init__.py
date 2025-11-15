@@ -21,6 +21,7 @@ from egregora.agents.shared.rag.pydantic_helpers import (
     find_relevant_docs,
     format_rag_context,
 )
+from egregora.agents.shared.rag.indexing import index_document
 from egregora.agents.shared.rag.retriever import (
     index_all_media,
     index_media_enrichment,

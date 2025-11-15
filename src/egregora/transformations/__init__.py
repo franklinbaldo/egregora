@@ -54,6 +54,8 @@ from egregora.transformations.media import (
 from egregora.transformations.windowing import (
     Window,
     create_windows,
+    load_checkpoint,
+    save_checkpoint,
     split_window_into_n_parts,
 )
 
@@ -61,6 +63,8 @@ __all__ = [
     # Windowing
     "Window",
     "create_windows",
+    "load_checkpoint",
+    "save_checkpoint",
     "split_window_into_n_parts",
     # Media
     "extract_markdown_media_refs",
