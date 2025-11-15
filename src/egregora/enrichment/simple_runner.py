@@ -346,6 +346,7 @@ def _extract_media_references(
         Set of unique media references found in messages
 
     """
+
     # MESSAGE_SCHEMA uses 'content' column (not 'message')
     # Use Ibis UDF for extraction (execute once at the end)
     @ibis.udf.scalar.python

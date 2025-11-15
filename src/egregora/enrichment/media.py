@@ -183,6 +183,7 @@ def extract_and_replace_media(
         - Media mapping (original → extracted path)
 
     """
+
     # MESSAGE_SCHEMA uses 'content' column (not 'message')
     # Use Ibis UDF for extraction (execute once at the end)
     @ibis.udf.scalar.python
@@ -190,9 +191,7 @@ def extract_and_replace_media(
         return find_media_references(content) if content else []
 
     # Apply UDF and collect results (single execute)
-    media_refs_table = messages_table.select(
-        media_refs=extract_media_udf(messages_table.content)
-    )
+    media_refs_table = messages_table.select(media_refs=extract_media_udf(messages_table.content))
     df = media_refs_table.execute()
     all_media = set().union(*df["media_refs"].tolist()) if len(df) > 0 else set()
 

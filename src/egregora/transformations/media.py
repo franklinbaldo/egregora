@@ -59,6 +59,7 @@ def extract_markdown_media_refs(table: Table) -> set[str]:
         {'IMG-001.jpg', 'VID-002.mp4'}
 
     """
+
     # MESSAGE_SCHEMA uses 'content' column (not 'message')
     # Use Ibis UDF for extraction (execute once at the end)
     @ibis.udf.scalar.python
