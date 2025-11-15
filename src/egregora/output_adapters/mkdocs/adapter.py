@@ -453,7 +453,9 @@ class MkDocsAdapter(OutputAdapter):
             logger.info("MkDocs site scaffold created at %s", site_root)
             return (new_mkdocs_path, True)
 
-    def _create_site_structure(self, site_paths: Any, env: Any, context: dict[str, Any]) -> None:
+    def _create_site_structure(
+        self, site_paths: SitePaths, env: Environment, context: dict[str, Any]
+    ) -> None:
         """Create essential directories and index files for the blog structure.
 
         Args:
@@ -462,6 +464,9 @@ class MkDocsAdapter(OutputAdapter):
             context: Template rendering context
 
         """
+        assert isinstance(site_paths, SitePaths), "site_paths must be a SitePaths instance"
+        assert isinstance(env, Environment), "env must be a Jinja2 Environment"
+
         # Create .egregora/ structure
         self._create_egregora_structure(site_paths, env)
 
@@ -474,13 +479,15 @@ class MkDocsAdapter(OutputAdapter):
         # Create .egregora/config.yml
         self._create_egregora_config(site_paths, env)
 
-    def _create_content_directories(self, site_paths: Any) -> None:
+    def _create_content_directories(self, site_paths: SitePaths) -> None:
         """Create main content directories for the site.
 
         Args:
             site_paths: SitePaths configuration object
 
         """
+        assert isinstance(site_paths, SitePaths), "site_paths must be a SitePaths instance"
+
         posts_dir = site_paths.posts_dir
         profiles_dir = site_paths.profiles_dir
         media_dir = site_paths.media_dir
@@ -500,7 +507,9 @@ class MkDocsAdapter(OutputAdapter):
         journal_dir.mkdir(exist_ok=True)
         (journal_dir / ".gitkeep").touch()
 
-    def _create_template_files(self, site_paths: Any, env: Any, context: dict[str, Any]) -> None:
+    def _create_template_files(
+        self, site_paths: SitePaths, env: Environment, context: dict[str, Any]
+    ) -> None:
         """Create starter template files from Jinja2 templates.
 
         Args:
@@ -509,6 +518,9 @@ class MkDocsAdapter(OutputAdapter):
             context: Template rendering context
 
         """
+        assert isinstance(site_paths, SitePaths), "site_paths must be a SitePaths instance"
+        assert isinstance(env, Environment), "env must be a Jinja2 Environment"
+
         site_root = site_paths.site_root
         profiles_dir = site_paths.profiles_dir
         media_dir = site_paths.media_dir
@@ -530,7 +542,7 @@ class MkDocsAdapter(OutputAdapter):
                 content = template.render(**context)
                 target_path.write_text(content, encoding="utf-8")
 
-    def _create_egregora_config(self, site_paths: Any, env: Any) -> None:
+    def _create_egregora_config(self, site_paths: SitePaths, env: Environment) -> None:
         """Create .egregora/config.yml from template.
 
         Args:
@@ -538,6 +550,9 @@ class MkDocsAdapter(OutputAdapter):
             env: Jinja2 environment for rendering templates
 
         """
+        assert isinstance(site_paths, SitePaths), "site_paths must be a SitePaths instance"
+        assert isinstance(env, Environment), "env must be a Jinja2 Environment"
+
         config_path = site_paths.config_path
         if not config_path.exists():
             try:

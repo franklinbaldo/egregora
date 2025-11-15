@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import tempfile
+import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -22,6 +24,8 @@ from ibis.expr.types import Table
 
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.database import schemas
+from egregora.database.ir_schema import CONVERSATION_SCHEMA
 from egregora.enrichment.agents import (
     make_media_agent,
     make_url_agent,
@@ -30,6 +34,8 @@ from egregora.enrichment.agents import (
 )
 from egregora.enrichment.media import (
     detect_media_type,
+    extract_urls,
+    find_media_references,
     replace_media_mentions,
 )
 from egregora.utils import BatchPromptRequest, BatchPromptResult, make_enrichment_cache_key
@@ -210,24 +216,20 @@ def _atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> Non
 
 
 def _create_enrichment_row(
-    messages_table: Table,
-    search_text: str,
+    message_metadata: dict[str, Any] | None,
     enrichment_type: str,
     identifier: str,
     enrichment_id_str: str,
 ) -> dict[str, Any] | None:
-    """Create an enrichment row for a given URL or media reference."""
-    first_msg = (
-        messages_table.filter(messages_table.message.contains(search_text))
-        .order_by(messages_table.timestamp)
-        .limit(1)
-        .execute()
-    )
-
-    if len(first_msg) == 0:
+    """Create an enrichment row for a given URL or media reference using cached metadata."""
+    if not message_metadata:
         return None
 
-    timestamp = first_msg.iloc[0]["timestamp"]
+    timestamp = message_metadata.get("timestamp")
+    if timestamp is None:
+        return None
+
+    timestamp = _ensure_datetime(timestamp)
     enrichment_timestamp = _safe_timestamp_plus_one(timestamp)
     return {
         "timestamp": enrichment_timestamp,
@@ -334,9 +336,6 @@ def _process_single_media(
     return enrichment_id_str, markdown_content, pii_detected
 
 
-from .extractors import _build_media_filename_lookup, extract_unique_media_references, extract_unique_urls
-
-
 def _enrich_urls(
     messages_table: Table,
     url_agent: Any,
@@ -345,23 +344,119 @@ def _enrich_urls(
     prompts_dir: Path | None,
     max_enrichments: int,
 ) -> list[dict[str, Any]]:
-    """Enrich unique URLs found in the messages table."""
+    """Extract and enrich URLs from messages table."""
     new_rows: list[dict[str, Any]] = []
-    unique_urls = extract_unique_urls(messages_table, max_enrichments)
+    discovered_count = 0
 
-    for i, url in enumerate(sorted(unique_urls)):
-        if i >= max_enrichments:
+    url_metadata: dict[str, dict[str, Any]] = {}
+
+    for batch in _iter_table_record_batches(
+        messages_table.select(messages_table.timestamp, messages_table.message)
+    ):
+        for row in batch:
+            if discovered_count >= max_enrichments:
+                break
+
+            message = row.get("message")
+            if not message:
+                continue
+
+            urls = extract_urls(message)
+            if not urls:
+                continue
+
+            timestamp = row.get("timestamp")
+            timestamp_value = _ensure_datetime(timestamp) if timestamp is not None else None
+
+            for url in urls[:3]:
+                existing = url_metadata.get(url)
+                if existing is None:
+                    url_metadata[url] = {"timestamp": timestamp_value}
+                    discovered_count += 1
+
+                    if discovered_count >= max_enrichments:
+                        break
+
+                    continue
+
+                existing_ts = existing.get("timestamp")
+                if timestamp_value is not None and (existing_ts is None or timestamp_value < existing_ts):
+                    existing["timestamp"] = timestamp_value
+
+        if discovered_count >= max_enrichments:
             break
 
+    sorted_urls = sorted(
+        url_metadata.items(),
+        key=lambda item: (item[1]["timestamp"] is None, item[1]["timestamp"]),
+    )
+
+    for url, metadata in sorted_urls[:max_enrichments]:
         enrichment_id_str, _markdown = _process_single_url(url, url_agent, cache, context, prompts_dir)
         if enrichment_id_str is None:
             continue
 
-        enrichment_row = _create_enrichment_row(messages_table, url, "URL", url, enrichment_id_str)
+        enrichment_row = _create_enrichment_row(metadata, "URL", url, enrichment_id_str)
         if enrichment_row:
             new_rows.append(enrichment_row)
 
     return new_rows
+
+
+def _build_media_filename_lookup(media_mapping: dict[str, Path]) -> dict[str, tuple[str, Path]]:
+    """Build a lookup dict mapping media filenames to (original_filename, file_path)."""
+    lookup: dict[str, tuple[str, Path]] = {}
+    for original_filename, file_path in media_mapping.items():
+        lookup[original_filename] = (original_filename, file_path)
+        lookup[file_path.name] = (original_filename, file_path)
+    return lookup
+
+
+def _extract_media_references(
+    messages_table: Table, media_filename_lookup: dict[str, tuple[str, Path]]
+) -> tuple[set[str], dict[str, dict[str, Any]]]:
+    """Extract unique media references from messages table and cache metadata."""
+    unique_media: set[str] = set()
+    metadata_lookup: dict[str, dict[str, Any]] = {}
+
+    for batch in _iter_table_record_batches(
+        messages_table.select(messages_table.timestamp, messages_table.message)
+    ):
+        for row in batch:
+            message = row.get("message")
+            if not message:
+                continue
+
+            refs = find_media_references(message)
+            markdown_refs = re.findall("!\\[[^\\]]*\\]\\([^)]*?([a-f0-9\\-]+\\.\\w+)\\)", message)
+            uuid_refs = re.findall(
+                "\\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.\\w+)",
+                message,
+            )
+            refs.extend(markdown_refs)
+            refs.extend(uuid_refs)
+
+            if not refs:
+                continue
+
+            timestamp = row.get("timestamp")
+            timestamp_value = _ensure_datetime(timestamp) if timestamp is not None else None
+
+            for ref in set(refs):
+                if ref not in media_filename_lookup:
+                    continue
+
+                existing = metadata_lookup.get(ref)
+                if existing is None:
+                    unique_media.add(ref)
+                    metadata_lookup[ref] = {"timestamp": timestamp_value}
+                    continue
+
+                existing_ts = existing.get("timestamp")
+                if timestamp_value is not None and (existing_ts is None or timestamp_value < existing_ts):
+                    existing["timestamp"] = timestamp_value
+
+    return unique_media, metadata_lookup
 
 
 def _enrich_media(
@@ -374,15 +469,23 @@ def _enrich_media(
     max_enrichments: int,
     enrichment_count: int,
 ) -> tuple[list[dict[str, Any]], int, bool]:
-    """Enrich unique media references found in the messages table."""
+    """Extract and enrich media from messages table."""
     new_rows: list[dict[str, Any]] = []
     pii_detected_count = 0
     pii_media_deleted = False
 
     media_filename_lookup = _build_media_filename_lookup(media_mapping)
-    unique_media = extract_unique_media_references(messages_table, media_mapping)
+    unique_media, metadata_lookup = _extract_media_references(messages_table, media_filename_lookup)
 
-    for ref in sorted(unique_media)[: max_enrichments - enrichment_count]:
+    sorted_media = sorted(
+        unique_media,
+        key=lambda item: (
+            metadata_lookup.get(item, {}).get("timestamp") is None,
+            metadata_lookup.get(item, {}).get("timestamp"),
+        ),
+    )
+
+    for ref in sorted_media[: max_enrichments - enrichment_count]:
         lookup_result = media_filename_lookup.get(ref)
         if not lookup_result:
             continue
@@ -401,10 +504,12 @@ def _enrich_media(
             pii_media_deleted = True
 
         enrichment_row = _create_enrichment_row(
-            messages_table, ref, "Media", file_path.name, enrichment_id_str
+            metadata_lookup.get(ref), "Media", file_path.name, enrichment_id_str
         )
         if enrichment_row:
             new_rows.append(enrichment_row)
+
+        enrichment_count += 1
 
     return new_rows, pii_detected_count, pii_media_deleted
 
@@ -424,7 +529,59 @@ def _replace_pii_media_references(
     return messages_table.mutate(message=replace_media_udf(messages_table.message))
 
 
-from egregora.database.persistence import combine_with_enrichment_rows, persist_to_duckdb
+def _combine_enrichment_tables(
+    messages_table: Table,
+    new_rows: list[dict[str, Any]],
+) -> Table:
+    """Combine messages table with enrichment rows."""
+    schema = CONVERSATION_SCHEMA
+    messages_table_filtered = messages_table.select(*schema.names)
+    messages_table_filtered = messages_table_filtered.mutate(
+        timestamp=messages_table_filtered.timestamp.cast("timestamp('UTC', 9)")
+    ).cast(schema)
+
+    if new_rows:
+        normalized_rows = [{column: row.get(column) for column in schema.names} for row in new_rows]
+        enrichment_table = ibis.memtable(normalized_rows).cast(schema)
+        combined = messages_table_filtered.union(enrichment_table, distinct=False)
+        combined = combined.order_by("timestamp")
+    else:
+        combined = messages_table_filtered
+
+    return combined
+
+
+def _persist_to_duckdb(
+    combined: Table,
+    duckdb_connection: DuckDBBackend,
+    target_table: str,
+) -> None:
+    """Persist enriched table to DuckDB."""
+    if not re.fullmatch("[A-Za-z_][A-Za-z0-9_]*", target_table):
+        msg = "target_table must be a valid DuckDB identifier"
+        raise ValueError(msg)
+
+    schemas.create_table_if_not_exists(duckdb_connection, target_table, CONVERSATION_SCHEMA)
+    quoted_table = schemas.quote_identifier(target_table)
+    column_list = ", ".join(schemas.quote_identifier(col) for col in CONVERSATION_SCHEMA.names)
+    temp_view = f"_egregora_enrichment_{uuid.uuid4().hex}"
+
+    try:
+        duckdb_connection.create_view(temp_view, combined, overwrite=True)
+        quoted_view = schemas.quote_identifier(temp_view)
+        duckdb_connection.raw_sql("BEGIN TRANSACTION")
+        try:
+            duckdb_connection.raw_sql(f"DELETE FROM {quoted_table}")  # nosec B608 - quoted identifiers
+            duckdb_connection.raw_sql(
+                f"INSERT INTO {quoted_table} ({column_list}) SELECT {column_list} FROM {quoted_view}"
+            )
+            duckdb_connection.raw_sql("COMMIT")
+        except Exception:
+            logger.exception("Transaction failed during DuckDB persistence, rolling back")
+            duckdb_connection.raw_sql("ROLLBACK")
+            raise
+    finally:
+        duckdb_connection.drop_view(temp_view, force=True)
 
 
 def enrich_table_simple(
@@ -480,7 +637,7 @@ def enrich_table_simple(
     if pii_media_deleted:
         messages_table = _replace_pii_media_references(messages_table, media_mapping, docs_dir, posts_dir)
 
-    combined = combine_with_enrichment_rows(messages_table, new_rows)
+    combined = _combine_enrichment_tables(messages_table, new_rows)
 
     duckdb_connection = context.duckdb_connection
     target_table = context.target_table
@@ -490,7 +647,7 @@ def enrich_table_simple(
         raise ValueError(msg)
 
     if duckdb_connection and target_table:
-        persist_to_duckdb(combined, duckdb_connection, target_table)
+        _persist_to_duckdb(combined, duckdb_connection, target_table)
 
     if pii_detected_count > 0:
         logger.info("Privacy summary: %d media file(s) deleted due to PII detection", pii_detected_count)

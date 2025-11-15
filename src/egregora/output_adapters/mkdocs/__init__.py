@@ -1,6 +1,6 @@
 """MkDocs output adapter package."""
 
-from .adapter import (
+from egregora.output_adapters.mkdocs.adapter import (
     DEFAULT_BLOG_DIR,
     DEFAULT_DOCS_DIR,
     MEDIA_DIR_NAME,
@@ -12,7 +12,9 @@ from .adapter import (
     resolve_site_paths,
     secure_path_join,
 )
-from .url_convention import LegacyMkDocsUrlConvention
+from egregora.output_adapters.mkdocs.url_convention import (
+    LegacyMkDocsUrlConvention,
+)
 
 __all__ = [
     "DEFAULT_BLOG_DIR",

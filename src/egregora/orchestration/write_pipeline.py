@@ -17,6 +17,8 @@ from __future__ import annotations
 import logging
 import tempfile
 import uuid
+from collections import deque
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
@@ -35,7 +37,7 @@ from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database import RUN_EVENTS_SCHEMA
-from egregora.database.checkpoint import load_checkpoint, save_checkpoint
+from egregora.database.tracking import fingerprint_window, get_git_commit_sha
 from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
@@ -43,22 +45,21 @@ from egregora.enrichment.runners import EnrichmentRuntimeContext
 from egregora.input_adapters import get_adapter
 from egregora.input_adapters.whatsapp.parser import extract_commands, filter_egregora_messages
 from egregora.output_adapters.mkdocs import resolve_site_paths
+from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.transformations.media import process_media_for_window
-from egregora.transformations.windowing import create_windows
 from egregora.utils.cache import EnrichmentCache
-from egregora.utils.fingerprinting import fingerprint_window
-from egregora.utils.git import get_git_commit_sha
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
 logger = logging.getLogger(__name__)
-__all__ = ["process_whatsapp_export", "run"]
+__all__ = ["WhatsAppProcessOptions", "process_whatsapp_export", "run"]
 
 
-@dataclass
-class PipelineOptions:
-    """Options to override the base EgregoraConfig for a pipeline run."""
+@dataclass(frozen=True)
+class WhatsAppProcessOptions:
+    """Runtime overrides for :func:`process_whatsapp_export`."""
 
+    output_dir: Path = Path("output")
     step_size: int = 100
     step_unit: str = "messages"
     overlap_ratio: float = 0.2
@@ -79,15 +80,12 @@ class PipelineOptions:
 
 def process_whatsapp_export(
     zip_path: Path,
-    output_dir: Path = Path("output"),
     *,
-    options: PipelineOptions | None = None,
+    options: WhatsAppProcessOptions | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """High-level helper for processing WhatsApp ZIP exports using :func:`run`."""
-    if options is None:
-        options = PipelineOptions()
-
-    output_dir = output_dir.expanduser().resolve()
+    opts = options or WhatsAppProcessOptions()
+    output_dir = opts.output_dir.expanduser().resolve()
     site_paths = resolve_site_paths(output_dir)
 
     base_config = load_egregora_config(site_paths.site_root)
@@ -96,29 +94,29 @@ def process_whatsapp_export(
         update={
             "pipeline": base_config.pipeline.model_copy(
                 update={
-                    "step_size": options.step_size,
-                    "step_unit": options.step_unit,
-                    "overlap_ratio": options.overlap_ratio,
-                    "timezone": str(options.timezone) if options.timezone else None,
-                    "from_date": options.from_date.isoformat() if options.from_date else None,
-                    "to_date": options.to_date.isoformat() if options.to_date else None,
-                    "batch_threshold": options.batch_threshold,
-                    "max_prompt_tokens": options.max_prompt_tokens,
-                    "use_full_context_window": options.use_full_context_window,
+                    "step_size": opts.step_size,
+                    "step_unit": opts.step_unit,
+                    "overlap_ratio": opts.overlap_ratio,
+                    "timezone": str(opts.timezone) if opts.timezone else None,
+                    "from_date": opts.from_date.isoformat() if opts.from_date else None,
+                    "to_date": opts.to_date.isoformat() if opts.to_date else None,
+                    "batch_threshold": opts.batch_threshold,
+                    "max_prompt_tokens": opts.max_prompt_tokens,
+                    "use_full_context_window": opts.use_full_context_window,
                 }
             ),
-            "enrichment": base_config.enrichment.model_copy(update={"enabled": options.enable_enrichment}),
+            "enrichment": base_config.enrichment.model_copy(update={"enabled": opts.enable_enrichment}),
             "rag": base_config.rag.model_copy(
                 update={
-                    "mode": options.retrieval_mode,
+                    "mode": opts.retrieval_mode,
                     "nprobe": (
-                        options.retrieval_nprobe
-                        if options.retrieval_nprobe is not None
+                        opts.retrieval_nprobe
+                        if opts.retrieval_nprobe is not None
                         else base_config.rag.nprobe
                     ),
                     "overfetch": (
-                        options.retrieval_overfetch
-                        if options.retrieval_overfetch is not None
+                        opts.retrieval_overfetch
+                        if opts.retrieval_overfetch is not None
                         else base_config.rag.overfetch
                     ),
                 }
@@ -131,9 +129,9 @@ def process_whatsapp_export(
         input_path=zip_path,
         output_dir=output_dir,
         config=egregora_config,
-        api_key=options.gemini_api_key,
-        model_override=options.model,
-        client=options.client,
+        api_key=opts.gemini_api_key,
+        model_override=opts.model,
+        client=opts.client,
     )
 
 
@@ -155,6 +153,31 @@ class WindowProcessingContext:
     retrieval_nprobe: int
     retrieval_overfetch: int
     client: genai.Client
+
+
+@dataclass
+class PipelineEnvironment:
+    """Resources required to execute the write pipeline."""
+
+    site_paths: any
+    runtime_db_uri: str
+    pipeline_backend: any
+    runs_backend: any
+    cli_model_override: str | None
+    client: genai.Client
+    enrichment_cache: EnrichmentCache
+
+
+@dataclass
+class PreparedPipelineData:
+    """Artifacts produced during dataset preparation."""
+
+    messages_table: "ir.Table"
+    windows_iterator: any
+    checkpoint_path: Path
+    window_context: WindowProcessingContext
+    enable_enrichment: bool
+    embedding_model: str
 
 
 def _process_single_window(
@@ -240,90 +263,111 @@ def _process_single_window(
 def _process_window_with_auto_split(
     window: any, ctx: WindowProcessingContext, *, depth: int = 0, max_depth: int = 5
 ) -> dict[str, dict[str, list[str]]]:
-    """Process a window with automatic splitting if prompt exceeds model limit.
+    """Process a window with automatic splitting if prompt exceeds model limit."""
 
-    Uses calculated upfront splitting (not recursive trial-and-error).
-    Depth tracking is a safety mechanism for rare edge cases.
-
-    Args:
-        window: Window to process
-        ctx: Window processing context
-        depth: Current split depth (for logging and safety checks)
-        max_depth: Maximum split depth to prevent pathological cases
-
-    Returns:
-        Dict mapping window labels to {'posts': [...], 'profiles': [...]}
-
-    Raises:
-        RuntimeError: If max split depth reached (indicates miscalculation)
-
-    """
     from egregora.agents.model_limits import PromptTooLargeError
     from egregora.transformations import split_window_into_n_parts
 
-    # Constants
-    min_window_size = 5  # Minimum messages before we stop splitting
+    min_window_size = 5
+    results: dict[str, dict[str, list[str]]] = {}
+    queue: deque[tuple[any, int]] = deque([(window, depth)])
 
-    indent = "  " * depth
-    window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
-    window_count = window.size
+    while queue:
+        current_window, current_depth = queue.popleft()
+        indent = "  " * current_depth
+        window_label = (
+            f"{current_window.start_time:%Y-%m-%d %H:%M} to {current_window.end_time:%H:%M}"
+        )
 
-    # Stop splitting if window too small or max depth reached
-    if window_count < min_window_size:
+        _warn_if_window_too_small(current_window.size, indent, window_label, min_window_size)
+        _ensure_split_depth(current_depth, max_depth, indent, window_label)
+
+        try:
+            window_results = _process_single_window(current_window, ctx, depth=current_depth)
+        except PromptTooLargeError as error:
+            split_work = _split_window_for_retry(
+                current_window,
+                error,
+                current_depth,
+                indent,
+                split_window_into_n_parts,
+            )
+            queue.extendleft(reversed(split_work))
+            continue
+
+        results.update(window_results)
+
+    return results
+
+
+def _warn_if_window_too_small(size: int, indent: str, label: str, minimum: int) -> None:
+    if size < minimum:
         logger.warning(
             "%s⚠️  Window %s too small to split (%d messages) - attempting anyway",
             indent,
-            window_label,
-            window_count,
+            label,
+            size,
         )
+
+
+def _ensure_split_depth(depth: int, max_depth: int, indent: str, label: str) -> None:
     if depth >= max_depth:
         error_msg = (
-            f"Max split depth {max_depth} reached for window {window_label}. "
+            f"Max split depth {max_depth} reached for window {label}. "
             "Window cannot be split enough to fit in model context (possible miscalculation). "
             "Try increasing --max-prompt-tokens or using --use-full-context-window."
         )
         logger.error("%s❌ %s", indent, error_msg)
         raise RuntimeError(error_msg)
 
-    try:
-        # Try to process the window normally
-        return _process_single_window(window, ctx, depth=depth)
 
-    except PromptTooLargeError as e:
-        # Prompt too large - split window and retry
-        logger.warning(
-            "%s⚡ [yellow]Splitting window[/] %s (prompt: %dk tokens > %dk limit)",
-            indent,
-            window_label,
-            e.estimated_tokens // 1000,
-            e.effective_limit // 1000,
+def _split_window_for_retry(
+    window: any,
+    error: Exception,
+    depth: int,
+    indent: str,
+    splitter: any,
+) -> list[tuple[any, int]]:
+    import math
+
+    estimated_tokens = getattr(error, "estimated_tokens", 0)
+    effective_limit = getattr(error, "effective_limit", 1) or 1
+
+    logger.warning(
+        "%s⚡ [yellow]Splitting window[/] %s (prompt: %dk tokens > %dk limit)",
+        indent,
+        f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}",
+        estimated_tokens // 1000,
+        effective_limit // 1000,
+    )
+
+    num_splits = max(1, math.ceil(estimated_tokens / effective_limit))
+    logger.info("%s↳ [dim]Splitting into %d parts[/]", indent, num_splits)
+
+    split_windows = splitter(window, num_splits)
+    if not split_windows:
+        error_msg = (
+            f"Cannot split window {window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
+            " - all splits would be empty"
         )
+        logger.exception("%s❌ %s", indent, error_msg)
+        raise RuntimeError(error_msg) from error
 
-        # Calculate how many splits we need upfront (deterministic, not iterative)
-        import math
+    scheduled: list[tuple[any, int]] = []
+    for index, split_window in enumerate(split_windows, 1):
+        split_label = (
+            f"{split_window.start_time:%Y-%m-%d %H:%M} to {split_window.end_time:%H:%M}"
+        )
+        logger.info(
+            "%s↳ [dim]Processing part %d/%d: %s[/]",
+            indent,
+            index,
+            len(split_windows),
+            split_label,
+        )
+        scheduled.append((split_window, depth + 1))
 
-        num_splits = math.ceil(e.estimated_tokens / e.effective_limit)
-        logger.info("%s↳ [dim]Splitting into %d parts[/]", indent, num_splits)
-
-        split_windows = split_window_into_n_parts(window, num_splits)
-
-        if not split_windows:
-            error_msg = f"Cannot split window {window_label} - all splits would be empty"
-            logger.exception("%s❌ %s", indent, error_msg)
-            raise RuntimeError(error_msg) from e
-
-        # Process each split window
-        combined_results = {}
-        for i, split_window in enumerate(split_windows, 1):
-            split_label = f"{split_window.start_time:%Y-%m-%d %H:%M} to {split_window.end_time:%H:%M}"
-            logger.info("%s↳ [dim]Processing part %d/%d: %s[/]", indent, i, len(split_windows), split_label)
-            split_results = _process_window_with_auto_split(
-                split_window, ctx, depth=depth + 1, max_depth=max_depth
-            )
-            combined_results.update(split_results)
-
-        return combined_results
-
+    return scheduled
 
 RUN_EVENTS_TABLE_NAME = "run_events"
 
@@ -410,27 +454,30 @@ def _resolve_context_token_limit(config: EgregoraConfig, cli_model_override: str
     return limit
 
 
-# Constants for window size calculation
-AVG_TOKENS_PER_MESSAGE = 5  # A conservative estimate for the average number of tokens per message.
-PROMPT_BUFFER_RATIO = 0.8  # Leave 20% of the context window for system prompts, tools, etc.
-
-
 def _calculate_max_window_size(config: EgregoraConfig, cli_model_override: str | None = None) -> int:
     """Calculate maximum window size based on LLM context window.
 
-    Uses a rough heuristic to estimate the maximum number of messages that can fit
-    into the model's context window, leaving a buffer for overhead.
+    Uses rough heuristic: 5 tokens per message average.
+    Leaves 20% buffer for prompt overhead (system prompt, tools, etc.).
 
     Args:
-        config: Egregora configuration with model settings.
-        cli_model_override: Optional CLI model override for the writer model.
+        config: Egregora configuration with model settings
+        cli_model_override: Optional CLI model override for the writer model
 
     Returns:
-        Maximum number of messages per window.
+        Maximum number of messages per window
+
+    Example:
+        >>> config.pipeline.max_prompt_tokens = 100_000
+        >>> _calculate_max_window_size(config)
+        16000  # (100k * 0.8) / 5
 
     """
     max_tokens = _resolve_context_token_limit(config, cli_model_override)
-    return int((max_tokens * PROMPT_BUFFER_RATIO) / AVG_TOKENS_PER_MESSAGE)
+    avg_tokens_per_message = 5  # Conservative estimate
+    buffer_ratio = 0.8  # Leave 20% for system prompt, tools, etc.
+
+    return int((max_tokens * buffer_ratio) / avg_tokens_per_message)
 
 
 def _validate_window_size(window: any, max_size: int) -> None:
@@ -715,6 +762,37 @@ def _create_database_backends(
     return runtime_db_uri, pipeline_backend, runs_backend
 
 
+def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> any:
+    """Resolve site paths for the configured output format and validate structure."""
+
+    site_paths = _resolve_pipeline_site_paths(output_dir, config)
+    format_type = config.output.format
+
+    if format_type != "eleventy-arrow":
+        if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
+            msg = (
+                f"No mkdocs.yml found for site at {output_dir}. "
+                "Run 'egregora init <site-dir>' before processing exports."
+            )
+            raise ValueError(msg)
+
+        if not site_paths.docs_dir.exists():
+            msg = (
+                f"Docs directory not found: {site_paths.docs_dir}. "
+                "Re-run 'egregora init' to scaffold the MkDocs project."
+            )
+            raise ValueError(msg)
+    elif not site_paths.docs_dir.exists():
+        msg = (
+            "Eleventy content directory not found at "
+            f"{site_paths.docs_dir}. Run 'egregora init <site-dir> --output-format eleventy-arrow' "
+            "to scaffold the project before processing exports."
+        )
+        raise ValueError(msg)
+
+    return site_paths
+
+
 def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> SitePaths:
     """Resolve site paths for the configured output format."""
     output_dir = output_dir.expanduser().resolve()
@@ -746,53 +824,92 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> Si
     )
 
 
-def _initialize_environment_and_backends(
-    output_dir: Path, config: EgregoraConfig, model_override: str | None
-) -> tuple[
-    any,  # site_paths
-    str,  # runtime_db_uri
-    any,  # backend
-    any,  # runs_backend
-    str | None,  # cli_model_override
-    EnrichmentCache,
-]:
-    """Sets up paths, validates site structure, and creates database backends."""
-    output_dir = output_dir.expanduser().resolve()
-    site_paths = _resolve_pipeline_site_paths(output_dir, config)
-    format_type = config.output.format
+def _create_gemini_client(api_key: str | None) -> genai.Client:
+    """Create a Gemini client with retry configuration suitable for the pipeline."""
 
-    if format_type != "eleventy-arrow":
-        if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
-            msg = f"No mkdocs.yml found for site at {output_dir}. Run 'egregora init <site-dir>' before processing exports."
-            raise ValueError(msg)
-
-        if not site_paths.docs_dir.exists():
-            msg = f"Docs directory not found: {site_paths.docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
-            raise ValueError(msg)
-    elif not site_paths.docs_dir.exists():
-        msg = (
-            "Eleventy content directory not found at"
-            f" {site_paths.docs_dir}. Run 'egregora init <site-dir> --output-format eleventy-arrow' "
-            "to scaffold the project before processing exports."
+    http_options = genai.types.HttpOptions(
+        retryOptions=genai.types.HttpRetryOptions(
+            attempts=5,
+            initialDelay=2.0,
+            maxDelay=15.0,
+            expBase=2.0,
+            httpStatusCodes=[429, 503],
         )
-        raise ValueError(msg)
+    )
+    return genai.Client(api_key=api_key, http_options=http_options)
 
-    # Setup database backends (Ibis-based, database-agnostic)
+
+def _setup_pipeline_environment(
+    output_dir: Path,
+    config: EgregoraConfig,
+    api_key: str | None,
+    model_override: str | None,
+    client: genai.Client | None,
+) -> PipelineEnvironment:
+    """Set up pipeline environment including paths, backends, and clients."""
+
+    resolved_output = output_dir.expanduser().resolve()
+    site_paths = _resolve_site_paths_or_raise(resolved_output, config)
     runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
 
-    # Setup enrichment cache
+    client_instance = client or _create_gemini_client(api_key)
     cache_dir = Path(".egregora-cache") / site_paths.site_root.name
     enrichment_cache = EnrichmentCache(cache_dir)
 
-    return (
-        site_paths,
-        runtime_db_uri,
-        backend,
-        runs_backend,
-        model_override,
-        enrichment_cache,
+    return PipelineEnvironment(
+        site_paths=site_paths,
+        runtime_db_uri=runtime_db_uri,
+        pipeline_backend=backend,
+        runs_backend=runs_backend,
+        cli_model_override=model_override,
+        client=client_instance,
+        enrichment_cache=enrichment_cache,
     )
 
+
+@contextmanager
+def _pipeline_environment(
+    output_dir: Path,
+    config: EgregoraConfig,
+    api_key: str | None,
+    model_override: str | None,
+    client: genai.Client | None,
+):
+    """Context manager that provisions and tears down pipeline resources."""
+
+    options = getattr(ibis, "options", None)
+    old_backend = getattr(options, "default_backend", None) if options else None
+    env = _setup_pipeline_environment(output_dir, config, api_key, model_override, client)
+
+    if options is not None:
+        options.default_backend = env.pipeline_backend
+
+    try:
+        yield env
+    finally:
+        try:
+            env.enrichment_cache.close()
+        finally:
+            try:
+                runs_backend = env.runs_backend
+                close_method = getattr(runs_backend, "close", None)
+                if callable(close_method):
+                    close_method()
+                elif hasattr(runs_backend, "con") and hasattr(runs_backend.con, "close"):
+                    runs_backend.con.close()
+            finally:
+                try:
+                    if env.client:
+                        env.client.close()
+                finally:
+                    if options is not None:
+                        options.default_backend = old_backend
+                    backend = env.pipeline_backend
+                    backend_close = getattr(backend, "close", None)
+                    if callable(backend_close):
+                        backend_close()
+                    elif hasattr(backend, "con") and hasattr(backend.con, "close"):
+                        backend.con.close()
 
 def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) -> ir.Table:
     """Parse source and validate IR schema.
@@ -903,6 +1020,109 @@ def _process_commands_and_avatars(
 
     return messages_table
 
+
+
+def _prepare_pipeline_data(
+    adapter: any,
+    input_path: Path,
+    config: EgregoraConfig,
+    env: PipelineEnvironment,
+    output_dir: Path,
+) -> PreparedPipelineData:
+    """Prepare messages, filters, and windowing context for processing."""
+
+    timezone = config.pipeline.timezone
+    step_size = config.pipeline.step_size
+    step_unit = config.pipeline.step_unit
+    overlap_ratio = config.pipeline.overlap_ratio
+    max_window_time_hours = config.pipeline.max_window_time
+    max_window_time = timedelta(hours=max_window_time_hours) if max_window_time_hours else None
+    enable_enrichment = config.enrichment.enabled
+    retrieval_mode = config.rag.mode
+    retrieval_nprobe = config.rag.nprobe
+    retrieval_overfetch = config.rag.overfetch
+
+    from_date: date_type | None = None
+    to_date: date_type | None = None
+    if config.pipeline.from_date:
+        from_date = date_type.fromisoformat(config.pipeline.from_date)
+    if config.pipeline.to_date:
+        to_date = date_type.fromisoformat(config.pipeline.to_date)
+
+    vision_model = get_model_for_task("enricher_vision", config, env.cli_model_override)
+    embedding_model = get_model_for_task("embedding", config, env.cli_model_override)
+
+    messages_table = _parse_and_validate_source(adapter, input_path, timezone)
+    _setup_content_directories(env.site_paths)
+    messages_table = _process_commands_and_avatars(
+        messages_table, env.site_paths, vision_model, env.enrichment_cache
+    )
+
+    checkpoint_path = env.site_paths.site_root / \".egregora\" / \"checkpoint.json\"
+    messages_table = _apply_filters(
+        messages_table,
+        env.site_paths,
+        from_date,
+        to_date,
+        checkpoint_path,
+    )
+
+    logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
+    windows_iterator = create_windows(
+        messages_table,
+        step_size=step_size,
+        step_unit=step_unit,
+        overlap_ratio=overlap_ratio,
+        max_window_time=max_window_time,
+    )
+
+    posts_dir = env.site_paths.posts_dir
+    profiles_dir = env.site_paths.profiles_dir
+
+    from egregora.output_adapters import create_output_format
+
+    output_format = create_output_format(output_dir, format_type=config.output.format)
+
+    if config.rag.enabled:
+        logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
+        try:
+            from egregora.agents.writer.writer_runner import index_documents_for_rag
+
+            indexed_count = index_documents_for_rag(
+                output_format, env.site_paths.rag_dir, embedding_model=embedding_model
+            )
+            if indexed_count > 0:
+                logger.info("[green]✓ Indexed[/] %s documents into RAG", indexed_count)
+            else:
+                logger.info("[dim]No new documents to index[/]")
+        except Exception:
+            logger.exception("[yellow]⚠️  Failed to index documents into RAG[/]")
+
+    window_ctx = WindowProcessingContext(
+        adapter=adapter,
+        input_path=input_path,
+        site_paths=env.site_paths,
+        posts_dir=posts_dir,
+        profiles_dir=profiles_dir,
+        config=config,
+        enrichment_cache=env.enrichment_cache,
+        output_format=output_format,
+        enable_enrichment=enable_enrichment,
+        cli_model_override=env.cli_model_override,
+        retrieval_mode=retrieval_mode,
+        retrieval_nprobe=retrieval_nprobe,
+        retrieval_overfetch=retrieval_overfetch,
+        client=env.client,
+    )
+
+    return PreparedPipelineData(
+        messages_table=messages_table,
+        windows_iterator=windows_iterator,
+        checkpoint_path=checkpoint_path,
+        window_context=window_ctx,
+        enable_enrichment=enable_enrichment,
+        embedding_model=embedding_model,
+    )
 
 def _index_media_into_rag(
     enable_enrichment: bool,
@@ -1046,114 +1266,6 @@ def _apply_filters(
     return messages_table
 
 
-def _create_gemini_client(api_key: str | None) -> genai.Client:
-    """Creates a Gemini client with aggressive retry options."""
-    http_options = genai.types.HttpOptions(
-        retryOptions=genai.types.HttpRetryOptions(
-            attempts=5,
-            initialDelay=2.0,
-            maxDelay=15.0,
-            expBase=2.0,
-            httpStatusCodes=[429, 503],
-        )
-    )
-    return genai.Client(api_key=api_key, http_options=http_options)
-
-
-def _setup_pipeline(config, cli_model_override):
-    """Extracts config values and model identifiers."""
-    vision_model = get_model_for_task("enricher_vision", config, cli_model_override)
-    embedding_model = get_model_for_task("embedding", config, cli_model_override)
-    return vision_model, embedding_model
-
-
-def _load_and_prepare_data(adapter, input_path, config, site_paths, vision_model, enrichment_cache):
-    """Parses, validates, and filters the source data."""
-    messages_table = _parse_and_validate_source(adapter, input_path, config.pipeline.timezone)
-    _setup_content_directories(site_paths)
-    messages_table = _process_commands_and_avatars(messages_table, site_paths, vision_model, enrichment_cache)
-    checkpoint_path = site_paths.site_root / ".egregora" / "checkpoint.json"
-    from_date = date_type.fromisoformat(config.pipeline.from_date) if config.pipeline.from_date else None
-    to_date = date_type.fromisoformat(config.pipeline.to_date) if config.pipeline.to_date else None
-    messages_table = _apply_filters(messages_table, site_paths, from_date, to_date, checkpoint_path)
-    return messages_table
-
-
-def _execute_pipeline(
-    adapter,
-    input_path,
-    output_dir,
-    config,
-    site_paths,
-    messages_table,
-    enrichment_cache,
-    cli_model_override,
-    client,
-    runs_backend,
-    embedding_model,
-):
-    """Creates and processes windows, then finalizes the pipeline."""
-    from egregora.transformations.windowing import WindowingStrategy
-
-    logger.info(
-        "🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s",
-        config.pipeline.step_size,
-        config.pipeline.step_unit,
-    )
-    windows_iterator = create_windows(
-        messages_table,
-        step_size=config.pipeline.step_size,
-        step_unit=WindowingStrategy(config.pipeline.step_unit),
-        overlap_ratio=config.pipeline.overlap_ratio,
-        max_window_time=timedelta(hours=config.pipeline.max_window_time)
-        if config.pipeline.max_window_time
-        else None,
-    )
-
-    from egregora.output_adapters import create_output_format
-
-    output_format = create_output_format(output_dir, format_type=config.output.format)
-
-    if config.rag.enabled:
-        logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
-        try:
-            from egregora.agents.writer.writer_runner import index_documents_for_rag
-
-            indexed_count = index_documents_for_rag(
-                output_format, site_paths.rag_dir, embedding_model=embedding_model
-            )
-            if indexed_count > 0:
-                logger.info("[green]✓ Indexed[/] %s documents into RAG", indexed_count)
-            else:
-                logger.info("[dim]No new documents to index[/]")
-        except Exception:
-            logger.exception("[yellow]⚠️  Failed to index documents into RAG[/]")
-
-    window_ctx = WindowProcessingContext(
-        adapter=adapter,
-        input_path=input_path,
-        site_paths=site_paths,
-        posts_dir=site_paths.posts_dir,
-        profiles_dir=site_paths.profiles_dir,
-        config=config,
-        enrichment_cache=enrichment_cache,
-        output_format=output_format,
-        enable_enrichment=config.enrichment.enabled,
-        cli_model_override=cli_model_override,
-        retrieval_mode=config.rag.mode,
-        retrieval_nprobe=config.rag.nprobe,
-        retrieval_overfetch=config.rag.overfetch,
-        client=client,
-    )
-
-    results = _process_all_windows(windows_iterator, window_ctx, runs_backend)
-
-    _index_media_into_rag(config.enrichment.enabled, results, site_paths, embedding_model)
-    checkpoint_path = site_paths.site_root / ".egregora" / "checkpoint.json"
-    _save_checkpoint(results, messages_table, checkpoint_path)
-    return results
-
-
 def run(
     source: str,
     input_path: Path,
@@ -1165,70 +1277,16 @@ def run(
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """Run the complete write pipeline workflow."""
+
     logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", source)
     adapter = get_adapter(source)
 
-    (
-        site_paths,
-        _,
-        backend,
-        runs_backend,
-        cli_model_override,
-        enrichment_cache,
-    ) = _initialize_environment_and_backends(output_dir, config, model_override)
-
-    if client is None:
-        client = _create_gemini_client(api_key)
-
-    options = getattr(ibis, "options", None)
-    old_backend = getattr(options, "default_backend", None) if options else None
-    try:
-        if options is not None:
-            options.default_backend = backend
-
-        vision_model, embedding_model = _setup_pipeline(config, cli_model_override)
-
-        messages_table = _load_and_prepare_data(
-            adapter, input_path, config, site_paths, vision_model, enrichment_cache
-        )
-
-        results = _execute_pipeline(
-            adapter,
-            input_path,
-            output_dir,
-            config,
-            site_paths,
-            messages_table,
-            enrichment_cache,
-            cli_model_override,
-            client,
-            runs_backend,
-            embedding_model,
-        )
+    with _pipeline_environment(output_dir, config, api_key, model_override, client) as env:
+        dataset = _prepare_pipeline_data(adapter, input_path, config, env, output_dir)
+        results = _process_all_windows(dataset.windows_iterator, dataset.window_context, env.runs_backend)
+        _index_media_into_rag(dataset.enable_enrichment, results, env.site_paths, dataset.embedding_model)
+        _save_checkpoint(results, dataset.messages_table, dataset.checkpoint_path)
 
         logger.info("[bold green]🎉 Pipeline completed successfully![/]")
         return results
-    finally:
-        # Cleanup logic remains the same
-        try:
-            if "enrichment_cache" in locals():
-                enrichment_cache.close()
-        finally:
-            try:
-                if "runs_backend" in locals():
-                    close_method = getattr(runs_backend, "close", None)
-                    if callable(close_method):
-                        close_method()
-                    elif hasattr(runs_backend, "con") and hasattr(runs_backend.con, "close"):
-                        runs_backend.con.close()
-            finally:
-                if client:
-                    client.close()
-        if options is not None:
-            options.default_backend = old_backend
-        if "backend" in locals():
-            backend_close = getattr(backend, "close", None)
-            if callable(backend_close):
-                backend_close()
-            elif hasattr(backend, "con") and hasattr(backend.con, "close"):
-                backend.con.close()
+

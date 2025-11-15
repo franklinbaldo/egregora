@@ -30,6 +30,8 @@ Usage:
     )
 """
 
+import hashlib
+import subprocess
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -39,6 +41,9 @@ from typing import Any, TypeVar
 
 import duckdb
 import ibis
+import pyarrow as pa
+
+from egregora.database.streaming import ensure_deterministic_order
 
 # Type variable for stage function return type
 T = TypeVar("T")
@@ -111,7 +116,123 @@ class RunContext:
         )
 
 
-from egregora.utils.git import get_git_commit_sha
+def get_git_commit_sha() -> str | None:
+    """Get current git commit SHA for reproducibility tracking.
+
+    Returns:
+        Git commit SHA (e.g., "a1b2c3d4..."), or None if not in git repo
+
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=2,
+        )
+        return result.stdout.strip()
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
+
+def fingerprint_table(table: ibis.Table) -> str:
+    """Generate SHA256 fingerprint of Ibis table.
+
+    Used for content-addressed checkpointing: same input → same fingerprint.
+
+    Args:
+        table: Ibis table to fingerprint
+
+    Returns:
+        SHA256 fingerprint (format: "sha256:<hex>")
+
+    Note:
+        This is a simple implementation that hashes the schema + first 1000 rows.
+        For production, consider:
+        - Hashing full data (expensive)
+        - Sampling rows (faster but less deterministic)
+        - Using Ibis table hash if available
+
+    """
+    # Hash schema (column names + types)
+    schema = table.schema()
+    schema_bytes = str(schema).encode("utf-8")
+
+    # Ensure deterministic ordering before sampling rows
+    ordered_table = ensure_deterministic_order(table)
+    if ordered_table is table and schema.names:
+        # Fallback to ordering by all column names when no canonical key is found
+        try:
+            ordered_table = table.order_by(sorted(schema.names))
+        except Exception:  # pragma: no cover - backend-specific ordering failures
+            ordered_table = table
+
+    sample_expr = ordered_table.limit(1000)
+
+    # Prefer hashing PyArrow serialization when available to avoid CSV conversions
+    data_bytes: bytes | None = None
+    try:
+        arrow_table = sample_expr.to_pyarrow()
+    except (AttributeError, NotImplementedError):
+        arrow_table = None
+    except Exception:  # pragma: no cover - backend-specific failures
+        arrow_table = None
+
+    if arrow_table is not None:
+        arrow_table = arrow_table.combine_chunks()
+        sink = pa.BufferOutputStream()
+        with pa.ipc.new_stream(sink, arrow_table.schema) as writer:
+            writer.write_table(arrow_table)
+        data_bytes = sink.getvalue().to_pybytes()
+
+    if data_bytes is None:
+        sample = sample_expr.execute()
+        data_bytes = sample.to_csv(index=False).encode("utf-8")
+
+    # Combine schema + data
+    combined = schema_bytes + b"\n" + data_bytes
+
+    # SHA256 hash
+    hash_obj = hashlib.sha256(combined)
+    return f"sha256:{hash_obj.hexdigest()}"
+
+
+def fingerprint_window(window: Any) -> str:
+    """Generate SHA256 fingerprint of a window slice.
+
+    Used for deterministic window identification in run tracking.
+    Hashes window metadata (index, time range, size) for cheap computation.
+
+    Args:
+        window: Window object with window_index, start_time, end_time, size
+
+    Returns:
+        SHA256 fingerprint (format: "sha256:<hex>")
+
+    Example:
+        >>> from egregora.transformations.windowing import Window
+        >>> window = Window(
+        ...     window_index=0,
+        ...     start_time=datetime(2025, 1, 1, 10, 0, tzinfo=UTC),
+        ...     end_time=datetime(2025, 1, 1, 12, 0, tzinfo=UTC),
+        ...     table=messages_table,
+        ...     size=100,
+        ... )
+        >>> fingerprint = fingerprint_window(window)
+        >>> print(fingerprint)
+        sha256:abc123...
+
+    """
+    # Hash window metadata (cheap, deterministic)
+    # Format: window_index|start_time_iso|end_time_iso|size
+    metadata_str = (
+        f"{window.window_index}|{window.start_time.isoformat()}|{window.end_time.isoformat()}|{window.size}"
+    )
+
+    # SHA256 hash
+    hash_obj = hashlib.sha256(metadata_str.encode("utf-8"))
+    return f"sha256:{hash_obj.hexdigest()}"
 
 
 def record_run(
@@ -238,21 +359,57 @@ def record_lineage(
         )
 
 
-from contextlib import contextmanager
+def run_stage_with_tracking[T](
+    stage_func: Callable[..., T],
+    *,
+    context: RunContext,
+    input_table: ibis.Table | None = None,
+    **kwargs: Any,
+) -> tuple[T, uuid.UUID]:
+    """Execute a pipeline stage with automatic run tracking.
 
+    This wrapper:
+    1. Records run start (status=running)
+    2. Executes stage function
+    3. Records run completion (status=completed/failed)
+    4. Records lineage relationships
+    5. Handles errors gracefully
 
-@contextmanager
-def track_stage_run(context: RunContext, input_table: ibis.Table | None = None):
-    """A context manager to automatically track the start, success, and failure of a stage."""
+    Args:
+        stage_func: Pipeline stage function to execute
+        context: Run context with metadata
+        input_table: Input Ibis table (for fingerprinting, optional)
+        **kwargs: Additional arguments to pass to stage_func
+
+    Returns:
+        (result, run_id): Stage function result + run ID
+
+    Raises:
+        Exception: Re-raises any exception from stage_func after recording failure
+
+    Example:
+        >>> ctx = RunContext.create(stage="privacy", tenant_id="acme")
+        >>> result, run_id = run_stage_with_tracking(
+        ...     stage_func=privacy_gate_stage,
+        ...     context=ctx,
+        ...     input_table=raw_data,
+        ...     config=privacy_config,
+        ... )
+
+    """
+    # Connect to runs database
     db_path = context.db_path or Path(".egregora-cache/runs.duckdb")
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = duckdb.connect(str(db_path))
 
-    from egregora.utils.fingerprinting import fingerprint_table
+    # Calculate input fingerprint (for checkpointing)
+    input_fingerprint = None
+    rows_in = None
+    if input_table is not None:
+        input_fingerprint = fingerprint_table(input_table)
+        rows_in = input_table.count().execute()
 
-    input_fingerprint = fingerprint_table(input_table) if input_table is not None else None
-    rows_in = input_table.count().execute() if input_table is not None else None
-
+    # Record run start
     started_at = datetime.now(UTC)
     record_run(
         conn=conn,
@@ -266,47 +423,59 @@ def track_stage_run(context: RunContext, input_table: ibis.Table | None = None):
         trace_id=context.trace_id,
     )
 
+    # Record lineage (if parent runs exist)
     if context.parent_run_ids:
-        record_lineage(conn=conn, child_run_id=context.run_id, parent_run_ids=list(context.parent_run_ids))
+        record_lineage(
+            conn=conn,
+            child_run_id=context.run_id,
+            parent_run_ids=list(context.parent_run_ids),
+        )
 
     try:
-        yield
-        finished_at = datetime.now(UTC)
-        duration = (finished_at - started_at).total_seconds()
-        conn.execute(
-            "UPDATE runs SET status = 'completed', finished_at = ?, duration_seconds = ? WHERE run_id = ?",
-            [finished_at, duration, str(context.run_id)],
-        )
-    except Exception as e:
-        finished_at = datetime.now(UTC)
-        duration = (finished_at - started_at).total_seconds()
-        error_msg = f"{type(e).__name__}: {e!s}"
-        conn.execute(
-            "UPDATE runs SET status = 'failed', finished_at = ?, duration_seconds = ?, error = ? WHERE run_id = ?",
-            [finished_at, duration, error_msg, str(context.run_id)],
-        )
-        raise
-    finally:
-        conn.close()
-
-
-def run_stage_with_tracking[T](
-    stage_func: Callable[..., T], *, context: RunContext, input_table: ibis.Table | None = None, **kwargs: Any
-) -> tuple[T, uuid.UUID]:
-    """Executes a pipeline stage with automatic run tracking using a context manager."""
-    with track_stage_run(context, input_table):
+        # Execute stage function
         result = stage_func(input_table=input_table, **kwargs)
 
-        # This part is a bit tricky, as we need to update the run record with the output rows.
-        # A more advanced implementation might pass a "run_tracker" object to the context manager
-        # that can be used to update the record. For now, we'll just re-open the connection.
-        db_path = context.db_path or Path(".egregora-cache/runs.duckdb")
-        conn = duckdb.connect(str(db_path))
-        try:
-            if isinstance(result, ibis.Table):
-                rows_out = result.count().execute()
-                conn.execute("UPDATE runs SET rows_out = ? WHERE run_id = ?", [rows_out, str(context.run_id)])
-        finally:
-            conn.close()
+        # Record success
+        finished_at = datetime.now(UTC)
+        duration_seconds = (finished_at - started_at).total_seconds()
 
-    return result, context.run_id
+        # Calculate output rows if result is Ibis table
+        rows_out = None
+        if isinstance(result, ibis.Table):
+            rows_out = result.count().execute()
+
+        # Update run record (completed)
+        conn.execute(
+            """
+            UPDATE runs
+            SET status = 'completed',
+                finished_at = ?,
+                duration_seconds = ?,
+                rows_out = ?
+            WHERE run_id = ?
+            """,
+            [finished_at, duration_seconds, rows_out, str(context.run_id)],
+        )
+    except Exception as e:
+        # Record failure
+        finished_at = datetime.now(UTC)
+        duration_seconds = (finished_at - started_at).total_seconds()
+        error_msg = f"{type(e).__name__}: {e!s}"
+
+        conn.execute(
+            """
+            UPDATE runs
+            SET status = 'failed',
+                finished_at = ?,
+                duration_seconds = ?,
+                error = ?
+            WHERE run_id = ?
+            """,
+            [finished_at, duration_seconds, error_msg, str(context.run_id)],
+        )
+
+        conn.close()
+        raise  # Re-raise exception after recording
+    else:
+        conn.close()
+        return result, context.run_id

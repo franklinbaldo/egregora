@@ -345,6 +345,19 @@ def test_fingerprint_table_different_data():
     assert fp1 != fp2
 
 
+def test_fingerprint_table_row_order_insensitive():
+    """Row ordering differences should not affect the fingerprint."""
+    rows = [
+        {"author": "Alice", "message": "Hello world", "ts": "2025-01-01"},
+        {"author": "Bob", "message": "Hi Alice", "ts": "2025-01-02"},
+        {"author": "Alice", "message": "How are you?", "ts": "2025-01-03"},
+    ]
+    table1 = ibis.memtable(rows)
+    table2 = ibis.memtable(list(reversed(rows)))
+
+    assert fingerprint_table(table1) == fingerprint_table(table2)
+
+
 # ==============================================================================
 # run_stage_with_tracking() Tests
 # ==============================================================================
