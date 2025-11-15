@@ -185,13 +185,15 @@ def extract_and_replace_media(
         - Media mapping (original → extracted path)
 
     """
-    all_media = set()
-    batch_size = 1000
-    for batch_records in _iter_table_record_batches(messages_table, batch_size):
-        for row in batch_records:
-            message = row.get("message", "")
-            media_refs = find_media_references(message)
-            all_media.update(media_refs)
+    # MESSAGE_SCHEMA uses 'content' column (not 'message')
+    # Vectorized: get all content as pandas Series and apply function
+    df = messages_table.select("content").execute()
+    content_series = df["content"].dropna()
+
+    # Vectorized extraction using pandas apply
+    all_media_lists = content_series.apply(find_media_references)
+    all_media = set().union(*all_media_lists.tolist())
+
     # Compute media_dir from docs_dir (MkDocs convention: media/ subdirectory)
     media_dir = docs_dir / "media"
     media_mapping = extract_media_from_zip(zip_path, all_media, media_dir)
@@ -199,10 +201,11 @@ def extract_and_replace_media(
         return (messages_table, {})
 
     @ibis.udf.scalar.python
-    def replace_in_message(message: str) -> str:
-        return replace_media_mentions(message, media_mapping, docs_dir, posts_dir) if message else message
+    def replace_in_content(content: str) -> str:
+        return replace_media_mentions(content, media_mapping, docs_dir, posts_dir) if content else content
 
-    updated_table = messages_table.mutate(message=replace_in_message(messages_table.message))
+    # MESSAGE_SCHEMA uses 'content' column (not 'message')
+    updated_table = messages_table.mutate(content=replace_in_content(messages_table.content))
     return (updated_table, media_mapping)
 
 

@@ -373,9 +373,10 @@ def _window_by_bytes(
 
     """
     # Add row number and byte length columns
+    # MESSAGE_SCHEMA uses 'content' column (not 'message')
     enriched = table.mutate(
         row_num=ibis.row_number().over(ibis.window(order_by=[table.timestamp])),
-        msg_bytes=table.message.length().cast("int64"),
+        msg_bytes=table.content.length().cast("int64"),
     )
 
     # Calculate cumulative bytes
@@ -433,7 +434,8 @@ def _window_by_bytes(
         if overlap_bytes > 0 and chunk_size > 1:
             # Find how many messages from end fit in overlap_bytes
             # window_table is already the correct chunk, no need for tail()
-            tail_with_bytes = window_table.mutate(msg_bytes_col=window_table.message.length())
+            # MESSAGE_SCHEMA uses 'content' column (not 'message')
+            tail_with_bytes = window_table.mutate(msg_bytes_col=window_table.content.length())
 
             # Cumulative bytes from end (reverse order using DESC)
             tail_cumsum = tail_with_bytes.mutate(

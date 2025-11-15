@@ -40,19 +40,28 @@ def anonymize_mentions(text: str) -> str:
 
 
 def anonymize_table(table: Table) -> Table:
-    """Anonymize author column and mentions in message column using vectorized operations."""
+    """Anonymize author column and mentions in content column using vectorized operations.
+
+    MESSAGE_SCHEMA uses 'content' column (not 'message').
+    For backward compatibility, also checks for 'message' column.
+    """
     unique_authors_result = table.select("author").distinct().execute()
     unique_authors = unique_authors_result["author"].dropna().tolist()
     author_mapping = {author: anonymize_author(author) for author in unique_authors}
     author_expr = table.author
     anonymized_author = author_expr.substitute(author_mapping, else_=SYSTEM_AUTHOR)
     anonymized_table = table.mutate(author=anonymized_author)
-    if "message" in anonymized_table.columns:
 
-        @ibis.udf.scalar.python
-        def anonymize_mentions_udf(text: str) -> str:
-            """UDF wrapper for anonymize_mentions."""
-            return anonymize_mentions(text) if text else text
+    @ibis.udf.scalar.python
+    def anonymize_mentions_udf(text: str) -> str:
+        """UDF wrapper for anonymize_mentions."""
+        return anonymize_mentions(text) if text else text
 
+    # MESSAGE_SCHEMA uses 'content' column
+    if "content" in anonymized_table.columns:
+        anonymized_table = anonymized_table.mutate(content=anonymize_mentions_udf(anonymized_table.content))
+    # Backward compatibility: also handle 'message' column
+    elif "message" in anonymized_table.columns:
         anonymized_table = anonymized_table.mutate(message=anonymize_mentions_udf(anonymized_table.message))
+
     return anonymized_table

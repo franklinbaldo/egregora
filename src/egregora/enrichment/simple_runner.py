@@ -108,8 +108,9 @@ def _create_enrichment_row(
         Dict representing the enrichment row, or None if no matching message found
 
     """
+    # MESSAGE_SCHEMA uses 'content' column (not 'message')
     first_msg = (
-        messages_table.filter(messages_table.message.contains(search_text))
+        messages_table.filter(messages_table.content.contains(search_text))
         .order_by(messages_table.timestamp)
         .limit(1)
         .execute()
@@ -283,18 +284,14 @@ def _enrich_urls(
     new_rows: list[dict[str, Any]] = []
     enrichment_count = 0
 
-    # Get messages with URLs (use Python for URL extraction since regex in SQL is complex)
-    url_messages = messages_table.filter(messages_table.message.notnull()).execute()
-    unique_urls: set[str] = set()
+    # MESSAGE_SCHEMA uses 'content' column (not 'message')
+    # Vectorized: get all content as pandas Series and apply extraction
+    df = messages_table.filter(messages_table.content.notnull()).select("content").execute()
+    content_series = df["content"]
 
-    for row in url_messages.itertuples():
-        if enrichment_count >= max_enrichments:
-            break
-        urls = extract_urls(row.message)
-        for url in urls[:3]:  # Limit URLs per message
-            if enrichment_count >= max_enrichments:
-                break
-            unique_urls.add(url)
+    # Vectorized URL extraction using pandas apply
+    all_urls_lists = content_series.apply(lambda text: extract_urls(text)[:3])
+    unique_urls = set().union(*all_urls_lists.tolist()) if len(all_urls_lists) > 0 else set()
 
     # Process each unique URL
     for url in sorted(unique_urls)[:max_enrichments]:
@@ -345,23 +342,28 @@ def _extract_media_references(
         Set of unique media references found in messages
 
     """
-    media_messages = messages_table.filter(messages_table.message.notnull()).execute()
-    unique_media: set[str] = set()
+    # MESSAGE_SCHEMA uses 'content' column (not 'message')
+    # Vectorized: get all content as pandas Series and apply extraction
+    df = messages_table.filter(messages_table.content.notnull()).select("content").execute()
+    content_series = df["content"]
 
-    for row in media_messages.itertuples():
-        # Extract all media references
-        refs = find_media_references(row.message)
-        markdown_refs = re.findall("!\\[[^\\]]*\\]\\([^)]*?([a-f0-9\\-]+\\.\\w+)\\)", row.message)
+    # Vectorized extraction using pandas apply
+    def extract_all_refs(content_text: str) -> list[str]:
+        """Extract all media references from content."""
+        refs = find_media_references(content_text)
+        markdown_refs = re.findall("!\\[[^\\]]*\\]\\([^)]*?([a-f0-9\\-]+\\.\\w+)\\)", content_text)
         uuid_refs = re.findall(
-            "\\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.\\w+)", row.message
+            "\\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.\\w+)", content_text
         )
         refs.extend(markdown_refs)
         refs.extend(uuid_refs)
+        return refs
 
-        # Add to unique set if in media_mapping
-        for ref in set(refs):
-            if ref in media_filename_lookup:
-                unique_media.add(ref)
+    all_refs_lists = content_series.apply(extract_all_refs)
+    all_refs = set().union(*all_refs_lists.tolist()) if len(all_refs_lists) > 0 else set()
+
+    # Filter to only refs in media_mapping
+    unique_media = {ref for ref in all_refs if ref in media_filename_lookup}
 
     return unique_media
 
@@ -453,10 +455,11 @@ def _replace_pii_media_references(
     """
 
     @ibis.udf.scalar.python
-    def replace_media_udf(message: str) -> str:
-        return replace_media_mentions(message, media_mapping, docs_dir, posts_dir) if message else message
+    def replace_media_udf(content: str) -> str:
+        return replace_media_mentions(content, media_mapping, docs_dir, posts_dir) if content else content
 
-    return messages_table.mutate(message=replace_media_udf(messages_table.message))
+    # MESSAGE_SCHEMA uses 'content' column (not 'message')
+    return messages_table.mutate(content=replace_media_udf(messages_table.content))
 
 
 def _combine_enrichment_tables(
