@@ -18,15 +18,18 @@ console = Console()
 read_app = typer.Typer(
     name="read",
     help="Evaluate and rank blog posts using reader agent",
+    invoke_without_command=True,
+    no_args_is_help=True,
 )
 
 
-@read_app.command(name="rank")
-def rank_posts(
+@read_app.callback(invoke_without_command=True)
+def main(
+    ctx: typer.Context,
     site_root: Annotated[
-        Path,
+        Path | None,
         typer.Argument(help="Site root directory containing .egregora/config.yml"),
-    ],
+    ] = None,
     model: Annotated[
         str | None,
         typer.Option(
@@ -50,10 +53,19 @@ def rank_posts(
     updating ELO ratings based on quality judgments.
 
     Examples:
-        egregora read rank my-blog/
-        egregora read rank my-blog/ --limit 20
-        egregora read rank my-blog/ --model google-gla:gemini-2.0-flash-thinking-exp
+        egregora read my-blog/
+        egregora read my-blog/ --limit 20
+        egregora read my-blog/ --model google-gla:gemini-2.0-flash-thinking-exp
     """
+    # If a subcommand is being invoked, don't run this callback
+    if ctx.invoked_subcommand is not None:
+        return
+
+    # Require site_root when invoked directly
+    if site_root is None:
+        console.print("[red]Error: SITE_ROOT is required[/red]")
+        raise typer.Exit(1)
+
     site_root = site_root.expanduser().resolve()
 
     # Verify .egregora directory exists
@@ -127,91 +139,3 @@ def rank_posts(
     console.print(f"[dim]Ratings stored in: {db_path}[/dim]")
 
 
-@read_app.command(name="history")
-def show_history(
-    site_root: Annotated[
-        Path,
-        typer.Argument(help="Site root directory containing .egregora/config.yml"),
-    ],
-    post_slug: Annotated[
-        str | None,
-        typer.Option(
-            "--post",
-            "-p",
-            help="Show comparisons for specific post",
-        ),
-    ] = None,
-    limit: Annotated[
-        int,
-        typer.Option(
-            "--limit",
-            "-n",
-            help="Number of comparisons to show",
-        ),
-    ] = 20,
-) -> None:
-    """Show comparison history from reader agent.
-
-    Examples:
-        egregora read history my-blog/
-        egregora read history my-blog/ --post my-post-slug
-        egregora read history my-blog/ --limit 50
-    """
-    from egregora.database.elo_store import EloStore
-
-    site_root = site_root.expanduser().resolve()
-
-    # Verify .egregora directory exists
-    egregora_dir = site_root / ".egregora"
-    if not egregora_dir.exists():
-        console.print(f"[red]No .egregora directory found in {site_root}[/red]")
-        console.print("Run 'egregora init' or 'egregora write' first to create a site")
-        raise typer.Exit(1)
-
-    config = load_egregora_config(site_root)
-
-    db_path = site_root / config.reader.database_path
-
-    if not db_path.exists():
-        console.print(f"[red]Reader database not found: {db_path}[/red]")
-        console.print("Run 'egregora read rank' first to generate rankings")
-        raise typer.Exit(1)
-
-    elo_store = EloStore(db_path)
-
-    try:
-        history = elo_store.get_comparison_history(
-            post_slug=post_slug,
-            limit=limit,
-        ).execute()
-
-        if history.empty:
-            console.print("[yellow]No comparison history found[/yellow]")
-            return
-
-        table = Table(title=f"🔍 Comparison History{f' for {post_slug}' if post_slug else ''}")
-        table.add_column("Timestamp", style="dim")
-        table.add_column("Post A", style="cyan")
-        table.add_column("Post B", style="cyan")
-        table.add_column("Winner", style="green", justify="center")
-        table.add_column("Rating Changes", style="magenta")
-
-        for row in history.itertuples(index=False):
-            winner_emoji = {"a": "🅰️", "b": "🅱️", "tie": "🤝"}[row.winner]
-
-            rating_change_a = row.rating_a_after - row.rating_a_before
-            rating_change_b = row.rating_b_after - row.rating_b_before
-
-            table.add_row(
-                str(row.timestamp)[:19],
-                row.post_a_slug,
-                row.post_b_slug,
-                winner_emoji,
-                f"A: {rating_change_a:+.0f} / B: {rating_change_b:+.0f}",
-            )
-
-        console.print(table)
-        console.print(f"\n[dim]Showing {len(history)} comparison(s)[/dim]")
-
-    finally:
-        elo_store.close()

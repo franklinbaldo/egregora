@@ -14,6 +14,7 @@ from rich.panel import Panel
 from egregora.cli.read import read_app
 from egregora.cli.runs import runs_app
 from egregora.config import ProcessConfig, load_egregora_config
+from egregora.database.elo_store import EloStore
 from egregora.config.config_validation import parse_date_arg, validate_retrieval_config
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration import write_pipeline
@@ -25,6 +26,13 @@ app = typer.Typer(
 )
 app.add_typer(runs_app)
 app.add_typer(read_app)
+
+# Show subcommands
+show_app = typer.Typer(
+    name="show",
+    help="Display information about site components",
+)
+app.add_typer(show_app)
 
 # Simple logging setup (no telemetry)
 console = Console()
@@ -303,6 +311,174 @@ def write(
         debug=debug,
     )
     _validate_and_run_process(config, source=source)
+
+
+@app.command()
+def top(
+    site_root: Annotated[
+        Path,
+        typer.Argument(help="Site root directory containing .egregora/config.yml"),
+    ],
+    limit: Annotated[
+        int,
+        typer.Option(
+            "--limit",
+            "-n",
+            help="Number of top posts to show (default: 10)",
+        ),
+    ] = 10,
+) -> None:
+    """Show top-ranked posts without running evaluation.
+
+    Displays existing rankings from the reader agent database.
+
+    Examples:
+        egregora top my-blog/
+        egregora top my-blog/ --limit 20
+    """
+    from rich.table import Table
+
+    site_root = site_root.expanduser().resolve()
+
+    # Verify .egregora directory exists
+    egregora_dir = site_root / ".egregora"
+    if not egregora_dir.exists():
+        console.print(f"[red]No .egregora directory found in {site_root}[/red]")
+        console.print("Run 'egregora init' or 'egregora write' first to create a site")
+        raise typer.Exit(1)
+
+    config = load_egregora_config(site_root)
+
+    db_path = site_root / config.reader.database_path
+
+    if not db_path.exists():
+        console.print(f"[red]Reader database not found: {db_path}[/red]")
+        console.print("Run 'egregora read' first to generate rankings")
+        raise typer.Exit(1)
+
+    elo_store = EloStore(db_path)
+
+    try:
+        top_posts = elo_store.get_top_posts(limit=limit).execute()
+
+        if top_posts.empty:
+            console.print("[yellow]No rankings found[/yellow]")
+            raise typer.Exit(0)
+
+        table = Table(title=f"🏆 Top {limit} Posts")
+        table.add_column("Rank", style="cyan", justify="right")
+        table.add_column("Post", style="green")
+        table.add_column("ELO Rating", style="magenta", justify="right")
+        table.add_column("Comparisons", justify="right")
+        table.add_column("Win Rate", justify="right")
+
+        for rank, row in enumerate(top_posts.itertuples(index=False), 1):
+            total_games = row.comparisons
+            win_rate = (row.wins / total_games * 100) if total_games > 0 else 0.0
+
+            table.add_row(
+                str(rank),
+                row.post_slug,
+                f"{row.rating:.0f}",
+                str(row.comparisons),
+                f"{win_rate:.1f}%",
+            )
+
+        console.print(table)
+        console.print(f"\n[dim]Database: {db_path}[/dim]")
+
+    finally:
+        elo_store.close()
+
+
+@show_app.command(name="reader-history")
+def show_reader_history(
+    site_root: Annotated[
+        Path,
+        typer.Argument(help="Site root directory containing .egregora/config.yml"),
+    ],
+    post_slug: Annotated[
+        str | None,
+        typer.Option(
+            "--post",
+            "-p",
+            help="Show comparisons for specific post",
+        ),
+    ] = None,
+    limit: Annotated[
+        int,
+        typer.Option(
+            "--limit",
+            "-n",
+            help="Number of comparisons to show",
+        ),
+    ] = 20,
+) -> None:
+    """Show comparison history from reader agent.
+
+    Examples:
+        egregora show reader-history my-blog/
+        egregora show reader-history my-blog/ --post my-post-slug
+        egregora show reader-history my-blog/ --limit 50
+    """
+    from rich.table import Table
+
+    site_root = site_root.expanduser().resolve()
+
+    # Verify .egregora directory exists
+    egregora_dir = site_root / ".egregora"
+    if not egregora_dir.exists():
+        console.print(f"[red]No .egregora directory found in {site_root}[/red]")
+        console.print("Run 'egregora init' or 'egregora write' first to create a site")
+        raise typer.Exit(1)
+
+    config = load_egregora_config(site_root)
+
+    db_path = site_root / config.reader.database_path
+
+    if not db_path.exists():
+        console.print(f"[red]Reader database not found: {db_path}[/red]")
+        console.print("Run 'egregora read' first to generate rankings")
+        raise typer.Exit(1)
+
+    elo_store = EloStore(db_path)
+
+    try:
+        history = elo_store.get_comparison_history(
+            post_slug=post_slug,
+            limit=limit,
+        ).execute()
+
+        if history.empty:
+            console.print("[yellow]No comparison history found[/yellow]")
+            return
+
+        table = Table(title=f"🔍 Comparison History{f' for {post_slug}' if post_slug else ''}")
+        table.add_column("Timestamp", style="dim")
+        table.add_column("Post A", style="cyan")
+        table.add_column("Post B", style="cyan")
+        table.add_column("Winner", style="green", justify="center")
+        table.add_column("Rating Changes", style="magenta")
+
+        for row in history.itertuples(index=False):
+            winner_emoji = {"a": "🅰️", "b": "🅱️", "tie": "🤝"}[row.winner]
+
+            rating_change_a = row.rating_a_after - row.rating_a_before
+            rating_change_b = row.rating_b_after - row.rating_b_before
+
+            table.add_row(
+                str(row.timestamp)[:19],
+                row.post_a_slug,
+                row.post_b_slug,
+                winner_emoji,
+                f"A: {rating_change_a:+.0f} / B: {rating_change_b:+.0f}",
+            )
+
+        console.print(table)
+        console.print(f"\n[dim]Showing {len(history)} comparison(s)[/dim]")
+
+    finally:
+        elo_store.close()
 
 
 @app.command(name="doctor")
