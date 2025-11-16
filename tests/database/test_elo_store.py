@@ -9,9 +9,6 @@ import pytest
 
 from egregora.agents.reader.elo import DEFAULT_ELO, calculate_elo_update
 from egregora.database.elo_store import (
-    COMPARISON_HISTORY_SCHEMA,
-    ELO_RATINGS_SCHEMA,
-    EloRating,
     EloStore,
 )
 
@@ -412,7 +409,7 @@ class TestGetComparisonHistory:
             new_a, new_b = calculate_elo_update(DEFAULT_ELO, DEFAULT_ELO, "a")
             elo_store.update_ratings(
                 post_a_slug=f"post-{i}",
-                post_b_slug=f"post-{i+1}",
+                post_b_slug=f"post-{i + 1}",
                 rating_a_new=new_a,
                 rating_b_new=new_b,
                 winner="a",
@@ -461,7 +458,7 @@ class TestGetComparisonHistory:
             new_a, new_b = calculate_elo_update(DEFAULT_ELO, DEFAULT_ELO, "a")
             elo_store.update_ratings(
                 post_a_slug=f"post-{i}",
-                post_b_slug=f"post-{i+1}",
+                post_b_slug=f"post-{i + 1}",
                 rating_a_new=new_a,
                 rating_b_new=new_b,
                 winner="a",
@@ -478,7 +475,7 @@ class TestGetComparisonHistory:
             new_a, new_b = calculate_elo_update(DEFAULT_ELO, DEFAULT_ELO, "a")
             elo_store.update_ratings(
                 post_a_slug=f"post-{i}",
-                post_b_slug=f"post-{i+1}",
+                post_b_slug=f"post-{i + 1}",
                 rating_a_new=new_a,
                 rating_b_new=new_b,
                 winner="a",
