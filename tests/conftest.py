@@ -359,8 +359,6 @@ def vcr_config():
         "record_mode": "once",
         # Directory containing pre-recorded cassettes
         "cassette_library_dir": str(Path(__file__).parent / "cassettes"),
-        # Ensure httpx.Client is patched for playback
-        "custom_patches": ("httpx",),
         # Filter API keys from recordings
         "filter_headers": [
             ("x-goog-api-key", "DUMMY_API_KEY"),

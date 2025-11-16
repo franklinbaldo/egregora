@@ -1,0 +1,94 @@
+interactions:
+- request:
+    body: '{"contents":[{"role":"user","parts":[{"text":"Compare these two blog posts:\n\n#
+      Post A (short-a)\n# Title\n\nOne sentence.\n\n# Post B (short-b)\n# Another
+      Title\n\nTwo sentences. Here''s another.\n\nEvaluate both posts and determine
+      which is better quality overall.\n"}]}],"systemInstruction":{"parts":[{"text":"You
+      are a discerning reader evaluating blog posts.\n\nYour task is to compare two
+      blog posts and determine which one is better quality.\nConsider these criteria:\n\n1.
+      **Clarity**: Is the writing clear and easy to understand?\n2. **Engagement**:
+      Would this keep a reader''s interest?\n3. **Insight**: Does it offer valuable
+      or interesting perspectives?\n4. **Structure**: Is it well-organized and flows
+      logically?\n5. **Authenticity**: Does it feel genuine rather than generic?\n\nFor
+      each post, provide:\n- A star rating (1-5 stars)\n- Engagement level (low, medium,
+      high)\n- Constructive feedback\n\nThen decide which post is better overall,
+      or if they''re equal quality (tie).\n"}]},"generationConfig":{"temperature":0.7,"topP":0.95,"topK":40,"maxOutputTokens":2048,"responseMimeType":"application/json","responseSchema":{"type":"object","properties":{"winner":{"type":"string","description":"Which
+      post won: ''a'', ''b'', or ''tie''","enum":["a","b","tie"]},"reasoning":{"type":"string","description":"Explanation
+      of the choice"},"feedback_a":{"type":"object","properties":{"comment":{"type":"string","description":"Natural
+      language feedback about the post"},"star_rating":{"type":"integer","description":"Star
+      rating from 1-5","minimum":1,"maximum":5},"engagement_level":{"type":"string","description":"Predicted
+      engagement: low, medium, or high","enum":["low","medium","high"]}},"required":["comment","star_rating","engagement_level"]},"feedback_b":{"type":"object","properties":{"comment":{"type":"string","description":"Natural
+      language feedback about the post"},"star_rating":{"type":"integer","description":"Star
+      rating from 1-5","minimum":1,"maximum":5},"engagement_level":{"type":"string","description":"Predicted
+      engagement: low, medium, or high","enum":["low","medium","high"]}},"required":["comment","star_rating","engagement_level"]}},"required":["winner","reasoning","feedback_a","feedback_b"]}}}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '2218'
+      content-type:
+      - application/json
+      host:
+      - generativelanguage.googleapis.com
+      user-agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=DUMMY_API_KEY
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"{\\n  \\\"winner\\\": \\\"b\\\",\\n
+        \ \\\"reasoning\\\": \\\"Both posts are fundamentally incomplete and of extremely
+        low quality, consisting of placeholders (one sentence for A, two sentences
+        for B). Post B is marginally better because it offers twice the content, demonstrating
+        a slight, though still insufficient, attempt at development compared to Post
+        A's single sentence.\\\",\\n  \\\"feedback_a\\\": {\\n    \\\"comment\\\":
+        \\\"This is not a blog post; it is a single sentence. It lacks clarity, structure,
+        engagement, and insight. It is impossible to evaluate its quality based on
+        standard criteria beyond stating it is incomplete.\\\",\\n    \\\"star_rating\\\":
+        1,\\n    \\\"engagement_level\\\": \\\"low\\\"\\n  },\\n  \\\"feedback_b\\\":
+        {\\n    \\\"comment\\\": \\\"This post, while also extremely short, offers
+        two distinct sentences. It is still far too brief to be considered a proper
+        blog post and fails to provide any meaningful insight or structure, but it
+        is marginally longer than Post A.\\\",\\n    \\\"star_rating\\\": 1,\\n    \\\"engagement_level\\\":
+        \\\"low\\\"\\n  }\\n}\",\n            \"thoughtSignature\": \"CucQAdHtim/QxUhr2coSD5+YUCGQnYVZwfk3YpCIJD+KOX8sljrDTeUXMtNGSeoP1yA1KVL3cfCBzq9Ekndy/+n4G5K6dbQc78wIEywx9+BSXRVIwxabAvuQTqnqE1GQowVDnlhFTVSx3Cmnrhv7Oi1D/UPZ+w9IKqqRVUBlnutAU2dowzHFCc0BYqgXDdvakHsf57VGJ2a1JrfCSEtc3uhvCMF/MkJuVtquJYcDVZI42CF8CJgtvSrZQVnj+PiyfpVQjxJ3q0Zbk0tmAvFj/4wEZcbIvqYDn6s+hWKZt0FPoMyKK+cbqykJ1jURYCh9tKn2V07OgpLgRbFGx1lNiqAdawgIJl9xQKDYNfMQcTctE5+LiOH0UCa86EHPOwPBbYH6RzZYw1bsyRqOSjS+k6dtuhTJeGlZGUqHjetyaYqx5Wue5xPOYgMxFBwYZtgvMfKulLRrqSusjoGuM3ZdTcU8NR2SCeFJACtT6zOx6qrBgU+A16Y+1xjr1ieAI1zDoi929rsbYJjz3q27WshqITc3YZ8ZCGk2Z7ouWrkd0Z4lB/EV3r/WYjVp57nKlo6ZznKD2PUbTQfyu9ffastq/OOpmPLT+7yx4koxoCNy3zqaF1tmjvQzYVeYuNoGFcm4JDY9yrixuENvqWOPQ3na/9AhI3CQdpr/yRWqmwP2qEPNudTiGZ79oUbBUToonZ0Z3wOzcOE5LmYqS4gHPUesioNKtCQjzTfrde8F/WND0e/YBbkWyHiYGU9333t9MK5/xxqb6NsYFMhmCua22cNPwDSdAxtu0j64MIpHLfpm6vGLnnBng3SYU6UduAhGw0zjzQcENDoWEZXNQ3vIF25zvGF18tSlb/gDJxs0faFRbxVvI5sJuwdwBcW8Pmof4knnDuS15PM9wK8Xym6cG53vszxZuG7XMls6+eWG463Mf5lZZyZoSjU63JEJh8V3gm7ogp5202nWB6/X3qCgBH/0qIWTfATTtpy4/c+6+JZJTTKKmnywAqdrP8yOg3iYRAtVZEW6V7Avpz0/DoySwJPvMdoSCpACDbtxhBCUiJq8qnBNm0d3DUNwmIJozZStUAh1gf0x5tsGQdByXQQGwU8nzGfYKpGGdzJJTS8xC8qfpTmJaYxB9NO9metDPLGih3gbaEC8c1vP2ycb47yp/JfJA72mtvSJCfafs4C/2t0HRvcxHVUOLf7DWGoOKBiRlMJMxxeF119gQGS0Q/61Fne0kA4HKBur6GYro2xYOnl5L48n4Fprmd3i/HWqSVKhDEQFQXDB67zaPR7BTd2L6THLS14zc+qgZ1czFSgRRmj/iIRYfSh3Aw6AshT19p9xmqe5v3T2mbxzGaCf5xvkdzZ5E9oQkiTpGUgo1Rv9+pTulSfJpvOaWmCRmSubA5XSv3QN2JmW039A+dpqBE5C1QS+QvXHzq8NTS/ZbfS7D7wsvVwT32F580XWFTfvA7dfaIHsCoR/88YmEfajYKRtHVqfmLlctCX0A2/MMv2blogNnfQBM7LlV4aVe/0lqpo1nnxzfUbcwWcyvOHtnVSI5uWIUaDRQ8aw2FNXJlVwy/5AXZD08xA6uXgpd9HIfzWUwEqfZSzia+qxEHTnxKVZcuETuP6msdulpcp9+TnQATscX9NuHCsLuZPHo7hdMtzSDCNwr0k3DefjhH2yIlE9AZi8KLPCsGfo+y2/JWv5cIo2HNA19EVYxdG5z5cMQ987pkh+cYrCg1Y2xPnGNNutzY80x1RzTlcaXs6dWzBDhL6/gP6EWdvQtl+V02xHGcbLitxJU8mAXCG1rdrmoNVCd5Ov+zA0Y1Oh7WHVCq8jmseTgBGBLEJg+5TVCwBXzntXZfM+jS6ecaKSoXCXB6iFR3rD5uOpxuxAWxqekhUVzy8DmAIlQsQPUn5CnuIvD32Uu9n+nRLNzG8No8mBEzLHM+U9EiQ/XTXDhYhD6FbNtntKlf3aQxYe9sIMXCPwM5AVMpuGIhOptu8vKWkA72pcoGP5rwxSg2RWTpyFga/uarcgAMd15AQM2z7zyYEStSn9a8DUFn2/60pHLq74n4h+gFUX53ePuWna29A85lA+/41HEQsDM6nRJFmF2Scs9MhtT6vLeM7fHMP9vqUQl2M2UVPHCDhoeZt2Zr+fjL7QUPwu9TjmGIjqHFkMkOuQWk72jZ7Htd4UikELeel2F1JHXDgC9GMpZXnMLNKuPtcatwlVAQlc94oNkLqJt9NqIC5cxczXiuOhSmzeM4+rA19NlrWcJbnjFOzTNK+TsUKSUHWVCNQZ7XBMmZxMmSLkFdgNphvK3X4JmHSnQuYz34/ozoHHzpgmo5yN/oKshQ8dLYCY09ngaNDjgfe4LKggxIi6IsglpuC2UqrTVHNlKtg0CtOqYnkagAmbtHHRypBxeZJAFDRDgsAReXC/q23cLOt13qkJQNnL2i3Pu7MqUTyAT28OuO7B05ChIEXkjDm9E+ZCLtRfhXMRnLagTsuy7vmBM7mKM0ftI1ypE5tv3zFE8FdxwROs+ppQ3VOFclg3kily9bWVi/PAaxbnYRzVuhcXjiqqYZMgcOYP0fGhlLbVN5L7dNt2vltdqW/kp0ir4YCXmlAB0E6hwQA9QDOj5utTjrYwawRw0jFqf+ahUxIIXCzgaDApyse05Oe28h2dBYWNcI1LxgrAJpdW9m6u7sS58pOMBFsJy2vT8R8cc7T2GF9rfUbhEmk/PFv71IgUFeycMoqk2jzQcYKxTPjoNy4+vLlN/rKJvMEFpL0KcsGTKsky98UbMWjZtZ2+7uwN4/7a5ma7s7azZzWPphW7ipwVSCkNLe2XuwwktlaSPM8FtT0IiUF2m236LmMpFK0gmuTKsTPe/uqEmrDVPExT\"\n
+        \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        218,\n    \"candidatesTokenCount\": 236,\n    \"totalTokenCount\": 921,\n
+        \   \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 218\n      }\n    ],\n    \"thoughtsTokenCount\":
+        467\n  },\n  \"modelVersion\": \"gemini-2.5-flash-preview-09-2025\",\n  \"responseId\":
+        \"ie0Zada2EZXjz7IPzZHviQ4\"\n}\n"
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Sun, 16 Nov 2025 15:28:09 GMT
+      Server:
+      - scaffolding on HTTPServer2
+      Server-Timing:
+      - gfet4t7; dur=5020
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+      content-length:
+      - '4492'
+    status:
+      code: 200
+      message: OK
+version: 1
