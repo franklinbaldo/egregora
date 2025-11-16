@@ -495,7 +495,7 @@ def _validate_window_size(window: any, max_size: int) -> None:
 
 def _process_all_windows(
     windows_iterator: any, ctx: WindowProcessingContext, runs_backend: any
-) -> dict[str, dict[str, list[str]]]:
+) -> tuple[dict[str, dict[str, list[str]]], datetime | None, bool]:
     """Process all windows with tracking and error handling.
 
     Args:
@@ -504,7 +504,10 @@ def _process_all_windows(
         runs_backend: Ibis backend for run tracking
 
     Returns:
-        Dict mapping window labels to {'posts': [...], 'profiles': [...]}
+        Tuple of:
+            - Dict mapping window labels to {'posts': [...], 'profiles': [...]}
+            - Datetime of the last processed window (or None)
+            - Boolean indicating whether processing stopped early due to max_windows
 
     """
     results = {}
@@ -524,10 +527,13 @@ def _process_all_windows(
         max_windows = None  # 0 means process all windows
 
     windows_processed = 0
+    stopped_early = False
+    last_processed_timestamp: datetime | None = None
     for window in windows_iterator:
         # Check if we've hit the max_windows limit
         if max_windows is not None and windows_processed >= max_windows:
             logger.info("Reached max_windows limit (%d). Stopping processing.", max_windows)
+            stopped_early = True
             break
         # Skip empty windows
         if window.size == 0:
@@ -648,8 +654,9 @@ def _process_all_windows(
 
         # Increment window counter (only for processed windows, empty windows don't count)
         windows_processed += 1
+        last_processed_timestamp = window.end_time
 
-    return results
+    return results, last_processed_timestamp, stopped_early
 
 
 def _perform_enrichment(
@@ -1185,13 +1192,22 @@ def _index_media_into_rag(
         logger.exception("[red]Failed to index media into RAG[/]")
 
 
-def _save_checkpoint(results: dict, messages_table: ir.Table, checkpoint_path: Path) -> None:
+def _save_checkpoint(
+    results: dict,
+    messages_table: ir.Table,
+    checkpoint_path: Path,
+    *,
+    last_processed_timestamp: datetime | None = None,
+    stopped_early: bool = False,
+) -> None:
     """Save checkpoint after successful window processing.
 
     Args:
         results: Window processing results
         messages_table: Filtered messages table
         checkpoint_path: Path to checkpoint file
+        last_processed_timestamp: Timestamp of the last processed window (if any)
+        stopped_early: Whether processing stopped early due to max_windows
 
     """
     if not results:
@@ -1201,10 +1217,18 @@ def _save_checkpoint(results: dict, messages_table: ir.Table, checkpoint_path: P
         )
         return
 
-    # Checkpoint based on messages in the filtered table
-    checkpoint_stats = messages_table.aggregate(
-        max_timestamp=messages_table.ts.max(),
-        total_processed=messages_table.count(),
+    checkpoint_table = messages_table
+    if stopped_early and last_processed_timestamp is not None:
+        checkpoint_table = messages_table.filter(messages_table.ts <= last_processed_timestamp)
+        logger.info(
+            "💾 [cyan]Partial checkpoint:[/] processed up to %s due to max_windows limit",
+            last_processed_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        )
+
+    # Checkpoint based on messages in the filtered (and possibly truncated) table
+    checkpoint_stats = checkpoint_table.aggregate(
+        max_timestamp=checkpoint_table.ts.max(),
+        total_processed=checkpoint_table.count(),
     ).execute()
 
     total_processed = checkpoint_stats["total_processed"][0]
@@ -1312,9 +1336,17 @@ def run(
 
     with _pipeline_environment(output_dir, config, api_key, model_override, client) as env:
         dataset = _prepare_pipeline_data(adapter, input_path, config, env, output_dir)
-        results = _process_all_windows(dataset.windows_iterator, dataset.window_context, env.runs_backend)
+        results, last_processed_timestamp, stopped_early = _process_all_windows(
+            dataset.windows_iterator, dataset.window_context, env.runs_backend
+        )
         _index_media_into_rag(dataset.enable_enrichment, results, env.site_paths, dataset.embedding_model)
-        _save_checkpoint(results, dataset.messages_table, dataset.checkpoint_path)
+        _save_checkpoint(
+            results,
+            dataset.messages_table,
+            dataset.checkpoint_path,
+            last_processed_timestamp=last_processed_timestamp,
+            stopped_early=stopped_early,
+        )
 
         logger.info("[bold green]🎉 Pipeline completed successfully![/]")
         return results
