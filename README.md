@@ -92,7 +92,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Process your chat (creates a blog in ./my-blog)
 uvx --from git+https://github.com/franklinbaldo/egregora \
-    egregora process whatsapp-export.zip --output=./my-blog
+    egregora write whatsapp-export.zip --output=./my-blog
 
 # Serve locally
 cd my-blog
@@ -168,21 +168,21 @@ Egregora uses a **modern, staged pipeline** architecture built for clarity and e
 
 ```bash
 # Process with default settings (1 day per window)
-egregora process export.zip --output=./blog
+egregora write export.zip --output=./blog
 
 # Group by week (7 days per window)
-egregora process export.zip --step-size=7 --step-unit=days
+egregora write export.zip --step-size=7 --step-unit=days
 
 # Group by message count (100 messages per window)
-egregora process export.zip --step-size=100 --step-unit=messages
+egregora write export.zip --step-size=100 --step-unit=messages
 
 # Filter date range
-egregora process export.zip \
+egregora write export.zip \
     --from-date=2025-01-01 \
     --to-date=2025-01-31
 
 # Custom timezone (important for accurate timestamps)
-egregora process export.zip --timezone="America/Sao_Paulo"
+egregora write export.zip --timezone="America/Sao_Paulo"
 ```
 
 ### Privacy Controls
