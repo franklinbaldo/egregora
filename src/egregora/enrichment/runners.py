@@ -260,7 +260,9 @@ def _create_enrichment_row(
         "ts": enrichment_timestamp,
         # Authors (enrichment author is "egregora" system)
         "author_raw": "egregora",
-        "author_uuid": _uuid_to_str(message_metadata.get("author_uuid")),  # Link to original author for context
+        "author_uuid": _uuid_to_str(
+            message_metadata.get("author_uuid")
+        ),  # Link to original author for context
         # Content
         "text": f"[{enrichment_type} Enrichment] {identifier}\nEnrichment saved: {enrichment_id_str}",
         "media_url": None,
