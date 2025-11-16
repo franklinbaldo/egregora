@@ -56,6 +56,7 @@ def main(
         egregora read my-blog/
         egregora read my-blog/ --limit 20
         egregora read my-blog/ --model google-gla:gemini-2.0-flash-thinking-exp
+
     """
     # If a subcommand is being invoked, don't run this callback
     if ctx.invoked_subcommand is not None:
@@ -137,5 +138,3 @@ def main(
     # Show database location
     db_path = site_root / config.reader.database_path
     console.print(f"[dim]Ratings stored in: {db_path}[/dim]")
-
-

@@ -25,30 +25,34 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Schema for ELO ratings table
-ELO_RATINGS_SCHEMA = ibis.schema({
-    "post_slug": "string",
-    "rating": "float64",
-    "comparisons": "int64",
-    "wins": "int64",
-    "losses": "int64",
-    "ties": "int64",
-    "last_updated": "timestamp",
-    "created_at": "timestamp",
-})
+ELO_RATINGS_SCHEMA = ibis.schema(
+    {
+        "post_slug": "string",
+        "rating": "float64",
+        "comparisons": "int64",
+        "wins": "int64",
+        "losses": "int64",
+        "ties": "int64",
+        "last_updated": "timestamp",
+        "created_at": "timestamp",
+    }
+)
 
 # Schema for comparison history
-COMPARISON_HISTORY_SCHEMA = ibis.schema({
-    "comparison_id": "string",
-    "post_a_slug": "string",
-    "post_b_slug": "string",
-    "winner": "string",  # "a", "b", or "tie"
-    "rating_a_before": "float64",
-    "rating_b_before": "float64",
-    "rating_a_after": "float64",
-    "rating_b_after": "float64",
-    "timestamp": "timestamp",
-    "reader_feedback": "string",  # JSON string with comments/ratings
-})
+COMPARISON_HISTORY_SCHEMA = ibis.schema(
+    {
+        "comparison_id": "string",
+        "post_a_slug": "string",
+        "post_b_slug": "string",
+        "winner": "string",  # "a", "b", or "tie"
+        "rating_a_before": "float64",
+        "rating_b_before": "float64",
+        "rating_a_after": "float64",
+        "rating_b_after": "float64",
+        "timestamp": "timestamp",
+        "reader_feedback": "string",  # JSON string with comments/ratings
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +77,7 @@ class EloStore:
 
         Args:
             db_path: Path to DuckDB database file
+
         """
         self.db_path = Path(db_path)
         self.conn = ibis.duckdb.connect(str(self.db_path))
@@ -104,13 +109,10 @@ class EloStore:
 
         Returns:
             EloRating with current stats, or new rating at DEFAULT_ELO
+
         """
         ratings_table = self.conn.table("elo_ratings")
-        result = (
-            ratings_table.filter(_.post_slug == post_slug)
-            .limit(1)
-            .execute()
-        )
+        result = ratings_table.filter(_.post_slug == post_slug).limit(1).execute()
 
         if result.empty:
             # Return default rating for new posts
@@ -158,6 +160,7 @@ class EloStore:
             winner: Comparison result ("a", "b", or "tie")
             comparison_id: Unique identifier for this comparison
             reader_feedback: Optional JSON string with reader comments/ratings
+
         """
         # Get current ratings
         rating_a = self.get_rating(post_a_slug)
@@ -295,13 +298,10 @@ class EloStore:
 
         Returns:
             Ibis table with top posts sorted by rating
+
         """
         ratings_table = self.conn.table("elo_ratings")
-        return (
-            ratings_table.filter(_.comparisons > 0)
-            .order_by(_.rating.desc())
-            .limit(limit)
-        )
+        return ratings_table.filter(_.comparisons > 0).order_by(_.rating.desc()).limit(limit)
 
     def get_comparison_history(
         self,
@@ -316,13 +316,12 @@ class EloStore:
 
         Returns:
             Ibis table with comparison history
+
         """
         history_table = self.conn.table("comparison_history")
 
         if post_slug:
-            history_table = history_table.filter(
-                (_.post_a_slug == post_slug) | (_.post_b_slug == post_slug)
-            )
+            history_table = history_table.filter((_.post_a_slug == post_slug) | (_.post_b_slug == post_slug))
 
         history_table = history_table.order_by(_.timestamp.desc())
 

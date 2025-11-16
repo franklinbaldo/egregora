@@ -10,7 +10,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent
 
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
 
@@ -99,6 +99,7 @@ async def compare_posts(
         ... )
         >>> comparison = await compare_posts(request)
         >>> print(comparison.winner)  # 'a', 'b', or 'tie'
+
     """
     # Prepare dependencies
     deps = ReaderDeps(

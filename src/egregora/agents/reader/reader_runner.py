@@ -37,6 +37,7 @@ def select_post_pairs(
 
     Returns:
         List of (slug_a, slug_b) tuples to compare
+
     """
     if len(post_slugs) < 2:
         logger.warning("Need at least 2 posts for comparison, got %d", len(post_slugs))
@@ -102,6 +103,7 @@ async def run_reader_evaluation(
         ... )
         >>> for result in rankings[:10]:  # Top 10
         ...     print(f"{result.rank}. {result.post_slug} (ELO: {result.rating:.0f})")
+
     """
     if not config.enabled:
         logger.info("Reader agent disabled in config")
@@ -172,19 +174,21 @@ async def run_reader_evaluation(
             # Store comparison result with feedback
             import json
 
-            feedback_json = json.dumps({
-                "feedback_a": {
-                    "comment": comparison.feedback_a.comment,
-                    "star_rating": comparison.feedback_a.star_rating,
-                    "engagement_level": comparison.feedback_a.engagement_level,
-                },
-                "feedback_b": {
-                    "comment": comparison.feedback_b.comment,
-                    "star_rating": comparison.feedback_b.star_rating,
-                    "engagement_level": comparison.feedback_b.engagement_level,
-                },
-                "reasoning": comparison.reasoning,
-            })
+            feedback_json = json.dumps(
+                {
+                    "feedback_a": {
+                        "comment": comparison.feedback_a.comment,
+                        "star_rating": comparison.feedback_a.star_rating,
+                        "engagement_level": comparison.feedback_a.engagement_level,
+                    },
+                    "feedback_b": {
+                        "comment": comparison.feedback_b.comment,
+                        "star_rating": comparison.feedback_b.star_rating,
+                        "engagement_level": comparison.feedback_b.engagement_level,
+                    },
+                    "reasoning": comparison.reasoning,
+                }
+            )
 
             # Update ratings
             elo_store.update_ratings(

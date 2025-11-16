@@ -14,8 +14,8 @@ from rich.panel import Panel
 from egregora.cli.read import read_app
 from egregora.cli.runs import runs_app
 from egregora.config import ProcessConfig, load_egregora_config
-from egregora.database.elo_store import EloStore
 from egregora.config.config_validation import parse_date_arg, validate_retrieval_config
+from egregora.database.elo_store import EloStore
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration import write_pipeline
 
@@ -335,6 +335,7 @@ def top(
     Examples:
         egregora top my-blog/
         egregora top my-blog/ --limit 20
+
     """
     from rich.table import Table
 
@@ -420,6 +421,7 @@ def show_reader_history(
         egregora show reader-history my-blog/
         egregora show reader-history my-blog/ --post my-post-slug
         egregora show reader-history my-blog/ --limit 50
+
     """
     from rich.table import Table
 

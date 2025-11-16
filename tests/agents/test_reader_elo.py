@@ -1,7 +1,5 @@
 """Tests for reader agent ELO rating calculations."""
 
-import pytest
-
 from egregora.agents.reader.elo import (
     DEFAULT_ELO,
     K_FACTOR,
