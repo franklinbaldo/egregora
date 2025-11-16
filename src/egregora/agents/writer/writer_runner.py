@@ -29,7 +29,6 @@ from egregora.agents.writer.context_builder import _load_profiles_context, build
 from egregora.agents.writer.formatting import _build_conversation_markdown, _load_journal_memory
 from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig, create_default_config
-from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext
 from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.mkdocs import LegacyMkDocsUrlConvention, MkDocsAdapter
@@ -65,20 +64,6 @@ class WriterConfig:
 
 
 MAX_CONVERSATION_TURNS = 10
-
-
-@dataclass
-class DocumentIndexPlan:
-    """Container for pending RAG indexing work."""
-
-    to_index: object  # pandas.DataFrame but kept generic to avoid optional import
-    store: VectorStore
-    total_documents: int
-
-    @property
-    def skipped_count(self) -> int:
-        """Number of documents skipped because they were already indexed."""
-        return self.total_documents - len(self.to_index)
 
 
 @dataclass
@@ -130,185 +115,65 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     """Get top N active authors by message count.
 
     Args:
-        table: Table with 'author' column
+        table: Table with IR schema (uses 'author_uuid' column)
         limit: Max number of authors (default 20)
 
     Returns:
         List of author UUIDs (most active first)
 
     """
+    # IR v1: use 'author_uuid' instead of 'author'
     author_counts = (
-        table.filter(~table.author.isin(["system", "egregora"]))
-        .filter(table.author.notnull())
-        .filter(table.author != "")
-        .group_by("author")
+        table.filter(~table.author_uuid.cast("string").isin(["system", "egregora"]))
+        .filter(table.author_uuid.notnull())
+        .filter(table.author_uuid.cast("string") != "")
+        .group_by("author_uuid")
         .aggregate(count=ibis._.count())
         .order_by(ibis.desc("count"))
         .limit(limit)
     )
     if author_counts.count().execute() == 0:
         return []
-    return author_counts.author.execute().tolist()
+    return author_counts.author_uuid.cast("string").execute().tolist()
 
 
-def _load_document_from_path(path: Path) -> Document | None:
-    """Load a Document from a filesystem path.
-
-    Helper for backward compatibility during migration to Document abstraction.
-    Infers document type from path and parses frontmatter if present.
-
-    Args:
-        path: Filesystem path to document
+def _fetch_format_documents(output_format: OutputAdapter) -> tuple[list, int] | tuple[None, int]:
+    """Return all documents known to the output adapter and their count.
 
     Returns:
-        Document object, or None if loading fails
+        (list[Document], count) if documents exist, (None, 0) otherwise
 
     """
-    try:
-        content = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as e:
-        logger.warning("Failed to read document at %s: %s", path, e)
-        return None
-
-    # Parse YAML frontmatter if present
-    metadata: dict[str, object] = {}
-    body = content
-
-    if content.startswith("---\n"):
-        try:
-            import yaml
-
-            end_marker = content.find("\n---\n", 4)
-            if end_marker != -1:
-                frontmatter_text = content[4:end_marker]
-                body = content[end_marker + 5 :].lstrip()
-
-                metadata = yaml.safe_load(frontmatter_text) or {}
-                if not isinstance(metadata, dict):
-                    logger.warning("Frontmatter is not a dict at %s", path)
-                    metadata = {}
-        except Exception as e:
-            logger.warning("Failed to parse frontmatter at %s: %s", path, e)
-
-    # Infer document type from path
-    path_str = str(path)
-    if "/posts/" in path_str and "/journal/" not in path_str:
-        doc_type = DocumentType.POST
-    elif "/journal/" in path_str:
-        doc_type = DocumentType.JOURNAL
-    elif "/profiles/" in path_str:
-        doc_type = DocumentType.PROFILE
-    elif "/urls/" in path_str:
-        doc_type = DocumentType.ENRICHMENT_URL
-    elif path_str.endswith(".md") and "/media/" in path_str:
-        doc_type = DocumentType.ENRICHMENT_MEDIA
-    else:
-        doc_type = DocumentType.MEDIA
-
-    return Document(
-        content=body,
-        type=doc_type,
-        metadata=metadata,
-    )
-
-
-def _fetch_format_documents(output_format: OutputAdapter) -> tuple[ibis.Table, int] | tuple[None, int]:
-    """Return all documents known to the output adapter and their count."""
     format_documents = output_format.list_documents()
-    doc_count = format_documents.count().execute()
 
+    # RAG works with Documents directly, not paths
+    if isinstance(format_documents, list):
+        doc_count = len(format_documents)
+        if doc_count == 0:
+            logger.debug("No documents found by output format")
+            return None, 0
+        logger.debug("OutputAdapter reported %d documents", doc_count)
+        return format_documents, doc_count
+    # Legacy: convert Table to list of dicts
+    doc_count = format_documents.count().execute()
     if doc_count == 0:
         logger.debug("No documents found by output format")
         return None, 0
-
     logger.debug("OutputAdapter reported %d documents", doc_count)
-    return format_documents, doc_count
+    return format_documents.execute().to_dict("records"), doc_count
 
 
-def _resolve_document_paths(format_documents: ibis.Table, output_format: OutputAdapter) -> ibis.Table | None:
-    """Attach resolved filesystem paths to the adapter document listing."""
-
-    def resolve_identifier(identifier: str) -> str:
-        try:
-            return str(output_format.resolve_document_path(identifier))
-        except (ValueError, RuntimeError, OSError) as e:
-            logger.warning("Failed to resolve identifier %s: %s", identifier, e)
-            return ""
-
-    docs_df = format_documents.execute()
-    docs_df["source_path"] = docs_df["storage_identifier"].apply(resolve_identifier)
-    docs_df = docs_df[docs_df["source_path"] != ""]
-
-    if docs_df.empty:
-        logger.warning("All document identifiers failed to resolve to paths")
-        return None
-
-    return ibis.memtable(docs_df)
-
-
-def _detect_changed_documents(
-    docs_table: ibis.Table, rag_dir: Path, *, total_documents: int
-) -> DocumentIndexPlan:
-    """Identify documents that must be indexed or re-indexed."""
-    store = VectorStore(rag_dir / "chunks.parquet")
-    indexed_table = store.get_indexed_sources_table()
-    indexed_count_val = indexed_table.count().execute()
-    logger.debug("Found %d already indexed sources in RAG", indexed_count_val)
-
-    indexed_renamed = indexed_table.select(
-        indexed_path=indexed_table.source_path, indexed_mtime=indexed_table.source_mtime_ns
-    )
-
-    joined = docs_table.left_join(indexed_renamed, docs_table.source_path == indexed_renamed.indexed_path)
-
-    new_or_changed = joined.filter(
-        (joined.indexed_mtime.isnull()) | (joined.mtime_ns != joined.indexed_mtime)
-    ).select(
-        storage_identifier=joined.storage_identifier,
-        source_path=joined.source_path,
-        mtime_ns=joined.mtime_ns,
-    )
-
-    to_index = new_or_changed.execute()
-    return DocumentIndexPlan(to_index=to_index, store=store, total_documents=total_documents)
-
-
-def _index_documents(plan: DocumentIndexPlan, *, embedding_model: str) -> int:
-    """Index the provided documents using the supplied vector store."""
-    indexed_count = 0
-    for row in plan.to_index.itertuples():
-        try:
-            document_path = Path(row.source_path)
-            doc = _load_document_from_path(document_path)
-            if doc is None:
-                logger.warning("Failed to load document %s, skipping", row.storage_identifier)
-                continue
-
-            index_document(
-                doc,
-                plan.store,
-                embedding_model=embedding_model,
-                source_path=str(document_path),
-                source_mtime_ns=row.mtime_ns,
-            )
-            indexed_count += 1
-            logger.debug("Indexed document: %s", row.storage_identifier)
-        except Exception as e:  # noqa: BLE001 - logging and continuing is intentional
-            logger.warning("Failed to index document %s: %s", row.storage_identifier, e)
-            continue
-
-    if indexed_count > 0:
-        logger.info("Indexed %d new/changed documents in RAG (incremental)", indexed_count)
-
-    return indexed_count
+# Removed legacy path-based helper functions:
+# - _detect_changed_documents() - used Ibis joins to find changed files
+# - _index_documents() - loaded documents from paths
+# Now using Document objects directly from OutputAdapter
 
 
 def index_documents_for_rag(output_format: OutputAdapter, rag_dir: Path, *, embedding_model: str) -> int:
-    """Index new/changed documents using incremental indexing via OutputAdapter.
+    """Index documents directly from OutputAdapter into RAG vector store.
 
-    Uses OutputAdapter.list_documents() to get storage identifiers and mtimes,
-    then compares with RAG metadata using Ibis joins to identify new/changed files.
-    No filesystem assumptions - works with any storage backend.
+    MODERN: Works with Document objects directly (no filesystem paths needed).
+    OutputAdapter provides Documents with content already loaded.
 
     This should be called once at pipeline initialization before window processing.
 
@@ -318,44 +183,55 @@ def index_documents_for_rag(output_format: OutputAdapter, rag_dir: Path, *, embe
         embedding_model: Model to use for embeddings
 
     Returns:
-        Number of NEW documents indexed (not total indexed documents)
-
-    Algorithm:
-        1. Get all documents from OutputAdapter as Ibis table (storage_identifier, mtime_ns)
-        2. Resolve identifiers to absolute paths (add source_path column)
-        3. Get indexed sources from RAG as Ibis table (source_path, source_mtime_ns)
-        4. Delta detection using Ibis left join: find new/changed documents
-        5. Materialize result and index those documents
-
-    Note:
-        - Uses Ibis joins for efficient delta detection (no loops, no dicts)
-        - No filesystem assumptions (uses OutputAdapter abstraction)
-        - Skips files already indexed with same mtime (idempotent)
-        - Safe to run multiple times - will only index new/changed files
+        Number of documents indexed
 
     """
     try:
         format_documents, doc_count = _fetch_format_documents(output_format)
         if format_documents is None:
+            logger.debug("No documents found to index")
             return 0
 
-        docs_table = _resolve_document_paths(format_documents, output_format)
-        if docs_table is None:
-            return 0
+        # Initialize vector store
+        store = VectorStore(rag_dir / "chunks.parquet")
 
-        plan = _detect_changed_documents(docs_table, rag_dir, total_documents=doc_count)
+        # Get already-indexed document IDs for deduplication
+        indexed_ids = set()
+        try:
+            indexed_table = store.get_indexed_sources_table()
+            if indexed_table.count().execute() > 0:
+                # Assuming source_path contains document_id for Document-based indexing
+                indexed_ids = set(indexed_table.source_path.execute().tolist())
+        except Exception as e:
+            logger.debug("No existing index found (first run): %s", e)
 
-        if plan.to_index.empty:
-            logger.debug("All documents already indexed with current mtime - no work needed")
-            return 0
+        # Index only new documents (not already indexed)
+        indexed_count = 0
+        for doc in format_documents:
+            if doc.document_id in indexed_ids:
+                logger.debug("Skipping already-indexed document: %s", doc.document_id)
+                continue
 
-        logger.info(
-            "Incremental indexing: %d new/changed documents (skipped %d unchanged)",
-            len(plan.to_index),
-            plan.skipped_count,
-        )
+            try:
+                index_document(
+                    doc,
+                    store,
+                    embedding_model=embedding_model,
+                    source_path=doc.document_id,  # Use document_id as identifier
+                    source_mtime_ns=int(doc.created_at.timestamp() * 1_000_000_000),
+                )
+                indexed_count += 1
+                logger.debug("Indexed document: %s", doc.document_id)
+            except Exception as e:  # noqa: BLE001 - logging and continuing is intentional
+                logger.warning("Failed to index document %s: %s", doc.document_id, e)
+                continue
 
-        return _index_documents(plan, embedding_model=embedding_model)
+        if indexed_count > 0:
+            logger.info("Indexed %d new documents in RAG (total: %d)", indexed_count, doc_count)
+        else:
+            logger.debug("All %d documents already indexed", doc_count)
+
+        return indexed_count
 
     except PromptTooLargeError:
         raise
@@ -407,7 +283,8 @@ def _build_writer_environment(
     url_context = UrlContext(base_url="", site_prefix="", base_path=storage_root)
 
     if format_type == "mkdocs":
-        runtime_output_format = MkDocsAdapter(site_root=storage_root, url_context=url_context)
+        runtime_output_format = MkDocsAdapter()
+        runtime_output_format.initialize(site_root=storage_root, url_context=url_context)
         url_convention = runtime_output_format.url_convention
     else:
         runtime_output_format = output_format

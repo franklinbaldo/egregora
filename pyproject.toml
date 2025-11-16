@@ -206,7 +206,6 @@ module = [
     "rich.panel",
     "pydantic",
     "pydantic.fields",
-    "pandas",
     "slugify",
     "returns",
     "returns.result",

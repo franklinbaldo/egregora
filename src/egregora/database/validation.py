@@ -54,7 +54,6 @@ import ibis
 import ibis.expr.datatypes as dt
 from pydantic import BaseModel, Field, ValidationError
 
-from egregora.database.ir_schema import ensure_message_schema
 from egregora.privacy.uuid_namespaces import (
     deterministic_author_uuid,
     deterministic_event_uuid,
@@ -84,18 +83,19 @@ class SchemaError(Exception):
 IR_MESSAGE_SCHEMA = ibis.schema(
     {
         # Identity
-        "event_id": dt.uuid,
+        # NOTE: UUID columns stored as dt.string in Ibis, DuckDB schema handles conversion to UUID type
+        "event_id": dt.string,
         # Multi-Tenant
         "tenant_id": dt.string,
         "source": dt.string,
         # Threading
-        "thread_id": dt.uuid,
+        "thread_id": dt.string,
         "msg_id": dt.string,
         # Temporal
         "ts": dt.Timestamp(timezone="UTC"),
         # Authors (PRIVACY BOUNDARY)
         "author_raw": dt.string,
-        "author_uuid": dt.uuid,
+        "author_uuid": dt.string,
         # Content
         "text": dt.String(nullable=True),
         "media_url": dt.String(nullable=True),
@@ -105,7 +105,7 @@ IR_MESSAGE_SCHEMA = ibis.schema(
         "pii_flags": dt.JSON(nullable=True),
         # Lineage
         "created_at": dt.Timestamp(timezone="UTC"),
-        "created_by_run": dt.uuid,
+        "created_by_run": dt.string,
     }
 )
 
@@ -525,26 +525,36 @@ def create_ir_table(
         msg = "source is required when constructing IR table"
         raise ValueError(msg)
 
-    normalized = ensure_message_schema(table, timezone=timezone)
-    if "message_id" not in normalized.columns:
-        normalized = normalized.mutate(message_id=ibis.row_number().cast(dt.string))
+    # CLEAN BREAK: Adapters MUST return IR-like schema (ts, text, author_raw, author_uuid)
+    # No legacy CONVERSATION schema support - fix adapters instead
+
+    # Verify adapter returned IR schema
+    required_cols = {"ts", "text", "author_raw", "author_uuid"}
+    missing = required_cols - set(table.columns)
+    if missing:
+        msg = f"Adapter must return IR schema. Missing columns: {missing}"
+        raise ValueError(msg)
+
+    # No normalization - use IR column names directly
+    if "message_id" not in table.columns:
+        table = table.mutate(message_id=ibis.row_number().cast(dt.string))
 
     namespace_override = author_namespace
 
     @ibis.udf.scalar.python
-    def author_uuid_udf(author: str | None) -> str:
-        if author is None or not author.strip():
-            msg = "author column cannot be empty when generating author_uuid"
+    def author_uuid_udf(author_raw: str | None) -> str:
+        if author_raw is None or not author_raw.strip():
+            msg = "author_raw column cannot be empty when generating author_uuid"
             raise ValueError(msg)
         if namespace_override is not None:
-            normalized_author = author.strip().lower()
+            normalized_author = author_raw.strip().lower()
             return str(uuid.uuid5(namespace_override, normalized_author))
-        return str(deterministic_author_uuid(tenant_id, source, author))
+        return str(deterministic_author_uuid(tenant_id, source, author_raw))
 
     @ibis.udf.scalar.python
     def event_uuid_udf(message_id: str | None, ts_value: datetime) -> str:
         if ts_value is None:
-            msg = "timestamp is required to generate event_id"
+            msg = "ts is required to generate event_id"
             raise ValueError(msg)
         key = message_id or ts_value.isoformat()
         return str(deterministic_event_uuid(tenant_id, source, key, ts_value))
@@ -569,29 +579,33 @@ def create_ir_table(
 
     created_at_literal = ibis.literal(datetime.now(UTC), type=dt.Timestamp(timezone="UTC"))
     if run_id is not None:
-        created_by_run_literal = ibis.literal(run_id, type=dt.uuid)
+        # Convert Python UUID to string - DuckDB handles str→UUID conversion
+        created_by_run_literal = ibis.literal(str(run_id), type=dt.string)
     else:
-        created_by_run_literal = ibis.null().cast(dt.uuid)
+        created_by_run_literal = ibis.null().cast(dt.string)
 
-    ir_table = normalized.mutate(
+    # CLEAN BREAK: Use IR column names directly (ts, text, author_raw, author_uuid)
+    # NOTE: UDF functions already return str, matching the VARCHAR-based IR schema.
+    ir_table = table.mutate(
         event_id=event_uuid_udf(
-            normalized["message_id"].cast(dt.string),
-            normalized["timestamp"].cast(dt.Timestamp()),
-        ).cast(dt.uuid),
+            table.message_id.cast(dt.string),
+            table.ts.cast(dt.Timestamp()),
+        ),
         tenant_id=ibis.literal(tenant_id, type=dt.string),
         source=ibis.literal(source, type=dt.string),
-        thread_id=ibis.literal(thread_uuid, type=dt.uuid),
-        msg_id=normalized["message_id"].cast(dt.string),
-        ts=normalized["timestamp"].cast(dt.Timestamp(timezone="UTC")),
-        author_raw=normalized["author"],
-        author_uuid=author_uuid_udf(normalized["author"]).cast(dt.uuid),
-        text=normalized["message"],
+        # thread_uuid is Python UUID → convert to string for DuckDB
+        thread_id=ibis.literal(str(thread_uuid), type=dt.string),
+        msg_id=table.message_id.cast(dt.string),
+        ts=table.ts.cast(dt.Timestamp(timezone="UTC")),
+        author_raw=table.author_raw,
+        author_uuid=author_uuid_udf(table.author_raw),
+        text=table.text,
         media_url=ibis.null().cast(dt.String(nullable=True)),
         media_type=ibis.null().cast(dt.String(nullable=True)),
         attrs=attrs_udf(
-            normalized["original_line"],
-            normalized["tagged_line"],
-            normalized["date"],
+            table.original_line if "original_line" in table.columns else ibis.null(),
+            table.tagged_line if "tagged_line" in table.columns else ibis.null(),
+            table.date if "date" in table.columns else ibis.null(),
         ).cast(dt.JSON(nullable=True)),
         pii_flags=ibis.null().cast(dt.JSON(nullable=True)),
         created_at=ibis.literal(datetime.now(UTC), type=dt.Timestamp(timezone="UTC")),

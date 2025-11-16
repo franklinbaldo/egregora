@@ -7,7 +7,7 @@
   "note": "When using ibis.schema(), all dtypes default to nullable=True",
   "columns": {
     "event_id": {
-      "type": "UUID",
+      "type": "String",
       "nullable": true,
       "description": "Unique event identifier"
     },
@@ -22,7 +22,7 @@
       "description": "Source adapter name (e.g., 'whatsapp', 'slack')"
     },
     "thread_id": {
-      "type": "UUID",
+      "type": "String",
       "nullable": true,
       "description": "Conversation thread identifier"
     },
@@ -43,7 +43,7 @@
       "description": "Original author name (PRIVACY BOUNDARY - anonymized before LLM)"
     },
     "author_uuid": {
-      "type": "UUID",
+      "type": "String",
       "nullable": true,
       "description": "Deterministic UUID mapping for privacy"
     },
@@ -79,7 +79,7 @@
       "description": "Pipeline processing timestamp"
     },
     "created_by_run": {
-      "type": "UUID",
+      "type": "String",
       "nullable": true,
       "description": "Pipeline run ID for lineage tracking"
     }
