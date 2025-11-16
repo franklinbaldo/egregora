@@ -19,12 +19,12 @@ import pytest
 
 from egregora.database.tracking import (
     RunContext,
-    fingerprint_table,
     get_git_commit_sha,
     record_lineage,
     record_run,
     run_stage_with_tracking,
 )
+from egregora.utils.fingerprinting import fingerprint_table
 
 
 @pytest.fixture
@@ -343,6 +343,19 @@ def test_fingerprint_table_different_data():
     fp2 = fingerprint_table(table2)
 
     assert fp1 != fp2
+
+
+def test_fingerprint_table_row_order_insensitive():
+    """Row ordering differences should not affect the fingerprint."""
+    rows = [
+        {"author": "Alice", "message": "Hello world", "ts": "2025-01-01"},
+        {"author": "Bob", "message": "Hi Alice", "ts": "2025-01-02"},
+        {"author": "Alice", "message": "How are you?", "ts": "2025-01-03"},
+    ]
+    table1 = ibis.memtable(rows)
+    table2 = ibis.memtable(list(reversed(rows)))
+
+    assert fingerprint_table(table1) == fingerprint_table(table2)
 
 
 # ==============================================================================

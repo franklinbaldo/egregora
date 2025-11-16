@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from egregora.cli import app
+from egregora.cli.main import app
 
 # Create a CLI runner for testing
 runner = CliRunner()

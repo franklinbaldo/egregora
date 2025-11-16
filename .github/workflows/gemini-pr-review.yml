@@ -30,7 +30,7 @@ jobs:
             # For comment events, get PR details from API
             PR_DATA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
                            -H "Accept: application/vnd.github.v3+json" \
-                           "${{ github.event.issue.pull_request.url }}")
+                           "${{ github.event.issue.pull_request.url || '' }}")
             PR_HEAD_REPO=$(echo "$PR_DATA" | jq -r '.head.repo.full_name // "null"')
             PR_BASE_REPO=$(echo "$PR_DATA" | jq -r '.base.repo.full_name')
           else
@@ -102,12 +102,12 @@ jobs:
         if: steps.api_key_check.outputs.skip_review != 'true'
         id: extract
         env:
-          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_BODY: ${{ github.event.comment.body || '' }}
           EVENT_NAME: ${{ github.event_name }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_URL: ${{ github.event.issue.pull_request.url }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || '' }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+          PR_URL: ${{ github.event.pull_request.url || github.event.issue.pull_request.url }}
         run: |
           if [ "$EVENT_NAME" = "issue_comment" ]; then
             # Extract everything after @gemini safely using Python
@@ -195,9 +195,9 @@ PYTHON_EOF
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "${{ github.event_name }}" = "issue_comment" ]; then
-            PR_URL="${{ github.event.issue.pull_request.url }}"
+            PR_URL="${{ github.event.issue.pull_request.url || '' }}"
           else
-            PR_URL="${{ github.event.pull_request.url }}"
+            PR_URL="${{ github.event.pull_request.url || '' }}"
           fi
           curl -H "Authorization: token $GITHUB_TOKEN" \
                -H "Accept: application/vnd.github.v3.patch" \
@@ -211,9 +211,9 @@ PYTHON_EOF
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "${{ github.event_name }}" = "issue_comment" ]; then
-            PR_COMMENTS_URL="${{ github.event.issue.comments_url }}"
+            PR_COMMENTS_URL="${{ github.event.issue.comments_url || '' }}"
           else
-            PR_COMMENTS_URL="${{ github.event.pull_request.comments_url }}"
+            PR_COMMENTS_URL="${{ github.event.pull_request.comments_url || '' }}"
           fi
           curl -H "Authorization: token $GITHUB_TOKEN" \
                -H "Accept: application/vnd.github.v3+json" \

@@ -23,7 +23,9 @@ if TYPE_CHECKING:
 
     from ibis.expr.types import Table
 
-    from egregora.storage import EnrichmentStorage, JournalStorage, PostStorage, ProfileStorage
+    # Note: The storage classes below were consolidated into MkDocsAdapter in PR #750
+    # This template needs to be updated to use the new architecture
+    # from egregora.output_adapters.mkdocs import MkDocsAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -68,10 +70,12 @@ class HugoOutputAdapter(OutputAdapter):
     def __init__(self) -> None:
         """Initialize HugoOutputAdapter with uninitialized storage."""
         self._site_root: Path | None = None
-        self._posts_impl: PostStorage | None = None
-        self._profiles_impl: ProfileStorage | None = None
-        self._journals_impl: JournalStorage | None = None
-        self._enrichments_impl: EnrichmentStorage | None = None
+        # Note: These storage classes were consolidated into MkDocsAdapter in PR #750
+        # This template needs to be updated to use the new architecture
+        self._posts_impl: Any = None
+        self._profiles_impl: Any = None
+        self._journals_impl: Any = None
+        self._enrichments_impl: Any = None
 
     @property
     def format_type(self) -> str:
@@ -93,25 +97,18 @@ class HugoOutputAdapter(OutputAdapter):
             RuntimeError: If storage initialization fails
 
         """
-        from egregora.output_adapters.mkdocs_storage import (
-            MkDocsEnrichmentStorage,
-            MkDocsJournalStorage,
-            MkDocsPostStorage,
-            MkDocsProfileStorage,
+        # TODO: Update this template to use MkDocsAdapter instead of deleted storage classes
+        # The storage classes (MkDocsPostStorage, etc.) were consolidated into
+        # MkDocsAdapter in PR #750. This template needs architectural updates.
+        raise NotImplementedError(
+            "Hugo adapter is a template/example and needs to be updated to use "
+            "the new MkDocsAdapter architecture after PR #750 refactoring"
         )
-
-        self._site_root = site_root
-
-        # Create storage implementations (using MkDocs as placeholder)
-        self._posts_impl = MkDocsPostStorage(site_root, output_format=self)
-        self._profiles_impl = MkDocsProfileStorage(site_root)
-        self._journals_impl = MkDocsJournalStorage(site_root)
-        self._enrichments_impl = MkDocsEnrichmentStorage(site_root)
 
         logger.debug("Initialized Hugo storage for %s", site_root)
 
     @property
-    def posts(self) -> PostStorage:
+    def posts(self) -> Any:
         """Get Hugo post storage implementation.
 
         Returns:
@@ -127,7 +124,7 @@ class HugoOutputAdapter(OutputAdapter):
         return self._posts_impl
 
     @property
-    def profiles(self) -> ProfileStorage:
+    def profiles(self) -> Any:
         """Get Hugo profile storage implementation.
 
         Returns:
@@ -143,7 +140,7 @@ class HugoOutputAdapter(OutputAdapter):
         return self._profiles_impl
 
     @property
-    def journals(self) -> JournalStorage:
+    def journals(self) -> Any:
         """Get Hugo journal storage implementation.
 
         Returns:
@@ -159,7 +156,7 @@ class HugoOutputAdapter(OutputAdapter):
         return self._journals_impl
 
     @property
-    def enrichments(self) -> EnrichmentStorage:
+    def enrichments(self) -> Any:
         """Get Hugo enrichment storage implementation.
 
         Returns:

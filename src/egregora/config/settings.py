@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -176,6 +176,9 @@ class EnrichmentSettings(BaseModel):
     )
 
 
+from egregora.constants import WindowUnit
+
+
 class PipelineSettings(BaseModel):
     """Pipeline execution settings."""
 
@@ -184,8 +187,8 @@ class PipelineSettings(BaseModel):
         ge=1,
         description="Size of each processing window (number of messages, hours, days, etc.)",
     )
-    step_unit: Literal["messages", "hours", "days", "bytes"] = Field(
-        default="days",
+    step_unit: WindowUnit = Field(
+        default=WindowUnit.DAYS,
         description="Unit for windowing: 'messages' (count), 'hours'/'days' (time), 'bytes' (max packing)",
     )
     overlap_ratio: float = Field(
@@ -281,7 +284,7 @@ class OutputSettings(BaseModel):
     Specifies which output format to use for generated content.
     """
 
-    format: Literal["mkdocs", "hugo"] = Field(
+    format: Literal["mkdocs", "hugo", "eleventy-arrow"] = Field(
         default="mkdocs",
         description="Output format: 'mkdocs' (default), 'hugo', or future formats (database, s3)",
     )
@@ -460,14 +463,21 @@ def load_egregora_config(site_root: Path) -> EgregoraConfig:
     logger.info("Loading config from %s", config_path)
 
     try:
-        data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        raw_config = config_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        logger.error("Failed to read config from %s: %s", config_path, exc)
+        raise
+
+    try:
+        data = yaml.safe_load(raw_config) or {}
+    except yaml.YAMLError as exc:
+        logger.error("Failed to parse YAML in %s: %s", config_path, exc)
+        raise
+
+    try:
         return EgregoraConfig(**data)
-    except yaml.YAMLError:
-        logger.exception("Failed to parse %s", config_path)
-        logger.warning("Creating default config due to YAML error")
-        return create_default_config(site_root)
-    except Exception:
-        logger.exception("Invalid config in %s", config_path)
+    except ValidationError as exc:
+        logger.error("Validation failed for %s: %s", config_path, exc)
         logger.warning("Creating default config due to validation error")
         return create_default_config(site_root)
 
@@ -507,7 +517,7 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
     config_path = egregora_dir / "config.yml"
 
     # Export as dict
-    data = config.model_dump(exclude_defaults=False, mode="python")
+    data = config.model_dump(exclude_defaults=False, mode="json")
 
     # Write with nice formatting
     yaml_str = yaml.dump(
@@ -530,6 +540,9 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
 # They replace parameter soup (12-16 params → 3-6 params).
 
 
+from egregora.constants import WindowUnit
+
+
 @dataclass
 class ProcessConfig:
     """Configuration for chat export processing (source-agnostic).
@@ -537,10 +550,10 @@ class ProcessConfig:
     Replaces long parameter lists (15+ params) with structured config object.
     """
 
-    input_file: Annotated[Path, "Path to the chat export file (ZIP, JSON, etc.)"]
     output_dir: Annotated[Path, "Directory for the generated site"]
+    input_file: Annotated[Path | None, "Path to the chat export file (ZIP, JSON, etc.)"] = None
     step_size: Annotated[int, "Size of each processing window"] = 1
-    step_unit: Annotated[str, "Unit for windowing: 'messages', 'hours', 'days'"] = "days"
+    step_unit: Annotated[WindowUnit, "Unit for windowing strategy"] = WindowUnit.DAYS
     overlap_ratio: Annotated[float, "Fraction of window to overlap (0.0-0.5)"] = 0.2
     max_window_time: Annotated[timedelta | None, "Optional maximum time span per window"] = None
     enable_enrichment: Annotated[bool, "Enable LLM enrichment for URLs/media"] = True

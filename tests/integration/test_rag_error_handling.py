@@ -53,10 +53,10 @@ class TestRagContext:
 class TestRagErrorHandling:
     """Tests for RAG error handling."""
 
-    @patch("egregora.agents.writer.context.VectorStore")
-    @patch("egregora.agents.writer.context.query_similar_posts")
+    @patch("egregora.agents.writer.context_builder.VectorStore")
+    @patch("egregora.agents.writer.context_builder.consolidate_messages_to_markdown")
     def test_rag_error_returns_failure_result(
-        self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
+        self, mock_consolidate, mock_store, mock_table, mock_batch_client, test_rag_dir
     ):
         """Test that RAG errors return Failure result."""
         # Simulate VectorStore raising an exception
@@ -73,16 +73,25 @@ class TestRagErrorHandling:
         failure_reason = result.failure()
         assert failure_reason == RagErrorReason.SYSTEM_ERROR
 
-    @patch("egregora.agents.writer.context.VectorStore")
-    @patch("egregora.agents.writer.context.query_similar_posts")
+    @patch("egregora.agents.writer.context_builder.VectorStore")
+    @patch("egregora.agents.writer.context_builder.consolidate_messages_to_markdown")
+    @patch("egregora.agents.writer.context_builder.chunk_markdown")
+    @patch("egregora.agents.writer.context_builder.query_rag_per_chunk")
     def test_no_hits_returns_failure_result(
-        self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
+        self,
+        mock_query_chunks,
+        mock_chunk,
+        mock_consolidate,
+        mock_store,
+        mock_table,
+        mock_batch_client,
+        test_rag_dir,
     ):
         """Test that no hits return Failure result."""
-        # Mock empty result
-        mock_result = Mock()
-        mock_result.count.return_value.execute.return_value = 0
-        mock_query.return_value = mock_result
+        # Mock consolidation and empty chunk query results
+        mock_consolidate.return_value = "Test conversation"
+        mock_chunk.return_value = ["chunk1"]
+        mock_query_chunks.return_value = []  # Empty results
 
         result = _query_rag_for_context(
             mock_table,
@@ -95,18 +104,28 @@ class TestRagErrorHandling:
         failure_reason = result.failure()
         assert failure_reason == RagErrorReason.NO_HITS
 
-    @patch("egregora.agents.writer.context.VectorStore")
-    @patch("egregora.agents.writer.context.query_similar_posts")
+    @patch("egregora.agents.writer.context_builder.VectorStore")
+    @patch("egregora.agents.writer.context_builder.consolidate_messages_to_markdown")
+    @patch("egregora.agents.writer.context_builder.chunk_markdown")
+    @patch("egregora.agents.writer.context_builder.query_rag_per_chunk")
     def test_successful_query_returns_success_result(
-        self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
+        self,
+        mock_query_chunks,
+        mock_chunk,
+        mock_consolidate,
+        mock_store,
+        mock_table,
+        mock_batch_client,
+        test_rag_dir,
     ):
         """Test that successful queries return Success result."""
-        # Mock successful result
-        mock_result = Mock()
-        mock_result.count.return_value.execute.return_value = 2
+        # Mock the full chunked pipeline
+        mock_consolidate.return_value = "Test conversation"
+        mock_chunk.return_value = ["chunk1"]
 
         mock_records = [
             {
+                "document_id": "post-1",
                 "post_title": "Test Post 1",
                 "post_date": "2025-01-01",
                 "content": "Test content 1",
@@ -114,6 +133,7 @@ class TestRagErrorHandling:
                 "similarity": 0.95,
             },
             {
+                "document_id": "post-2",
                 "post_title": "Test Post 2",
                 "post_date": "2025-01-02",
                 "content": "Test content 2",
@@ -121,8 +141,7 @@ class TestRagErrorHandling:
                 "similarity": 0.87,
             },
         ]
-        mock_result.execute.return_value.to_dict.return_value = mock_records
-        mock_query.return_value = mock_result
+        mock_query_chunks.return_value = mock_records
 
         result = _query_rag_for_context(
             mock_table,
@@ -139,18 +158,28 @@ class TestRagErrorHandling:
         assert "Test Post 2" in context.text
         assert len(context.records) == 2
 
-    @patch("egregora.agents.writer.context.VectorStore")
-    @patch("egregora.agents.writer.context.query_similar_posts")
+    @patch("egregora.agents.writer.context_builder.VectorStore")
+    @patch("egregora.agents.writer.context_builder.consolidate_messages_to_markdown")
+    @patch("egregora.agents.writer.context_builder.chunk_markdown")
+    @patch("egregora.agents.writer.context_builder.query_rag_per_chunk")
     def test_return_records_backward_compatibility(
-        self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
+        self,
+        mock_query_chunks,
+        mock_chunk,
+        mock_consolidate,
+        mock_store,
+        mock_table,
+        mock_batch_client,
+        test_rag_dir,
     ):
         """Test that return_records=True maintains backward compatibility."""
-        # Mock successful result
-        mock_result = Mock()
-        mock_result.count.return_value.execute.return_value = 1
+        # Mock the full chunked pipeline
+        mock_consolidate.return_value = "Test conversation"
+        mock_chunk.return_value = ["chunk1"]
 
         mock_records = [
             {
+                "document_id": "post-1",
                 "post_title": "Test Post",
                 "post_date": "2025-01-01",
                 "content": "Test content",
@@ -158,8 +187,7 @@ class TestRagErrorHandling:
                 "similarity": 0.95,
             }
         ]
-        mock_result.execute.return_value.to_dict.return_value = mock_records
-        mock_query.return_value = mock_result
+        mock_query_chunks.return_value = mock_records
 
         result = _query_rag_for_context(
             mock_table,
@@ -177,10 +205,10 @@ class TestRagErrorHandling:
         assert isinstance(records, list)
         assert "Test Post" in text
 
-    @patch("egregora.agents.writer.context.VectorStore")
-    @patch("egregora.agents.writer.context.query_similar_posts")
+    @patch("egregora.agents.writer.context_builder.VectorStore")
+    @patch("egregora.agents.writer.context_builder.consolidate_messages_to_markdown")
     def test_return_records_error_case(
-        self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir
+        self, mock_consolidate, mock_store, mock_table, mock_batch_client, test_rag_dir
     ):
         """Test that return_records=True handles errors correctly."""
         # Simulate error
@@ -197,10 +225,10 @@ class TestRagErrorHandling:
         # Should return empty tuple for backward compatibility
         assert result == ("", [])
 
-    @patch("egregora.agents.writer.context.VectorStore")
-    @patch("egregora.agents.writer.context.query_similar_posts")
+    @patch("egregora.agents.writer.context_builder.VectorStore")
+    @patch("egregora.agents.writer.context_builder.consolidate_messages_to_markdown")
     def test_rag_error_logging(
-        self, mock_query, mock_store, mock_table, mock_batch_client, test_rag_dir, caplog
+        self, mock_consolidate, mock_store, mock_table, mock_batch_client, test_rag_dir, caplog
     ):
         """Test that RAG errors are logged with full traceback."""
         caplog.set_level(logging.ERROR)

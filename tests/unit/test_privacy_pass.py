@@ -12,19 +12,26 @@ Property tests validate:
 See: src/egregora/privacy/gate.py
 """
 
+import uuid
 from dataclasses import FrozenInstanceError
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import uuid4
 
+import ibis
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from egregora.database.validation import IR_MESSAGE_SCHEMA
 from egregora.privacy.config import PrivacySettings
 from egregora.privacy.gate import (
     PrivacyGate,
     PrivacyPass,
     require_privacy_pass,
+)
+from egregora.privacy.uuid_namespaces import (
+    NAMESPACE_AUTHOR,
+    deterministic_author_uuid,
 )
 
 # ============================================================================
@@ -74,6 +81,45 @@ def test_privacy_pass_repr():
     assert "acme-corp" in repr_str
     assert "550e8400" in repr_str  # First 8 chars of run_id
     assert "1.0.0" in repr_str
+
+
+# ============================================================================
+# Helpers
+# ============================================================================
+
+
+def _make_ir_table(
+    *,
+    tenant_id: str,
+    author: str,
+    source: str = "whatsapp",
+    author_namespace: uuid.UUID | None = None,
+) -> ibis.Table:
+    now = datetime.now(UTC)
+    if author_namespace is not None:
+        namespace = author_namespace
+        normalized_author = author.strip().lower()
+        author_uuid = str(uuid.uuid5(namespace, normalized_author))
+    else:
+        author_uuid = str(deterministic_author_uuid(tenant_id, source, author))
+    data = {
+        "event_id": [str(uuid4())],
+        "tenant_id": [tenant_id],
+        "source": [source],
+        "thread_id": [str(uuid4())],
+        "msg_id": ["msg-001"],
+        "ts": [now],
+        "author_raw": [author],
+        "author_uuid": [author_uuid],
+        "text": ["Hello world"],
+        "media_url": [None],
+        "media_type": [None],
+        "attrs": [None],
+        "pii_flags": [None],
+        "created_at": [now],
+        "created_by_run": [None],
+    }
+    return ibis.memtable(data, schema=IR_MESSAGE_SCHEMA)
 
 
 # ============================================================================
@@ -160,6 +206,7 @@ def test_privacy_config_defaults():
     assert config.allowed_media_domains == ()
     assert config.enable_reidentification_escrow is False
     assert config.reidentification_retention_days == 90
+    assert config.author_namespace == NAMESPACE_AUTHOR
 
 
 def test_privacy_config_with_custom_values():
@@ -170,6 +217,7 @@ def test_privacy_config_with_custom_values():
         allowed_media_domains=("acme.com", "cdn.example.com"),
         enable_reidentification_escrow=True,
         reidentification_retention_days=30,
+        author_namespace=uuid.uuid5(uuid.NAMESPACE_DNS, "acme-corp"),
     )
 
     assert config.tenant_id == "acme-corp"
@@ -177,6 +225,7 @@ def test_privacy_config_with_custom_values():
     assert config.allowed_media_domains == ("acme.com", "cdn.example.com")
     assert config.enable_reidentification_escrow is True
     assert config.reidentification_retention_days == 30
+    assert config.author_namespace == uuid.uuid5(uuid.NAMESPACE_DNS, "acme-corp")
 
 
 def test_privacy_config_reidentification_validation():
@@ -265,16 +314,7 @@ def test_decorator_enforcement_is_consistent(message: str):
 
 def test_privacy_gate_run_basic():
     """PrivacyGate.run() returns table + capability token."""
-    import ibis
-
-    # Create mock table with both author and author_raw
-    # (Current anonymizer expects 'author', new IR v1 uses 'author_raw')
-    table = ibis.memtable(
-        [
-            {"author": "Alice", "author_raw": "Alice", "message": "Hello world"},
-            {"author": "Bob", "author_raw": "Bob", "message": "Hi there"},
-        ]
-    )
+    table = _make_ir_table(tenant_id="default", author="Alice")
 
     config = PrivacySettings(tenant_id="default")
     run_id = str(uuid4())
@@ -288,29 +328,23 @@ def test_privacy_gate_run_basic():
     assert privacy_pass.run_id == run_id
     assert privacy_pass.tenant_id == "default"
 
-    # Check table is returned
-    assert anon_table is not None
-    # Current anonymizer modifies 'author', not 'author_raw'
-    # This will change when we update anonymizer.py
-    assert "message" in anon_table.columns
+    result = anon_table.execute()
+    assert "Alice" not in result["author_raw"].iloc[0]
 
 
 def test_privacy_gate_missing_required_columns():
     """PrivacyGate.run() fails if table missing required columns."""
-    import ibis
-    from ibis.common.exceptions import IbisTypeError
-
-    # Table missing 'author' column
-    table = ibis.memtable([{"message": "Hello"}])
+    table = ibis.memtable([{"text": "Hello"}])
 
     config = PrivacySettings(tenant_id="default")
     run_id = str(uuid4())
 
-    # Anonymizer expects 'author' column
-    with pytest.raises(IbisTypeError) as exc_info:
+    from egregora.database.validation import SchemaError
+
+    with pytest.raises(SchemaError) as exc_info:
         PrivacyGate.run(table, config, run_id)
 
-    assert "Column 'author' is not found in table" in str(exc_info.value)
+    assert "missing" in str(exc_info.value).lower()
 
 
 def test_privacy_pass_can_be_passed_through_pipeline():

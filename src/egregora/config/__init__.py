@@ -37,7 +37,7 @@ configuration objects (3-6 params). The pattern includes:
 config/
 ├── __init__.py          # This facade (re-exports everything)
 ├── schema.py            # CONSOLIDATED: All config code (Pydantic models, dataclasses, loading)
-├── validation.py        # CLI-specific validation utilities
+├── config_validation.py # CLI-specific validation utilities
 └── site.py              # MkDocs site paths (DEPRECATED, should move to output_adapters/)
 ```
 
@@ -84,9 +84,9 @@ from egregora.config.settings import (
 )
 
 # ==============================================================================
-# Site Paths & MkDocs Utilities (from output_adapters.mkdocs_site)
+# Site Paths & MkDocs Utilities (from output_adapters.mkdocs)
 # ==============================================================================
-# DEPRECATED: MkDocs-specific utilities moved to output_adapters.mkdocs_site module.
+# DEPRECATED: MkDocs-specific utilities moved to output_adapters.mkdocs package.
 # Re-exported here for backward compatibility only.
 #
 # Path resolution for MkDocs site structure (blog/, profiles/, media/, .egregora/).
@@ -99,24 +99,26 @@ from egregora.config.settings import (
 # - DEFAULT_BLOG_DIR, DEFAULT_DOCS_DIR: Default directory names
 # - MEDIA_DIR_NAME, PROFILES_DIR_NAME: Subdirectory names
 #
-# New code should import from egregora.output_adapters.mkdocs_site directly.
-from egregora.output_adapters.mkdocs_site import (
-    DEFAULT_BLOG_DIR,
-    DEFAULT_DOCS_DIR,
-    MEDIA_DIR_NAME,
-    PROFILES_DIR_NAME,
-    SitePaths,
-    find_mkdocs_file,
-    load_mkdocs_config,
-    resolve_site_paths,
-)
+# New code should import from egregora.output_adapters.mkdocs directly.
+#
+# TEMPORARILY DISABLED: These imports create a circular dependency:
+# config -> mkdocs.adapter -> agents.shared -> database -> utils -> config
+# Use direct imports from egregora.output_adapters.mkdocs instead.
+# from egregora.output_adapters.mkdocs import (
+#     DEFAULT_BLOG_DIR,
+#     DEFAULT_DOCS_DIR,
+#     MEDIA_DIR_NAME,
+#     PROFILES_DIR_NAME,
+#     SitePaths,
+#     find_mkdocs_file,
+#     load_mkdocs_config,
+#     resolve_site_paths,
+# )
 
 __all__ = [
-    "DEFAULT_BLOG_DIR",  # Default blog directory name
-    "DEFAULT_DOCS_DIR",  # Default docs directory name
     "EMBEDDING_DIM",  # Embedding vector dimensions
-    "MEDIA_DIR_NAME",  # Media subdirectory name
-    "PROFILES_DIR_NAME",  # Profiles subdirectory name
+    # Note: DEFAULT_BLOG_DIR, DEFAULT_DOCS_DIR, MEDIA_DIR_NAME, PROFILES_DIR_NAME
+    # moved to egregora.output_adapters.mkdocs to avoid circular imports
     # ==========================================================================
     # Core Pydantic V2 Config Models (PRIMARY - Phase 2 modernization)
     # ==========================================================================

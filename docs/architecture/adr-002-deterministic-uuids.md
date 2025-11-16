@@ -8,7 +8,7 @@
 
 Egregora needs to generate pseudonymous identities for authors while maintaining:
 1. **Determinism**: Re-ingesting the same data must produce identical UUIDs
-2. **Multi-tenancy**: Different tenants must get isolated identity namespaces
+2. **Multi-tenancy**: Different tenants can opt into isolated identity namespaces
 3. **Privacy**: Real names must never reach the LLM API
 4. **Source separation**: Same person in different sources gets different UUIDs
 
@@ -44,7 +44,7 @@ EGREGORA_NAMESPACE (root)
 ### Implementation
 
 ```python
-from egregora.privacy.constants import NamespaceContext, deterministic_author_uuid
+from egregora.privacy.uuid_namespaces import NamespaceContext, deterministic_author_uuid
 
 # Generate tenant-scoped UUID
 ctx = NamespaceContext(tenant_id="acme-corp", source="whatsapp")
@@ -58,7 +58,7 @@ author_uuid = deterministic_author_uuid("acme-corp", "whatsapp", "Alice")
 
 ### Frozen Namespaces
 
-All base namespaces are **frozen constants** in `src/egregora/privacy/constants.py`:
+All base namespaces are **frozen constants** in `src/egregora/privacy/uuid_namespaces.py`:
 - `EGREGORA_NAMESPACE`: Root namespace for all Egregora UUIDs
 - `NAMESPACE_AUTHOR`: Base namespace for author identities
 - `NAMESPACE_EVENT`: Base namespace for event identities  
@@ -70,8 +70,8 @@ All base namespaces are **frozen constants** in `src/egregora/privacy/constants.
 
 ### Positive
 
-✅ **Tenant isolation**: `acme-corp/Alice` ≠ `default/Alice`  
-✅ **Source separation**: `whatsapp/Alice` ≠ `slack/Alice`  
+✅ **Tenant isolation**: `acme-corp/Alice` ≠ `default/Alice` when adapters choose different namespaces
+✅ **Source separation**: Encode the source in the namespace key to separate `whatsapp/Alice` from `slack/Alice`
 ✅ **Determinism**: Re-ingest → identical UUIDs  
 ✅ **Privacy**: No PII in UUIDs (one-way hash)  
 ✅ **Auditability**: Can verify UUID generation from source data  
@@ -84,7 +84,7 @@ All base namespaces are **frozen constants** in `src/egregora/privacy/constants.
 
 ### Neutral
 
-ℹ️ **Complexity**: Requires tenant_id + source parameters everywhere  
+ℹ️ **Complexity**: Requires adapters to manage namespaces when isolation is required
 ℹ️ **Testing**: Property-based tests required to verify determinism  
 
 ## Migration Path
@@ -105,23 +105,27 @@ Property-based tests ensure correctness:
 ```python
 from hypothesis import given, strategies as st
 
-@given(st.text(min_size=1), st.text(min_size=1), st.text(min_size=1))
-def test_uuid5_determinism(tenant_id: str, source: str, author: str):
-    """Same inputs always produce same UUID."""
-    uuid1 = deterministic_author_uuid(tenant_id, source, author)
-    uuid2 = deterministic_author_uuid(tenant_id, source, author)
+@given(st.uuids(version=5), st.text(min_size=1))
+def test_uuid5_determinism(namespace: uuid.UUID, author: str):
+    """Same namespace + author always produce same UUID."""
+    uuid1 = deterministic_author_uuid(author, namespace=namespace)
+    uuid2 = deterministic_author_uuid(author, namespace=namespace)
     assert uuid1 == uuid2
 
 def test_tenant_isolation():
-    """Different tenants get different UUIDs for same author."""
-    uuid_acme = deterministic_author_uuid("acme", "whatsapp", "Alice")
-    uuid_default = deterministic_author_uuid("default", "whatsapp", "Alice")
+    """Different namespaces keep tenants isolated."""
+    tenant_ns = uuid.uuid5(NAMESPACE_AUTHOR, "tenant:acme:source:whatsapp")
+    default_ns = uuid.uuid5(NAMESPACE_AUTHOR, "tenant:default:source:whatsapp")
+    uuid_acme = deterministic_author_uuid("Alice", namespace=tenant_ns)
+    uuid_default = deterministic_author_uuid("Alice", namespace=default_ns)
     assert uuid_acme != uuid_default
 
 def test_source_separation():
-    """Different sources get different UUIDs for same author."""
-    uuid_whatsapp = deterministic_author_uuid("default", "whatsapp", "Alice")
-    uuid_slack = deterministic_author_uuid("default", "slack", "Alice")
+    """Different source keys generate distinct namespaces."""
+    whatsapp_ns = uuid.uuid5(NAMESPACE_AUTHOR, "tenant:default:source:whatsapp")
+    slack_ns = uuid.uuid5(NAMESPACE_AUTHOR, "tenant:default:source:slack")
+    uuid_whatsapp = deterministic_author_uuid("Alice", namespace=whatsapp_ns)
+    uuid_slack = deterministic_author_uuid("Alice", namespace=slack_ns)
     assert uuid_whatsapp != uuid_slack
 ```
 
@@ -129,7 +133,7 @@ def test_source_separation():
 
 - **RFC 4122**: UUID Specification (UUID5 definition)
 - **Privacy Architecture**: `docs/features/anonymization.md`
-- **Implementation**: `src/egregora/privacy/constants.py`
+- **Implementation**: `src/egregora/privacy/uuid_namespaces.py`
 - **Tests**: `tests/unit/test_deterministic_uuids.py`
 
 ## Alternatives Considered
@@ -146,7 +150,7 @@ def test_source_separation():
 ## Decision Outcome
 
 **Accepted** with the following commitments:
-- Freeze namespace constants in `privacy/constants.py`
+- Freeze namespace constants in `privacy/uuid_namespaces.py`
 - Add property-based tests for determinism
 - Document migration path for future namespace changes
 - Include tenant_id + source in all adapter outputs

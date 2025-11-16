@@ -33,10 +33,13 @@ Example:
 from __future__ import annotations
 
 import logging
+import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from functools import wraps
 from typing import TYPE_CHECKING, Any, NamedTuple, TypeVar
+
+import ibis
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -205,7 +208,12 @@ class PrivacyGate:
 
         """
         # Import here to avoid circular dependencies
+        from egregora.database.validation import validate_ir_schema
         from egregora.privacy.anonymizer import anonymize_table
+        from egregora.privacy.uuid_namespaces import (
+            NAMESPACE_AUTHOR,
+            deterministic_author_uuid,
+        )
 
         # Validate config
         if not config.tenant_id:
@@ -216,19 +224,66 @@ class PrivacyGate:
             msg = "run_id cannot be empty"
             raise ValueError(msg)
 
-        # 1. Validate IR schema (implicit via anonymize_table)
-        # TODO: Add explicit IR schema validation once IR v1 is integrated
+        # 1. Validate IR schema
+        validate_ir_schema(table)
 
-        # 2. Anonymize authors (deterministic UUIDs)
-        logger.info("PrivacyGate: Anonymizing table for tenant=%s, run=%s", config.tenant_id, run_id)
-        anonymized = anonymize_table(table)
+        # 2. Enforce tenant isolation
+        tenant_values = table.select(table.tenant_id).distinct().execute()
+        tenants = set(tenant_values["tenant_id"].dropna().tolist())
+        if tenants and tenants != {config.tenant_id}:
+            msg = (
+                "PrivacyGate received table for unexpected tenant. "
+                f"expected={config.tenant_id}, found={sorted(tenants)}"
+            )
+            raise ValueError(msg)
 
-        # 3. Detect PII (optional)
+        # 3. Validate deterministic author UUIDs
+
+        @ibis.udf.scalar.python
+        def author_uuid_matches(
+            author_raw: str,
+            author_uuid: str,
+            tenant_value: str,
+            source_value: str,
+        ) -> bool:
+            if author_raw is None or author_uuid is None:
+                return False
+            if config.author_namespace != NAMESPACE_AUTHOR:
+                normalized_author = author_raw.strip().lower()
+                expected_uuid = uuid.uuid5(config.author_namespace, normalized_author)
+            else:
+                expected_uuid = deterministic_author_uuid(
+                    tenant_value,
+                    source_value,
+                    author_raw,
+                )
+            return str(expected_uuid) == author_uuid
+
+        validation = table.mutate(
+            _valid_author_uuid=author_uuid_matches(
+                table.author_raw,
+                table.author_uuid,
+                table.tenant_id,
+                table.source,
+            )
+        )
+        invalid_rows = validation.filter(~validation._valid_author_uuid).count().execute()
+        if invalid_rows:
+            msg = "PrivacyGate validation failed: author_uuid mismatch detected"
+            raise ValueError(msg)
+
+        sanitized_input = validation.drop("_valid_author_uuid")
+
+        # 4. Redact raw identifiers while preserving UUIDs
+        logger.info("PrivacyGate: Redacting table for tenant=%s, run=%s", config.tenant_id, run_id)
+        anonymized = anonymize_table(sanitized_input)
+
+        # 5. Detect PII (optional)
         if config.detect_pii:
             # TODO: Integrate PII detector once available
             logger.debug("PII detection enabled but not yet implemented")
 
-        # 4. Issue unforgeable capability token
+        # 6. Issue unforgeable capability token
         privacy_pass = PrivacyPass(
             ir_version="1.0.0",
             run_id=run_id,

@@ -74,6 +74,7 @@ MESSAGE_SCHEMA: dict[str, dt.DataType] = {
     "original_line": dt.String(),
     "tagged_line": dt.String(),
     "message_id": dt.String(nullable=True),
+    "event_id": dt.UUID(nullable=True),
 }
 
 # Legacy alias
@@ -309,6 +310,33 @@ CREATE INDEX IF NOT EXISTS idx_runs_fingerprint ON runs(input_fingerprint);
 CREATE INDEX IF NOT EXISTS idx_runs_tenant ON runs(tenant_id);
 """
 
+RUN_EVENTS_TABLE_DDL = """
+CREATE TABLE IF NOT EXISTS run_events (
+    event_id UUID PRIMARY KEY,
+    run_id UUID NOT NULL,
+    tenant_id VARCHAR,
+    stage VARCHAR NOT NULL,
+    status VARCHAR NOT NULL CHECK (status IN ('started', 'completed', 'failed')),
+    error TEXT,
+    input_fingerprint VARCHAR,
+    code_ref VARCHAR,
+    config_hash VARCHAR,
+    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+    rows_in BIGINT,
+    rows_out BIGINT,
+    duration_seconds DOUBLE PRECISION,
+    llm_calls BIGINT,
+    tokens BIGINT,
+    trace_id VARCHAR
+);
+
+-- Index for common queries
+CREATE INDEX IF NOT EXISTS idx_run_events_run_id ON run_events(run_id);
+CREATE INDEX IF NOT EXISTS idx_run_events_timestamp ON run_events(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_run_events_stage ON run_events(stage);
+CREATE INDEX IF NOT EXISTS idx_run_events_status ON run_events(status);
+"""
+
 # ============================================================================
 # Helper Functions
 # ============================================================================
@@ -536,6 +564,31 @@ def create_runs_table(conn: duckdb.DuckDBPyConnection) -> None:
         logger.info("Created runs table with indexes")
     except Exception as e:
         msg = f"Failed to create runs table: {e}"
+        raise RuntimeError(msg) from e
+
+
+def create_run_events_table(conn: duckdb.DuckDBPyConnection) -> None:
+    """Create run_events table in DuckDB connection.
+
+    Args:
+        conn: DuckDB connection
+
+    Raises:
+        RuntimeError: If table creation fails
+
+    Example:
+        >>> import duckdb
+        >>> conn = duckdb.connect(":memory:")
+        >>> create_run_events_table(conn)
+        >>> result = conn.execute("SELECT COUNT(*) FROM run_events").fetchone()
+        >>> assert result[0] == 0  # Table exists but empty
+
+    """
+    try:
+        conn.execute(RUN_EVENTS_TABLE_DDL)
+        logger.info("Created run_events table with indexes")
+    except Exception as e:
+        msg = f"Failed to create run_events table: {e}"
         raise RuntimeError(msg) from e
 
 

@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 
 from egregora.output_adapters import create_output_format
-from egregora.output_adapters.mkdocs_site import resolve_site_paths
+from egregora.output_adapters.mkdocs import resolve_site_paths
 
 logger = logging.getLogger(__name__)
 

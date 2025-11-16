@@ -45,7 +45,7 @@ from __future__ import annotations
 import json
 import uuid
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, date, datetime
 from functools import wraps
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
@@ -54,7 +54,11 @@ import ibis
 import ibis.expr.datatypes as dt
 from pydantic import BaseModel, Field, ValidationError
 
-from egregora.database.ir_schema import ensure_message_schema
+from egregora.privacy.uuid_namespaces import (
+    deterministic_author_uuid,
+    deterministic_event_uuid,
+    deterministic_thread_uuid,
+)
 
 if TYPE_CHECKING:
     from zoneinfo import ZoneInfo
@@ -79,18 +83,19 @@ class SchemaError(Exception):
 IR_MESSAGE_SCHEMA = ibis.schema(
     {
         # Identity
-        "event_id": dt.UUID,
+        # NOTE: UUID columns stored as dt.string in Ibis, DuckDB schema handles conversion to UUID type
+        "event_id": dt.string,
         # Multi-Tenant
         "tenant_id": dt.string,
         "source": dt.string,
         # Threading
-        "thread_id": dt.UUID,
+        "thread_id": dt.string,
         "msg_id": dt.string,
         # Temporal
         "ts": dt.Timestamp(timezone="UTC"),
         # Authors (PRIVACY BOUNDARY)
         "author_raw": dt.string,
-        "author_uuid": dt.UUID,
+        "author_uuid": dt.string,
         # Content
         "text": dt.String(nullable=True),
         "media_url": dt.String(nullable=True),
@@ -100,7 +105,7 @@ IR_MESSAGE_SCHEMA = ibis.schema(
         "pii_flags": dt.JSON(nullable=True),
         # Lineage
         "created_at": dt.Timestamp(timezone="UTC"),
-        "created_by_run": dt.UUID(nullable=True),
+        "created_by_run": dt.string,
     }
 )
 
@@ -120,7 +125,7 @@ class IRMessageRow(BaseModel):
     """
 
     # Identity
-    event_id: uuid.UUID
+    event_id: uuid.UUID | None = None
 
     # Multi-Tenant
     tenant_id: str = Field(min_length=1)
@@ -128,7 +133,7 @@ class IRMessageRow(BaseModel):
 
     # Threading
     thread_id: uuid.UUID
-    msg_id: str
+    msg_id: str | None = None  # Required identifier in canonical schema
 
     # Temporal
     ts: datetime
@@ -502,32 +507,112 @@ def validate_stage[F: Callable[..., "Table"]](func: F) -> F:
 # ============================================================================
 
 
-def create_ir_table(table: Table, *, timezone: str | ZoneInfo | None = None) -> Table:
-    """Convert a table to conform to IR schema, adding/casting fields as needed.
+def create_ir_table(
+    table: Table,
+    *,
+    tenant_id: str,
+    source: str,
+    timezone: str | ZoneInfo | None = None,
+    thread_key: str | None = None,
+    run_id: uuid.UUID | None = None,
+    author_namespace: uuid.UUID | None = None,
+) -> Table:
+    """Convert legacy conversation table to IR v1 schema."""
+    if not tenant_id:
+        msg = "tenant_id is required when constructing IR table"
+        raise ValueError(msg)
+    if not source:
+        msg = "source is required when constructing IR table"
+        raise ValueError(msg)
 
-    This function is a compatibility wrapper for ensure_message_schema from ir_schema.
-    It ensures strict compliance with the IR schema by:
-    - Adding missing columns with null values
-    - Casting existing columns to correct types
-    - Dropping extra columns not in IR schema
-    - Normalizing timezone information
+    # CLEAN BREAK: Adapters MUST return IR-like schema (ts, text, author_raw, author_uuid)
+    # No legacy CONVERSATION schema support - fix adapters instead
 
-    Args:
-        table: Source table with at minimum: timestamp, author, message
-        timezone: Timezone for timestamp normalization
+    # Verify adapter returned IR schema
+    required_cols = {"ts", "text", "author_raw", "author_uuid"}
+    missing = required_cols - set(table.columns)
+    if missing:
+        msg = f"Adapter must return IR schema. Missing columns: {missing}"
+        raise ValueError(msg)
 
-    Returns:
-        Table conforming to IR schema
+    # No normalization - use IR column names directly
+    if "message_id" not in table.columns:
+        table = table.mutate(message_id=ibis.row_number().cast(dt.string))
 
-    Raises:
-        ValueError: If table is missing required core fields (timestamp, author, message)
+    namespace_override = author_namespace
 
-    Example:
-        >>> raw_table = parse_raw_export(...)
-        >>> ir_table = create_ir_table(raw_table, timezone="America/New_York")
+    @ibis.udf.scalar.python
+    def author_uuid_udf(author_raw: str | None) -> str:
+        if author_raw is None or not author_raw.strip():
+            msg = "author_raw column cannot be empty when generating author_uuid"
+            raise ValueError(msg)
+        if namespace_override is not None:
+            normalized_author = author_raw.strip().lower()
+            return str(uuid.uuid5(namespace_override, normalized_author))
+        return str(deterministic_author_uuid(tenant_id, source, author_raw))
 
-    """
-    return ensure_message_schema(table, timezone=timezone)
+    @ibis.udf.scalar.python
+    def event_uuid_udf(message_id: str | None, ts_value: datetime) -> str:
+        if ts_value is None:
+            msg = "ts is required to generate event_id"
+            raise ValueError(msg)
+        key = message_id or ts_value.isoformat()
+        return str(deterministic_event_uuid(tenant_id, source, key, ts_value))
+
+    @ibis.udf.scalar.python
+    def attrs_udf(
+        original_line: str | None,
+        tagged_line: str | None,
+        date_value: date | None,
+    ) -> dict[str, str] | None:
+        data: dict[str, str] = {}
+        if original_line:
+            data["original_line"] = original_line
+        if tagged_line:
+            data["tagged_line"] = tagged_line
+        if date_value:
+            data["date"] = date_value.isoformat()
+        return data or None
+
+    thread_identifier = thread_key or tenant_id
+    thread_uuid = deterministic_thread_uuid(tenant_id, source, thread_identifier)
+
+    created_at_literal = ibis.literal(datetime.now(UTC), type=dt.Timestamp(timezone="UTC"))
+    if run_id is not None:
+        # Convert Python UUID to string - DuckDB handles str→UUID conversion
+        created_by_run_literal = ibis.literal(str(run_id), type=dt.string)
+    else:
+        created_by_run_literal = ibis.null().cast(dt.string)
+
+    # CLEAN BREAK: Use IR column names directly (ts, text, author_raw, author_uuid)
+    # NOTE: UDF functions already return str, matching the VARCHAR-based IR schema.
+    ir_table = table.mutate(
+        event_id=event_uuid_udf(
+            table.message_id.cast(dt.string),
+            table.ts.cast(dt.Timestamp()),
+        ),
+        tenant_id=ibis.literal(tenant_id, type=dt.string),
+        source=ibis.literal(source, type=dt.string),
+        # thread_uuid is Python UUID → convert to string for DuckDB
+        thread_id=ibis.literal(str(thread_uuid), type=dt.string),
+        msg_id=table.message_id.cast(dt.string),
+        ts=table.ts.cast(dt.Timestamp(timezone="UTC")),
+        author_raw=table.author_raw,
+        author_uuid=author_uuid_udf(table.author_raw),
+        text=table.text,
+        media_url=ibis.null().cast(dt.String(nullable=True)),
+        media_type=ibis.null().cast(dt.String(nullable=True)),
+        attrs=attrs_udf(
+            table.original_line if "original_line" in table.columns else ibis.null(),
+            table.tagged_line if "tagged_line" in table.columns else ibis.null(),
+            table.date if "date" in table.columns else ibis.null(),
+        ).cast(dt.JSON(nullable=True)),
+        pii_flags=ibis.null().cast(dt.JSON(nullable=True)),
+        created_at=ibis.literal(datetime.now(UTC), type=dt.Timestamp(timezone="UTC")),
+        created_by_run=created_by_run_literal,
+    )
+
+    return ir_table.select(*IR_MESSAGE_SCHEMA.names)
 
 
 # ============================================================================

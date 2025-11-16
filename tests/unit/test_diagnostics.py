@@ -361,7 +361,7 @@ class TestCheckAdapters:
         adapters = result.details["adapters"]
         assert "whatsapp" in adapters
 
-    @patch("egregora.adapters.list_adapters")
+    @patch("egregora.input_adapters.list_adapters")
     def test_no_adapters_registered(self, mock_list_adapters: MagicMock) -> None:
         """Returns ERROR when no adapters are registered."""
         mock_list_adapters.return_value = []
@@ -371,7 +371,7 @@ class TestCheckAdapters:
         assert result.status == HealthStatus.ERROR
         assert "No adapters registered" in result.message
 
-    @patch("egregora.adapters.list_adapters")
+    @patch("egregora.input_adapters.list_adapters")
     def test_adapter_check_error(self, mock_list_adapters: MagicMock) -> None:
         """Returns ERROR when adapter listing fails."""
         mock_list_adapters.side_effect = Exception("Registry error")

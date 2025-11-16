@@ -21,7 +21,7 @@ from egregora.enrichment.avatar import (
     _validate_image_format,
     _validate_url_for_ssrf,
 )
-from egregora.sources.whatsapp.parser import parse_egregora_command
+from egregora.input_adapters.whatsapp.parser import parse_egregora_command
 
 
 class TestCommandParsing:
@@ -42,6 +42,22 @@ class TestCommandParsing:
         assert result["command"] == "set"
         assert result["target"] == "avatar"
         # Value should have quotes stripped
+        assert result["value"] == "https://example.com/avatar.jpg"
+
+    def test_parse_set_avatar_with_smart_quotes(self):
+        """Test parsing handles smart quotes by normalizing them."""
+        result = parse_egregora_command("/egregora set avatar “https://example.com/avatar.jpg”")
+        assert result is not None
+        assert result["command"] == "set"
+        assert result["target"] == "avatar"
+        assert result["value"] == "https://example.com/avatar.jpg"
+
+    def test_parse_set_avatar_with_single_smart_quotes(self):
+        """Test parsing handles smart single quotes by normalizing them."""
+        result = parse_egregora_command("/egregora set avatar ‘https://example.com/avatar.jpg’")
+        assert result is not None
+        assert result["command"] == "set"
+        assert result["target"] == "avatar"
         assert result["value"] == "https://example.com/avatar.jpg"
 
     def test_parse_unset_avatar(self):

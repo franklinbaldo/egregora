@@ -326,6 +326,7 @@ class TestDocumentTypes:
             "ENRICHMENT_URL",
             "ENRICHMENT_MEDIA",
             "MEDIA",
+            "ANNOTATION",
         }
 
         actual_types = {dt.name for dt in DocumentType}

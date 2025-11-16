@@ -14,14 +14,15 @@
 
 CREATE TABLE ir_messages (
     -- Identity: Unique event identifier
-    event_id UUID NOT NULL,
+    -- Stored as VARCHAR to avoid Ibis/PyArrow UUID conversion issues
+    event_id VARCHAR NOT NULL,
 
     -- Multi-Tenant: Namespace isolation for multiple data sources
     tenant_id VARCHAR NOT NULL,
     source VARCHAR NOT NULL,
 
     -- Threading: Conversation structure
-    thread_id UUID NOT NULL,
+    thread_id VARCHAR NOT NULL,
     msg_id VARCHAR NOT NULL,
 
     -- Temporal: Message timestamp
@@ -29,9 +30,9 @@ CREATE TABLE ir_messages (
 
     -- Authors: PRIVACY BOUNDARY
     -- author_raw: Original author name (anonymized before LLM processing)
-    -- author_uuid: Deterministic UUID mapping for privacy
+    -- author_uuid: Deterministic UUID mapping for privacy (stored as string)
     author_raw VARCHAR NOT NULL,
-    author_uuid UUID NOT NULL,
+    author_uuid VARCHAR NOT NULL,
 
     -- Content: Message payload
     text VARCHAR,
@@ -46,7 +47,7 @@ CREATE TABLE ir_messages (
 
     -- Lineage: Pipeline tracking
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    created_by_run UUID,
+    created_by_run VARCHAR,
 
     -- Constraints
     PRIMARY KEY (event_id)

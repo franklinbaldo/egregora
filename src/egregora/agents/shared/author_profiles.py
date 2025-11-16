@@ -96,13 +96,13 @@ def write_profile(
 
 
 def get_active_authors(
-    table: Annotated[ir.Table, "The Ibis table with an 'author' column"],
+    table: Annotated[ir.Table, "The Ibis table with an 'author_uuid' column"],
     limit: Annotated[int | None, "An optional limit on the number of authors to return"] = None,
 ) -> Annotated[list[str], "A list of unique author UUIDs, excluding 'system' and 'egregora'"]:
     """Get list of unique authors from a Table.
 
     Args:
-        table: Ibis Table with 'author' column
+        table: Ibis Table with 'author_uuid' column (IR v1 schema)
         limit: Optional limit on number of authors to return (most active first)
 
     Returns:
@@ -111,12 +111,14 @@ def get_active_authors(
     """
     authors: list[str | None] = []
     try:
-        arrow_table = table.select("author").distinct().to_pyarrow()
+        # IR v1: use author_uuid column instead of author
+        # Cast UUID to string for PyArrow compatibility
+        arrow_table = table.select(author_uuid=table.author_uuid.cast(str)).distinct().to_pyarrow()
     except AttributeError:
-        result = table.select("author").distinct().execute()
+        result = table.select(author_uuid=table.author_uuid.cast(str)).distinct().execute()
         if hasattr(result, "columns"):
-            if "author" in result.columns:
-                authors = result["author"].tolist()
+            if "author_uuid" in result.columns:
+                authors = result["author_uuid"].tolist()
             else:
                 authors = result.iloc[:, 0].tolist()
         elif hasattr(result, "tolist"):
@@ -137,7 +139,8 @@ def get_active_authors(
     if limit is not None and limit > 0:
         author_counts = {}
         for author in filtered_authors:
-            count = table.filter(table.author == author).count().execute()
+            # IR v1: use author_uuid column
+            count = table.filter(table.author_uuid == author).count().execute()
             author_counts[author] = count
         sorted_authors = sorted(author_counts.items(), key=lambda x: x[1], reverse=True)
         return [author for author, _ in sorted_authors[:limit]]
@@ -393,7 +396,7 @@ def get_opted_out_authors(
 
 
 def filter_opted_out_authors(
-    table: Annotated[ir.Table, "The Ibis table with an 'author' column"],
+    table: Annotated[ir.Table, "The Ibis table with an 'author_uuid' column"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
 ) -> tuple[Annotated[ir.Table, "The filtered table"], Annotated[int, "The number of removed messages"]]:
     """Remove all messages from opted-out authors.
@@ -402,7 +405,7 @@ def filter_opted_out_authors(
     enrichment, or any processing.
 
     Args:
-        table: Ibis Table with 'author' column
+        table: Ibis Table with 'author_uuid' column
         profiles_dir: Where profiles are stored
 
     Returns:
@@ -416,12 +419,12 @@ def filter_opted_out_authors(
         return (table, 0)
     logger.info("Found %s opted-out authors", len(opted_out))
     original_count = table.count().execute()
-    filtered_table = table.filter(~table.author.isin(list(opted_out)))
+    filtered_table = table.filter(~table.author_uuid.isin(list(opted_out)))
     removed_count = original_count - filtered_table.count().execute()
     if removed_count > 0:
         logger.warning("⚠️  Removed %s messages from %s opted-out users", removed_count, len(opted_out))
         for author in opted_out:
-            author_msg_count = table.filter(table.author == author).count().execute()
+            author_msg_count = table.filter(table.author_uuid == author).count().execute()
             if author_msg_count > 0:
                 logger.warning("   - %s: %s messages removed", author, author_msg_count)
     return (filtered_table, removed_count)
