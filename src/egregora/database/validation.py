@@ -54,7 +54,6 @@ import ibis
 import ibis.expr.datatypes as dt
 from pydantic import BaseModel, Field, ValidationError
 
-from egregora.database.ir_schema import ensure_message_schema
 from egregora.privacy.uuid_namespaces import (
     deterministic_author_uuid,
     deterministic_event_uuid,

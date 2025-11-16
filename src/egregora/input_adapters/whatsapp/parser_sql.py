@@ -361,9 +361,7 @@ def _add_message_ids(messages: Table) -> Table:
 
     # IR v1: use 'ts' column instead of 'timestamp'
     min_ts = messages.ts.min()
-    delta_ms = (
-        ((messages.ts.epoch_seconds() - min_ts.epoch_seconds()) * 1000).round().cast("int64")
-    )
+    delta_ms = ((messages.ts.epoch_seconds() - min_ts.epoch_seconds()) * 1000).round().cast("int64")
 
     order_columns = [messages.ts]
     if _IMPORT_SOURCE_COLUMN in messages.columns:

@@ -29,7 +29,6 @@ from egregora.agents.writer.context_builder import _load_profiles_context, build
 from egregora.agents.writer.formatting import _build_conversation_markdown, _load_journal_memory
 from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig, create_default_config
-from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext
 from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.mkdocs import LegacyMkDocsUrlConvention, MkDocsAdapter
@@ -143,6 +142,7 @@ def _fetch_format_documents(output_format: OutputAdapter) -> tuple[list, int] | 
 
     Returns:
         (list[Document], count) if documents exist, (None, 0) otherwise
+
     """
     format_documents = output_format.list_documents()
 
@@ -154,14 +154,13 @@ def _fetch_format_documents(output_format: OutputAdapter) -> tuple[list, int] | 
             return None, 0
         logger.debug("OutputAdapter reported %d documents", doc_count)
         return format_documents, doc_count
-    else:
-        # Legacy: convert Table to list of dicts
-        doc_count = format_documents.count().execute()
-        if doc_count == 0:
-            logger.debug("No documents found by output format")
-            return None, 0
-        logger.debug("OutputAdapter reported %d documents", doc_count)
-        return format_documents.execute().to_dict('records'), doc_count
+    # Legacy: convert Table to list of dicts
+    doc_count = format_documents.count().execute()
+    if doc_count == 0:
+        logger.debug("No documents found by output format")
+        return None, 0
+    logger.debug("OutputAdapter reported %d documents", doc_count)
+    return format_documents.execute().to_dict("records"), doc_count
 
 
 # Removed legacy path-based helper functions:
