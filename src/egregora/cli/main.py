@@ -146,6 +146,7 @@ def _prepare_environment_and_config(config: ProcessConfig):
                     "to_date": config.to_date.isoformat() if config.to_date else None,
                     "max_prompt_tokens": config.max_prompt_tokens,
                     "use_full_context_window": config.use_full_context_window,
+                    "max_windows": config.max_windows,
                 }
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": config.enable_enrichment}),
@@ -242,6 +243,10 @@ def write(
     use_full_context_window: Annotated[
         bool, typer.Option(help="Use full model context window (overrides --max-prompt-tokens)")
     ] = False,
+    max_windows: Annotated[
+        int | None,
+        typer.Option(help="Maximum number of windows to process (default: 1, use 0 for all windows)"),
+    ] = 1,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> None:
     """Write blog posts from chat exports using LLM-powered synthesis.
@@ -298,6 +303,7 @@ def write(
         retrieval_overfetch=retrieval_overfetch,
         max_prompt_tokens=max_prompt_tokens,
         use_full_context_window=use_full_context_window,
+        max_windows=max_windows,
         debug=debug,
     )
     _validate_and_run_process(config, source=source)

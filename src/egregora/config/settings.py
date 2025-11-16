@@ -228,6 +228,11 @@ class PipelineSettings(BaseModel):
         default=False,
         description="Use full model context window (overrides max_prompt_tokens cap)",
     )
+    max_windows: int | None = Field(
+        default=1,
+        ge=0,
+        description="Maximum windows to process per run (1=single window, 0=all windows, None=all)",
+    )
 
 
 class PathsSettings(BaseModel):
@@ -569,6 +574,7 @@ class ProcessConfig:
     batch_threshold: Annotated[int, "Minimum items before batching API calls"] = 10
     max_prompt_tokens: Annotated[int, "Maximum tokens per prompt"] = 100_000
     use_full_context_window: Annotated[bool, "Use full model context window"] = False
+    max_windows: Annotated[int | None, "Maximum number of windows to process (default 1, 0=all)"] = 1
 
     @property
     def input_path(self) -> Path:

@@ -518,7 +518,17 @@ def _process_all_windows(
         effective_token_limit,
     )
 
+    # Get max_windows limit from config (default 1 for single-window behavior)
+    max_windows = getattr(ctx.config.pipeline, "max_windows", 1)
+    if max_windows == 0:
+        max_windows = None  # 0 means process all windows
+
+    windows_processed = 0
     for window in windows_iterator:
+        # Check if we've hit the max_windows limit
+        if max_windows is not None and windows_processed >= max_windows:
+            logger.info("Reached max_windows limit (%d). Stopping processing.", max_windows)
+            break
         # Skip empty windows
         if window.size == 0:
             logger.debug(
@@ -635,6 +645,9 @@ def _process_all_windows(
 
             # Re-raise the original exception
             raise
+
+        # Increment window counter (only for processed windows, empty windows don't count)
+        windows_processed += 1
 
     return results
 
