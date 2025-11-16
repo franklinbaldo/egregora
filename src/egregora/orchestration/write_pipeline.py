@@ -37,7 +37,9 @@ from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database import RUN_EVENTS_SCHEMA
+from egregora.database.ir_schema import CONVERSATION_SCHEMA
 from egregora.database.tracking import fingerprint_window, get_git_commit_sha
+from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
 from egregora.enrichment.runners import EnrichmentRuntimeContext
