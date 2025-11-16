@@ -67,13 +67,14 @@ class ReaderDeps(BaseModel):
     post_b_slug: str
 
 
-# Create reader agent
-reader_agent = Agent(
-    "google-gla:gemini-2.0-flash-exp",
-    result_type=ComparisonResult,
-    system_prompt=READER_SYSTEM_PROMPT,
-    deps_type=ReaderDeps,
-)
+def _create_reader_agent(model: str) -> Agent[ReaderDeps, ComparisonResult]:
+    """Create reader agent instance with specified model."""
+    return Agent(
+        model,
+        result_type=ComparisonResult,
+        system_prompt=READER_SYSTEM_PROMPT,
+        deps_type=ReaderDeps,
+    )
 
 
 async def compare_posts(
@@ -117,15 +118,9 @@ async def compare_posts(
 Evaluate both posts and determine which is better quality overall.
 """
 
-    # Override model if specified
-    agent = reader_agent
-    if model:
-        agent = Agent(
-            model,
-            result_type=ComparisonResult,
-            system_prompt=READER_SYSTEM_PROMPT,
-            deps_type=ReaderDeps,
-        )
+    # Create agent with specified model (or default)
+    agent_model = model or "google-gla:gemini-2.0-flash-exp"
+    agent = _create_reader_agent(agent_model)
 
     # Run agent
     result = await agent.run(prompt, deps=deps)
