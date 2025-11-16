@@ -38,7 +38,6 @@ from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database import CONVERSATION_SCHEMA, RUN_EVENTS_SCHEMA
 from egregora.database.tracking import fingerprint_window, get_git_commit_sha
-from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
 from egregora.enrichment.runners import EnrichmentRuntimeContext
@@ -929,9 +928,6 @@ def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) ->
     """
     logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
     messages_table = adapter.parse(input_path, timezone=timezone)
-
-    # Validate IR schema (raises SchemaError if invalid)
-    validate_ir_schema(messages_table)
 
     actual_schema = messages_table.schema()
     expected_cols = set(CONVERSATION_SCHEMA.names)
