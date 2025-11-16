@@ -13,11 +13,13 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
+from datetime import date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
 
 import ibis
 import yaml
+from dateutil import parser as dateutil_parser
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
 from egregora.agents.shared.author_profiles import write_profile as write_profile_content
@@ -1236,8 +1238,14 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
         path.parent.mkdir(parents=True, exist_ok=True)
 
         if document.type in (DocumentType.POST, DocumentType.JOURNAL):
+            metadata = dict(document.metadata or {})
+            if "date" in metadata:
+                metadata["date"] = _format_frontmatter_datetime(metadata["date"])
+            if "authors" in metadata:
+                _ensure_author_entries(path.parent, metadata.get("authors"))
+
             yaml_front = _yaml.dump(
-                document.metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
+                metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
             )
             full_content = f"---\n{yaml_front}---\n\n{document.content}"
             path.write_text(full_content, encoding="utf-8")
@@ -1364,10 +1372,68 @@ def _extract_clean_date(date_str: str) -> str:
     return date_str
 
 
+def _format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
+    """Normalize a metadata date into the RSS-friendly ``YYYY-MM-DD HH:MM`` string."""
+    if raw_date is None:
+        return ""
+
+    if isinstance(raw_date, datetime):
+        dt = raw_date
+    elif isinstance(raw_date, date):
+        dt = datetime.combine(raw_date, datetime.min.time())
+    else:
+        raw = str(raw_date).strip()
+        if not raw:
+            return ""
+        try:
+            dt = datetime.fromisoformat(raw)
+        except (ValueError, TypeError):
+            try:
+                dt = dateutil_parser.parse(raw)
+            except (ImportError, ValueError, TypeError):
+                return raw
+
+    return dt.strftime("%Y-%m-%d %H:%M")
+
+
+def _ensure_author_entries(output_dir: Path, author_ids: list[str] | None) -> None:
+    """Ensure every referenced author has an entry in `.authors.yml`."""
+    if not author_ids:
+        return
+
+    site_root = output_dir.resolve().parent
+    authors_path = site_root / ".authors.yml"
+
+    try:
+        authors = yaml.safe_load(authors_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        authors = {}
+
+    new_ids: list[str] = []
+    for author_id in author_ids:
+        if not author_id:
+            continue
+        if author_id in authors:
+            continue
+        authors[author_id] = {"name": author_id}
+        new_ids.append(author_id)
+
+    if not new_ids:
+        return
+
+    try:
+        authors_path.parent.mkdir(parents=True, exist_ok=True)
+        authors_path.write_text(
+            yaml.dump(authors, default_flow_style=False, allow_unicode=True, sort_keys=False),
+            encoding="utf-8",
+        )
+        logger.info("Registered %d new author(s) in %s", len(new_ids), authors_path)
+    except OSError as exc:
+        logger.warning("Failed to update %s: %s", authors_path, exc)
+
+
 def _write_mkdocs_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
     """Save a MkDocs blog post with YAML front matter and unique slugging."""
-    import datetime
-
     required = ["title", "slug", "date"]
     for key in required:
         if key not in metadata:
@@ -1395,10 +1461,10 @@ def _write_mkdocs_post(content: str, metadata: dict[str, Any], output_dir: Path)
         "slug": slug_candidate,
     }
 
-    try:
-        front_matter["date"] = datetime.date.fromisoformat(date_prefix)
-    except (ValueError, AttributeError):
-        front_matter["date"] = date_prefix
+    front_matter["date"] = _format_frontmatter_datetime(raw_date)
+
+    if "authors" in metadata:
+        _ensure_author_entries(output_dir, metadata.get("authors"))
 
     if "tags" in metadata:
         front_matter["tags"] = metadata["tags"]
