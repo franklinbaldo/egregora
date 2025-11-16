@@ -23,9 +23,9 @@ read_app = typer.Typer(
 
 @read_app.command(name="rank")
 def rank_posts(
-    output_dir: Annotated[
+    site_root: Annotated[
         Path,
-        typer.Argument(help="Site output directory containing posts to rank"),
+        typer.Argument(help="Site root directory containing .egregora/config.yml"),
     ],
     model: Annotated[
         str | None,
@@ -50,11 +50,18 @@ def rank_posts(
     updating ELO ratings based on quality judgments.
 
     Examples:
-        egregora read rank output/
-        egregora read rank output/ --limit 20
-        egregora read rank output/ --model google-gla:gemini-2.0-flash-thinking-exp
+        egregora read rank my-blog/
+        egregora read rank my-blog/ --limit 20
+        egregora read rank my-blog/ --model google-gla:gemini-2.0-flash-thinking-exp
     """
-    site_root = output_dir.expanduser().resolve()
+    site_root = site_root.expanduser().resolve()
+
+    # Verify .egregora directory exists
+    egregora_dir = site_root / ".egregora"
+    if not egregora_dir.exists():
+        console.print(f"[red]No .egregora directory found in {site_root}[/red]")
+        console.print("Run 'egregora init' or 'egregora write' first to create a site")
+        raise typer.Exit(1)
 
     # Load configuration
     config = load_egregora_config(site_root)
@@ -64,13 +71,15 @@ def rank_posts(
         console.print("Set reader.enabled = true in .egregora/config.yml to enable")
         raise typer.Exit(0)
 
-    # Get posts directory
+    # Get posts directory from config
     posts_dir = site_root / config.paths.posts_dir
 
     if not posts_dir.exists():
         console.print(f"[red]Posts directory not found: {posts_dir}[/red]")
+        console.print(f"Expected posts in: {config.paths.posts_dir}")
         raise typer.Exit(1)
 
+    console.print(f"[bold]Site root:[/bold] {site_root}")
     console.print(f"[bold]Evaluating posts in:[/bold] {posts_dir}")
     console.print(f"[bold]Comparisons per post:[/bold] {config.reader.comparisons_per_post}")
     console.print(f"[bold]ELO K-factor:[/bold] {config.reader.k_factor}\n")
@@ -120,9 +129,9 @@ def rank_posts(
 
 @read_app.command(name="history")
 def show_history(
-    output_dir: Annotated[
+    site_root: Annotated[
         Path,
-        typer.Argument(help="Site output directory"),
+        typer.Argument(help="Site root directory containing .egregora/config.yml"),
     ],
     post_slug: Annotated[
         str | None,
@@ -144,13 +153,21 @@ def show_history(
     """Show comparison history from reader agent.
 
     Examples:
-        egregora read history output/
-        egregora read history output/ --post my-post-slug
-        egregora read history output/ --limit 50
+        egregora read history my-blog/
+        egregora read history my-blog/ --post my-post-slug
+        egregora read history my-blog/ --limit 50
     """
     from egregora.database.elo_store import EloStore
 
-    site_root = output_dir.expanduser().resolve()
+    site_root = site_root.expanduser().resolve()
+
+    # Verify .egregora directory exists
+    egregora_dir = site_root / ".egregora"
+    if not egregora_dir.exists():
+        console.print(f"[red]No .egregora directory found in {site_root}[/red]")
+        console.print("Run 'egregora init' or 'egregora write' first to create a site")
+        raise typer.Exit(1)
+
     config = load_egregora_config(site_root)
 
     db_path = site_root / config.reader.database_path
