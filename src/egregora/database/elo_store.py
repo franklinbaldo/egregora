@@ -234,7 +234,7 @@ class EloStore:
         # Delete existing record
         self.conn.raw_sql(
             "DELETE FROM elo_ratings WHERE post_slug = ?",
-            params=[post_slug],
+            parameters=[post_slug],
         )
 
         # Insert new record
