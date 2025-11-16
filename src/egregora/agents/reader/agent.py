@@ -207,13 +207,19 @@ Evaluate both posts and determine which is better quality overall.
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(
-                url, json=payload, params={"key": api_key}, headers={"Content-Type": "application/json"}, timeout=30.0
+                url,
+                json=payload,
+                params={"key": api_key},
+                headers={"Content-Type": "application/json"},
+                timeout=30.0,
             )
             response.raise_for_status()
         except httpx.HTTPStatusError as e:
             if _is_rate_limit_error(e):
                 logger.warning(
-                    "Rate limit hit for %s vs %s, retrying with backoff", request.post_a_slug, request.post_b_slug
+                    "Rate limit hit for %s vs %s, retrying with backoff",
+                    request.post_a_slug,
+                    request.post_b_slug,
                 )
             raise
 

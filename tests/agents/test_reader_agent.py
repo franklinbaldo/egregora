@@ -7,7 +7,6 @@ import pytest
 from egregora.agents.reader.agent import compare_posts
 from egregora.agents.reader.models import EvaluationRequest, PostComparison, ReaderFeedback
 
-
 # Sample blog post content for testing
 SAMPLE_POST_A = """# Introduction to Python
 
@@ -65,7 +64,7 @@ class TestComparePostsStructure:
 
     @pytest.mark.asyncio
     @pytest.mark.asyncio
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     async def test_compare_posts_returns_comparison(self, mock_google_api_key):
         """Should return PostComparison with all required fields."""
         request = EvaluationRequest(
@@ -86,7 +85,7 @@ class TestComparePostsStructure:
 
     @pytest.mark.asyncio
     @pytest.mark.asyncio
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     async def test_compare_posts_includes_feedback(self, mock_google_api_key):
         """Should include structured feedback for both posts."""
         request = EvaluationRequest(
@@ -114,9 +113,8 @@ class TestComparePostsStructure:
 class TestComparePostsLogic:
     """Test the logical consistency of post comparisons."""
 
-    
     @pytest.mark.asyncio
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     async def test_winner_gets_higher_or_equal_rating(self, mock_google_api_key):
         """Winner should typically have higher or equal star rating."""
         request = EvaluationRequest(
@@ -138,9 +136,8 @@ class TestComparePostsLogic:
             # For tie, ratings should be close
             assert abs(result.feedback_a.star_rating - result.feedback_b.star_rating) <= 1
 
-    
     @pytest.mark.asyncio
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     async def test_reasoning_references_posts(self, mock_google_api_key):
         """Reasoning should mention aspects of the posts being compared."""
         request = EvaluationRequest(
@@ -161,9 +158,8 @@ class TestComparePostsLogic:
 class TestComparePostsDifferentContent:
     """Test comparisons with different types of content."""
 
-    
     @pytest.mark.asyncio
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     async def test_compare_similar_quality_posts(self, mock_google_api_key):
         """Comparing similar quality posts should work."""
         request = EvaluationRequest(
@@ -179,9 +175,8 @@ class TestComparePostsDifferentContent:
         assert 2 <= result.feedback_a.star_rating <= 5
         assert 2 <= result.feedback_b.star_rating <= 5
 
-    
     @pytest.mark.asyncio
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     async def test_compare_short_vs_detailed_post(self, mock_google_api_key):
         """Should handle posts of different lengths."""
         request = EvaluationRequest(
@@ -198,9 +193,8 @@ class TestComparePostsDifferentContent:
         assert len(result.feedback_a.comment) > 0
         assert len(result.feedback_b.comment) > 0
 
-    
     @pytest.mark.asyncio
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     async def test_compare_same_post_twice(self, mock_google_api_key):
         """Comparing identical posts should result in a tie (ideally)."""
         request = EvaluationRequest(
@@ -221,9 +215,8 @@ class TestComparePostsDifferentContent:
 class TestComparePostsModelOverride:
     """Test model override functionality."""
 
-    
     @pytest.mark.asyncio
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     async def test_custom_model_override(self, mock_google_api_key):
         """Should accept custom model parameter."""
         request = EvaluationRequest(
@@ -243,9 +236,8 @@ class TestComparePostsModelOverride:
 class TestComparePostsEdgeCases:
     """Test edge cases and error handling."""
 
-    
     @pytest.mark.asyncio
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     async def test_empty_post_content(self, mock_google_api_key):
         """Should handle empty post content gracefully."""
         request = EvaluationRequest(
@@ -263,9 +255,8 @@ class TestComparePostsEdgeCases:
         if result.winner == "b":
             assert result.feedback_b.star_rating >= result.feedback_a.star_rating
 
-    
     @pytest.mark.asyncio
-    @pytest.mark.vcr()
+    @pytest.mark.vcr
     async def test_very_short_posts(self, mock_google_api_key):
         """Should handle very short posts."""
         request = EvaluationRequest(
