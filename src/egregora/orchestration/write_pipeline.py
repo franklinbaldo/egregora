@@ -934,22 +934,7 @@ def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) ->
     # Validate IR schema (raises SchemaError if invalid)
     validate_ir_schema(messages_table)
 
-    actual_schema = messages_table.schema()
-    expected_cols = set(CONVERSATION_SCHEMA.names)
-    actual_cols = set(actual_schema.names)
-
-    if expected_cols != actual_cols:
-        missing = expected_cols - actual_cols
-        extra = actual_cols - expected_cols
-        error_parts = []
-        if missing:
-            error_parts.append(f"Missing columns: {', '.join(sorted(missing))}")
-        if extra:
-            error_parts.append(f"Extra columns: {', '.join(sorted(extra))}")
-        msg = "Source adapter schema mismatch:\n  " + "\n  ".join(error_parts)
-        raise ValueError(msg)
-
-    logger.debug("Schema validation passed: %s", actual_schema)
+    logger.debug("IR schema validation passed: %s", messages_table.schema())
     total_messages = messages_table.count().execute()
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)
 
