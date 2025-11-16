@@ -7,12 +7,13 @@ DROP TABLE IF EXISTS ir_messages;
 
 CREATE TABLE ir_messages (
     -- Event identity
-    event_id UUID NOT NULL,
+    -- NOTE: UUID stored as VARCHAR to avoid Ibis/PyArrow conversion issues
+    event_id VARCHAR NOT NULL,
 
     -- Tenant/source metadata
     tenant_id VARCHAR NOT NULL,
     source VARCHAR NOT NULL,
-    thread_id UUID NOT NULL,
+    thread_id VARCHAR NOT NULL,
 
     -- Message identity
     msg_id VARCHAR NOT NULL,
@@ -20,7 +21,7 @@ CREATE TABLE ir_messages (
 
     -- Author information
     author_raw VARCHAR NOT NULL,
-    author_uuid UUID NOT NULL,
+    author_uuid VARCHAR NOT NULL,
 
     -- Content
     text VARCHAR,
@@ -35,7 +36,7 @@ CREATE TABLE ir_messages (
 
     -- Tracking
     created_at TIMESTAMP NOT NULL,
-    created_by_run UUID,
+    created_by_run VARCHAR,
 
     -- Constraints
     PRIMARY KEY (event_id)

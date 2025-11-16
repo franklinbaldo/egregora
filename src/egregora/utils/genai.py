@@ -24,7 +24,7 @@ _rate_lock = asyncio.Lock()
 _last_call_monotonic = 0.0
 _sync_rate_lock = threading.Lock()
 _sync_last_call_monotonic = 0.0
-_MIN_INTERVAL_SECONDS = 0.8  # Reduced from 1.5s - more aggressive but still safe for free tier (~75 RPM)
+_MIN_INTERVAL_SECONDS = 2.0  # Conservative to avoid token-based quota (250k tokens/min on free tier)
 
 
 def _is_rate_limit_error(error: Exception) -> bool:
@@ -48,8 +48,10 @@ def _extract_retry_delay(error: Exception) -> float | None:
     """Try to extract server-recommended retry delay from the error message."""
     text = str(error)
 
-    # gRPC style: `'retryDelay': '19s'`
-    match = re.search(r"['\"]retryDelay['\"]\s*:\s*['\"](\d+)(?:\\.(\d+))?s['\"]", text)
+    # gRPC style: `'retryDelay': '19.5s'`
+    match = re.search(r"['\"]retryDelay['\"]\s*:\s*['\"](\d+(?:\.\d+)?)s['\"]", text)
+    if match:
+        return float(match.group(1))
 
     # REST style: `Retry-After: 20`
     match = re.search(r"retry-after[:=]\s*(\d+)", text, flags=re.IGNORECASE)
@@ -180,8 +182,8 @@ async def call_with_retries[RateLimitFn: Callable[..., Awaitable[Any]]](
 
             recommended_delay = _extract_retry_delay(exc)
             if recommended_delay is not None:
-                # Use 25% of recommended delay (more aggressive)
-                delay = max(5.0, recommended_delay * 0.25)
+                # Use 100% of recommended delay (respect server guidance)
+                delay = max(5.0, recommended_delay)
             else:
                 delay = base_delay * (2 ** (attempt - 1))
 
@@ -219,8 +221,8 @@ def call_with_retries_sync(
 
             recommended_delay = _extract_retry_delay(exc)
             if recommended_delay is not None:
-                # Use 25% of recommended delay (more aggressive)
-                delay = max(5.0, recommended_delay * 0.25)
+                # Use 100% of recommended delay (respect server guidance)
+                delay = max(5.0, recommended_delay)
             else:
                 delay = base_delay * (2 ** (attempt - 1))
 

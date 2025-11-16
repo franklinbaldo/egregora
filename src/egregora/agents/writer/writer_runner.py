@@ -283,7 +283,8 @@ def _build_writer_environment(
     url_context = UrlContext(base_url="", site_prefix="", base_path=storage_root)
 
     if format_type == "mkdocs":
-        runtime_output_format = MkDocsAdapter(site_root=storage_root, url_context=url_context)
+        runtime_output_format = MkDocsAdapter()
+        runtime_output_format.initialize(site_root=storage_root, url_context=url_context)
         url_convention = runtime_output_format.url_convention
     else:
         runtime_output_format = output_format

@@ -40,11 +40,11 @@ def _parse_retry_delay(error_response: dict[str, Any]) -> float:
                 retry_delay = detail.get("retryDelay", "10s")
                 match = re.match(r"(\d+)s", retry_delay)
                 if match:
-                    # Use 25% of the suggested delay (more aggressive)
-                    return max(5.0, float(match.group(1)) * 0.25)
+                    # Use 100% of the suggested delay (respect server guidance)
+                    return max(5.0, float(match.group(1)))
     except (KeyError, ValueError, AttributeError, TypeError):
         logger.debug("Could not parse retry delay")
-    return 10.0  # Reduced from 60s to 10s
+    return 10.0
 
 
 def _call_with_retries(func: Any, max_retries: int = 3) -> Any:

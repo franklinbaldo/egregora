@@ -83,18 +83,19 @@ class SchemaError(Exception):
 IR_MESSAGE_SCHEMA = ibis.schema(
     {
         # Identity
-        "event_id": dt.uuid,
+        # NOTE: UUID columns stored as dt.string in Ibis, DuckDB schema handles conversion to UUID type
+        "event_id": dt.string,
         # Multi-Tenant
         "tenant_id": dt.string,
         "source": dt.string,
         # Threading
-        "thread_id": dt.uuid,
+        "thread_id": dt.string,
         "msg_id": dt.string,
         # Temporal
         "ts": dt.Timestamp(timezone="UTC"),
         # Authors (PRIVACY BOUNDARY)
         "author_raw": dt.string,
-        "author_uuid": dt.uuid,
+        "author_uuid": dt.string,
         # Content
         "text": dt.String(nullable=True),
         "media_url": dt.String(nullable=True),
@@ -104,7 +105,7 @@ IR_MESSAGE_SCHEMA = ibis.schema(
         "pii_flags": dt.JSON(nullable=True),
         # Lineage
         "created_at": dt.Timestamp(timezone="UTC"),
-        "created_by_run": dt.uuid,
+        "created_by_run": dt.string,
     }
 )
 
@@ -578,23 +579,26 @@ def create_ir_table(
 
     created_at_literal = ibis.literal(datetime.now(UTC), type=dt.Timestamp(timezone="UTC"))
     if run_id is not None:
-        created_by_run_literal = ibis.literal(run_id, type=dt.uuid)
+        # Convert Python UUID to string - DuckDB handles str→UUID conversion
+        created_by_run_literal = ibis.literal(str(run_id), type=dt.string)
     else:
-        created_by_run_literal = ibis.null().cast(dt.uuid)
+        created_by_run_literal = ibis.null().cast(dt.string)
 
     # CLEAN BREAK: Use IR column names directly (ts, text, author_raw, author_uuid)
+    # NOTE: UDF functions already return str, matching the VARCHAR-based IR schema.
     ir_table = table.mutate(
         event_id=event_uuid_udf(
             table.message_id.cast(dt.string),
             table.ts.cast(dt.Timestamp()),
-        ).cast(dt.uuid),
+        ),
         tenant_id=ibis.literal(tenant_id, type=dt.string),
         source=ibis.literal(source, type=dt.string),
-        thread_id=ibis.literal(thread_uuid, type=dt.uuid),
+        # thread_uuid is Python UUID → convert to string for DuckDB
+        thread_id=ibis.literal(str(thread_uuid), type=dt.string),
         msg_id=table.message_id.cast(dt.string),
         ts=table.ts.cast(dt.Timestamp(timezone="UTC")),
         author_raw=table.author_raw,
-        author_uuid=author_uuid_udf(table.author_raw).cast(dt.uuid),
+        author_uuid=author_uuid_udf(table.author_raw),
         text=table.text,
         media_url=ibis.null().cast(dt.String(nullable=True)),
         media_type=ibis.null().cast(dt.String(nullable=True)),

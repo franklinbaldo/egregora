@@ -98,6 +98,13 @@ def _ensure_datetime(value: datetime | pd.Timestamp) -> datetime:
     return value
 
 
+def _uuid_to_str(value: uuid.UUID | str | None) -> str | None:
+    """Convert UUID-like values to strings for downstream storage."""
+    if value is None:
+        return None
+    return str(value)
+
+
 def _safe_timestamp_plus_one(timestamp: datetime | pd.Timestamp) -> datetime:
     """Return timestamp + 1 second, handling pandas/ibis types."""
     dt_value = _ensure_datetime(timestamp)
@@ -237,25 +244,23 @@ def _create_enrichment_row(
     enrichment_timestamp = _safe_timestamp_plus_one(timestamp)
 
     # Generate new event_id for this enrichment entry
-    import uuid
-
-    enrichment_event_id = uuid.uuid4()
+    enrichment_event_id = str(uuid.uuid4())  # Convert to string immediately
 
     # Create enrichment row with all required IR_MESSAGE_SCHEMA fields
     return {
         # Identity
-        "event_id": enrichment_event_id,
+        "event_id": enrichment_event_id,  # Already a string
         # Multi-Tenant (copy from source message)
         "tenant_id": message_metadata.get("tenant_id", ""),
         "source": message_metadata.get("source", ""),
         # Threading (copy from source message to link to same thread)
-        "thread_id": message_metadata.get("thread_id"),
+        "thread_id": _uuid_to_str(message_metadata.get("thread_id")),
         "msg_id": f"enrichment-{enrichment_event_id}",
         # Temporal
         "ts": enrichment_timestamp,
         # Authors (enrichment author is "egregora" system)
         "author_raw": "egregora",
-        "author_uuid": message_metadata.get("author_uuid"),  # Link to original author for context
+        "author_uuid": _uuid_to_str(message_metadata.get("author_uuid")),  # Link to original author for context
         # Content
         "text": f"[{enrichment_type} Enrichment] {identifier}\nEnrichment saved: {enrichment_id_str}",
         "media_url": None,
@@ -265,7 +270,7 @@ def _create_enrichment_row(
         "pii_flags": None,
         # Lineage (copy from source message)
         "created_at": message_metadata.get("created_at"),
-        "created_by_run": message_metadata.get("created_by_run"),
+        "created_by_run": _uuid_to_str(message_metadata.get("created_by_run")),
     }
 
 
@@ -421,16 +426,16 @@ def _enrich_urls(
             timestamp = row.get("ts")
             timestamp_value = _ensure_datetime(timestamp) if timestamp is not None else None
 
-            # Collect all IR metadata from this row
+            # Collect all IR metadata from this row (convert UUIDs to strings)
             row_metadata = {
                 "ts": timestamp_value,
-                "event_id": row.get("event_id"),
+                "event_id": _uuid_to_str(row.get("event_id")),
                 "tenant_id": row.get("tenant_id"),
                 "source": row.get("source"),
-                "thread_id": row.get("thread_id"),
-                "author_uuid": row.get("author_uuid"),
+                "thread_id": _uuid_to_str(row.get("thread_id")),
+                "author_uuid": _uuid_to_str(row.get("author_uuid")),
                 "created_at": row.get("created_at"),
-                "created_by_run": row.get("created_by_run"),
+                "created_by_run": _uuid_to_str(row.get("created_by_run")),
             }
 
             for url in urls[:3]:
@@ -519,16 +524,16 @@ def _extract_media_references(
             timestamp = row.get("ts")
             timestamp_value = _ensure_datetime(timestamp) if timestamp is not None else None
 
-            # Collect all IR metadata from this row
+            # Collect all IR metadata from this row (convert UUIDs to strings)
             row_metadata = {
                 "ts": timestamp_value,
-                "event_id": row.get("event_id"),
+                "event_id": _uuid_to_str(row.get("event_id")),
                 "tenant_id": row.get("tenant_id"),
                 "source": row.get("source"),
-                "thread_id": row.get("thread_id"),
-                "author_uuid": row.get("author_uuid"),
+                "thread_id": _uuid_to_str(row.get("thread_id")),
+                "author_uuid": _uuid_to_str(row.get("author_uuid")),
                 "created_at": row.get("created_at"),
-                "created_by_run": row.get("created_by_run"),
+                "created_by_run": _uuid_to_str(row.get("created_by_run")),
             }
 
             for ref in set(refs):
