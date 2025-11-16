@@ -1244,9 +1244,7 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
             if "authors" in metadata:
                 _ensure_author_entries(path.parent, metadata.get("authors"))
 
-            yaml_front = _yaml.dump(
-                metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
-            )
+            yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
             full_content = f"---\n{yaml_front}---\n\n{document.content}"
             path.write_text(full_content, encoding="utf-8")
         elif document.type == DocumentType.PROFILE:
