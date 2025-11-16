@@ -3,15 +3,11 @@
 from __future__ import annotations
 
 from functools import wraps
-from typing import Any
 
-import httpx
 from httpx import AsyncClient, HTTPStatusError
-from tenacity import retry_if_exception_type, stop_after_attempt
-
 from pydantic_ai import models as pyd_models
-from pydantic_ai.models import cached_async_http_client as _cached_client
 from pydantic_ai.retries import AsyncTenacityTransport, RetryConfig, wait_retry_after
+from tenacity import retry_if_exception_type, stop_after_attempt
 
 RETRY_CONFIG = RetryConfig(
     retry=retry_if_exception_type(HTTPStatusError),
