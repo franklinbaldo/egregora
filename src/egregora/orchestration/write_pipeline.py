@@ -16,12 +16,11 @@ from __future__ import annotations
 
 import logging
 import tempfile
-import uuid
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
@@ -35,7 +34,6 @@ from egregora.agents.shared.author_profiles import filter_opted_out_authors, pro
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
-from egregora.database.tracking import get_git_commit_sha
 from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
