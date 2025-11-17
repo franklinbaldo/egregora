@@ -228,6 +228,8 @@ RUNS_TABLE_SCHEMA = ibis.schema(
         "stage": dt.string,  # Stage name (e.g., "parsing", "enrichment", "writing")
         "status": dt.string,  # "running", "completed", "failed"
         "error": dt.String(nullable=True),  # Error message if status="failed"
+        # Lineage (simplified single-parent model)
+        "parent_run_id": dt.UUID(nullable=True),  # Parent run ID for simple lineage tracking
         # Fingerprinting (content-addressed checkpointing)
         "input_fingerprint": dt.string,  # SHA256 of input data + config + code (NOT NULL)
         "code_ref": dt.String(nullable=True),  # Git commit SHA
@@ -241,46 +243,22 @@ RUNS_TABLE_SCHEMA = ibis.schema(
         "duration_seconds": dt.Float64(nullable=True),
         "llm_calls": dt.Int64(nullable=True),
         "tokens": dt.Int64(nullable=True),
+        # Extensibility (for storing aggregate metrics like num_windows, total_posts, etc.)
+        "attrs": dt.JSON(nullable=True),  # JSON blob for stage-specific metadata
         # Observability (for Priority D.2)
         "trace_id": dt.String(nullable=True),  # OpenTelemetry trace ID
     }
 )
 
 # ----------------------------------------------------------------------------
-# Run Events Table Schema (Event-Sourced Pipeline Tracking)
+# Run Events Table Schema (REMOVED - 2025-11-17)
 # ----------------------------------------------------------------------------
-# Event-sourced alternative to RUNS_TABLE_SCHEMA that uses append-only pattern.
-# Each status change is a new event (started → completed/failed).
-# Benefits: Works with any backend supporting INSERT, no UPDATE/DELETE needed,
-# provides full audit trail of state transitions.
+# REMOVED: Event-sourced tracking replaced with simpler stateful runs table.
+# Rationale: For alpha, single-table model is sufficient. Event sourcing added
+# complexity without clear benefits for current use cases.
+# See docs/SIMPLIFICATION_PLAN.md for details.
 
-RUN_EVENTS_SCHEMA = ibis.schema(
-    {
-        # Event identity (each status change is unique)
-        "event_id": dt.UUID,  # PRIMARY KEY - unique per event
-        "run_id": dt.UUID,  # Run identifier (multiple events per run)
-        # Multi-tenant isolation
-        "tenant_id": dt.String(nullable=True),
-        # Execution metadata
-        "stage": dt.string,  # Stage name (e.g., "window_0", "window_1")
-        "status": dt.string,  # Event type: "started", "completed", "failed"
-        "error": dt.String(nullable=True),  # Error message if status="failed"
-        # Fingerprinting
-        "input_fingerprint": dt.String(nullable=True),  # SHA256 of input (only on 'started')
-        "code_ref": dt.String(nullable=True),  # Git commit SHA
-        "config_hash": dt.String(nullable=True),  # SHA256 of config
-        # Timing - single timestamp per event (not start/finish)
-        "timestamp": dt.Timestamp(timezone="UTC"),  # When this event occurred
-        # Metrics (some only available at completion)
-        "rows_in": dt.Int64(nullable=True),  # Input rows (on 'started')
-        "rows_out": dt.Int64(nullable=True),  # Output rows (on 'completed')
-        "duration_seconds": dt.Float64(nullable=True),  # Duration (on 'completed'/'failed')
-        "llm_calls": dt.Int64(nullable=True),
-        "tokens": dt.Int64(nullable=True),
-        # Observability
-        "trace_id": dt.String(nullable=True),
-    }
-)
+# RUN_EVENTS_SCHEMA - REMOVED
 
 RUNS_TABLE_DDL = """
 CREATE TABLE IF NOT EXISTS runs (
@@ -289,6 +267,7 @@ CREATE TABLE IF NOT EXISTS runs (
     stage VARCHAR NOT NULL,
     status VARCHAR NOT NULL CHECK (status IN ('running', 'completed', 'failed', 'degraded')),
     error TEXT,
+    parent_run_id UUID,
     input_fingerprint VARCHAR NOT NULL,
     code_ref VARCHAR,
     config_hash VARCHAR,
@@ -299,6 +278,7 @@ CREATE TABLE IF NOT EXISTS runs (
     duration_seconds DOUBLE PRECISION,
     llm_calls BIGINT,
     tokens BIGINT,
+    attrs JSON,
     trace_id VARCHAR
 );
 
@@ -308,34 +288,10 @@ CREATE INDEX IF NOT EXISTS idx_runs_stage ON runs(stage);
 CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
 CREATE INDEX IF NOT EXISTS idx_runs_fingerprint ON runs(input_fingerprint);
 CREATE INDEX IF NOT EXISTS idx_runs_tenant ON runs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_runs_parent ON runs(parent_run_id);
 """
 
-RUN_EVENTS_TABLE_DDL = """
-CREATE TABLE IF NOT EXISTS run_events (
-    event_id UUID PRIMARY KEY,
-    run_id UUID NOT NULL,
-    tenant_id VARCHAR,
-    stage VARCHAR NOT NULL,
-    status VARCHAR NOT NULL CHECK (status IN ('started', 'completed', 'failed')),
-    error TEXT,
-    input_fingerprint VARCHAR,
-    code_ref VARCHAR,
-    config_hash VARCHAR,
-    timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
-    rows_in BIGINT,
-    rows_out BIGINT,
-    duration_seconds DOUBLE PRECISION,
-    llm_calls BIGINT,
-    tokens BIGINT,
-    trace_id VARCHAR
-);
-
--- Index for common queries
-CREATE INDEX IF NOT EXISTS idx_run_events_run_id ON run_events(run_id);
-CREATE INDEX IF NOT EXISTS idx_run_events_timestamp ON run_events(timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_run_events_stage ON run_events(stage);
-CREATE INDEX IF NOT EXISTS idx_run_events_status ON run_events(status);
-"""
+# RUN_EVENTS_TABLE_DDL - REMOVED (2025-11-17)
 
 # ============================================================================
 # Helper Functions
@@ -567,29 +523,7 @@ def create_runs_table(conn: duckdb.DuckDBPyConnection) -> None:
         raise RuntimeError(msg) from e
 
 
-def create_run_events_table(conn: duckdb.DuckDBPyConnection) -> None:
-    """Create run_events table in DuckDB connection.
-
-    Args:
-        conn: DuckDB connection
-
-    Raises:
-        RuntimeError: If table creation fails
-
-    Example:
-        >>> import duckdb
-        >>> conn = duckdb.connect(":memory:")
-        >>> create_run_events_table(conn)
-        >>> result = conn.execute("SELECT COUNT(*) FROM run_events").fetchone()
-        >>> assert result[0] == 0  # Table exists but empty
-
-    """
-    try:
-        conn.execute(RUN_EVENTS_TABLE_DDL)
-        logger.info("Created run_events table with indexes")
-    except Exception as e:
-        msg = f"Failed to create run_events table: {e}"
-        raise RuntimeError(msg) from e
+# create_run_events_table - REMOVED (2025-11-17)
 
 
 def ensure_runs_table_exists(conn: duckdb.DuckDBPyConnection) -> None:

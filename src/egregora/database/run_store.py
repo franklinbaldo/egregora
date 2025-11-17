@@ -16,20 +16,15 @@ class RunStore:
         """Fetches the last N runs from the database."""
         return self.conn.execute(
             """
-            WITH run_summary AS (
-                SELECT
-                    run_id,
-                    stage,
-                    LAST(status ORDER BY timestamp) as status,
-                    MIN(CASE WHEN status = 'started' THEN timestamp END) as started_at,
-                    MAX(CASE WHEN status = 'started' THEN rows_in END) as rows_in,
-                    MAX(CASE WHEN status IN ('completed', 'failed') THEN rows_out END) as rows_out,
-                    MAX(CASE WHEN status IN ('completed', 'failed') THEN duration_seconds END) as duration_seconds
-                FROM run_events
-                GROUP BY run_id, stage
-            )
-            SELECT *
-            FROM run_summary
+            SELECT
+                run_id,
+                stage,
+                status,
+                started_at,
+                rows_in,
+                rows_out,
+                duration_seconds
+            FROM runs
             WHERE started_at IS NOT NULL
             ORDER BY started_at DESC
             LIMIT ?
@@ -41,35 +36,25 @@ class RunStore:
         """Fetches a single run by its full or partial UUID."""
         return self.conn.execute(
             """
-            WITH run_events_filtered AS (
-                SELECT *
-                FROM run_events
-                WHERE CAST(run_id AS VARCHAR) LIKE ?
-            ),
-            run_summary AS (
-                SELECT
-                    run_id,
-                    MAX(tenant_id) as tenant_id,
-                    stage,
-                    LAST(status ORDER BY timestamp) as status,
-                    LAST(error ORDER BY timestamp) FILTER (WHERE error IS NOT NULL) as error,
-                    MAX(CASE WHEN status = 'started' THEN input_fingerprint END) as input_fingerprint,
-                    MAX(code_ref) as code_ref,
-                    MAX(config_hash) as config_hash,
-                    MIN(CASE WHEN status = 'started' THEN timestamp END) as started_at,
-                    MAX(CASE WHEN status IN ('completed', 'failed') THEN timestamp END) as finished_at,
-                    MAX(CASE WHEN status IN ('completed', 'failed') THEN duration_seconds END) as duration_seconds,
-                    MAX(CASE WHEN status = 'started' THEN rows_in END) as rows_in,
-                    MAX(CASE WHEN status IN ('completed', 'failed') THEN rows_out END) as rows_out,
-                    MAX(llm_calls) as llm_calls,
-                    MAX(tokens) as tokens,
-                    MAX(trace_id) as trace_id
-                FROM run_events_filtered
-                GROUP BY run_id, stage
-            )
-            SELECT *
-            FROM run_summary
-            WHERE started_at IS NOT NULL
+            SELECT
+                run_id,
+                tenant_id,
+                stage,
+                status,
+                error,
+                input_fingerprint,
+                code_ref,
+                config_hash,
+                started_at,
+                finished_at,
+                duration_seconds,
+                rows_in,
+                rows_out,
+                llm_calls,
+                tokens,
+                trace_id
+            FROM runs
+            WHERE CAST(run_id AS VARCHAR) LIKE ?
             ORDER BY started_at DESC
             LIMIT 1
             """,
