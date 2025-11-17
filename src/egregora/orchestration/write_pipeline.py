@@ -36,7 +36,7 @@ from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig, load_egregora_config
-from egregora.database import CONVERSATION_SCHEMA, RUN_EVENTS_SCHEMA
+from egregora.database import RUN_EVENTS_SCHEMA
 from egregora.database.tracking import fingerprint_window, get_git_commit_sha
 from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
