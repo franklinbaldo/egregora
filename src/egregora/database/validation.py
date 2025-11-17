@@ -28,10 +28,12 @@ Usage:
     def parse(self, input_path: Path) -> ibis.Table:
         return parse_source(input_path)
 
-    # Decorator for pipeline transformations (functional approach)
-    @validate_stage
+    # Manual validation for pipeline transformations
     def filter_messages(data: Table, min_length: int = 0) -> Table:
-        return data.filter(data.text.length() >= min_length)
+        validate_ir_schema(data)  # Validate input
+        result = data.filter(data.text.length() >= min_length)
+        validate_ir_schema(result)  # Validate output
+        return result
 
 See Also:
     - docs/architecture/ir-v1-spec.md
@@ -67,9 +69,6 @@ if TYPE_CHECKING:
 
 # Type variable for decorator
 F = TypeVar("F", bound=Callable[..., "Table"])
-
-# Constants
-MIN_STAGE_ARGS = 2  # Stage process method requires (self, data) at minimum
 
 
 class SchemaError(Exception):
@@ -420,86 +419,10 @@ def validate_adapter_output[F: Callable[..., "Table"]](func: F) -> F:
     return wrapper  # type: ignore[return-value]
 
 
-def validate_stage[F: Callable[..., "Table"]](func: F) -> F:
-    """Decorator to validate pipeline stage inputs and outputs against IR v1 schema.
-
-    This decorator wraps stage functions to automatically validate:
-    1. Input data conforms to IR v1 schema
-    2. Output data conforms to IR v1 schema (preserves schema contract)
-
-    Works with both:
-    - Plain functions: `(data: Table, ...) -> Table`
-    - Methods: `(self, data: Table, ...) -> Table`
-
-    Args:
-        func: Function or method that takes a Table as input and returns a Table
-
-    Returns:
-        Wrapped function that validates input/output
-
-    Raises:
-        SchemaError: If input or output doesn't match IR v1 schema
-
-    Example (functional approach):
-        >>> @validate_stage
-        ... def filter_messages(data: Table, min_length: int = 0) -> Table:
-        ...     return data.filter(data.text.length() >= min_length)
-
-    Example (legacy class-based - for backward compatibility only):
-        >>> # Note: PipelineStage abstraction has been removed
-        >>> # This decorator now supports both plain functions and legacy methods
-
-    Note:
-        This validates BOTH inputs and outputs to ensure transformation
-        preserve the IR v1 schema contract throughout the pipeline.
-
-    """
-
-    @wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        # Determine if this is a method (has self) or function
-        # For methods: args = (self, data, ...), data is at index 1
-        # For functions: args = (data, ...), data is at index 0
-        is_method = len(args) >= MIN_STAGE_ARGS and hasattr(args[0], "__class__")
-        data_index = 1 if is_method else 0
-
-        if len(args) <= data_index:
-            msg = f"Function requires at least {data_index + 1} argument(s): data parameter missing"
-            raise TypeError(msg)
-
-        input_data = args[data_index]
-
-        # Validate input
-        try:
-            validate_ir_schema(input_data)
-        except SchemaError as e:
-            func_name = getattr(func, "__qualname__", func.__name__)
-            msg = f"Stage input validation failed in {func_name}: {e}"
-            raise SchemaError(msg) from e
-
-        # Call original function
-        result = func(*args, **kwargs)
-
-        # Extract output data
-        # Support both plain Table returns and legacy StageResult objects
-        if hasattr(result, "data"):
-            # Legacy StageResult pattern
-            output_data = result.data
-        else:
-            # Modern functional pattern: direct Table return
-            output_data = result
-
-        # Validate output
-        try:
-            validate_ir_schema(output_data)
-        except SchemaError as e:
-            func_name = getattr(func, "__qualname__", func.__name__)
-            msg = f"Stage output validation failed in {func_name}: {e}"
-            raise SchemaError(msg) from e
-
-        return result
-
-    return wrapper  # type: ignore[return-value]
+# validate_stage decorator - REMOVED (2025-11-17)
+# Rationale: Not used anywhere in codebase. Stages should call validate_ir_schema()
+# directly when validation is needed, rather than using a decorator.
+# See docs/SIMPLIFICATION_PLAN.md for details.
 
 
 # ============================================================================
@@ -633,8 +556,6 @@ __all__ = [
     # Adapter validation
     "adapter_output_validator",
     "validate_adapter_output",
-    # Stage validation (functional)
-    "validate_stage",
     # IR table creation
     "create_ir_table",
 ]
