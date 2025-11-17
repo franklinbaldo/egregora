@@ -1,0 +1,109 @@
+interactions:
+- request:
+    body: '{"contents":[{"role":"user","parts":[{"text":"Compare these two blog posts:\n\n#
+      Post A (intro-to-python)\n# Introduction to Python\n\nPython is a high-level
+      programming language known for its simplicity and readability.\nIt''s widely
+      used in web development, data science, and automation.\n\n## Key Features\n\n-
+      Easy to learn and use\n- Extensive standard library\n- Large community support\n\nPython''s
+      simple syntax makes it perfect for beginners while being powerful enough\nfor
+      experienced developers.\n\n\n# Post B (getting-started-javascript)\n# Getting
+      Started with JavaScript\n\nJavaScript is the language of the web, enabling interactive
+      websites and modern web applications.\nFrom simple animations to complex single-page
+      applications, JavaScript powers the modern web.\n\n## Why JavaScript?\n\n- Runs
+      in every browser\n- Full-stack development with Node.js\n- Rich ecosystem of
+      frameworks\n\nWhether you''re building a simple website or a complex web app,
+      JavaScript is essential.\n\n\nEvaluate both posts and determine which is better
+      quality overall.\n"}]}],"systemInstruction":{"parts":[{"text":"You are a discerning
+      reader evaluating blog posts.\n\nYour task is to compare two blog posts and
+      determine which one is better quality.\nConsider these criteria:\n\n1. **Clarity**:
+      Is the writing clear and easy to understand?\n2. **Engagement**: Would this
+      keep a reader''s interest?\n3. **Insight**: Does it offer valuable or interesting
+      perspectives?\n4. **Structure**: Is it well-organized and flows logically?\n5.
+      **Authenticity**: Does it feel genuine rather than generic?\n\nFor each post,
+      provide:\n- A star rating (1-5 stars)\n- Engagement level (low, medium, high)\n-
+      Constructive feedback\n\nThen decide which post is better overall, or if they''re
+      equal quality (tie).\n"}]},"generationConfig":{"temperature":0.7,"topP":0.95,"topK":40,"maxOutputTokens":2048,"responseMimeType":"application/json","responseSchema":{"type":"object","properties":{"winner":{"type":"string","description":"Which
+      post won: ''a'', ''b'', or ''tie''","enum":["a","b","tie"]},"reasoning":{"type":"string","description":"Explanation
+      of the choice"},"feedback_a":{"type":"object","properties":{"comment":{"type":"string","description":"Natural
+      language feedback about the post"},"star_rating":{"type":"integer","description":"Star
+      rating from 1-5","minimum":1,"maximum":5},"engagement_level":{"type":"string","description":"Predicted
+      engagement: low, medium, or high","enum":["low","medium","high"]}},"required":["comment","star_rating","engagement_level"]},"feedback_b":{"type":"object","properties":{"comment":{"type":"string","description":"Natural
+      language feedback about the post"},"star_rating":{"type":"integer","description":"Star
+      rating from 1-5","minimum":1,"maximum":5},"engagement_level":{"type":"string","description":"Predicted
+      engagement: low, medium, or high","enum":["low","medium","high"]}},"required":["comment","star_rating","engagement_level"]}},"required":["winner","reasoning","feedback_a","feedback_b"]}}}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '3014'
+      content-type:
+      - application/json
+      host:
+      - generativelanguage.googleapis.com
+      user-agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=DUMMY_API_KEY
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"{\\n  \\\"winner\\\": \\\"b\\\",\\n
+        \ \\\"reasoning\\\": \\\"Both posts are extremely brief and lack significant
+        depth or engagement suitable for a full blog post. However, Post B is marginally
+        better because it uses more compelling and definitive language (\\\\\\\"language
+        of the web,\\\\\\\" \\\\\\\"powers the modern web\\\\\\\") and highlights
+        a critical modern use case (full-stack development with Node.js). Post A is
+        accurate but reads like a dictionary definition, making it slightly less engaging.\\\",\\n
+        \ \\\"feedback_a\\\": {\\n    \\\"comment\\\": \\\"The post is clear and structurally
+        sound, but it is far too short and generic. It lacks any real insight or unique
+        perspective. It reads more like a bulleted list of facts than an engaging
+        introductory blog post. To improve, it needs a strong hook and expansion on
+        the 'why'\u2014perhaps a brief example of Python's readability.\\\",\\n    \\\"star_rating\\\":
+        2,\\n    \\\"engagement_level\\\": \\\"low\\\"\\n  },\\n  \\\"feedback_b\\\":
+        {\\n    \\\"comment\\\": \\\"This post is also very short but uses slightly
+        more evocative language to describe JavaScript's role on the web. Mentioning
+        'full-stack development with Node.js' provides a better sense of scope than
+        Post A's feature list. It is clear and well-structured, but still needs significant
+        expansion to be considered high quality or insightful.\\\",\\n    \\\"star_rating\\\":
+        3,\\n    \\\"engagement_level\\\": \\\"medium\\\"\\n  }\\n}\",\n            \"thoughtSignature\":
+        \"CogZAdHtim/d4byvho+eJL7WUulkxorGfH/6nKACVWk0X7r7YDf3i2wBAgJiAZI9NfH4TaMP3RNHU4PXl4Q9m5TzJjQXUKqujPXWYFyTVoBxg4/GgZDYQp1+wQR1zv8OKVA1aLvGcWL1B0FjQu6dV/y03V9JqGitU23LgMIHt4Gs1h5Mp279nSdXUlc6888sn5auzR+mWSCzsCvkbk7VEiYozDHNKbDCCpuhVpoh5EPh79yMXywTNo2nfmo5g/ca5py2HjHu/mnmvy3TxPKonfry574aVkZ2A/1BE1C0MRPfHHOBkXA0La8PGsEX+Kw/36Z2nSC+ovbuceqPkfaaN1GNyA7tX+XEU6TW8vf+0S3Kz8dVCZPthJEZD1lmlRGZIrdDaVy1h5WvAOAcPMVdXTgoHeG/KYAv/cTK9ejwQVfhQql/GkccgYJ2F7qASqp0sE8gBfLVDwTfphMIsjwXtSbKEdv9z7T6Xa1iWwNEHX5mBa/U3IADWYVGJWo5C4SyF7RWmy2GTokvCX/8Jq5QubCjQ093Rl6U5z8j+PNSdlFpYZYa5gOni/Fb7ZMnKQxnqzJQzqq8nMdNzmb6qW2hG2UP7kh7cV07Wr1f5MS8ixM1RvmPUSncQ/+/GOIS+WIqq239gx0wLH/6czBPG1Wr1lDv4MCvWQ+nlqJulSqtcqNZvniJBK3Q3OuqUpb6CQt93TvRogeLDmoPf/6w2ZnIr9iEDOvHBWn5GVaLWYsNJ0XcKQa6Opyhc9LyRBMJalzZ231OGv5mOSTJqWFn9609wshBrcmskPnd0mhJvIhfOXFUnFz4y5SEH3hEp2Sr9ZrMriWFRUWzr4MOV2osH3ZYgXF/oeXbr9azAsqN5v9Pi48MTXUNw1P7kc6+bcppKXu+XyvqQyFgO+XwEBNnBtTSxog2QLXzOC+kyHOUN420Tnf+oDT7Qy2k/tc3qZf/Gn+Ox+XuuQkC1Hjhkv///2nYBeef5F5qY50s2BMKBvnu3JedMPo1ZVF1GO/V8WfdaFopbELc+l2LkqcvPLaEH4VbGCVSGBVYoxuNLhlUNCK1J2Jsg5gNIyEK3T2+3AbOB4J5d+wIOfRAFfOQRAbLGxby0YIpFqxXd9KeScfo/6zcTKUmuHoPrqw92K+q4qfF4FPCavOqMPmWRf8arIH1NabadVNFfeQCJbmxPo2gUbUpFPU70A+oetCbIyRjMKWm1p8yPZlv5Ligr/7X2Z71z/YN1wVv2sAwGU6fTl78z2vvbmusC13z49xLwESQZX9ffe39GfGx5BTZmJiRqayO+NXVzMHDgl8f3krnho9S8tzgx55XVk0IZ02gFFHMu14RP/xGlwyHihqcJudGK8LHHVC8lShR8r17MB3GaN1xdFQPHfVxJMNb9xe6DbP589lfhkBdXJTvJAxZuSPPRJilMC2LzBx8cr77N0tRbvhgbjJc8/eadUmPNiiGKU0B7ht9Demv1qOKjxmHOJUCWBNdaMOqhHx/uAKN76eHaRiogR7fnuJ4rPJjy4KaCi8SVN4kWRqJTqchVt80nLm+b0PJGMWhqMuMpoQaMyxGlAOGfZA1kK6jS81NZ3DeH8y249tQL/fUyuKRa13oCHYAI0N81MKnnes+RIsgcdtXVRRrTDAidbvCr+x9NhgueTFJVpc5Lgrt/eXhYBVVvtuq0ovQ1fhpfDBuaa7nTTvqiK3YZKQ+O250ajMdWmPKYl9uv/AQAfWIC3k1in/h+cvYctCKnd9o/0vlzHZPbhlHSwvju1gSxZr6u9rTFkEPjFAYOdVZ+EJ2aYh9sUNZpUVavaR76qE2EdW+/f1FxBsdNorkpjUnVf3dL1FNsOFpPseCsdL/jfBe1pYovjDfaN2E/fOQOg27bqnpbBWljS6LOfFDRCOUclXzr6qEK1uQYQ2VSW15MaJBSDuNBaMig7T/kIlZetINp8ROb0ZLgSX3Tb8Pyl2kMmt3IJSCK3KTU8n8hf124sF8CLkEvNujeOcK4lLSU9yDoocOa8eisM8sQPc71R0LnHP+koCW6b3+o5zJnutUxyWs2KwsSD33f8/ygHd45rslbEg9soIgne9rsoez8m2XD+qqwiFRkZJSF7VWtFjhml+Fr3XQ85EZ+TOD2jaF+CdMp5jFVsOVsIX/vQErF0wwkQJ/iVpk+47QAvVvPd/8b2j7dgIA50duh5awHTLrIyPaU9WeQ+A+Ae7mJMoYiqkTiEsoO74VwQ/6uxMs4KX4ECQNaGHulWnS+wqoGui5DmPMjPQNTsdOpt+oYlScFKESVT/3O7GmM8CAWfNDZgYqAGUrcbAQZhCxzJ4bebQGSgsAwA4b5NoLcyN4LL297eMpDSq/cuZLxml34UvR4/7wmslP/yNIJe2V20fB2Vd1nKRqKcBtMqNJEXWHgkrZBMEhiu4cnL8trE7CE6FiwdIXfOuPek3BIM/wmDrrVHTiTFsPkDLXy3g6SvBtTmylcWJ1U9n7X+vgthtqkvjLS8gk7UcFmGDmhAEsU1E7nvguHAj8pCv4CO5ZEt66VINa3l2CXl6GWYjxLkM+jEaA2PNI/oanQu2tOCh0CYd/vYMfuvrWWP96eT2EepW3rw1pEaDHxP30fXP7TPwbWl7u/pL/yB1gcz482TNxwLOvZw836L3z46Sl61WMXNuhfBTspHT/8eQwi3IGmeZ91uvJx2CcXXKCca1BlI3tUqHFtWiCXKMgXRiFNisuKPpLPRZhb1Myb5dfz/P/ND984f7ZnrBgYsrZ0VYE0YI5Jd7LVOjqksDaOXoLXENbcF7yIVRyCJBxnZN2i5Cib7urQib5D12O+eUR8cQTknULcocQPJ3liW9THZYwF7lsDJJyD7cxcRUz2Inn0mFex+IXcjkSydiGiNKvWjHY5EwKlVCR62BU2ZyqOdc0Gh1HJZfYPfRbjsdWraAEkTD6d3umu/XZwdgibOhYY5An6LzNE9c1Z3h05NKKd+U8Nk9fge5qq19IdUHFUXfCrpYrE4TOWPzg4WtbclWsYsXou33BNfsIJX9RfN3ShOwP1gK5OZnmCCFfIKbnwlJ2ceSDrLWN6PlFwIvNuDZgtH/6fGOMiuY2a9oj4ObTvHPDHSZWg26O1qU3ZJvq80BCjAD45iUxfeH4jm638Bt7/cXQmuq/lx/pXWQ0jdvRLRDDlwpRfZZd9sKLk3W14zh4ZzqLxHcmS5qDutNMyjESF+DZ4QlrUcBVCXULLzxhTEAwUcRutn45UJd9Tz1cymyP40IV31SS9VozcC9cibBelerkGQux9oRK2shxqcRoAxVMJZ5M+mgVpPNoVSleDd16TdbNvOWZTRGlgEZj/4IhVd2JqnfQG3C6Pvh4PTB/SiUBVprJWxSPOTtH+vg63rbeMLHO1BJStZYrWHsIs/OpYKFBoO7d/xt+BkE6O0QJxTpzHA9ojzXKbENOE+SVgzgrsN8yNQdYKAOmxI84t75XY9LC3TKnpkJ78KPRdh62smJ1s1fnNDlfmLSYirVAemk5Ln8ePxSE0POGX+9fJgVmANTRvUFya0bdIHGznYZqtbcFK1h5yGgdIGfQuy5JSO+2HNbwRjMufSwgP/NezVpj9Lvwo31+L/sXbxNfMK7V8UAoSgFVmP+9/V8gEDt8NC5KJelmn+/Pu7Mj5cGVr1lrVv9X/xP5hXsJm2DGBrsYC/4BBvgno7ClUr7kIAHoWz/97llK34p6fMpWkXnrNScnxi6tbpFQm7BYq8jXrqUzpIx+9416bfA89EksPCtoSU65625cxloy1J5sov6V3hmA8XVDk3VDKQz5kOau0nnbabN5HGWm45S6x2kQGXPgM2eTtYppbVUEySY5sOBrNY/IyiOu9DNm0bG5nAiiK50oHVhHuhoYxhn0RWuuC34X9doz7iPI4E6E5wcb87lJ8IMD/+6yKuNJWK+t55FcYHvJ+ZW5oHbfkpIBosZSusRCONF4tKtYnuwsP+Ij309bENnlGso18Pv6xQPmJlmusgQnTNdTyLI+0JYkmQPTh3eOwIsKWd1kq9hAh33luM8TaqrsGGGjk3tVk2ahOMd4LKI/+lM4udM9yUrXE4r+0oaoGra6Ku+s7xQymgwtjy21mY0Girb7v611CvwaNE5W0HXhpD/252JuDOjCJ0ND6Ym2cv/MwzNYqiP+aVX4icTMoAhRdZu4wGhJatyVAudGKxWMEduyC9aW3ZLVIeqbHJGkqGR2SpvJJCX/qRCd80B6DoKLrOJwUwHfjok4OKh4EZsg2KQo75brRTjn8lQ9ywk9vIk2eDicXcvy6oCOaQ==\"\n
+        \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        366,\n    \"candidatesTokenCount\": 309,\n    \"totalTokenCount\": 1441,\n
+        \   \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 366\n      }\n    ],\n    \"thoughtsTokenCount\":
+        766\n  },\n  \"modelVersion\": \"gemini-2.5-flash-preview-09-2025\",\n  \"responseId\":
+        \"X-0ZacP7L67pz7IPlIPt-Qg\"\n}\n"
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Sun, 16 Nov 2025 15:27:27 GMT
+      Server:
+      - scaffolding on HTTPServer2
+      Server-Timing:
+      - gfet4t7; dur=6682
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+      content-length:
+      - '6251'
+    status:
+      code: 200
+      message: OK
+version: 1

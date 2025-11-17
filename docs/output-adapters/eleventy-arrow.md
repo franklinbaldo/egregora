@@ -29,7 +29,7 @@ output/
 
 ```python
 from pathlib import Path
-from egregora.output_adapters.eleventy_arrow_adapter import EleventyArrowAdapter
+from egregora.output_adapters.eleventy_arrow import EleventyArrowAdapter
 
 # Create adapter
 adapter = EleventyArrowAdapter(
