@@ -522,7 +522,20 @@ def _process_all_windows(
         effective_token_limit,
     )
 
+    # Get max_windows limit from config (default 1 for single-window behavior)
+    max_windows = getattr(ctx.config.pipeline, "max_windows", 1)
+    if max_windows == 0:
+        max_windows = None  # 0 means process all windows
+
+    windows_processed = 0
+    stopped_early = False
+    last_processed_timestamp: datetime | None = None
     for window in windows_iterator:
+        # Check if we've hit the max_windows limit
+        if max_windows is not None and windows_processed >= max_windows:
+            logger.info("Reached max_windows limit (%d). Stopping processing.", max_windows)
+            stopped_early = True
+            break
         # Skip empty windows
         if window.size == 0:
             logger.debug(
@@ -1170,6 +1183,8 @@ def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, ch
         results: Window processing results
         max_processed_timestamp: Latest end_time from successfully processed windows
         checkpoint_path: Path to checkpoint file
+        last_processed_timestamp: Timestamp of the last processed window (if any)
+        stopped_early: Whether processing stopped early due to max_windows
 
     """
     if not results or max_processed_timestamp is None:
