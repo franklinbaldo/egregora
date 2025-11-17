@@ -78,7 +78,6 @@ from egregora.config.settings import (
     # Config loading/saving functions
     create_default_config,
     find_egregora_config,
-    get_model_for_task,
     load_egregora_config,
     save_egregora_config,
 )
@@ -116,7 +115,6 @@ __all__ = [
     # ==========================================================================
     "ModelType",  # Type literal for model roles
     "ModelSettings",  # LLM model names
-    "get_model_for_task",  # Get model name with CLI override support
     # ==========================================================================
     # Pipeline-Specific Configs
     # ==========================================================================

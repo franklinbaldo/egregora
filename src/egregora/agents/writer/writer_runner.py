@@ -27,7 +27,6 @@ from egregora.agents.shared.rag import VectorStore, index_document
 from egregora.agents.writer.agent import WriterAgentContext, write_posts_with_pydantic_agent
 from egregora.agents.writer.context_builder import _load_profiles_context, build_rag_context_for_prompt
 from egregora.agents.writer.formatting import _build_conversation_markdown, _load_journal_memory
-from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.data_primitives.protocols import UrlContext
 from egregora.output_adapters import create_output_format, output_registry
@@ -56,7 +55,6 @@ class WriterConfig:
     rag_dir: Path = Path("output/rag")
     site_root: Path | None = None  # For custom prompt overrides in {site_root}/.egregora/prompts/
     egregora_config: EgregoraConfig | None = None
-    cli_model: str | None = None
     enable_rag: bool = True
     retrieval_mode: str = "ann"
     retrieval_nprobe: int | None = None
@@ -258,18 +256,14 @@ def _build_writer_environment(
     client: genai.Client,
 ) -> WriterEnvironment:
     """Construct the configuration and runtime context required by the writer agent."""
-    embedding_model = get_model_for_task("embedding", config.egregora_config, config.cli_model)
-    annotations_store = AnnotationStore(config.rag_dir / "annotations.duckdb")
-
     site_root = config.site_root
     if config.egregora_config is None:
         egregora_config = create_default_config(site_root) if site_root else create_default_config(Path.cwd())
     else:
         egregora_config = config.egregora_config.model_copy(deep=True)
 
-    if config.cli_model:
-        egregora_config.models.writer = config.cli_model
-        egregora_config.models.embedding = config.cli_model
+    embedding_model = egregora_config.models.embedding
+    annotations_store = AnnotationStore(config.rag_dir / "annotations.duckdb")
 
     storage_root = site_root if site_root else config.output_dir.parent
     format_type = egregora_config.output.format

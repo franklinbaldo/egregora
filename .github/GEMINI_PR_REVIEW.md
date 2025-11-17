@@ -202,7 +202,7 @@ You can change the model by setting the `GEMINI_MODEL` repository variable.
 ### API Rate Limits
 
 - Gemini has rate limits based on your API tier
-- Consider using `gemini-1.5-flash-8b` for higher throughput
+- Consider using `google-gla:gemini-flash-latest` for higher throughput
 - Or upgrade your Gemini API quota at https://console.cloud.google.com/
 
 ## Workflow Files

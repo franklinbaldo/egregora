@@ -34,7 +34,6 @@ from egregora.agents.model_limits import get_model_context_limit
 from egregora.agents.shared.author_profiles import filter_opted_out_authors, process_commands
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
-from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database import RUN_EVENTS_SCHEMA
 from egregora.database.tracking import fingerprint_window, get_git_commit_sha
@@ -89,6 +88,18 @@ def process_whatsapp_export(
     site_paths = resolve_site_paths(output_dir)
 
     base_config = load_egregora_config(site_paths.site_root)
+
+    # Apply CLI model override to all text generation models if provided
+    models_update = {}
+    if opts.model:
+        models_update = {
+            "writer": opts.model,
+            "enricher": opts.model,
+            "enricher_vision": opts.model,
+            "ranking": opts.model,
+            "editor": opts.model,
+        }
+
     egregora_config = base_config.model_copy(
         deep=True,
         update={
@@ -119,6 +130,7 @@ def process_whatsapp_export(
                     ),
                 }
             ),
+            **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
         },
     )
 
@@ -128,7 +140,6 @@ def process_whatsapp_export(
         output_dir=output_dir,
         config=egregora_config,
         api_key=opts.gemini_api_key,
-        model_override=opts.model,
         client=opts.client,
     )
 
@@ -146,7 +157,6 @@ class WindowProcessingContext:
     enrichment_cache: EnrichmentCache
     output_format: any
     enable_enrichment: bool
-    cli_model_override: str | None
     retrieval_mode: str
     retrieval_nprobe: int
     retrieval_overfetch: int
@@ -161,7 +171,6 @@ class PipelineEnvironment:
     runtime_db_uri: str
     pipeline_backend: any
     runs_backend: any
-    cli_model_override: str | None
     client: genai.Client
     enrichment_cache: EnrichmentCache
 
@@ -235,7 +244,6 @@ def _process_single_window(
         rag_dir=ctx.site_paths.rag_dir,
         site_root=ctx.site_paths.site_root,
         egregora_config=ctx.config,
-        cli_model=ctx.cli_model_override,
         enable_rag=True,
         retrieval_mode=ctx.retrieval_mode,
         retrieval_nprobe=ctx.retrieval_nprobe,
@@ -420,12 +428,11 @@ def _record_run_event(runs_backend: any, event: dict[str, object]) -> None:
         # Don't break pipeline for observability failures
 
 
-def _resolve_context_token_limit(config: EgregoraConfig, cli_model_override: str | None = None) -> int:
+def _resolve_context_token_limit(config: EgregoraConfig) -> int:
     """Resolve the effective context window token limit for the writer model.
 
     Args:
         config: Egregora configuration with model settings.
-        cli_model_override: Optional CLI model override to respect.
 
     Returns:
         Maximum number of prompt tokens available for a window.
@@ -434,7 +441,7 @@ def _resolve_context_token_limit(config: EgregoraConfig, cli_model_override: str
     use_full_window = getattr(config.pipeline, "use_full_context_window", False)
 
     if use_full_window:
-        writer_model = get_model_for_task("writer", config, cli_override=cli_model_override)
+        writer_model = config.models.writer
         limit = get_model_context_limit(writer_model)
         logger.debug(
             "Using full context window for writer model %s (limit=%d tokens)",
@@ -448,7 +455,7 @@ def _resolve_context_token_limit(config: EgregoraConfig, cli_model_override: str
     return limit
 
 
-def _calculate_max_window_size(config: EgregoraConfig, cli_model_override: str | None = None) -> int:
+def _calculate_max_window_size(config: EgregoraConfig) -> int:
     """Calculate maximum window size based on LLM context window.
 
     Uses rough heuristic: 5 tokens per message average.
@@ -456,7 +463,6 @@ def _calculate_max_window_size(config: EgregoraConfig, cli_model_override: str |
 
     Args:
         config: Egregora configuration with model settings
-        cli_model_override: Optional CLI model override for the writer model
 
     Returns:
         Maximum number of messages per window
@@ -467,7 +473,7 @@ def _calculate_max_window_size(config: EgregoraConfig, cli_model_override: str |
         16000  # (100k * 0.8) / 5
 
     """
-    max_tokens = _resolve_context_token_limit(config, cli_model_override)
+    max_tokens = _resolve_context_token_limit(config)
     avg_tokens_per_message = 5  # Conservative estimate
     buffer_ratio = 0.8  # Leave 20% for system prompt, tools, etc.
 
@@ -514,8 +520,8 @@ def _process_all_windows(
     max_processed_timestamp: datetime | None = None
 
     # Calculate max window size from LLM context (once)
-    max_window_size = _calculate_max_window_size(ctx.config, ctx.cli_model_override)
-    effective_token_limit = _resolve_context_token_limit(ctx.config, ctx.cli_model_override)
+    max_window_size = _calculate_max_window_size(ctx.config)
+    effective_token_limit = _resolve_context_token_limit(ctx.config)
     logger.debug(
         "Max window size: %d messages (based on %d token context)",
         max_window_size,
@@ -855,7 +861,6 @@ def _setup_pipeline_environment(
     output_dir: Path,
     config: EgregoraConfig,
     api_key: str | None,
-    model_override: str | None,
     client: genai.Client | None,
 ) -> PipelineEnvironment:
     """Set up pipeline environment including paths, backends, and clients."""
@@ -877,7 +882,6 @@ def _setup_pipeline_environment(
         runtime_db_uri=runtime_db_uri,
         pipeline_backend=backend,
         runs_backend=runs_backend,
-        cli_model_override=model_override,
         client=client_instance,
         enrichment_cache=enrichment_cache,
     )
@@ -888,13 +892,12 @@ def _pipeline_environment(
     output_dir: Path,
     config: EgregoraConfig,
     api_key: str | None,
-    model_override: str | None,
     client: genai.Client | None,
 ):
     """Context manager that provisions and tears down pipeline resources."""
     options = getattr(ibis, "options", None)
     old_backend = getattr(options, "default_backend", None) if options else None
-    env = _setup_pipeline_environment(output_dir, config, api_key, model_override, client)
+    env = _setup_pipeline_environment(output_dir, config, api_key, client)
 
     if options is not None:
         options.default_backend = env.pipeline_backend
@@ -1069,8 +1072,8 @@ def _prepare_pipeline_data(
     if config.pipeline.to_date:
         to_date = date_type.fromisoformat(config.pipeline.to_date)
 
-    vision_model = get_model_for_task("enricher_vision", config, env.cli_model_override)
-    embedding_model = get_model_for_task("embedding", config, env.cli_model_override)
+    vision_model = config.models.enricher_vision
+    embedding_model = config.models.embedding
 
     messages_table = _parse_and_validate_source(adapter, input_path, timezone)
     _setup_content_directories(env.site_paths)
@@ -1129,7 +1132,6 @@ def _prepare_pipeline_data(
         enrichment_cache=env.enrichment_cache,
         output_format=output_format,
         enable_enrichment=enable_enrichment,
-        cli_model_override=env.cli_model_override,
         retrieval_mode=retrieval_mode,
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
@@ -1297,14 +1299,13 @@ def run(
     config: EgregoraConfig,
     *,
     api_key: str | None = None,
-    model_override: str | None = None,
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """Run the complete write pipeline workflow."""
     logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", source)
     adapter = get_adapter(source)
 
-    with _pipeline_environment(output_dir, config, api_key, model_override, client) as env:
+    with _pipeline_environment(output_dir, config, api_key, client) as env:
         dataset = _prepare_pipeline_data(adapter, input_path, config, env, output_dir)
         results, max_processed_timestamp = _process_all_windows(
             dataset.windows_iterator, dataset.window_context, env.runs_backend

@@ -99,12 +99,12 @@ cd my-blog
 uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
 ```
 
-**That's it!** Open [http://localhost:8000](http://localhost:8000) to see your blog. Generated posts are grouped by time windows (filenames such as `2025-10-28 14:10 to 14:15.md`) and all runtime state lives under `.egregora/` (config, checkpoints, RAG data), so re-running the pipeline can resume from the last processed window.
+**That's it!** Open [http://localhost:8000](http://localhost:8000) to see your blog. Generated posts are grouped by time windows (filenames such as `2025-10-28 14:10 to 14:15.md`) and all runtime state lives under `.egregora/` (config, RAG data, optional checkpoints). By default, the pipeline always rebuilds from scratch for simplicity. Use `--resume` flag to enable incremental processing.
 
 **Output layout**
 - `docs/posts/<window>.md` — windows are labeled with the start/end timestamps (e.g. `2025-10-28 14:10 to 14:15.md`)
 - `docs/profiles/` — anonymized author profiles
-- `.egregora/` — runtime state (config, checkpoint, RAG index) so repeated runs can resume safely
+- `.egregora/` — runtime state (config, RAG index, checkpoints when `--resume` is used)
 
 ---
 
@@ -134,9 +134,10 @@ Egregora uses a **modern, staged pipeline** architecture built for clarity and e
 - Reduced function signatures from 12-16 parameters → 3-6 parameters
 - Uses Pydantic V2 `EgregoraConfig` + frozen `RuntimeContext` dataclasses
 
-**✅ Simple Resume Logic** (Phase 3)
-- No complex checkpoints - just checks if output files exist
-- Clean, transparent: "Does period have posts? Skip if yes, process if no"
+**✅ Simple Resume Logic** (Opt-In)
+- Checkpoint-based incremental processing disabled by default
+- Enable with `--resume` flag for large datasets
+- Default: Always rebuild from scratch (predictable, simple)
 
 **✅ Source-Based Organization** (Phase 6)
 - Source-specific code in `sources/{whatsapp,slack}/`
@@ -167,7 +168,7 @@ Egregora uses a **modern, staged pipeline** architecture built for clarity and e
 ### Basic Processing
 
 ```bash
-# Process with default settings (1 day per window)
+# Process with default settings (1 day per window, full rebuild)
 egregora write export.zip --output=./blog
 
 # Group by week (7 days per window)
@@ -183,6 +184,9 @@ egregora write export.zip \
 
 # Custom timezone (important for accurate timestamps)
 egregora write export.zip --timezone="America/Sao_Paulo"
+
+# Resume from checkpoint (opt-in incremental processing)
+egregora write export.zip --output=./blog --resume
 ```
 
 ### Privacy Controls

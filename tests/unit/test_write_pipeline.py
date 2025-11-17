@@ -16,7 +16,7 @@ def test_calculate_max_window_size_uses_config_cap() -> None:
 
 
 def test_calculate_max_window_size_full_context_respects_model_limits() -> None:
-    """Full-context mode should use model limits and honor CLI overrides."""
+    """Full-context mode should use model limits and honor config model settings."""
 
     config = EgregoraConfig(
         pipeline={"use_full_context_window": True, "max_prompt_tokens": 2_000},
@@ -29,8 +29,9 @@ def test_calculate_max_window_size_full_context_respects_model_limits() -> None:
     # Verify we use the model's limit instead of the pipeline cap
     assert _calculate_max_window_size(config) == expected_from_config
 
-    cli_override = "google-gla:gemini-flash-latest"
-    override_limit = get_model_context_limit(cli_override)
+    # Test with a different model (simulating CLI override applied to config)
+    override_config = config.model_copy(update={"models": config.models.model_copy(update={"writer": "google-gla:gemini-flash-latest"})})
+    override_limit = get_model_context_limit("google-gla:gemini-flash-latest")
     expected_from_override = int((override_limit * 0.8) / 5)
 
-    assert _calculate_max_window_size(config, cli_override) == expected_from_override
+    assert _calculate_max_window_size(override_config) == expected_from_override

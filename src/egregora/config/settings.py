@@ -689,51 +689,6 @@ class PipelineEnrichmentConfig:
 ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor", "banner", "embedding"]
 
 
-def get_model_for_task(
-    task: ModelType,
-    egregora_config: EgregoraConfig | None = None,
-    cli_override: str | None = None,
-) -> str:
-    """Get model name for a specific task.
-
-    Priority:
-    1. CLI override (--model flag)
-    2. Config file (.egregora/config.yml models.{task})
-    3. DEFAULT_MODEL fallback
-
-    Args:
-        task: Type of model task (writer, enricher, etc.)
-        egregora_config: Optional EgregoraConfig from .egregora/config.yml
-        cli_override: Optional CLI model override (--model flag)
-
-    Returns:
-        Model name to use
-
-    Examples:
-        >>> get_model_for_task("writer", config, cli_model="gemini-2.0-flash")
-        "gemini-2.0-flash"  # CLI override
-        >>> get_model_for_task("writer", config, None)
-        "google-gla:gemini-flash-latest"  # From config
-        >>> get_model_for_task("writer", None, None)
-        "google-gla:gemini-flash-latest"  # DEFAULT_MODEL
-
-    """
-    # CLI override takes precedence
-    if cli_override:
-        logger.debug("Using CLI model for %s: %s", task, cli_override)
-        return cli_override
-
-    # Get from config (defaults already resolved by schema validator)
-    if egregora_config:
-        model = getattr(egregora_config.models, task)
-        logger.debug("Using config model for %s: %s", task, model)
-        return model
-
-    # Fallback to DEFAULT_MODEL if no config provided
-    logger.debug("Using fallback DEFAULT_MODEL for %s", task)
-    return DEFAULT_MODEL
-
-
 __all__ = [
     # Pydantic config schemas (persisted in .egregora/config.yml)
     "EgregoraConfig",
@@ -760,7 +715,6 @@ __all__ = [
     "PipelineEnrichmentConfig",
     # Model configuration
     "ModelType",
-    "get_model_for_task",
     # Constants
     "DEFAULT_MODEL",
     "DEFAULT_EMBEDDING_MODEL",

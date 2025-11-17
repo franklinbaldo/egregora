@@ -33,10 +33,13 @@ uv run pytest --cov=egregora tests/     # With coverage
 uv run pre-commit run --all-files       # All checks (line length: 110)
 uv run ruff check --fix src/            # Auto-fix
 
-# Run pipeline
+# Run pipeline (default: full rebuild)
 export GOOGLE_API_KEY="your-key"
 uv run egregora write export.zip --output=./output
 uv run egregora write export.zip --step-size=100 --step-unit=messages
+
+# Opt-in incremental processing (resume from checkpoint)
+uv run egregora write export.zip --output=./output --resume
 
 # Observability
 uv run egregora runs tail               # Recent runs
@@ -361,7 +364,7 @@ All in `database/ir_schema.py`:
 
 ```yaml
 models:
-  writer: google-gla:gemini-2.0-flash-exp
+  writer: google-gla:gemini-flash-latest
   enricher: google-gla:gemini-flash-latest
   embedding: google-gla:gemini-embedding-001
 

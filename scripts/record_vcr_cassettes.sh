@@ -49,7 +49,7 @@ echo -e "${GREEN}✓ Output directory created: $OUTPUT_DIR${NC}\n"
 CONFIG_FILE="$OUTPUT_DIR/.egregora_config.yml"
 cat > "$CONFIG_FILE" << 'EOF'
 models:
-  writer: google-gla:gemini-2.0-flash-exp
+  writer: google-gla:gemini-flash-latest
   enricher: google-gla:gemini-flash-latest
   embedding: google-gla:gemini-embedding-001
 

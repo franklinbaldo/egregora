@@ -514,7 +514,7 @@ async with httpx.AsyncClient() as client:
 from pydantic_ai import Agent
 from fasta2a import AgentCard, Skill
 
-agent = Agent('gemini-1.5-pro')
+agent = Agent('google-gla:gemini-flash-latest')
 
 # Define agent capabilities
 card = AgentCard(

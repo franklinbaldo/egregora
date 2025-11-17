@@ -6,7 +6,7 @@ from pydantic_evals import Case, Dataset
 from pydantic_evals.evaluators import IsInstance, LLMJudge
 
 # Create agent to evaluate
-agent = Agent("gemini-1.5-pro", instructions="Answer geography questions concisely and accurately.")
+agent = Agent("google-gla:gemini-flash-latest", instructions="Answer geography questions concisely and accurately.")
 
 
 # Define test cases
