@@ -12,6 +12,12 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+pytest.skip(
+    "Stage command suite (parse/group/enrich/write-posts) was removed from the CLI; "
+    "retain this module skipped until the commands are reintroduced.",
+    allow_module_level=True,
+)
+
 from egregora.cli.main import app
 
 # Create a CLI runner for testing

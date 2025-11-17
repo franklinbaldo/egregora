@@ -84,36 +84,20 @@ from egregora.config.settings import (
 )
 
 # ==============================================================================
-# Site Paths & MkDocs Utilities (from output_adapters.mkdocs)
+# Site Paths & MkDocs Utilities (from egregora.config.site)
 # ==============================================================================
-# DEPRECATED: MkDocs-specific utilities moved to output_adapters.mkdocs package.
-# Re-exported here for backward compatibility only.
-#
-# Path resolution for MkDocs site structure (blog/, profiles/, media/, .egregora/).
-# Handles both legacy flat structure and new .egregora/ structure.
-#
-# - SitePaths: Dataclass with all site paths (site_dir, blog_dir, profiles_dir, etc.)
-# - resolve_site_paths(): Resolve paths from site_dir or mkdocs.yml
-# - find_mkdocs_file(): Locate mkdocs.yml in directory tree
-# - load_mkdocs_config(): Load and parse mkdocs.yml
-# - DEFAULT_BLOG_DIR, DEFAULT_DOCS_DIR: Default directory names
-# - MEDIA_DIR_NAME, PROFILES_DIR_NAME: Subdirectory names
-#
-# New code should import from egregora.output_adapters.mkdocs directly.
-#
-# TEMPORARILY DISABLED: These imports create a circular dependency:
-# config -> mkdocs.adapter -> agents.shared -> database -> utils -> config
-# Use direct imports from egregora.output_adapters.mkdocs instead.
-# from egregora.output_adapters.mkdocs import (
-#     DEFAULT_BLOG_DIR,
-#     DEFAULT_DOCS_DIR,
-#     MEDIA_DIR_NAME,
-#     PROFILES_DIR_NAME,
-#     SitePaths,
-#     find_mkdocs_file,
-#     load_mkdocs_config,
-#     resolve_site_paths,
-# )
+# Re-export mkdocs/site helpers from egregora.config.site so callers of
+# egregora.config can continue to import a single facade.
+from egregora.config.site import (
+    DEFAULT_BLOG_DIR,
+    DEFAULT_DOCS_DIR,
+    MEDIA_DIR_NAME,
+    PROFILES_DIR_NAME,
+    SitePaths,
+    find_mkdocs_file,
+    load_mkdocs_config,
+    resolve_site_paths,
+)
 
 __all__ = [
     "EMBEDDING_DIM",  # Embedding vector dimensions

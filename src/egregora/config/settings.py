@@ -324,12 +324,37 @@ class DatabaseSettings(BaseModel):
     )
 
 
+class ReaderSettings(BaseModel):
+    """Reader agent configuration for post evaluation and ranking."""
+
+    enabled: bool = Field(
+        default=False,
+        description="Enable reader agent for post quality evaluation",
+    )
+    comparisons_per_post: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="Number of pairwise comparisons per post for ELO ranking",
+    )
+    k_factor: int = Field(
+        default=32,
+        ge=16,
+        le=64,
+        description="ELO K-factor controlling rating volatility (16=stable, 64=volatile)",
+    )
+    database_path: str = Field(
+        default=".egregora/reader.duckdb",
+        description="Path to reader database for ELO ratings and comparison history",
+    )
+
+
 class FeaturesSettings(BaseModel):
     """Feature flags for experimental or optional functionality."""
 
     ranking_enabled: bool = Field(
         default=False,
-        description="Enable Elo-based post ranking",
+        description="Enable Elo-based post ranking (deprecated: use reader.enabled instead)",
     )
     annotations_enabled: bool = Field(
         default=True,
@@ -385,6 +410,10 @@ class EgregoraConfig(BaseModel):
     writer: WriterAgentSettings = Field(
         default_factory=WriterAgentSettings,
         description="Writer configuration",
+    )
+    reader: ReaderSettings = Field(
+        default_factory=ReaderSettings,
+        description="Reader agent configuration",
     )
     privacy: PrivacySettings = Field(
         default_factory=PrivacySettings,
@@ -711,6 +740,7 @@ __all__ = [
     "PipelineSettings",
     "PrivacySettings",
     "RAGSettings",
+    "ReaderSettings",
     "WriterAgentSettings",
     # Config loading functions
     "create_default_config",

@@ -38,6 +38,7 @@ from egregora.config import get_model_for_task
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database import RUN_EVENTS_SCHEMA
 from egregora.database.tracking import fingerprint_window, get_git_commit_sha
+from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
 from egregora.enrichment.runners import EnrichmentRuntimeContext
@@ -495,7 +496,7 @@ def _validate_window_size(window: any, max_size: int) -> None:
 
 def _process_all_windows(
     windows_iterator: any, ctx: WindowProcessingContext, runs_backend: any
-) -> tuple[dict[str, dict[str, list[str]]], datetime | None, bool]:
+) -> tuple[dict[str, dict[str, list[str]]], datetime | None]:
     """Process all windows with tracking and error handling.
 
     Args:
@@ -504,13 +505,13 @@ def _process_all_windows(
         runs_backend: Ibis backend for run tracking
 
     Returns:
-        Tuple of:
-            - Dict mapping window labels to {'posts': [...], 'profiles': [...]}
-            - Datetime of the last processed window (or None)
-            - Boolean indicating whether processing stopped early due to max_windows
+        Tuple of (results dict, max_processed_timestamp)
+        - results: Dict mapping window labels to {'posts': [...], 'profiles': [...]}
+        - max_processed_timestamp: Latest end_time from successfully processed windows
 
     """
     results = {}
+    max_processed_timestamp: datetime | None = None
 
     # Calculate max window size from LLM context (once)
     max_window_size = _calculate_max_window_size(ctx.config, ctx.cli_model_override)
@@ -584,6 +585,10 @@ def _process_all_windows(
             window_results = _process_window_with_auto_split(window, ctx, depth=0, max_depth=5)
             results.update(window_results)
 
+            # Track max processed timestamp for checkpoint
+            if max_processed_timestamp is None or window.end_time > max_processed_timestamp:
+                max_processed_timestamp = window.end_time
+
             # Record "completed" event
             finished_at = datetime.now(UTC)
             posts_count = sum(len(r.get("posts", [])) for r in window_results.values())
@@ -652,11 +657,7 @@ def _process_all_windows(
             # Re-raise the original exception
             raise
 
-        # Increment window counter (only for processed windows, empty windows don't count)
-        windows_processed += 1
-        last_processed_timestamp = window.end_time
-
-    return results, last_processed_timestamp, stopped_early
+    return results, max_processed_timestamp
 
 
 def _perform_enrichment(
@@ -949,27 +950,10 @@ def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) ->
     logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
     messages_table = adapter.parse(input_path, timezone=timezone)
 
-    actual_schema = messages_table.schema()
-    logger.debug("Adapter returned schema: %s", actual_schema)
+    # Validate IR schema (raises SchemaError if invalid)
+    validate_ir_schema(messages_table)
 
-    # TENET-BREAK(pipeline)[@claude][P2][due:2025-02-01]:
-    # tenet=validate-inputs; why=Schema validation is too strict during alpha development;
-    # exit=When adapters stabilize and we have proper test coverage (#TBD)
-    # Schema validation temporarily disabled to allow pipeline to work with existing adapters.
-    # The adapter contract should ensure correct schema, but enforcement can wait until
-    # adapters are more stable.
-
-    # expected_cols = set(CONVERSATION_SCHEMA.names)
-    # actual_cols = set(actual_schema.names)
-    # missing = expected_cols - actual_cols
-    # if missing:
-    #     msg = "Source adapter schema mismatch:\n  " + ", ".join(sorted(missing))
-    #     raise ValueError(msg)
-    # if actual_cols > expected_cols:
-    #     logger.warning(
-    #         "[yellow]⚠️ Schema includes extra columns[/yellow] — %s",
-    #         ", ".join(sorted(actual_cols - expected_cols)),
-    #     )
+    logger.debug("IR schema validation passed: %s", messages_table.schema())
     total_messages = messages_table.count().execute()
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)
 
@@ -1192,52 +1176,32 @@ def _index_media_into_rag(
         logger.exception("[red]Failed to index media into RAG[/]")
 
 
-def _save_checkpoint(
-    results: dict,
-    messages_table: ir.Table,
-    checkpoint_path: Path,
-    *,
-    last_processed_timestamp: datetime | None = None,
-    stopped_early: bool = False,
-) -> None:
+def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, checkpoint_path: Path) -> None:
     """Save checkpoint after successful window processing.
 
     Args:
         results: Window processing results
-        messages_table: Filtered messages table
+        max_processed_timestamp: Latest end_time from successfully processed windows
         checkpoint_path: Path to checkpoint file
         last_processed_timestamp: Timestamp of the last processed window (if any)
         stopped_early: Whether processing stopped early due to max_windows
 
     """
-    if not results:
+    if not results or max_processed_timestamp is None:
         logger.warning(
             "⚠️  [yellow]No windows processed[/] - checkpoint not saved. "
             "All windows may have been empty or filtered out."
         )
         return
 
-    checkpoint_table = messages_table
-    if stopped_early and last_processed_timestamp is not None:
-        checkpoint_table = messages_table.filter(messages_table.ts <= last_processed_timestamp)
-        logger.info(
-            "💾 [cyan]Partial checkpoint:[/] processed up to %s due to max_windows limit",
-            last_processed_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-        )
+    # Count total messages processed (approximate from results)
+    total_posts = sum(len(r.get("posts", [])) for r in results.values())
 
-    # Checkpoint based on messages in the filtered (and possibly truncated) table
-    checkpoint_stats = checkpoint_table.aggregate(
-        max_timestamp=checkpoint_table.ts.max(),
-        total_processed=checkpoint_table.count(),
-    ).execute()
-
-    total_processed = checkpoint_stats["total_processed"][0]
-    max_timestamp = checkpoint_stats["max_timestamp"][0]
-    save_checkpoint(checkpoint_path, max_timestamp, total_processed)
+    save_checkpoint(checkpoint_path, max_processed_timestamp, total_posts)
     logger.info(
         "💾 [cyan]Checkpoint saved:[/] processed up to %s (%d posts written)",
-        max_timestamp.strftime("%Y-%m-%d %H:%M:%S") if max_timestamp else "N/A",
-        len(results),
+        max_processed_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        total_posts,
     )
 
 
@@ -1336,17 +1300,11 @@ def run(
 
     with _pipeline_environment(output_dir, config, api_key, model_override, client) as env:
         dataset = _prepare_pipeline_data(adapter, input_path, config, env, output_dir)
-        results, last_processed_timestamp, stopped_early = _process_all_windows(
+        results, max_processed_timestamp = _process_all_windows(
             dataset.windows_iterator, dataset.window_context, env.runs_backend
         )
         _index_media_into_rag(dataset.enable_enrichment, results, env.site_paths, dataset.embedding_model)
-        _save_checkpoint(
-            results,
-            dataset.messages_table,
-            dataset.checkpoint_path,
-            last_processed_timestamp=last_processed_timestamp,
-            stopped_early=stopped_early,
-        )
+        _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
 
         logger.info("[bold green]🎉 Pipeline completed successfully![/]")
         return results

@@ -1,0 +1,107 @@
+interactions:
+- request:
+    body: '{"contents":[{"role":"user","parts":[{"text":"Compare these two blog posts:\n\n#
+      Post A (intro-to-python)\n# Introduction to Python\n\nPython is a high-level
+      programming language known for its simplicity and readability.\nIt''s widely
+      used in web development, data science, and automation.\n\n## Key Features\n\n-
+      Easy to learn and use\n- Extensive standard library\n- Large community support\n\nPython''s
+      simple syntax makes it perfect for beginners while being powerful enough\nfor
+      experienced developers.\n\n\n# Post B (getting-started-javascript)\n# Getting
+      Started with JavaScript\n\nJavaScript is the language of the web, enabling interactive
+      websites and modern web applications.\nFrom simple animations to complex single-page
+      applications, JavaScript powers the modern web.\n\n## Why JavaScript?\n\n- Runs
+      in every browser\n- Full-stack development with Node.js\n- Rich ecosystem of
+      frameworks\n\nWhether you''re building a simple website or a complex web app,
+      JavaScript is essential.\n\n\nEvaluate both posts and determine which is better
+      quality overall.\n"}]}],"systemInstruction":{"parts":[{"text":"You are a discerning
+      reader evaluating blog posts.\n\nYour task is to compare two blog posts and
+      determine which one is better quality.\nConsider these criteria:\n\n1. **Clarity**:
+      Is the writing clear and easy to understand?\n2. **Engagement**: Would this
+      keep a reader''s interest?\n3. **Insight**: Does it offer valuable or interesting
+      perspectives?\n4. **Structure**: Is it well-organized and flows logically?\n5.
+      **Authenticity**: Does it feel genuine rather than generic?\n\nFor each post,
+      provide:\n- A star rating (1-5 stars)\n- Engagement level (low, medium, high)\n-
+      Constructive feedback\n\nThen decide which post is better overall, or if they''re
+      equal quality (tie).\n"}]},"generationConfig":{"temperature":0.7,"topP":0.95,"topK":40,"maxOutputTokens":2048,"responseMimeType":"application/json","responseSchema":{"type":"object","properties":{"winner":{"type":"string","description":"Which
+      post won: ''a'', ''b'', or ''tie''","enum":["a","b","tie"]},"reasoning":{"type":"string","description":"Explanation
+      of the choice"},"feedback_a":{"type":"object","properties":{"comment":{"type":"string","description":"Natural
+      language feedback about the post"},"star_rating":{"type":"integer","description":"Star
+      rating from 1-5","minimum":1,"maximum":5},"engagement_level":{"type":"string","description":"Predicted
+      engagement: low, medium, or high","enum":["low","medium","high"]}},"required":["comment","star_rating","engagement_level"]},"feedback_b":{"type":"object","properties":{"comment":{"type":"string","description":"Natural
+      language feedback about the post"},"star_rating":{"type":"integer","description":"Star
+      rating from 1-5","minimum":1,"maximum":5},"engagement_level":{"type":"string","description":"Predicted
+      engagement: low, medium, or high","enum":["low","medium","high"]}},"required":["comment","star_rating","engagement_level"]}},"required":["winner","reasoning","feedback_a","feedback_b"]}}}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '3014'
+      content-type:
+      - application/json
+      host:
+      - generativelanguage.googleapis.com
+      user-agent:
+      - python-httpx/0.28.1
+    method: POST
+    uri: https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=DUMMY_API_KEY
+  response:
+    body:
+      string: "{\n  \"candidates\": [\n    {\n      \"content\": {\n        \"parts\":
+        [\n          {\n            \"text\": \"{\\n  \\\"winner\\\": \\\"b\\\",\\n
+        \ \\\"reasoning\\\": \\\"Post B is marginally better due to its slightly more
+        engaging tone and the focused structure provided by the \\\\\\\"Why JavaScript?\\\\\\\"
+        heading, which directly addresses the reader's potential motivation. Both
+        posts are extremely short and generic, but B feels slightly more like a persuasive
+        introduction to a topic.\\\",\\n  \\\"feedback_a\\\": {\\n    \\\"comment\\\":
+        \\\"The post is very clear and accurate, but it is extremely brief and generic.
+        It reads more like a definition entry than a compelling blog post introduction.
+        It needs more depth and a hook to grab the reader's interest. The section
+        header 'Key Features' is functional but uninspired.\\\",\\n    \\\"star_rating\\\":
+        2,\\n    \\\"engagement_level\\\": \\\"low\\\"\\n  },\\n  \\\"feedback_b\\\":
+        {\\n    \\\"comment\\\": \\\"This post uses slightly more engaging language
+        ('language of the web', 'powers the modern web') and clearly articulates JavaScript's
+        dominance in the web ecosystem. While still very short, the structure and
+        the focused question 'Why JavaScript?' make it a marginally better and more
+        persuasive introduction than Post A.\\\",\\n    \\\"star_rating\\\": 3,\\n
+        \   \\\"engagement_level\\\": \\\"medium\\\"\\n  }\\n}\",\n            \"thoughtSignature\":
+        \"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\"\n
+        \         }\n        ],\n        \"role\": \"model\"\n      },\n      \"finishReason\":
+        \"STOP\",\n      \"index\": 0\n    }\n  ],\n  \"usageMetadata\": {\n    \"promptTokenCount\":
+        366,\n    \"candidatesTokenCount\": 267,\n    \"totalTokenCount\": 1461,\n
+        \   \"promptTokensDetails\": [\n      {\n        \"modality\": \"TEXT\",\n
+        \       \"tokenCount\": 366\n      }\n    ],\n    \"thoughtsTokenCount\":
+        828\n  },\n  \"modelVersion\": \"gemini-2.5-flash-preview-09-2025\",\n  \"responseId\":
+        \"bO0ZaZ62NrTgz7IPsqqwmQ0\"\n}\n"
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Sun, 16 Nov 2025 15:27:40 GMT
+      Server:
+      - scaffolding on HTTPServer2
+      Server-Timing:
+      - gfet4t7; dur=6879
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+      content-length:
+      - '6632'
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -9,7 +9,7 @@ import pytest
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.output_adapters import create_output_format
-from egregora.output_adapters.eleventy_arrow_adapter import EleventyArrowAdapter
+from egregora.output_adapters.eleventy_arrow import EleventyArrowAdapter
 
 
 def test_serve_and_finalize_writes_parquet():
