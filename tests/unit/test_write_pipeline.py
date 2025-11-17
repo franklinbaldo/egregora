@@ -29,7 +29,7 @@ def test_calculate_max_window_size_full_context_respects_model_limits() -> None:
     # Verify we use the model's limit instead of the pipeline cap
     assert _calculate_max_window_size(config) == expected_from_config
 
-    cli_override = "google-gla:gemini-1.5-pro"
+    cli_override = "google-gla:gemini-flash-latest"
     override_limit = get_model_context_limit(cli_override)
     expected_from_override = int((override_limit * 0.8) / 5)
 

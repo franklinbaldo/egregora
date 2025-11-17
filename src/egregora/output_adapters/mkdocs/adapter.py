@@ -27,7 +27,6 @@ from egregora.config.settings import create_default_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
-from egregora.output_adapters.mkdocs.url_convention import LegacyMkDocsUrlConvention
 from egregora.utils.paths import safe_path_join, slugify
 
 if TYPE_CHECKING:
@@ -224,6 +223,85 @@ def resolve_site_paths(start: Annotated[Path, "Search root"]) -> SitePaths:
     )
 
 
+class MkDocsUrlConvention:
+    """Canonical URL convention for MkDocs sites.
+
+    This is the ONE and ONLY URL scheme for Egregora MkDocs output.
+
+    URL patterns:
+    - Posts: /posts/{YYYY-MM-DD}-{slug}/
+    - Profiles: /profiles/{uuid}/
+    - Journals: /posts/journal/journal_{window_label}/
+    - URL enrichments: /docs/media/urls/{doc_id}/
+    - Media enrichments: /docs/media/{filename}
+    - Media files: /docs/media/{filename}
+    """
+
+    @property
+    def name(self) -> str:
+        """Convention identifier."""
+        return "mkdocs-v1"
+
+    @property
+    def version(self) -> str:
+        """Convention version."""
+        return "1.0.0"
+
+    def canonical_url(self, document: Document, ctx: UrlContext) -> str:
+        """Generate canonical URL for a document.
+
+        Args:
+            document: Document to generate URL for
+            ctx: URL context with base_url
+
+        Returns:
+            Canonical URL string
+        """
+        base = ctx.base_url.rstrip("/")
+
+        if document.type == DocumentType.POST:
+            slug = document.metadata.get("slug", document.document_id[:8])
+            date_val = document.metadata.get("date", "")
+            normalized_slug = slugify(slug)
+
+            if date_val:
+                # Handle datetime objects or strings
+                if hasattr(date_val, "strftime"):
+                    date_str = date_val.strftime("%Y-%m-%d")
+                else:
+                    date_str = str(date_val)
+                return f"{base}/posts/{date_str}-{normalized_slug}/"
+            return f"{base}/posts/{normalized_slug}/"
+
+        if document.type == DocumentType.PROFILE:
+            author_uuid = document.metadata.get("uuid") or document.metadata.get("author_uuid")
+            if not author_uuid:
+                msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
+                raise ValueError(msg)
+            return f"{base}/profiles/{author_uuid}/"
+
+        if document.type == DocumentType.JOURNAL:
+            window_label = document.metadata.get("window_label", document.source_window or "unlabeled")
+            safe_label = window_label.replace(" ", "_").replace(":", "-")
+            return f"{base}/posts/journal/journal_{safe_label}/"
+
+        if document.type == DocumentType.ENRICHMENT_URL:
+            return f"{base}/docs/media/urls/{document.document_id}/"
+
+        if document.type == DocumentType.ENRICHMENT_MEDIA:
+            filename = document.suggested_path or f"{document.document_id}.md"
+            filename = filename.removeprefix("docs/media/")
+            return f"{base}/docs/media/{filename}"
+
+        if document.type == DocumentType.MEDIA:
+            filename = document.suggested_path or document.document_id
+            filename = filename.removeprefix("docs/media/")
+            return f"{base}/docs/media/{filename}"
+
+        # Fallback for unknown types
+        return f"{base}/documents/{document.document_id}/"
+
+
 class MkDocsAdapter(OutputAdapter):
     """Unified MkDocs output adapter."""
 
@@ -231,7 +309,7 @@ class MkDocsAdapter(OutputAdapter):
         """Initializes the adapter."""
         self._initialized = False
         self.site_root = None
-        self._url_convention = LegacyMkDocsUrlConvention()
+        self._url_convention = MkDocsUrlConvention()
         self._index: dict[str, Path] = {}
         self._ctx: UrlContext | None = None
 

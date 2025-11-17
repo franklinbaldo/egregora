@@ -123,7 +123,7 @@ def create_writer_quality_dataset_with_judges() -> Dataset:
 
     # LLM judge for post quality
     quality_judge = LLMJudge(
-        model="gemini-1.5-flash",
+        model="gemini-flash-latest",
         prompt="""Evaluate the writer agent's output quality.
 
 Consider:
@@ -144,7 +144,7 @@ Return ONLY a JSON object with "score" (0.0-1.0) and "reason" (brief explanation
 
     # LLM judge for RAG integration
     rag_judge = LLMJudge(
-        model="gemini-1.5-flash",
+        model="gemini-flash-latest",
         prompt="""Evaluate how well the agent used RAG context.
 
 If "Related Previous Posts" were provided in the prompt:

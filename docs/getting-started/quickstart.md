@@ -142,7 +142,7 @@ egregora process export.zip --retrieval-mode=exact
 egregora process export.zip --start-date=2025-01-01 --end-date=2025-01-31
 
 # Different model
-egregora process export.zip --model=models/gemini-2.0-flash-exp
+egregora process export.zip --model=models/gemini-flash-latest
 ```
 
 ## Troubleshooting

@@ -6,14 +6,12 @@ from egregora.output_adapters.mkdocs.adapter import (
     MEDIA_DIR_NAME,
     PROFILES_DIR_NAME,
     MkDocsAdapter,
+    MkDocsUrlConvention,
     SitePaths,
     find_mkdocs_file,
     load_mkdocs_config,
     resolve_site_paths,
     secure_path_join,
-)
-from egregora.output_adapters.mkdocs.url_convention import (
-    LegacyMkDocsUrlConvention,
 )
 
 __all__ = [
@@ -21,8 +19,8 @@ __all__ = [
     "DEFAULT_DOCS_DIR",
     "MEDIA_DIR_NAME",
     "PROFILES_DIR_NAME",
-    "LegacyMkDocsUrlConvention",
     "MkDocsAdapter",
+    "MkDocsUrlConvention",
     "SitePaths",
     "find_mkdocs_file",
     "load_mkdocs_config",

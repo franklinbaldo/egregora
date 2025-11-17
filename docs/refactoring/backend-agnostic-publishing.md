@@ -1,5 +1,7 @@
 # Refactor: Backend-Agnostic Document Publishing
 
+> **⚠️ HISTORICAL DOCUMENT**: This plan was IMPLEMENTED with simplifications. `LegacyMkDocsUrlConvention` mentioned in examples was replaced with single canonical `MkDocsUrlConvention` inline in `MkDocsAdapter`. Alpha mindset applied: removed backward compatibility tax.
+
 ## Problem
 
 Current storage is **tightly coupled to filesystem/MkDocs**:

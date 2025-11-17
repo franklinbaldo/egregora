@@ -165,7 +165,7 @@ def test_load_egregora_config_parses_yaml(tmp_path):
 
     config_content = """
 models:
-  writer: google-gla:gemini-2.0-flash-exp
+  writer: google-gla:gemini-flash-latest
   embedding: models/text-embedding-004
 rag:
   enabled: true
@@ -177,7 +177,7 @@ writer:
     (egregora_dir / "config.yml").write_text(config_content)
 
     config = load_egregora_config(tmp_path)
-    assert config.models.writer == "google-gla:gemini-2.0-flash-exp"
+    assert config.models.writer == "google-gla:gemini-flash-latest"
     assert config.models.embedding == "models/text-embedding-004"
     assert config.rag.top_k == 10
     assert config.rag.min_similarity_threshold == 0.8

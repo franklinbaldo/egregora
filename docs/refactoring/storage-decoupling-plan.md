@@ -1,10 +1,12 @@
 # Storage Decoupling Implementation Plan
 
+> **⚠️ HISTORICAL DOCUMENT**: This plan was SUPERSEDED by simpler implementation. `LegacyMkDocsUrlConvention` was removed in favor of single canonical `MkDocsUrlConvention` inline in `MkDocsAdapter`. See commit history for details. Alpha mindset: no backward compatibility needed.
+
 ## Epic: Decouple Core Logic from Storage Implementation
 
 **Goal**: Make Egregora extensible and easier to maintain by separating business logic from storage implementation, enabling support for multiple static site generators (Hugo, Jekyll, etc.) without modifying core pipeline code.
 
-**Status**: Planning Phase
+**Status**: ~~Planning Phase~~ SUPERSEDED - Simplified implementation adopted
 **Created**: 2025-01-11
 **Related**: Phase 4 OutputAdapter refactoring (completed)
 

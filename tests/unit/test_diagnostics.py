@@ -291,7 +291,7 @@ class TestCheckEgregoraConfig:
         """Returns OK when valid config file exists."""
         # Mock successful config loading
         mock_config = MagicMock()
-        mock_config.models.writer = "google-gla:gemini-2.0-flash-exp"
+        mock_config.models.writer = "google-gla:gemini-flash-latest"
         mock_config.rag.enabled = True
         mock_config.pipeline.step_unit = "messages"
         mock_load_config.return_value = mock_config

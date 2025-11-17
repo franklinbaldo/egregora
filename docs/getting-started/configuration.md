@@ -31,8 +31,8 @@ egregora process [OPTIONS] EXPORT_PATH
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--model` | Gemini model for writing | `models/gemini-2.0-flash-exp` |
-| `--enricher-model` | Model for URL/media enrichment | `models/gemini-1.5-flash` |
+| `--model` | Gemini model for writing | `models/gemini-flash-latest` |
+| `--enricher-model` | Model for URL/media enrichment | `models/gemini-flash-latest` |
 | `--embedding-model` | Model for embeddings | `models/text-embedding-004` |
 
 ### RAG Configuration
@@ -74,12 +74,12 @@ Generated automatically by `egregora init` or `egregora process` on first run:
 ```yaml
 # Model configuration (pydantic-ai format: provider:model-name)
 models:
-  writer: google-gla:gemini-2.0-flash-exp
+  writer: google-gla:gemini-flash-latest
   enricher: google-gla:gemini-flash-latest
   enricher_vision: google-gla:gemini-flash-latest
   embedding: google-gla:gemini-embedding-001
-  ranking: google-gla:gemini-2.0-flash-exp      # Optional
-  editor: google-gla:gemini-2.0-flash-exp       # Optional
+  ranking: google-gla:gemini-flash-latest      # Optional
+  editor: google-gla:gemini-flash-latest       # Optional
 
 # RAG (Retrieval-Augmented Generation) settings
 rag:
@@ -199,16 +199,13 @@ rm -rf .egregora/cache/
 
 For blog post generation:
 
-- **`gemini-2.0-flash-exp`**: Fast, creative, excellent for blog posts
-- **`gemini-1.5-pro`**: More thoughtful, better for long-form content
-- **`gemini-1.5-flash`**: Fastest, good for simple posts
+- **`gemini-flash-latest`**: Fast, creative, excellent for blog posts (recommended)
 
 ### Enricher Models
 
 For URL/media descriptions:
 
-- **`gemini-1.5-flash`**: Fast, cost-effective (recommended)
-- **`gemini-1.5-pro`**: More detailed descriptions
+- **`gemini-flash-latest`**: Fast, cost-effective (recommended)
 
 ### Embedding Models
 
@@ -251,7 +248,7 @@ client = create_gemini_client(
 
 ```bash
 egregora process export.zip \
-  --model=models/gemini-1.5-pro \
+  --model=models/gemini-flash-latest \
   --step-size=7 --step-unit=days \
   --enrich \
   --profile
@@ -261,7 +258,7 @@ egregora process export.zip \
 
 ```bash
 egregora process export.zip \
-  --model=models/gemini-1.5-flash \
+  --model=models/gemini-flash-latest \
   --step-size=7 --step-unit=days \
   --retrieval-mode=exact \
   --no-enrich

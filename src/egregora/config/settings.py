@@ -370,7 +370,7 @@ class EgregoraConfig(BaseModel):
     Example config.yml:
     ```yaml
     models:
-      writer: google-gla:gemini-2.0-flash-exp
+      writer: google-gla:gemini-flash-latest
       enricher: google-gla:gemini-flash-latest
 
     rag:
