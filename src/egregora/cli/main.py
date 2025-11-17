@@ -257,6 +257,10 @@ def write(
         int | None,
         typer.Option(help="Maximum number of windows to process (default: 1, use 0 for all windows)"),
     ] = 1,
+    resume: Annotated[
+        bool,
+        typer.Option(help="Enable incremental processing (resume from checkpoint). Default: always rebuild from scratch."),
+    ] = False,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> None:
     """Write blog posts from chat exports using LLM-powered synthesis.
@@ -314,6 +318,7 @@ def write(
         max_prompt_tokens=max_prompt_tokens,
         use_full_context_window=use_full_context_window,
         max_windows=max_windows,
+        checkpoint_enabled=resume,
         debug=debug,
     )
     _validate_and_run_process(config, source=source)

@@ -9,6 +9,14 @@ Guidance for Claude Code when working with this repository.
 - **Repository**: https://github.com/franklinbaldo/egregora
 - **Python**: 3.12+ | **Package Manager**: uv | **Primary LLM**: Google Gemini
 
+## Recent Changes (2025-11-17)
+
+**Checkpoint Simplification**: Checkpointing is now **OPT-IN** (disabled by default).
+- Default behavior: Always rebuild from scratch (simpler, fewer mysteries)
+- Enable with `--resume` flag or `checkpoint_enabled: true` in config
+- Rationale: Alpha mindset - simplicity over premature optimization
+- See commit history for detailed reasoning
+
 ## Quick Commands
 
 ```bash

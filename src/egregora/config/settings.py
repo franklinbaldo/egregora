@@ -233,6 +233,10 @@ class PipelineSettings(BaseModel):
         ge=0,
         description="Maximum windows to process per run (1=single window, 0=all windows, None=all)",
     )
+    checkpoint_enabled: bool = Field(
+        default=False,
+        description="Enable incremental processing with checkpoints (opt-in). Default: always rebuild from scratch for simplicity.",
+    )
 
 
 class PathsSettings(BaseModel):
@@ -604,6 +608,7 @@ class ProcessConfig:
     max_prompt_tokens: Annotated[int, "Maximum tokens per prompt"] = 100_000
     use_full_context_window: Annotated[bool, "Use full model context window"] = False
     max_windows: Annotated[int | None, "Maximum number of windows to process (default 1, 0=all)"] = 1
+    checkpoint_enabled: Annotated[bool, "Enable incremental processing (opt-in)"] = False
 
     @property
     def input_path(self) -> Path:

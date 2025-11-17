@@ -1085,6 +1085,7 @@ def _prepare_pipeline_data(
         from_date,
         to_date,
         checkpoint_path,
+        checkpoint_enabled=config.pipeline.checkpoint_enabled,
     )
 
     logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
@@ -1211,6 +1212,7 @@ def _apply_filters(
     from_date: date_type | None,
     to_date: date_type | None,
     checkpoint_path: Path,
+    checkpoint_enabled: bool = False,
 ) -> ir.Table:
     """Apply all filters: egregora messages, opted-out users, date range, checkpoint resume.
 
@@ -1220,6 +1222,7 @@ def _apply_filters(
         from_date: Filter start date (inclusive)
         to_date: Filter end date (inclusive)
         checkpoint_path: Path to checkpoint file
+        checkpoint_enabled: Enable incremental processing (default: False)
 
     Returns:
         Filtered messages table
@@ -1254,32 +1257,35 @@ def _apply_filters(
         if removed_by_date > 0:
             logger.info("🗓️  [yellow]Filtered out[/] %s messages (kept %s)", removed_by_date, filtered_count)
 
-    # Checkpoint-based resume logic
-    checkpoint = load_checkpoint(checkpoint_path)
-    if checkpoint and "last_processed_timestamp" in checkpoint:
-        last_timestamp_str = checkpoint["last_processed_timestamp"]
-        last_timestamp = datetime.fromisoformat(last_timestamp_str)
+    # Checkpoint-based resume logic (OPT-IN)
+    if checkpoint_enabled:
+        checkpoint = load_checkpoint(checkpoint_path)
+        if checkpoint and "last_processed_timestamp" in checkpoint:
+            last_timestamp_str = checkpoint["last_processed_timestamp"]
+            last_timestamp = datetime.fromisoformat(last_timestamp_str)
 
-        # Ensure timezone-aware comparison
-        utc_zone = ZoneInfo("UTC")
-        if last_timestamp.tzinfo is None:
-            last_timestamp = last_timestamp.replace(tzinfo=utc_zone)
+            # Ensure timezone-aware comparison
+            utc_zone = ZoneInfo("UTC")
+            if last_timestamp.tzinfo is None:
+                last_timestamp = last_timestamp.replace(tzinfo=utc_zone)
+            else:
+                last_timestamp = last_timestamp.astimezone(utc_zone)
+
+            original_count = messages_table.count().execute()
+            messages_table = messages_table.filter(messages_table.ts > last_timestamp)
+            filtered_count = messages_table.count().execute()
+            resumed_count = original_count - filtered_count
+
+            if resumed_count > 0:
+                logger.info(
+                    "♻️  [cyan]Resuming:[/] skipped %s already processed messages (last: %s)",
+                    resumed_count,
+                    last_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                )
         else:
-            last_timestamp = last_timestamp.astimezone(utc_zone)
-
-        original_count = messages_table.count().execute()
-        messages_table = messages_table.filter(messages_table.ts > last_timestamp)
-        filtered_count = messages_table.count().execute()
-        resumed_count = original_count - filtered_count
-
-        if resumed_count > 0:
-            logger.info(
-                "♻️  [cyan]Resuming:[/] skipped %s already processed messages (last: %s)",
-                resumed_count,
-                last_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-            )
+            logger.info("🆕 [cyan]Starting fresh[/] (checkpoint enabled, but no checkpoint found)")
     else:
-        logger.info("🆕 [cyan]Starting fresh[/] (no checkpoint found)")
+        logger.info("🆕 [cyan]Full rebuild[/] (checkpoint disabled - default behavior)")
 
     return messages_table
 
