@@ -1,6 +1,6 @@
 # ADR-003: Privacy Gate Capability Token
 
-**Status**: ✅ Accepted
+**Status**: ❌ Superseded (2025-11-18)
 
 **Date**: 2025-01-08
 
@@ -8,7 +8,31 @@
 
 **Supersedes**: None
 
+**Superseded by**: Linear privacy flow (ingest → anonymize → process)
+
 **Related**: ADR-002 (Deterministic UUIDs), IR v1 Schema
+
+---
+
+## Supersession Notice (2025-11-18)
+
+This ADR has been **superseded** and the Privacy Gate capability token pattern has been **removed** from the codebase.
+
+**Rationale**: The capability token pattern added unnecessary complexity for a local batch processing tool. The threat model for Egregora (a single-user tool processing their own WhatsApp exports) does not require unforgeable proof-of-anonymization tokens.
+
+**What was removed**:
+- `src/egregora/privacy/gate.py` (PrivacyGate, PrivacyPass, @require_privacy_pass)
+- `tests/unit/test_privacy_gate.py`
+- `tests/unit/test_privacy_pass.py`
+
+**Current approach**: Simple linear flow where `anonymize_table()` is called directly in the pipeline. Privacy is enforced by:
+1. Code review (not runtime tokens)
+2. Simple, transparent pipeline flow
+3. User trust (they can modify the code anyway)
+
+**Impact**: No production code was using this pattern - it was designed but never integrated into `write_pipeline.py`.
+
+---
 
 ---
 
