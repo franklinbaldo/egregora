@@ -2,18 +2,18 @@
 
 **Created**: 2025-11-17
 **Last Updated**: 2025-11-17
-**Status**: IN PROGRESS (2/6 complete)
+**Status**: NEARLY COMPLETE (5/6 complete)
 **Priority**: P1 - Critical for alpha stability
 
 ## Executive Summary
 
 This document outlines a systematic plan to reduce infrastructure complexity in Egregora while maintaining (or improving) observability and developer experience. The goal is to embrace the **alpha mindset**: favor simplicity over premature optimization, reduce moving parts, and make the codebase easier to reason about.
 
-**Key Metrics**:
-- **Estimated LOC reduction**: ~1,200+ lines
-- **Files to remove**: ~8 files
-- **Complexity reduction**: 6 major simplifications
-- **Breaking changes**: Minimal (mostly internal infrastructure)
+**Key Metrics** (Actual):
+- **LOC reduction**: ~1,500+ lines removed
+- **Files removed**: 8 files deleted, 2 archived
+- **Simplifications complete**: 5 out of 6
+- **Breaking changes**: None (all internal infrastructure)
 
 ## Philosophy: Alpha Mindset
 
@@ -77,55 +77,39 @@ For an alpha, local-first tool with a single developer (or very small team):
 
 ---
 
-### 2. IR Schema: Single Source of Truth
+### 2. IR Schema: Single Source of Truth ✅ COMPLETED (2025-11-17)
 
 **Problem**: Three representations of the same schema (SQL + JSON + Python).
 
-**Current State**:
-- `schema/ir_v1.sql` - Canonical SQL definition
-- `schema/ir_v1.json` - JSON lockfile with metadata
-- `src/egregora/database/ir_schema.py:IR_MESSAGE_SCHEMA` - Ibis schema
-- Comments warning about multi-step update process
+**Decision**: Complete removal of SQL and JSON lockfiles. Python (Ibis) is now the single source of truth.
 
-**Complexity Indicators**:
-- Must update 3 files + run validation script on any schema change
-- Risk of drift between representations
-- "LOCKED" language discourages necessary iteration
+**Rationale**:
+- SQL and JSON lockfiles were never consumed by runtime code
+- Three-way synchronization created maintenance burden without delivering value
+- For an alpha, local-first tool, Python-only schema is sufficient
+- Code-based schema is type-checked, always in sync with implementation
 
-**Proposal**: Make Python (Ibis) the canonical source, generate the rest.
+**Changes Made**:
+1. ✅ Archived `schema/ir_v1.sql` → `schema/archive/ir_v1.sql`
+2. ✅ Archived `schema/ir_v1.json` → `schema/archive/ir_v1.json`
+3. ✅ Removed `scripts/check_ir_schema.py` validation script (145 LOC)
+4. ✅ Removed `tests/unit/test_ir_schema_lockfile.py` tests (71 LOC)
+5. ✅ Removed CI workflow step for schema drift checking
+6. ✅ Updated `schema/README.md` to document Python-as-canonical approach
+7. ✅ Updated `src/egregora/database/validation.py` docstring to clarify canonical source
 
-**Changes**:
-1. **Make `IR_MESSAGE_SCHEMA` in Python canonical**
-   - This is what the code actually uses
-   - Easier to keep in sync (type-checked, imported)
-
-2. **Add `dev_tools/generate_ir_schema.py`**
-   - Reads `IR_MESSAGE_SCHEMA` from Python
-   - Generates `schema/ir_v1.sql` (DDL)
-   - Optionally generates `schema/ir_v1.json` (for docs/external tools)
-   - Run in CI to verify schemas stay in sync
-
-3. **Relax "LOCKED" posture**
-   - Remove numbered checklist from SQL file
-   - Keep comment about version bumping, but make it lightweight
-   - Trust that tests will catch adapter breakage
-
-4. **Optional: Remove JSON lockfile**
-   - If not consumed by external tools, delete it
-   - Move column descriptions to `docs/architecture/ir-v1-spec.md`
-
-**Benefits**:
-- ✅ One place to change IR schema
-- ✅ Automatic consistency (generated files)
+**Actual Benefits**:
+- ✅ One place to change IR schema (`IR_MESSAGE_SCHEMA` in validation.py)
+- ✅ No more multi-file synchronization on schema changes
 - ✅ Easier iteration during alpha
-- ✅ ~100 LOC removed (validation scripts, JSON maintenance)
+- ✅ ~216 LOC removed (validation script + tests)
+- ✅ Clearer documentation: Python is the source of truth
 
-**Implementation Steps**:
-1. Create `dev_tools/generate_ir_schema.py`
-2. Add pre-commit hook or CI check to verify schemas match
-3. Update `CLAUDE.md` to reflect new workflow
-4. Remove `scripts/check_ir_schema.py` if redundant
-5. Decide on JSON lockfile (keep vs. remove)
+**Implementation Notes**:
+- Historical SQL/JSON lockfiles preserved in `schema/archive/` for reference
+- All adapter implementations continue to work (no runtime changes)
+- Schema validation (`validate_ir_schema()`) unchanged and fully functional
+- Pre-existing test failures unrelated to this simplification
 
 **Estimated Impact**: 🔥🔥 Medium-High (reduces friction)
 

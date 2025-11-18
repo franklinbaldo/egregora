@@ -7,6 +7,10 @@ to the IR v1 schema specification at runtime. It combines:
 2. **Runtime validation**: Validates sample rows using Pydantic models
 3. **Adapter boundary enforcement**: Validates adapter outputs before pipeline
 
+**Canonical Schema**: The `IR_MESSAGE_SCHEMA` defined in this module is the
+single source of truth for the IR v1 specification. All adapters MUST produce
+tables conforming to this schema.
+
 Usage:
 
     from egregora.database.validation import (
@@ -37,8 +41,7 @@ Usage:
 
 See Also:
     - docs/architecture/ir-v1-spec.md
-    - schema/ir_v1.sql
-    - schema/ir_v1.json (lockfile)
+    - schema/archive/ (historical SQL/JSON lockfiles)
 
 """
 
