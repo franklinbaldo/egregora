@@ -125,9 +125,9 @@ def populated_runs_db(temp_runs_db: Path) -> Path:
             """
             INSERT INTO runs (
                 run_id, stage, status, started_at, finished_at,
-                input_fingerprint, rows_in, rows_out, duration_seconds,
+                rows_in, rows_out, duration_seconds,
                 llm_calls, tokens, error, trace_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 str(run_data["run_id"]),
@@ -135,7 +135,6 @@ def populated_runs_db(temp_runs_db: Path) -> Path:
                 run_data["status"],
                 run_data["started_at"],
                 run_data.get("finished_at"),
-                f"sha256:test-fingerprint-{i}",
                 run_data.get("rows_in"),
                 run_data.get("rows_out"),
                 duration_seconds,

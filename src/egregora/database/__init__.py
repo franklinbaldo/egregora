@@ -36,7 +36,6 @@ from egregora.database.tracking import (
     run_stage_with_tracking,
 )
 from egregora.database.views import ViewBuilder, ViewRegistry, views
-from egregora.utils.fingerprinting import fingerprint_table
 
 __all__ = [
     # Schemas
@@ -63,7 +62,6 @@ __all__ = [
     "create_runs_table",
     "duckdb_backend",
     "ensure_runs_table_exists",
-    "fingerprint_table",
     "get_git_commit_sha",
     "record_lineage",
     "record_run",

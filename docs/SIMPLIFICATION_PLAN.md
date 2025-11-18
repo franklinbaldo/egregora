@@ -1,7 +1,8 @@
 # Infrastructure Simplification Plan
 
 **Created**: 2025-11-17
-**Status**: DRAFT
+**Last Updated**: 2025-11-17
+**Status**: IN PROGRESS (2/6 complete)
 **Priority**: P1 - Critical for alpha stability
 
 ## Executive Summary
@@ -26,7 +27,7 @@ For an alpha, local-first tool with a single developer (or very small team):
 
 ## Proposed Simplifications
 
-### 1. Tracking Infrastructure: Unify to Single Model
+### 1. Tracking Infrastructure: Unify to Single Model ✅ COMPLETED (2025-11-17)
 
 **Problem**: Three overlapping tracking systems for the same data.
 
@@ -185,60 +186,39 @@ For an alpha, local-first tool with a single developer (or very small team):
 
 ---
 
-### 4. Fingerprinting: Choose Lightweight Approach
+### 4. Fingerprinting: Choose Lightweight Approach ✅ COMPLETED (2025-11-17)
 
 **Problem**: Expensive fingerprinting with fuzzy semantics.
 
-**Current State**:
-- `fingerprint_table()` sorts entire table by all columns
-- Samples 1,000 rows and converts to PyArrow
-- Fingerprint not tied to full input (two tables with same head differ only in tail)
-- Checkpointing logic not yet fully robust
+**Decision**: Complete removal rather than optimization. The checkpoint infrastructure now uses simpler heuristics (file existence, size checks) rather than content fingerprinting.
 
-**Complexity Indicators**:
-- Sorting + Arrow conversion expensive on large IR tables
-- Sampling means fingerprint is approximate, not deterministic
-- Current resume logic doesn't depend heavily on fingerprints
+**Rationale**:
+- Fingerprinting added complexity without delivering real checkpointing benefits
+- The `--resume` flag already provides opt-in incremental processing
+- File-based existence checks are simpler and more transparent
+- Can add back lightweight fingerprinting if/when truly needed
 
-**Proposal**: Replace with cheap aggregate-based fingerprinting.
+**Changes Made**:
+1. ✅ Removed `src/egregora/utils/fingerprinting.py` (32 LOC)
+2. ✅ Removed `input_fingerprint` column from `RUNS_TABLE_SCHEMA` and `RUNS_TABLE_DDL`
+3. ✅ Removed `fingerprint_table()` and `fingerprint_window()` from `tracking.py` (97 LOC)
+4. ✅ Removed `input_fingerprint` parameter from `record_run()` function
+5. ✅ Removed unused imports (`hashlib`, `pyarrow`, `ensure_deterministic_order`)
+6. ✅ Updated `run_store.py` and `cli/runs.py` to remove fingerprint display
+7. ✅ Updated all tests to remove fingerprint references
+8. ✅ Removed 3 fingerprint unit tests
 
-**Changes**:
+**Actual Benefits**:
+- ✅ ~338 LOC removed
+- ✅ Simpler mental model: no "magic" content hashing
+- ✅ Clearer checkpoint semantics: file exists = already processed
+- ✅ Removed expensive table sorting and PyArrow conversions
+- ✅ Easier to understand tracking infrastructure
 
-**Option A: Aggregate Statistics** (Recommended)
-```python
-def fingerprint_table(table: Table) -> str:
-    """Generate cheap fingerprint from table statistics."""
-    stats = table.aggregate([
-        table.count().name("row_count"),
-        table.ts.min().name("min_ts"),
-        table.ts.max().name("max_ts"),
-        table.text.length().sum().name("total_text_len"),
-    ]).execute()
-
-    # Combine stats with code_ref and config_hash
-    stats_str = f"{stats.row_count}|{stats.min_ts}|{stats.max_ts}|{stats.total_text_len}"
-    return f"sha256:{hashlib.sha256(stats_str.encode()).hexdigest()}"
-```
-
-**Option B: Timestamp-Based Checkpointing**
-- Replace `input_fingerprint` with `last_processed_ts` per (tenant, stage)
-- Store in `runs` table or separate checkpoint file
-- Filter `IR` by `ts > last_processed_ts` and update after stage
-
-**Recommendation**: Start with Option A (keeps fingerprinting but makes it cheap), migrate to Option B if timestamp-based proves simpler.
-
-**Benefits**:
-- ✅ Orders of magnitude faster (single aggregate query)
-- ✅ Still detects input changes (row count, time bounds, content size)
-- ✅ Clearer semantics: "did the input change substantially?"
-- ✅ ~100 LOC simpler (remove sorting, Arrow conversion)
-
-**Implementation Steps**:
-1. Add new `fingerprint_table_fast()` function
-2. Update `run_stage_with_tracking()` to use fast version
-3. Run tests to verify checkpointing still works
-4. Remove old `fingerprint_table()` implementation
-5. Update `fingerprint_window()` similarly if needed
+**Implementation Notes**:
+- CLI now shows `parent_run_id` and `attrs` instead of `input_fingerprint`
+- All 396 unit tests pass (1 pre-existing schema validation failure unrelated to this change)
+- Changed "Fingerprints" section in CLI to "Tracking" section
 
 **Estimated Impact**: 🔥🔥 Medium-High (performance + clarity)
 

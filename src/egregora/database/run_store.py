@@ -42,7 +42,7 @@ class RunStore:
                 stage,
                 status,
                 error,
-                input_fingerprint,
+                parent_run_id,
                 code_ref,
                 config_hash,
                 started_at,
@@ -52,6 +52,7 @@ class RunStore:
                 rows_out,
                 llm_calls,
                 tokens,
+                attrs,
                 trace_id
             FROM runs
             WHERE CAST(run_id AS VARCHAR) LIKE ?

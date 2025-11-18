@@ -79,7 +79,7 @@ def _build_run_panel_content(
     stage,
     status,
     error,
-    input_fingerprint,
+    parent_run_id,
     code_ref,
     config_hash,
     started_at,
@@ -89,6 +89,7 @@ def _build_run_panel_content(
     rows_out,
     llm_calls,
     tokens,
+    attrs,
     trace_id,
 ) -> str:
     """Build formatted panel content from run data."""
@@ -118,10 +119,10 @@ def _build_run_panel_content(
         if tokens:
             lines.append(f"  Tokens:    {tokens:,}")
         lines.append("")
-    if input_fingerprint or code_ref or config_hash:
-        lines.append("[bold]Fingerprints:[/bold]")
-        if input_fingerprint:
-            lines.append(f"  Input:  {input_fingerprint[:32]}...")
+    if parent_run_id or code_ref or config_hash:
+        lines.append("[bold]Tracking:[/bold]")
+        if parent_run_id:
+            lines.append(f"  Parent: {parent_run_id}")
         if code_ref:
             lines.append(f"  Code:   {code_ref}")
         if config_hash:
@@ -157,7 +158,7 @@ def runs_show(
                 stage,
                 status,
                 error,
-                input_fingerprint,
+                parent_run_id,
                 code_ref,
                 config_hash,
                 started_at,
@@ -167,6 +168,7 @@ def runs_show(
                 rows_out,
                 llm_calls,
                 tokens,
+                attrs,
                 trace_id,
             ) = result
             panel_content = _build_run_panel_content(
@@ -175,7 +177,7 @@ def runs_show(
                 stage,
                 status,
                 error,
-                input_fingerprint,
+                parent_run_id,
                 code_ref,
                 config_hash,
                 started_at,
@@ -185,6 +187,7 @@ def runs_show(
                 rows_out,
                 llm_calls,
                 tokens,
+                attrs,
                 trace_id,
             )
             panel = Panel(panel_content, title=f"[bold]Run Details: {stage}[/bold]", border_style="cyan")
