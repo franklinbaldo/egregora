@@ -41,7 +41,7 @@ class RunStore:
         """Fetches the last N runs from the database."""
         duration_expr = self._duration_expression()
         return self.conn.execute(
-            """
+            f"""
             SELECT
                 run_id,
                 stage,
@@ -54,7 +54,7 @@ class RunStore:
             WHERE started_at IS NOT NULL
             ORDER BY started_at DESC
             LIMIT ?
-            """.format(duration_expr=duration_expr),
+            """,
             [n],
         ).fetchall()
 
@@ -64,7 +64,7 @@ class RunStore:
         duration_expr = self._duration_expression()
         attrs_expr = self._column_or_null("attrs", "JSON")
         return self.conn.execute(
-            """
+            f"""
             SELECT
                 run_id,
                 tenant_id,
@@ -87,11 +87,7 @@ class RunStore:
             WHERE CAST(run_id AS VARCHAR) LIKE ?
             ORDER BY started_at DESC
             LIMIT 1
-            """.format(
-                parent_run_expr=parent_run_expr,
-                duration_expr=duration_expr,
-                attrs_expr=attrs_expr,
-            ),
+            """,
             [f"{run_id}%"],
         ).fetchone()
 
