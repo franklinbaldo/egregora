@@ -7,6 +7,10 @@ to the IR v1 schema specification at runtime. It combines:
 2. **Runtime validation**: Validates sample rows using Pydantic models
 3. **Adapter boundary enforcement**: Validates adapter outputs before pipeline
 
+**Canonical Schema**: The `IR_MESSAGE_SCHEMA` defined in this module is the
+single source of truth for the IR v1 specification. All adapters MUST produce
+tables conforming to this schema.
+
 Usage:
 
     from egregora.database.validation import (
@@ -28,26 +32,25 @@ Usage:
     def parse(self, input_path: Path) -> ibis.Table:
         return parse_source(input_path)
 
-    # Decorator for pipeline transformations (functional approach)
-    @validate_stage
+    # Manual validation for pipeline transformations
     def filter_messages(data: Table, min_length: int = 0) -> Table:
-        return data.filter(data.text.length() >= min_length)
+        validate_ir_schema(data)  # Validate input
+        result = data.filter(data.text.length() >= min_length)
+        validate_ir_schema(result)  # Validate output
+        return result
 
 See Also:
     - docs/architecture/ir-v1-spec.md
-    - schema/ir_v1.sql
-    - schema/ir_v1.json (lockfile)
+    - schema/archive/ (historical SQL/JSON lockfiles)
 
 """
 
 from __future__ import annotations
 
-import json
 import uuid
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 from functools import wraps
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeVar
 
 import ibis
@@ -67,9 +70,6 @@ if TYPE_CHECKING:
 
 # Type variable for decorator
 F = TypeVar("F", bound=Callable[..., "Table"])
-
-# Constants
-MIN_STAGE_ARGS = 2  # Stage process method requires (self, data) at minimum
 
 
 class SchemaError(Exception):
@@ -161,31 +161,6 @@ class IRMessageRow(BaseModel):
 # ============================================================================
 # Schema Validation Functions
 # ============================================================================
-
-
-def load_ir_schema_lockfile(lockfile_path: Path | None = None) -> dict[str, Any]:
-    """Load IR v1 schema from lockfile (schema/ir_v1.json).
-
-    Args:
-        lockfile_path: Path to ir_v1.json, defaults to schema/ir_v1.json
-
-    Returns:
-        Schema dictionary
-
-    Raises:
-        FileNotFoundError: If lockfile doesn't exist
-        json.JSONDecodeError: If lockfile is invalid JSON
-
-    """
-    if lockfile_path is None:
-        # Default location relative to this file
-        lockfile_path = Path(__file__).parent.parent.parent.parent / "schema" / "ir_v1.json"
-
-    if not lockfile_path.exists():
-        msg = f"IR v1 lockfile not found: {lockfile_path}"
-        raise FileNotFoundError(msg)
-
-    return json.loads(lockfile_path.read_text())
 
 
 def schema_diff(expected: ibis.Schema, actual: ibis.Schema) -> str:
@@ -420,86 +395,10 @@ def validate_adapter_output[F: Callable[..., "Table"]](func: F) -> F:
     return wrapper  # type: ignore[return-value]
 
 
-def validate_stage[F: Callable[..., "Table"]](func: F) -> F:
-    """Decorator to validate pipeline stage inputs and outputs against IR v1 schema.
-
-    This decorator wraps stage functions to automatically validate:
-    1. Input data conforms to IR v1 schema
-    2. Output data conforms to IR v1 schema (preserves schema contract)
-
-    Works with both:
-    - Plain functions: `(data: Table, ...) -> Table`
-    - Methods: `(self, data: Table, ...) -> Table`
-
-    Args:
-        func: Function or method that takes a Table as input and returns a Table
-
-    Returns:
-        Wrapped function that validates input/output
-
-    Raises:
-        SchemaError: If input or output doesn't match IR v1 schema
-
-    Example (functional approach):
-        >>> @validate_stage
-        ... def filter_messages(data: Table, min_length: int = 0) -> Table:
-        ...     return data.filter(data.text.length() >= min_length)
-
-    Example (legacy class-based - for backward compatibility only):
-        >>> # Note: PipelineStage abstraction has been removed
-        >>> # This decorator now supports both plain functions and legacy methods
-
-    Note:
-        This validates BOTH inputs and outputs to ensure transformation
-        preserve the IR v1 schema contract throughout the pipeline.
-
-    """
-
-    @wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        # Determine if this is a method (has self) or function
-        # For methods: args = (self, data, ...), data is at index 1
-        # For functions: args = (data, ...), data is at index 0
-        is_method = len(args) >= MIN_STAGE_ARGS and hasattr(args[0], "__class__")
-        data_index = 1 if is_method else 0
-
-        if len(args) <= data_index:
-            msg = f"Function requires at least {data_index + 1} argument(s): data parameter missing"
-            raise TypeError(msg)
-
-        input_data = args[data_index]
-
-        # Validate input
-        try:
-            validate_ir_schema(input_data)
-        except SchemaError as e:
-            func_name = getattr(func, "__qualname__", func.__name__)
-            msg = f"Stage input validation failed in {func_name}: {e}"
-            raise SchemaError(msg) from e
-
-        # Call original function
-        result = func(*args, **kwargs)
-
-        # Extract output data
-        # Support both plain Table returns and legacy StageResult objects
-        if hasattr(result, "data"):
-            # Legacy StageResult pattern
-            output_data = result.data
-        else:
-            # Modern functional pattern: direct Table return
-            output_data = result
-
-        # Validate output
-        try:
-            validate_ir_schema(output_data)
-        except SchemaError as e:
-            func_name = getattr(func, "__qualname__", func.__name__)
-            msg = f"Stage output validation failed in {func_name}: {e}"
-            raise SchemaError(msg) from e
-
-        return result
-
-    return wrapper  # type: ignore[return-value]
+# validate_stage decorator - REMOVED (2025-11-17)
+# Rationale: Not used anywhere in codebase. Stages should call validate_ir_schema()
+# directly when validation is needed, rather than using a decorator.
+# See docs/SIMPLIFICATION_PLAN.md for details.
 
 
 # ============================================================================
@@ -629,12 +528,9 @@ __all__ = [
     # Validation functions
     "validate_ir_schema",
     "schema_diff",
-    "load_ir_schema_lockfile",
     # Adapter validation
     "adapter_output_validator",
     "validate_adapter_output",
-    # Stage validation (functional)
-    "validate_stage",
     # IR table creation
     "create_ir_table",
 ]

@@ -1,6 +1,11 @@
 # Week 1 Execution Guide
 
-> **Note**: This is a historical planning document from January 2025. Some implementation details have changed (e.g., checkpoint system moved to `pipeline/legacy/`). For current architecture, see [CLAUDE.md](/CLAUDE.md) and [docs/guide/architecture.md](guide/architecture.md).
+> **Note**: This is a historical planning document from January 2025. Implementation has evolved significantly:
+> - **Lineage tracking**: Simplified to `parent_run_id` column (no separate `lineage_v1.sql` table)
+> - **Fingerprinting**: Removed (content-based checkpointing replaced with file-based)
+> - **Checkpointing**: Moved to opt-in with `--resume` flag
+>
+> For current architecture, see [CLAUDE.md](/CLAUDE.md) and [docs/guide/architecture.md](guide/architecture.md).
 
 **Goal**: Green-to-green foundation with IR v1, privacy capability, and lineage tracking.
 

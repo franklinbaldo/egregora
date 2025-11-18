@@ -36,12 +36,6 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras
 
-      - name: Check IR v1 schema drift
-        run: |
-          echo "🔍 Checking IR v1 schema drift..."
-          uv run python scripts/check_ir_schema.py
-        continue-on-error: false
-
       - name: Check pandas escape
         run: |
           echo "🔍 Checking for pandas imports outside compat/..."

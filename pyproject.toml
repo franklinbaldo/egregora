@@ -153,10 +153,30 @@ ignore = [
     "S603",    # Subprocess without shell=True
     "S607",    # Partial executable path
     "S506",    # Unsafe YAML load (tests use small controlled data)
+    "TID251",  # Banned pandas/pyarrow imports (allowed in tests)
+]
+
+# Temporary allowlist for pandas imports during refactoring
+"src/egregora/agents/writer/formatting.py" = [
+    "TID251",  # Pandas import (temporary - refactor to Ibis)
+]
+
+# Compat and testing directories - allow pandas/pyarrow
+"src/**/compat/**/*.py" = [
+    "TID251",  # Pandas/pyarrow allowed in compatibility layers
+]
+"src/**/testing/**/*.py" = [
+    "TID251",  # Pandas/pyarrow allowed in testing utilities
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
+
+# Ban pandas imports in src/egregora (Ibis-first policy)
+# Exceptions: TYPE_CHECKING blocks, /compat/, /testing/ directories
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+pandas = { msg = "Use ibis-framework instead of pandas. Only allowed in TYPE_CHECKING blocks or compat/testing directories." }
+pyarrow = { msg = "Use ibis-framework instead of pyarrow. Only allowed in TYPE_CHECKING blocks or compat/testing directories." }
 
 [tool.mypy]
 python_version = "3.12"

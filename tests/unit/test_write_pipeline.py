@@ -30,7 +30,9 @@ def test_calculate_max_window_size_full_context_respects_model_limits() -> None:
     assert _calculate_max_window_size(config) == expected_from_config
 
     # Test with a different model (simulating CLI override applied to config)
-    override_config = config.model_copy(update={"models": config.models.model_copy(update={"writer": "google-gla:gemini-flash-latest"})})
+    override_config = config.model_copy(
+        update={"models": config.models.model_copy(update={"writer": "google-gla:gemini-flash-latest"})}
+    )
     override_limit = get_model_context_limit("google-gla:gemini-flash-latest")
     expected_from_override = int((override_limit * 0.8) / 5)
 

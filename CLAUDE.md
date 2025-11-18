@@ -11,11 +11,38 @@ Guidance for Claude Code when working with this repository.
 
 ## Recent Changes (2025-11-17)
 
+**Infrastructure Simplification** (5 major changes, ~1,500 LOC removed):
+
+1. **Tracking Infrastructure**: Event-sourced `run_events` removed, simplified to stateful `runs` table
+   - Pattern: INSERT with status='running', UPDATE to 'completed'/'failed'
+   - Lineage: `parent_run_id` column for simple lineage (no separate table needed)
+   - Extensibility: `attrs` JSON column for future metadata
+
+2. **IR Schema**: Python as single source of truth (SQL/JSON lockfiles removed)
+   - Canonical: `src/egregora/database/validation.py:IR_MESSAGE_SCHEMA`
+   - No multi-file sync: Update schema in Python only
+   - Lockfiles deleted: No need for synchronization artifacts
+
+3. **Validation**: `validate_stage` decorator removed
+   - Pattern: Call `validate_ir_schema(table)` manually when needed
+   - Simpler: No auto-detection of methods vs functions
+   - Explicit > implicit
+
+4. **Fingerprinting**: Content-based fingerprinting completely removed
+   - Checkpointing: File existence checks only (simpler, transparent)
+   - No expensive table sorting or PyArrow conversions
+   - Can add back lightweight fingerprinting if truly needed
+
+5. **Dev Tooling**: Custom scripts replaced with standard ruff
+   - Import bans: `ruff.lint.flake8-tidy-imports.banned-api` in pyproject.toml
+   - Complexity: `radon cc` for cyclomatic complexity
+   - Quality: `scripts/quality.sh` shell script (not custom Python orchestrator)
+
 **Checkpoint Simplification**: Checkpointing is now **OPT-IN** (disabled by default).
 - Default behavior: Always rebuild from scratch (simpler, fewer mysteries)
 - Enable with `--resume` flag or `checkpoint_enabled: true` in config
 - Rationale: Alpha mindset - simplicity over premature optimization
-- See commit history for detailed reasoning
+- See commit history and `docs/SIMPLIFICATION_PLAN.md` for details
 
 ## Quick Commands
 
@@ -217,10 +244,11 @@ These stages are coordinated by the **orchestration layer** (`orchestration/`), 
 - `storage.execute_view("output", builder, "input")`
 - Docs: `docs/database/storage-manager.md`
 
-**Stage Validation (C.3)**:
-- `@validate_stage` decorator for IR schema validation
-- Two-level: compile-time + runtime
-- Docs: `docs/pipeline/stage-validation.md`
+**Schema Validation**:
+- Manual validation via `validate_ir_schema(table)` function
+- Call explicitly when needed (no decorator)
+- Pattern: Validate inputs/outputs of critical transformations
+- Docs: `src/egregora/database/validation.py` docstrings
 
 **Run Tracking (D.1)**:
 - Auto tracking in `.egregora/runs.duckdb`
@@ -250,14 +278,15 @@ These stages are coordinated by the **orchestration layer** (`orchestration/`), 
 - ✅ **Functional**: Embraces "Functional transforms: Table → Table" (Design Principles)
 - ✅ **Less boilerplate**: -811 lines of code, clearer intent
 
-**Validation** still enforced via `@validate_stage` decorator (now supports plain functions):
+**Validation** done manually when needed (decorator removed for simplicity):
 
 ```python
-from egregora.database import validate_stage
+from egregora.database.validation import validate_ir_schema
 
-@validate_stage
 def filter_messages(data: Table, min_length: int = 0) -> Table:
-    return data.filter(data.text.length() >= min_length)
+    validate_ir_schema(data)  # Validate input if needed
+    result = data.filter(data.text.length() >= min_length)
+    return result
 ```
 
 ### Three Layers
@@ -291,11 +320,11 @@ src/egregora/
 │   ├── windowing.py         # create_windows, Window, checkpointing
 │   └── media.py             # Media reference processing
 ├── database/                 # INFRASTRUCTURE & STATE (Layer 2)
-│   ├── ir_schema.py         # IR schema definitions
+│   ├── ir_schema.py         # IR schema definitions (runs table)
 │   ├── duckdb_manager.py    # DuckDB connection management (C.2)
-│   ├── validation.py        # Schema validation, @validate_stage decorator
+│   ├── validation.py        # Schema validation (IR_MESSAGE_SCHEMA canonical)
 │   ├── views.py             # View registry (C.1)
-│   └── tracking.py          # Run tracking & observability (D.1)
+│   └── tracking.py          # Run tracking (INSERT+UPDATE pattern)
 ├── config/
 │   ├── settings.py          # Pydantic settings models
 │   └── ...                  # Other config files
@@ -339,11 +368,12 @@ All in `database/ir_schema.py`:
 - `CONVERSATION_SCHEMA`: Pipeline data (timestamp, author, message, etc.)
 
 **Persistent** (DuckDB/Parquet):
+- `RUNS_TABLE_SCHEMA`: Pipeline run tracking (simplified stateful model)
 - `RAG_CHUNKS_SCHEMA`: Vector embeddings
 - `ANNOTATIONS_SCHEMA`: Conversation metadata
 - `ELO_RATINGS_SCHEMA`: Post quality
 
-**Invariant**: All stages preserve `CONVERSATION_SCHEMA`
+**Invariant**: All stages preserve `CONVERSATION_SCHEMA` (now `IR_MESSAGE_SCHEMA`)
 
 ## Testing
 
