@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
-"""Create runs and lineage tables in DuckDB.
+"""Create runs table in DuckDB.
 
-This script initializes the observability and lineage tracking infrastructure.
-Run this once per DuckDB database to create the required tables.
+This script initializes the observability and tracking infrastructure.
+Run this once per DuckDB database to create the required table.
+
+NOTE: As of 2025-11-17, the separate lineage table was removed.
+Lineage is now tracked via the parent_run_id column in the runs table.
 
 Usage:
     python scripts/create_runs_tables.py
@@ -10,19 +13,19 @@ Usage:
     python scripts/create_runs_tables.py --check  # Validate without creating
 
 Examples:
-    # Create tables in default location (.egregora-cache/runs.duckdb)
+    # Create table in default location (.egregora-cache/runs.duckdb)
     python scripts/create_runs_tables.py
 
-    # Create tables in custom location
+    # Create table in custom location
     python scripts/create_runs_tables.py --db-path=./my-runs.duckdb
 
-    # Check if tables exist (dry run)
+    # Check if table exists (dry run)
     python scripts/create_runs_tables.py --check
 
 Exit codes:
-    0: Success (tables created or already exist)
+    0: Success (table created or already exists)
     1: Error (SQL error, file not found, etc.)
-    2: Check failed (tables don't exist or schema mismatch)
+    2: Check failed (table doesn't exist or schema mismatch)
 
 """
 
@@ -54,7 +57,10 @@ def read_sql_file(sql_path: Path) -> str:
 
 
 def create_tables(conn: duckdb.DuckDBPyConnection, schema_dir: Path) -> None:
-    """Create runs and lineage tables.
+    """Create runs table.
+
+    Note: As of 2025-11-17, the separate lineage table was removed.
+    Lineage is now tracked via parent_run_id column in runs table.
 
     Args:
         conn: DuckDB connection
@@ -65,44 +71,36 @@ def create_tables(conn: duckdb.DuckDBPyConnection, schema_dir: Path) -> None:
         duckdb.Error: If SQL execution fails
 
     """
-    # Read schema files
+    # Read schema file
     runs_sql = read_sql_file(schema_dir / "runs_v1.sql")
-    lineage_sql = read_sql_file(schema_dir / "lineage_v1.sql")
 
     # Execute schema creation
     conn.execute(runs_sql)
 
-    conn.execute(lineage_sql)
-
 
 def check_tables(conn: duckdb.DuckDBPyConnection, *, silent: bool = False) -> bool:
-    """Check if runs and lineage tables exist with correct schema.
+    """Check if runs table exists with correct schema.
+
+    Note: As of 2025-11-17, the separate lineage table was removed.
+    Lineage is now tracked via parent_run_id column in runs table.
 
     Args:
         conn: DuckDB connection
         silent: If True, suppress error messages (default: False)
 
     Returns:
-        True if tables exist and have correct schema, False otherwise
+        True if table exists and has correct schema, False otherwise
 
     """
-    # Check if tables exist
+    # Check if runs table exists
     result = conn.execute("""
         SELECT table_name
         FROM information_schema.tables
         WHERE table_schema = 'main'
-          AND table_name IN ('runs', 'lineage')
-        ORDER BY table_name
+          AND table_name = 'runs'
     """).fetchall()
 
-    table_names = {row[0] for row in result}
-
-    if "runs" not in table_names:
-        if not silent:
-            pass
-        return False
-
-    if "lineage" not in table_names:
+    if not result:
         if not silent:
             pass
         return False
@@ -115,21 +113,24 @@ def check_tables(conn: duckdb.DuckDBPyConnection, *, silent: bool = False) -> bo
         ORDER BY ordinal_position
     """).fetchall()
 
+    # Required columns as of v2.0.0 (2025-11-17)
     required_runs_columns = {
         "run_id",
-        "stage",
         "tenant_id",
-        "started_at",
-        "finished_at",
-        "input_fingerprint",
-        "code_ref",
-        "config_hash",
-        "rows_in",
-        "rows_out",
-        "llm_calls",
-        "tokens",
+        "stage",
         "status",
         "error",
+        "parent_run_id",  # Added in v2.0.0 (replaces separate lineage table)
+        "code_ref",
+        "config_hash",
+        "started_at",
+        "finished_at",
+        "rows_in",
+        "rows_out",
+        "duration_seconds",  # Added in v2.0.0
+        "llm_calls",
+        "tokens",
+        "attrs",  # Added in v2.0.0 for extensibility
         "trace_id",
     }
 
@@ -137,21 +138,6 @@ def check_tables(conn: duckdb.DuckDBPyConnection, *, silent: bool = False) -> bo
 
     if not required_runs_columns.issubset(actual_runs_columns):
         required_runs_columns - actual_runs_columns
-        return False
-
-    # Validate lineage table schema
-    lineage_columns = conn.execute("""
-        SELECT column_name, data_type
-        FROM information_schema.columns
-        WHERE table_schema = 'main' AND table_name = 'lineage'
-        ORDER BY ordinal_position
-    """).fetchall()
-
-    required_lineage_columns = {"child_run_id", "parent_run_id"}
-    actual_lineage_columns = {col[0] for col in lineage_columns}
-
-    if not required_lineage_columns.issubset(actual_lineage_columns):
-        required_lineage_columns - actual_lineage_columns
         return False
 
     return True

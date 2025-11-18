@@ -165,31 +165,6 @@ class IRMessageRow(BaseModel):
 # ============================================================================
 
 
-def load_ir_schema_lockfile(lockfile_path: Path | None = None) -> dict[str, Any]:
-    """Load IR v1 schema from lockfile (schema/ir_v1.json).
-
-    Args:
-        lockfile_path: Path to ir_v1.json, defaults to schema/ir_v1.json
-
-    Returns:
-        Schema dictionary
-
-    Raises:
-        FileNotFoundError: If lockfile doesn't exist
-        json.JSONDecodeError: If lockfile is invalid JSON
-
-    """
-    if lockfile_path is None:
-        # Default location relative to this file
-        lockfile_path = Path(__file__).parent.parent.parent.parent / "schema" / "ir_v1.json"
-
-    if not lockfile_path.exists():
-        msg = f"IR v1 lockfile not found: {lockfile_path}"
-        raise FileNotFoundError(msg)
-
-    return json.loads(lockfile_path.read_text())
-
-
 def schema_diff(expected: ibis.Schema, actual: ibis.Schema) -> str:
     """Generate human-readable diff between two schemas.
 
@@ -555,7 +530,6 @@ __all__ = [
     # Validation functions
     "validate_ir_schema",
     "schema_diff",
-    "load_ir_schema_lockfile",
     # Adapter validation
     "adapter_output_validator",
     "validate_adapter_output",
