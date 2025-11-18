@@ -70,11 +70,11 @@ from egregora.config.settings import (
     # Model configuration utilities
     ModelType,
     PipelineEnrichmentConfig,
+    PipelineSettings,
     PrivacySettings,
     # Runtime dataclasses (for function parameters, not persisted)
-    ProcessConfig,
     RAGSettings,
-    RuntimeContext,  # New: minimal runtime-only context
+    RuntimeContext,  # Minimal runtime-only context
     WriterAgentSettings,
     # Config loading/saving functions
     create_default_config,
@@ -122,13 +122,11 @@ __all__ = [
     "PipelineEnrichmentConfig",  # Enrichment batch processing config
     "PrivacySettings",  # Anonymization settings
     # ==========================================================================
-    # Runtime Context Dataclasses (TRANSITIONAL - Phase 2 migration in progress)
+    # Runtime Context Dataclasses
     # ==========================================================================
-    # These replace parameter soup (12-16 params → 3-6 params) in function signatures.
-    # Will eventually use EgregoraConfig internally.
     "RuntimeContext",  # Minimal runtime-only context (paths, api key, debug)
-    "ProcessConfig",  # CLI process command parameters (deprecated, use RuntimeContext)
     "RAGSettings",  # Retrieval settings
+    "PipelineSettings",  # Pipeline execution settings
     # ==========================================================================
     # Site Paths & MkDocs Utilities
     # ==========================================================================

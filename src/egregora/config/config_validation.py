@@ -7,8 +7,6 @@ extracted from CLI to maintain separation of concerns.
 import logging
 from datetime import UTC, date, datetime
 
-from egregora.config.settings import ProcessConfig
-
 logger = logging.getLogger(__name__)
 
 
@@ -37,40 +35,45 @@ def parse_date_arg(date_str: str, arg_name: str = "date") -> date:
         raise ValueError(msg) from e
 
 
-def validate_retrieval_config(config: ProcessConfig) -> None:
+def validate_retrieval_config(
+    retrieval_mode: str,
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
+) -> str:
     """Validate and normalize retrieval mode configuration.
 
-    Modifies config in place to normalize retrieval_mode and validate parameters.
-
     Args:
-        config: ProcessConfig to validate (modified in place)
+        retrieval_mode: Retrieval strategy ('ann' or 'exact')
+        retrieval_nprobe: Optional nprobe parameter for ANN
+        retrieval_overfetch: Optional overfetch parameter for ANN
+
+    Returns:
+        Normalized retrieval mode string
 
     Raises:
         ValueError: If retrieval_mode is invalid or parameters are out of range
 
     """
     # Normalize retrieval mode
-    retrieval_mode = (config.retrieval_mode or "ann").lower()
-    if retrieval_mode not in {"ann", "exact"}:
+    normalized_mode = (retrieval_mode or "ann").lower()
+    if normalized_mode not in {"ann", "exact"}:
         msg = "Invalid retrieval mode. Choose 'ann' or 'exact'."
         raise ValueError(msg)
 
     # Warn about incompatible options
-    if retrieval_mode == "exact" and config.retrieval_nprobe:
+    if normalized_mode == "exact" and retrieval_nprobe:
         logger.warning("Ignoring retrieval_nprobe: only applicable to ANN search")
-        config.retrieval_nprobe = None
 
     # Validate parameter ranges
-    if config.retrieval_nprobe is not None and config.retrieval_nprobe <= 0:
+    if retrieval_nprobe is not None and retrieval_nprobe <= 0:
         msg = "retrieval_nprobe must be positive when provided"
         raise ValueError(msg)
 
-    if config.retrieval_overfetch is not None and config.retrieval_overfetch <= 0:
+    if retrieval_overfetch is not None and retrieval_overfetch <= 0:
         msg = "retrieval_overfetch must be positive when provided"
         raise ValueError(msg)
 
-    # Update config with normalized mode
-    config.retrieval_mode = retrieval_mode
+    return normalized_mode
 
 
 __all__ = [

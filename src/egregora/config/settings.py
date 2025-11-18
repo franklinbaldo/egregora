@@ -605,45 +605,6 @@ class RuntimeContext:
         return self.input_file
 
 
-# ProcessConfig - kept for backward compatibility
-# New code should use RuntimeContext + EgregoraConfig directly
-@dataclass
-class ProcessConfig:
-    """Configuration for chat export processing (CLI parameters).
-
-    This class captures CLI arguments. The preferred pattern for new code is:
-    - RuntimeContext for runtime-only fields (paths, api_key, debug)
-    - EgregoraConfig for all settings (loaded from config.yml, overridden by CLI)
-    """
-
-    output_dir: Annotated[Path, "Directory for the generated site"]
-    input_file: Annotated[Path | None, "Path to the chat export file"] = None
-    step_size: Annotated[int, "Size of each processing window"] = 1
-    step_unit: Annotated[WindowUnit, "Unit for windowing strategy"] = WindowUnit.DAYS
-    overlap_ratio: Annotated[float, "Fraction of window to overlap"] = 0.2
-    max_window_time: Annotated[timedelta | None, "Maximum time span per window"] = None
-    enable_enrichment: Annotated[bool, "Enable LLM enrichment"] = True
-    from_date: Annotated[date | None, "Start date filter"] = None
-    to_date: Annotated[date | None, "End date filter"] = None
-    timezone: Annotated[str | None, "Timezone for parsing"] = None
-    gemini_key: Annotated[str | None, "API key"] = None
-    model: Annotated[str | None, "Model to use"] = None
-    debug: Annotated[bool, "Debug logging"] = False
-    retrieval_mode: Annotated[str, "Retrieval strategy"] = "ann"
-    retrieval_nprobe: Annotated[int | None, "VSS nprobe"] = None
-    retrieval_overfetch: Annotated[int | None, "ANN overfetch"] = None
-    batch_threshold: Annotated[int, "Batch threshold"] = 10
-    max_prompt_tokens: Annotated[int, "Max tokens per prompt"] = 100_000
-    use_full_context_window: Annotated[bool, "Use full context"] = False
-    max_windows: Annotated[int | None, "Max windows to process"] = 1
-    checkpoint_enabled: Annotated[bool, "Enable checkpoints"] = False
-
-    @property
-    def input_path(self) -> Path:
-        """Alias for input_file."""
-        return self.input_file
-
-
 @dataclass
 class WriterRuntimeConfig:
     """Runtime configuration for post writing (not the Pydantic WriterConfig)."""
@@ -736,8 +697,7 @@ __all__ = [
     "load_egregora_config",
     "save_egregora_config",
     # Runtime dataclasses (not persisted, for function parameters)
-    "RuntimeContext",  # New: minimal runtime-only context
-    "ProcessConfig",  # Deprecated: use RuntimeContext + EgregoraConfig
+    "RuntimeContext",  # Minimal runtime-only context
     "WriterRuntimeConfig",
     "MediaEnrichmentContext",
     "EnrichmentRuntimeConfig",
