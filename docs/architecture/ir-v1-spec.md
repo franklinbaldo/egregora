@@ -7,7 +7,7 @@
 
 > **Note**: This is a historical architectural document. As of 2025-11-17:
 > - **Schema definition**: Python (`src/egregora/database/validation.py:IR_MESSAGE_SCHEMA`) is now the single source of truth
-> - **Lockfiles**: SQL/JSON lockfiles archived to `schema/archive/` (no longer synchronized)
+> - **Lockfiles**: SQL/JSON lockfiles completely removed (no need for synchronization artifacts)
 > - **CI checks**: `scripts/check_ir_schema.py` removed (Python schema is canonical)
 >
 > For current implementation, see [CLAUDE.md](/CLAUDE.md).

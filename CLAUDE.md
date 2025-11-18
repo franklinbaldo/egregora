@@ -18,10 +18,10 @@ Guidance for Claude Code when working with this repository.
    - Lineage: `parent_run_id` column for simple lineage (no separate table needed)
    - Extensibility: `attrs` JSON column for future metadata
 
-2. **IR Schema**: Python as single source of truth (SQL/JSON lockfiles archived)
+2. **IR Schema**: Python as single source of truth (SQL/JSON lockfiles removed)
    - Canonical: `src/egregora/database/validation.py:IR_MESSAGE_SCHEMA`
    - No multi-file sync: Update schema in Python only
-   - Historical artifacts: `schema/archive/ir_v1.{sql,json}`
+   - Lockfiles deleted: No need for synchronization artifacts
 
 3. **Validation**: `validate_stage` decorator removed
    - Pattern: Call `validate_ir_schema(table)` manually when needed

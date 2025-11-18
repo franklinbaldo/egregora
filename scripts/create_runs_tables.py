@@ -190,13 +190,13 @@ def main() -> NoReturn:
             else:
                 sys.exit(2)
 
-        # Check if tables already exist (silent mode - we'll create them if missing)
-        if check_tables(conn, silent=True):
-            if args.force:
-                conn.execute("DROP TABLE IF EXISTS lineage")
-                conn.execute("DROP TABLE IF EXISTS runs")
-            else:
-                sys.exit(0)
+        # Check if tables already exist
+        if args.force:
+            # Force flag: Drop existing tables unconditionally (migration path)
+            conn.execute("DROP TABLE IF EXISTS runs")
+        elif check_tables(conn, silent=True):
+            # Tables exist with correct schema - nothing to do
+            sys.exit(0)
 
         # Create tables
         create_tables(conn, schema_dir)

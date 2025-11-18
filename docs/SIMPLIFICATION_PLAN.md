@@ -90,13 +90,14 @@ For an alpha, local-first tool with a single developer (or very small team):
 - Code-based schema is type-checked, always in sync with implementation
 
 **Changes Made**:
-1. ✅ Archived `schema/ir_v1.sql` → `schema/archive/ir_v1.sql`
-2. ✅ Archived `schema/ir_v1.json` → `schema/archive/ir_v1.json`
+1. ✅ Removed `schema/ir_v1.sql` entirely (previously archived, now deleted)
+2. ✅ Removed `schema/ir_v1.json` entirely (previously archived, now deleted)
 3. ✅ Removed `scripts/check_ir_schema.py` validation script (145 LOC)
 4. ✅ Removed `tests/unit/test_ir_schema_lockfile.py` tests (71 LOC)
 5. ✅ Removed CI workflow step for schema drift checking
 6. ✅ Updated `schema/README.md` to document Python-as-canonical approach
 7. ✅ Updated `src/egregora/database/validation.py` docstring to clarify canonical source
+8. ✅ Deleted `schema/archive/` directory entirely (no need for historical artifacts)
 
 **Actual Benefits**:
 - ✅ One place to change IR schema (`IR_MESSAGE_SCHEMA` in validation.py)

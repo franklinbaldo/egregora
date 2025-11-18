@@ -42,13 +42,9 @@ To modify the IR schema:
 
 4. **Consider versioning**: For breaking changes, consider creating `IR_MESSAGE_SCHEMA_V2`
 
-## Archive
+## Historical Note
 
-Historical schema artifacts are preserved in `archive/` for reference:
-- `archive/ir_v1.sql` - Original SQL definition (2025-01-08)
-- `archive/ir_v1.json` - Original JSON lockfile (2025-01-08)
-
-These are no longer maintained but serve as documentation of the IR v1 structure.
+The IR schema was previously maintained in multiple formats (SQL, JSON, Python) which created unnecessary synchronization burden. As of 2025-11-17, all lockfiles have been removed in favor of the Python-only schema. This simplification embraces the alpha mindset: reduce complexity, one canonical source.
 
 ## Schema Overview (IR v1)
 

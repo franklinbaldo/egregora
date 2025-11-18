@@ -389,5 +389,4 @@ class FilteringStage(PipelineStage):
 ## See Also
 
 - **Adapter validation**: `@validate_adapter_output` for source adapters
-- **IR v1 schema**: `IR_MESSAGE_SCHEMA` in `src/egregora/database/validation.py` (canonical schema definition)
-- **Historical lockfiles**: `schema/archive/ir_v1.{sql,json}` (archived as of 2025-11-17, Python is now single source of truth)
+- **IR v1 schema**: `IR_MESSAGE_SCHEMA` in `src/egregora/database/validation.py` (canonical schema definition - Python is single source of truth)
