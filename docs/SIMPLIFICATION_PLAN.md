@@ -107,7 +107,7 @@ For an alpha, local-first tool with a single developer (or very small team):
 - ✅ Clearer documentation: Python is the source of truth
 
 **Implementation Notes**:
-- Historical SQL/JSON lockfiles preserved in `schema/archive/` for reference
+- Historical SQL/JSON lockfiles completely removed (embracing alpha mindset: no artifacts, one source of truth)
 - All adapter implementations continue to work (no runtime changes)
 - Schema validation (`validate_ir_schema()`) unchanged and fully functional
 - Pre-existing test failures unrelated to this simplification
