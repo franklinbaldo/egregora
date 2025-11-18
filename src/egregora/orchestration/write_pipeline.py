@@ -16,11 +16,12 @@ from __future__ import annotations
 
 import logging
 import tempfile
+import uuid
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date as date_type
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
@@ -34,6 +35,7 @@ from egregora.agents.shared.author_profiles import filter_opted_out_authors, pro
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
+from egregora.database.tracking import record_run
 from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
@@ -1160,13 +1162,84 @@ def run(
     logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", source)
     adapter = get_adapter(source)
 
-    with _pipeline_environment(output_dir, config, api_key, client) as env:
-        dataset = _prepare_pipeline_data(adapter, input_path, config, env, output_dir)
-        results, max_processed_timestamp = _process_all_windows(
-            dataset.windows_iterator, dataset.window_context, env.runs_backend
-        )
-        _index_media_into_rag(dataset.enable_enrichment, results, env.site_paths, dataset.embedding_model)
-        _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
+    # Generate run ID for tracking
+    run_id = uuid.uuid4()
+    started_at = datetime.now(UTC)
 
-        logger.info("[bold green]🎉 Pipeline completed successfully![/]")
-        return results
+    with _pipeline_environment(output_dir, config, api_key, client) as env:
+        # Get DuckDB connection from Ibis backend for run tracking
+        runs_conn = getattr(env.runs_backend, "con", None)
+        if runs_conn is None:
+            logger.warning("Unable to access DuckDB connection for run tracking - runs will not be recorded")
+
+        # Record run start
+        if runs_conn is not None:
+            try:
+                record_run(
+                    conn=runs_conn,
+                    run_id=run_id,
+                    stage="write",
+                    status="running",
+                    started_at=started_at,
+                )
+            except Exception as exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
+                logger.debug("Failed to record run start: %s", exc)
+
+        try:
+            dataset = _prepare_pipeline_data(adapter, input_path, config, env, output_dir)
+            results, max_processed_timestamp = _process_all_windows(
+                dataset.windows_iterator, dataset.window_context, env.runs_backend
+            )
+            _index_media_into_rag(dataset.enable_enrichment, results, env.site_paths, dataset.embedding_model)
+            _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
+
+            # Calculate metrics
+            finished_at = datetime.now(UTC)
+            total_posts = sum(len(r.get("posts", [])) for r in results.values())
+            total_profiles = sum(len(r.get("profiles", [])) for r in results.values())
+            num_windows = len(results)
+
+            # Update run to completed
+            if runs_conn is not None:
+                try:
+                    duration_seconds = (finished_at - started_at).total_seconds()
+                    runs_conn.execute(
+                        """
+                        UPDATE runs
+                        SET status = 'completed',
+                            finished_at = ?,
+                            duration_seconds = ?,
+                            rows_out = ?
+                        WHERE run_id = ?
+                        """,
+                        [finished_at, duration_seconds, total_posts + total_profiles, str(run_id)],
+                    )
+                    logger.debug("Recorded pipeline run: %s (posts=%d, profiles=%d, windows=%d)",
+                                run_id, total_posts, total_profiles, num_windows)
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("Failed to record run completion: %s", exc)
+
+            logger.info("[bold green]🎉 Pipeline completed successfully![/]")
+            return results
+
+        except Exception as exc:
+            # Update run to failed
+            finished_at = datetime.now(UTC)
+            if runs_conn is not None:
+                try:
+                    duration_seconds = (finished_at - started_at).total_seconds()
+                    error_msg = f"{type(exc).__name__}: {exc!s}"
+                    runs_conn.execute(
+                        """
+                        UPDATE runs
+                        SET status = 'failed',
+                            finished_at = ?,
+                            duration_seconds = ?,
+                            error = ?
+                        WHERE run_id = ?
+                        """,
+                        [finished_at, duration_seconds, error_msg[:500], str(run_id)],
+                    )
+                except Exception as tracking_exc:  # noqa: BLE001
+                    logger.debug("Failed to record run failure: %s", tracking_exc)
+            raise  # Re-raise original exception
