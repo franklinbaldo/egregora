@@ -1,180 +1,76 @@
 # Quick Start
 
-This guide will walk you through generating your first blog post from a WhatsApp export in under 5 minutes.
+Get up and running with Egregora in minutes using a sample WhatsApp export.
 
 ## Prerequisites
 
-- Python 3.12+
-- [uv](https://github.com/astral-sh/uv) installed
-- [Google Gemini API key](https://ai.google.dev/gemini-api/docs/api-key)
+Before starting, make sure you have:
+1. Egregora installed (see [Installation](installation.md))
+2. An LLM API key configured
+3. A WhatsApp export file (or use our sample)
 
-## Step 1: Initialize Your Blog
+## Running with Sample Data
 
-Create a new blog site:
+For this quick start, we'll use a sample WhatsApp export file.
 
-```bash
-uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
-cd my-blog
-```
+1. **Prepare your data**:
+   ```bash
+   # Create an input directory
+   mkdir -p input/
+   
+   # Place your WhatsApp export file in the input directory
+   # For this example, we'll assume it's named 'whatsapp_chat.txt'
+   ```
 
-This creates a minimal MkDocs site structure:
+2. **Run Egregora**:
+   ```bash
+   # Activate your virtual environment
+   source .venv/bin/activate
+   
+   # Run the egregora command with your input
+   egregora --input input/whatsapp_chat.txt --output output/
+   ```
 
-```
-my-blog/
-├── mkdocs.yml          # Site configuration
-├── docs/
-│   ├── index.md        # Homepage
-│   └── posts/          # Generated blog posts go here
-└── .egregora/          # Egregora state (databases, cache)
-```
+3. **Check the results**:
+   After processing, you'll find your enriched knowledge graph in the `output/` directory.
 
-## Step 2: Export Your WhatsApp Chat
+## Understanding the Pipeline
 
-From your WhatsApp:
+Egregora processes your data through several stages:
 
-1. Open the group or individual chat
-2. Tap the three dots (⋮) → **More** → **Export chat**
-3. Choose **Without media** (for privacy)
-4. Save the `.zip` file
+1. **Input Processing**: Your WhatsApp data is parsed and structured
+2. **Privacy Filtering**: Personal information is detected and anonymized
+3. **AI Enrichment**: Context, topics, and sentiments are added
+4. **Knowledge Graph Generation**: Your data is organized into a searchable format
 
-!!! tip
-    For privacy, we recommend exporting **without media**. Egregora can enrich URLs and media references using LLMs instead.
+## Example with Configuration
 
-## Step 3: Set Your API Key
-
-```bash
-export GOOGLE_API_KEY="your-api-key-here"
-```
-
-## Step 4: Process the Export
-
-```bash
-uvx --from git+https://github.com/franklinbaldo/egregora egregora process \
-  whatsapp-export.zip \
-  --output=. \
-  --timezone='America/New_York'
-```
-
-This will:
-
-1. Parse the WhatsApp export
-2. Anonymize all names (real names never reach the AI)
-3. Group messages into windows (default: 100 messages per window)
-4. Generate blog posts using Gemini
-
-!!! info
-    The first run may take a few minutes as it:
-
-    - Downloads DuckDB VSS extension (for vector search)
-    - Embeds all messages for RAG retrieval
-    - Generates multiple blog posts
-
-## Step 5: Preview Your Blog
-
-Launch a local preview server:
+You can also use a configuration file to customize the processing:
 
 ```bash
-uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
+# Run with a specific configuration file
+egregora --config config.yaml --input input/whatsapp_chat.txt --output output/
 ```
 
-Open [http://localhost:8000](http://localhost:8000) in your browser. 🎉
-
-## What Just Happened?
-
-Egregora processed your chat through multiple stages:
-
-1. **Ingestion**: Parsed WhatsApp `.zip` → structured DataFrame
-2. **Privacy**: Replaced names with UUIDs (e.g., `john` → `a3f2b91c`)
-3. **Augmentation**: (Optional) Enriched URLs/media with descriptions
-4. **Knowledge**: Built RAG index for retrieving similar past posts
-5. **Generation**: Gemini generated 0-N blog posts per window
-6. **Publication**: Created markdown files in `docs/posts/`
+With a config.yaml like:
+```yaml
+model:
+  provider: openai
+  name: gpt-4o
+privacy:
+  enabled: true
+enrichment:
+  enabled: true
+  enrichers:
+    - topic
+    - sentiment
+```
 
 ## Next Steps
 
-### Customize Your Blog
+Now that you've run Egregora with sample data, try:
 
-Edit `mkdocs.yml` to change:
-
-- Site name, description, theme
-- Navigation structure
-- Egregora models and parameters
-
-See [Configuration Guide](configuration.md) for details.
-
-### Generate More Posts
-
-Process another export or adjust windowing:
-
-```bash
-egregora process another-export.zip --output=. --step-size=1 --step-unit=days
-```
-
-### Improve Existing Posts
-
-Use the AI editor to refine posts:
-
-```bash
-egregora edit docs/posts/2025-01-15-my-post.md
-```
-
-### Rank Your Content
-
-Use Elo comparisons to identify your best posts:
-
-```bash
-egregora rank --site-dir=. --comparisons=50
-```
-
-## Common Options
-
-```bash
-# Daily windowing instead of 100-message windows
-egregora process export.zip --step-size=1 --step-unit=days
-
-# Enable URL/media enrichment
-egregora process export.zip --enrich
-
-# Use exact search (no VSS extension needed)
-egregora process export.zip --retrieval-mode=exact
-
-# Custom date range
-egregora process export.zip --start-date=2025-01-01 --end-date=2025-01-31
-
-# Different model
-egregora process export.zip --model=models/gemini-flash-latest
-```
-
-## Troubleshooting
-
-### "DuckDB VSS extension failed to load"
-
-In restricted environments, use exact search mode:
-
-```bash
-egregora process export.zip --retrieval-mode=exact
-```
-
-Or pre-install the VSS extension:
-
-```bash
-python -c "import duckdb; conn = duckdb.connect(); conn.execute('INSTALL vss'); conn.execute('LOAD vss')"
-```
-
-### "No posts were generated"
-
-Check that:
-
-1. Your chat has enough messages (minimum varies by period)
-2. The date range includes your messages
-3. Privacy settings allow content generation
-
-### Rate Limiting
-
-If you hit API rate limits, Egregora will automatically retry with exponential backoff. You can also reduce batch sizes in the configuration.
-
-## Learn More
-
-- [Architecture Overview](../guide/architecture.md) - Understand the pipeline
-- [Privacy Model](../guide/privacy.md) - How anonymization works
-- [API Reference](../api/index.md) - Complete code documentation
+1. [Configuring](configuration.md) more options specific to your needs
+2. Learning about our [Architecture](../guide/architecture.md) to understand the processing pipeline
+3. Processing your own data exports
+4. Exploring different output formats

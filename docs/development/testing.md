@@ -1,320 +1,231 @@
 # Testing
 
-Egregora uses pytest for testing with VCR for recording API interactions.
+Egregora uses a comprehensive testing strategy to ensure code quality and maintainability.
+
+## Test Structure
+
+Tests are organized by type and component:
+
+```
+tests/
+├── unit/                 # Unit tests for individual functions/classes
+│   ├── test_privacy/     # Privacy module tests
+│   ├── test_enrichment/  # Enrichment module tests
+│   └── test_agents/      # Agent module tests
+├── integration/          # Integration tests for module interactions
+├── e2e/                 # End-to-end tests for complete workflows
+└── fixtures/            # Test data and configuration
+```
 
 ## Running Tests
 
 ### All Tests
 
 ```bash
-uv run pytest tests/
+# Run the entire test suite
+pytest
+
+# Run with coverage
+pytest --cov=egregora
+
+# Run with verbose output
+pytest -v
 ```
 
-### Specific Test File
+### Specific Tests
 
 ```bash
-uv run pytest tests/test_parser.py
+# Run unit tests only
+pytest tests/unit/
+
+# Run tests for a specific module
+pytest tests/unit/test_privacy/
+
+# Run a single test file
+pytest tests/unit/test_privacy/test_anonymizer.py
+
+# Run tests matching a pattern
+pytest -k "anonymizer"
 ```
 
-### With Coverage
-
-```bash
-uv run pytest --cov=egregora --cov-report=html tests/
-```
-
-### Verbose Output
-
-```bash
-uv run pytest -v tests/
-```
-
-## Test Structure
-
-```
-tests/
-├── conftest.py                      # Shared fixtures
-├── test_parser.py                   # Ingestion tests
-├── test_anonymizer.py               # Privacy tests
-├── test_enrichment.py               # Augmentation tests
-├── test_rag.py                      # Knowledge tests
-├── test_writer.py                   # Generation tests
-├── test_integration.py              # End-to-end tests
-├── test_gemini_dispatcher.py        # API dispatcher tests
-├── test_with_golden_fixtures.py     # VCR integration tests
-└── fixtures/
-    ├── vcr_cassettes/               # Recorded API responses
-    ├── sample_chats/                # Test WhatsApp exports
-    └── golden/                      # Golden test data
-```
-
-## Test Categories
+## Test Types
 
 ### Unit Tests
 
 Test individual functions and classes in isolation:
 
 ```python
-def test_anonymize_author():
-    """Test that author names are properly anonymized."""
-    from egregora.privacy import anonymize_author
-
-    result = anonymize_author("John Doe")
-
-    assert len(result) == 8
-    assert result.isalnum()
-    # Same input → same output
-    assert anonymize_author("John Doe") == result
+def test_anonymize_names():
+    text = "Hi John, how are you?"
+    result = anonymizer.anonymize_names(text)
+    assert "ANON_PERSON_1" in result
+    assert "John" not in result
 ```
 
 ### Integration Tests
 
-Test multiple components working together:
+Test how multiple modules work together:
 
 ```python
-def test_full_pipeline():
-    """Test complete pipeline from export to posts."""
-    from egregora.orchestration import run_pipeline
+def test_complete_privacy_pipeline():
+    # Test the complete flow from input to anonymized output
+    input_data = load_test_data()
+    anonymized = privacy_pipeline.process(input_data)
+    assert no_pii_in_output(anonymized)
+```
 
-    run_pipeline(
-        export_path="tests/fixtures/sample_chat.zip",
-        output_dir=tmp_path,
-        api_key=os.getenv("GOOGLE_API_KEY")
+### End-to-End Tests
+
+Test complete workflows:
+
+```python
+def test_whatsapp_to_mkdocs():
+    # Test complete flow from WhatsApp input to MkDocs output
+    result = run_complete_pipeline(
+        input_path="tests/fixtures/whatsapp_sample.txt",
+        output_format="mkdocs"
     )
-
-    posts = list((tmp_path / "docs/posts").glob("*.md"))
-    assert len(posts) > 0
+    assert result.success
+    assert output_contains_expected_content(result.output_dir)
 ```
 
-### VCR Tests
+## Test Fixtures
 
-Tests that use `pytest-vcr` to record and replay API calls:
+Egregora uses pytest fixtures for test setup:
+
+### VCR Cassettes
+
+For tests that make external API calls, we use VCR to record and replay HTTP interactions:
 
 ```python
-@pytest.mark.vcr()
-def test_gemini_embedding():
-    """Test embedding with recorded API responses."""
-    from egregora.knowledge.rag import embed_text
+import vcr
 
-    # First run: records API call to cassette
-    # Subsequent runs: replays from cassette
-    embedding = embed_text("test message", client)
-
-    assert len(embedding) == 768
+@vcr.use_cassette('tests/fixtures/cassettes/test_enrichment.yaml')
+def test_topic_enrichment():
+    # This test will use recorded API responses
+    result = topic_enricher.enrich(sample_data)
+    assert result.topics
 ```
 
-## Fixtures
+### Sample Data
 
-### Common Fixtures
+Test fixtures provide sample data for different scenarios:
 
-Defined in `conftest.py`:
+- `tests/fixtures/whatsapp_sample.txt` - Sample WhatsApp export
+- `tests/fixtures/slack_sample.json` - Sample Slack export
+- `tests/fixtures/empty_conversation.txt` - Minimal conversation for edge case testing
+- `tests/fixtures/edge_cases.json` - Conversations with special characters, etc.
+
+## Mocking Strategy
+
+To isolate units under test:
 
 ```python
-@pytest.fixture
-def sample_messages():
-    """Sample conversation DataFrame."""
-    return ibis.memtable([
-        {
-            "timestamp": datetime(2025, 1, 1, 10, 0),
-            "author": "Alice",
-            "message": "Hello world"
-        }
-    ])
+from unittest.mock import Mock, patch
 
-@pytest.fixture
-def gemini_client():
-    """Google Gemini client."""
-    api_key = os.getenv("GOOGLE_API_KEY")
-    return genai.Client(api_key=api_key)
+def test_writer_agent_with_mock_llm():
+    mock_llm = Mock()
+    mock_llm.generate.return_value = "Mocked response"
+    
+    agent = WriterAgent(llm=mock_llm)
+    result = agent.generate_content(context_data)
+    
+    assert result == "Mocked response"
+    mock_llm.generate.assert_called_once()
 ```
 
-### Using Fixtures
+## Test Patterns
+
+### Parametrized Tests
+
+For testing multiple inputs:
 
 ```python
-def test_with_fixture(sample_messages):
-    """Test using a fixture."""
-    df = sample_messages
-    assert len(df) == 1
-```
+import pytest
 
-## VCR Configuration
-
-### Configuration in pyproject.toml
-
-```toml
-[tool.pytest.ini_options]
-vcr_record_mode = "once"  # Record once, then replay
-vcr_cassette_dir = "tests/fixtures/vcr_cassettes"
-```
-
-### Recording New Cassettes
-
-```bash
-# Delete existing cassette to force re-recording
-rm tests/fixtures/vcr_cassettes/test_name.yaml
-
-# Run test (will record new cassette)
-uv run pytest tests/test_name.py
-
-# Commit the new cassette
-git add tests/fixtures/vcr_cassettes/test_name.yaml
-```
-
-### VCR Modes
-
-- `once`: Record once, replay afterwards (default)
-- `new_episodes`: Record new requests, replay existing
-- `all`: Always record (overwrites cassettes)
-- `none`: Never record (fail if cassette missing)
-
-## Test Data
-
-### Sample WhatsApp Exports
-
-Located in `tests/fixtures/sample_chats/`:
-
-```
-sample_chats/
-├── basic_chat.zip           # Minimal chat
-├── multiday_chat.zip        # Multiple days
-└── media_references.zip     # With media refs
-```
-
-### Golden Fixtures
-
-Golden test data for regression testing:
-
-```python
-def test_against_golden():
-    """Test output matches golden reference."""
-    result = process_data(input)
-    expected = load_golden("expected_output.json")
-    assert result == expected
-```
-
-## Mocking
-
-### Mock External Services
-
-```python
-from unittest.mock import patch, MagicMock
-
-def test_with_mock():
-    """Test with mocked Gemini client."""
-    mock_client = MagicMock()
-    mock_client.embed_text.return_value = [0.1] * 768
-
-    result = embed_text("test", mock_client)
-    assert len(result) == 768
-```
-
-### Mock File System
-
-```python
-def test_file_operations(tmp_path):
-    """Test using temporary directory."""
-    test_file = tmp_path / "test.txt"
-    test_file.write_text("content")
-
-    result = read_file(test_file)
-    assert result == "content"
-```
-
-## Parametrized Tests
-
-Test multiple cases efficiently:
-
-```python
-@pytest.mark.parametrize("input,expected", [
-    ("Alice", "a3f2b91c"),
-    ("Bob", "b7e4d23a"),
-    ("Charlie", "c9d1e5f7"),
+@pytest.mark.parametrize("pii_type,should_detect", [
+    ("John", True),
+    ("john@example.com", True),
+    ("123-456-7890", True),
+    ("randomword", False),
 ])
-def test_anonymization(input, expected):
-    """Test anonymization with multiple inputs."""
-    result = anonymize_author(input)
-    assert result == expected
+def test_pii_detection_types(pii_type, should_detect):
+    result = detector.detect_pii(pii_type)
+    assert (len(result) > 0) == should_detect
 ```
 
-## Test Coverage
+### Property-Based Testing
 
-### Generate Coverage Report
+For testing general properties across many inputs:
 
-```bash
-uv run pytest --cov=egregora --cov-report=html tests/
-open htmlcov/index.html
+```python
+from hypothesis import given, strategies as st
+
+@given(st.text())
+def test_anonymizer_preserves_length(text):
+    original_length = len(text)
+    anonymized = anonymizer.anonymize(text)
+    # Anonymized text should be same or longer (not shorter)
+    assert len(anonymized) >= original_length
 ```
-
-### Coverage Goals
-
-- **Core modules**: 90%+ coverage
-- **Utilities**: 80%+ coverage
-- **CLI**: 70%+ coverage (harder to test)
 
 ## Continuous Integration
 
-Tests run automatically on GitHub Actions:
+Tests run automatically on all pull requests and commits:
 
-- Every push
-- Every pull request
-- Nightly (full test suite)
+- Unit tests: Run on every push
+- Integration tests: Run on every push  
+- E2E tests: Run nightly or on release candidates
+- Coverage: Must maintain or improve overall coverage
 
-### Local CI Simulation
+## Writing Good Tests
 
-```bash
-# Run what CI runs
-uv run pytest tests/
-uv run ruff check src/
-uv run black --check src/
-```
+### Test Structure (AAA Pattern)
 
-## Debugging Tests
-
-### Print Debug Info
+1. **Arrange**: Set up the test data and objects
+2. **Act**: Execute the functionality being tested
+3. **Assert**: Verify the expected outcomes
 
 ```python
-def test_with_debug(capfd):
-    """Test with captured output."""
-    print("Debug info")
-    result = function_under_test()
-
-    out, err = capfd.readouterr()
-    assert "Debug info" in out
+def test_message_context_windowing():
+    # Arrange
+    messages = [Message(...), Message(...)]
+    
+    # Act
+    result = windower.group_by_context(messages)
+    
+    # Assert
+    assert len(result) > 0
+    assert isinstance(result[0], ContextGroup)
 ```
 
-### Use pytest debugger
+### Test Coverage
 
-```bash
-# Drop into debugger on failure
-uv run pytest --pdb tests/
+Aim for high coverage of:
 
-# Drop into debugger on first failure
-uv run pytest -x --pdb tests/
+- Edge cases and error conditions
+- Different input types and formats
+- Configuration variations
+- Performance characteristics
+
+### Test Naming
+
+Use descriptive names that explain what is being tested:
+
+- `test_anonymizer_handles_unicode_characters`
+- `test_writer_agent_fails_gracefully_on_empty_context`
+- `test_rag_retrieval_returns_most_relevant_results`
+
+## Testing Privacy
+
+Special attention is given to privacy-related tests:
+
+```python
+def test_no_pii_leaks_to_external_services():
+    # Verify that no actual PII is sent to external APIs
+    with capture_network_traffic() as traffic:
+        result = external_enrichment.process(anonymized_data)
+        
+    for request in traffic:
+        assert_no_pii_in_request(request)
 ```
-
-### VSCode Debug Configuration
-
-```json
-{
-  "name": "Pytest: Current File",
-  "type": "python",
-  "request": "launch",
-  "module": "pytest",
-  "args": ["${file}", "-v"],
-  "console": "integratedTerminal"
-}
-```
-
-## Best Practices
-
-1. **Arrange-Act-Assert**: Structure tests clearly
-2. **One assertion per test**: Keep tests focused
-3. **Descriptive names**: `test_parser_handles_multiline_messages`
-4. **Use fixtures**: Share setup code
-5. **Mock external calls**: Use VCR for API tests
-6. **Clean up**: Use `tmp_path` for file tests
-7. **Test edge cases**: Empty inputs, null values, errors
-
-## See Also
-
-- [Contributing Guide](contributing.md) - Development workflow
-- [Project Structure](structure.md) - Codebase organization

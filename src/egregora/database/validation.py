@@ -111,6 +111,111 @@ IR_MESSAGE_SCHEMA = ibis.schema(
 
 
 # ============================================================================
+# Schema Generation Functions (Single Source of Truth)
+# ============================================================================
+
+
+def generate_ir_sql_ddl(table_name: str = "ir_messages") -> str:
+    """Generate CREATE TABLE SQL DDL from IR_MESSAGE_SCHEMA.
+
+    This function is the single source of truth for runtime table creation.
+    The SQL is generated dynamically from the Ibis schema definition.
+
+    Args:
+        table_name: Name of the table to create (default: "ir_messages")
+
+    Returns:
+        SQL DDL string with CREATE TABLE statement
+
+    Example:
+        >>> sql = generate_ir_sql_ddl()
+        >>> conn.execute(sql)  # Create table in database
+
+    """
+    # Map Ibis data types to DuckDB SQL types
+    def ibis_to_sql_type(dtype: dt.DataType) -> str:
+        """Convert Ibis data type to DuckDB SQL type string."""
+        if isinstance(dtype, dt.String):
+            return "VARCHAR"
+        elif isinstance(dtype, dt.Timestamp):
+            # DuckDB TIMESTAMP WITH TIME ZONE
+            if dtype.timezone:
+                return "TIMESTAMP WITH TIME ZONE"
+            return "TIMESTAMP"
+        elif isinstance(dtype, dt.JSON):
+            return "JSON"
+        elif isinstance(dtype, dt.UUID):
+            return "UUID"
+        else:
+            # Fallback to Ibis string representation
+            return str(dtype).upper().split("(")[0]
+
+    # Generate column definitions
+    columns = []
+    for col_name in IR_MESSAGE_SCHEMA.names:
+        dtype = IR_MESSAGE_SCHEMA[col_name]
+        sql_type = ibis_to_sql_type(dtype)
+
+        # Determine nullability
+        nullable = getattr(dtype, "nullable", False)
+        null_constraint = "" if nullable else " NOT NULL"
+
+        columns.append(f"    {col_name} {sql_type}{null_constraint}")
+
+    # Build CREATE TABLE statement
+    sql_parts = [
+        f"-- Generated from IR_MESSAGE_SCHEMA in validation.py",
+        f"-- DO NOT EDIT: This SQL is auto-generated",
+        f"",
+        f"DROP TABLE IF EXISTS {table_name};",
+        f"",
+        f"CREATE TABLE {table_name} (",
+        ",\n".join(columns),
+        ",",
+        f"    PRIMARY KEY (event_id)",
+        ");",
+        f"",
+        f"-- Indexes for common query patterns",
+        f"CREATE INDEX IF NOT EXISTS idx_{table_name}_ts ON {table_name}(ts);",
+        f"CREATE INDEX IF NOT EXISTS idx_{table_name}_thread ON {table_name}(thread_id);",
+        f"CREATE INDEX IF NOT EXISTS idx_{table_name}_author ON {table_name}(author_uuid);",
+    ]
+
+    return "\n".join(sql_parts)
+
+
+def generate_ir_lockfile_json(version: str = "1.0.0") -> dict[str, Any]:
+    """Generate JSON lockfile from IR_MESSAGE_SCHEMA for validation.
+
+    This function generates the lockfile used by CI to detect schema drift.
+    The lockfile is the schema serialized to JSON format.
+
+    Args:
+        version: Schema version string (default: "1.0.0")
+
+    Returns:
+        Dictionary representing the schema lockfile
+
+    Example:
+        >>> lockfile = generate_ir_lockfile_json()
+        >>> Path("schema/ir_v1.json").write_text(json.dumps(lockfile, indent=2))
+
+    """
+    return {
+        "version": version,
+        "table": "ir_messages",
+        "columns": {
+            col: {
+                "type": str(IR_MESSAGE_SCHEMA[col]).split("(")[0].upper(),
+                "nullable": getattr(IR_MESSAGE_SCHEMA[col], "nullable", False),
+                "timezone": getattr(IR_MESSAGE_SCHEMA[col], "timezone", None),
+            }
+            for col in IR_MESSAGE_SCHEMA.names
+        },
+    }
+
+
+# ============================================================================
 # Runtime Validator (Pydantic)
 # ============================================================================
 
@@ -624,6 +729,9 @@ __all__ = [
     "SchemaError",
     # Schema definitions
     "IR_MESSAGE_SCHEMA",
+    # Schema generation (single source of truth)
+    "generate_ir_sql_ddl",
+    "generate_ir_lockfile_json",
     # Validation models
     "IRMessageRow",
     # Validation functions

@@ -1,11 +1,14 @@
 """Database initialization - create all tables at pipeline start.
 
-This module provides simple, explicit database initialization using SQL DDL files.
+This module provides simple, explicit database initialization using dynamically
+generated SQL DDL from the single source of truth (IR_MESSAGE_SCHEMA).
+
 All tables are created at the beginning of the pipeline, ensuring consistent schema
 throughout the entire pipeline execution.
 
 Design principles:
-- SQL DDL files define all schemas (no Python schema construction)
+- Python schema (IR_MESSAGE_SCHEMA) is single source of truth
+- SQL DDL is generated dynamically at runtime
 - Initialize once at pipeline start
 - No schema conversion/migration during pipeline execution
 - Simple and explicit
@@ -14,25 +17,26 @@ Design principles:
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING
+
+from egregora.database.validation import generate_ir_sql_ddl
 
 if TYPE_CHECKING:
     from ibis.backends.base import BaseBackend
 
 logger = logging.getLogger(__name__)
 
-SCHEMAS_DIR = Path(__file__).parent / "schemas"
-
 
 def initialize_database(backend: BaseBackend) -> None:
-    """Initialize all database tables by executing SQL schema files.
+    """Initialize all database tables by executing dynamically generated SQL DDL.
+
+    The SQL is generated from IR_MESSAGE_SCHEMA in validation.py, which is the
+    single source of truth for the IR schema definition.
 
     Args:
         backend: Ibis backend (DuckDB, Postgres, etc.)
 
     Raises:
-        FileNotFoundError: If schema files are missing
         Exception: If SQL execution fails
 
     Example:
@@ -44,14 +48,9 @@ def initialize_database(backend: BaseBackend) -> None:
     """
     logger.info("Initializing database tables...")
 
-    # Execute IR messages schema
-    ir_messages_sql = SCHEMAS_DIR / "ir_messages.sql"
-    if not ir_messages_sql.exists():
-        msg = f"Schema file not found: {ir_messages_sql}"
-        raise FileNotFoundError(msg)
-
-    sql_content = ir_messages_sql.read_text()
-    logger.debug("Executing schema: %s", ir_messages_sql.name)
+    # Generate SQL DDL from IR_MESSAGE_SCHEMA (single source of truth)
+    sql_content = generate_ir_sql_ddl()
+    logger.debug("Executing generated IR schema DDL")
 
     # DuckDB backend has .con.execute() for raw SQL
     if hasattr(backend, "con"):

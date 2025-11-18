@@ -1,254 +1,116 @@
-# Architecture Overview
+# Architecture
 
-Egregora uses a **staged pipeline architecture** that processes conversations through distinct phases. This design provides clear separation of concerns and better maintainability compared to traditional ETL pipelines.
+Egregora follows a modular, staged pipeline architecture designed for privacy, extensibility, and maintainability.
 
-## Pipeline Stages
+## High-Level Overview
+
+Egregora processes your personal data through a series of stages:
 
 ```mermaid
 graph TD
-    A[Ingestion] -->|Parsed DataFrame| B[Privacy]
-    B -->|Anonymized Data| C[Augmentation]
-    C -->|Enriched Context| D[Knowledge]
-    D -->|RAG Index| E[Generation]
-    E -->|Blog Posts| F[Publication]
-    F -.->|Feedback Loop| D
-
-    subgraph "Ingestion Stage"
-    A1[Parse ZIP] --> A2[Extract Messages] --> A3[Structure Data]
-    end
-
-    subgraph "Privacy Stage"
-    B1[Anonymize Names] --> B2[Detect PII] --> B3[Opt-out Check]
-    end
-
-    subgraph "Knowledge Stage"
-    D1[Embed Messages] --> D2[Store Vectors] --> D3[Annotations]
-    end
-
-    subgraph "Generation Stage"
-    E1[RAG Query] --> E2[LLM Writer] --> E3[Tool Calling]
-    end
+    A[Input Sources] --> B[Privacy Filter]
+    B --> C[Data Enrichment]
+    C --> D[Knowledge Graph]
+    D --> E[Output Adapters]
+    
+    A1[WhatsApp] --> A
+    A2[Slack] --> A
+    A3[JSON] --> A
+    
+    B1[PII Detection] --> B
+    B2[Anonymization] --> B
+    
+    C1[Topic Modeling] --> C
+    C2[Sentiment Analysis] --> C
+    C3[Entity Recognition] --> C
+    
+    E1[MkDocs Site] --> E
+    E2[Hugo Site] --> E
+    E3[JSON Export] --> E
 ```
 
-## 1. Ingestion
+## Core Components
 
-**Module**: `egregora.ingestion`
+### 1. Input Adapters
 
-Converts WhatsApp exports into structured Ibis DataFrames.
+Input adapters are responsible for parsing and normalizing data from various sources. Each adapter implements a common interface to convert source-specific formats into Egregora's internal data representation.
 
-```python
-from egregora.ingestion import parse_whatsapp_export
+- **WhatsApp Adapter**: Parses WhatsApp export files (.txt, .zip)
+- **Slack Adapter**: Imports from Slack export files (.zip, JSON)
+- **Generic Adapter**: Handles other structured data (JSON, CSV)
 
-df = parse_whatsapp_export("whatsapp-export.zip")
-# Columns: timestamp, author, message, media_type, media_path
-```
+### 2. Privacy Layer
 
-**Key Operations**:
+The privacy layer is the core of Egregora's privacy-first design:
 
-- Unzip WhatsApp export
-- Parse text format (handles multiple formats)
-- Extract timestamps, authors, messages
-- Detect media references
-- Convert to Ibis DataFrame
+- **PII Detection**: Identifies personal information (names, emails, phone numbers, locations)
+- **Anonymization**: Replaces PII with anonymous tokens that maintain referential integrity
+- **Gate System**: Controls what information flows between pipeline stages
 
-## 2. Privacy
+### 3. Data Primitives
 
-**Module**: `egregora.privacy`
+A common data representation that all pipeline stages use:
 
-Ensures real names never reach the LLM.
+- **Document**: Core data structure containing messages, metadata, and relationships
+- **Author Profile**: Anonymized representation of individuals in your data
+- **Context**: Temporal, spatial, and topical context of conversations
 
-```python
-from egregora.privacy import anonymize_dataframe, detect_pii
+### 4. Enrichment Runners
 
-# Convert names to deterministic UUIDs
-df_anon = anonymize_dataframe(df)
+AI-powered modules that add semantic meaning to your data:
 
-# Scan for phone numbers, emails, addresses
-pii_results = detect_pii(df_anon)
-```
+- **Topic Modeling**: Identifies conversation themes and topics
+- **Sentiment Analysis**: Determines emotional tone of interactions
+- **Entity Recognition**: Tags important entities (organizations, locations, etc.)
+- **Media Analysis**: Extracts information from attached media files
 
-**Key Features**:
+### 5. Transformation Functions
 
-- **Deterministic UUIDs**: Same person always gets the same pseudonym
-- **PII Detection**: Scans for phone numbers, emails, addresses, etc.
-- **Opt-out Management**: Respects user privacy preferences
-- **Reversible**: Original names stored separately for local display
+Pure functions that transform data without side effects:
 
-## 3. Augmentation
+- **Windowing**: Groups related messages together
+- **Media Processing**: Handles image/video content separately
+- **Relationship Mapping**: Identifies connections between authors and topics
 
-**Module**: `egregora.augmentation`
+### 6. Output Adapters
 
-Adds context to conversations using LLMs.
+Converts the enriched knowledge graph into various output formats:
 
-```python
-from egregora.augmentation import enrich_urls, create_author_profiles
+- **MkDocs Adapter**: Generates documentation sites
+- **Hugo Adapter**: Creates static sites with the Hugo framework
+- **JSON Exporter**: Exports data for programmatic use
+- **Custom Adapters**: Extendable format support
 
-# Add descriptions for URLs and media
-df_enriched = enrich_urls(df_anon, gemini_client)
+### 7. Orchestration
 
-# Generate author bios from conversations
-profiles = create_author_profiles(df_anon, gemini_client)
-```
+Coordinates the entire pipeline:
 
-**Key Operations**:
-
-- **URL Enrichment**: LLM fetches and summarizes linked content
-- **Media Enrichment**: Describes images, videos, documents
-- **Author Profiling**: Generates bios from conversation patterns
-
-## 4. Knowledge
-
-**Module**: `egregora.knowledge`
-
-Builds persistent indexes for retrieval and analysis.
-
-```python
-from egregora.knowledge import embed_and_store, annotate_conversations
-
-# Embed messages and store in DuckDB vector store
-embed_and_store(df_enriched, gemini_client, db_conn)
-
-# Add metadata and threading information
-annotations = annotate_conversations(df_enriched)
-```
-
-**Components**:
-
-- **RAG Store**: Vector embeddings in DuckDB with VSS extension
-- **Annotations**: Conversation metadata, threading, topics
-- **Rankings**: Elo-based content quality scoring
-
-## 5. Generation
-
-**Module**: `egregora.generation`
-
-LLM generates blog posts using tool calling.
-
-```python
-from egregora.generation import generate_posts
-
-posts = generate_posts(
-    df_enriched,
-    gemini_client,
-    rag_store,
-    period="weekly"
-)
-# Returns 0-N posts per period
-```
-
-**Key Features**:
-
-- **Tool Calling**: LLM uses `write_post()` function to create articles
-- **RAG Context**: Retrieves similar past posts for consistency
-- **Editorial Freedom**: LLM decides how many posts and what to write
-- **Structured Output**: Pydantic models ensure valid frontmatter
-
-## 6. Initialization
-
-**Module**: `egregora.init`
-
-Creates the MkDocs site structure used to publish generated content.
-
-```python
-from pathlib import Path
-
-from egregora.init import ensure_mkdocs_project
-
-# Ensure site scaffolding exists and receive docs directory path
-docs_dir, created = ensure_mkdocs_project(Path("my-blog/"))
-```
-
-**Scaffold Output**:
-
-```
-my-blog/
-├── mkdocs.yml
-├── docs/
-│   ├── index.md
-│   ├── about.md
-│   └── posts/
-│       ├── 2025-01-15-first-post.md
-│       └── 2025-01-22-second-post.md
-└── .egregora/
-    ├── egregora.db      # RAG vectors, annotations
-    └── cache/           # LLM response cache
-```
+- **Write Pipeline**: Main processing flow from input to enriched output
+- **CLI Interface**: Command-line interface for users
+- **Configuration Manager**: Handles settings and options
 
 ## Data Flow
 
-### Ibis DataFrames
+1. **Input Stage**: Data is loaded and normalized through input adapters
+2. **Privacy Stage**: PII is detected and anonymized to protect privacy
+3. **Enrichment Stage**: AI models add semantic meaning and context
+4. **Transformation Stage**: Data is organized and structured
+5. **Output Stage**: Results are formatted and written to the desired output
 
-All data flows through Ibis DataFrames:
+## Privacy-First Design
 
-```python
-from egregora.core.schema import CONVERSATION_SCHEMA
+The architecture ensures privacy through:
 
-# All DataFrames follow defined schemas
-df: ibis.Table = ibis.memtable(data, schema=CONVERSATION_SCHEMA)
+- **Local Processing**: All PII detection and anonymization happens on your machine
+- **Data Isolation**: PII never reaches external AI services
+- **Token Consistency**: Anonymized tokens maintain referential integrity
+- **Configurable Privacy**: Granular controls for privacy settings
 
-# DuckDB backend for analytics
-connection = ibis.duckdb.connect("egregora.db")
-```
+## Extensibility
 
-### Schemas
+The modular design allows easy extension:
 
-**Ephemeral** (in-memory transformations):
-
-- `CONVERSATION_SCHEMA`: Messages with timestamps, authors, content
-- `ENRICHMENT_SCHEMA`: URL/media descriptions
-
-**Persistent** (DuckDB tables):
-
-- `RAG_CHUNKS_SCHEMA`: Embedded message chunks with vectors
-- `ANNOTATIONS_SCHEMA`: Conversation metadata
-- `ELO_RATINGS_SCHEMA`: Content quality scores
-
-## Feedback Loop
-
-The knowledge stage creates a feedback loop:
-
-1. Generate initial posts
-2. Embed posts into RAG store
-3. Future generations retrieve similar posts
-4. Ensures consistency and evolution
-
-## Why Staged Pipeline?
-
-Traditional ETL (Extract-Transform-Load) doesn't fit because:
-
-- **Feedback Loops**: RAG indexes posts for future use
-- **Stateful Operations**: Knowledge stage persists data
-- **Multiple Outputs**: Not just "loading" data somewhere
-
-Staged pipeline better represents:
-
-- Clear separation of concerns
-- Explicit dependencies between stages
-- Feedback and iteration
-- Mixed ephemeral/persistent data
-
-## Technology Stack
-
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| DataFrames | Ibis | Unified data manipulation API |
-| Database | DuckDB | Analytics + vector search (VSS) |
-| LLM | Google Gemini | Content generation |
-| Embeddings | Gemini Embeddings | Vector search |
-| Site | MkDocs | Static site generation |
-| Cache | diskcache | Response caching |
-| CLI | Typer | Command-line interface |
-
-## Performance Characteristics
-
-- **Stateless**: Each run is independent (except RAG/annotations)
-- **Lazy Evaluation**: Ibis defers execution until needed
-- **Batching**: Embeddings and enrichments are batched
-- **Caching**: LLM responses cached on disk
-- **Vectorized**: DuckDB enables fast analytics
-
-## Next Steps
-
-- [Privacy Model](privacy.md) - Deep dive on anonymization
-- [Knowledge Base](knowledge.md) - RAG and vector search
-- [Content Generation](generation.md) - LLM writer internals
+- New input formats can be added by implementing the input adapter protocol
+- Additional enrichment capabilities can be added as new runners
+- Multiple output formats are supported through output adapters
+- Custom processing steps can be inserted into the pipeline

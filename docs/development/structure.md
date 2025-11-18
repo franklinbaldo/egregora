@@ -1,320 +1,202 @@
 # Project Structure
 
-Understanding the Egregora codebase organization.
+Understanding Egregora's code organization and architectural patterns.
 
-## Repository Layout
+## Three-Layer Architecture
+
+Egregora follows a clean, three-layer architecture that separates concerns and ensures maintainability:
+
+```
+┌─────────────────────────────────────────┐
+│         Orchestration Layer             │
+│  (CLI, Pipeline Coordination, Config)   │
+├─────────────────────────────────────────┤
+│        Processing Layer                 │
+│ (Privacy, Enrichment, Transformations)  │
+├─────────────────────────────────────────┤
+│       Input/Output Layer                │
+│   (Adapters, Protocols, Serializers)    │
+└─────────────────────────────────────────┘
+```
+
+### Layer Responsibilities
+
+#### Input/Output Layer (`src/egregora/{input,output}_adapters/`)
+- **Purpose**: Handle data ingress and egress
+- **Responsibilities**: 
+  - Parse various input formats (WhatsApp, Slack, etc.)
+  - Format output in various styles (MkDocs, Hugo, JSON)
+  - Define common protocols for adapters
+- **Characteristics**: 
+  - Protocol-driven design
+  - Format-specific implementations
+  - Minimal business logic
+
+#### Processing Layer (`src/egregora/{privacy,enrichment,transformations,database}/`)
+- **Purpose**: Transform and process data
+- **Responsibilities**:
+  - Privacy protection (PII detection and anonymization)
+  - AI enrichment (topics, sentiment, entities)
+  - Data transformations (functional operations)
+  - Storage and retrieval
+- **Characteristics**:
+  - Pure functions where possible
+  - Business logic concentrated here
+  - Heavy use of type hints
+
+#### Orchestration Layer (`src/egregora/{cli,orchestration}/`)
+- **Purpose**: Coordinate the entire pipeline
+- **Responsibilities**:
+  - CLI interface
+  - Pipeline execution flow
+  - Configuration management
+- **Characteristics**:
+  - High-level coordination
+  - Dependency injection
+  - Error handling across layers
+
+## Directory Structure
 
 ```
 egregora/
-├── src/egregora/           # Main source code
-├── tests/                  # Test suite
-├── docs/                   # Documentation (MkDocs)
-├── .claude/                # Claude Code configuration
-├── .github/                # GitHub Actions workflows
-├── pyproject.toml          # Project configuration
-├── mkdocs.yml              # Documentation configuration
-├── README.md               # Project overview
-└── LICENSE                 # MIT License
-```
-
-## Source Code Structure
-
-```
-src/egregora/
-├── ingestion/              # Input source base classes (re-exports from sources/)
-│   ├── __init__.py
-│   └── base.py             # InputSource, InputMetadata protocols
-│
-├── sources/                # Source-specific implementations
-│   └── whatsapp/           # WhatsApp export parsing
-│       ├── parser.py       # parse_source() - main parser
-│       ├── grammar.py      # pyparsing grammar
-│       ├── input.py        # WhatsAppInputSource
-│       └── models.py       # WhatsAppExport dataclass
-│
-├── privacy/                # Anonymization & PII detection
-│   ├── __init__.py
-│   ├── anonymizer.py       # Name anonymization
-│   └── detector.py         # PII detection
-│
-├── augmentation/           # Enrichment & profiling
-│   ├── __init__.py
-│   ├── enrichment/
-│   │   ├── __init__.py
-│   │   ├── core.py         # Enrichment logic
-│   │   ├── media.py        # Media enrichment
-│   │   └── batch.py        # Batch processing
-│   └── profiler.py         # Author profiles
-│
-├── knowledge/              # RAG, annotations, rankings
-│   ├── __init__.py
-│   ├── rag/
-│   │   ├── __init__.py
-│   │   ├── store.py        # Vector store
-│   │   ├── embedder.py     # Embedding generation
-│   │   ├── retriever.py    # Similarity search
-│   │   └── chunker.py      # Text chunking
-│   ├── annotations.py      # Conversation metadata
-│   └── ranking/
+├── src/
+│   └── egregora/
 │       ├── __init__.py
-│       ├── elo.py          # Elo scoring
-│       ├── agent.py        # Comparison agent
-│       └── store.py        # Rating persistence
-│
-├── generation/             # LLM writer & editor
-│   ├── __init__.py
-│   ├── writer/
-│   │   ├── __init__.py
-│   │   ├── core.py         # Main writer
-│   │   ├── tools.py        # Tool definitions
-│   │   ├── handlers.py     # Tool handlers
-│   │   ├── formatting.py   # Output formatting
-│   │   └── context.py      # Context building
-│   └── editor/
-│       ├── __init__.py
-│       ├── agent.py        # Interactive editor
-│       └── document.py     # Document handling
-│
-├── init/                   # Site scaffolding
-│   ├── __init__.py
-│   └── scaffolding.py      # MkDocs site creation
-│
-├── core/                   # Shared models & schemas
-│   ├── __init__.py
-│   ├── schema.py           # Ibis schemas
-│   ├── models.py           # Pydantic models
-│   ├── types.py            # Type definitions
-│   └── database_schema.py  # Database schemas
-│
-├── orchestration/          # CLI & pipeline
-│   ├── __init__.py
-│   ├── cli.py              # Typer CLI
-│   ├── pipeline.py         # End-to-end orchestration
-│   ├── database.py         # Database management
-│   ├── serialization.py    # Data serialization
-│   ├── logging_setup.py    # Logging configuration
-│   └── write_post.py       # Post writing
-│
-├── config/                 # Configuration management
-│   ├── __init__.py
-│   ├── model.py            # Model configuration
-│   ├── site.py             # Site configuration
-│   └── types.py            # Config types
-│
-├── utils/                  # Utilities
-│   ├── __init__.py
-│   ├── batch.py            # Batch processing
-│   ├── cache.py            # Disk cache
-│   ├── checkpoints.py      # Checkpoint management
-│   ├── zip.py              # ZIP handling
-│   ├── genai.py            # Gemini client utils
-│   ├── gemini_dispatcher.py # API dispatcher
-│   └── base_dispatcher.py  # Base dispatcher
-│
-├── testing/                # Testing utilities
-│   ├── __init__.py
-│   └── gemini_recorder.py  # API recording
-│
-├── templates/              # Jinja2 templates
-│   └── (various .jinja2 files)
-│
-└── prompts/                # Deprecated prompt templates
-    └── (legacy files)
+│       ├── cli.py                 # Command-line interface
+│       ├── input_adapters/       # Input format parsers
+│       │   ├── __init__.py
+│       │   ├── whatsapp.py
+│       │   ├── slack.py
+│       │   └── protocols.py
+│       ├── output_adapters/      # Output format generators
+│       │   ├── __init__.py
+│       │   ├── mkdocs.py
+│       │   ├── hugo.py
+│       │   └── protocols.py
+│       ├── privacy/              # PII detection and anonymization
+│       │   ├── __init__.py
+│       │   ├── detector.py
+│       │   ├── anonymizer.py
+│       │   └── gate.py
+│       ├── enrichment/           # AI-powered analysis
+│       │   ├── __init__.py
+│       │   ├── runners.py
+│       │   ├── media.py
+│       │   └── avatar.py
+│       ├── agents/               # AI agents for content generation
+│       │   ├── __init__.py
+│       │   ├── writer.py
+│       │   ├── reader.py
+│       │   └── shared/           # Shared agent utilities
+│       │       ├── __init__.py
+│       │       ├── author_profiles.py
+│       │       └── rag.py
+│       ├── data_primitives/      # Core data structures
+│       │   ├── __init__.py
+│       │   ├── document.py
+│       │   └── base_types.py
+│       ├── transformations/      # Pure transformation functions
+│       │   ├── __init__.py
+│       │   ├── windowing.py
+│       │   └── media.py
+│       ├── database/             # Data storage layer
+│       │   ├── __init__.py
+│       │   ├── ir_schema.py
+│       │   ├── duckdb_manager.py
+│       │   └── views.py
+│       └── orchestration/        # Pipeline coordination
+│           ├── __init__.py
+│           └── write_pipeline.py
+├── tests/                       # Test suite
+├── docs/                        # Documentation
+├── scripts/                     # Utility scripts
+├── pyproject.toml              # Project configuration
+└── README.md
 ```
 
-## Key Files
+## Key Design Patterns
 
-### Configuration
+### Protocol-Based Interfaces
 
-| File | Purpose |
-|------|---------|
-| `pyproject.toml` | Project metadata, dependencies, tool configs |
-| `mkdocs.yml` | Documentation configuration |
-| `.github/workflows/` | CI/CD pipelines |
-| `.claude/` | Claude Code hooks and commands |
-
-### Entry Points
-
-| File | Purpose |
-|------|---------|
-| `orchestration/cli.py` | Main CLI entry point (`egregora` command) |
-| `orchestration/pipeline.py` | Pipeline orchestration |
-| `orchestration/write_post.py` | Post generation workflow |
-
-## Module Responsibilities
-
-### Ingestion
-
-**Purpose**: Parse WhatsApp exports into structured DataFrames
-
-**Key functions**:
-- `parse_whatsapp_export()`: Main parsing function
-- Format detection (iOS vs Android)
-- Multi-line message handling
-
-### Privacy
-
-**Purpose**: Protect user privacy before AI processing
-
-**Key functions**:
-- `anonymize_dataframe()`: Replace names with UUIDs
-- `detect_pii()`: Scan for sensitive information
-- `reverse_anonymization()`: Local name restoration
-
-### Augmentation
-
-**Purpose**: Add context using LLMs
-
-**Key functions**:
-- `enrich_urls()`: Describe linked content
-- `enrich_media()`: Describe media references
-- `create_author_profiles()`: Generate bios
-
-### Knowledge
-
-**Purpose**: Persistent indexes and metadata
-
-**Components**:
-- **RAG**: Vector embeddings + similarity search
-- **Annotations**: Conversation threading and topics
-- **Rankings**: Elo-based quality scores
-
-### Generation
-
-**Purpose**: LLM-powered content creation
-
-**Key functions**:
-- `generate_posts()`: Main writer with tool calling
-- `edit_post()`: Interactive refinement
-- Tool definitions for structured output
-
-### Publication
-
-**Purpose**: Create MkDocs sites
-
-**Key functions**:
-- `scaffold_site()`: Initialize site structure
-- Template rendering
-- Post writing to markdown
-
-### Core
-
-**Purpose**: Shared data structures
-
-**Key modules**:
-- `schema.py`: Ibis DataFrame schemas
-- `models.py`: Pydantic validation models
-- `types.py`: Type aliases and enums
-
-### Orchestration
-
-**Purpose**: Coordinate the pipeline
-
-**Key functions**:
-- `main()`: CLI entry point
-- `run_pipeline()`: End-to-end execution
-- Command definitions (process, init, edit, rank)
-
-## Design Patterns
-
-### DataFrame-Centric
-
-All data flows through Ibis DataFrames:
+Input and output adapters follow protocols for consistency:
 
 ```python
-# Parse → DataFrame
-df = parse_whatsapp_export("export.zip")
+from typing import Protocol
 
-# Transform → DataFrame
-df = anonymize_dataframe(df)
-
-# Enrich → DataFrame
-df = enrich_urls(df, client)
+class InputAdapter(Protocol):
+    def parse(self, path: str) -> list[Document]:
+        ...
+        
+class OutputAdapter(Protocol):
+    def format(self, documents: list[Document]) -> str:
+        ...
 ```
 
-### Lazy Evaluation
+### Functional Transformations
 
-Ibis defers computation until needed:
-
-```python
-# Build query
-df = table.filter(...).select(...).group_by(...)
-
-# Execute when needed
-result = df.execute()
-```
-
-### Tool Calling
-
-LLMs use structured tools:
+Data transformations are pure functions:
 
 ```python
-def write_post(title: str, content: str, tags: List[str]) -> None:
-    """Tool for LLM to write a blog post."""
+def anonymize_content(text: str, mapping: dict[str, str]) -> str:
+    """Pure function for content anonymization"""
     ...
 
-# LLM calls the tool
-posts = llm.generate_with_tools([write_post])
-```
-
-### Caching
-
-Expensive operations are cached:
-
-```python
-@cache.memoize()
-def embed_text(text: str, client: genai.Client) -> List[float]:
-    """Cached embedding generation."""
+def merge_conversations(conversations: list[Conversation]) -> Conversation:
+    """Pure function for merging conversations"""
     ...
 ```
 
-## Dependencies
+### Dependency Injection
 
-### Core Dependencies
+Components receive dependencies rather than creating them:
 
-- **ibis-framework**: DataFrame API
-- **duckdb**: Analytics database
-- **google-genai**: Gemini API
-- **pydantic**: Data validation
-- **typer**: CLI framework
-- **rich**: Terminal formatting
+```python
+class Pipeline:
+    def __init__(self, 
+                 input_adapter: InputAdapter,
+                 privacy_processor: PrivacyProcessor,
+                 output_adapter: OutputAdapter):
+        self.input_adapter = input_adapter
+        # ...
+```
 
-### Optional Dependencies
+## Naming Conventions
 
-- **mkdocs**: Documentation (docs)
-- **pytest**: Testing (test)
-- **ruff**: Linting (lint)
-- **pre-commit**: Git hooks (lint)
+### Modules
+- Use underscores: `anonymizer.py`, `write_pipeline.py`
+- Descriptive names: `author_profiles.py` rather than `profiles.py`
 
-## Development Practices
+### Classes
+- PascalCase: `WriterAgent`, `PrivacyGate`
+- Suffix with domain: `Anonymizer`, `Detector`
 
-### Code Organization
+### Functions
+- Use verbs for actions: `anonymize()`, `detect_pii()`, `generate_content()`
+- Be descriptive: `group_by_context_window` rather than `group()`
 
-- **One module per stage**: Clear separation
-- **Flat is better than nested**: Avoid deep hierarchies
-- **Explicit imports**: No `import *`
-- **Type hints**: Throughout the codebase
+## Type Hints
 
-### Naming Conventions
+Egregora uses comprehensive type hints:
 
-- **Functions**: `lowercase_with_underscores`
-- **Classes**: `PascalCase`
-- **Constants**: `UPPER_CASE_WITH_UNDERSCORES`
-- **Private**: `_leading_underscore`
+```python
+from typing import Protocol, TypeAlias
 
-### File Organization
+DocumentId: TypeAlias = str
 
-Within a module:
+class ProcessingResult(Protocol):
+    documents: list[Document]
+    metadata: dict[str, Any]
 
-1. Imports (stdlib, third-party, local)
-2. Constants
-3. Type definitions
-4. Helper functions
-5. Main public API
-6. Entry point (if applicable)
+def process_documents(
+    documents: list[Document], 
+    config: ProcessingConfig
+) -> ProcessingResult:
+    ...
+```
 
-## See Also
+## Error Handling
 
-- [Contributing Guide](contributing.md) - Development workflow
-- [Testing Guide](testing.md) - Test organization
-- [API Reference](../api/index.md) - Detailed API docs
+- Use specific exception types for different error cases
+- Fail gracefully and provide informative error messages
+- Log errors appropriately at each layer
+- Isolate error handling in orchestration layer when possible

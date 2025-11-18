@@ -1,387 +1,176 @@
-# RAG & Knowledge Base
+# Knowledge & RAG
 
-Egregora uses **Retrieval-Augmented Generation (RAG)** to ensure blog posts are consistent and context-aware.
+Egregora uses Retrieval-Augmented Generation (RAG) to create rich, contextual knowledge from your personal data.
 
-## What is RAG?
+## Knowledge Graph Creation
 
-RAG combines retrieval and generation:
+Egregora transforms your conversational data into a structured knowledge graph that captures:
 
-1. **Index**: Embed all messages and past posts
-2. **Retrieve**: When generating new content, find similar past content
-3. **Generate**: LLM uses retrieved context to write consistently
+- **Entities**: People, places, organizations, and topics
+- **Relationships**: How entities connect and interact
+- **Temporal Context**: When events and conversations occurred
+- **Thematic Clusters**: Topics that emerge across conversations
 
-```mermaid
-graph LR
-    A[New Messages] --> B[Query Embedding]
-    B --> C[Vector Search]
-    D[RAG Index] --> C
-    C --> E[Retrieved Context]
-    E --> F[LLM Writer]
-    F --> G[New Blog Post]
-    G -.->|Embed & Store| D
-```
+## Retrieval-Augmented Generation (RAG)
 
-## Architecture
+RAG enhances AI responses by providing relevant context from your data:
 
-### Vector Store
+### 1. Indexing
 
-Egregora uses **DuckDB with the VSS extension** for vector search. The
-high-level helpers live in `egregora.knowledge.rag`:
+Your anonymized conversations are indexed for efficient retrieval:
 
-```python
-import os
-from pathlib import Path
+- **Message-level indexing**: Individual messages are stored with metadata
+- **Conversation threading**: Related messages are grouped together
+- **Entity linking**: References to the same entity are connected
+- **Thematic clustering**: Messages with similar topics are grouped
 
-from google import genai
+### 2. Embedding
 
-from egregora.config import ModelConfig, load_site_config
-from egregora.knowledge.rag import VectorStore, index_post, query_similar_posts
-from egregora.utils.batch import GeminiBatchClient
+Messages are converted to vector representations that capture semantic meaning:
 
-# Load model preferences from mkdocs.yml (used by the CLI as well)
-site_config = load_site_config(Path("output"))
-model_config = ModelConfig(site_config=site_config)
-embedding_model = model_config.get_model("embedding")
-embedding_dims = model_config.get_embedding_output_dimensionality()
+- **Semantic similarity**: Similar messages are closer in vector space
+- **Context preservation**: Temporal and relational context is maintained
+- **Privacy-safe vectors**: Based on anonymized content
 
-# Batch client for embeddings
-client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
-batch_client = GeminiBatchClient(client, default_model=embedding_model)
+### 3. Retrieval
 
-# Open (or create) the vector store managed by the CLI
-store = VectorStore(Path("output/rag/chunks.parquet"))
+When generating content, Egregora retrieves the most relevant information:
 
-# Index a generated post
-indexed = index_post(
-    Path("output/posts/2025-01-01-new-year-retro.md"),
-    batch_client,
-    store,
-    embedding_model=embedding_model,
-    output_dimensionality=embedding_dims,
-)
-
-# Later, retrieve similar posts for a conversation table produced by the pipeline
-similar = query_similar_posts(
-    table=period_table,
-    batch_client=batch_client,
-    store=store,
-    embedding_model=embedding_model,
-    output_dimensionality=embedding_dims,
-)
-```
-
-**Schema**:
-
-```sql
-CREATE TABLE rag_chunks (
-    id UUID PRIMARY KEY,
-    content TEXT,
-    embedding FLOAT[768],  -- Vector embedding
-    metadata JSON,         -- {source, timestamp, author, ...}
-    created_at TIMESTAMP
-);
-```
-
-### Retrieval Modes
-
-**ANN (Approximate Nearest Neighbor)**:
-
-- Uses DuckDB VSS extension
-- Fast, scalable
-- Requires extension download
-
-```bash
-egregora process export.zip --retrieval-mode=ann
-```
-
-**Exact Search**:
-
-- Pure SQL similarity (cosine distance)
-- No extension required
-- Slower for large datasets
-
-```bash
-egregora process export.zip --retrieval-mode=exact
-```
+- **Query-aware retrieval**: Finds content relevant to the current topic
+- **Temporal weighting**: Recent conversations may be weighted more heavily
+- **Thematic relevance**: Prioritizes content on similar topics
 
 ## Chunking Strategy
 
-Messages are chunked for better retrieval:
+Egregora uses intelligent chunking to balance context and efficiency:
+
+### Conversation-Aware Chunks
+
+Rather than arbitrarily splitting text, Egregora maintains:
+
+- **Conversation threads**: Complete message exchanges are preserved
+- **Temporal continuity**: Chunks respect natural conversation boundaries
+- **Context windows**: Each chunk includes relevant preceding context
+
+### Adaptive Chunking
+
+The system adapts chunk size based on:
+
+- **Message density**: More messages per chunk when content is sparse
+- **Thematic consistency**: Larger chunks when topics remain stable
+- **Temporal proximity**: Messages from the same time period grouped together
+
+## Embedding Models
+
+Egregora supports various embedding models:
+
+### Default Embeddings
+
+- **Model**: Sentence Transformers (multi-lingual)
+- **Use case**: General purpose, multi-language support
+- **Privacy**: Runs locally to avoid sending data externally
+
+### Custom Embeddings
+
+- **Provider support**: OpenAI, Anthropic, Ollama, etc.
+- **Specialized models**: Domain-specific embedding models
+- **Performance**: Potentially better quality at the cost of privacy
+
+## Retrieval Modes
+
+### Semantic Search
+
+Finds content based on meaning rather than keyword matching:
 
 ```python
-from pathlib import Path
-
-from egregora.knowledge.rag.chunker import chunk_document
-
-chunks = chunk_document(
-    Path("output/posts/2025-01-01-new-year-retro.md"),
-    max_tokens=1800,
-)
+# Find conversations about a specific topic
+retriever.search(query="discussions about our vacation planning")
 ```
 
-**Strategies**:
+### Temporal Search
 
-1. **Fixed Size**: Split by token count
-2. **Conversation-Aware**: Keep threads together
-3. **Semantic**: Split by topic (future)
-
-## Retrieval
-
-When generating a blog post:
+Retrieves content from specific time periods:
 
 ```python
-from egregora.knowledge.rag import query_similar_posts
-
-results = query_similar_posts(
-    table=period_table,
-    batch_client=batch_client,
-    store=store,
-    embedding_model=embedding_model,
-    top_k=10,
-    retrieval_mode="ann",
-    retrieval_nprobe=10,
-    output_dimensionality=embedding_dims,
-)
-
-context = results.execute().to_pylist()
+# Find conversations from last month about a project
+retriever.search(query="project updates", date_range=last_month)
 ```
 
-**Returns**:
+### Entity-Based Search
+
+Finds content related to specific people or topics:
 
 ```python
-[
-    {
-        "content": "...",
-        "score": 0.92,
-        "metadata": {"timestamp": "...", "author": "..."}
-    },
-    ...
-]
+# Find all conversations with a particular person
+retriever.search(query="conversations with ANON_PERSON_1")
 ```
 
-## Embeddings
+## Knowledge Graph Features
 
-### Models
+### Automatic Topic Modeling
 
-Egregora relies on Google's Gemini embedding models. The active model and
-vector dimensionality are resolved by `ModelConfig`, using the same
-configuration hierarchy as the CLI:
+Egregora identifies and tracks topics across conversations:
 
-1. `--model` flag on `egregora process`
-2. `extra.egregora.models.embedding` inside `mkdocs.yml`
-3. Global `extra.egregora.model` override
-4. Built-in defaults (`models/gemini-embedding-001`, 3072 dimensions)
+- **Topic extraction**: Identifies main themes in conversations
+- **Topic evolution**: Tracks how topics change over time
+- **Topic relationships**: Shows connections between related topics
 
-To pin a specific embedding model or dimensionality, update `mkdocs.yml`:
+### Relationship Mapping
 
-```yaml
-extra:
-  egregora:
-    models:
-      embedding: models/gemini-embedding-001
-    embedding:
-      output_dimensionality: 3072
-```
+Captures how people and entities connect:
 
-### Batching
+- **Co-occurrence analysis**: Who talks to whom about what
+- **Influence tracking**: Which topics influence others
+- **Network visualization**: Shows relationship networks
 
-Embeddings are batched for efficiency:
+### Context Windowing
 
-```python
-from egregora.knowledge.rag.embedder import embed_chunks
+Maintains relevant context for generation:
 
-embeddings = embed_chunks(
-    chunks,
-    batch_client,
-    model=embedding_model,
-    batch_size=100,
-    output_dimensionality=embedding_dims,
-)
-```
-
-## Annotations
-
-Beyond embeddings, Egregora stores conversation metadata:
-
-```python
-from pathlib import Path
-
-from egregora.knowledge import AnnotationStore
-
-annotation_store = AnnotationStore(Path("output/annotations.duckdb"))
-annotation_store.save_annotation(
-    msg_id="msg-2025-01-01-0001",
-    commentary="Follow up on the launch checklist",
-)
-annotations = annotation_store.list_annotations_for_message("msg-2025-01-01-0001")
-```
-
-**Stored data**:
-
-- **Threading**: Which messages are replies
-- **Topics**: Detected conversation topics
-- **Sentiment**: Overall tone
-- **Key participants**: Most active authors
-
-**Schema**:
-
-```sql
-CREATE TABLE annotations (
-    conversation_id UUID PRIMARY KEY,
-    topics TEXT[],
-    sentiment VARCHAR,
-    key_participants TEXT[],
-    thread_structure JSON,
-    created_at TIMESTAMP
-);
-```
-
-## Feedback Loop
-
-RAG creates a feedback loop:
-
-```mermaid
-graph LR
-    A[Messages] --> B[Generate Post 1]
-    B --> C[Embed Post 1]
-    C --> D[RAG Index]
-    A --> E[Generate Post 2]
-    D --> E
-    E --> F[Embed Post 2]
-    F --> D
-```
-
-**Benefits**:
-
-- Posts reference past posts
-- Consistent terminology
-- Evolving narrative
-- Self-improvement
-
-## Performance
-
-### VSS Extension
-
-DuckDB's VSS extension enables fast ANN search:
-
-```bash
-# Auto-installed on first run
-egregora process export.zip
-
-# Or install manually:
-python -c "
-import duckdb
-conn = duckdb.connect()
-conn.execute('INSTALL vss')
-conn.execute('LOAD vss')
-"
-```
-
-**Benchmarks** (1M chunks):
-
-| Mode | Query Time | Accuracy |
-|------|-----------|----------|
-| Exact | ~500ms | 100% |
-| ANN (nprobe=10) | ~50ms | ~95% |
-| ANN (nprobe=100) | ~150ms | ~99% |
-
-### Caching
-
-Embeddings are cached to avoid recomputation:
-
-```python
-from egregora.utils.cache import get_cache
-
-cache = get_cache(".egregora/cache/")
-
-# Cached by content hash
-embedding = cache.get("text_hash")
-if not embedding:
-    embedding = embed_text(text)
-    cache.set("text_hash", embedding)
-```
-
-## Quality Control
-
-### Elo Ranking
-
-Egregora can rank posts using Elo comparisons:
-
-```bash
-egregora rank --site-dir=. --comparisons=50
-```
-
-**Process**:
-
-1. Present two random posts
-2. LLM judges which is better
-3. Update Elo ratings
-4. Repeat N times
-
-**Schema**:
-
-```sql
-CREATE TABLE elo_ratings (
-    post_id UUID PRIMARY KEY,
-    rating INT DEFAULT 1500,
-    comparisons INT DEFAULT 0,
-    wins INT DEFAULT 0,
-    losses INT DEFAULT 0,
-    created_at TIMESTAMP
-);
-```
-
-### Post Deduplication
-
-Prevent similar posts:
-
-```python
-from egregora.knowledge.rag import check_similarity
-
-is_duplicate = check_similarity(
-    new_post=draft,
-    existing_posts=rag_store,
-    threshold=0.9  # 90% similarity
-)
-```
+- **Temporal windows**: Recent activity affecting current topic
+- **Thematic windows**: Related topics providing background
+- **Social windows**: Ongoing conversations providing context
 
 ## Configuration
 
-### Tuning RAG
+### RAG Settings
 
-```bash
-# High-quality retrieval (slower)
-egregora process export.zip \
-  --retrieval-mode=ann \
-  --retrieval-nprobe=100 \
-  --top-k=20
+Configure RAG behavior in your `config.yaml`:
 
-# Fast retrieval (less accurate)
-egregora process export.zip \
-  --retrieval-mode=ann \
-  --retrieval-nprobe=5 \
-  --top-k=5
-
-# No VSS extension (exact mode)
-egregora process export.zip \
-  --retrieval-mode=exact
+```yaml
+knowledge:
+  rag:
+    enabled: true
+    retrieval_mode: semantic      # Options: semantic, temporal, entity-based
+    top_k: 5                     # Number of results to retrieve
+    similarity_threshold: 0.7    # Minimum similarity for inclusion
+    chunk_size: 512              # Size of text chunks in tokens
+    chunk_overlap: 64            # Overlap between chunks
+    
+  embeddings:
+    provider: local             # Options: local, openai, anthropic
+    model: multi-qa-MiniLM-L6-cos-v1  # Specific embedding model
+    dimensions: 384             # Vector dimensions
 ```
 
-### Storage Size
+### Indexing Options
 
-Approximate storage requirements:
+```yaml
+knowledge:
+  indexing:
+    strategy: conversation-aware  # Maintain conversation threads
+    real_time: false              # Update index during processing
+    persistent: true              # Save index for reuse
+    metadata_fields:              # Which metadata to index
+      - timestamp
+      - participants
+      - topic
+```
 
-| Data | Size per 1K messages |
-|------|---------------------|
-| Text | ~500 KB |
-| Embeddings | ~3 MB |
-| Annotations | ~100 KB |
-| Cache | ~10 MB |
+## Best Practices
 
-**Total**: ~14 MB per 1K messages.
-
-## Next Steps
-
-- [Content Generation](generation.md) - How the LLM writer works
-- [API Reference - RAG Module](../api/knowledge/rag.md) - Code documentation
-- [API Reference - Annotations](../api/knowledge/annotations.md) - Metadata details
+- Enable RAG for richer, more contextual content generation
+- Adjust `top_k` based on desired context breadth
+- Use temporal search for time-sensitive queries
+- Monitor similarity thresholds to balance relevance and recall
+- Consider privacy implications when using external embedding providers

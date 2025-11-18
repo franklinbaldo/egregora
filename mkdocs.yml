@@ -156,36 +156,22 @@ nav:
     - Quick Start: getting-started/quickstart.md
     - Configuration: getting-started/configuration.md
   - User Guide:
-    - Architecture Overview: guide/architecture.md
+    - Architecture: guide/architecture.md
     - Privacy & Anonymization: guide/privacy.md
-    - RAG & Knowledge Base: guide/knowledge.md
+    - Knowledge & RAG: guide/knowledge.md
     - Content Generation: guide/generation.md
   - API Reference:
     - Overview: api/index.md
-    - Ingestion:
-      - Parser: api/ingestion/parser.md
-    - Privacy:
-      - Anonymizer: api/privacy/anonymizer.md
-      - Detector: api/privacy/detector.md
-    - Augmentation:
-      - Enrichment: api/augmentation/enrichment.md
-      - Profiler: api/augmentation/profiler.md
-    - Knowledge:
-      - RAG: api/knowledge/rag.md
-      - Annotations: api/knowledge/annotations.md
-      - Ranking: api/knowledge/ranking.md
-    - Generation:
-      - Writer: api/generation/writer.md
-      - Editor: api/generation/editor.md
-    - Publication:
-      - Scaffolding: api/init/scaffolding.md
-    - Core:
-      - Schema: api/core/schema.md
-      - Models: api/core/models.md
-      - Types: api/core/types.md
-    - Orchestration:
-      - Pipeline: api/orchestration/pipeline.md
-      - CLI: api/orchestration/cli.md
+    - Input Adapters: api/input-adapters/index.md
+    - Privacy: api/privacy/index.md
+    - Enrichment: api/enrichment/index.md
+    - Agents: api/agents/index.md
+    - Data Primitives: api/data-primitives/index.md
+    - Database: api/database/index.md
+    - Transformations: api/transformations/index.md
+    - Output Adapters: api/output-adapters/index.md
+    - Orchestration: api/orchestration/index.md
+    - CLI: api/cli/index.md
   - Development:
     - Contributing: development/contributing.md
     - Testing: development/testing.md

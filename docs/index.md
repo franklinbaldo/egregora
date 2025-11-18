@@ -1,91 +1,32 @@
-# Egregora Documentation
+# Egregora
 
-**Emergent Group Reflection Engine Generating Organized Relevant Articles**
+**Personal knowledge graph from your digital traces.**
 
-Welcome to the Egregora documentation! Transform your WhatsApp group chats into intelligent, privacy-first blogs where collective conversations emerge as beautifully written articles.
+Egregora transforms your personal data (WhatsApp exports, Slack history, etc.) into a rich, searchable knowledge graph with privacy-first anonymization. Built as a staged pipeline that enriches your data with AI insights while keeping PII at bay.
 
-## Features
+## What is Egregora?
 
-- 🧠 **Emergent Intelligence**: Collective conversations synthesize into coherent articles
-- 👥 **Group Reflection**: Your community's unique voice and insights are preserved
-- 🛡️ **Privacy-First**: Automatic anonymization - real names never reach the AI
-- ⚙️ **Fully Automated**: Stateless pipeline powered by Ibis, DuckDB, and Gemini
-- 📊 **Smart Context**: RAG retrieval ensures consistent, context-aware writing
+Egregora is a personal knowledge management tool that takes your digital traces - messages, documents, interactions - and transforms them into a structured, searchable knowledge graph. It's designed with privacy as the core principle, ensuring your personal information never leaves your machine.
 
-## Quick Links
+## Key Features
 
-<div class="grid cards" markdown>
+- **Privacy-First**: All PII detection and anonymization happens locally on your machine
+- **Multi-Source**: Import from WhatsApp, Slack, and more
+- **AI Enrichment**: Automatic enrichment with topics, sentiment, and relationships
+- **Knowledge Graph**: Organize your data into a searchable knowledge base
+- **Flexible Output**: Generate documentation, journals, or export to various formats
 
--   :material-clock-fast:{ .lg .middle } __Quick Start__
+## How It Works
 
-    ---
+Egregora processes your data through a staged pipeline:
 
-    Install Egregora and generate your first blog post in minutes
+1. **Input**: Import from various sources (WhatsApp, Slack, etc.)
+2. **Privacy**: Detect and anonymize personal information
+3. **Enrichment**: AI-powered enrichment with context and insights
+4. **Output**: Generate your knowledge graph in your preferred format
 
-    [:octicons-arrow-right-24: Get Started](getting-started/quickstart.md)
+Learn more in our [Architecture Guide](guide/architecture.md).
 
--   :material-book-open-variant:{ .lg .middle } __User Guide__
+## Quick Start
 
-    ---
-
-    Learn about the architecture, privacy features, and how to customize your blog
-
-    [:octicons-arrow-right-24: User Guide](guide/architecture.md)
-
--   :material-code-braces:{ .lg .middle } __API Reference__
-
-    ---
-
-    Complete API documentation for all modules and functions
-
-    [:octicons-arrow-right-24: API Reference](api/index.md)
-
--   :material-hammer-wrench:{ .lg .middle } __Development__
-
-    ---
-
-    Contributing guidelines and development setup instructions
-
-    [:octicons-arrow-right-24: Development](development/contributing.md)
-
-</div>
-
-## Architecture Overview
-
-```mermaid
-graph LR
-    A[Ingestion] --> B[Privacy]
-    B --> C[Augmentation]
-    C --> D[Knowledge]
-    D --> E[Generation]
-    E --> F[Publication]
-    D -.-> E
-```
-
-Egregora uses a staged pipeline architecture that processes conversations through distinct phases:
-
-1. **Ingestion**: Parse WhatsApp exports into structured data
-2. **Privacy**: Anonymize names and detect PII
-3. **Augmentation**: Enrich context with LLM-powered descriptions
-4. **Knowledge**: Build RAG index and annotation metadata
-5. **Generation**: LLM generates blog posts with tool calling
-6. **Publication**: Create MkDocs site with templates
-
-## Stack
-
-- **[Ibis](https://ibis-project.org/)**: DataFrame abstraction for data transformations
-- **[DuckDB](https://duckdb.org/)**: Fast analytical database with vector search
-- **[Gemini](https://ai.google.dev/)**: Google's LLM for content generation
-- **[MkDocs](https://www.mkdocs.org/)**: Static site generation
-- **[uv](https://github.com/astral-sh/uv)**: Modern Python package management
-
-## Philosophy
-
-Egregora follows the principle of **"trusting the LLM"** - instead of micromanaging with complex heuristics, we:
-
-- Give the AI complete conversation context
-- Let it make editorial decisions (how many posts, what to write)
-- Use tool calling for structured output
-- Keep the pipeline simple and composable
-
-This results in simpler code and often better outcomes. The LLM knows what makes a good article - our job is to give it the right context.
+Get started with Egregora by following our [Installation](getting-started/installation.md) and [Quick Start](getting-started/quickstart.md) guides.

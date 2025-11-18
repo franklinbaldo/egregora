@@ -1,24 +1,3 @@
-/**
- * MathJax Configuration for Egregora Documentation
- * Enables beautiful mathematical notation rendering
- */
+/* MathJax configuration for Egregora documentation */
 
-window.MathJax = {
-  tex: {
-    inlineMath: [["\\(", "\\)"]],
-    displayMath: [["\\[", "\\]"]],
-    processEscapes: true,
-    processEnvironments: true
-  },
-  options: {
-    ignoreHtmlClass: ".*|",
-    processHtmlClass: "arithmatex"
-  },
-  svg: {
-    fontCache: 'global'
-  }
-};
-
-document$.subscribe(() => {
-  MathJax.typesetPromise()
-})
+/* Empty file - provided for mkdocs configuration */

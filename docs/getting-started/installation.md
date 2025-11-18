@@ -1,115 +1,72 @@
 # Installation
 
-Egregora requires Python 3.12+ and uses [uv](https://github.com/astral-sh/uv) for package management.
+Get Egregora up and running on your system with these steps.
 
-## Install uv
+## Prerequisites
 
-First, install uv if you haven't already:
+- Python 3.10+
+- [uv](https://github.com/astral-sh/uv) package manager (recommended) or pip
+- Access to an LLM API (OpenAI, Anthropic, Ollama, or equivalent)
 
-=== "macOS/Linux"
-
-    ```bash
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    ```
-
-=== "Windows (PowerShell)"
-
-    ```powershell
-    powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-    ```
-
-## Install Egregora
-
-### From GitHub (Recommended)
-
-Install directly from the repository using uvx:
+## Installing uv (if not already installed)
 
 ```bash
-uvx --from git+https://github.com/franklinbaldo/egregora egregora --help
+# Using pip
+pip install uv
+
+# Using Homebrew (macOS)
+brew install uv
+
+# Using the official installer
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-This will install and run Egregora without any local installation. Use `uvx` for all commands:
+## Installing Egregora
 
 ```bash
-# Initialize a new blog
-uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
-
-# Process WhatsApp export
-uvx --from git+https://github.com/franklinbaldo/egregora egregora process export.zip
-```
-
-### From PyPI
-
-```bash
-pip install egregora
-```
-
-### From Source
-
-For development (works on Windows, Linux, and macOS):
-
-```bash
-git clone https://github.com/franklinbaldo/egregora.git
+# Clone the repository
+git clone https://github.com/your-repo/egregora.git
 cd egregora
 
-# Quick setup (installs dependencies + pre-commit hooks)
-python dev_tools/setup_hooks.py
+# Create and activate a virtual environment using uv
+uv venv
+source .venv/bin/activate
 
-# Or manual setup
-uv sync --extra lint --extra test
-uv run pre-commit install
-
-# Run tests
-uv run pytest tests/
+# Install the package in development mode
+uv pip install -e .
 ```
 
-See [Contributing Guide](../development/contributing.md) for full development setup.
+## Setting Up Your LLM Provider
 
-## API Key Setup
-
-Egregora uses Google's Gemini API for content generation. Get a free API key at [https://ai.google.dev/gemini-api/docs/api-key](https://ai.google.dev/gemini-api/docs/api-key).
-
-=== "macOS/Linux"
-
-    ```bash
-    export GOOGLE_API_KEY="your-google-gemini-api-key"
-    ```
-
-=== "Windows (PowerShell)"
-
-    ```powershell
-    $Env:GOOGLE_API_KEY = "your-google-gemini-api-key"
-    ```
-
-## Verify Installation
-
-Test that everything is working:
+Egregora works with multiple LLM providers. Set your API key in the environment:
 
 ```bash
-egregora --version
+# For OpenAI
+export OPENAI_API_KEY="your-api-key"
+
+# For Anthropic
+export ANTHROPIC_API_KEY="your-api-key"
+
+# For Ollama (local models)
+export OLLAMA_API_BASE="http://localhost:11434"
 ```
 
-## Optional Dependencies
+## Configuration
 
-### Documentation
+Create a `config.yaml` file in your project root to customize Egregora settings:
 
-To build the documentation locally:
+```yaml
+# config.yaml
+model:
+  provider: openai  # or anthropic, ollama
+  name: gpt-4o  # depends on provider
 
-```bash
-pip install 'egregora[docs]'
-mkdocs serve
+privacy:
+  enabled: true
+  anon_threads: 4  # number of threads for anonymization
+
+input:
+  source: whatsapp  # or slack, etc.
 ```
 
-### Linting
-
-For development and code quality:
-
-```bash
-pip install 'egregora[lint]'
-ruff check src/
-```
-
-## Next Steps
-
-- [Quick Start Guide](quickstart.md) - Generate your first blog post
-- [Configuration](configuration.md) - Customize your setup
+For more details on configuration options, see the [Configuration Guide](configuration.md).
