@@ -74,6 +74,7 @@ from egregora.config.settings import (
     # Runtime dataclasses (for function parameters, not persisted)
     ProcessConfig,
     RAGSettings,
+    RuntimeContext,  # New: minimal runtime-only context
     WriterAgentSettings,
     # Config loading/saving functions
     create_default_config,
@@ -125,7 +126,8 @@ __all__ = [
     # ==========================================================================
     # These replace parameter soup (12-16 params → 3-6 params) in function signatures.
     # Will eventually use EgregoraConfig internally.
-    "ProcessConfig",  # CLI process command parameters
+    "RuntimeContext",  # Minimal runtime-only context (paths, api key, debug)
+    "ProcessConfig",  # CLI process command parameters (deprecated, use RuntimeContext)
     "RAGSettings",  # Retrieval settings
     # ==========================================================================
     # Site Paths & MkDocs Utilities

@@ -143,6 +143,8 @@ def _prepare_environment_and_config(config: ProcessConfig):
         raise typer.Exit(1)
 
     base_config = load_egregora_config(output_dir)
+
+    # Merge CLI overrides with loaded config
     return base_config.model_copy(
         deep=True,
         update={
@@ -157,6 +159,8 @@ def _prepare_environment_and_config(config: ProcessConfig):
                     "max_prompt_tokens": config.max_prompt_tokens,
                     "use_full_context_window": config.use_full_context_window,
                     "max_windows": config.max_windows,
+                    "checkpoint_enabled": config.checkpoint_enabled,
+                    "batch_threshold": config.batch_threshold,
                 }
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": config.enable_enrichment}),

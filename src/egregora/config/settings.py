@@ -582,37 +582,65 @@ from egregora.constants import WindowUnit
 
 
 @dataclass
-class ProcessConfig:
-    """Configuration for chat export processing (source-agnostic).
+class RuntimeContext:
+    """Runtime-only context that cannot be persisted to config.yml.
 
-    Replaces long parameter lists (15+ params) with structured config object.
+    This is the minimal set of fields that are truly runtime-specific:
+    - Paths resolved at invocation time
+    - API keys from environment
+    - Debug flags
+
+    All other configuration lives in EgregoraConfig (single source of truth).
     """
 
     output_dir: Annotated[Path, "Directory for the generated site"]
-    input_file: Annotated[Path | None, "Path to the chat export file (ZIP, JSON, etc.)"] = None
-    step_size: Annotated[int, "Size of each processing window"] = 1
-    step_unit: Annotated[WindowUnit, "Unit for windowing strategy"] = WindowUnit.DAYS
-    overlap_ratio: Annotated[float, "Fraction of window to overlap (0.0-0.5)"] = 0.2
-    max_window_time: Annotated[timedelta | None, "Optional maximum time span per window"] = None
-    enable_enrichment: Annotated[bool, "Enable LLM enrichment for URLs/media"] = True
-    from_date: Annotated[date | None, "Only process messages from this date onwards"] = None
-    to_date: Annotated[date | None, "Only process messages up to this date"] = None
-    timezone: Annotated[str | None, "Timezone for date parsing"] = None
-    gemini_key: Annotated[str | None, "Google Gemini API key"] = None
-    model: Annotated[str | None, "Gemini model to use"] = None
+    input_file: Annotated[Path | None, "Path to the chat export file"] = None
+    api_key: Annotated[str | None, "Google API key (from env or CLI)"] = None
+    model_override: Annotated[str | None, "Model override from CLI"] = None
     debug: Annotated[bool, "Enable debug logging"] = False
-    retrieval_mode: Annotated[str, "Retrieval strategy: 'ann' or 'exact'"] = "ann"
-    retrieval_nprobe: Annotated[int | None, "Advanced: DuckDB VSS nprobe for ANN"] = None
-    retrieval_overfetch: Annotated[int | None, "Advanced: ANN candidate pool multiplier"] = None
-    batch_threshold: Annotated[int, "Minimum items before batching API calls"] = 10
-    max_prompt_tokens: Annotated[int, "Maximum tokens per prompt"] = 100_000
-    use_full_context_window: Annotated[bool, "Use full model context window"] = False
-    max_windows: Annotated[int | None, "Maximum number of windows to process (default 1, 0=all)"] = 1
-    checkpoint_enabled: Annotated[bool, "Enable incremental processing (opt-in)"] = False
 
     @property
     def input_path(self) -> Path:
         """Alias for input_file (source-agnostic naming)."""
+        return self.input_file
+
+
+# ProcessConfig - kept for backward compatibility
+# New code should use RuntimeContext + EgregoraConfig directly
+@dataclass
+class ProcessConfig:
+    """Configuration for chat export processing (CLI parameters).
+
+    This class captures CLI arguments. The preferred pattern for new code is:
+    - RuntimeContext for runtime-only fields (paths, api_key, debug)
+    - EgregoraConfig for all settings (loaded from config.yml, overridden by CLI)
+    """
+
+    output_dir: Annotated[Path, "Directory for the generated site"]
+    input_file: Annotated[Path | None, "Path to the chat export file"] = None
+    step_size: Annotated[int, "Size of each processing window"] = 1
+    step_unit: Annotated[WindowUnit, "Unit for windowing strategy"] = WindowUnit.DAYS
+    overlap_ratio: Annotated[float, "Fraction of window to overlap"] = 0.2
+    max_window_time: Annotated[timedelta | None, "Maximum time span per window"] = None
+    enable_enrichment: Annotated[bool, "Enable LLM enrichment"] = True
+    from_date: Annotated[date | None, "Start date filter"] = None
+    to_date: Annotated[date | None, "End date filter"] = None
+    timezone: Annotated[str | None, "Timezone for parsing"] = None
+    gemini_key: Annotated[str | None, "API key"] = None
+    model: Annotated[str | None, "Model to use"] = None
+    debug: Annotated[bool, "Debug logging"] = False
+    retrieval_mode: Annotated[str, "Retrieval strategy"] = "ann"
+    retrieval_nprobe: Annotated[int | None, "VSS nprobe"] = None
+    retrieval_overfetch: Annotated[int | None, "ANN overfetch"] = None
+    batch_threshold: Annotated[int, "Batch threshold"] = 10
+    max_prompt_tokens: Annotated[int, "Max tokens per prompt"] = 100_000
+    use_full_context_window: Annotated[bool, "Use full context"] = False
+    max_windows: Annotated[int | None, "Max windows to process"] = 1
+    checkpoint_enabled: Annotated[bool, "Enable checkpoints"] = False
+
+    @property
+    def input_path(self) -> Path:
+        """Alias for input_file."""
         return self.input_file
 
 
@@ -708,7 +736,8 @@ __all__ = [
     "load_egregora_config",
     "save_egregora_config",
     # Runtime dataclasses (not persisted, for function parameters)
-    "ProcessConfig",
+    "RuntimeContext",  # New: minimal runtime-only context
+    "ProcessConfig",  # Deprecated: use RuntimeContext + EgregoraConfig
     "WriterRuntimeConfig",
     "MediaEnrichmentContext",
     "EnrichmentRuntimeConfig",
