@@ -1,74 +1,66 @@
 # IR Schema Lockfiles
 
-This directory contains canonical schema definitions for the Intermediate Representation (IR) used by Egregora's adapter system.
+This directory contains **generated** lockfiles for the Intermediate Representation (IR) schema used by Egregora's adapter system.
+
+## Single Source of Truth
+
+**Python schema is the source of truth:**
+`src/egregora/database/validation.py:IR_MESSAGE_SCHEMA`
+
+All SQL and JSON lockfiles in this directory are **auto-generated** from the Python schema definition.
 
 ## Purpose
 
-Schema lockfiles prevent accidental schema changes and ensure all adapters conform to the same contract. Any modification to the IR schema must be intentional and coordinated.
+Schema lockfiles serve two purposes:
+
+1. **Validation**: CI checks these lockfiles to detect unintended schema drift
+2. **Documentation**: Human-readable SQL shows the expected table structure
 
 ## Files
 
 ### `ir_v1.sql`
-DuckDB CREATE TABLE statement for IR v1. This is the human-readable, authoritative schema definition.
+Auto-generated DuckDB CREATE TABLE statement for IR v1.
+**DO NOT EDIT MANUALLY** - regenerated from `IR_MESSAGE_SCHEMA`.
 
 ### `ir_v1.json`
-JSON representation of the Ibis schema for IR v1. Used by CI validation scripts to detect schema drift.
+Auto-generated JSON representation of the schema for CI validation.
+**DO NOT EDIT MANUALLY** - regenerated from `IR_MESSAGE_SCHEMA`.
 
 ## Workflow
 
 ### Checking for Drift
 
-Run the validation script to verify code schema matches lockfiles:
+Run the validation script to verify lockfiles match the Python schema:
 
 ```bash
 python scripts/check_ir_schema.py
 ```
 
-This script compares `src/egregora/database/validation.py:IR_MESSAGE_SCHEMA` against `schema/ir_v1.json`.
+This compares `IR_MESSAGE_SCHEMA` against the generated lockfiles.
 
 ### Making Schema Changes
 
-If you need to modify the IR schema:
+**All schema changes happen in Python code** - lockfiles are regenerated automatically.
 
-1. **Consider breaking changes**: If this is a breaking change, increment to `ir_v2.sql` / `ir_v2.json`
+1. **Consider breaking changes**: If this is a breaking change, increment to IR v2
 
-2. **Update code schema**: Modify `src/egregora/database/validation.py:IR_MESSAGE_SCHEMA`
+2. **Update Python schema**: Modify `src/egregora/database/validation.py:IR_MESSAGE_SCHEMA`
 
-3. **Update lockfiles**:
+3. **Update nullable columns**: If changing nullability, update `NULLABLE_COLUMNS` in `generate_ir_sql_ddl()`
+
+4. **Regenerate lockfiles**:
    ```bash
-   # Update SQL schema
-   vim schema/ir_v1.sql
-
-   # Update JSON schema to match code
-   python -c "
-   import json
-   from pathlib import Path
-   import sys
-   sys.path.insert(0, 'src')
-   from egregora.database.validation import IR_MESSAGE_SCHEMA
-
-   data = {
-       'version': '1.1.0',  # Increment version
-       'columns': {
-           col: {
-               'type': str(IR_MESSAGE_SCHEMA[col]).split('(')[0].upper(),
-               'nullable': IR_MESSAGE_SCHEMA[col].nullable
-           }
-           for col in IR_MESSAGE_SCHEMA.names
-       }
-   }
-   Path('schema/ir_v1.json').write_text(json.dumps(data, indent=2))
-   "
+   python scripts/regenerate_schema_lockfiles.py
    ```
 
-4. **Verify no drift**:
+5. **Verify no drift**:
    ```bash
    python scripts/check_ir_schema.py
    ```
 
-5. **Update adapters**: Modify all source adapters to conform to new schema
+6. **Update adapters**: Modify all input adapters to conform to new schema
 
-6. **Update tests**: Ensure `tests/unit/test_ir_validation.py` covers new schema requirements
+7. **Update tests**: Ensure `tests/unit/test_ir_validation.py` covers new schema requirements
 
 ## CI Integration
 

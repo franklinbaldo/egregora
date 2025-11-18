@@ -1,115 +1,81 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "IR v1 Schema",
-  "description": "Canonical Ibis schema for Intermediate Representation v1",
   "version": "1.0.0",
-  "generated": "2025-01-08",
-  "note": "When using ibis.schema(), all dtypes default to nullable=True",
+  "table": "ir_messages",
   "columns": {
     "event_id": {
-      "type": "String",
-      "nullable": true,
-      "description": "Unique event identifier"
+      "type": "STRING",
+      "nullable": false,
+      "timezone": null
     },
     "tenant_id": {
-      "type": "String",
-      "nullable": true,
-      "description": "Namespace isolation for multiple data sources"
+      "type": "STRING",
+      "nullable": false,
+      "timezone": null
     },
     "source": {
-      "type": "String",
-      "nullable": true,
-      "description": "Source adapter name (e.g., 'whatsapp', 'slack')"
+      "type": "STRING",
+      "nullable": false,
+      "timezone": null
     },
     "thread_id": {
-      "type": "String",
-      "nullable": true,
-      "description": "Conversation thread identifier"
+      "type": "STRING",
+      "nullable": false,
+      "timezone": null
     },
     "msg_id": {
-      "type": "String",
-      "nullable": true,
-      "description": "Message identifier within thread"
+      "type": "STRING",
+      "nullable": false,
+      "timezone": null
     },
     "ts": {
-      "type": "Timestamp",
-      "timezone": "UTC",
-      "nullable": true,
-      "description": "Message timestamp"
+      "type": "TIMESTAMP",
+      "nullable": false,
+      "timezone": "UTC"
     },
     "author_raw": {
-      "type": "String",
-      "nullable": true,
-      "description": "Original author name (PRIVACY BOUNDARY - anonymized before LLM)"
+      "type": "STRING",
+      "nullable": false,
+      "timezone": null
     },
     "author_uuid": {
-      "type": "String",
-      "nullable": true,
-      "description": "Deterministic UUID mapping for privacy"
+      "type": "STRING",
+      "nullable": false,
+      "timezone": null
     },
     "text": {
-      "type": "String",
+      "type": "STRING",
       "nullable": true,
-      "description": "Message text content"
+      "timezone": null
     },
     "media_url": {
-      "type": "String",
+      "type": "STRING",
       "nullable": true,
-      "description": "Media attachment URL or path"
+      "timezone": null
     },
     "media_type": {
-      "type": "String",
+      "type": "STRING",
       "nullable": true,
-      "description": "MIME type of media attachment"
+      "timezone": null
     },
     "attrs": {
       "type": "JSON",
       "nullable": true,
-      "description": "Source-specific attributes (flexible extension point)"
+      "timezone": null
     },
     "pii_flags": {
       "type": "JSON",
       "nullable": true,
-      "description": "PII detection results"
+      "timezone": null
     },
     "created_at": {
-      "type": "Timestamp",
-      "timezone": "UTC",
-      "nullable": true,
-      "description": "Pipeline processing timestamp"
+      "type": "TIMESTAMP",
+      "nullable": false,
+      "timezone": "UTC"
     },
     "created_by_run": {
-      "type": "String",
-      "nullable": true,
-      "description": "Pipeline run ID for lineage tracking"
+      "type": "STRING",
+      "nullable": false,
+      "timezone": null
     }
-  },
-  "required_columns": [
-    "event_id",
-    "tenant_id",
-    "source",
-    "thread_id",
-    "msg_id",
-    "ts",
-    "author_raw",
-    "author_uuid",
-    "created_at"
-  ],
-  "column_order": [
-    "event_id",
-    "tenant_id",
-    "source",
-    "thread_id",
-    "msg_id",
-    "ts",
-    "author_raw",
-    "author_uuid",
-    "text",
-    "media_url",
-    "media_type",
-    "attrs",
-    "pii_flags",
-    "created_at",
-    "created_by_run"
-  ]
+  }
 }

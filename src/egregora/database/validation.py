@@ -132,6 +132,10 @@ def generate_ir_sql_ddl(table_name: str = "ir_messages") -> str:
         >>> conn.execute(sql)  # Create table in database
 
     """
+    # Columns that are explicitly nullable (allow NULL values)
+    # Based on IR v1 specification - text/media/metadata are optional
+    NULLABLE_COLUMNS = {"text", "media_url", "media_type", "attrs", "pii_flags"}
+
     # Map Ibis data types to DuckDB SQL types
     def ibis_to_sql_type(dtype: dt.DataType) -> str:
         """Convert Ibis data type to DuckDB SQL type string."""
@@ -156,8 +160,8 @@ def generate_ir_sql_ddl(table_name: str = "ir_messages") -> str:
         dtype = IR_MESSAGE_SCHEMA[col_name]
         sql_type = ibis_to_sql_type(dtype)
 
-        # Determine nullability
-        nullable = getattr(dtype, "nullable", False)
+        # Determine nullability from explicit list (not Ibis attribute)
+        nullable = col_name in NULLABLE_COLUMNS
         null_constraint = "" if nullable else " NOT NULL"
 
         columns.append(f"    {col_name} {sql_type}{null_constraint}")
@@ -201,13 +205,16 @@ def generate_ir_lockfile_json(version: str = "1.0.0") -> dict[str, Any]:
         >>> Path("schema/ir_v1.json").write_text(json.dumps(lockfile, indent=2))
 
     """
+    # Columns that are explicitly nullable (same as generate_ir_sql_ddl)
+    NULLABLE_COLUMNS = {"text", "media_url", "media_type", "attrs", "pii_flags"}
+
     return {
         "version": version,
         "table": "ir_messages",
         "columns": {
             col: {
                 "type": str(IR_MESSAGE_SCHEMA[col]).split("(")[0].upper(),
-                "nullable": getattr(IR_MESSAGE_SCHEMA[col], "nullable", False),
+                "nullable": col in NULLABLE_COLUMNS,
                 "timezone": getattr(IR_MESSAGE_SCHEMA[col], "timezone", None),
             }
             for col in IR_MESSAGE_SCHEMA.names
