@@ -6,24 +6,34 @@ This module consolidates all MkDocs-specific logic that used to live across
 ``MkDocsOutputAdapter`` as well as the modern document-centric
 ``MkDocsFilesystemAdapter`` alongside shared helpers for resolving site
 configuration and working with MkDocs' filesystem layout.
+
+MODERN (2025-11-18): Imports site path resolution from config.site to eliminate duplication.
 """
 
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
 
 import ibis
-import yaml
 from dateutil import parser as dateutil_parser
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
 from egregora.agents.shared.author_profiles import write_profile as write_profile_content
 from egregora.config.settings import create_default_config
+from egregora.config.site import (
+    DEFAULT_BLOG_DIR,
+    DEFAULT_DOCS_DIR,
+    MEDIA_DIR_NAME,
+    PROFILES_DIR_NAME,
+    SitePaths,
+    find_mkdocs_file,
+    load_mkdocs_config,
+    resolve_site_paths,
+)
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
@@ -34,193 +44,6 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_DOCS_DIR = "docs"
-DEFAULT_BLOG_DIR = "."
-PROFILES_DIR_NAME = "profiles"
-MEDIA_DIR_NAME = "media"
-
-
-class _ConfigLoader(yaml.SafeLoader):
-    """YAML loader that tolerates MkDocs plugin tags."""
-
-
-def _construct_python_name(loader: yaml.SafeLoader, _suffix: str, node: yaml.Node) -> str:
-    """Return python/name tags as plain strings."""
-    if isinstance(node, yaml.ScalarNode):
-        return loader.construct_scalar(node)
-    return ""
-
-
-def _construct_env(loader: yaml.SafeLoader, node: yaml.Node) -> str:
-    """Handle MkDocs Material !ENV tags for environment variable substitution."""
-    if isinstance(node, yaml.ScalarNode):
-        var_name = loader.construct_scalar(node)
-        return os.environ.get(var_name, "")
-    if isinstance(node, yaml.SequenceNode):
-        items = loader.construct_sequence(node)
-        if not items:
-            return ""
-        var_name = items[0]
-        default = items[1] if len(items) > 1 else ""
-        return os.environ.get(var_name, default)
-    return ""
-
-
-_ConfigLoader.add_multi_constructor("tag:yaml.org,2002:python/name", _construct_python_name)
-_ConfigLoader.add_constructor("!ENV", _construct_env)
-
-
-@dataclass(frozen=True, slots=True)
-class SitePaths:
-    """Resolved paths for an Egregora MkDocs site."""
-
-    site_root: Path
-    mkdocs_path: Path | None
-    egregora_dir: Path
-    config_path: Path
-    mkdocs_config_path: Path
-    prompts_dir: Path
-    rag_dir: Path
-    cache_dir: Path
-    docs_dir: Path
-    blog_dir: str
-    posts_dir: Path
-    profiles_dir: Path
-    media_dir: Path
-    rankings_dir: Path
-    enriched_dir: Path
-
-
-def find_mkdocs_file(start: Annotated[Path, "Search root"]) -> Path | None:
-    """Search upward from ``start`` for ``mkdocs.yml``."""
-    current = start.expanduser().resolve()
-    for candidate in (current, *current.parents):
-        egregora_mkdocs = candidate / ".egregora" / "mkdocs.yml"
-        if egregora_mkdocs.exists():
-            return egregora_mkdocs
-        mkdocs_path = candidate / "mkdocs.yml"
-        if mkdocs_path.exists():
-            return mkdocs_path
-    return None
-
-
-def _try_load_mkdocs_path_from_config(start: Path) -> Path | None:
-    """Try to load mkdocs_config_path from .egregora/config.yml."""
-    current = start.expanduser().resolve()
-    for candidate in (current, *current.parents):
-        config_file = candidate / ".egregora" / "config.yml"
-        if config_file.exists():
-            try:
-                from egregora.config.settings import load_egregora_config
-
-                config = load_egregora_config(candidate)
-                if config.output and config.output.mkdocs_config_path:
-                    mkdocs_path = candidate / config.output.mkdocs_config_path
-                    return mkdocs_path.resolve()
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.debug("Failed to load mkdocs_config_path from config: %s", exc)
-                return None
-    return None
-
-
-def load_mkdocs_config(start: Annotated[Path, "Search root"]) -> tuple[dict[str, Any], Path | None]:
-    """Load ``mkdocs.yml`` as a dict, returning empty config when missing."""
-    mkdocs_path = find_mkdocs_file(start)
-    if not mkdocs_path:
-        logger.debug("mkdocs.yml not found when starting from %s", start)
-        return ({}, None)
-
-    try:
-        config = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
-    except yaml.YAMLError as exc:
-        logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
-        config = {}
-    return (config, mkdocs_path)
-
-
-def _resolve_docs_dir(mkdocs_path: Path | None, config: dict[str, Any]) -> Path:
-    """Return the absolute docs directory based on MkDocs config."""
-    docs_setting = config.get("docs_dir", DEFAULT_DOCS_DIR)
-    docs_setting = "." if docs_setting in ("./", "") else docs_setting
-    base_dir = mkdocs_path.parent if mkdocs_path else Path.cwd()
-    if docs_setting in (".", None):
-        return base_dir
-    docs_path = Path(str(docs_setting))
-    if docs_path.is_absolute():
-        return docs_path
-    return (base_dir / docs_path).resolve()
-
-
-def _extract_blog_dir(config: dict[str, Any]) -> str | None:
-    """Extract blog_dir from the blog plugin configuration."""
-    plugins = config.get("plugins") or []
-    for plugin in plugins:
-        if isinstance(plugin, str):
-            if plugin == "blog":
-                return DEFAULT_BLOG_DIR
-            continue
-        if isinstance(plugin, dict) and "blog" in plugin:
-            blog_config = plugin.get("blog") or {}
-            return str(blog_config.get("blog_dir", DEFAULT_BLOG_DIR))
-    return None
-
-
-def resolve_site_paths(start: Annotated[Path, "Search root"]) -> SitePaths:
-    """Resolve all important directories for the site."""
-    start = start.expanduser().resolve()
-    mkdocs_path_from_config = _try_load_mkdocs_path_from_config(start)
-
-    if mkdocs_path_from_config and mkdocs_path_from_config.exists():
-        mkdocs_path = mkdocs_path_from_config
-        try:
-            config = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
-        except yaml.YAMLError as exc:  # pragma: no cover - log-only path
-            logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
-            config = {}
-    else:
-        config, mkdocs_path = load_mkdocs_config(start)
-
-    if mkdocs_path:
-        if mkdocs_path.parent.name == ".egregora":
-            site_root = mkdocs_path.parent.parent
-        else:
-            site_root = mkdocs_path.parent
-    else:
-        site_root = start
-
-    egregora_dir = site_root / ".egregora"
-    config_path = egregora_dir / "config.yml"
-    mkdocs_config_path = egregora_dir / "mkdocs.yml"
-    prompts_dir = egregora_dir / "prompts"
-    rag_dir = egregora_dir / "rag"
-    cache_dir = egregora_dir / ".cache"
-
-    docs_dir = _resolve_docs_dir(mkdocs_path, config)
-    blog_dir = _extract_blog_dir(config) or DEFAULT_BLOG_DIR
-    posts_dir = (site_root / "posts").resolve()
-    profiles_dir = (site_root / PROFILES_DIR_NAME).resolve()
-    media_dir = (site_root / MEDIA_DIR_NAME).resolve()
-    rankings_dir = (site_root / "rankings").resolve()
-    enriched_dir = (site_root / "enriched").resolve()
-
-    return SitePaths(
-        site_root=site_root,
-        mkdocs_path=mkdocs_path,
-        egregora_dir=egregora_dir,
-        config_path=config_path,
-        mkdocs_config_path=mkdocs_config_path,
-        prompts_dir=prompts_dir,
-        rag_dir=rag_dir,
-        cache_dir=cache_dir,
-        docs_dir=docs_dir,
-        blog_dir=blog_dir,
-        posts_dir=posts_dir,
-        profiles_dir=profiles_dir,
-        media_dir=media_dir,
-        rankings_dir=rankings_dir,
-        enriched_dir=enriched_dir,
-    )
 
 
 class MkDocsUrlConvention:

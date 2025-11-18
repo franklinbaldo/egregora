@@ -282,6 +282,8 @@ def resolve_site_paths(start: Annotated[Path, "The starting directory for path r
 __all__ = [
     "DEFAULT_BLOG_DIR",
     "DEFAULT_DOCS_DIR",
+    "MEDIA_DIR_NAME",
+    "PROFILES_DIR_NAME",
     "SitePaths",
     "find_mkdocs_file",
     "load_mkdocs_config",
