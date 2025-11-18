@@ -5,7 +5,6 @@ Tests:
 - record_run() writes to runs table
 - record_lineage() writes to lineage table
 - run_stage_with_tracking() wrapper
-- Fingerprinting for checkpointing
 - Error handling and failure recording
 """
 
@@ -24,7 +23,6 @@ from egregora.database.tracking import (
     record_run,
     run_stage_with_tracking,
 )
-from egregora.utils.fingerprinting import fingerprint_table
 
 
 @pytest.fixture
@@ -47,7 +45,6 @@ def runs_db(temp_db_path: Path) -> duckdb.DuckDBPyConnection:
             started_at TIMESTAMP NOT NULL,
             finished_at TIMESTAMP,
             duration_seconds DOUBLE,
-            input_fingerprint VARCHAR,
             code_ref VARCHAR,
             config_hash VARCHAR,
             rows_in INTEGER,
@@ -163,7 +160,6 @@ def test_record_run_full_metadata(runs_db: duckdb.DuckDBPyConnection):
         started_at=started_at,
         finished_at=finished_at,
         tenant_id="acme",
-        input_fingerprint="sha256:abc123",
         code_ref="a1b2c3d4",
         config_hash="sha256:def456",
         rows_in=100,
@@ -176,18 +172,17 @@ def test_record_run_full_metadata(runs_db: duckdb.DuckDBPyConnection):
     # Verify all fields
     result = runs_db.execute(
         """
-        SELECT tenant_id, input_fingerprint, rows_in, rows_out, llm_calls, tokens
+        SELECT tenant_id, rows_in, rows_out, llm_calls, tokens
         FROM runs WHERE run_id = ?
         """,
         [str(run_id)],
     ).fetchone()
 
     assert result[0] == "acme"  # tenant_id
-    assert result[1] == "sha256:abc123"  # input_fingerprint
-    assert result[2] == 100  # rows_in
-    assert result[3] == 100  # rows_out
-    assert result[4] == 5  # llm_calls
-    assert result[5] == 1200  # tokens
+    assert result[1] == 100  # rows_in
+    assert result[2] == 100  # rows_out
+    assert result[3] == 5  # llm_calls
+    assert result[4] == 1200  # tokens
 
 
 def test_record_run_auto_detects_git_commit(runs_db: duckdb.DuckDBPyConnection):
@@ -321,44 +316,6 @@ def test_record_lineage_no_parents(runs_db: duckdb.DuckDBPyConnection):
 
 
 # ==============================================================================
-# Fingerprinting Tests
-# ==============================================================================
-
-
-def test_fingerprint_table_deterministic(sample_table: ibis.Table):
-    """fingerprint_table() returns same hash for same table."""
-    fp1 = fingerprint_table(sample_table)
-    fp2 = fingerprint_table(sample_table)
-
-    assert fp1 == fp2
-    assert fp1.startswith("sha256:")
-
-
-def test_fingerprint_table_different_data():
-    """fingerprint_table() returns different hashes for different data."""
-    table1 = ibis.memtable([{"author": "Alice", "message": "Hello"}])
-    table2 = ibis.memtable([{"author": "Bob", "message": "Hi"}])
-
-    fp1 = fingerprint_table(table1)
-    fp2 = fingerprint_table(table2)
-
-    assert fp1 != fp2
-
-
-def test_fingerprint_table_row_order_insensitive():
-    """Row ordering differences should not affect the fingerprint."""
-    rows = [
-        {"author": "Alice", "message": "Hello world", "ts": "2025-01-01"},
-        {"author": "Bob", "message": "Hi Alice", "ts": "2025-01-02"},
-        {"author": "Alice", "message": "How are you?", "ts": "2025-01-03"},
-    ]
-    table1 = ibis.memtable(rows)
-    table2 = ibis.memtable(list(reversed(rows)))
-
-    assert fingerprint_table(table1) == fingerprint_table(table2)
-
-
-# ==============================================================================
 # run_stage_with_tracking() Tests
 # ==============================================================================
 
@@ -443,7 +400,6 @@ def test_run_stage_with_tracking_failure(temp_db_path: Path):
             started_at TIMESTAMP NOT NULL,
             finished_at TIMESTAMP,
             duration_seconds DOUBLE,
-            input_fingerprint VARCHAR,
             code_ref VARCHAR,
             config_hash VARCHAR,
             rows_in INTEGER,
@@ -505,7 +461,6 @@ def test_run_stage_with_tracking_records_lineage(temp_db_path: Path):
             started_at TIMESTAMP NOT NULL,
             finished_at TIMESTAMP,
             duration_seconds DOUBLE,
-            input_fingerprint VARCHAR,
             code_ref VARCHAR,
             config_hash VARCHAR,
             rows_in INTEGER,

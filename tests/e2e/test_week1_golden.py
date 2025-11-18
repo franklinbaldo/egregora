@@ -28,7 +28,6 @@ from egregora.database.validation import create_ir_table
 from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.input_adapters.whatsapp.parser import parse_source
 from egregora.privacy.anonymizer import anonymize_table
-from egregora.utils.fingerprinting import fingerprint_table
 
 
 @pytest.fixture
@@ -51,7 +50,6 @@ def runs_db(tmp_path: Path) -> duckdb.DuckDBPyConnection:
             tenant_id VARCHAR,
             started_at TIMESTAMP NOT NULL,
             finished_at TIMESTAMP,
-            input_fingerprint VARCHAR,
             code_ref VARCHAR,
             config_hash VARCHAR,
             rows_in INTEGER,
@@ -183,9 +181,6 @@ def test_week1_golden_whatsapp_pipeline(
         created_by_run=ibis.literal(uuid.uuid4()),
     )
 
-    # Generate input fingerprint for checkpointing
-    input_fingerprint = fingerprint_table(ir_table)
-
     # Anonymize table (deterministic UUID5)
     anonymized_table = anonymize_table(ir_table)
 
@@ -212,7 +207,6 @@ def test_week1_golden_whatsapp_pipeline(
         started_at=datetime.fromtimestamp(privacy_start, UTC),
         finished_at=privacy_end_time,
         tenant_id="test-tenant",
-        input_fingerprint=input_fingerprint,
         rows_in=row_count,
         rows_out=row_count,
     )
@@ -253,10 +247,6 @@ def test_week1_golden_whatsapp_pipeline(
         # Get anonymized value from second ingest
         anon2 = anon_df2[df2["author_raw"] == author_raw]["author_raw"].iloc[0]
         assert anon1 == anon2, f"Anonymized value changed on re-ingest for {author_raw}"
-
-    # Validate input fingerprint is identical
-    input_fingerprint2 = fingerprint_table(ir_table2)
-    assert input_fingerprint == input_fingerprint2, "Fingerprint changed on re-ingest"
 
     time.time()
 
@@ -361,7 +351,7 @@ def test_week1_runs_schema_validation(runs_db: duckdb.DuckDBPyConnection):
         "tenant_id",
         "started_at",
         "finished_at",
-        "input_fingerprint",
+        "parent_run_id",
         "code_ref",
         "config_hash",
         "rows_in",
@@ -371,6 +361,7 @@ def test_week1_runs_schema_validation(runs_db: duckdb.DuckDBPyConnection):
         "tokens",
         "status",
         "error",
+        "attrs",
         "trace_id",
     }
 

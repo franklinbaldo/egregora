@@ -3,8 +3,7 @@
 This module provides infrastructure for tracking pipeline execution:
 1. Record run metadata (stage, duration, metrics, errors)
 2. Track lineage relationships (which runs depend on which)
-3. Content-addressed checkpointing (skip stages if output exists)
-4. OpenTelemetry integration (traces, logs)
+3. OpenTelemetry integration (traces, logs)
 
 Usage:
     from egregora.database.tracking import RunContext, record_run, run_stage_with_tracking
@@ -30,7 +29,6 @@ Usage:
     )
 """
 
-import hashlib
 import subprocess
 import uuid
 from collections.abc import Callable
@@ -41,9 +39,6 @@ from typing import Any, TypeVar
 
 import duckdb
 import ibis
-import pyarrow as pa
-
-from egregora.database.streaming import ensure_deterministic_order
 
 # Type variable for stage function return type
 T = TypeVar("T")
@@ -136,105 +131,6 @@ def get_git_commit_sha() -> str | None:
         return None
 
 
-def fingerprint_table(table: ibis.Table) -> str:
-    """Generate SHA256 fingerprint of Ibis table.
-
-    Used for content-addressed checkpointing: same input → same fingerprint.
-
-    Args:
-        table: Ibis table to fingerprint
-
-    Returns:
-        SHA256 fingerprint (format: "sha256:<hex>")
-
-    Note:
-        This is a simple implementation that hashes the schema + first 1000 rows.
-        For production, consider:
-        - Hashing full data (expensive)
-        - Sampling rows (faster but less deterministic)
-        - Using Ibis table hash if available
-
-    """
-    # Hash schema (column names + types)
-    schema = table.schema()
-    schema_bytes = str(schema).encode("utf-8")
-
-    # Ensure deterministic ordering before sampling rows
-    ordered_table = ensure_deterministic_order(table)
-    if ordered_table is table and schema.names:
-        # Fallback to ordering by all column names when no canonical key is found
-        try:
-            ordered_table = table.order_by(sorted(schema.names))
-        except Exception:  # pragma: no cover - backend-specific ordering failures
-            ordered_table = table
-
-    sample_expr = ordered_table.limit(1000)
-
-    # Prefer hashing PyArrow serialization when available to avoid CSV conversions
-    data_bytes: bytes | None = None
-    try:
-        arrow_table = sample_expr.to_pyarrow()
-    except (AttributeError, NotImplementedError):
-        arrow_table = None
-    except Exception:  # pragma: no cover - backend-specific failures
-        arrow_table = None
-
-    if arrow_table is not None:
-        arrow_table = arrow_table.combine_chunks()
-        sink = pa.BufferOutputStream()
-        with pa.ipc.new_stream(sink, arrow_table.schema) as writer:
-            writer.write_table(arrow_table)
-        data_bytes = sink.getvalue().to_pybytes()
-
-    if data_bytes is None:
-        sample = sample_expr.execute()
-        data_bytes = sample.to_csv(index=False).encode("utf-8")
-
-    # Combine schema + data
-    combined = schema_bytes + b"\n" + data_bytes
-
-    # SHA256 hash
-    hash_obj = hashlib.sha256(combined)
-    return f"sha256:{hash_obj.hexdigest()}"
-
-
-def fingerprint_window(window: Any) -> str:
-    """Generate SHA256 fingerprint of a window slice.
-
-    Used for deterministic window identification in run tracking.
-    Hashes window metadata (index, time range, size) for cheap computation.
-
-    Args:
-        window: Window object with window_index, start_time, end_time, size
-
-    Returns:
-        SHA256 fingerprint (format: "sha256:<hex>")
-
-    Example:
-        >>> from egregora.transformations.windowing import Window
-        >>> window = Window(
-        ...     window_index=0,
-        ...     start_time=datetime(2025, 1, 1, 10, 0, tzinfo=UTC),
-        ...     end_time=datetime(2025, 1, 1, 12, 0, tzinfo=UTC),
-        ...     table=messages_table,
-        ...     size=100,
-        ... )
-        >>> fingerprint = fingerprint_window(window)
-        >>> print(fingerprint)
-        sha256:abc123...
-
-    """
-    # Hash window metadata (cheap, deterministic)
-    # Format: window_index|start_time_iso|end_time_iso|size
-    metadata_str = (
-        f"{window.window_index}|{window.start_time.isoformat()}|{window.end_time.isoformat()}|{window.size}"
-    )
-
-    # SHA256 hash
-    hash_obj = hashlib.sha256(metadata_str.encode("utf-8"))
-    return f"sha256:{hash_obj.hexdigest()}"
-
-
 def record_run(
     conn: duckdb.DuckDBPyConnection,
     run_id: uuid.UUID,
@@ -244,7 +140,6 @@ def record_run(
     finished_at: datetime | None = None,
     *,
     tenant_id: str | None = None,
-    input_fingerprint: str | None = None,
     code_ref: str | None = None,
     config_hash: str | None = None,
     rows_in: int | None = None,
@@ -264,7 +159,6 @@ def record_run(
         started_at: When run started (UTC)
         finished_at: When run finished (UTC), None if still running
         tenant_id: Tenant identifier (optional)
-        input_fingerprint: SHA256 of input data (for checkpointing)
         code_ref: Git commit SHA
         config_hash: SHA256 of config
         rows_in: Number of input rows
@@ -297,10 +191,10 @@ def record_run(
         """
         INSERT INTO runs (
             run_id, tenant_id, stage, status, error,
-            input_fingerprint, code_ref, config_hash,
+            code_ref, config_hash,
             started_at, finished_at, duration_seconds,
             rows_in, rows_out, llm_calls, tokens, trace_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             str(run_id),
@@ -308,7 +202,6 @@ def record_run(
             stage,
             status,
             error,
-            input_fingerprint,
             code_ref,
             config_hash,
             started_at,
@@ -402,11 +295,9 @@ def run_stage_with_tracking[T](
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = duckdb.connect(str(db_path))
 
-    # Calculate input fingerprint (for checkpointing)
-    input_fingerprint = None
+    # Calculate input metrics
     rows_in = None
     if input_table is not None:
-        input_fingerprint = fingerprint_table(input_table)
         rows_in = input_table.count().execute()
 
     # Record run start
@@ -418,7 +309,6 @@ def run_stage_with_tracking[T](
         status="running",
         started_at=started_at,
         tenant_id=context.tenant_id,
-        input_fingerprint=input_fingerprint,
         rows_in=rows_in,
         trace_id=context.trace_id,
     )

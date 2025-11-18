@@ -16,12 +16,9 @@ from egregora.database.init import initialize_database
 from egregora.database.ir_schema import (
     CONVERSATION_SCHEMA,
     MESSAGE_SCHEMA,
-    RUN_EVENTS_SCHEMA,
-    RUN_EVENTS_TABLE_DDL,
     RUNS_TABLE_DDL,
     RUNS_TABLE_SCHEMA,
     WHATSAPP_CONVERSATION_SCHEMA,
-    create_run_events_table,
     create_runs_table,
     ensure_runs_table_exists,
 )
@@ -39,7 +36,6 @@ from egregora.database.tracking import (
     run_stage_with_tracking,
 )
 from egregora.database.views import ViewBuilder, ViewRegistry, views
-from egregora.utils.fingerprinting import fingerprint_table
 
 __all__ = [
     # Schemas
@@ -47,8 +43,6 @@ __all__ = [
     "MESSAGE_SCHEMA",
     "RUNS_TABLE_DDL",
     "RUNS_TABLE_SCHEMA",
-    "RUN_EVENTS_SCHEMA",
-    "RUN_EVENTS_TABLE_DDL",
     "WHATSAPP_CONVERSATION_SCHEMA",
     # Storage
     "DuckDBStorageManager",
@@ -65,11 +59,9 @@ __all__ = [
     "ViewBuilder",
     "ViewRegistry",
     # Runs table utilities
-    "create_run_events_table",
     "create_runs_table",
     "duckdb_backend",
     "ensure_runs_table_exists",
-    "fingerprint_table",
     "get_git_commit_sha",
     "record_lineage",
     "record_run",

@@ -35,38 +35,38 @@ jobs:
       - name: Run linting (ruff)
         run: |
           echo "🔍 Running linting checks..."
-          uv run python dev_tools/code_quality.py --check ruff
+          uv run ruff check .
         continue-on-error: false
 
       - name: Check code complexity (radon)
         run: |
           echo "📊 Checking code complexity..."
-          uv run python dev_tools/code_quality.py --check radon
+          uv run radon cc src tests --min C --show-complexity
         continue-on-error: false
 
       - name: Check for dead code (vulture)
         run: |
           echo "🧹 Checking for dead code..."
-          uv run python dev_tools/code_quality.py --check vulture
+          uv run vulture src tests --min-confidence 80
         continue-on-error: false
 
       - name: Security scan (bandit)
         run: |
           echo "🔒 Running security scan..."
-          uv run python dev_tools/code_quality.py --check bandit
+          uv run bandit -r src -ll
         continue-on-error: false
 
       - name: Check dependencies (deptry)
         run: |
           echo "📦 Checking dependencies..."
-          uv run python dev_tools/code_quality.py --check deptry
+          uv run deptry .
         # Deptry has many false positives, so don't fail on it
         continue-on-error: true
 
       - name: Check test coverage (pytest-cov)
         run: |
           echo "🧪 Checking test coverage..."
-          uv run python dev_tools/code_quality.py --check coverage --coverage-threshold 40
+          uv run pytest --cov=egregora --cov-report=term-missing --cov-fail-under=40 tests/
         continue-on-error: false
 
       - name: Summary

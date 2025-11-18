@@ -23,7 +23,7 @@ class TestRunsTableSchema:
             "stage",
             "status",
             "error",
-            "input_fingerprint",
+            "parent_run_id",
             "code_ref",
             "config_hash",
             "started_at",
@@ -33,6 +33,7 @@ class TestRunsTableSchema:
             "duration_seconds",
             "llm_calls",
             "tokens",
+            "attrs",
             "trace_id",
         }
         assert set(RUNS_TABLE_SCHEMA.names) == required_columns
@@ -56,9 +57,7 @@ class TestRunsTableSchema:
         assert isinstance(schema["error"], String)
         assert schema["error"].nullable is True
 
-        # Fingerprint columns
-        assert isinstance(schema["input_fingerprint"], String)
-        assert schema["input_fingerprint"].nullable is True
+        # Code version tracking
         assert isinstance(schema["code_ref"], String)
         assert schema["code_ref"].nullable is True
         assert isinstance(schema["config_hash"], String)
@@ -124,7 +123,6 @@ class TestCreateRunsTable:
             "idx_runs_started_at",
             "idx_runs_stage",
             "idx_runs_status",
-            "idx_runs_fingerprint",
         }
 
         assert expected_indexes.issubset(index_names)
@@ -182,12 +180,11 @@ class TestEnsureRunsTableExists:
         conn.execute(
             """
             INSERT INTO runs (
-                run_id, stage, status, input_fingerprint, started_at
+                run_id, stage, status, started_at
             ) VALUES (
                 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
                 'test_stage',
                 'completed',
-                'sha256:abc123',
                 '2025-01-09 10:00:00+00'
             )
             """
@@ -257,12 +254,11 @@ class TestRunsTableDDL:
         conn.execute(
             """
             INSERT INTO runs (
-                run_id, stage, status, input_fingerprint, started_at
+                run_id, stage, status, started_at
             ) VALUES (
                 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
                 'test',
                 'completed',
-                'sha256:abc',
                 '2025-01-09 10:00:00+00'
             )
             """
@@ -273,12 +269,11 @@ class TestRunsTableDDL:
             conn.execute(
                 """
                 INSERT INTO runs (
-                    run_id, stage, status, input_fingerprint, started_at
+                    run_id, stage, status, started_at
                 ) VALUES (
                     'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12',
                     'test',
                     'invalid_status',
-                    'sha256:def',
                     '2025-01-09 10:00:00+00'
                 )
                 """
@@ -293,12 +288,11 @@ class TestRunsTableDDL:
         conn.execute(
             """
             INSERT INTO runs (
-                run_id, stage, status, input_fingerprint, started_at
+                run_id, stage, status, started_at
             ) VALUES (
                 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
                 'test',
                 'completed',
-                'sha256:abc',
                 '2025-01-09 10:00:00+00'
             )
             """
@@ -309,12 +303,11 @@ class TestRunsTableDDL:
             conn.execute(
                 """
                 INSERT INTO runs (
-                    run_id, stage, status, input_fingerprint, started_at
+                    run_id, stage, status, started_at
                 ) VALUES (
                     'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
                     'test2',
                     'failed',
-                    'sha256:def',
                     '2025-01-09 11:00:00+00'
                 )
                 """
