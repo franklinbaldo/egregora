@@ -36,46 +36,23 @@ from typing import NoReturn
 
 import duckdb
 
-
-def read_sql_file(sql_path: Path) -> str:
-    """Read SQL schema file.
-
-    Args:
-        sql_path: Path to .sql file
-
-    Returns:
-        SQL statements as string
-
-    Raises:
-        FileNotFoundError: If sql_path doesn't exist
-
-    """
-    if not sql_path.exists():
-        raise FileNotFoundError(sql_path)
-
-    return sql_path.read_text()
+from egregora.database.ir_schema import RUNS_TABLE_DDL, RUNS_TABLE_SCHEMA
 
 
-def create_tables(conn: duckdb.DuckDBPyConnection, schema_dir: Path) -> None:
-    """Create runs table.
+def create_tables(conn: duckdb.DuckDBPyConnection) -> None:
+    """Create runs table using the canonical schema.
 
     Note: As of 2025-11-17, the separate lineage table was removed.
     Lineage is now tracked via parent_run_id column in runs table.
 
     Args:
         conn: DuckDB connection
-        schema_dir: Path to schema/ directory
 
     Raises:
-        FileNotFoundError: If schema files missing
         duckdb.Error: If SQL execution fails
 
     """
-    # Read schema file
-    runs_sql = read_sql_file(schema_dir / "runs_v1.sql")
-
-    # Execute schema creation
-    conn.execute(runs_sql)
+    conn.execute(RUNS_TABLE_DDL)
 
 
 def check_tables(conn: duckdb.DuckDBPyConnection, *, silent: bool = False) -> bool:
@@ -113,31 +90,15 @@ def check_tables(conn: duckdb.DuckDBPyConnection, *, silent: bool = False) -> bo
         ORDER BY ordinal_position
     """).fetchall()
 
-    # Required columns as of v2.0.0 (2025-11-17)
-    required_runs_columns = {
-        "run_id",
-        "tenant_id",
-        "stage",
-        "status",
-        "error",
-        "parent_run_id",  # Added in v2.0.0 (replaces separate lineage table)
-        "code_ref",
-        "config_hash",
-        "started_at",
-        "finished_at",
-        "rows_in",
-        "rows_out",
-        "duration_seconds",  # Added in v2.0.0
-        "llm_calls",
-        "tokens",
-        "attrs",  # Added in v2.0.0 for extensibility
-        "trace_id",
-    }
+    required_runs_columns = set(RUNS_TABLE_SCHEMA.names)
 
     actual_runs_columns = {col[0] for col in runs_columns}
 
-    if not required_runs_columns.issubset(actual_runs_columns):
-        required_runs_columns - actual_runs_columns
+    if required_runs_columns != actual_runs_columns:
+        if not silent:
+            missing = required_runs_columns - actual_runs_columns
+            extra = actual_runs_columns - required_runs_columns
+            print(f"Runs table schema mismatch. Missing: {missing}. Extra: {extra}")
         return False
 
     return True
@@ -172,13 +133,6 @@ def main() -> NoReturn:
     # Ensure parent directory exists
     args.db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Find schema directory
-    script_dir = Path(__file__).parent
-    schema_dir = script_dir.parent / "schema"
-
-    if not schema_dir.exists():
-        sys.exit(1)
-
     # Connect to DuckDB
     conn = duckdb.connect(str(args.db_path))
 
@@ -199,7 +153,7 @@ def main() -> NoReturn:
             sys.exit(0)
 
         # Create tables
-        create_tables(conn, schema_dir)
+        create_tables(conn)
 
         # Validate creation
         if check_tables(conn):
