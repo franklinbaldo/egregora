@@ -13,10 +13,9 @@ MODERN (2025-11-18): Imports site path resolution from config.site to eliminate 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Any
 
 import ibis
 from dateutil import parser as dateutil_parser
@@ -25,13 +24,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 from egregora.agents.shared.author_profiles import write_profile as write_profile_content
 from egregora.config.settings import create_default_config
 from egregora.config.site import (
-    DEFAULT_BLOG_DIR,
-    DEFAULT_DOCS_DIR,
-    MEDIA_DIR_NAME,
-    PROFILES_DIR_NAME,
     SitePaths,
-    find_mkdocs_file,
-    load_mkdocs_config,
     resolve_site_paths,
 )
 from egregora.data_primitives.document import Document, DocumentType
