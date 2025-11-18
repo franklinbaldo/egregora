@@ -259,7 +259,9 @@ def write(
     ] = 1,
     resume: Annotated[
         bool,
-        typer.Option(help="Enable incremental processing (resume from checkpoint). Default: always rebuild from scratch."),
+        typer.Option(
+            help="Enable incremental processing (resume from checkpoint). Default: always rebuild from scratch."
+        ),
     ] = False,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> None:

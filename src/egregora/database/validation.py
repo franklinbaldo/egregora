@@ -141,18 +141,17 @@ def generate_ir_sql_ddl(table_name: str = "ir_messages") -> str:
         """Convert Ibis data type to DuckDB SQL type string."""
         if isinstance(dtype, dt.String):
             return "VARCHAR"
-        elif isinstance(dtype, dt.Timestamp):
+        if isinstance(dtype, dt.Timestamp):
             # DuckDB TIMESTAMP WITH TIME ZONE
             if dtype.timezone:
                 return "TIMESTAMP WITH TIME ZONE"
             return "TIMESTAMP"
-        elif isinstance(dtype, dt.JSON):
+        if isinstance(dtype, dt.JSON):
             return "JSON"
-        elif isinstance(dtype, dt.UUID):
+        if isinstance(dtype, dt.UUID):
             return "UUID"
-        else:
-            # Fallback to Ibis string representation
-            return str(dtype).upper().split("(")[0]
+        # Fallback to Ibis string representation
+        return str(dtype).upper().split("(")[0]
 
     # Generate column definitions
     columns = []
@@ -168,18 +167,18 @@ def generate_ir_sql_ddl(table_name: str = "ir_messages") -> str:
 
     # Build CREATE TABLE statement
     sql_parts = [
-        f"-- Generated from IR_MESSAGE_SCHEMA in validation.py",
-        f"-- DO NOT EDIT: This SQL is auto-generated",
-        f"",
+        "-- Generated from IR_MESSAGE_SCHEMA in validation.py",
+        "-- DO NOT EDIT: This SQL is auto-generated",
+        "",
         f"DROP TABLE IF EXISTS {table_name};",
-        f"",
+        "",
         f"CREATE TABLE {table_name} (",
         ",\n".join(columns),
         ",",
-        f"    PRIMARY KEY (event_id)",
+        "    PRIMARY KEY (event_id)",
         ");",
-        f"",
-        f"-- Indexes for common query patterns",
+        "",
+        "-- Indexes for common query patterns",
         f"CREATE INDEX IF NOT EXISTS idx_{table_name}_ts ON {table_name}(ts);",
         f"CREATE INDEX IF NOT EXISTS idx_{table_name}_thread ON {table_name}(thread_id);",
         f"CREATE INDEX IF NOT EXISTS idx_{table_name}_author ON {table_name}(author_uuid);",
