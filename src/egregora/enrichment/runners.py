@@ -92,8 +92,6 @@ class MediaEnrichmentJob:
     mime_type: str | None = None
 
 
-
-
 def _uuid_to_str(value: uuid.UUID | str | None) -> str | None:
     """Convert UUID-like values to strings for downstream storage."""
     if value is None:
