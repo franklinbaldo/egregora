@@ -20,8 +20,8 @@ import uuid
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import date as date_type
 from datetime import UTC, datetime, timedelta
+from datetime import date as date_type
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
@@ -1214,8 +1214,13 @@ def run(
                         """,
                         [finished_at, duration_seconds, total_posts + total_profiles, str(run_id)],
                     )
-                    logger.debug("Recorded pipeline run: %s (posts=%d, profiles=%d, windows=%d)",
-                                run_id, total_posts, total_profiles, num_windows)
+                    logger.debug(
+                        "Recorded pipeline run: %s (posts=%d, profiles=%d, windows=%d)",
+                        run_id,
+                        total_posts,
+                        total_profiles,
+                        num_windows,
+                    )
                 except Exception as exc:  # noqa: BLE001
                     logger.debug("Failed to record run completion: %s", exc)
 
