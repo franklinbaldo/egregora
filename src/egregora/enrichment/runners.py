@@ -39,6 +39,7 @@ from egregora.enrichment.media import (
     replace_media_mentions,
 )
 from egregora.utils import BatchPromptRequest, BatchPromptResult, make_enrichment_cache_key
+from egregora.utils.time_utils import ensure_datetime
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -91,13 +92,6 @@ class MediaEnrichmentJob:
     mime_type: str | None = None
 
 
-def _ensure_datetime(value: datetime | pd.Timestamp) -> datetime:
-    """Convert pandas/ibis timestamp objects to ``datetime``."""
-    if hasattr(value, "to_pydatetime"):
-        return value.to_pydatetime()
-    return value
-
-
 def _uuid_to_str(value: uuid.UUID | str | None) -> str | None:
     """Convert UUID-like values to strings for downstream storage."""
     if value is None:
@@ -107,7 +101,7 @@ def _uuid_to_str(value: uuid.UUID | str | None) -> str | None:
 
 def _safe_timestamp_plus_one(timestamp: datetime | pd.Timestamp) -> datetime:
     """Return timestamp + 1 second, handling pandas/ibis types."""
-    dt_value = _ensure_datetime(timestamp)
+    dt_value = ensure_datetime(timestamp)
     return dt_value + timedelta(seconds=1)
 
 
@@ -240,7 +234,7 @@ def _create_enrichment_row(
     if timestamp is None:
         return None
 
-    timestamp = _ensure_datetime(timestamp)
+    timestamp = ensure_datetime(timestamp)
     enrichment_timestamp = _safe_timestamp_plus_one(timestamp)
 
     # Generate new event_id for this enrichment entry
@@ -426,7 +420,7 @@ def _enrich_urls(
                 continue
 
             timestamp = row.get("ts")
-            timestamp_value = _ensure_datetime(timestamp) if timestamp is not None else None
+            timestamp_value = ensure_datetime(timestamp) if timestamp is not None else None
 
             # Collect all IR metadata from this row (convert UUIDs to strings)
             row_metadata = {
@@ -524,7 +518,7 @@ def _extract_media_references(
                 continue
 
             timestamp = row.get("ts")
-            timestamp_value = _ensure_datetime(timestamp) if timestamp is not None else None
+            timestamp_value = ensure_datetime(timestamp) if timestamp is not None else None
 
             # Collect all IR metadata from this row (convert UUIDs to strings)
             row_metadata = {
