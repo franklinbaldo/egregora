@@ -55,7 +55,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 import ibis
 import ibis.expr.datatypes as dt
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, create_model
 
 from egregora.privacy.uuid_namespaces import (
     deterministic_author_uuid,
@@ -74,6 +74,105 @@ F = TypeVar("F", bound=Callable[..., "Table"])
 
 class SchemaError(Exception):
     """Raised when table schema doesn't match IR v1 specification."""
+
+
+# ============================================================================
+# Ibis-to-Pydantic Schema Generation
+# ============================================================================
+
+
+def ibis_type_to_python(ibis_type: dt.DataType) -> type:
+    """Convert Ibis data type to Python type for Pydantic model generation.
+
+    Args:
+        ibis_type: Ibis data type
+
+    Returns:
+        Python type suitable for Pydantic field
+
+    """
+    # Map Ibis types to Python types
+    type_mapping: dict[type, type] = {
+        dt.String: str,
+        dt.Int64: int,
+        dt.Int32: int,
+        dt.Float64: float,
+        dt.Float32: float,
+        dt.Boolean: bool,
+        dt.Date: date,
+        dt.Binary: bytes,
+    }
+
+    # Check base type
+    ibis_base = type(ibis_type)
+
+    # Special handling for complex types
+    if ibis_base == dt.Timestamp:
+        return datetime
+    if ibis_base == dt.UUID:
+        return uuid.UUID
+    if ibis_base == dt.JSON:
+        return dict[str, Any]
+    if ibis_base == dt.Array:
+        return list[Any]
+
+    return type_mapping.get(ibis_base, Any)
+
+
+def ibis_schema_to_pydantic(
+    schema: ibis.Schema,
+    model_name: str,
+    *,
+    field_overrides: dict[str, Any] | None = None,
+    frozen: bool = True,
+) -> type[BaseModel]:
+    """Generate a Pydantic model from an Ibis schema.
+
+    This function creates a Pydantic model that matches the structure of an
+    Ibis schema, ensuring consistency between schema definitions for creation
+    and validation.
+
+    Args:
+        schema: Ibis schema to convert
+        model_name: Name for the generated Pydantic model
+        field_overrides: Dict mapping field names to Pydantic Field() objects
+                        for custom validation (e.g., regex patterns, min_length)
+        frozen: Whether the model should be frozen (immutable)
+
+    Returns:
+        Generated Pydantic BaseModel class
+
+    Example:
+        >>> schema = ibis.schema({"name": dt.string, "age": dt.Int64(nullable=True)})
+        >>> Model = ibis_schema_to_pydantic(schema, "Person")
+        >>> person = Model(name="Alice", age=30)
+
+    """
+    from pydantic import ConfigDict
+
+    field_overrides = field_overrides or {}
+    fields: dict[str, Any] = {}
+
+    for name, ibis_type in schema.items():
+        python_type = ibis_type_to_python(ibis_type)
+
+        # Handle nullable types
+        if ibis_type.nullable:
+            python_type = python_type | None
+
+        # Check for field override (custom validation)
+        if name in field_overrides:
+            fields[name] = (python_type, field_overrides[name])
+        elif ibis_type.nullable:
+            fields[name] = (python_type, None)
+        else:
+            fields[name] = (python_type, ...)
+
+    # Create model with frozen config (Pydantic v2 style)
+    model = create_model(model_name, **fields)
+    if frozen:
+        model.model_config = ConfigDict(frozen=True)
+    return model
 
 
 # ============================================================================
@@ -113,6 +212,14 @@ IR_MESSAGE_SCHEMA = ibis.schema(
 # ============================================================================
 # Runtime Validator (Pydantic)
 # ============================================================================
+
+# NOTE: IRMessageRow is manually defined rather than generated because:
+# 1. UUID fields in Ibis are stored as strings, but we want to accept uuid.UUID objects
+# 2. Custom validators (regex patterns, min_length) require semantic knowledge
+# 3. The Pydantic model serves as a runtime validator with coercion, not just schema matching
+#
+# The ibis_schema_to_pydantic() utility can be used for simpler cases where
+# the Ibis schema directly maps to Python types.
 
 
 class IRMessageRow(BaseModel):
@@ -523,6 +630,9 @@ __all__ = [
     "SchemaError",
     # Schema definitions
     "IR_MESSAGE_SCHEMA",
+    # Schema generation utilities
+    "ibis_type_to_python",
+    "ibis_schema_to_pydantic",
     # Validation models
     "IRMessageRow",
     # Validation functions
