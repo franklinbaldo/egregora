@@ -671,7 +671,6 @@ source = { editable = "." }
 dependencies = [
     { name = "diskcache" },
     { name = "duckdb" },
-    { name = "google-genai" },
     { name = "httpx" },
     { name = "ibis-framework", extra = ["duckdb"] },
     { name = "jinja2" },
@@ -679,7 +678,6 @@ dependencies = [
     { name = "pyarrow" },
     { name = "pydantic" },
     { name = "pydantic-ai" },
-    { name = "pydantic-evals", extra = ["logfire"] },
     { name = "pytest" },
     { name = "python-dateutil" },
     { name = "python-frontmatter" },
@@ -741,7 +739,6 @@ requires-dist = [
     { name = "codespell", marker = "extra == 'docs'", specifier = ">=2.3.0" },
     { name = "diskcache", specifier = ">=5.6.3" },
     { name = "duckdb", specifier = ">=0.10.3" },
-    { name = "google-genai", specifier = ">=0.3.0" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "ibis-framework", extras = ["duckdb"], specifier = ">=9.0.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
@@ -759,7 +756,6 @@ requires-dist = [
     { name = "pyarrow", specifier = ">=21.0.0" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pydantic-ai", extras = ["logfire"], specifier = ">=0.0.14" },
-    { name = "pydantic-evals", extras = ["logfire"], specifier = ">=1.0.17" },
     { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=10.0" },
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "pytest-vcr", marker = "extra == 'test'", specifier = ">=1.0.2" },
@@ -773,7 +769,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'lint'", specifier = ">=0.4.4" },
     { name = "ruff", marker = "extra == 'test'", specifier = ">=0.4.4" },
     { name = "tenacity", specifier = ">=9.1.2" },
-    { name = "typer", extras = ["all"], specifier = ">=0.20.0" },
+    { name = "typer", specifier = ">=0.20.0" },
     { name = "werkzeug", specifier = ">=3.0.0" },
 ]
 provides-extras = ["test", "docs", "rss", "ranking", "lint"]
@@ -2640,11 +2636,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a4/74/33a1c858258b4af16af3a8471a6ce62f0d295188490ad8266a2606c26b61/pydantic_evals-1.0.17.tar.gz", hash = "sha256:05379ea0e14705e914b36edc4fec6037db3bbdda867cdc7f870c74fed33e548c", size = 45865, upload-time = "2025-10-09T16:51:18.796Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/77/09/b960913afbfc46a3b46b1bfcdd24a7ad48eb798e1127425e378bdb2331ca/pydantic_evals-1.0.17-py3-none-any.whl", hash = "sha256:47bd66bdeef8716339511c8ed3e7a2d35f0a3c413c9055b1e40c51232f367265", size = 55013, upload-time = "2025-10-09T16:51:05.412Z" },
-]
-
-[package.optional-dependencies]
-logfire = [
-    { name = "logfire" },
 ]
 
 [[package]]
