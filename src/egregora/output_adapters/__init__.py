@@ -5,20 +5,17 @@ from egregora.output_adapters.eleventy_arrow import (
     EleventyArrowAdapter,
     EleventyArrowOutputAdapter,
 )
-from egregora.output_adapters.hugo import HugoOutputAdapter
 
 # MkDocsAdapter: Unified MkDocs adapter
 from egregora.output_adapters.mkdocs import MkDocsAdapter
 
 # Register output formats on module import
 output_registry.register(MkDocsAdapter)
-output_registry.register(HugoOutputAdapter)
 output_registry.register(EleventyArrowOutputAdapter)
 
 __all__ = [
     "EleventyArrowAdapter",
     "EleventyArrowOutputAdapter",
-    "HugoOutputAdapter",
     "MkDocsAdapter",
     "OutputAdapter",
     "create_output_format",
