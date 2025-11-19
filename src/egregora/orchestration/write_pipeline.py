@@ -32,6 +32,7 @@ from google import genai
 
 from egregora.agents.model_limits import get_model_context_limit
 from egregora.agents.shared.author_profiles import filter_opted_out_authors, process_commands
+from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
@@ -157,6 +158,32 @@ class PreparedPipelineData:
     embedding_model: str
 
 
+def _ensure_writer_dependencies(ctx: PipelineContext) -> PipelineContext:
+    """Ensure the pipeline context has the stores required by the writer."""
+
+    rag_store = ctx.rag_store
+    annotations_store = ctx.annotations_store
+    stores_updated = False
+
+    if ctx.enable_rag and rag_store is None:
+        rag_dir = ctx.site_root / ".egregora" / "rag"
+        rag_dir.mkdir(parents=True, exist_ok=True)
+        rag_store = VectorStore(rag_dir / "chunks.parquet", storage=ctx.storage)
+        stores_updated = True
+    elif not ctx.enable_rag and rag_store is not None:
+        rag_store = None
+        stores_updated = True
+
+    if annotations_store is None:
+        annotations_store = AnnotationStore(ctx.storage)
+        stores_updated = True
+
+    if not stores_updated:
+        return ctx
+
+    return ctx.with_stores(rag_store=rag_store, annotations_store=annotations_store)
+
+
 def _process_single_window(
     window: any, ctx: PipelineContext, *, depth: int = 0
 ) -> dict[str, dict[str, list[str]]]:
@@ -175,6 +202,8 @@ def _process_single_window(
     window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
     window_table = window.table
     window_count = window.size
+
+    ctx = _ensure_writer_dependencies(ctx)
 
     logger.info("%s➡️  [bold]%s[/] — %s messages (depth=%d)", indent, window_label, window_count, depth)
 
@@ -236,6 +265,8 @@ def _process_window_with_auto_split(
     """
     from egregora.agents.model_limits import PromptTooLargeError
     from egregora.transformations import split_window_into_n_parts
+
+    ctx = _ensure_writer_dependencies(ctx)
 
     min_window_size = 5
     results: dict[str, dict[str, list[str]]] = {}
@@ -427,6 +458,8 @@ def _process_all_windows(
         - max_processed_timestamp: Latest end_time from successfully processed windows
 
     """
+    ctx = _ensure_writer_dependencies(ctx)
+
     results = {}
     max_processed_timestamp: datetime | None = None
 
