@@ -154,26 +154,6 @@ class PipelineContext:
         """Get the configured RAG overfetch value."""
         return self.config.rag.overfetch
 
-    def with_stores(
-        self,
-        *,
-        rag_store: VectorStore | None = None,
-        annotations_store: AnnotationStore | None = None,
-    ) -> PipelineContext:
-        """Create a new context with stores populated.
-
-        This is useful for lazy initialization of stores.
-        """
-        from dataclasses import replace
-
-        kwargs = {}
-        if rag_store is not None:
-            kwargs["rag_store"] = rag_store
-        if annotations_store is not None:
-            kwargs["annotations_store"] = annotations_store
-
-        return replace(self, **kwargs)
-
     def with_adapter(self, adapter: Any) -> PipelineContext:
         """Create a new context with the input adapter populated."""
         from dataclasses import replace
