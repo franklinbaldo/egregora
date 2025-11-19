@@ -32,8 +32,8 @@ if TYPE_CHECKING:
     from egregora.agents.shared.annotations import AnnotationStore
     from egregora.agents.shared.rag import VectorStore
     from egregora.config.settings import EgregoraConfig
-    from egregora.database.duckdb_manager import DuckDBStorageManager
     from egregora.data_primitives.protocols import UrlContext
+    from egregora.database.duckdb_manager import DuckDBStorageManager
     from egregora.output_adapters.base import OutputAdapter
     from egregora.utils.cache import EnrichmentCache
 
@@ -78,6 +78,7 @@ class PipelineContext:
 
         # Input Adapter
         adapter: Input adapter instance (for media extraction)
+
     """
 
     # Core Configuration
