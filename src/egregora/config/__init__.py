@@ -4,7 +4,7 @@ This module serves as the single entry point for all configuration-related impor
 Instead of navigating deep module paths, consumers can import everything configuration-related
 from this facade:
 
-    from egregora.config import EgregoraConfig, WriterAgentContext, SitePaths
+    from egregora.config import EgregoraConfig, WriterAgentContext
 
 **Facade Pattern Benefits:**
 
@@ -27,7 +27,6 @@ configuration objects (3-6 params). The pattern includes:
 
 - `EgregoraConfig`: Root Pydantic V2 config model (loads from `.egregora/config.yml`)
 - `load_egregora_config()`: Config loader with validation
-- `SitePaths`: Site structure paths (blog, profiles, media, .egregora/)
 - `WriterConfig`, `EnrichmentSettings`: Runtime context dataclasses
 - `ModelConfig`: LLM model configuration (backend-agnostic)
 
@@ -83,22 +82,6 @@ from egregora.config.settings import (
     save_egregora_config,
 )
 
-# ==============================================================================
-# Site Paths & MkDocs Utilities (from egregora.config.site)
-# ==============================================================================
-# Re-export mkdocs/site helpers from egregora.config.site so callers of
-# egregora.config can continue to import a single facade.
-from egregora.config.site import (
-    DEFAULT_BLOG_DIR,
-    DEFAULT_DOCS_DIR,
-    MEDIA_DIR_NAME,
-    PROFILES_DIR_NAME,
-    SitePaths,
-    find_mkdocs_file,
-    load_mkdocs_config,
-    resolve_site_paths,
-)
-
 __all__ = [
     "EMBEDDING_DIM",  # Embedding vector dimensions
     # Note: DEFAULT_BLOG_DIR, DEFAULT_DOCS_DIR, MEDIA_DIR_NAME, PROFILES_DIR_NAME
@@ -127,20 +110,13 @@ __all__ = [
     "RuntimeContext",  # Minimal runtime-only context (paths, api key, debug)
     "RAGSettings",  # Retrieval settings
     "PipelineSettings",  # Pipeline execution settings
-    # ==========================================================================
-    # Site Paths & MkDocs Utilities
-    # ==========================================================================
-    "SitePaths",  # Dataclass with all site paths
     "WriterAgentSettings",  # Writer agent settings (Pydantic model)
     "WriterConfig",  # Writer agent runtime context (dataclass from writer_runner)
     "create_default_config",  # Create default config
     "find_egregora_config",  # Find config file in directory tree
-    "find_mkdocs_file",  # Locate mkdocs.yml
     # ==========================================================================
     # Config Loading & Persistence
     # ==========================================================================
     "load_egregora_config",  # Load config from .egregora/config.yml
-    "load_mkdocs_config",  # Load and parse mkdocs.yml
-    "resolve_site_paths",  # Resolve paths from site_dir or mkdocs.yml
     "save_egregora_config",  # Save config to disk
 ]
