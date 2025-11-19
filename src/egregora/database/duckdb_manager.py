@@ -33,7 +33,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 
 import duckdb
 import ibis
@@ -430,10 +430,157 @@ class DuckDBStorageManager:
         """Context manager exit - closes connection."""
         self.close()
 
+    # ------------------------------------------------------------------
+    # Vector backend helpers
+    # ------------------------------------------------------------------
+
+    def create_vector_backend(self, *, enable_vss: bool = True) -> "VectorBackend":
+        """Create a vector backend bound to this storage manager."""
+        backend_cls: type[VectorBackend]
+        if enable_vss:
+            backend_cls = DuckDBVectorBackend
+        else:
+            backend_cls = DuckDBNoOpVectorBackend
+        return backend_cls(self.conn)
+
 
 # ============================================================================
 # Convenience Functions (Phase 2.2: Consolidated from connection.py)
 # ============================================================================
+
+
+class VectorBackend(Protocol):
+    """Protocol describing vector-store specific database helpers."""
+
+    conn: duckdb.DuckDBPyConnection
+
+    def install_extensions(self) -> bool:
+        """Install and load the required DuckDB extensions (VSS)."""
+
+    def detect_vss_function(self) -> str:
+        """Return the best available VSS table function name."""
+
+    def drop_index(self, name: str) -> None:
+        """Drop an ANN index if it exists."""
+
+    def drop_table(self, name: str) -> None:
+        """Drop the materialized chunks table if it exists."""
+
+    def materialize_chunks_table(self, table_name: str, parquet_path: Path) -> None:
+        """Populate the chunks table from the Parquet dataset."""
+
+    def table_exists(self, table_name: str) -> bool:
+        """Return True when the given table is present in DuckDB."""
+
+    def row_count(self, table_name: str) -> int:
+        """Return the number of rows in a table (0 if missing)."""
+
+    def create_hnsw_index(self, *, table_name: str, index_name: str, column: str = "embedding") -> bool:
+        """Create an HNSW index, returning True on success."""
+
+
+class DuckDBVectorBackend:
+    """DuckDB implementation of :class:`VectorBackend`."""
+
+    def __init__(self, conn: duckdb.DuckDBPyConnection) -> None:
+        self.conn = conn
+
+    def install_extensions(self) -> bool:
+        try:
+            self.conn.execute("INSTALL vss")
+            self.conn.execute("LOAD vss")
+        except (duckdb.Error, RuntimeError) as exc:
+            logger.warning("VSS extension unavailable: %s", exc)
+            return False
+        return True
+
+    def detect_vss_function(self) -> str:
+        try:
+            rows = self.conn.execute("SELECT name FROM pragma_table_functions()").fetchall()
+        except duckdb.Error as exc:
+            logger.debug("Unable to inspect table functions: %s", exc)
+            return "vss_search"
+        function_names = {str(row[0]).lower() for row in rows if row}
+        if "vss_search" in function_names:
+            return "vss_search"
+        if "vss_match" in function_names:
+            logger.debug("Using vss_match table function for ANN queries")
+            return "vss_match"
+        logger.debug("No VSS table function detected; defaulting to vss_search")
+        return "vss_search"
+
+    def drop_index(self, name: str) -> None:
+        quoted = quote_identifier(name)
+        self.conn.execute(f"DROP INDEX IF EXISTS {quoted}")
+
+    def drop_table(self, name: str) -> None:
+        quoted = quote_identifier(name)
+        with contextlib.suppress(Exception):
+            self.conn.execute(f"DROP VIEW IF EXISTS {quoted}")
+        with contextlib.suppress(Exception):
+            self.conn.execute(f"DROP TABLE IF EXISTS {quoted}")
+
+    def materialize_chunks_table(self, table_name: str, parquet_path: Path) -> None:
+        quoted = quote_identifier(table_name)
+        self.conn.execute(
+            f"CREATE OR REPLACE TABLE {quoted} AS SELECT * FROM read_parquet(?)",
+            [str(parquet_path)],
+        )
+
+    def table_exists(self, table_name: str) -> bool:
+        row = self.conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.tables
+            WHERE lower(table_name) = lower(?)
+        """,
+            [table_name],
+        ).fetchone()
+        return bool(row and row[0] > 0)
+
+    def row_count(self, table_name: str) -> int:
+        if not self.table_exists(table_name):
+            return 0
+        quoted = quote_identifier(table_name)
+        row = self.conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
+
+    def create_hnsw_index(self, *, table_name: str, index_name: str, column: str = "embedding") -> bool:
+        quoted_table = quote_identifier(table_name)
+        quoted_index = quote_identifier(index_name)
+        try:
+            self.conn.execute(
+                f"""
+                CREATE INDEX {quoted_index}
+                ON {quoted_table}
+                USING HNSW ({column})
+                WITH (metric = 'cosine')
+                """
+            )
+            logger.info("Created HNSW index %s on %s.%s", index_name, table_name, column)
+        except duckdb.Error as exc:
+            logger.warning("Skipping HNSW index creation: %s", exc)
+            return False
+        return True
+
+
+class DuckDBNoOpVectorBackend(DuckDBVectorBackend):
+    """Fallback backend that skips ANN capabilities while sharing table helpers."""
+
+    def install_extensions(self) -> bool:  # pragma: no cover - trivial override
+        logger.info("Skipping VSS installation (no-op backend)")
+        return False
+
+    def detect_vss_function(self) -> str:  # pragma: no cover - trivial override
+        return "vss_search"
+
+    def create_hnsw_index(self, *, table_name: str, index_name: str, column: str = "embedding") -> bool:
+        logger.info(
+            "No-op backend cannot create ANN indexes (table=%s, index=%s)",
+            table_name,
+            index_name,
+        )
+        return False
 
 
 def temp_storage() -> DuckDBStorageManager:
@@ -483,7 +630,10 @@ def duckdb_backend():
 
 
 __all__ = [
+    "DuckDBNoOpVectorBackend",
     "DuckDBStorageManager",
+    "DuckDBVectorBackend",
+    "VectorBackend",
     "duckdb_backend",
     "temp_storage",
 ]

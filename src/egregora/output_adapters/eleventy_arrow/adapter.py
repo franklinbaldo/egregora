@@ -514,28 +514,6 @@ class EleventyArrowOutputAdapter(OutputAdapter):
 
         return cache_file
 
-    @property
-    def posts(self) -> Any:  # type: ignore[override]
-        msg = "EleventyArrowOutputAdapter does not expose legacy PostStorage; use serve() with Document."
-        raise RuntimeError(msg)
-
-    @property
-    def profiles(self) -> Any:  # type: ignore[override]
-        msg = "EleventyArrowOutputAdapter does not expose legacy ProfileStorage; use serve() with Document."
-        raise RuntimeError(msg)
-
-    @property
-    def journals(self) -> Any:  # type: ignore[override]
-        msg = "EleventyArrowOutputAdapter does not expose legacy JournalStorage; use serve() with Document."
-        raise RuntimeError(msg)
-
-    @property
-    def enrichments(self) -> Any:  # type: ignore[override]
-        msg = (
-            "EleventyArrowOutputAdapter does not expose legacy EnrichmentStorage; use serve() with Document."
-        )
-        raise RuntimeError(msg)
-
     # ===== Modern document-based helpers =====
 
     def serve(self, document: Document) -> None:

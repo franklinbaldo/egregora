@@ -113,7 +113,10 @@ def consolidate_messages_to_markdown(table: Table) -> str:
         Another message...
 
     Args:
-        table: Conversation table with columns (timestamp, author, message, ...)
+        table: Conversation table with columns (timestamp, author, message, ...).
+            The helper expects a pyarrow.Table or iterable of mapping rows.
+            Pandas DataFrames are intentionally unsupported to keep the
+            formatting path Arrow/Ibis-native.
 
     Returns:
         Markdown-formatted string suitable for chunk_markdown()
