@@ -12,7 +12,6 @@ from egregora.output_adapters.mkdocs.paths import (
     MEDIA_DIR_NAME,
     PROFILES_DIR_NAME,
     SitePaths,
-    resolve_site_paths,
 )
 
 __all__ = [
@@ -21,5 +20,4 @@ __all__ = [
     "MEDIA_DIR_NAME",
     "PROFILES_DIR_NAME",
     "SitePaths",
-    "resolve_site_paths",
 ]

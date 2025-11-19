@@ -29,7 +29,6 @@ from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 from egregora.output_adapters.mkdocs.paths import (
     SitePaths,
-    resolve_site_paths,
 )
 from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import safe_path_join, slugify
@@ -254,6 +253,8 @@ class MkDocsAdapter(OutputAdapter):
     def supports_site(self, site_root: Path) -> bool:
         """Check if the site root contains a mkdocs.yml file.
 
+        READ-ONLY: Does not create any files or directories.
+
         Args:
             site_root: Path to check
 
@@ -264,17 +265,12 @@ class MkDocsAdapter(OutputAdapter):
         if not site_root.exists():
             return False
 
-        try:
-            site_paths = resolve_site_paths(site_root)
-        except Exception as exc:  # pragma: no cover - defensive guardrail
-            logger.debug("Failed to resolve site paths from %s: %s", site_root, exc)
-            return False
-
-        # Check if mkdocs.yml exists at the resolved path
-        if site_paths.mkdocs_path and site_paths.mkdocs_path.exists():
+        # Check .egregora/mkdocs.yml (modern location)
+        egregora_mkdocs = site_root / ".egregora" / "mkdocs.yml"
+        if egregora_mkdocs.exists():
             return True
 
-        # Also check legacy location at root
+        # Check root mkdocs.yml (legacy location)
         legacy_path = site_root / "mkdocs.yml"
         return legacy_path.exists()
 

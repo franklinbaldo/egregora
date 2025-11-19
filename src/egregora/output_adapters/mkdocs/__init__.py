@@ -15,13 +15,11 @@ from egregora.output_adapters.mkdocs.adapter import (
 )
 from egregora.output_adapters.mkdocs.paths import (
     SitePaths,
-    resolve_site_paths,
 )
 
 __all__ = [
     "MkDocsAdapter",
     "MkDocsUrlConvention",
     "SitePaths",
-    "resolve_site_paths",
     "secure_path_join",
 ]
