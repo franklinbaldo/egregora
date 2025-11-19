@@ -21,7 +21,7 @@ from egregora.output_adapters.mkdocs.paths import (
 __all__ = [
     "MkDocsAdapter",
     "MkDocsUrlConvention",
-    "load_site_paths",
     "SitePaths",
+    "load_site_paths",
     "secure_path_join",
 ]

@@ -46,7 +46,6 @@ class SitePaths:
 
 def load_site_paths(site_root: Path) -> SitePaths:
     """Resolve MkDocs site structure from the filesystem and mkdocs.yml."""
-
     resolved_root = site_root.expanduser().resolve()
     config_path = resolved_root / ".egregora" / "config.yml"
     config_data = _load_config_dict(config_path)

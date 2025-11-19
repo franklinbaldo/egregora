@@ -15,11 +15,11 @@ from typing import TYPE_CHECKING
 import pytest
 from pydantic_ai.models.test import TestModel
 
-from egregora.output_adapters.mkdocs import load_site_paths
 from egregora.orchestration.write_pipeline import (
     WhatsAppProcessOptions,
     process_whatsapp_export,
 )
+from egregora.output_adapters.mkdocs import load_site_paths
 from tests.utils.mock_batch_client import create_mock_genai_client
 
 if TYPE_CHECKING:
