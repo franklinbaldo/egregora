@@ -28,6 +28,28 @@ egregora runs tail
 egregora runs show <run_id>
 ```
 
+## Initialization
+
+- **Canonical entry point**: Use `egregora.database.initialize_database()` to
+  create the IR tables at pipeline startup. This is the only supported
+  initialization path; it replaces ad-hoc helper scripts.
+- **Runs database**: The runs table is created on demand by
+  `record_run()`/`run_stage_with_tracking()` via
+  `ensure_runs_table_exists()`. No manual setup is required before running the
+  pipeline.
+- **Manual check (optional)**:
+
+  ```bash
+  uv run python - <<'PY'
+  from egregora.database import duckdb_backend, ensure_runs_table_exists, initialize_database
+
+  backend = duckdb_backend(".egregora-cache/runs.duckdb")
+  initialize_database(backend)
+  ensure_runs_table_exists(backend.con)
+  print("Database ready (IR + runs table)")
+  PY
+  ```
+
 ## Database Schema
 
 Each run is stored in `.egregora/runs.duckdb` with the following schema:
