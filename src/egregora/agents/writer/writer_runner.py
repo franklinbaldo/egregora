@@ -26,7 +26,7 @@ from egregora.agents.shared.author_profiles import get_active_authors
 from egregora.agents.shared.rag import VectorStore, index_document
 from egregora.agents.writer.agent import WriterAgentContext, write_posts_with_pydantic_agent
 from egregora.agents.writer.context_builder import _load_profiles_context, build_rag_context_for_prompt
-from egregora.agents.writer.formatting import _build_conversation_markdown, _load_journal_memory
+from egregora.agents.writer.formatting import _build_conversation_markdown_table, _load_journal_memory
 from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.data_primitives.protocols import UrlContext
 from egregora.output_adapters import create_output_format, output_registry
@@ -326,7 +326,7 @@ def _build_writer_prompt_context(
 ) -> WriterPromptContext:
     """Collect contextual inputs used when rendering the writer prompt."""
     messages_table = table_with_str_uuids.to_pyarrow()
-    conversation_md = _build_conversation_markdown(messages_table, environment.annotations_store)
+    conversation_md = _build_conversation_markdown_table(messages_table, environment.annotations_store)
 
     if environment.writer_config.enable_rag:
         rag_context = build_rag_context_for_prompt(

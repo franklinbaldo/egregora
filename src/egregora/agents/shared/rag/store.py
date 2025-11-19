@@ -15,6 +15,7 @@ from ibis.expr.types import Table
 
 from egregora.config import EMBEDDING_DIM
 from egregora.database import ir_schema as database_schema
+from egregora.database.duckdb_manager import DuckDBStorageManager
 
 logger = logging.getLogger(__name__)
 TABLE_NAME = "rag_chunks"
@@ -68,22 +69,18 @@ class VectorStore:
         self,
         parquet_path: Path,
         *,
-        connection: duckdb.DuckDBPyConnection | None = None,
+        storage: DuckDBStorageManager,
     ) -> None:
         """Initialize vector store.
 
         Args:
             parquet_path: Path to Parquet file (e.g., output/rag/chunks.parquet)
+            storage: The central DuckDB storage manager.
 
         """
         self.parquet_path = parquet_path
         self.index_path = parquet_path.with_suffix(".duckdb")
-        self._owns_connection = connection is None
-        if self._owns_connection:
-            self.index_path.parent.mkdir(parents=True, exist_ok=True)
-            self.conn = _ConnectionProxy(duckdb.connect(str(self.index_path)))
-        else:
-            self.conn = _ConnectionProxy(connection)
+        self.conn = _ConnectionProxy(storage.conn)
         self._vss_available = False
         self._vss_function = "vss_search"
         self._client = ibis.duckdb.from_connection(self.conn)
@@ -990,8 +987,3 @@ class VectorStore:
             return ibis.memtable(
                 [], schema=ibis.schema({"source_path": "string", "source_mtime_ns": "int64"})
             )
-
-    def close(self) -> None:
-        """Close the DuckDB connection if owned by this store."""
-        if self._owns_connection:
-            self.conn.close()

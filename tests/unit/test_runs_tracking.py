@@ -16,6 +16,7 @@ import duckdb
 import ibis
 import pytest
 
+from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.tracking import (
     RunContext,
     get_git_commit_sha,
@@ -32,9 +33,15 @@ def temp_db_path(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def runs_db(temp_db_path: Path) -> duckdb.DuckDBPyConnection:
+def storage(temp_db_path: Path) -> DuckDBStorageManager:
+    """Create a DuckDBStorageManager instance with a temporary database."""
+    return DuckDBStorageManager(db_path=temp_db_path)
+
+
+@pytest.fixture
+def runs_db(storage: DuckDBStorageManager) -> duckdb.DuckDBPyConnection:
     """Create DuckDB with runs and lineage tables."""
-    conn = duckdb.connect(str(temp_db_path))
+    conn = storage.conn
 
     # Create runs table (simplified schema for testing)
     conn.execute("""
@@ -62,12 +69,13 @@ def runs_db(temp_db_path: Path) -> duckdb.DuckDBPyConnection:
         CREATE TABLE lineage (
             child_run_id UUID NOT NULL,
             parent_run_id UUID NOT NULL,
-            PRIMARY KEY (child_run_id, parent_run_id)
+            PRIMARY KEY (child_run_id, parent_run_id),
+            FOREIGN KEY (child_run_id) REFERENCES runs(run_id),
+            FOREIGN KEY (parent_run_id) REFERENCES runs(run_id)
         )
     """)
 
-    yield conn
-    conn.close()
+    return conn
 
 
 @pytest.fixture
@@ -321,52 +329,22 @@ def test_record_lineage_no_parents(runs_db: duckdb.DuckDBPyConnection):
 
 
 def test_run_stage_with_tracking_success(
-    temp_db_path: Path,
+    storage: DuckDBStorageManager,
     sample_table: ibis.Table,
 ):
     """run_stage_with_tracking() records successful stage execution."""
-    # Create runs database
-    conn = duckdb.connect(str(temp_db_path))
-    conn.execute("""
-        CREATE TABLE runs (
-            run_id UUID PRIMARY KEY,
-            stage VARCHAR NOT NULL,
-            tenant_id VARCHAR,
-            started_at TIMESTAMP NOT NULL,
-            finished_at TIMESTAMP,
-            duration_seconds DOUBLE,
-            input_fingerprint VARCHAR,
-            code_ref VARCHAR,
-            config_hash VARCHAR,
-            rows_in INTEGER,
-            rows_out INTEGER,
-            llm_calls INTEGER DEFAULT 0,
-            tokens INTEGER DEFAULT 0,
-            status VARCHAR NOT NULL,
-            error TEXT,
-            trace_id VARCHAR
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE lineage (
-            child_run_id UUID NOT NULL,
-            parent_run_id UUID NOT NULL,
-            PRIMARY KEY (child_run_id, parent_run_id)
-        )
-    """)
-    conn.close()
-
     # Define simple stage function
     def simple_stage(*, input_table: ibis.Table, **kwargs) -> ibis.Table:
         return input_table.mutate(processed=True)
 
     # Create context
-    ctx = RunContext.create(stage="test-stage", db_path=temp_db_path)
+    ctx = RunContext.create(stage="test-stage")
 
     # Execute with tracking
     result, run_id = run_stage_with_tracking(
         stage_func=simple_stage,
         context=ctx,
+        storage=storage,
         input_table=sample_table,
     )
 
@@ -375,8 +353,7 @@ def test_run_stage_with_tracking_success(
     assert run_id == ctx.run_id
 
     # Verify run record
-    conn = duckdb.connect(str(temp_db_path))
-    run_record = conn.execute(
+    run_record = storage.conn.execute(
         "SELECT stage, status, rows_in FROM runs WHERE run_id = ?",
         [str(run_id)],
     ).fetchone()
@@ -385,60 +362,28 @@ def test_run_stage_with_tracking_success(
     assert run_record[1] == "completed"
     assert run_record[2] == 3  # sample_table has 3 rows
 
-    conn.close()
 
-
-def test_run_stage_with_tracking_failure(temp_db_path: Path):
+def test_run_stage_with_tracking_failure(storage: DuckDBStorageManager):
     """run_stage_with_tracking() records failures gracefully."""
-    # Create runs database
-    conn = duckdb.connect(str(temp_db_path))
-    conn.execute("""
-        CREATE TABLE runs (
-            run_id UUID PRIMARY KEY,
-            stage VARCHAR NOT NULL,
-            tenant_id VARCHAR,
-            started_at TIMESTAMP NOT NULL,
-            finished_at TIMESTAMP,
-            duration_seconds DOUBLE,
-            code_ref VARCHAR,
-            config_hash VARCHAR,
-            rows_in INTEGER,
-            rows_out INTEGER,
-            llm_calls INTEGER DEFAULT 0,
-            tokens INTEGER DEFAULT 0,
-            status VARCHAR NOT NULL,
-            error TEXT,
-            trace_id VARCHAR
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE lineage (
-            child_run_id UUID NOT NULL,
-            parent_run_id UUID NOT NULL,
-            PRIMARY KEY (child_run_id, parent_run_id)
-        )
-    """)
-    conn.close()
-
     # Define failing stage function
     def failing_stage(*, input_table: ibis.Table, **kwargs) -> ibis.Table:
         msg = "Intentional test failure"
         raise ValueError(msg)
 
     # Create context
-    ctx = RunContext.create(stage="test-stage", db_path=temp_db_path)
+    ctx = RunContext.create(stage="test-stage")
 
     # Execute with tracking (should raise but record failure)
     with pytest.raises(ValueError, match="Intentional test failure"):
         run_stage_with_tracking(
             stage_func=failing_stage,
             context=ctx,
+            storage=storage,
             input_table=None,
         )
 
     # Verify failure was recorded
-    conn = duckdb.connect(str(temp_db_path))
-    run_record = conn.execute(
+    run_record = storage.conn.execute(
         "SELECT status, error FROM runs WHERE run_id = ?",
         [str(ctx.run_id)],
     ).fetchone()
@@ -446,53 +391,19 @@ def test_run_stage_with_tracking_failure(temp_db_path: Path):
     assert run_record[0] == "failed"
     assert "ValueError: Intentional test failure" in run_record[1]
 
-    conn.close()
 
-
-def test_run_stage_with_tracking_records_lineage(temp_db_path: Path):
+def test_run_stage_with_tracking_records_lineage(storage: DuckDBStorageManager):
     """run_stage_with_tracking() records parent → child lineage."""
-    # Create runs database
-    conn = duckdb.connect(str(temp_db_path))
-    conn.execute("""
-        CREATE TABLE runs (
-            run_id UUID PRIMARY KEY,
-            stage VARCHAR NOT NULL,
-            tenant_id VARCHAR,
-            started_at TIMESTAMP NOT NULL,
-            finished_at TIMESTAMP,
-            duration_seconds DOUBLE,
-            code_ref VARCHAR,
-            config_hash VARCHAR,
-            rows_in INTEGER,
-            rows_out INTEGER,
-            llm_calls INTEGER DEFAULT 0,
-            tokens INTEGER DEFAULT 0,
-            status VARCHAR NOT NULL,
-            error TEXT,
-            trace_id VARCHAR
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE lineage (
-            child_run_id UUID NOT NULL,
-            parent_run_id UUID NOT NULL,
-            PRIMARY KEY (child_run_id, parent_run_id)
-        )
-    """)
-    conn.close()
-
     # Create parent run
     parent_id = uuid.uuid4()
-    conn = duckdb.connect(str(temp_db_path))
     record_run(
-        conn=conn,
+        conn=storage.conn,
         run_id=parent_id,
         stage="parent-stage",
         status="completed",
         started_at=datetime.now(UTC),
         finished_at=datetime.now(UTC),
     )
-    conn.close()
 
     # Define simple stage function
     def child_stage(*, input_table: ibis.Table | None, **kwargs) -> str:
@@ -502,26 +413,23 @@ def test_run_stage_with_tracking_records_lineage(temp_db_path: Path):
     ctx = RunContext.create(
         stage="child-stage",
         parent_run_ids=[parent_id],
-        db_path=temp_db_path,
     )
 
     # Execute with tracking
     _result, run_id = run_stage_with_tracking(
         stage_func=child_stage,
         context=ctx,
+        storage=storage,
         input_table=None,
     )
 
     # Verify lineage was recorded
-    conn = duckdb.connect(str(temp_db_path))
-    lineage_record = conn.execute(
+    lineage_record = storage.conn.execute(
         "SELECT child_run_id, parent_run_id FROM lineage",
     ).fetchone()
 
     assert lineage_record[0] == run_id  # DuckDB returns UUID objects
     assert lineage_record[1] == parent_id
-
-    conn.close()
 
 
 # ==============================================================================

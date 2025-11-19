@@ -13,7 +13,7 @@ from rich.logging import RichHandler
 from rich.panel import Panel
 
 from egregora.cli.read import read_app
-from egregora.cli.runs import runs_app
+from egregora.cli.runs import get_storage, runs_app
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.config_validation import parse_date_arg, validate_retrieval_config
 from egregora.constants import WindowUnit
@@ -348,39 +348,36 @@ def top(
         console.print("Run 'egregora read' first to generate rankings")
         raise typer.Exit(1)
 
-    elo_store = EloStore(db_path)
+    storage = get_storage(db_path)
+    elo_store = EloStore(storage)
 
-    try:
-        top_posts = elo_store.get_top_posts(limit=limit).execute()
+    top_posts = elo_store.get_top_posts(limit=limit).execute()
 
-        if top_posts.empty:
-            console.print("[yellow]No rankings found[/yellow]")
-            raise typer.Exit(0)
+    if top_posts.empty:
+        console.print("[yellow]No rankings found[/yellow]")
+        raise typer.Exit(0)
 
-        table = Table(title=f"🏆 Top {limit} Posts")
-        table.add_column("Rank", style="cyan", justify="right")
-        table.add_column("Post", style="green")
-        table.add_column("ELO Rating", style="magenta", justify="right")
-        table.add_column("Comparisons", justify="right")
-        table.add_column("Win Rate", justify="right")
+    table = Table(title=f"🏆 Top {limit} Posts")
+    table.add_column("Rank", style="cyan", justify="right")
+    table.add_column("Post", style="green")
+    table.add_column("ELO Rating", style="magenta", justify="right")
+    table.add_column("Comparisons", justify="right")
+    table.add_column("Win Rate", justify="right")
 
-        for rank, row in enumerate(top_posts.itertuples(index=False), 1):
-            total_games = row.comparisons
-            win_rate = (row.wins / total_games * 100) if total_games > 0 else 0.0
+    for rank, row in enumerate(top_posts.itertuples(index=False), 1):
+        total_games = row.comparisons
+        win_rate = (row.wins / total_games * 100) if total_games > 0 else 0.0
 
-            table.add_row(
-                str(rank),
-                row.post_slug,
-                f"{row.rating:.0f}",
-                str(row.comparisons),
-                f"{win_rate:.1f}%",
-            )
+        table.add_row(
+            str(rank),
+            row.post_slug,
+            f"{row.rating:.0f}",
+            str(row.comparisons),
+            f"{win_rate:.1f}%",
+        )
 
-        console.print(table)
-        console.print(f"\n[dim]Database: {db_path}[/dim]")
-
-    finally:
-        elo_store.close()
+    console.print(table)
+    console.print(f"\n[dim]Database: {db_path}[/dim]")
 
 
 @show_app.command(name="reader-history")
@@ -434,44 +431,41 @@ def show_reader_history(
         console.print("Run 'egregora read' first to generate rankings")
         raise typer.Exit(1)
 
-    elo_store = EloStore(db_path)
+    storage = get_storage(db_path)
+    elo_store = EloStore(storage)
 
-    try:
-        history = elo_store.get_comparison_history(
-            post_slug=post_slug,
-            limit=limit,
-        ).execute()
+    history = elo_store.get_comparison_history(
+        post_slug=post_slug,
+        limit=limit,
+    ).execute()
 
-        if history.empty:
-            console.print("[yellow]No comparison history found[/yellow]")
-            return
+    if history.empty:
+        console.print("[yellow]No comparison history found[/yellow]")
+        return
 
-        table = Table(title=f"🔍 Comparison History{f' for {post_slug}' if post_slug else ''}")
-        table.add_column("Timestamp", style="dim")
-        table.add_column("Post A", style="cyan")
-        table.add_column("Post B", style="cyan")
-        table.add_column("Winner", style="green", justify="center")
-        table.add_column("Rating Changes", style="magenta")
+    table = Table(title=f"🔍 Comparison History{f' for {post_slug}' if post_slug else ''}")
+    table.add_column("Timestamp", style="dim")
+    table.add_column("Post A", style="cyan")
+    table.add_column("Post B", style="cyan")
+    table.add_column("Winner", style="green", justify="center")
+    table.add_column("Rating Changes", style="magenta")
 
-        for row in history.itertuples(index=False):
-            winner_emoji = {"a": "🅰️", "b": "🅱️", "tie": "🤝"}[row.winner]
+    for row in history.itertuples(index=False):
+        winner_emoji = {"a": "🅰️", "b": "🅱️", "tie": "🤝"}[row.winner]
 
-            rating_change_a = row.rating_a_after - row.rating_a_before
-            rating_change_b = row.rating_b_after - row.rating_b_before
+        rating_change_a = row.rating_a_after - row.rating_a_before
+        rating_change_b = row.rating_b_after - row.rating_b_before
 
-            table.add_row(
-                str(row.timestamp)[:19],
-                row.post_a_slug,
-                row.post_b_slug,
-                winner_emoji,
-                f"A: {rating_change_a:+.0f} / B: {rating_change_b:+.0f}",
-            )
+        table.add_row(
+            str(row.timestamp)[:19],
+            row.post_a_slug,
+            row.post_b_slug,
+            winner_emoji,
+            f"A: {rating_change_a:+.0f} / B: {rating_change_b:+.0f}",
+        )
 
-        console.print(table)
-        console.print(f"\n[dim]Showing {len(history)} comparison(s)[/dim]")
-
-    finally:
-        elo_store.close()
+    console.print(table)
+    console.print(f"\n[dim]Showing {len(history)} comparison(s)[/dim]")
 
 
 @app.command(name="doctor")

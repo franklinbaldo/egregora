@@ -15,6 +15,7 @@ from egregora.agents.shared.author_profiles import get_active_authors, read_prof
 from egregora.agents.shared.rag import VectorStore, build_rag_context_for_writer
 from egregora.agents.shared.rag.chunker import chunk_markdown
 from egregora.agents.shared.rag.embedder import embed_query_text
+from egregora.agents.writer.formatting import _build_conversation_markdown_verbose
 
 logger = logging.getLogger(__name__)
 
@@ -32,103 +33,6 @@ class RagErrorReason:
 
     NO_HITS = "no_hits"
     SYSTEM_ERROR = "rag_error"
-
-
-def consolidate_messages_to_markdown(table: Table) -> str:
-    """Convert conversation table to markdown string for chunking.
-
-    Supports both CONVERSATION_SCHEMA and IR_MESSAGE_SCHEMA via column detection:
-    - timestamp/ts (temporal)
-    - author/author_uuid (author identifier)
-    - message/text (message content)
-
-    Format:
-        ## Message 1
-        **Author:** uuid-123
-        **Timestamp:** 2025-01-15 10:30:00
-
-        Message text here...
-
-        ## Message 2
-        **Author:** uuid-456
-        **Timestamp:** 2025-01-15 10:35:00
-
-        Another message...
-
-    Args:
-        table: Conversation table (CONVERSATION_SCHEMA or IR_MESSAGE_SCHEMA)
-
-    Returns:
-        Markdown-formatted string suitable for chunk_markdown()
-
-    Raises:
-        ValueError: If required columns are not found in either schema
-
-    """
-    # Detect schema and map column names (CONVERSATION_SCHEMA vs IR_MESSAGE_SCHEMA)
-    cols = table.columns
-
-    # Timestamp: 'timestamp' (CONVERSATION) or 'ts' (IR)
-    time_col = "timestamp" if "timestamp" in cols else "ts" if "ts" in cols else None
-
-    # Author: 'author' (CONVERSATION) or 'author_uuid' (IR)
-    author_col = "author" if "author" in cols else "author_uuid" if "author_uuid" in cols else None
-
-    # Message: 'message' (CONVERSATION) or 'text' (IR)
-    message_col = "message" if "message" in cols else "text" if "text" in cols else None
-
-    # Validate required columns exist
-    if not time_col or not author_col or not message_col:
-        missing = []
-        if not time_col:
-            missing.append("timestamp/ts")
-        if not author_col:
-            missing.append("author/author_uuid")
-        if not message_col:
-            missing.append("message/text")
-        raise ValueError(
-            f"Table missing required columns: {', '.join(missing)}. Available columns: {', '.join(cols)}"
-        )
-
-    # Deterministic ordering
-    order_columns: list[Any] = [table[time_col]]
-
-    # Add message_id or msg_id for secondary sorting (if available)
-    if "message_id" in cols:
-        order_columns.append(table["message_id"])
-    elif "msg_id" in cols:
-        order_columns.append(table["msg_id"])
-
-    ordered_table = table.order_by(order_columns)
-    df = ordered_table.select(time_col, author_col, message_col).execute()
-
-    if df.empty:
-        return ""
-
-    lines = []
-    for idx, row in enumerate(df.itertuples(), start=1):
-        lines.append(f"## Message {idx}")
-        # Use column position (1, 2, 3) instead of names since select() order is deterministic
-        timestamp_val = getattr(row, time_col)
-        author_val = getattr(row, author_col)
-        message_val = getattr(row, message_col)
-
-        lines.append(f"**Author:** {author_val}")
-        lines.append(f"**Timestamp:** {timestamp_val}")
-        lines.append("")
-        lines.append(message_val)
-        lines.append("")
-
-    markdown = "\n".join(lines).strip()
-    logger.debug(
-        "Consolidated %d messages to markdown (%d chars) using schema: %s/%s/%s",
-        len(df),
-        len(markdown),
-        time_col,
-        author_col,
-        message_col,
-    )
-    return markdown
 
 
 def deduplicate_by_document(results: list[dict], n: int = 1) -> list[dict]:
@@ -368,7 +272,7 @@ def _query_rag_for_context(
         store = VectorStore(rag_dir / "chunks.parquet")
 
         # Step 1: Consolidate to markdown
-        markdown = consolidate_messages_to_markdown(table)
+        markdown = _build_conversation_markdown_verbose(table)
         if not markdown.strip():
             logger.info("No messages to consolidate for RAG query")
             if return_records:

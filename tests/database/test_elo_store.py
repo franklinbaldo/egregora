@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from egregora.agents.reader.elo import DEFAULT_ELO, calculate_elo_update
+from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import (
     EloStore,
 )
@@ -23,11 +24,15 @@ def temp_db():
 
 
 @pytest.fixture
-def elo_store(temp_db):
-    """Create EloStore instance with temporary database."""
-    store = EloStore(temp_db)
-    yield store
-    store.close()
+def storage(temp_db):
+    """Create a DuckDBStorageManager instance with a temporary database."""
+    return DuckDBStorageManager(db_path=temp_db)
+
+
+@pytest.fixture
+def elo_store(storage):
+    """Create EloStore instance with a storage manager."""
+    return EloStore(storage)
 
 
 class TestEloStoreInitialization:
@@ -35,16 +40,16 @@ class TestEloStoreInitialization:
 
     def test_creates_database_file(self, temp_db):
         """Database file should be created."""
-        store = EloStore(temp_db)
+        storage = DuckDBStorageManager(db_path=temp_db)
+        EloStore(storage)
         assert temp_db.exists()
-        store.close()
 
     def test_creates_ratings_table(self, elo_store):
         """elo_ratings table should exist with correct schema."""
-        tables = elo_store.conn.list_tables()
+        tables = elo_store.storage.ibis_conn.list_tables()
         assert "elo_ratings" in tables
 
-        table = elo_store.conn.table("elo_ratings")
+        table = elo_store.storage.ibis_conn.table("elo_ratings")
         schema = table.schema()
 
         # Check all required columns exist
@@ -62,10 +67,10 @@ class TestEloStoreInitialization:
 
     def test_creates_comparison_history_table(self, elo_store):
         """comparison_history table should exist with correct schema."""
-        tables = elo_store.conn.list_tables()
+        tables = elo_store.storage.ibis_conn.list_tables()
         assert "comparison_history" in tables
 
-        table = elo_store.conn.table("comparison_history")
+        table = elo_store.storage.ibis_conn.table("comparison_history")
         schema = table.schema()
 
         # Check all required columns exist
@@ -85,14 +90,14 @@ class TestEloStoreInitialization:
 
     def test_initialization_is_idempotent(self, temp_db):
         """Creating multiple stores with same DB should not error."""
-        store1 = EloStore(temp_db)
-        store1.close()
+        storage1 = DuckDBStorageManager(db_path=temp_db)
+        EloStore(storage1)
 
         # Second initialization should work
-        store2 = EloStore(temp_db)
-        assert "elo_ratings" in store2.conn.list_tables()
-        assert "comparison_history" in store2.conn.list_tables()
-        store2.close()
+        storage2 = DuckDBStorageManager(db_path=temp_db)
+        store2 = EloStore(storage2)
+        assert "elo_ratings" in store2.storage.ibis_conn.list_tables()
+        assert "comparison_history" in store2.storage.ibis_conn.list_tables()
 
 
 class TestGetRating:
@@ -544,7 +549,7 @@ class TestUpsertRating:
         assert rating.comparisons == 2
 
         # Verify only one record exists
-        ratings_table = elo_store.conn.table("elo_ratings")
+        ratings_table = elo_store.storage.ibis_conn.table("elo_ratings")
         all_ratings = ratings_table.execute()
         post_ratings = all_ratings[all_ratings["post_slug"] == "post"]
         assert len(post_ratings) == 1
@@ -556,7 +561,8 @@ class TestDatabasePersistence:
     def test_ratings_persist_after_close(self, temp_db):
         """Ratings should persist after closing connection."""
         # Create store and add rating
-        store1 = EloStore(temp_db)
+        storage1 = DuckDBStorageManager(db_path=temp_db)
+        store1 = EloStore(storage1)
         new_a, new_b = calculate_elo_update(DEFAULT_ELO, DEFAULT_ELO, "a")
         store1.update_ratings(
             post_a_slug="post-a",
@@ -566,19 +572,19 @@ class TestDatabasePersistence:
             winner="a",
             comparison_id=str(uuid.uuid4()),
         )
-        store1.close()
 
         # Reopen and verify
-        store2 = EloStore(temp_db)
+        storage2 = DuckDBStorageManager(db_path=temp_db)
+        store2 = EloStore(storage2)
         rating = store2.get_rating("post-a")
         assert rating.rating == new_a
         assert rating.comparisons == 1
-        store2.close()
 
     def test_history_persists_after_close(self, temp_db):
         """Comparison history should persist after closing connection."""
         # Create store and add comparison
-        store1 = EloStore(temp_db)
+        storage1 = DuckDBStorageManager(db_path=temp_db)
+        store1 = EloStore(storage1)
         new_a, new_b = calculate_elo_update(DEFAULT_ELO, DEFAULT_ELO, "a")
         comparison_id = str(uuid.uuid4())
         store1.update_ratings(
@@ -589,11 +595,10 @@ class TestDatabasePersistence:
             winner="a",
             comparison_id=comparison_id,
         )
-        store1.close()
 
         # Reopen and verify
-        store2 = EloStore(temp_db)
+        storage2 = DuckDBStorageManager(db_path=temp_db)
+        store2 = EloStore(storage2)
         history = store2.get_comparison_history().execute()
         assert len(history) == 1
         assert history.iloc[0]["comparison_id"] == comparison_id
-        store2.close()
