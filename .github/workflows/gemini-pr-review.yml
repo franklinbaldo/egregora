@@ -97,6 +97,10 @@ jobs:
             core.setOutput('pr_number', prData.number);
             core.setOutput('head_sha', prData.head.sha);
             core.setOutput('base_ref', prData.base.ref);
+            core.setOutput('head_clone_url', prData.head.repo?.clone_url || '');
+            core.setOutput('head_ref', prData.head.ref);
+            core.setOutput('head_repo_full_name', prData.head.repo?.full_name || '');
+            core.setOutput('base_repo_full_name', prData.base.repo?.full_name || '');
             core.setOutput('user_comment', comment);
             core.setOutput('trigger_mode', mode);
 
@@ -111,9 +115,36 @@ jobs:
         if: steps.setup.outputs.skip != 'true'
         env:
           HEAD_SHA: ${{ steps.setup.outputs.head_sha }}
+          HEAD_REF: ${{ steps.setup.outputs.head_ref }}
+          HEAD_CLONE_URL: ${{ steps.setup.outputs.head_clone_url }}
+          HEAD_REPO_FULL_NAME: ${{ steps.setup.outputs.head_repo_full_name }}
+          BASE_REPO_FULL_NAME: ${{ steps.setup.outputs.base_repo_full_name }}
+          PR_NUMBER: ${{ steps.setup.outputs.pr_number }}
         run: |
-          git fetch origin $HEAD_SHA --depth=1
-          git worktree add pr-code $HEAD_SHA
+          set -euo pipefail
+
+          TARGET_SHA="$HEAD_SHA"
+
+          if [ "$HEAD_REPO_FULL_NAME" = "$BASE_REPO_FULL_NAME" ]; then
+            echo "Fetching head commit from origin (same repository)."
+            git fetch origin "$HEAD_SHA" --depth=1
+          else
+            echo "Fork detected from $HEAD_REPO_FULL_NAME. Attempting to fetch from fork origin."
+            if git fetch --depth=1 "$HEAD_CLONE_URL" "$HEAD_REF"; then
+              echo "Successfully fetched from fork remote."
+            else
+              echo "⚠️ Failed to fetch from fork remote. Falling back to PR refs."
+              if git fetch origin "refs/pull/${PR_NUMBER}/head" --depth=1; then
+                TARGET_SHA="$(git rev-parse FETCH_HEAD)"
+                echo "Fetched from refs/pull/${PR_NUMBER}/head using commit $TARGET_SHA."
+              else
+                echo "❌ Unable to fetch PR head from refs/pull/${PR_NUMBER}/head."
+                exit 1
+              fi
+            fi
+          fi
+
+          git worktree add pr-code "$TARGET_SHA"
 
       - name: 📦 Setup Node & Install Deps
         if: steps.setup.outputs.skip != 'true'
