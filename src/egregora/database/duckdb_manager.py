@@ -1,7 +1,7 @@
 """Centralized storage manager for DuckDB + Ibis operations.
 
 Provides a unified interface for reading/writing tables with automatic
-checkpointing and integration with the pipeline view registry.
+checkpointing.
 
 This module implements Priority C.2 from the Architecture Roadmap:
 centralized DuckDB access to eliminate raw SQL and provide consistent
@@ -19,9 +19,10 @@ Usage:
     # Write table with checkpoint
     storage.write_table(table, "enriched_conversations")
 
-    # Execute view from registry
-    from egregora.database.views import views
-    chunks_builder = views.get("chunks")
+    # Execute a named view
+    from egregora.database.views import COMMON_VIEWS
+
+    chunks_builder = COMMON_VIEWS["chunks"]
     result = storage.execute_view("chunks", chunks_builder, "conversations")
 """
 
@@ -34,6 +35,8 @@ from typing import Literal
 import duckdb
 import ibis
 from ibis.expr.types import Table
+
+from egregora.database.views import ViewBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +73,8 @@ class DuckDBStorageManager:
     """Centralized DuckDB connection + Ibis helpers.
 
     Manages database connections, table I/O, and automatic checkpointing
-    for pipeline stages. Integrates with the ViewRegistry for executing
-    named view transformations.
+    for pipeline stages. View transformations are provided as callables
+    (see :mod:`egregora.database.views`).
 
     Attributes:
         db_path: Path to DuckDB file (or None for in-memory)
@@ -197,7 +200,7 @@ class DuckDBStorageManager:
     def execute_view(
         self,
         view_name: str,
-        builder: "ViewBuilder",  # type: ignore[name-defined]
+        builder: ViewBuilder,
         input_table: str,
         *,
         checkpoint: bool = True,
@@ -206,7 +209,7 @@ class DuckDBStorageManager:
 
         Args:
             view_name: Name for output table
-            builder: View builder function from ViewRegistry
+            builder: Callable that transforms an Ibis table
             input_table: Name of input table
             checkpoint: If True, save result to table
 
@@ -214,8 +217,8 @@ class DuckDBStorageManager:
             Result of view transformation
 
         Example:
-            >>> from egregora.database.views import views
-            >>> chunks_builder = views.get("chunks")
+            >>> from egregora.database.views import COMMON_VIEWS
+            >>> chunks_builder = COMMON_VIEWS["chunks"]
             >>> result = storage.execute_view(
             ...     "chunks_materialized",
             ...     chunks_builder,
@@ -235,6 +238,13 @@ class DuckDBStorageManager:
             logger.info("View '%s' materialized from '%s'", view_name, input_table)
 
         return result
+
+    def drop_table(self, name: str) -> None:
+        """Drop a table if it exists."""
+
+        quoted_name = quote_identifier(name)
+        self.conn.execute(f"DROP TABLE IF EXISTS {quoted_name}")
+        logger.info("Dropped table if existed: %s", name)
 
     def table_exists(self, name: str) -> bool:
         """Check if table exists in database.

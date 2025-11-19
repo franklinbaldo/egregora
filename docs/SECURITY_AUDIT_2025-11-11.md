@@ -45,7 +45,7 @@ sql = f"CREATE OR REPLACE TABLE {quote_identifier(name)} AS SELECT * FROM read_p
 
 ---
 
-### 2. SQL Injection in ViewRegistry
+### 2. SQL Injection in ViewRegistry (obsolete)
 
 **File**: `/home/user/egregora/src/egregora/database/views.py`  
 **Lines**: 126-128, 137-140, 184-185, 222, 265, 267  
@@ -54,6 +54,9 @@ sql = f"CREATE OR REPLACE TABLE {quote_identifier(name)} AS SELECT * FROM read_p
 
 **Description**:
 View names are not quoted when building SQL statements. Multiple methods are vulnerable.
+
+**Update (2025-01-09):** The decorator-based view registry has been removed in
+favor of direct callable exports, so this issue no longer applies.
 
 **Code Examples**:
 

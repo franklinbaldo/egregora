@@ -5,9 +5,9 @@ This package consolidates all persistence, state management, and infrastructure:
 - Storage: DuckDB connection management
 - Streaming: Memory-efficient data access utilities
 - Tracking: Run observability and lineage
-- Views: Transformation registry
+- Views: Common transformations for downstream consumers
 
-**Philosophy**: Centralized infrastructure for state, side effects, and registries.
+**Philosophy**: Centralized infrastructure for state and side effects.
 """
 
 from egregora.database import ir_schema as schemas
@@ -35,7 +35,18 @@ from egregora.database.tracking import (
     record_run,
     run_stage_with_tracking,
 )
-from egregora.database.views import ViewBuilder, ViewRegistry, views
+from egregora.database.views import (
+    COMMON_VIEWS,
+    ViewBuilder,
+    chunks_sql,
+    chunks_view,
+    daily_aggregates_view,
+    get_view_builder,
+    hourly_aggregates_view,
+    list_common_views,
+    messages_with_media_view,
+    messages_with_text_view,
+)
 
 __all__ = [
     # Schemas
@@ -55,9 +66,17 @@ __all__ = [
     "stream_ibis",
     # Tracking & Observability
     "RunContext",
-    # View Registry
+    # Views
+    "COMMON_VIEWS",
     "ViewBuilder",
-    "ViewRegistry",
+    "chunks_sql",
+    "chunks_view",
+    "daily_aggregates_view",
+    "get_view_builder",
+    "hourly_aggregates_view",
+    "list_common_views",
+    "messages_with_media_view",
+    "messages_with_text_view",
     # Runs table utilities
     "create_runs_table",
     "duckdb_backend",
@@ -68,5 +87,4 @@ __all__ = [
     "run_stage_with_tracking",
     "schemas",
     "temp_storage",
-    "views",
 ]
