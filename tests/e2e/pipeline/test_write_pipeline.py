@@ -18,8 +18,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
-import pytest
-
 from egregora.orchestration.write_pipeline import (
     WhatsAppProcessOptions,
     process_whatsapp_export,
