@@ -984,9 +984,7 @@ def _prepare_pipeline_data(
             from egregora.agents.writer.writer_runner import index_documents_for_rag
 
             rag_store = VectorStore(env.site_paths.rag_dir / "chunks.parquet", storage=env.storage)
-            indexed_count = index_documents_for_rag(
-                output_format, rag_store, embedding_model=embedding_model
-            )
+            indexed_count = index_documents_for_rag(output_format, rag_store, embedding_model=embedding_model)
             if indexed_count > 0:
                 logger.info("[green]✓ Indexed[/] %s documents into RAG", indexed_count)
             else:
