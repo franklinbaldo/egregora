@@ -225,6 +225,7 @@ def _build_conversation_markdown_table(
             iterable of mapping objects. Pandas DataFrames are intentionally not
             supported to keep the formatting helpers Arrow/Ibis-native.
         annotations_store: Optional annotation store to append inline notes.
+
     """
     records, column_order = _table_to_records(data)
     if not records:
