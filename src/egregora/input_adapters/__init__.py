@@ -5,7 +5,9 @@ converting their specific export formats into the standardized IR schema.
 
 Available Adapters:
 - WhatsAppAdapter: For WhatsApp ZIP exports (production-ready)
-- SlackAdapter: For Slack exports (stub/template for demonstration)
+
+Unavailable / Placeholder:
+- Slack: Disabled; not registered as an input adapter
 
 Plugin System:
 - InputAdapterRegistry: Automatically discovers and loads adapters
@@ -20,11 +22,11 @@ Example:
 
 from egregora.input_adapters.base import InputAdapter
 from egregora.input_adapters.registry import InputAdapterRegistry, get_global_registry
-from egregora.input_adapters.slack import SlackAdapter
+from egregora.input_adapters.slack import SLACK_ADAPTER_PLACEHOLDER
 from egregora.input_adapters.whatsapp import WhatsAppAdapter
 
 # Legacy registry (deprecated in favor of InputAdapterRegistry)
-ADAPTER_REGISTRY: dict[str, type] = {"whatsapp": WhatsAppAdapter, "slack": SlackAdapter}
+ADAPTER_REGISTRY: dict[str, type] = {"whatsapp": WhatsAppAdapter}
 
 
 def get_adapter(source_identifier: str) -> InputAdapter:
@@ -33,7 +35,7 @@ def get_adapter(source_identifier: str) -> InputAdapter:
     DEPRECATED: Use get_global_registry().get() instead.
 
     Args:
-        source_identifier: Source identifier (e.g., "whatsapp", "slack")
+        source_identifier: Source identifier (e.g., "whatsapp")
 
     Returns:
         Adapter instance
@@ -58,13 +60,13 @@ def list_adapters() -> list[str]:
     """List all registered adapter identifiers.
 
     Returns:
-        List of adapter source identifiers (e.g., ["whatsapp", "slack"])
+        List of adapter source identifiers (e.g., ["whatsapp"])
 
     Example:
         >>> from egregora.input_adapters import list_adapters
         >>> adapters = list_adapters()
         >>> print(adapters)
-        ['whatsapp', 'slack']
+        ['whatsapp']
 
     """
     registry = get_global_registry()
@@ -73,7 +75,7 @@ def list_adapters() -> list[str]:
 
 __all__ = [
     "InputAdapterRegistry",
-    "SlackAdapter",
+    "SLACK_ADAPTER_PLACEHOLDER",
     "WhatsAppAdapter",
     "get_adapter",
     "get_global_registry",

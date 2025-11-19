@@ -1,4 +1,4 @@
-"""Tests for source adapters (WhatsApp, Slack, etc.)."""
+"""Tests for source adapters (WhatsApp, Slack placeholder, etc.)."""
 
 import tempfile
 from pathlib import Path
@@ -7,7 +7,7 @@ import pytest
 
 from egregora.database.validation import validate_ir_schema
 from egregora.input_adapters import ADAPTER_REGISTRY, get_adapter
-from egregora.input_adapters.slack import SlackAdapter
+from egregora.input_adapters.slack import SLACK_ADAPTER_PLACEHOLDER
 from egregora.input_adapters.whatsapp import WhatsAppAdapter
 
 
@@ -19,25 +19,24 @@ class TestAdapterRegistry:
         assert "whatsapp" in ADAPTER_REGISTRY
         assert ADAPTER_REGISTRY["whatsapp"] == WhatsAppAdapter
 
-    def test_registry_contains_slack_adapter(self):
-        """Registry should contain Slack adapter."""
-        assert "slack" in ADAPTER_REGISTRY
-        assert ADAPTER_REGISTRY["slack"] == SlackAdapter
-
     def test_get_adapter_returns_whatsapp_instance(self):
         """get_adapter should return WhatsApp adapter instance."""
         adapter = get_adapter("whatsapp")
         assert isinstance(adapter, WhatsAppAdapter)
 
-    def test_get_adapter_returns_slack_instance(self):
-        """get_adapter should return Slack adapter instance."""
-        adapter = get_adapter("slack")
-        assert isinstance(adapter, SlackAdapter)
+    def test_slack_adapter_not_registered(self):
+        """Slack should not be registered as a built-in adapter."""
+        assert "slack" not in ADAPTER_REGISTRY
 
     def test_get_adapter_raises_for_unknown_source(self):
         """get_adapter should raise KeyError for unknown source."""
         with pytest.raises(KeyError, match="Unknown source"):
             get_adapter("discord")
+
+    def test_get_adapter_raises_for_disabled_slack(self):
+        """Slack adapter should not be available via get_adapter."""
+        with pytest.raises(KeyError, match="Unknown source: 'slack'"):
+            get_adapter("slack")
 
 
 class TestWhatsAppAdapter:
@@ -102,66 +101,13 @@ class TestWhatsAppAdapter:
         assert callable(getattr(adapter, method_name))
 
 
-class TestSlackAdapter:
-    """Test Slack adapter (stub implementation)."""
+class TestSlackPlaceholder:
+    """Test Slack placeholder messaging."""
 
-    def test_source_name(self):
-        """Slack adapter should have correct source name."""
-        adapter = SlackAdapter()
-        assert adapter.source_name == "Slack"
-
-    def test_source_identifier(self):
-        """Slack adapter should have correct identifier."""
-        adapter = SlackAdapter()
-        assert adapter.source_identifier == "slack"
-
-    @pytest.mark.xfail(reason="Slack adapter is a stub - not yet implemented")
-    def test_parse_with_nonexistent_file_raises(self):
-        """Parse should raise FileNotFoundError for missing file."""
-        adapter = SlackAdapter()
-
-        with pytest.raises(FileNotFoundError):
-            adapter.parse(Path("/nonexistent/export.json"))
-
-    @pytest.mark.xfail(reason="Slack adapter is a stub - not yet implemented")
-    def test_parse_returns_valid_ir_schema(self):
-        """Parse should return a table conforming to IR schema (even if empty)."""
-        adapter = SlackAdapter()
-
-        # Create a temporary empty JSON file
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
-            tmp.write("{}")
-            tmp_path = Path(tmp.name)
-
-        try:
-            table = adapter.parse(tmp_path, timezone="UTC")
-
-            # Validate IR schema (empty table is valid)
-            is_valid, errors = validate_ir_schema(table)
-            assert is_valid, f"IR schema validation failed: {errors}"
-
-        finally:
-            tmp_path.unlink()
-
-    @pytest.mark.xfail(reason="Slack adapter is a stub - not yet implemented")
-    def test_extract_media_returns_empty_dict(self):
-        """extract_media should return empty dict (stub)."""
-        adapter = SlackAdapter()
-
-        result = adapter.extract_media(Path("/mock/path.json"), Path("/output"))
-
-        assert result == {}
-
-    @pytest.mark.xfail(reason="Slack adapter is a stub - not yet implemented")
-    def test_get_metadata_returns_dict(self):
-        """get_metadata should return a dictionary."""
-        adapter = SlackAdapter()
-
-        metadata = adapter.get_metadata(Path("/mock/path.json"))
-
-        assert isinstance(metadata, dict)
-        assert "channel_name" in metadata
+    def test_placeholder_mentions_disabled_status(self):
+        """Placeholder should clearly indicate Slack is disabled."""
+        placeholder = SLACK_ADAPTER_PLACEHOLDER.lower()
+        assert "disabled" in placeholder or "not registered" in placeholder
 
 
 class TestAdapterContract:
