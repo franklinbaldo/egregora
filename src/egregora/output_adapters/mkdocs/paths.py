@@ -31,7 +31,6 @@ class _ConfigLoader(yaml.SafeLoader):
 
 def _construct_python_name(loader: yaml.SafeLoader, _suffix: str, node: yaml.Node) -> str:
     """Return python/name tags as plain strings."""
-
     if isinstance(node, yaml.ScalarNode):
         return loader.construct_scalar(node)
     return ""
@@ -44,7 +43,6 @@ def _construct_env(loader: yaml.SafeLoader, node: yaml.Node) -> str:
     - A string: !ENV VAR_NAME
     - A list: !ENV [VAR_NAME, "default_value"]
     """
-
     if isinstance(node, yaml.ScalarNode):
         var_name = loader.construct_scalar(node)
         return os.environ.get(var_name, "")
@@ -106,7 +104,6 @@ def find_mkdocs_file(
 
     MODERN (Regression Fix): Checks .egregora/mkdocs.yml first, then root mkdocs.yml.
     """
-
     current = start.expanduser().resolve()
     for candidate in (current, *current.parents):
         # Check .egregora/mkdocs.yml first (new location)
@@ -128,7 +125,6 @@ def load_mkdocs_config(
     Annotated[Path | None, "The path to the found mkdocs.yml, or None"],
 ]:
     """Load ``mkdocs.yml`` as a dict, returning empty config when missing."""
-
     mkdocs_path = find_mkdocs_file(start)
     if not mkdocs_path:
         logger.debug("mkdocs.yml not found when starting from %s", start)
@@ -153,8 +149,8 @@ def _resolve_docs_dir(mkdocs_path: Path | None, config: dict[str, Any]) -> Path:
 
     Note:
         docs_dir is resolved relative to mkdocs.yml location (same as MkDocs behavior)
-    """
 
+    """
     docs_setting = config.get("docs_dir", DEFAULT_DOCS_DIR)
     docs_setting = "." if docs_setting in ("./", "") else docs_setting
 
@@ -172,7 +168,6 @@ def _resolve_docs_dir(mkdocs_path: Path | None, config: dict[str, Any]) -> Path:
 
 def _extract_blog_dir(config: dict[str, Any]) -> str | None:
     """Extract blog_dir from the blog plugin configuration."""
-
     plugins = config.get("plugins") or []
     for plugin in plugins:
         if isinstance(plugin, str):
@@ -193,8 +188,8 @@ def _try_load_mkdocs_path_from_config(start: Path) -> Path | None:
 
     Returns:
         Absolute path to mkdocs.yml if configured, None otherwise
-    """
 
+    """
     # Search upward for .egregora/config.yml
     current = start.expanduser().resolve()
     for candidate in (current, *current.parents):
@@ -222,7 +217,6 @@ def resolve_site_paths(start: Annotated[Path, "The starting directory for path r
     MODERN (Regression Fix): Content at root level (not in docs/).
     MODERN (Phase N): Respects output.mkdocs_config_path from .egregora/config.yml
     """
-
     start = start.expanduser().resolve()
 
     # Try to load .egregora/config.yml to check for custom mkdocs_config_path
