@@ -7,9 +7,9 @@ to the IR v1 schema specification at runtime. It combines:
 2. **Runtime validation**: Validates sample rows using Pydantic models
 3. **Adapter boundary enforcement**: Validates adapter outputs before pipeline
 
-**Canonical Schema**: The `IR_MESSAGE_SCHEMA` defined in this module is the
-single source of truth for the IR v1 specification. All adapters MUST produce
-tables conforming to this schema.
+**Canonical Schema**: The `IR_MESSAGE_SCHEMA` imported from
+`egregora.database.ir_schema` is the single source of truth for the IR v1
+specification. All adapters MUST produce tables conforming to this schema.
 
 Usage:
 
@@ -57,6 +57,7 @@ import ibis
 import ibis.expr.datatypes as dt
 from pydantic import BaseModel, Field, ValidationError, create_model
 
+from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.privacy.uuid_namespaces import (
     deterministic_author_uuid,
     deterministic_event_uuid,
@@ -173,40 +174,6 @@ def ibis_schema_to_pydantic(
     if frozen:
         model.model_config = ConfigDict(frozen=True)
     return model
-
-
-# ============================================================================
-# IR v1 Schema Definition (Ibis)
-# ============================================================================
-
-IR_MESSAGE_SCHEMA = ibis.schema(
-    {
-        # Identity
-        # NOTE: UUID columns stored as dt.string in Ibis, DuckDB schema handles conversion to UUID type
-        "event_id": dt.string,
-        # Multi-Tenant
-        "tenant_id": dt.string,
-        "source": dt.string,
-        # Threading
-        "thread_id": dt.string,
-        "msg_id": dt.string,
-        # Temporal
-        "ts": dt.Timestamp(timezone="UTC"),
-        # Authors (PRIVACY BOUNDARY)
-        "author_raw": dt.string,
-        "author_uuid": dt.string,
-        # Content
-        "text": dt.String(nullable=True),
-        "media_url": dt.String(nullable=True),
-        "media_type": dt.String(nullable=True),
-        # Metadata
-        "attrs": dt.JSON(nullable=True),
-        "pii_flags": dt.JSON(nullable=True),
-        # Lineage
-        "created_at": dt.Timestamp(timezone="UTC"),
-        "created_by_run": dt.string,
-    }
-)
 
 
 # ============================================================================
