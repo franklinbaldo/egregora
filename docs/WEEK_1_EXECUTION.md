@@ -79,7 +79,6 @@
 1. **Runs Table Schema** (30 min)
    - [ ] Create `schema/runs_v1.sql`
    - [ ] Create `schema/lineage_v1.sql`
-   - [ ] Add migration script: `scripts/create_runs_tables.py`
    - [ ] Test: DuckDB table creation
 
 2. **Runs Tracking Implementation** (1.5 hours)
@@ -214,7 +213,18 @@
 **Solution**: Ensure all LLM functions have `privacy_pass: PrivacyPass` as kwarg-only param
 
 ### Issue: Runs table not created
-**Solution**: Run `uv run python scripts/create_runs_tables.py` manually
+**Solution**: The runs table is created automatically via `record_run()` (which calls
+`ensure_runs_table_exists`). To force creation manually, run:
+
+```bash
+uv run python - <<'PY'
+from egregora.database import duckdb_backend, ensure_runs_table_exists
+
+backend = duckdb_backend(".egregora-cache/runs.duckdb")
+ensure_runs_table_exists(backend.con)
+print("Runs table ready")
+PY
+```
 
 ### Issue: Golden test timeout
 **Solution**: Disable enrichment, focus on structural pipeline only

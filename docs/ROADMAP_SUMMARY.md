@@ -236,7 +236,6 @@ docs/ROADMAP_SUMMARY.md        (this file) - Executive summary
 
 **Tools**:
 - `scripts/check_ir_schema.py` (to be created)
-- `scripts/create_runs_tables.py` (to be created)
 - `egregora doctor` (to be created)
 - `egregora runs tail` (to be created)
 
