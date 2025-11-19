@@ -812,7 +812,7 @@ def create_output_format(site_root: Path, format_type: str = "mkdocs") -> Output
 
     Args:
         site_root: Root directory for the site
-        format_type: Output format type from config ('mkdocs', 'hugo', etc.)
+        format_type: Output format type from config (e.g., 'mkdocs')
 
     Returns:
         Initialized OutputAdapter instance
@@ -824,12 +824,10 @@ def create_output_format(site_root: Path, format_type: str = "mkdocs") -> Output
     Examples:
         >>> # From config: output.format = "mkdocs"
         >>> fmt = create_output_format(site_root, format_type="mkdocs")
-        >>> # From config: output.format = "hugo"
-        >>> fmt = create_output_format(site_root, format_type="hugo")
 
     Note:
         This function automatically ensures the registry is populated by
-        importing egregora.rendering (which registers MkDocs and Hugo formats).
+        importing egregora.rendering (which registers the supported formats).
 
     """
     # Ensure registry is populated by importing rendering module
