@@ -3,19 +3,15 @@
 from __future__ import annotations
 
 import hashlib
-import importlib
 import json
 import logging
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC
-from functools import lru_cache
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import pandas as pd
 import pyarrow as pa
 from ibis.expr.types import Table
 
@@ -61,33 +57,12 @@ def _load_journal_memory(output_dir: Path) -> str:
         return ""
 
 
-@lru_cache(maxsize=1)
-def _pandas_dataframe_type() -> type[pd.DataFrame] | None:
-    """Return the pandas DataFrame type when pandas is available."""
-    try:
-        pandas_module = importlib.import_module("pandas")
-    except ModuleNotFoundError:
-        return None
-    return pandas_module.DataFrame
-
-
-@lru_cache(maxsize=1)
-def _pandas_na_singleton() -> object | None:
-    """Return the pandas.NA singleton when pandas is available."""
-    try:
-        pandas_module = importlib.import_module("pandas")
-    except ModuleNotFoundError:
-        return None
-    return pandas_module.NA
-
-
 def _stringify_value(value: object) -> str:
     """Convert values to safe strings for table rendering."""
     if isinstance(value, str):
         return value
-    pandas_na = _pandas_na_singleton()
     pyarrow_na = getattr(pa, "NA", None)
-    if value is None or value is pandas_na or value is pyarrow_na:
+    if value is None or value is pyarrow_na:
         return ""
     if isinstance(value, pa.Scalar):
         return _stringify_value(value.as_py()) if value.is_valid else ""
@@ -181,7 +156,12 @@ def _merge_message_and_annotations(message_value: object, annotations: list[Anno
 def _table_to_records(
     data: pa.Table | Iterable[Mapping[str, object]] | Sequence[Mapping[str, object]],
 ) -> tuple[list[dict[str, object]], list[str]]:
-    """Normalize heterogeneous tabular inputs into row dictionaries."""
+    """Normalize supported tabular inputs into row dictionaries.
+
+    Only :class:`pyarrow.Table` instances or iterables of mapping objects are
+    accepted. This keeps the formatting path aligned with Arrow/Ibis-native
+    execution without importing pandas at runtime.
+    """
     if isinstance(data, pa.Table):
         column_names = [str(name) for name in data.column_names]
         columns = {name: data.column(index).to_pylist() for index, name in enumerate(column_names)}
@@ -189,18 +169,22 @@ def _table_to_records(
             {name: columns[name][row_index] for name in column_names} for row_index in range(data.num_rows)
         ]
         return (records, column_names)
-    dataframe_type = _pandas_dataframe_type()
-    if dataframe_type is not None and isinstance(data, dataframe_type):
-        df_column_names = [str(column) for column in data.columns]
-        df_records = [{str(k): v for k, v in record.items()} for record in data.to_dict("records")]
-        return (df_records, df_column_names)
+    if isinstance(data, Mapping):
+        msg = "Expected an iterable of mappings, not a single mapping object"
+        raise TypeError(msg)
     if isinstance(data, Iterable):
-        iter_records = [{str(k): v for k, v in row.items()} for row in data]
+        iter_records: list[dict[str, object]] = []
         iter_column_names: list[str] = []
-        for record in iter_records:
-            for key in record:
-                if key not in iter_column_names:
-                    iter_column_names.append(str(key))
+        for row in data:
+            if not isinstance(row, Mapping):
+                msg = "Iterable inputs must yield mapping objects"
+                raise TypeError(msg)
+            normalized = {str(k): v for k, v in row.items()}
+            iter_records.append(normalized)
+            for key in normalized:
+                key_str = str(key)
+                if key_str not in iter_column_names:
+                    iter_column_names.append(key_str)
         return (iter_records, iter_column_names)
     msg = "Unsupported data source for markdown rendering"
     raise TypeError(msg)
@@ -234,7 +218,15 @@ def _build_conversation_markdown_table(
     data: pa.Table | Iterable[Mapping[str, object]] | Sequence[Mapping[str, object]],
     annotations_store: AnnotationStore | None,
 ) -> str:
-    """Render conversation rows into markdown with inline annotations."""
+    """Render conversation rows into markdown with inline annotations.
+
+    Args:
+        data: Conversation rows provided as a :class:`pyarrow.Table` or an
+            iterable of mapping objects. Pandas DataFrames are intentionally not
+            supported to keep the formatting helpers Arrow/Ibis-native.
+        annotations_store: Optional annotation store to append inline notes.
+
+    """
     records, column_order = _table_to_records(data)
     if not records:
         return ""

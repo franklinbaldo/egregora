@@ -20,7 +20,8 @@ The Pydantic backend adapter was calling `_build_conversation_markdown()` withou
 **Fix** (core.py:548-555):
 ```python
 # Initialize annotation store
-annotations_store = AnnotationStore(rag_dir / "annotations.parquet")
+storage = DuckDBStorageManager(db_path=rag_dir / "annotations.parquet")
+annotations_store = AnnotationStore(storage)
 
 # Convert Ibis table to PyArrow for formatting
 messages_table = table.to_pyarrow()

@@ -69,8 +69,9 @@ Add the following secret to your repository (Settings → Secrets and variables 
 
 You can customize the Gemini model by setting a repository variable:
 
-- **`GEMINI_MODEL`**: The Gemini model to use (default: `gemini-flash-latest`)
-  - Available models: `gemini-flash-latest`, `gemini-1.5-pro-002`, etc.
+- **`GEMINI_MODEL`**: The Gemini model to use (default: `gemini-3-pro-preview`)
+  - Available models: `gemini-3-pro-preview`, `gemini-1.5-pro-002`, `gemini-1.5-flash-latest`, etc.
+  - Legacy values such as `gemini-1.5-flash` and `gemini-flash-latest` are automatically mapped to the supported default, and the script automatically adds the `models/` prefix if omitted.
   - Set at: Settings → Secrets and variables → Actions → Variables
 
 ## Customizing Repomix Output
@@ -178,9 +179,9 @@ These are retained for 7 days and can be downloaded from the workflow run page.
 
 ## Model Selection
 
-- **gemini-flash-latest** (default): Fast, cost-effective, good for most PRs - always uses the latest Flash model
-- **gemini-1.5-pro-002**: More thorough analysis, better for complex changes
-- **gemini-1.5-flash-8b**: Lightweight option for simple PRs
+- **gemini-3-pro-preview** (default): Newest Pro reasoning model with the best code understanding
+- **gemini-1.5-pro-002**: Thorough analysis for complex changes
+- **gemini-1.5-flash-latest**: Fast, cost-effective option when Pro is unnecessary
 
 You can change the model by setting the `GEMINI_MODEL` repository variable.
 

@@ -206,9 +206,11 @@ Beyond embeddings, Egregora stores conversation metadata:
 ```python
 from pathlib import Path
 
+from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.knowledge import AnnotationStore
 
-annotation_store = AnnotationStore(Path("output/annotations.duckdb"))
+storage = DuckDBStorageManager(db_path=Path("output/annotations.duckdb"))
+annotation_store = AnnotationStore(storage)
 annotation_store.save_annotation(
     msg_id="msg-2025-01-01-0001",
     commentary="Follow up on the launch checklist",

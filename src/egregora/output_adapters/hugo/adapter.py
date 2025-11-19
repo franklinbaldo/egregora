@@ -66,14 +66,8 @@ class HugoOutputAdapter(OutputAdapter):
     """
 
     def __init__(self) -> None:
-        """Initialize HugoOutputAdapter with uninitialized storage."""
+        """Initialize HugoOutputAdapter."""
         self._site_root: Path | None = None
-        # Note: These storage classes were consolidated into MkDocsAdapter in PR #750
-        # This template needs to be updated to use the new architecture
-        self._posts_impl: Any = None
-        self._profiles_impl: Any = None
-        self._journals_impl: Any = None
-        self._enrichments_impl: Any = None
 
     @property
     def format_type(self) -> str:
@@ -102,72 +96,6 @@ class HugoOutputAdapter(OutputAdapter):
             "Hugo adapter is a template/example and needs to be updated to use "
             "the new MkDocsAdapter architecture after PR #750 refactoring"
         )
-
-        logger.debug("Initialized Hugo storage for %s", site_root)
-
-    @property
-    def posts(self) -> Any:
-        """Get Hugo post storage implementation.
-
-        Returns:
-            PostStorage instance (currently MkDocs placeholder)
-
-        Raises:
-            RuntimeError: If format not initialized (call initialize() first)
-
-        """
-        if self._posts_impl is None:
-            msg = "HugoOutputAdapter not initialized - call initialize(site_root) first"
-            raise RuntimeError(msg)
-        return self._posts_impl
-
-    @property
-    def profiles(self) -> Any:
-        """Get Hugo profile storage implementation.
-
-        Returns:
-            ProfileStorage instance (currently MkDocs placeholder)
-
-        Raises:
-            RuntimeError: If format not initialized (call initialize() first)
-
-        """
-        if self._profiles_impl is None:
-            msg = "HugoOutputAdapter not initialized - call initialize(site_root) first"
-            raise RuntimeError(msg)
-        return self._profiles_impl
-
-    @property
-    def journals(self) -> Any:
-        """Get Hugo journal storage implementation.
-
-        Returns:
-            JournalStorage instance (currently MkDocs placeholder)
-
-        Raises:
-            RuntimeError: If format not initialized (call initialize() first)
-
-        """
-        if self._journals_impl is None:
-            msg = "HugoOutputAdapter not initialized - call initialize(site_root) first"
-            raise RuntimeError(msg)
-        return self._journals_impl
-
-    @property
-    def enrichments(self) -> Any:
-        """Get Hugo enrichment storage implementation.
-
-        Returns:
-            EnrichmentStorage instance (currently MkDocs placeholder)
-
-        Raises:
-            RuntimeError: If format not initialized (call initialize() first)
-
-        """
-        if self._enrichments_impl is None:
-            msg = "HugoOutputAdapter not initialized - call initialize(site_root) first"
-            raise RuntimeError(msg)
-        return self._enrichments_impl
 
     def supports_site(self, site_root: Path) -> bool:
         """Check if the site root is a Hugo site.

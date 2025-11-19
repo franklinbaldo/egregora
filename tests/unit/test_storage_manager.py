@@ -7,7 +7,12 @@ import ibis
 import pytest
 from ibis.expr.types import Table
 
-from egregora.database.duckdb_manager import DuckDBStorageManager, temp_storage
+from egregora.database.duckdb_manager import (
+    DuckDBNoOpVectorBackend,
+    DuckDBStorageManager,
+    DuckDBVectorBackend,
+    temp_storage,
+)
 
 
 class TestStorageManagerInit:
@@ -368,3 +373,68 @@ class TestEdgeCases:
             result = storage.read_table("special_chars")
             df = result.execute()
             assert len(df) == 4
+
+
+class TestSequenceHelpers:
+    def test_sequence_creation_and_next_value(self):
+        with DuckDBStorageManager() as storage:
+            storage.ensure_sequence("test_seq")
+            first = storage.next_sequence_value("test_seq")
+            second = storage.next_sequence_value("test_seq")
+
+            assert second == first + 1
+
+    def test_sequence_default_and_sync(self):
+        with DuckDBStorageManager() as storage:
+            storage.ensure_sequence("table_seq")
+            storage.conn.execute(
+                """
+                CREATE TABLE records (
+                    id INTEGER,
+                    name VARCHAR
+                )
+                """
+            )
+            storage.ensure_sequence_default("records", "id", "table_seq")
+
+            storage.conn.execute("INSERT INTO records (id, name) VALUES (10, 'alpha')")
+            storage.sync_sequence_with_table("table_seq", table="records", column="id")
+
+            assert storage.next_sequence_value("table_seq") >= 11
+
+    def test_next_sequence_values_batch(self):
+        with DuckDBStorageManager() as storage:
+            storage.ensure_sequence("batch_seq")
+            values = storage.next_sequence_values("batch_seq", count=3)
+
+            assert values == [1, 2, 3]
+
+
+class TestVectorBackendFactory:
+    """Ensure DuckDBStorageManager exposes vector backends."""
+
+    def test_create_vector_backend_defaults_to_duckdb_impl(self):
+        with DuckDBStorageManager() as storage:
+            backend = storage.create_vector_backend()
+            assert isinstance(backend, DuckDBVectorBackend)
+            # Should be able to safely drop non-existent tables
+            backend.drop_table("nonexistent_chunks")
+
+    def test_create_vector_backend_noop(self):
+        with DuckDBStorageManager() as storage:
+            backend = storage.create_vector_backend(enable_vss=False)
+            assert isinstance(backend, DuckDBNoOpVectorBackend)
+            assert backend.install_extensions() is False
+
+    def test_vector_backend_materializes_table(self, tmp_path):
+        db_path = tmp_path / "backend.duckdb"
+        parquet_path = tmp_path / "chunks.parquet"
+        with DuckDBStorageManager(db_path=db_path) as storage:
+            backend = storage.create_vector_backend(enable_vss=False)
+            storage.conn.execute(
+                "COPY (SELECT 'chunk-1' AS chunk_id) TO ? (FORMAT PARQUET)",
+                [str(parquet_path)],
+            )
+            backend.materialize_chunks_table("rag_chunks_test", parquet_path)
+            assert backend.table_exists("rag_chunks_test")
+            assert backend.row_count("rag_chunks_test") == 1

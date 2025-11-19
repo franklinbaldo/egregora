@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from egregora.agents.shared.annotations import ANNOTATION_AUTHOR, Annotation, AnnotationStore
 from egregora.data_primitives.document import DocumentType
+from egregora.database.duckdb_manager import DuckDBStorageManager
 
 
 def test_annotation_to_document_roundtrip_metadata():
@@ -31,14 +32,15 @@ def test_annotation_to_document_roundtrip_metadata():
 
 
 def test_store_iterates_annotations_as_documents(tmp_path):
-    store = AnnotationStore(tmp_path / "annotations.duckdb")
-    note_a = store.save_annotation("message-1", "message", "First note")
-    note_b = store.save_annotation(str(note_a.id), "annotation", "Second layer")
+    with DuckDBStorageManager(db_path=tmp_path / "annotations.duckdb") as storage:
+        store = AnnotationStore(storage)
+        note_a = store.save_annotation("message-1", "message", "First note")
+        note_b = store.save_annotation(str(note_a.id), "annotation", "Second layer")
 
-    documents = list(store.iter_annotation_documents())
+        documents = list(store.iter_annotation_documents())
 
-    assert [doc.metadata["annotation_id"] for doc in documents] == [str(note_a.id), str(note_b.id)]
-    assert all(doc.type is DocumentType.ANNOTATION for doc in documents)
+        assert [doc.metadata["annotation_id"] for doc in documents] == [str(note_a.id), str(note_b.id)]
+        assert all(doc.type is DocumentType.ANNOTATION for doc in documents)
 
 
 def test_annotation_documents_preserve_unique_identity():

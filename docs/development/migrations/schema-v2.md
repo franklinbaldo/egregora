@@ -90,8 +90,11 @@ All schema migrations are **automatically applied** when the application starts:
 If you want to inspect or manually control migration:
 
 ```python
+from pathlib import Path
+
 import ibis
 from egregora.data_primitives import database_schema
+from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.knowledge.rag.store import VectorStore
 from egregora.knowledge.annotations import AnnotationStore
 
@@ -104,7 +107,7 @@ print(conn.sql("PRAGMA table_info('rag_index_meta')").execute())
 
 # Migrations run automatically on instantiation
 store = VectorStore(db_path="path/to/your.db")
-annotation_store = AnnotationStore(db_path="path/to/your.db")
+annotation_store = AnnotationStore(DuckDBStorageManager(db_path=Path("path/to/your.db")))
 ```
 
 ### Rollback
