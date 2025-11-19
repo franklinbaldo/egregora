@@ -38,6 +38,7 @@ from typing import Any, TypeVar
 
 import duckdb
 import ibis
+
 from egregora.utils.git import get_git_commit_sha
 
 # Type variable for stage function return type
