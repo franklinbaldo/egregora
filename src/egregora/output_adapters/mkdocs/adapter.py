@@ -29,8 +29,6 @@ from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 from egregora.output_adapters.mkdocs.paths import (
     SitePaths,
-    configured_mkdocs_path,
-    load_config_for_paths,
     resolve_site_paths,
 )
 from egregora.utils.frontmatter_utils import parse_frontmatter
@@ -267,21 +265,18 @@ class MkDocsAdapter(OutputAdapter):
             return False
 
         try:
-            config = load_config_for_paths(site_root)
+            site_paths = resolve_site_paths(site_root)
         except Exception as exc:  # pragma: no cover - defensive guardrail
-            logger.debug("Failed to load config from %s: %s", site_root, exc)
+            logger.debug("Failed to resolve site paths from %s: %s", site_root, exc)
             return False
 
-        mkdocs_path = configured_mkdocs_path(site_root, config)
-        if mkdocs_path.exists():
+        # Check if mkdocs.yml exists at the resolved path
+        if site_paths.mkdocs_path and site_paths.mkdocs_path.exists():
             return True
 
-        # If no custom path is configured, also guard against legacy mkdocs.yml
-        if not config.output.mkdocs_config_path:
-            legacy_path = site_root / "mkdocs.yml"
-            return legacy_path.exists()
-
-        return False
+        # Also check legacy location at root
+        legacy_path = site_root / "mkdocs.yml"
+        return legacy_path.exists()
 
     def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure.
