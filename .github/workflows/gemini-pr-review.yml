@@ -128,15 +128,19 @@ jobs:
       - name: 📄 Generate Context (Repomix)
         if: steps.setup.outputs.skip != 'true'
         run: |
-          # Copy trusted ignore file if it exists
+          # Run Repomix from the trusted checkout so PR-provided node_modules cannot
+          # shadow the CLI. Copy our vetted ignore file into the worktree so the
+          # generated context matches local expectations.
           [ -f .repomixignore ] && cp .repomixignore pr-code/.repomixignore
-          
-          cd pr-code
-          # Run repomix ignoring heavy files to save tokens
-          npx -y repomix@latest \
-            --output ../repomix.txt \
+
+          # Always execute the published Repomix package (not anything from pr-code)
+          # and explicitly point it at the untrusted checkout via a path argument so
+          # we never need to cd into pr-code where attacker-controlled scripts might
+          # run with repository secrets in scope.
+          npx --yes --package repomix@1.9.1 repomix ./pr-code \
+            --output repomix.txt \
             --ignore "**/*.lock,**/package-lock.json,**/node_modules/**,**/*.png,**/*.jpg"
-          
+
           echo "✅ Repository context generated."
 
       - name: 📄 Fetch Diff & Chat History
