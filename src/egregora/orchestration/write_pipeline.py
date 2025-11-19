@@ -42,7 +42,7 @@ from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
 from egregora.enrichment.runners import EnrichmentRuntimeContext
 from egregora.input_adapters import get_adapter
 from egregora.input_adapters.whatsapp.parser import extract_commands, filter_egregora_messages
-from egregora.output_adapters.mkdocs import resolve_site_paths
+from egregora.output_adapters.mkdocs import load_site_paths
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.transformations.media import process_media_for_window
 from egregora.utils.cache import EnrichmentCache
@@ -84,7 +84,7 @@ def process_whatsapp_export(
     """High-level helper for processing WhatsApp ZIP exports using :func:`run`."""
     opts = options or WhatsAppProcessOptions()
     output_dir = opts.output_dir.expanduser().resolve()
-    site_paths = resolve_site_paths(output_dir)
+    site_paths = load_site_paths(output_dir)
 
     base_config = load_egregora_config(site_paths.site_root)
 
@@ -672,7 +672,7 @@ def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> an
 def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> SitePaths:
     """Resolve site paths for the configured output format."""
     output_dir = output_dir.expanduser().resolve()
-    base_paths = resolve_site_paths(output_dir)
+    base_paths = load_site_paths(output_dir)
 
     if config.output.format != "eleventy-arrow":
         return base_paths
