@@ -12,8 +12,6 @@ from egregora.output_adapters.mkdocs.paths import (
     MEDIA_DIR_NAME,
     PROFILES_DIR_NAME,
     SitePaths,
-    find_mkdocs_file,
-    load_mkdocs_config,
     resolve_site_paths,
 )
 
@@ -23,7 +21,5 @@ __all__ = [
     "MEDIA_DIR_NAME",
     "PROFILES_DIR_NAME",
     "SitePaths",
-    "find_mkdocs_file",
-    "load_mkdocs_config",
     "resolve_site_paths",
 ]

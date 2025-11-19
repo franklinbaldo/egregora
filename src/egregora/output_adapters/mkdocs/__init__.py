@@ -15,8 +15,6 @@ from egregora.output_adapters.mkdocs.adapter import (
 )
 from egregora.output_adapters.mkdocs.paths import (
     SitePaths,
-    find_mkdocs_file,
-    load_mkdocs_config,
     resolve_site_paths,
 )
 
@@ -24,8 +22,6 @@ __all__ = [
     "MkDocsAdapter",
     "MkDocsUrlConvention",
     "SitePaths",
-    "find_mkdocs_file",
-    "load_mkdocs_config",
     "resolve_site_paths",
     "secure_path_join",
 ]
