@@ -19,3 +19,10 @@ Use this section to tell people how to report a vulnerability.
 Tell them where to go, how often they can expect to get an update on a
 reported vulnerability, what to expect if the vulnerability is accepted or
 declined, etc.
+
+## Secure Development Practices
+
+To reduce the risk of regressions that could impact security, all contributors must install the repository's pre-commit hooks
+right after cloning. Run `python dev_tools/setup_hooks.py` (or `uv run pre-commit install`) so linting, formatting, and security
+scans execute locally on every commit—the same checks that run in CI. Contributions submitted without the hooks will be asked to
+install them before review continues.

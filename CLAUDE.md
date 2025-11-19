@@ -76,6 +76,13 @@ uv run egregora runs show <run_id>      # Run details
 cd output && uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
 ```
 
+## Pre-commit Hooks Are Mandatory
+
+Every contributor must install the repository's pre-commit hooks immediately after cloning so local commits run the same linting,
+formatting, and security checks as CI. Run `python dev_tools/setup_hooks.py` (preferred) or `uv run pre-commit install` before
+opening a pull request, and re-run the command whenever the hook list changes. If the hooks are missing, your commits may fail in
+CI and will be blocked from merging.
+
 **VCR cassettes**: First run needs `GOOGLE_API_KEY`, subsequent runs replay from `tests/cassettes/`.
 
 ## Parallel Subagent Delegation
