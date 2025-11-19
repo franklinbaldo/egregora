@@ -333,7 +333,6 @@ def test_run_stage_with_tracking_success(
     sample_table: ibis.Table,
 ):
     """run_stage_with_tracking() records successful stage execution."""
-
     # Define simple stage function
     def simple_stage(*, input_table: ibis.Table, **kwargs) -> ibis.Table:
         return input_table.mutate(processed=True)
@@ -366,7 +365,6 @@ def test_run_stage_with_tracking_success(
 
 def test_run_stage_with_tracking_failure(storage: DuckDBStorageManager):
     """run_stage_with_tracking() records failures gracefully."""
-
     # Define failing stage function
     def failing_stage(*, input_table: ibis.Table, **kwargs) -> ibis.Table:
         msg = "Intentional test failure"

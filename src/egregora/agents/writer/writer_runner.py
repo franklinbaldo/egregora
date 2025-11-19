@@ -52,7 +52,6 @@ class WriterConfig:
 
     output_dir: Path = Path("output/posts")
     profiles_dir: Path = Path("output/profiles")
-    rag_dir: Path = Path("output/rag")
     site_root: Path | None = None  # For custom prompt overrides in {site_root}/.egregora/prompts/
     egregora_config: EgregoraConfig | None = None
     enable_rag: bool = True
@@ -167,7 +166,9 @@ def _fetch_format_documents(output_format: OutputAdapter) -> tuple[list, int] | 
 # Now using Document objects directly from OutputAdapter
 
 
-def index_documents_for_rag(output_format: OutputAdapter, rag_dir: Path, *, embedding_model: str) -> int:
+def index_documents_for_rag(
+    output_format: OutputAdapter, rag_store: VectorStore, *, embedding_model: str
+) -> int:
     """Index documents directly from OutputAdapter into RAG vector store.
 
     MODERN: Works with Document objects directly (no filesystem paths needed).
@@ -177,7 +178,7 @@ def index_documents_for_rag(output_format: OutputAdapter, rag_dir: Path, *, embe
 
     Args:
         output_format: OutputAdapter instance (initialized with site_root)
-        rag_dir: Directory containing RAG vector store
+        rag_store: VectorStore instance
         embedding_model: Model to use for embeddings
 
     Returns:
@@ -190,13 +191,10 @@ def index_documents_for_rag(output_format: OutputAdapter, rag_dir: Path, *, embe
             logger.debug("No documents found to index")
             return 0
 
-        # Initialize vector store
-        store = VectorStore(rag_dir / "chunks.parquet")
-
         # Get already-indexed document IDs for deduplication
         indexed_ids = set()
         try:
-            indexed_table = store.get_indexed_sources_table()
+            indexed_table = rag_store.get_indexed_sources_table()
             if indexed_table.count().execute() > 0:
                 # Assuming source_path contains document_id for Document-based indexing
                 indexed_ids = set(indexed_table.source_path.execute().tolist())
@@ -213,7 +211,7 @@ def index_documents_for_rag(output_format: OutputAdapter, rag_dir: Path, *, embe
             try:
                 index_document(
                     doc,
-                    store,
+                    rag_store,
                     embedding_model=embedding_model,
                     source_path=doc.document_id,  # Use document_id as identifier
                     source_mtime_ns=int(doc.created_at.timestamp() * 1_000_000_000),
@@ -254,6 +252,8 @@ def _build_writer_environment(
     start_time: datetime,
     end_time: datetime,
     client: genai.Client,
+    annotations_store: AnnotationStore,
+    rag_store: VectorStore,
 ) -> WriterEnvironment:
     """Construct the configuration and runtime context required by the writer agent."""
     site_root = config.site_root
@@ -263,12 +263,10 @@ def _build_writer_environment(
         egregora_config = config.egregora_config.model_copy(deep=True)
 
     embedding_model = egregora_config.models.embedding
-    annotations_store = AnnotationStore(config.rag_dir / "annotations.duckdb")
 
     storage_root = site_root if site_root else config.output_dir.parent
     format_type = egregora_config.output.format
     output_format = create_output_format(storage_root, format_type=format_type)
-    rag_store = VectorStore(config.rag_dir / "chunks.parquet")
 
     prompts_dir = (
         storage_root / ".egregora" / "prompts" if (storage_root / ".egregora" / "prompts").is_dir() else None
@@ -331,7 +329,7 @@ def _build_writer_prompt_context(
     if environment.writer_config.enable_rag:
         rag_context = build_rag_context_for_prompt(
             conversation_md,
-            environment.writer_config.rag_dir,
+            environment.rag_store,
             client,
             embedding_model=environment.embedding_model,
             retrieval_mode=environment.writer_config.retrieval_mode,
@@ -343,7 +341,7 @@ def _build_writer_prompt_context(
         rag_context = ""
 
     profiles_context = _load_profiles_context(table_with_str_uuids, environment.writer_config.profiles_dir)
-    journal_memory = _load_journal_memory(environment.writer_config.rag_dir)
+    journal_memory = _load_journal_memory(environment.writer_config.profiles_dir.parent)
     active_authors = get_active_authors(table_with_str_uuids)
 
     return WriterPromptContext(
@@ -382,6 +380,8 @@ def _write_posts_for_window_pydantic(
     start_time: datetime,
     end_time: datetime,
     client: genai.Client,
+    annotations_store: AnnotationStore,
+    rag_store: VectorStore,
     config: WriterConfig | None = None,
 ) -> dict[str, list[str]]:
     """Pydantic AI backend: Let LLM analyze window's messages using Pydantic AI.
@@ -394,6 +394,8 @@ def _write_posts_for_window_pydantic(
         start_time: Start timestamp of the window
         end_time: End timestamp of the window
         client: Gemini client for embeddings
+        annotations_store: AnnotationStore instance
+        rag_store: VectorStore instance
         config: Writer configuration object
 
     Returns:
@@ -405,7 +407,9 @@ def _write_posts_for_window_pydantic(
     if table.count().execute() == 0:
         return {"posts": [], "profiles": []}
 
-    environment = _build_writer_environment(config, start_time, end_time, client)
+    environment = _build_writer_environment(
+        config, start_time, end_time, client, annotations_store, rag_store
+    )
 
     table_with_str_uuids = _cast_uuid_columns_to_str(table)
     prompt_context = _build_writer_prompt_context(table_with_str_uuids, environment, client)
@@ -440,7 +444,7 @@ def _write_posts_for_window_pydantic(
         try:
             indexed_count = index_documents_for_rag(
                 environment.output_format,
-                config.rag_dir,
+                rag_store,
                 embedding_model=environment.embedding_model,
             )
             if indexed_count > 0:
@@ -457,6 +461,8 @@ def write_posts_for_window(
     start_time: datetime,
     end_time: datetime,
     client: genai.Client,
+    annotations_store: AnnotationStore,
+    rag_store: VectorStore,
     config: WriterConfig | None = None,
 ) -> dict[str, list[str]]:
     """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
@@ -475,6 +481,8 @@ def write_posts_for_window(
         start_time: Start timestamp of the window
         end_time: End timestamp of the window
         client: Gemini client for embeddings
+        annotations_store: AnnotationStore instance
+        rag_store: VectorStore instance
         config: Writer configuration object
 
     Returns:
@@ -494,5 +502,11 @@ def write_posts_for_window(
         config = WriterConfig()
     logger.info("Using Pydantic AI backend for writer")
     return _write_posts_for_window_pydantic(
-        table=table, start_time=start_time, end_time=end_time, client=client, config=config
+        table=table,
+        start_time=start_time,
+        end_time=end_time,
+        client=client,
+        annotations_store=annotations_store,
+        rag_store=rag_store,
+        config=config,
     )

@@ -137,7 +137,7 @@ def query_rag_per_chunk(
 
 def build_rag_context_for_prompt(
     table_markdown: str,
-    rag_dir: Path,
+    store: VectorStore,
     client: genai.Client,
     *,
     embedding_model: str,
@@ -157,7 +157,7 @@ def build_rag_context_for_prompt(
 
     Args:
         table_markdown: Conversation text to use as query
-        rag_dir: Directory containing vector store
+        store: VectorStore instance
         client: Gemini client
         embedding_model: Embedding model name
         retrieval_mode: "ann" or "exact"
@@ -175,7 +175,7 @@ def build_rag_context_for_prompt(
             build_rag_context_for_writer(
                 query=table_markdown,
                 client=client,
-                rag_dir=rag_dir,
+                rag_dir=store.parquet_path.parent,
                 embedding_model=embedding_model,
                 top_k=top_k,
                 retrieval_mode=retrieval_mode,
@@ -186,7 +186,6 @@ def build_rag_context_for_prompt(
     if not table_markdown.strip():
         return ""
     query_vector = embed_query_text(table_markdown, model=embedding_model)
-    store = VectorStore(rag_dir / "chunks.parquet")
     search_results = store.search(
         query_vec=query_vector,
         top_k=top_k,
