@@ -7,7 +7,8 @@ This module consolidates all MkDocs-specific logic that used to live across
 ``MkDocsFilesystemAdapter`` alongside shared helpers for resolving site
 configuration and working with MkDocs' filesystem layout.
 
-MODERN (2025-11-18): Imports site path resolution from config.site to eliminate duplication.
+MODERN (2025-11-18): Imports site path resolution from
+``egregora.output_adapters.mkdocs.paths`` to eliminate duplication.
 """
 
 from __future__ import annotations
@@ -31,10 +32,15 @@ _ConfigLoader.add_constructor(None, lambda loader, node: None)
 
 from egregora.agents.shared.author_profiles import write_profile as write_profile_content
 from egregora.config.settings import create_default_config
-from egregora.config.site import SitePaths, configured_mkdocs_path, load_config_for_paths, resolve_site_paths
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
+from egregora.output_adapters.mkdocs.paths import (
+    SitePaths,
+    configured_mkdocs_path,
+    load_config_for_paths,
+    resolve_site_paths,
+)
 from egregora.utils.paths import safe_path_join, slugify
 
 if TYPE_CHECKING:
@@ -965,131 +971,6 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
 
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
-
-    @property
-    def url_convention(self) -> UrlConvention:
-        return self._url_convention
-
-    def serve(self, document: Document) -> None:
-        doc_id = document.document_id
-        url = self._url_convention.canonical_url(document, self._ctx)
-        path = self._url_to_path(url, document)
-
-        if doc_id in self._index:
-            old_path = self._index[doc_id]
-            if old_path != path and old_path.exists():
-                logger.info("Moving document %s: %s → %s", doc_id[:8], old_path, path)
-                path.parent.mkdir(parents=True, exist_ok=True)
-                if path.exists():
-                    old_path.unlink()
-                else:
-                    old_path.rename(path)
-
-        if path.exists() and document.type == DocumentType.ENRICHMENT_URL:
-            existing_doc_id = self._get_document_id_at_path(path)
-            if existing_doc_id and existing_doc_id != doc_id:
-                path = self._resolve_collision(path, doc_id)
-                logger.warning("Hash collision for %s, using %s", doc_id[:8], path)
-
-        self._write_document(document, path)
-        self._index[doc_id] = path
-        logger.debug("Served document %s at %s", doc_id, path)
-
-    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
-        path: Path | None = None
-
-        if doc_type == DocumentType.PROFILE:
-            path = self.profiles_dir / f"{identifier}.md"
-        elif doc_type == DocumentType.POST:
-            matches = list(self.posts_dir.glob(f"*-{identifier}.md"))
-            if matches:
-                path = max(matches, key=lambda p: p.stat().st_mtime)
-        elif doc_type == DocumentType.JOURNAL:
-            safe_label = identifier.replace(" ", "_").replace(":", "-")
-            path = self.journal_dir / f"journal_{safe_label}.md"
-        elif doc_type == DocumentType.ENRICHMENT_URL:
-            path = self.urls_dir / f"{identifier}.md"
-        elif doc_type == DocumentType.ENRICHMENT_MEDIA:
-            path = self.media_dir / f"{identifier}.md"
-        elif doc_type == DocumentType.MEDIA:
-            path = self.media_dir / identifier
-
-        if path is None or not path.exists():
-            logger.debug("Document not found: %s/%s", doc_type.value, identifier)
-            return None
-
-        try:
-            if doc_type == DocumentType.MEDIA:
-                raw_bytes = path.read_bytes()
-                content = raw_bytes.decode("utf-8", errors="ignore")
-                metadata: dict[str, Any] = {"filename": path.name}
-                actual_content = content
-            else:
-                content = path.read_text(encoding="utf-8")
-                metadata = {}
-                actual_content = content
-
-                if content.startswith("---\n"):
-                    try:
-                        parts = content.split("---\n", 2)
-                        if len(parts) >= 3:
-                            frontmatter_yaml = parts[1]
-                            actual_content = parts[2].strip()
-                            metadata = yaml.safe_load(frontmatter_yaml) or {}
-                    except (ImportError, yaml.YAMLError) as exc:
-                        logger.warning("Failed to parse frontmatter for %s: %s", path, exc)
-        except OSError:
-            logger.exception("Failed to read document at %s", path)
-            return None
-
-        return Document(content=actual_content, type=doc_type, metadata=metadata)
-
-    def list_documents(self, doc_type: DocumentType | None = None) -> list[Document]:
-        documents: list[Document] = []
-
-        def read_dir(directory: Path, dtype: DocumentType, pattern: str = "*.md") -> None:
-            if not directory.exists():
-                return
-            for file_path in directory.glob(pattern):
-                identifier = file_path.stem
-                if dtype == DocumentType.POST:
-                    parts = identifier.split("-", 3)
-                    if len(parts) >= 4:
-                        identifier = parts[3]
-                doc = self.read_document(dtype, identifier)
-                if doc:
-                    documents.append(doc)
-
-        if doc_type is None:
-            read_dir(self.profiles_dir, DocumentType.PROFILE)
-            read_dir(self.posts_dir, DocumentType.POST)
-            read_dir(self.journal_dir, DocumentType.JOURNAL)
-            read_dir(self.urls_dir, DocumentType.ENRICHMENT_URL)
-        elif doc_type == DocumentType.PROFILE:
-            read_dir(self.profiles_dir, DocumentType.PROFILE)
-        elif doc_type == DocumentType.POST:
-            read_dir(self.posts_dir, DocumentType.POST)
-        elif doc_type == DocumentType.JOURNAL:
-            read_dir(self.journal_dir, DocumentType.JOURNAL)
-        elif doc_type == DocumentType.ENRICHMENT_URL:
-            read_dir(self.urls_dir, DocumentType.ENRICHMENT_URL)
-        elif doc_type == DocumentType.ENRICHMENT_MEDIA:
-            read_dir(self.media_dir, DocumentType.ENRICHMENT_MEDIA, "*.md")
-        elif doc_type == DocumentType.MEDIA:
-            if self.media_dir.exists():
-                for file_path in self.media_dir.iterdir():
-                    if file_path.is_file() and file_path.suffix != ".md":
-                        try:
-                            content = file_path.read_bytes()
-                            documents.append(
-                                Document(
-                                    content=content.decode("utf-8", errors="ignore"),
-                                    type=DocumentType.MEDIA,
-                                )
-                            )
-                        except (OSError, UnicodeDecodeError) as exc:
-                            logger.warning("Failed to read media file %s: %s", file_path, exc)
-        return documents
 
     def _url_to_path(self, url: str, document: Document) -> Path:
         base = self._ctx.base_url.rstrip("/")
