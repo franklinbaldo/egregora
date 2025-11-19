@@ -21,13 +21,11 @@ from typing import TYPE_CHECKING
 import ibis
 
 from egregora.agents.model_limits import PromptTooLargeError
-from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.author_profiles import get_active_authors
 from egregora.agents.shared.rag import VectorStore, index_document
 from egregora.agents.writer.agent import WriterAgentContext, write_posts_with_pydantic_agent
 from egregora.agents.writer.context_builder import _load_profiles_context, build_rag_context_for_prompt
 from egregora.agents.writer.formatting import _build_conversation_markdown_table, _load_journal_memory
-from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.data_primitives.protocols import UrlContext
 from egregora.orchestration.context import PipelineContext
 from egregora.output_adapters import create_output_format, output_registry
@@ -35,7 +33,6 @@ from egregora.output_adapters.mkdocs import MkDocsAdapter
 from egregora.prompt_templates import render_prompt
 
 if TYPE_CHECKING:
-    from google import genai
     from ibis.expr.types import Table
 
     from egregora.output_adapters.base import OutputAdapter
@@ -232,6 +229,7 @@ def _build_writer_agent_context(
 
     Returns:
         WriterAgentContext configured for this window
+
     """
     storage_root = ctx.site_root if ctx.site_root else ctx.output_dir
     format_type = ctx.config.output.format
@@ -295,6 +293,7 @@ def _build_writer_prompt_context(
 
     Returns:
         WriterPromptContext with all prompt components
+
     """
     messages_table = table_with_str_uuids.to_pyarrow()
     conversation_md = _build_conversation_markdown_table(messages_table, ctx.annotations_store)
@@ -343,10 +342,9 @@ def _render_writer_prompt(
 
     Returns:
         Rendered prompt text
+
     """
-    format_instructions = (
-        ctx.output_format.get_format_instructions() if ctx.output_format else ""
-    )
+    format_instructions = ctx.output_format.get_format_instructions() if ctx.output_format else ""
     custom_instructions = ctx.config.writer.custom_instructions or ""
 
     return render_prompt(
