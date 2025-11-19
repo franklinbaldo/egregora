@@ -62,6 +62,7 @@ def resolve_site_paths(site_root: Path, config: EgregoraConfig | None = None) ->
 
     Returns:
         SitePaths with all resolved absolute paths
+
     """
     site_root = site_root.expanduser().resolve()
 
