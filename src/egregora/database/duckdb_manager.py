@@ -26,9 +26,12 @@ Usage:
     result = storage.execute_view("chunks", chunks_builder, "conversations")
 """
 
+from __future__ import annotations
+
 import contextlib
 import logging
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
@@ -67,6 +70,23 @@ def quote_identifier(name: str) -> str:
 
     # Quote with double quotes (DuckDB identifier quoting)
     return f'"{name}"'
+
+
+@dataclass(frozen=True)
+class SequenceState:
+    """Metadata describing the current state of a DuckDB sequence."""
+
+    sequence_name: str
+    start_value: int
+    increment_by: int
+    last_value: int | None
+
+    @property
+    def next_value(self) -> int:
+        """Return the value that will be produced by the next ``nextval`` call."""
+        if self.last_value is None:
+            return self.start_value
+        return self.last_value + self.increment_by
 
 
 class DuckDBStorageManager:
@@ -197,6 +217,92 @@ class DuckDBStorageManager:
             msg = "Append mode requires checkpoint=True"
             raise ValueError(msg)
 
+    # ==================================================================
+    # Sequence helpers
+    # ==================================================================
+
+    def ensure_sequence(self, name: str, *, start: int = 1) -> None:
+        """Create a sequence if it does not exist."""
+        quoted_name = quote_identifier(name)
+        self.conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {quoted_name} START {int(start)}")
+
+    def get_sequence_state(self, name: str) -> SequenceState | None:
+        """Return metadata describing the current state of ``name``."""
+        row = self.conn.execute(
+            """
+            SELECT start_value, increment_by, last_value
+            FROM duckdb_sequences()
+            WHERE schema_name = current_schema() AND sequence_name = ?
+            LIMIT 1
+            """,
+            [name],
+        ).fetchone()
+        if row is None:
+            return None
+        start_value, increment_by, last_value = row
+        return SequenceState(
+            sequence_name=name,
+            start_value=int(start_value),
+            increment_by=int(increment_by),
+            last_value=None if last_value is None else int(last_value),
+        )
+
+    def ensure_sequence_default(self, table: str, column: str, sequence_name: str) -> None:
+        """Ensure ``column`` uses ``sequence_name`` as its default value."""
+        desired_default = f"nextval('{sequence_name}')"
+        column_default = self.conn.execute(
+            """
+            SELECT column_default
+            FROM information_schema.columns
+            WHERE lower(table_name) = lower(?) AND lower(column_name) = lower(?)
+            LIMIT 1
+            """,
+            [table, column],
+        ).fetchone()
+        if not column_default or column_default[0] != desired_default:
+            quoted_table = quote_identifier(table)
+            quoted_column = quote_identifier(column)
+            self.conn.execute(
+                f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} SET DEFAULT {desired_default}"
+            )
+
+    def sync_sequence_with_table(self, sequence_name: str, *, table: str, column: str) -> None:
+        """Advance ``sequence_name`` so it is ahead of ``table.column``."""
+        if not self.table_exists(table):
+            return
+
+        quoted_table = quote_identifier(table)
+        quoted_column = quote_identifier(column)
+        max_row = self.conn.execute(f"SELECT MAX({quoted_column}) FROM {quoted_table}").fetchone()
+        if not max_row or max_row[0] is None:
+            return
+
+        max_value = int(max_row[0])
+        state = self.get_sequence_state(sequence_name)
+        if state is None:
+            msg = f"Sequence '{sequence_name}' not found"
+            raise RuntimeError(msg)
+
+        current_next = state.next_value
+        desired_next = max(max_value + 1, current_next)
+        steps_needed = desired_next - current_next
+        if steps_needed > 0:
+            self.next_sequence_values(sequence_name, count=steps_needed)
+
+    def next_sequence_value(self, sequence_name: str) -> int:
+        """Return the next value from ``sequence_name``."""
+        values = self.next_sequence_values(sequence_name, count=1)
+        return values[0]
+
+    def next_sequence_values(self, sequence_name: str, *, count: int = 1) -> list[int]:
+        """Return ``count`` sequential values from ``sequence_name``."""
+        if count <= 0:
+            msg = "count must be positive"
+            raise ValueError(msg)
+
+        cursor = self.conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
+        return [int(row[0]) for row in cursor.fetchall()]
+
     def execute_view(
         self,
         view_name: str,
@@ -316,7 +422,7 @@ class DuckDBStorageManager:
         self.conn.close()
         logger.info("DuckDBStorageManager closed")
 
-    def __enter__(self) -> "DuckDBStorageManager":
+    def __enter__(self) -> DuckDBStorageManager:
         """Context manager entry."""
         return self
 
@@ -328,7 +434,7 @@ class DuckDBStorageManager:
     # Vector backend helpers
     # ------------------------------------------------------------------
 
-    def create_vector_backend(self, *, enable_vss: bool = True) -> "VectorBackend":
+    def create_vector_backend(self, *, enable_vss: bool = True) -> VectorBackend:
         """Create a vector backend bound to this storage manager."""
         backend_cls: type[VectorBackend]
         if enable_vss:

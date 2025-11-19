@@ -325,8 +325,10 @@ track_run_event("reader_comparison", metadata={
        # Step 3: Initialize stores (unified architecture)
        from egregora.agents.shared.annotations import AnnotationStore
        from egregora.agents.reader.elo_store import EloStore
+       from egregora.database.duckdb_manager import DuckDBStorageManager
 
-       annotation_store = AnnotationStore(site_dir / ".egregora" / "annotations.db")
+       annotation_storage = DuckDBStorageManager(db_path=site_dir / ".egregora" / "annotations.db")
+       annotation_store = AnnotationStore(annotation_storage)
        elo_store = EloStore(site_dir / ".egregora" / "elo_ratings.db")
 
        # Step 4: Run comparisons

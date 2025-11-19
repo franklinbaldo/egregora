@@ -375,6 +375,41 @@ class TestEdgeCases:
             assert len(df) == 4
 
 
+class TestSequenceHelpers:
+    def test_sequence_creation_and_next_value(self):
+        with DuckDBStorageManager() as storage:
+            storage.ensure_sequence("test_seq")
+            first = storage.next_sequence_value("test_seq")
+            second = storage.next_sequence_value("test_seq")
+
+            assert second == first + 1
+
+    def test_sequence_default_and_sync(self):
+        with DuckDBStorageManager() as storage:
+            storage.ensure_sequence("table_seq")
+            storage.conn.execute(
+                """
+                CREATE TABLE records (
+                    id INTEGER,
+                    name VARCHAR
+                )
+                """
+            )
+            storage.ensure_sequence_default("records", "id", "table_seq")
+
+            storage.conn.execute("INSERT INTO records (id, name) VALUES (10, 'alpha')")
+            storage.sync_sequence_with_table("table_seq", table="records", column="id")
+
+            assert storage.next_sequence_value("table_seq") >= 11
+
+    def test_next_sequence_values_batch(self):
+        with DuckDBStorageManager() as storage:
+            storage.ensure_sequence("batch_seq")
+            values = storage.next_sequence_values("batch_seq", count=3)
+
+            assert values == [1, 2, 3]
+
+
 class TestVectorBackendFactory:
     """Ensure DuckDBStorageManager exposes vector backends."""
 
