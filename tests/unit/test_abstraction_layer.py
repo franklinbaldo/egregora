@@ -135,7 +135,7 @@ class TestMkDocsOutputFormat:
 
     def test_custom_mkdocs_config_path(self, tmp_path):
         """Test that custom mkdocs_config_path in .egregora/config.yml is respected."""
-        from egregora.output_adapters.mkdocs import resolve_site_paths
+        from egregora.output_adapters.mkdocs import load_site_paths
 
         site_root = tmp_path / "test-site"
         site_root.mkdir(parents=True)
@@ -157,7 +157,7 @@ output:
 """)
 
         # Resolve paths - should find the custom mkdocs.yml
-        site_paths = resolve_site_paths(site_root)
+        site_paths = load_site_paths(site_root)
 
         # Should have found the custom mkdocs.yml
         assert site_paths.mkdocs_path == custom_mkdocs
@@ -198,7 +198,7 @@ output:
 
     def test_docs_dir_resolved_relative_to_mkdocs(self, tmp_path):
         """Test that docs_dir is resolved relative to mkdocs.yml location, not site root."""
-        from egregora.output_adapters.mkdocs import resolve_site_paths
+        from egregora.output_adapters.mkdocs import load_site_paths
 
         site_root = tmp_path / "test-site"
         site_root.mkdir(parents=True)
@@ -210,7 +210,7 @@ output:
         mkdocs_yml.write_text("site_name: Test\ndocs_dir: ..\n")
 
         # Resolve paths
-        site_paths = resolve_site_paths(site_root)
+        site_paths = load_site_paths(site_root)
 
         # docs_dir should be site_root (because .egregora/../ = site root)
         # NOT the parent of site_root (which would happen if resolved relative to site_root)

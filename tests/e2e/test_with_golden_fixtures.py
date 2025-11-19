@@ -15,11 +15,11 @@ from typing import TYPE_CHECKING
 import pytest
 from pydantic_ai.models.test import TestModel
 
-from egregora.config import resolve_site_paths
 from egregora.orchestration.write_pipeline import (
     WhatsAppProcessOptions,
     process_whatsapp_export,
 )
+from egregora.output_adapters.mkdocs import load_site_paths
 from tests.utils.mock_batch_client import create_mock_genai_client
 
 if TYPE_CHECKING:
@@ -115,7 +115,7 @@ def test_pipeline_with_golden_fixtures(
     )
 
     # Verify that the basic output structure was created
-    site_paths = resolve_site_paths(output_dir)
+    site_paths = load_site_paths(output_dir)
     posts_dir = site_paths.posts_dir
     assert posts_dir.exists(), "Posts directory should be created"
 

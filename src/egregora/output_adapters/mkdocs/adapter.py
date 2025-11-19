@@ -27,9 +27,7 @@ from egregora.config.settings import create_default_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
-from egregora.output_adapters.mkdocs.paths import (
-    SitePaths,
-)
+from egregora.output_adapters.mkdocs.paths import SitePaths, load_site_paths
 from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import safe_path_join, slugify
 
@@ -302,11 +300,11 @@ class MkDocsAdapter(OutputAdapter):
 
         # Check if mkdocs.yml already exists ANYWHERE (including custom paths)
         # Prevents duplicate configs - refuse to init if ANY mkdocs.yml exists
-        # resolve_site_paths() checks:
+        # load_site_paths() checks:
         #   1. Custom path from .egregora/config.yml (if configured)
         #   2. .egregora/mkdocs.yml (default new location)
         #   3. mkdocs.yml at root (legacy location)
-        site_paths = resolve_site_paths(site_root)
+        site_paths = load_site_paths(site_root)
 
         if site_paths.mkdocs_path and site_paths.mkdocs_path.exists():
             logger.info("MkDocs site already exists at %s (config: %s)", site_root, site_paths.mkdocs_path)
@@ -587,12 +585,12 @@ class MkDocsAdapter(OutputAdapter):
             msg = f"{site_root} is not a valid MkDocs site (no mkdocs.yml found)"
             raise ValueError(msg)
         try:
-            site_paths = resolve_site_paths(site_root)
+            site_paths = load_site_paths(site_root)
         except Exception as e:
             msg = f"Failed to resolve site paths: {e}"
             raise RuntimeError(msg) from e
         config_file = site_paths.mkdocs_path
-        # Load mkdocs.yml to get site_name (already resolved by resolve_site_paths)
+        # Load mkdocs.yml to get site_name (already resolved by load_site_paths)
         if site_paths.mkdocs_path:
             try:
                 mkdocs_config = (
@@ -694,8 +692,8 @@ class MkDocsAdapter(OutputAdapter):
             ValueError: If config is invalid
 
         """
-        # Use resolve_site_paths to find mkdocs.yml (checks custom path, .egregora/, root)
-        site_paths = resolve_site_paths(site_root)
+        # Use load_site_paths to find mkdocs.yml (checks custom path, .egregora/, root)
+        site_paths = load_site_paths(site_root)
         if not site_paths.mkdocs_path:
             msg = f"No mkdocs.yml found in {site_root}"
             raise FileNotFoundError(msg)

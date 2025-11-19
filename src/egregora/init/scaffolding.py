@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 
 from egregora.output_adapters import create_output_format
-from egregora.output_adapters.mkdocs import resolve_site_paths
+from egregora.output_adapters.mkdocs import load_site_paths
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]:
     _mkdocs_path, created = output_format.scaffold_site(site_root, site_name)
 
     # Return docs_dir for backward compatibility
-    site_paths = resolve_site_paths(site_root)
+    site_paths = load_site_paths(site_root)
     docs_dir = site_paths.docs_dir
     docs_dir.mkdir(parents=True, exist_ok=True)
 
