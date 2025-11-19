@@ -11,7 +11,7 @@ const MAX_COMMENT_LENGTH = 65000; // GitHub limit is 65536
 // Environment variables
 const {
   GEMINI_API_KEY,
-  GEMINI_MODEL = 'gemini-1.5-flash',
+  GEMINI_MODEL = 'gemini-3-pro-preview',
   GITHUB_TOKEN,
   PR_NUMBER,
   REPO_FULL_NAME,
