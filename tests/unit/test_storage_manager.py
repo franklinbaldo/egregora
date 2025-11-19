@@ -7,7 +7,12 @@ import ibis
 import pytest
 from ibis.expr.types import Table
 
-from egregora.database.duckdb_manager import DuckDBStorageManager, temp_storage
+from egregora.database.duckdb_manager import (
+    DuckDBNoOpVectorBackend,
+    DuckDBStorageManager,
+    DuckDBVectorBackend,
+    temp_storage,
+)
 
 
 class TestStorageManagerInit:
@@ -368,3 +373,33 @@ class TestEdgeCases:
             result = storage.read_table("special_chars")
             df = result.execute()
             assert len(df) == 4
+
+
+class TestVectorBackendFactory:
+    """Ensure DuckDBStorageManager exposes vector backends."""
+
+    def test_create_vector_backend_defaults_to_duckdb_impl(self):
+        with DuckDBStorageManager() as storage:
+            backend = storage.create_vector_backend()
+            assert isinstance(backend, DuckDBVectorBackend)
+            # Should be able to safely drop non-existent tables
+            backend.drop_table("nonexistent_chunks")
+
+    def test_create_vector_backend_noop(self):
+        with DuckDBStorageManager() as storage:
+            backend = storage.create_vector_backend(enable_vss=False)
+            assert isinstance(backend, DuckDBNoOpVectorBackend)
+            assert backend.install_extensions() is False
+
+    def test_vector_backend_materializes_table(self, tmp_path):
+        db_path = tmp_path / "backend.duckdb"
+        parquet_path = tmp_path / "chunks.parquet"
+        with DuckDBStorageManager(db_path=db_path) as storage:
+            backend = storage.create_vector_backend(enable_vss=False)
+            storage.conn.execute(
+                "COPY (SELECT 'chunk-1' AS chunk_id) TO ? (FORMAT PARQUET)",
+                [str(parquet_path)],
+            )
+            backend.materialize_chunks_table("rag_chunks_test", parquet_path)
+            assert backend.table_exists("rag_chunks_test")
+            assert backend.row_count("rag_chunks_test") == 1
