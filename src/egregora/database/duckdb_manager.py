@@ -330,7 +330,6 @@ class DuckDBStorageManager:
 
     def create_vector_backend(self, *, enable_vss: bool = True) -> "VectorBackend":
         """Create a vector backend bound to this storage manager."""
-
         backend_cls: type[VectorBackend]
         if enable_vss:
             backend_cls = DuckDBVectorBackend
@@ -391,10 +390,7 @@ class DuckDBVectorBackend:
 
     def detect_vss_function(self) -> str:
         try:
-            rows = (
-                self.conn.execute("SELECT name FROM pragma_table_functions()")
-                .fetchall()
-            )
+            rows = self.conn.execute("SELECT name FROM pragma_table_functions()").fetchall()
         except duckdb.Error as exc:
             logger.debug("Unable to inspect table functions: %s", exc)
             return "vss_search"
@@ -480,6 +476,7 @@ class DuckDBNoOpVectorBackend(DuckDBVectorBackend):
         )
         return False
 
+
 def temp_storage() -> DuckDBStorageManager:
     """Create temporary in-memory storage manager.
 
@@ -527,9 +524,9 @@ def duckdb_backend():
 
 
 __all__ = [
+    "DuckDBNoOpVectorBackend",
     "DuckDBStorageManager",
     "DuckDBVectorBackend",
-    "DuckDBNoOpVectorBackend",
     "VectorBackend",
     "duckdb_backend",
     "temp_storage",
