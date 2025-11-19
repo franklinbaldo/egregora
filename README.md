@@ -322,7 +322,8 @@ Contributions are welcome! We use an **alpha mindset**:
 1. Read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
 2. Review [CLAUDE.md](CLAUDE.md) for modern patterns
 3. Check [BREAKING_CHANGES.md](BREAKING_CHANGES.md) for recent changes
-4. Install pre-commit hooks: `python dev_tools/setup_hooks.py`
+4. Install pre-commit hooks **before creating a branch**: run `python dev_tools/setup_hooks.py` (or `uv run pre-commit install`)
+   so the same formatting, linting, and security checks run locally on every commit.
 
 ### Common Tasks
 

@@ -10,6 +10,9 @@ This PR removes ~1,500 lines of code across 5 major simplifications while mainta
 
 **All 377 unit tests pass** (excluding 3 pre-existing failures unrelated to these changes).
 
+> **Contributor requirement:** After cloning, run `python dev_tools/setup_hooks.py` (or `uv run pre-commit install`) so the
+> repository's pre-commit hooks run on every commit. This keeps local changes aligned with the checks enforced in CI.
+
 ---
 
 ## Changes Overview
