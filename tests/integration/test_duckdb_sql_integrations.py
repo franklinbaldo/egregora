@@ -154,8 +154,6 @@ def test_enrich_table_persists_results(tmp_path: Path):
 
     assert combined.count().execute() >= messages_table.count().execute()
 
-    persisted_rows = conn.execute(
-        f"SELECT author_raw, text FROM {table_name} ORDER BY ts"
-    ).fetchall()
+    persisted_rows = conn.execute(f"SELECT author_raw, text FROM {table_name} ORDER BY ts").fetchall()
 
     assert any(row[0] == ANNOTATION_AUTHOR for row in persisted_rows)

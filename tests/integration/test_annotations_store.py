@@ -29,9 +29,7 @@ def test_concurrent_annotation_inserts_produce_unique_sequential_ids(tmp_path):
     def insert_annotation(idx: int) -> int:
         with DuckDBStorageManager(db_path=db_path) as storage:
             store = AnnotationStore(storage)
-            annotation = store.save_annotation(
-                f"message-{idx}", "message", f"Concurrent annotation {idx}"
-            )
+            annotation = store.save_annotation(f"message-{idx}", "message", f"Concurrent annotation {idx}")
             return annotation.id
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:

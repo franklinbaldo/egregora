@@ -84,7 +84,6 @@ class SequenceState:
     @property
     def next_value(self) -> int:
         """Return the value that will be produced by the next ``nextval`` call."""
-
         if self.last_value is None:
             return self.start_value
         return self.last_value + self.increment_by
@@ -224,13 +223,11 @@ class DuckDBStorageManager:
 
     def ensure_sequence(self, name: str, *, start: int = 1) -> None:
         """Create a sequence if it does not exist."""
-
         quoted_name = quote_identifier(name)
         self.conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {quoted_name} START {int(start)}")
 
     def get_sequence_state(self, name: str) -> SequenceState | None:
         """Return metadata describing the current state of ``name``."""
-
         row = self.conn.execute(
             """
             SELECT start_value, increment_by, last_value
@@ -252,7 +249,6 @@ class DuckDBStorageManager:
 
     def ensure_sequence_default(self, table: str, column: str, sequence_name: str) -> None:
         """Ensure ``column`` uses ``sequence_name`` as its default value."""
-
         desired_default = f"nextval('{sequence_name}')"
         column_default = self.conn.execute(
             """
@@ -272,15 +268,12 @@ class DuckDBStorageManager:
 
     def sync_sequence_with_table(self, sequence_name: str, *, table: str, column: str) -> None:
         """Advance ``sequence_name`` so it is ahead of ``table.column``."""
-
         if not self.table_exists(table):
             return
 
         quoted_table = quote_identifier(table)
         quoted_column = quote_identifier(column)
-        max_row = self.conn.execute(
-            f"SELECT MAX({quoted_column}) FROM {quoted_table}"
-        ).fetchone()
+        max_row = self.conn.execute(f"SELECT MAX({quoted_column}) FROM {quoted_table}").fetchone()
         if not max_row or max_row[0] is None:
             return
 
@@ -298,13 +291,11 @@ class DuckDBStorageManager:
 
     def next_sequence_value(self, sequence_name: str) -> int:
         """Return the next value from ``sequence_name``."""
-
         values = self.next_sequence_values(sequence_name, count=1)
         return values[0]
 
     def next_sequence_values(self, sequence_name: str, *, count: int = 1) -> list[int]:
         """Return ``count`` sequential values from ``sequence_name``."""
-
         if count <= 0:
             msg = "count must be positive"
             raise ValueError(msg)
@@ -431,7 +422,7 @@ class DuckDBStorageManager:
         self.conn.close()
         logger.info("DuckDBStorageManager closed")
 
-    def __enter__(self) -> "DuckDBStorageManager":
+    def __enter__(self) -> DuckDBStorageManager:
         """Context manager entry."""
         return self
 

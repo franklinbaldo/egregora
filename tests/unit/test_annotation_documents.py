@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from egregora.agents.shared.annotations import ANNOTATION_AUTHOR, Annotation, AnnotationStore
-from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.data_primitives.document import DocumentType
+from egregora.database.duckdb_manager import DuckDBStorageManager
 
 
 def test_annotation_to_document_roundtrip_metadata():
