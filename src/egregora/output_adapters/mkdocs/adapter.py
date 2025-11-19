@@ -22,14 +22,6 @@ import yaml
 from dateutil import parser as dateutil_parser
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
-
-# Custom YAML loader that ignores unknown tags
-class _ConfigLoader(yaml.SafeLoader):
-    """YAML loader that ignores unknown tags (like !ENV)."""
-
-
-_ConfigLoader.add_constructor(None, lambda loader, node: None)
-
 from egregora.agents.shared.author_profiles import write_profile as write_profile_content
 from egregora.config.settings import create_default_config
 from egregora.data_primitives.document import Document, DocumentType
@@ -49,6 +41,14 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+
+# Custom YAML loader that ignores unknown tags
+class _ConfigLoader(yaml.SafeLoader):
+    """YAML loader that ignores unknown tags (like !ENV)."""
+
+
+_ConfigLoader.add_constructor(None, lambda loader, node: None)
 
 
 class MkDocsUrlConvention:
@@ -884,7 +884,8 @@ All media filenames use content-based UUIDs for deterministic naming.
 
 ### Taxonomy
 
-Tags automatically create taxonomy pages where readers can browse posts by topic. Use consistent, meaningful tags across posts to build a useful taxonomy.
+Tags automatically create taxonomy pages where readers can browse posts by topic.
+Use consistent, meaningful tags across posts to build a useful taxonomy.
 """
 
     def list_documents(self) -> Table:
