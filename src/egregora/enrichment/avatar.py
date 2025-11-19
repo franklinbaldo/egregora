@@ -30,6 +30,7 @@ from egregora.enrichment.agents import (
 from egregora.enrichment.media import detect_media_type, extract_urls
 from egregora.input_adapters.whatsapp.parser import extract_commands
 from egregora.utils import EnrichmentCache, make_enrichment_cache_key
+from egregora.utils.time_utils import ensure_datetime
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -437,16 +438,6 @@ def download_avatar_from_url(
         return (avatar_uuid, avatar_path)
 
 
-def _ensure_datetime(timestamp: datetime | str) -> datetime:
-    """Ensure timestamp is a datetime object."""
-    if isinstance(timestamp, datetime):
-        return timestamp
-    if isinstance(timestamp, str):
-        return datetime.fromisoformat(timestamp)
-    msg = f"Unsupported timestamp type: {type(timestamp)}"
-    raise TypeError(msg)
-
-
 @dataclass
 class AvatarContext:
     """Context for avatar processing operations."""
@@ -570,7 +561,7 @@ def process_avatar_commands(
         target = command["target"]
         if cmd_type in ("set", "unset") and target == "avatar":
             if cmd_type == "set":
-                timestamp_dt = _ensure_datetime(timestamp_raw)
+                timestamp_dt = ensure_datetime(timestamp_raw)
                 result = _process_set_avatar_command(
                     author_uuid=author_uuid,
                     timestamp=timestamp_dt,
