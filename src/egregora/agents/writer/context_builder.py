@@ -176,7 +176,6 @@ def build_rag_context_for_prompt(
                 query=table_markdown,
                 client=client,
                 rag_dir=store.parquet_path.parent,
-                storage=store.storage,
                 embedding_model=embedding_model,
                 top_k=top_k,
                 retrieval_mode=retrieval_mode,

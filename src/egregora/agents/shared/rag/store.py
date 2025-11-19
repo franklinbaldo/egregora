@@ -69,21 +69,18 @@ class VectorStore:
         self,
         parquet_path: Path,
         *,
-        storage: DuckDBStorageManager | None = None,
+        storage: DuckDBStorageManager,
     ) -> None:
         """Initialize vector store.
 
         Args:
             parquet_path: Path to Parquet file (e.g., output/rag/chunks.parquet)
-            storage: The central DuckDB storage manager. When omitted, a dedicated
-                DuckDB file is created next to the Parquet dataset.
+            storage: The central DuckDB storage manager.
 
         """
         self.parquet_path = parquet_path
         self.index_path = parquet_path.with_suffix(".duckdb")
-        self.index_path.parent.mkdir(parents=True, exist_ok=True)
-        self.storage = storage or DuckDBStorageManager(db_path=self.index_path)
-        self.conn = _ConnectionProxy(self.storage.conn)
+        self.conn = _ConnectionProxy(storage.conn)
         self._vss_available = False
         self._vss_function = "vss_search"
         self._client = ibis.duckdb.from_connection(self.conn)

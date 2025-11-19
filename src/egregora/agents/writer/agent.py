@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -62,8 +63,8 @@ from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore, is_rag_available
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
 from egregora.utils.genai import call_with_retries_sync
+from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
 
 if TYPE_CHECKING:
     from pydantic_ai.result import RunResult
