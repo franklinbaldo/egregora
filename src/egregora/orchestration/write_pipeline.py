@@ -31,6 +31,7 @@ import ibis
 from google import genai
 
 from egregora.agents.model_limits import get_model_context_limit
+from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.author_profiles import filter_opted_out_authors, process_commands
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_window
@@ -712,6 +713,14 @@ def _create_pipeline_context(
     enrichment_cache = EnrichmentCache(cache_dir)
     storage = DuckDBStorageManager(db_path=site_paths.site_root / ".egregora.db")
 
+    rag_store = None
+    if config.rag.enabled:
+        rag_dir = site_paths.site_root / ".egregora" / "rag"
+        rag_dir.mkdir(parents=True, exist_ok=True)
+        rag_store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
+
+    annotations_store = AnnotationStore(storage)
+
     ctx = PipelineContext(
         config=config,
         run_id=run_id,
@@ -727,6 +736,8 @@ def _create_pipeline_context(
         client=client_instance,
         storage=storage,
         enrichment_cache=enrichment_cache,
+        rag_store=rag_store,
+        annotations_store=annotations_store,
     )
 
     return ctx, pipeline_backend, runs_backend
