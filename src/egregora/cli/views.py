@@ -46,7 +46,6 @@ def _ensure_storage(db_path: Path, table_name: str) -> DuckDBStorageManager:
 @views_app.command(name="list")
 def views_list() -> None:
     """List available view builders."""
-
     view_names = list_common_views()
     if not view_names:
         console.print("[yellow]No views available[/yellow]")
@@ -74,10 +73,11 @@ def views_create(
             "--view", help="Optional view to materialize (defaults to all common views)", show_default=False
         ),
     ] = None,
-    force: Annotated[bool, typer.Option("--force", "-f", help="Drop output tables if they already exist")]= False,
+    force: Annotated[
+        bool, typer.Option("--force", "-f", help="Drop output tables if they already exist")
+    ] = False,
 ) -> None:
     """Materialize view outputs as DuckDB tables."""
-
     storage = _ensure_storage(db_path, table_name)
     builders = _select_builders(view_name)
 
@@ -86,7 +86,9 @@ def views_create(
             if force and storage.table_exists(name):
                 storage.drop_table(name)
             elif storage.table_exists(name):
-                console.print(f"[yellow]Skipping {name}: table already exists (use --force to overwrite)[/yellow]")
+                console.print(
+                    f"[yellow]Skipping {name}: table already exists (use --force to overwrite)[/yellow]"
+                )
                 continue
 
             console.print(f"[cyan]Creating view: {name}[/cyan]")
@@ -109,7 +111,6 @@ def views_refresh(
     ] = None,
 ) -> None:
     """Rebuild materialized view tables."""
-
     views_create(db_path, table_name=table_name, view_name=view_name, force=True)
 
 
@@ -119,11 +120,12 @@ def views_drop(
     *,
     view_name: Annotated[
         str | None,
-        typer.Option("--view", help="Optional view to drop (defaults to all common views)", show_default=False),
+        typer.Option(
+            "--view", help="Optional view to drop (defaults to all common views)", show_default=False
+        ),
     ] = None,
 ) -> None:
     """Drop materialized view tables."""
-
     if not db_path.exists():
         console.print(f"[red]Error: Database file not found: {db_path}[/red]")
         raise typer.Exit(code=1)
@@ -139,4 +141,3 @@ def views_drop(
             console.print(f"[green]✅ Dropped {dropped} view table(s)[/green]")
         else:
             console.print("[yellow]No view tables found to drop[/yellow]")
-

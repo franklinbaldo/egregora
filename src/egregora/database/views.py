@@ -5,8 +5,8 @@ meaningful flexibility. Callers now import the view builders they need
 directly from this module or look them up via the ``COMMON_VIEWS`` mapping.
 """
 
-from collections.abc import Callable
 import logging
+from collections.abc import Callable
 
 import ibis
 from ibis.expr.types import Table
@@ -23,7 +23,6 @@ def chunks_view(ir: Table) -> Table:
     Adds a ``chunk_idx`` column with row numbers partitioned by ``thread_id``
     and ordered by ``ts``.
     """
-
     win = ibis.window(group_by="thread_id", order_by="ts")
     return ir.mutate(chunk_idx=ibis.row_number().over(win))
 
@@ -34,7 +33,6 @@ def chunks_sql(ir: Table) -> Table:
     Same as :func:`chunks_view` but uses SQL for better performance on large
     datasets.
     """
-
     return ir.sql(
         """
         SELECT
@@ -50,19 +48,16 @@ def chunks_sql(ir: Table) -> Table:
 
 def messages_with_media_view(ir: Table) -> Table:
     """Filter to messages containing media."""
-
     return ir.filter(ir.media_url.notnull())
 
 
 def messages_with_text_view(ir: Table) -> Table:
     """Filter to messages containing non-empty text."""
-
     return ir.filter(ir.text.notnull() & (ir.text != ""))
 
 
 def hourly_aggregates_view(ir: Table) -> Table:
     """Aggregate messages by hour."""
-
     return (
         ir.mutate(hour=ir.ts.truncate("hour"))
         .group_by("hour")
@@ -78,7 +73,6 @@ def hourly_aggregates_view(ir: Table) -> Table:
 
 def daily_aggregates_view(ir: Table) -> Table:
     """Aggregate messages by day."""
-
     return (
         ir.mutate(day=ir.ts.truncate("day"))
         .group_by("day")
@@ -109,8 +103,8 @@ def get_view_builder(name: str) -> ViewBuilder:
     ------
     KeyError
         If the requested view name is not defined in ``COMMON_VIEWS``.
-    """
 
+    """
     try:
         return COMMON_VIEWS[name]
     except KeyError as exc:  # pragma: no cover - defensive logging path
@@ -120,7 +114,6 @@ def get_view_builder(name: str) -> ViewBuilder:
 
 def list_common_views() -> list[str]:
     """Return the sorted list of known view names."""
-
     return sorted(COMMON_VIEWS)
 
 

@@ -153,4 +153,3 @@ def test_daily_aggregates_view() -> None:
 
     assert len(df) == 2
     assert {"day", "message_count"}.issubset(df.columns)
-

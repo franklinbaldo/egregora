@@ -241,7 +241,6 @@ class DuckDBStorageManager:
 
     def drop_table(self, name: str) -> None:
         """Drop a table if it exists."""
-
         quoted_name = quote_identifier(name)
         self.conn.execute(f"DROP TABLE IF EXISTS {quoted_name}")
         logger.info("Dropped table if existed: %s", name)
