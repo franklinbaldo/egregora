@@ -39,7 +39,6 @@ from egregora.enrichment.media import (
     replace_media_mentions,
 )
 from egregora.utils import BatchPromptRequest, BatchPromptResult, make_enrichment_cache_key
-from egregora.utils.time_utils import ensure_datetime
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -52,6 +51,51 @@ else:  # pragma: no cover - runtime aliases for type checking only
     DuckDBBackend = Any
 
 logger = logging.getLogger(__name__)
+
+
+def ensure_datetime(value: datetime | str | Any) -> datetime:
+    """Convert various datetime representations to Python datetime.
+
+    Handles multiple input types:
+    - datetime: returns as-is
+    - str: parses as ISO 8601 timestamp
+    - pandas.Timestamp: converts via to_pydatetime()
+
+    Args:
+        value: Datetime value in various formats
+
+    Returns:
+        Python datetime object
+
+    Raises:
+        ValueError: If string cannot be parsed as ISO timestamp
+        TypeError: If value type is not supported
+
+    Examples:
+        >>> from datetime import datetime
+        >>> ensure_datetime(datetime(2025, 1, 15))
+        datetime.datetime(2025, 1, 15, 0, 0)
+
+        >>> ensure_datetime("2025-01-15T10:00:00")
+        datetime.datetime(2025, 1, 15, 10, 0)
+
+    """
+    if isinstance(value, datetime):
+        return value
+
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError as e:
+            msg = f"Cannot parse datetime from string: {value}"
+            raise ValueError(msg) from e
+
+    # Handle pandas.Timestamp (avoid import at module level)
+    if hasattr(value, "to_pydatetime"):
+        return value.to_pydatetime()
+
+    msg = f"Unsupported datetime type: {type(value)}"
+    raise TypeError(msg)
 
 
 # ---------------------------------------------------------------------------
@@ -788,5 +832,6 @@ __all__ = [
     "build_batch_requests",
     "enrich_table",
     "enrich_table_simple",
+    "ensure_datetime",
     "map_batch_results",
 ]

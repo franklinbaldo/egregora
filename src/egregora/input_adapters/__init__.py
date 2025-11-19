@@ -22,7 +22,6 @@ Example:
 
 from egregora.input_adapters.base import InputAdapter
 from egregora.input_adapters.registry import InputAdapterRegistry, get_global_registry
-from egregora.input_adapters.slack import SLACK_ADAPTER_PLACEHOLDER
 from egregora.input_adapters.whatsapp import WhatsAppAdapter
 
 # Legacy registry (deprecated in favor of InputAdapterRegistry)
@@ -74,7 +73,7 @@ def list_adapters() -> list[str]:
 
 
 __all__ = [
-    "SLACK_ADAPTER_PLACEHOLDER",
+    "InputAdapter",
     "InputAdapterRegistry",
     "WhatsAppAdapter",
     "get_adapter",

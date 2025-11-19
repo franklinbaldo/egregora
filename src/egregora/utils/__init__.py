@@ -19,7 +19,6 @@ from egregora.utils.genai import (
     sleep_with_progress_sync,
 )
 from egregora.utils.paths import PathTraversalError, ensure_dir, safe_path_join, slugify
-from egregora.utils.time_utils import ensure_datetime
 from egregora.utils.zip import (
     ZipValidationError,
     ZipValidationSettings,
@@ -42,7 +41,6 @@ __all__ = [
     "call_with_retries_sync",
     "chunk_requests",
     "configure_default_limits",
-    "ensure_datetime",
     "ensure_dir",
     "ensure_safe_member_size",
     "extract_retry_delay",

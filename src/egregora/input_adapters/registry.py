@@ -3,7 +3,6 @@
 This module provides the InputAdapterRegistry class which:
 - Automatically discovers adapters via Python entry points
 - Validates IR version compatibility
-- Optionally validates adapter outputs against IR v1 schema
 - Provides adapter lookup by source identifier
 - Enables third-party adapter plugins
 
@@ -18,80 +17,20 @@ from __future__ import annotations
 
 import logging
 from importlib.metadata import entry_points
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ibis.expr.types import Table
-
     from egregora.input_adapters.base import InputAdapter
 
 logger = logging.getLogger(__name__)
 __all__ = ["InputAdapterRegistry", "get_global_registry"]
 
 
-class ValidatedAdapter:
-    """Wrapper that validates adapter outputs against IR v1 schema.
-
-    This wrapper intercepts the parse() method and automatically validates
-    its output before returning to the caller.
-
-    Args:
-        adapter: Source adapter to wrap
-        validate: Whether to enable validation (default: True)
-
-    Example:
-        >>> adapter = WhatsAppAdapter()
-        >>> validated = ValidatedAdapter(adapter)
-        >>> table = validated.parse(Path("export.zip"))  # Auto-validated
-
-    """
-
-    def __init__(self, adapter: InputAdapter, *, validate: bool = True) -> None:
-        """Initialize validated adapter wrapper."""
-        self._adapter = adapter
-        self._validate = validate
-
-    def parse(self, input_path: Path, **kwargs: Any) -> Table:
-        """Parse and validate adapter output.
-
-        Args:
-            input_path: Path to source export
-            **kwargs: Additional arguments for adapter
-
-        Returns:
-            Validated Ibis table
-
-        Raises:
-            SchemaError: If validation enabled and output invalid
-
-        """
-        # Call original parse method
-        result = self._adapter.parse(input_path, **kwargs)
-
-        # Validate if enabled
-        if self._validate:
-            from egregora.database.validation import adapter_output_validator
-
-            result = adapter_output_validator(result)
-            logger.debug("Validated %s adapter output", self._adapter.source_identifier)
-
-        return result
-
-    def __getattr__(self, name: str) -> Any:
-        """Delegate all other attributes to wrapped adapter."""
-        return getattr(self._adapter, name)
-
-    def __repr__(self) -> str:
-        """String representation."""
-        return f"ValidatedAdapter({self._adapter!r}, validate={self._validate})"
-
-
 class InputAdapterRegistry:
     """Registry for discovering and managing source adapters.
 
     The registry automatically loads:
-    1. Built-in adapters (WhatsApp, Slack stub)
+    1. Built-in adapters (WhatsApp)
     2. Third-party adapters via entry points (group: 'egregora.adapters')
 
     Adapters must:
@@ -99,30 +38,16 @@ class InputAdapterRegistry:
     - Provide get_adapter_metadata() with ir_version='v1'
     - Be instantiable without arguments
 
-    Args:
-        validate_outputs: If True, wrap adapters to auto-validate outputs (default: False)
-
     Example:
-        >>> # Without validation
         >>> registry = InputAdapterRegistry()
         >>> adapter = registry.get("whatsapp")
-        >>>
-        >>> # With auto-validation
-        >>> registry = InputAdapterRegistry(validate_outputs=True)
-        >>> adapter = registry.get("whatsapp")
-        >>> table = adapter.parse(Path("export.zip"))  # Auto-validated
+        >>> table = adapter.parse(Path("export.zip"))
 
     """
 
-    def __init__(self, *, validate_outputs: bool = False) -> None:
-        """Initialize registry and load adapters.
-
-        Args:
-            validate_outputs: If True, wrap adapters to auto-validate IR v1 schema
-
-        """
+    def __init__(self) -> None:
+        """Initialize registry and load adapters."""
         self._adapters: dict[str, InputAdapter] = {}
-        self._validate_outputs = validate_outputs
         self._load_builtin()
         self._load_plugins()
 
@@ -133,11 +58,6 @@ class InputAdapterRegistry:
 
             adapter = WhatsAppAdapter()
             meta = adapter.get_adapter_metadata()
-
-            # Wrap with validation if enabled
-            if self._validate_outputs:
-                adapter = ValidatedAdapter(adapter)  # type: ignore[assignment]
-
             self._adapters[meta["source"]] = adapter
             logger.debug("Loaded built-in adapter: %s v%s", meta["name"], meta["version"])
         except Exception:
@@ -176,10 +96,6 @@ class InputAdapterRegistry:
                         meta["ir_version"],
                     )
                     continue
-
-                # Wrap with validation if enabled
-                if self._validate_outputs:
-                    adapter = ValidatedAdapter(adapter)  # type: ignore[assignment]
 
                 # Register adapter
                 self._adapters[meta["source"]] = adapter

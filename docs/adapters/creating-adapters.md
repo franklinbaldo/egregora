@@ -598,25 +598,26 @@ class DiscordAdapter(InputAdapter):
 - Clear error messages with field names
 - No performance impact (validation only on first 100 rows)
 
-### Registry-Level Validation
+### Explicit Validation
 
-Enable automatic validation for **all** adapters via `InputAdapterRegistry`:
+Validate adapter outputs explicitly in your orchestration code:
 
 ```python
 from egregora.input_adapters import InputAdapterRegistry
+from egregora.database.validation import validate_ir_schema
 
-# Create registry with validation enabled
-registry = InputAdapterRegistry(validate_outputs=True)
-
-# All adapter outputs automatically validated
+registry = InputAdapterRegistry()
 adapter = registry.get("discord")
-table = adapter.parse(Path("export.json"))  # ✓ Auto-validated
+table = adapter.parse(Path("export.json"))
+
+# Explicit validation call
+validate_ir_schema(table)  # ✓ Validates against IR v1 schema
 ```
 
 **When to use**:
 - Development: Catch schema bugs early
 - Testing: Ensure test fixtures match IR v1
-- Production: Optional safety net (adds ~100ms overhead)
+- Production: Explicit validation at pipeline boundaries
 
 ### Validation Errors
 
