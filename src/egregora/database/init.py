@@ -59,26 +59,38 @@ def initialize_database(backend: BaseBackend) -> None:
     # Add PRIMARY KEY constraint (DuckDB doesn't support ALTER TABLE ADD PRIMARY KEY,
     # so we need to handle this differently - create a unique index instead)
     # Note: DuckDB's CREATE TABLE IF NOT EXISTS won't add constraints to existing tables
-    _execute_sql(conn, """
+    _execute_sql(
+        conn,
+        """
         CREATE UNIQUE INDEX IF NOT EXISTS idx_ir_messages_pk
         ON ir_messages(event_id)
-    """)
+    """,
+    )
 
     # Add indexes for query performance (matching original SQL schema)
-    _execute_sql(conn, """
+    _execute_sql(
+        conn,
+        """
         CREATE INDEX IF NOT EXISTS idx_ir_messages_ts
         ON ir_messages(ts)
-    """)
+    """,
+    )
 
-    _execute_sql(conn, """
+    _execute_sql(
+        conn,
+        """
         CREATE INDEX IF NOT EXISTS idx_ir_messages_thread
         ON ir_messages(thread_id)
-    """)
+    """,
+    )
 
-    _execute_sql(conn, """
+    _execute_sql(
+        conn,
+        """
         CREATE INDEX IF NOT EXISTS idx_ir_messages_author
         ON ir_messages(author_uuid)
-    """)
+    """,
+    )
 
     logger.info("✓ Database tables initialized successfully")
 
@@ -89,6 +101,7 @@ def _execute_sql(conn, sql: str) -> None:
     Args:
         conn: DuckDB connection or Ibis backend
         sql: SQL statement to execute
+
     """
     if hasattr(conn, "raw_sql"):
         # Ibis backend
