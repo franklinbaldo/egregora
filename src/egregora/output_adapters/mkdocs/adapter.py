@@ -17,15 +17,15 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import ibis
 import yaml
 from dateutil import parser as dateutil_parser
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
+
 # Custom YAML loader that ignores unknown tags
 class _ConfigLoader(yaml.SafeLoader):
     """YAML loader that ignores unknown tags (like !ENV)."""
-    pass
+
 
 _ConfigLoader.add_constructor(None, lambda loader, node: None)
 
@@ -283,10 +283,7 @@ class MkDocsAdapter(OutputAdapter):
             return site_paths.mkdocs_path is not None and site_paths.mkdocs_path.exists()
         except Exception:
             # If resolve fails, fall back to simple checks
-            return (
-                (site_root / ".egregora" / "mkdocs.yml").exists()
-                or (site_root / "mkdocs.yml").exists()
-            )
+            return (site_root / ".egregora" / "mkdocs.yml").exists() or (site_root / "mkdocs.yml").exists()
 
     def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure.
@@ -915,14 +912,10 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
         documents: list[dict] = []
 
         # Scan posts directory
-        documents.extend(
-            self._scan_directory_for_documents(site_root / "posts", site_root, "*.md")
-        )
+        documents.extend(self._scan_directory_for_documents(site_root / "posts", site_root, "*.md"))
 
         # Scan profiles directory
-        documents.extend(
-            self._scan_directory_for_documents(site_root / "profiles", site_root, "*.md")
-        )
+        documents.extend(self._scan_directory_for_documents(site_root / "profiles", site_root, "*.md"))
 
         # Scan media enrichments (docs/media/**/*.md, excluding index.md)
         documents.extend(
@@ -937,9 +930,7 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
 
         # Scan URL enrichments (media/urls/**/*.md)
         documents.extend(
-            self._scan_directory_for_documents(
-                site_root / "media", site_root, "*.md", recursive=True
-            )
+            self._scan_directory_for_documents(site_root / "media", site_root, "*.md", recursive=True)
         )
 
         return self._documents_to_table(documents)

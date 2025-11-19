@@ -331,9 +331,7 @@ def _process_single_media(
         markdown_content = cache_entry.get("markdown", "")
     else:
         try:
-            markdown_content = run_media_enrichment(
-                media_agent, file_path, mime_hint=media_type
-            )
+            markdown_content = run_media_enrichment(media_agent, file_path, mime_hint=media_type)
             cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
         except Exception:
             logger.exception("Media enrichment failed for %s (%s)", file_path, media_type)

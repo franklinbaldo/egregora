@@ -227,7 +227,6 @@ class MediaEnrichmentDeps(BaseModel):
 
     # REMOVED (2025-11-19): prompts_dir moved to factory function
     # Agents should not know about prompt resolution - they receive rendered content
-    pass
 
 
 def make_url_agent(
@@ -285,9 +284,7 @@ def _sanitize_prompt_input(text: str, max_length: int = 2000) -> str:
     return "\n".join(line for line in cleaned.split("\n") if line.strip())
 
 
-def run_url_enrichment(
-    agent: Agent[UrlEnrichmentDeps, EnrichmentOut], url: str | AnyUrl
-) -> str:
+def run_url_enrichment(agent: Agent[UrlEnrichmentDeps, EnrichmentOut], url: str | AnyUrl) -> str:
     """Run URL enrichment with grounding to fetch actual content.
 
     The prompts_dir is already captured in the agent factory closure.

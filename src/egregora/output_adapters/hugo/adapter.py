@@ -14,8 +14,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-import ibis
-
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 
 if TYPE_CHECKING:
@@ -483,16 +481,12 @@ Consult your Hugo theme documentation for available shortcodes.
 
         # Scan posts directory
         documents.extend(
-            self._scan_directory_for_documents(
-                site_root / "content" / "posts", site_root, "*.md"
-            )
+            self._scan_directory_for_documents(site_root / "content" / "posts", site_root, "*.md")
         )
 
         # Scan profiles directory
         documents.extend(
-            self._scan_directory_for_documents(
-                site_root / "content" / "profiles", site_root, "*.md"
-            )
+            self._scan_directory_for_documents(site_root / "content" / "profiles", site_root, "*.md")
         )
 
         # Scan media directory (static/media)
