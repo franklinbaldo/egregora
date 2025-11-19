@@ -8,6 +8,9 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.run_store import RunStore
+
 console = Console()
 
 runs_app = typer.Typer(
@@ -15,7 +18,10 @@ runs_app = typer.Typer(
     help="View and manage pipeline run history",
 )
 
-from egregora.database.run_store import RunStore
+
+def get_storage(db_path: Path) -> DuckDBStorageManager:
+    """Get a DuckDBStorageManager instance."""
+    return DuckDBStorageManager(db_path=db_path)
 
 
 @runs_app.command(name="tail")
@@ -25,7 +31,8 @@ def runs_tail(
 ) -> None:
     """Show last N runs."""
     try:
-        with RunStore(db_path) as store:
+        storage = get_storage(db_path)
+        with RunStore(storage) as store:
             result = store.get_latest_runs(n)
             if not result:
                 console.print("[yellow]No runs found[/yellow]")
@@ -145,7 +152,8 @@ def runs_show(
 ) -> None:
     """Show detailed run info."""
     try:
-        with RunStore(db_path) as store:
+        storage = get_storage(db_path)
+        with RunStore(storage) as store:
             result = store.get_run_by_id(run_id)
 
             if not result:

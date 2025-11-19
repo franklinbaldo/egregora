@@ -11,13 +11,13 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import ibis
 from ibis import _
 
 from egregora.agents.reader.elo import DEFAULT_ELO
+from egregora.database.duckdb_manager import DuckDBStorageManager
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -72,30 +72,29 @@ class EloRating:
 class EloStore:
     """Persistent storage for ELO ratings using DuckDB."""
 
-    def __init__(self, db_path: Path | str) -> None:
+    def __init__(self, storage: DuckDBStorageManager) -> None:
         """Initialize ELO store.
 
         Args:
-            db_path: Path to DuckDB database file
+            storage: The central DuckDB storage manager.
 
         """
-        self.db_path = Path(db_path)
-        self.conn = ibis.duckdb.connect(str(self.db_path))
+        self.storage = storage
         self._ensure_tables()
 
     def _ensure_tables(self) -> None:
         """Create ratings and history tables if they don't exist."""
         # Create ratings table
-        if "elo_ratings" not in self.conn.list_tables():
-            self.conn.create_table(
+        if "elo_ratings" not in self.storage.ibis_conn.list_tables():
+            self.storage.ibis_conn.create_table(
                 "elo_ratings",
                 schema=ELO_RATINGS_SCHEMA,
             )
             logger.info("Created elo_ratings table")
 
         # Create comparison history table
-        if "comparison_history" not in self.conn.list_tables():
-            self.conn.create_table(
+        if "comparison_history" not in self.storage.ibis_conn.list_tables():
+            self.storage.ibis_conn.create_table(
                 "comparison_history",
                 schema=COMPARISON_HISTORY_SCHEMA,
             )
@@ -111,7 +110,7 @@ class EloStore:
             EloRating with current stats, or new rating at DEFAULT_ELO
 
         """
-        ratings_table = self.conn.table("elo_ratings")
+        ratings_table = self.storage.ibis_conn.table("elo_ratings")
         result = ratings_table.filter(_.post_slug == post_slug).limit(1).execute()
 
         if result.empty:
@@ -229,10 +228,8 @@ class EloStore:
     ) -> None:
         """Insert or update a rating record."""
         # DuckDB doesn't support UPSERT directly in Ibis, so we delete + insert
-        ratings_table = self.conn.table("elo_ratings")
-
         # Delete existing record
-        self.conn.raw_sql(
+        self.storage.ibis_conn.raw_sql(
             "DELETE FROM elo_ratings WHERE post_slug = ?",
             parameters=[post_slug],
         )
@@ -254,7 +251,7 @@ class EloStore:
             schema=ELO_RATINGS_SCHEMA,
         )
 
-        self.conn.insert("elo_ratings", new_row)
+        self.storage.ibis_conn.insert("elo_ratings", new_row)
 
     def _record_comparison(
         self,
@@ -288,7 +285,7 @@ class EloStore:
             schema=COMPARISON_HISTORY_SCHEMA,
         )
 
-        self.conn.insert("comparison_history", new_comparison)
+        self.storage.ibis_conn.insert("comparison_history", new_comparison)
 
     def get_top_posts(self, limit: int = 10) -> Table:
         """Get top-rated posts.
@@ -300,7 +297,7 @@ class EloStore:
             Ibis table with top posts sorted by rating
 
         """
-        ratings_table = self.conn.table("elo_ratings")
+        ratings_table = self.storage.ibis_conn.table("elo_ratings")
         return ratings_table.filter(_.comparisons > 0).order_by(_.rating.desc()).limit(limit)
 
     def get_comparison_history(
@@ -318,7 +315,7 @@ class EloStore:
             Ibis table with comparison history
 
         """
-        history_table = self.conn.table("comparison_history")
+        history_table = self.storage.ibis_conn.table("comparison_history")
 
         if post_slug:
             history_table = history_table.filter((_.post_a_slug == post_slug) | (_.post_b_slug == post_slug))
@@ -329,7 +326,3 @@ class EloStore:
             history_table = history_table.limit(limit)
 
         return history_table
-
-    def close(self) -> None:
-        """Close database connection."""
-        self.conn.disconnect()

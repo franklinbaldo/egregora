@@ -1,16 +1,17 @@
 """Data access layer for pipeline run history."""
 
-from pathlib import Path
+from __future__ import annotations
 
-import duckdb
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from egregora.database.duckdb_manager import DuckDBStorageManager
 
 
 class RunStore:
-    def __init__(self, db_path: Path):
-        self.db_path = db_path
-        if not self.db_path.exists():
-            raise FileNotFoundError(f"No runs database found at {self.db_path}")
-        self.conn = duckdb.connect(str(self.db_path), read_only=True)
+    def __init__(self, storage: DuckDBStorageManager):
+        self.storage = storage
+        self.conn = storage.conn
         self._columns = self._load_columns()
 
     def _load_columns(self) -> set[str]:
@@ -95,4 +96,4 @@ class RunStore:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.conn.close()
+        pass

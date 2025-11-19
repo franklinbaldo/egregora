@@ -73,13 +73,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ibis
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database import ir_schema as database_schema
+from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.privacy.detector import PrivacyViolationError, validate_text_privacy
 
 if TYPE_CHECKING:
@@ -187,16 +187,15 @@ class AnnotationStore:
         - Sequences: annotations_id_seq for auto-increment
     """
 
-    def __init__(self, db_path: Path) -> None:
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._backend = ibis.duckdb.connect(str(self.db_path))
+    def __init__(self, storage: DuckDBStorageManager) -> None:
+        self.storage = storage
+        self._backend = storage.ibis_conn
         self._initialize()
 
     @property
     def _connection(self) -> duckdb.DuckDBPyConnection:
         """Return the underlying DuckDB connection."""
-        return self._backend.con
+        return self.storage.conn
 
     # ========================================================================
     # Schema Initialization

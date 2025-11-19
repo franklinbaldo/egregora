@@ -13,21 +13,14 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 from pydantic import BaseModel, Field, ValidationError
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
+from egregora.utils import call_with_retries
 
 if TYPE_CHECKING:
     from egregora.agents.reader.models import EvaluationRequest
 
 logger = logging.getLogger(__name__)
-
-
-def _is_rate_limit_error(exception: Exception) -> bool:
-    """Check if exception is a rate limit error (429 RESOURCE_EXHAUSTED)."""
-    if isinstance(exception, httpx.HTTPStatusError):
-        return exception.response.status_code == 429
-    return False
 
 
 # System prompt for reader agent
@@ -137,12 +130,6 @@ def _get_response_schema() -> dict[str, Any]:
     }
 
 
-@retry(
-    retry=_is_rate_limit_error,
-    wait=wait_exponential(multiplier=1, min=4, max=60),
-    stop=stop_after_attempt(5),
-    reraise=True,
-)
 async def compare_posts(
     request: EvaluationRequest,
     model: str | None = None,
@@ -204,8 +191,8 @@ Evaluate both posts and determine which is better quality overall.
 
     logger.debug("Comparing posts: %s vs %s", request.post_a_slug, request.post_b_slug)
 
-    async with httpx.AsyncClient() as client:
-        try:
+    async def _call_api() -> httpx.Response:
+        async with httpx.AsyncClient() as client:
             response = await client.post(
                 url,
                 json=payload,
@@ -214,14 +201,9 @@ Evaluate both posts and determine which is better quality overall.
                 timeout=30.0,
             )
             response.raise_for_status()
-        except httpx.HTTPStatusError as e:
-            if _is_rate_limit_error(e):
-                logger.warning(
-                    "Rate limit hit for %s vs %s, retrying with backoff",
-                    request.post_a_slug,
-                    request.post_b_slug,
-                )
-            raise
+            return response
+
+    response = await call_with_retries(_call_api)
 
     # Parse response
     response_data = response.json()

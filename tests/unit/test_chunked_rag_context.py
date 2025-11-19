@@ -13,7 +13,8 @@ from datetime import UTC, datetime
 import ibis
 import pytest
 
-from egregora.agents.writer.context_builder import consolidate_messages_to_markdown, deduplicate_by_document
+from egregora.agents.writer.context_builder import deduplicate_by_document
+from egregora.agents.writer.formatting import _build_conversation_markdown_verbose
 
 
 class TestConsolidateMessagesToMarkdown:
@@ -22,7 +23,7 @@ class TestConsolidateMessagesToMarkdown:
     def test_empty_table(self):
         """Empty table returns empty string."""
         table = ibis.memtable([], schema={"timestamp": "timestamp", "author": "string", "message": "string"})
-        result = consolidate_messages_to_markdown(table)
+        result = _build_conversation_markdown_verbose(table)
         assert result == ""
 
     def test_single_message(self):
@@ -32,7 +33,7 @@ class TestConsolidateMessagesToMarkdown:
             [{"timestamp": dt, "author": "uuid-123", "message": "Hello world"}],
             schema={"timestamp": "timestamp", "author": "string", "message": "string"},
         )
-        result = consolidate_messages_to_markdown(table)
+        result = _build_conversation_markdown_verbose(table)
 
         assert "## Message 1" in result
         assert "**Author:** uuid-123" in result
@@ -52,7 +53,7 @@ class TestConsolidateMessagesToMarkdown:
             ],
             schema={"timestamp": "timestamp", "author": "string", "message": "string"},
         )
-        result = consolidate_messages_to_markdown(table)
+        result = _build_conversation_markdown_verbose(table)
 
         assert "## Message 1" in result
         assert "## Message 2" in result
@@ -72,7 +73,7 @@ class TestConsolidateMessagesToMarkdown:
             [{"timestamp": dt, "author": "uuid-123", "message": multiline_message}],
             schema={"timestamp": "timestamp", "author": "string", "message": "string"},
         )
-        result = consolidate_messages_to_markdown(table)
+        result = _build_conversation_markdown_verbose(table)
 
         assert "Line 1\nLine 2\nLine 3" in result
 
@@ -87,7 +88,7 @@ class TestConsolidateMessagesToMarkdown:
             ],
             schema={"timestamp": "timestamp", "author": "string", "message": "string"},
         )
-        result = consolidate_messages_to_markdown(table)
+        result = _build_conversation_markdown_verbose(table)
 
         # Should have double newlines between messages for paragraph-based chunking
         assert "\n\n" in result
@@ -99,7 +100,7 @@ class TestConsolidateMessagesToMarkdown:
             [{"ts": dt, "author_uuid": "uuid-ir-123", "text": "IR schema message"}],
             schema={"ts": "timestamp", "author_uuid": "string", "text": "string"},
         )
-        result = consolidate_messages_to_markdown(table)
+        result = _build_conversation_markdown_verbose(table)
 
         assert "## Message 1" in result
         assert "**Author:** uuid-ir-123" in result
@@ -115,7 +116,7 @@ class TestConsolidateMessagesToMarkdown:
             ],
             schema={"ts": "timestamp", "author_uuid": "string", "text": "string", "msg_id": "string"},
         )
-        result = consolidate_messages_to_markdown(table)
+        result = _build_conversation_markdown_verbose(table)
 
         # Should have both messages in order
         assert "Message 1" in result
@@ -131,7 +132,7 @@ class TestConsolidateMessagesToMarkdown:
         )
 
         with pytest.raises(ValueError) as exc_info:
-            consolidate_messages_to_markdown(table)
+            _build_conversation_markdown_verbose(table)
 
         error_msg = str(exc_info.value)
         assert "missing required columns" in error_msg.lower()

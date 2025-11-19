@@ -10,6 +10,7 @@ import ibis
 
 from egregora.agents.model_limits import PromptTooLargeError
 from egregora.agents.shared.rag.store import VectorStore
+from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.utils.frontmatter_utils import parse_frontmatter
 
 
@@ -170,7 +171,13 @@ def index_document(
     return len(chunks)
 
 
-def index_documents_for_rag(output_format: OutputAdapter, rag_dir: Path, *, embedding_model: str) -> int:
+def index_documents_for_rag(
+    output_format: OutputAdapter,
+    rag_dir: Path,
+    storage: DuckDBStorageManager,
+    *,
+    embedding_model: str,
+) -> int:
     """Index new/changed documents using incremental indexing via OutputAdapter.
 
     Uses OutputAdapter.list_documents() to get storage identifiers and mtimes,
@@ -182,6 +189,7 @@ def index_documents_for_rag(output_format: OutputAdapter, rag_dir: Path, *, embe
     Args:
         output_format: OutputAdapter instance (initialized with site_root)
         rag_dir: Directory containing RAG vector store
+        storage: The central DuckDB storage manager.
         embedding_model: Model to use for embeddings
 
     Returns:
@@ -216,7 +224,7 @@ def index_documents_for_rag(output_format: OutputAdapter, rag_dir: Path, *, embe
 
         docs_table = ibis.memtable(docs_df)
 
-        store = VectorStore(rag_dir / "chunks.parquet")
+        store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
         indexed_table = store.get_indexed_sources_table()
 
         indexed_count_val = indexed_table.count().execute()

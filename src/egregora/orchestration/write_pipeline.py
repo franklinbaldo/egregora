@@ -31,10 +31,12 @@ import ibis
 from google import genai
 
 from egregora.agents.model_limits import get_model_context_limit
+from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.author_profiles import filter_opted_out_authors, process_commands
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterConfig, write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
+from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.tracking import record_run
 from egregora.database.validation import validate_ir_schema
 from egregora.enrichment import enrich_table
@@ -160,6 +162,7 @@ class WindowProcessingContext:
     retrieval_nprobe: int
     retrieval_overfetch: int
     client: genai.Client
+    storage: DuckDBStorageManager
 
 
 @dataclass
@@ -172,6 +175,7 @@ class PipelineEnvironment:
     runs_backend: any
     client: genai.Client
     enrichment_cache: EnrichmentCache
+    storage: DuckDBStorageManager
 
 
 @dataclass
@@ -240,7 +244,6 @@ def _process_single_window(
     writer_config = WriterConfig(
         output_dir=ctx.posts_dir,
         profiles_dir=ctx.profiles_dir,
-        rag_dir=ctx.site_paths.rag_dir,
         site_root=ctx.site_paths.site_root,
         egregora_config=ctx.config,
         enable_rag=True,
@@ -249,8 +252,17 @@ def _process_single_window(
         retrieval_overfetch=ctx.retrieval_overfetch,
     )
 
+    annotations_store = AnnotationStore(ctx.storage)
+    rag_store = VectorStore(ctx.site_paths.rag_dir / "chunks.parquet", storage=ctx.storage)
+
     result = write_posts_for_window(
-        enriched_table, window.start_time, window.end_time, ctx.client, writer_config
+        enriched_table,
+        window.start_time,
+        window.end_time,
+        ctx.client,
+        annotations_store,
+        rag_store,
+        writer_config,
     )
     post_count = len(result.get("posts", []))
     profile_count = len(result.get("profiles", []))
@@ -733,6 +745,7 @@ def _setup_pipeline_environment(
     client_instance = client or _create_gemini_client(api_key)
     cache_dir = Path(".egregora-cache") / site_paths.site_root.name
     enrichment_cache = EnrichmentCache(cache_dir)
+    storage = DuckDBStorageManager(db_path=site_paths.site_root / ".egregora.db")
 
     return PipelineEnvironment(
         site_paths=site_paths,
@@ -741,6 +754,7 @@ def _setup_pipeline_environment(
         runs_backend=runs_backend,
         client=client_instance,
         enrichment_cache=enrichment_cache,
+        storage=storage,
     )
 
 
@@ -967,10 +981,14 @@ def _prepare_pipeline_data(
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
-            from egregora.agents.writer.writer_runner import index_documents_for_rag
+            from egregora.agents.shared.rag.indexing import index_documents_for_rag
 
+            rag_store = VectorStore(env.site_paths.rag_dir / "chunks.parquet", storage=env.storage)
             indexed_count = index_documents_for_rag(
-                output_format, env.site_paths.rag_dir, embedding_model=embedding_model
+                output_format,
+                env.site_paths.rag_dir,
+                env.storage,
+                embedding_model=embedding_model,
             )
             if indexed_count > 0:
                 logger.info("[green]✓ Indexed[/] %s documents into RAG", indexed_count)
@@ -993,6 +1011,7 @@ def _prepare_pipeline_data(
         retrieval_nprobe=retrieval_nprobe,
         retrieval_overfetch=retrieval_overfetch,
         client=env.client,
+        storage=env.storage,
     )
 
     return PreparedPipelineData(
@@ -1010,6 +1029,7 @@ def _index_media_into_rag(
     results: dict,
     site_paths: any,
     embedding_model: str,
+    storage: DuckDBStorageManager,
 ) -> None:
     """Index media enrichments into RAG after window processing.
 
@@ -1018,6 +1038,7 @@ def _index_media_into_rag(
         results: Window processing results
         site_paths: Site path configuration
         embedding_model: Embedding model identifier
+        storage: The central DuckDB storage manager.
 
     """
     if not (enable_enrichment and results):
@@ -1026,7 +1047,7 @@ def _index_media_into_rag(
     logger.info("[bold cyan]📚 Indexing media into RAG...[/]")
     try:
         rag_dir = site_paths.rag_dir
-        store = VectorStore(rag_dir / "chunks.parquet")
+        store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
         media_chunks = index_all_media(site_paths.docs_dir, store, embedding_model=embedding_model)
         if media_chunks > 0:
             logger.info("[green]✓ Indexed[/] %s media chunks into RAG", media_chunks)
@@ -1190,7 +1211,13 @@ def run(
             results, max_processed_timestamp = _process_all_windows(
                 dataset.windows_iterator, dataset.window_context, env.runs_backend
             )
-            _index_media_into_rag(dataset.enable_enrichment, results, env.site_paths, dataset.embedding_model)
+            _index_media_into_rag(
+                dataset.enable_enrichment,
+                results,
+                env.site_paths,
+                dataset.embedding_model,
+                env.storage,
+            )
             _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
 
             # Calculate metrics

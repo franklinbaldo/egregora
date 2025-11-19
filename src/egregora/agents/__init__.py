@@ -17,7 +17,6 @@ from importlib import import_module
 from typing import Any
 
 from egregora.agents.registry import AgentResolver, ToolRegistry, load_agent
-from egregora.utils.pydantic_ai_retry import install_pydantic_ai_retry_transport
 
 __all__ = ["AgentResolver", "ToolRegistry", "banner", "load_agent", "writer"]
 
@@ -29,7 +28,3 @@ def __getattr__(name: str) -> Any:
         globals()[name] = module
         return module
     raise AttributeError(name)
-
-
-# Ensure pydantic-ai HTTP clients use tenacity transport for retries
-install_pydantic_ai_retry_transport()

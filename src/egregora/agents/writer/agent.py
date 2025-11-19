@@ -16,7 +16,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -64,6 +63,7 @@ from egregora.agents.shared.rag import VectorStore, is_rag_available
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
+from egregora.utils.genai import call_with_retries_sync
 
 if TYPE_CHECKING:
     from pydantic_ai.result import RunResult
@@ -583,30 +583,7 @@ def _run_agent_with_retries(
         Agent execution result with message history and usage metrics
 
     """
-    max_attempts = 3
-    result: RunResult[WriterAgentReturn] | None = None
-
-    for attempt in range(1, max_attempts + 1):
-        try:
-            result = agent.run_sync(prompt, deps=state)
-            break
-        except Exception as exc:  # Broad catch: retry on any error (network, API, timeout, etc.)
-            if attempt == max_attempts:
-                logger.exception("Writer agent failed after %s attempts", attempt)
-                raise
-            delay = attempt * 2
-            logger.warning(
-                "Writer agent attempt %s/%s failed: %s. Retrying in %ss...",
-                attempt,
-                max_attempts,
-                exc,
-                delay,
-            )
-            time.sleep(delay)
-
-    # Type narrowing: result will always be set if we reach here (exception raised on final failure)
-    assert result is not None, "Result should be set after successful retry or exception raised"
-    return result
+    return call_with_retries_sync(agent.run_sync, prompt, deps=state)
 
 
 def _log_agent_completion(

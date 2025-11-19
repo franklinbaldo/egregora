@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from egregora.agents.shared.rag.embedder import embed_query_text
 from egregora.agents.shared.rag.store import VectorStore
+from egregora.database.duckdb_manager import DuckDBStorageManager
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -24,6 +25,7 @@ async def find_relevant_docs(
     *,
     _client: genai.Client,
     rag_dir: Path,
+    storage: DuckDBStorageManager,
     embedding_model: str,
     top_k: int = 5,
     min_similarity_threshold: float = 0.7,
@@ -42,6 +44,7 @@ async def find_relevant_docs(
         query: Natural language query
         client: Gemini API client for embeddings
         rag_dir: Directory containing vector store
+        storage: The central DuckDB storage manager.
         embedding_model: Embedding model name
         top_k: Number of results to return
         min_similarity_threshold: Minimum similarity threshold (0-1)
@@ -62,6 +65,7 @@ async def find_relevant_docs(
         ...     "quantum computing",
         ...     client=client,
         ...     rag_dir=Path("./rag"),
+        ...     storage=storage,
         ...     embedding_model="models/gemini-embedding-001"
         ... )
         >>> for doc in docs:
@@ -70,7 +74,7 @@ async def find_relevant_docs(
     """
     try:
         query_vector = embed_query_text(query, model=embedding_model)
-        store = VectorStore(rag_dir / "chunks.parquet")
+        store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
         results = store.search(
             query_vec=query_vector,
             top_k=top_k,
@@ -141,6 +145,7 @@ async def build_rag_context_for_writer(
     *,
     client: genai.Client,
     rag_dir: Path,
+    storage: DuckDBStorageManager,
     embedding_model: str,
     top_k: int = 5,
     retrieval_mode: str = "ann",
@@ -157,6 +162,7 @@ async def build_rag_context_for_writer(
         query: Natural language query (usually conversation markdown)
         client: Gemini API client
         rag_dir: Vector store directory
+        storage: The central DuckDB storage manager.
         embedding_model: Embedding model name
         top_k: Number of results
         retrieval_mode: "ann" or "exact"
@@ -171,6 +177,7 @@ async def build_rag_context_for_writer(
         ...     "Discussion about quantum computing...",
         ...     client=client,
         ...     rag_dir=Path("./rag"),
+        ...     storage=storage,
         ...     embedding_model="models/gemini-embedding-001"
         ... )
         >>> prompt = f"{conversation}\\n\\n{context}"
@@ -180,6 +187,7 @@ async def build_rag_context_for_writer(
         query,
         _client=client,
         rag_dir=rag_dir,
+        storage=storage,
         embedding_model=embedding_model,
         top_k=top_k,
         retrieval_mode=retrieval_mode,

@@ -33,12 +33,12 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any, TypeVar
 
 import duckdb
 import ibis
 
+from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.utils.git import get_git_commit_sha
 
 # Type variable for stage function return type
@@ -65,9 +65,6 @@ class RunContext:
     parent_run_ids: tuple[uuid.UUID, ...] = ()
     """Parent run IDs (upstream dependencies for lineage tracking)."""
 
-    db_path: Path | None = None
-    """Path to DuckDB database for run tracking (default: .egregora-cache/runs.duckdb)."""
-
     trace_id: str | None = None
     """OpenTelemetry trace ID for distributed tracing."""
 
@@ -77,7 +74,6 @@ class RunContext:
         stage: str,
         tenant_id: str | None = None,
         parent_run_ids: list[uuid.UUID] | None = None,
-        db_path: Path | None = None,
         trace_id: str | None = None,
     ) -> "RunContext":
         """Create a new run context with generated run_id.
@@ -86,7 +82,6 @@ class RunContext:
             stage: Pipeline stage identifier
             tenant_id: Tenant identifier (optional)
             parent_run_ids: Parent run IDs for lineage (optional)
-            db_path: DuckDB database path (default: .egregora-cache/runs.duckdb)
             trace_id: OpenTelemetry trace ID (optional)
 
         Returns:
@@ -107,7 +102,6 @@ class RunContext:
             stage=stage,
             tenant_id=tenant_id,
             parent_run_ids=tuple(parent_run_ids or []),
-            db_path=db_path or Path(".egregora-cache/runs.duckdb"),
             trace_id=trace_id,
         )
 
@@ -237,6 +231,7 @@ def run_stage_with_tracking[T](
     stage_func: Callable[..., T],
     *,
     context: RunContext,
+    storage: DuckDBStorageManager,
     input_table: ibis.Table | None = None,
     **kwargs: Any,
 ) -> tuple[T, uuid.UUID]:
@@ -252,6 +247,7 @@ def run_stage_with_tracking[T](
     Args:
         stage_func: Pipeline stage function to execute
         context: Run context with metadata
+        storage: The central DuckDB storage manager.
         input_table: Input Ibis table (for fingerprinting, optional)
         **kwargs: Additional arguments to pass to stage_func
 
@@ -266,15 +262,13 @@ def run_stage_with_tracking[T](
         >>> result, run_id = run_stage_with_tracking(
         ...     stage_func=privacy_gate_stage,
         ...     context=ctx,
+        ...     storage=storage,
         ...     input_table=raw_data,
         ...     config=privacy_config,
         ... )
 
     """
-    # Connect to runs database
-    db_path = context.db_path or Path(".egregora-cache/runs.duckdb")
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = duckdb.connect(str(db_path))
+    conn = storage.conn
 
     # Calculate input metrics
     rows_in = None
@@ -345,8 +339,6 @@ def run_stage_with_tracking[T](
             [finished_at, duration_seconds, error_msg, str(context.run_id)],
         )
 
-        conn.close()
         raise  # Re-raise exception after recording
     else:
-        conn.close()
         return result, context.run_id
