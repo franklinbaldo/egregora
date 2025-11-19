@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import pytest
 
 from egregora.output_adapters.base import OutputAdapter
 from egregora.output_adapters.eleventy_arrow.adapter import EleventyArrowOutputAdapter
 from egregora.output_adapters.mkdocs import MkDocsAdapter
-
 
 FORBIDDEN_ATTRIBUTES = {"posts", "profiles", "journals", "enrichments"}
 
