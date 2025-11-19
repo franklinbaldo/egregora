@@ -59,6 +59,7 @@ jobs:
               if (isFork && eventName === 'pull_request') {
                 console.log("ℹ️ Fork detected on automatic trigger. Skipping (No secrets access).");
                 console.log("💡 To review this fork, a maintainer must comment '@gemini' on the PR.");
+                core.setOutput('skip', 'true');
                 return { skip: true };
               } else {
                 core.setFailed("❌ GEMINI_API_KEY is missing in Repo Secrets.");
