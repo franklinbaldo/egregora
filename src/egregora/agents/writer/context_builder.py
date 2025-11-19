@@ -222,8 +222,7 @@ def build_rag_context_for_prompt(
 
 def _query_rag_for_context(
     table: Table,
-    _client: genai.Client,
-    rag_dir: Path,
+    store: VectorStore,
     *,
     embedding_model: str,
     retrieval_mode: str = "ann",
@@ -268,8 +267,6 @@ def _query_rag_for_context(
 
     """
     try:
-        store = VectorStore(rag_dir / "chunks.parquet")
-
         # Step 1: Consolidate to markdown
         markdown = _build_conversation_markdown_verbose(table)
         if not markdown.strip():

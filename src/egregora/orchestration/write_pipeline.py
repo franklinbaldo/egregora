@@ -981,10 +981,15 @@ def _prepare_pipeline_data(
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
-            from egregora.agents.writer.writer_runner import index_documents_for_rag
+            from egregora.agents.shared.rag.indexing import index_documents_for_rag
 
             rag_store = VectorStore(env.site_paths.rag_dir / "chunks.parquet", storage=env.storage)
-            indexed_count = index_documents_for_rag(output_format, rag_store, embedding_model=embedding_model)
+            indexed_count = index_documents_for_rag(
+                output_format,
+                env.site_paths.rag_dir,
+                env.storage,
+                embedding_model=embedding_model,
+            )
             if indexed_count > 0:
                 logger.info("[green]✓ Indexed[/] %s documents into RAG", indexed_count)
             else:
