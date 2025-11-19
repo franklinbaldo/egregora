@@ -434,7 +434,7 @@ class DuckDBStorageManager:
     # Vector backend helpers
     # ------------------------------------------------------------------
 
-    def create_vector_backend(self, *, enable_vss: bool = True) -> "VectorBackend":
+    def create_vector_backend(self, *, enable_vss: bool = True) -> VectorBackend:
         """Create a vector backend bound to this storage manager."""
         backend_cls: type[VectorBackend]
         if enable_vss:

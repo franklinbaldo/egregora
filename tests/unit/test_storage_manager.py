@@ -408,6 +408,8 @@ class TestSequenceHelpers:
             values = storage.next_sequence_values("batch_seq", count=3)
 
             assert values == [1, 2, 3]
+
+
 class TestVectorBackendFactory:
     """Ensure DuckDBStorageManager exposes vector backends."""
 
