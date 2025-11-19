@@ -16,13 +16,7 @@ from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
 
-from egregora.prompt_templates import (
-    AvatarEnrichmentPromptTemplate,
-    DetailedMediaEnrichmentPromptTemplate,
-    DetailedUrlEnrichmentPromptTemplate,
-    MediaEnrichmentPromptTemplate,
-    UrlEnrichmentPromptTemplate,
-)
+from egregora.prompt_templates import render_prompt
 
 if TYPE_CHECKING:
     from pydantic_ai.result import RunResult
@@ -90,15 +84,15 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentContext, Enric
     @agent.system_prompt
     def url_system_prompt(ctx: RunContext[UrlEnrichmentContext]) -> str:
         """Generate system prompt for URL enrichment."""
-        template = DetailedUrlEnrichmentPromptTemplate(
+        return render_prompt(
+            "enrichment/url_detailed.jinja",
+            prompts_dir=ctx.deps.prompts_dir,
             url=ctx.deps.url,
             original_message=ctx.deps.original_message,
             sender_uuid=ctx.deps.sender_uuid,
             date=ctx.deps.date,
             time=ctx.deps.time,
-            prompts_dir=ctx.deps.prompts_dir,
         )
-        return template.render()
 
     return agent
 
@@ -118,7 +112,9 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentContext, E
     @agent.system_prompt
     def media_system_prompt(ctx: RunContext[MediaEnrichmentContext]) -> str:
         """Generate system prompt for media enrichment."""
-        template = DetailedMediaEnrichmentPromptTemplate(
+        return render_prompt(
+            "enrichment/media_detailed.jinja",
+            prompts_dir=ctx.deps.prompts_dir,
             media_type=ctx.deps.media_type,
             media_filename=ctx.deps.media_filename,
             media_path=ctx.deps.media_path,
@@ -126,9 +122,7 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentContext, E
             sender_uuid=ctx.deps.sender_uuid,
             date=ctx.deps.date,
             time=ctx.deps.time,
-            prompts_dir=ctx.deps.prompts_dir,
         )
-        return template.render()
 
     return agent
 
@@ -148,12 +142,12 @@ def create_avatar_enrichment_agent(model: str) -> Agent[AvatarEnrichmentContext,
     @agent.system_prompt
     def avatar_system_prompt(ctx: RunContext[AvatarEnrichmentContext]) -> str:
         """Generate system prompt for avatar moderation."""
-        template = AvatarEnrichmentPromptTemplate(
+        return render_prompt(
+            "enricher_avatar.jinja",
+            prompts_dir=ctx.deps.prompts_dir,
             media_filename=ctx.deps.media_filename,
             media_path=ctx.deps.media_path,
-            prompts_dir=ctx.deps.prompts_dir,
         )
-        return template.render()
 
     return agent
 
@@ -250,8 +244,11 @@ def make_url_agent(
 
     @agent.system_prompt
     def url_system_prompt(ctx: RunContext[UrlEnrichmentDeps]) -> str:
-        template = UrlEnrichmentPromptTemplate(url=ctx.deps.url, prompts_dir=captured_prompts_dir)
-        return template.render()
+        return render_prompt(
+            "enrichment/url_simple.jinja",
+            prompts_dir=captured_prompts_dir,
+            url=ctx.deps.url,
+        )
 
     return agent
 
@@ -265,8 +262,10 @@ def make_media_agent(
     This keeps prompt resolution logic in the factory where it belongs.
     """
     # Pre-render the system prompt since it doesn't depend on runtime data
-    template = MediaEnrichmentPromptTemplate(prompts_dir=prompts_dir)
-    rendered_prompt = template.render()
+    rendered_prompt = render_prompt(
+        "enrichment/media_simple.jinja",
+        prompts_dir=prompts_dir,
+    )
 
     agent = Agent[MediaEnrichmentDeps, EnrichmentOut](
         model=model_name,

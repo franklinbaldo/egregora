@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import frontmatter
+from egregora.utils.frontmatter_utils import parse_frontmatter
 
 if TYPE_CHECKING:
     from egregora.data_primitives.document import Document
@@ -82,9 +82,8 @@ def parse_post(post_path: Path) -> tuple[dict[str, Any], str]:
         (metadata_dict, content_string)
 
     """
-    with post_path.open(encoding="utf-8") as f:
-        post = frontmatter.load(f)
-    metadata = dict(post.metadata)
+    content = post_path.read_text(encoding="utf-8")
+    metadata, body = parse_frontmatter(content)
     if "slug" not in metadata:
         filename = post_path.stem
         match = re.match("\\d{4}-\\d{2}-\\d{2}-(.+)", filename)
@@ -101,7 +100,7 @@ def parse_post(post_path: Path) -> tuple[dict[str, Any], str]:
             metadata["date"] = match.group(1)
         else:
             metadata["date"] = None
-    return (metadata, post.content)
+    return (metadata, body)
 
 
 def chunk_document(post_path: Path, max_tokens: int = 1800) -> list[dict[str, Any]]:

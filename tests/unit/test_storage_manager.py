@@ -195,7 +195,7 @@ class TestTableManagement:
 
 
 class TestViewExecution:
-    """Tests for view execution with ViewRegistry integration."""
+    """Tests for executing view builder callables."""
 
     def test_execute_view_basic(self):
         """Test executing a simple view transformation."""
@@ -252,9 +252,9 @@ class TestViewExecution:
             df = result.execute()
             assert "doubled" in df.columns
 
-    def test_execute_view_with_registry(self):
-        """Test executing view from ViewRegistry."""
-        from egregora.database.views import views
+    def test_execute_view_with_common_view(self):
+        """Test executing a built-in common view."""
+        from egregora.database.views import messages_with_media_view
 
         with DuckDBStorageManager() as storage:
             # Create input table matching ViewRegistry expectations
@@ -279,7 +279,7 @@ class TestViewExecution:
             storage.write_table(table, "conversations", checkpoint=False)
 
             # Execute built-in view
-            media_filter = views.get("messages_with_media")
+            media_filter = messages_with_media_view
             result = storage.execute_view(
                 "media_messages",
                 media_filter,

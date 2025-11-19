@@ -289,7 +289,7 @@ class PathsSettings(BaseModel):
         description="Author profiles directory",
     )
     media_dir: str = Field(
-        default="docs/media",
+        default="media",
         description="Media files (images, videos) directory",
     )
     journal_dir: str = Field(

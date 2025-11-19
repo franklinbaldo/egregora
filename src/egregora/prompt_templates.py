@@ -10,10 +10,8 @@ Priority:
 from __future__ import annotations
 
 import logging
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -115,210 +113,42 @@ def create_prompt_environment(prompts_dir: Path | None = None) -> Environment:
     )
 
 
-class PromptTemplate(ABC):
-    """Base class for prompt templates backed by Jinja files.
+def render_prompt(
+    template_name: str,
+    *,
+    env: Environment | None = None,
+    prompts_dir: Path | None = None,
+    **context: Any,
+) -> str:
+    """Render a Jinja template with optional custom prompt overrides.
 
-    Supports custom prompt overrides via .egregora/prompts/ directory.
-    Pass prompts_dir to _render() to enable user overrides.
+    Args:
+        template_name: Template path relative to the prompts directory
+        env: Explicit Jinja2 environment (highest priority)
+        prompts_dir: Custom prompts directory (e.g., site_root/.egregora/prompts)
+        **context: Template variables
+
+    Returns:
+        Rendered template string
+
+    Priority:
+    1. Explicit env parameter
+    2. Custom prompts from prompts_dir
+    3. Package default prompts
+
     """
+    template_env = env
+    if template_env is None and prompts_dir is not None:
+        template_env = create_prompt_environment(prompts_dir)
 
-    template_name: ClassVar[str]
-
-    def _render(
-        self,
-        env: Environment | None = None,
-        prompts_dir: Path | None = None,
-        **context: Any,
-    ) -> str:
-        """Render template with optional custom prompts support.
-
-        Args:
-            env: Explicit Jinja2 environment (highest priority)
-            prompts_dir: Custom prompts directory (e.g., site_root/.egregora/prompts)
-            **context: Template variables
-
-        Returns:
-            Rendered template string
-
-        Priority:
-        1. Explicit env parameter
-        2. Custom prompts from prompts_dir
-        3. Package default prompts
-
-        """
-        # Create environment with custom prompts support
-        if env is None and prompts_dir is not None:
-            env = create_prompt_environment(prompts_dir)
-
-        template_env = env or DEFAULT_ENVIRONMENT
-        template = template_env.get_template(self.template_name)
-        return template.render(**context)
-
-    @abstractmethod
-    def render(self) -> str:
-        """Render the template with the configured context."""
-
-
-@dataclass(slots=True)
-class WriterPromptTemplate(PromptTemplate):
-    """Prompt template for the writer agent.
-
-    Supports custom prompts via prompts_dir/system/writer.jinja
-    """
-
-    date: str
-    markdown_table: str
-    active_authors: str
-    custom_instructions: str = ""
-    markdown_features: str = ""
-    format_instructions: str = ""  # Output format conventions (MkDocs, Hugo, etc.)
-    profiles_context: str = ""
-    rag_context: str = ""
-    journal_memory: str = ""
-    enable_memes: bool = False
-    prompts_dir: Path | None = None  # Custom prompts directory
-    env: Environment | None = None
-    template_name: ClassVar[str] = "system/writer.jinja"
-
-    def render(self) -> str:
-        return self._render(
-            env=self.env,
-            prompts_dir=self.prompts_dir,
-            date=self.date,
-            markdown_table=self.markdown_table,
-            active_authors=self.active_authors,
-            custom_instructions=self.custom_instructions,
-            markdown_features=self.markdown_features,
-            format_instructions=self.format_instructions,
-            profiles_context=self.profiles_context,
-            rag_context=self.rag_context,
-            journal_memory=self.journal_memory,
-            enable_memes=self.enable_memes,
-        )
-
-
-@dataclass(slots=True)
-class UrlEnrichmentPromptTemplate(PromptTemplate):
-    """Prompt template for lightweight URL enrichment.
-
-    Supports custom prompts via prompts_dir/enrichment/url_simple.jinja
-    """
-
-    url: str
-    prompts_dir: Path | None = None
-    env: Environment | None = None
-    template_name: ClassVar[str] = "enrichment/url_simple.jinja"
-
-    def render(self) -> str:
-        return self._render(env=self.env, prompts_dir=self.prompts_dir, url=self.url)
-
-
-@dataclass(slots=True)
-class MediaEnrichmentPromptTemplate(PromptTemplate):
-    """Prompt template for lightweight media enrichment.
-
-    Supports custom prompts via prompts_dir/enrichment/media_simple.jinja
-    """
-
-    prompts_dir: Path | None = None
-    env: Environment | None = None
-    template_name: ClassVar[str] = "enrichment/media_simple.jinja"
-
-    def render(self) -> str:
-        return self._render(env=self.env, prompts_dir=self.prompts_dir)
-
-
-@dataclass(slots=True)
-class DetailedUrlEnrichmentPromptTemplate(PromptTemplate):
-    """Prompt template for detailed URL enrichment.
-
-    Supports custom prompts via prompts_dir/enrichment/url_detailed.jinja
-    """
-
-    url: str
-    original_message: str
-    sender_uuid: str
-    date: str
-    time: str
-    prompts_dir: Path | None = None
-    env: Environment | None = None
-    template_name: ClassVar[str] = "enrichment/url_detailed.jinja"
-
-    def render(self) -> str:
-        return self._render(
-            env=self.env,
-            prompts_dir=self.prompts_dir,
-            url=self.url,
-            original_message=self.original_message,
-            sender_uuid=self.sender_uuid,
-            date=self.date,
-            time=self.time,
-        )
-
-
-@dataclass(slots=True)
-class DetailedMediaEnrichmentPromptTemplate(PromptTemplate):
-    """Prompt template for detailed media enrichment.
-
-    Supports custom prompts via prompts_dir/enrichment/media_detailed.jinja
-    """
-
-    media_type: str
-    media_filename: str
-    media_path: str
-    original_message: str
-    sender_uuid: str
-    date: str
-    time: str
-    prompts_dir: Path | None = None
-    env: Environment | None = None
-    template_name: ClassVar[str] = "enrichment/media_detailed.jinja"
-
-    def render(self) -> str:
-        return self._render(
-            env=self.env,
-            prompts_dir=self.prompts_dir,
-            media_type=self.media_type,
-            media_filename=self.media_filename,
-            media_path=self.media_path,
-            original_message=self.original_message,
-            sender_uuid=self.sender_uuid,
-            date=self.date,
-            time=self.time,
-        )
-
-
-@dataclass(slots=True)
-class AvatarEnrichmentPromptTemplate(PromptTemplate):
-    """Prompt template for avatar enrichment with moderation.
-
-    Supports custom prompts via prompts_dir/enricher_avatar.jinja
-    """
-
-    media_filename: str
-    media_path: str
-    prompts_dir: Path | None = None
-    env: Environment | None = None
-    template_name: ClassVar[str] = "enricher_avatar.jinja"
-
-    def render(self) -> str:
-        return self._render(
-            env=self.env,
-            prompts_dir=self.prompts_dir,
-            media_filename=self.media_filename,
-            media_path=self.media_path,
-        )
+    template_env = template_env or DEFAULT_ENVIRONMENT
+    template = template_env.get_template(template_name)
+    return template.render(**context)
 
 
 __all__ = [
     "PACKAGE_PROMPTS_DIR",
-    "AvatarEnrichmentPromptTemplate",
-    "DetailedMediaEnrichmentPromptTemplate",
-    "DetailedUrlEnrichmentPromptTemplate",
-    "MediaEnrichmentPromptTemplate",
-    "PromptTemplate",
-    "UrlEnrichmentPromptTemplate",
-    "WriterPromptTemplate",
     "create_prompt_environment",
     "find_prompts_dir",
+    "render_prompt",
 ]

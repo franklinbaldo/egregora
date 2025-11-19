@@ -31,7 +31,7 @@ from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.data_primitives.protocols import UrlContext
 from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.mkdocs import MkDocsAdapter
-from egregora.prompt_templates import WriterPromptTemplate
+from egregora.prompt_templates import render_prompt
 
 if TYPE_CHECKING:
     from google import genai
@@ -362,7 +362,9 @@ def _render_writer_prompt(
     format_instructions = environment.output_format.get_format_instructions()
     custom_instructions = environment.egregora_config.writer.custom_instructions or ""
 
-    template = WriterPromptTemplate(
+    return render_prompt(
+        "system/writer.jinja",
+        prompts_dir=environment.runtime_context.prompts_dir,
         date=date_range,
         markdown_table=prompt_context.conversation_md,
         active_authors=", ".join(prompt_context.active_authors),
@@ -372,9 +374,7 @@ def _render_writer_prompt(
         rag_context=prompt_context.rag_context,
         journal_memory=prompt_context.journal_memory,
         enable_memes=False,
-        prompts_dir=environment.runtime_context.prompts_dir,
     )
-    return template.render()
 
 
 def _write_posts_for_window_pydantic(
