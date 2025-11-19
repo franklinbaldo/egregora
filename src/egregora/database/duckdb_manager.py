@@ -7,6 +7,12 @@ This module implements Priority C.2 from the Architecture Roadmap:
 centralized DuckDB access to eliminate raw SQL and provide consistent
 checkpoint management across pipeline stages.
 
+Callers should treat :class:`DuckDBStorageManager` as the single entry point
+for metadata queries and bookkeeping. Avoid holding on to the raw
+``duckdb.Connection`` object; instead use helper methods like
+:meth:`get_table_columns`, :meth:`fetch_latest_runs`, or the
+:meth:`connection` context manager when absolutely necessary.
+
 Usage:
     from egregora.database.duckdb_manager import DuckDBStorageManager
 
@@ -31,7 +37,10 @@ from __future__ import annotations
 import contextlib
 import logging
 import re
+import uuid
+import warnings
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Literal, Protocol
 
@@ -98,7 +107,7 @@ class DuckDBStorageManager:
 
     Attributes:
         db_path: Path to DuckDB file (or None for in-memory)
-        conn: Raw DuckDB connection
+        _conn: Raw DuckDB connection (private - prefer helpers)
         ibis_conn: Ibis backend connected to DuckDB
         checkpoint_dir: Directory for parquet checkpoints
 
@@ -128,16 +137,46 @@ class DuckDBStorageManager:
 
         # Initialize DuckDB connection
         db_str = str(db_path) if db_path else ":memory:"
-        self.conn = duckdb.connect(db_str)
+        self._conn = duckdb.connect(db_str)
 
         # Initialize Ibis backend
-        self.ibis_conn = ibis.duckdb.from_connection(self.conn)
+        self.ibis_conn = ibis.duckdb.from_connection(self._conn)
+
+        # Cache for PRAGMA table metadata
+        self._table_info_cache: dict[str, set[str]] = {}
 
         logger.info(
             "DuckDBStorageManager initialized (db=%s, checkpoints=%s)",
             "memory" if db_path is None else db_path,
             self.checkpoint_dir,
         )
+
+    @property
+    def conn(self) -> duckdb.DuckDBPyConnection:
+        """Expose raw DuckDB connection (deprecated).
+
+        Direct access is retained for backwards compatibility but will be
+        removed once all modules migrate to the high-level helpers. Prefer
+        :meth:`connection` or table/query helpers instead of storing this
+        attribute.
+        """
+        warnings.warn(
+            "DuckDBStorageManager.conn is deprecated; use the helper methods "
+            "or connection() context manager instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._conn
+
+    @contextlib.contextmanager
+    def connection(self) -> duckdb.DuckDBPyConnection:
+        """Yield the managed DuckDB connection.
+
+        This is the supported escape hatch for code that still needs direct
+        access to DuckDB. Callers should prefer dedicated helper methods when
+        available and avoid caching the returned handle.
+        """
+        yield self._conn
 
     def read_table(self, name: str) -> Table:
         """Read table as Ibis expression.
@@ -203,7 +242,7 @@ class DuckDBStorageManager:
                     INSERT INTO {quoted_name} SELECT * FROM read_parquet('{parquet_path}')
                 """
 
-            self.conn.execute(sql)
+            self._conn.execute(sql)
             logger.info("Table '%s' written with checkpoint (%s)", name, mode)
 
         # Direct write without checkpoint (faster but no persistence)
@@ -211,11 +250,158 @@ class DuckDBStorageManager:
             # Use Ibis to_sql for direct write
             # Note: This requires executing the table first
             df = table.execute()
-            self.conn.register(name, df)
+            self._conn.register(name, df)
             logger.info("Table '%s' written without checkpoint (%s)", name, mode)
         else:
             msg = "Append mode requires checkpoint=True"
             raise ValueError(msg)
+
+    def invalidate_table_cache(self, table_name: str | None = None) -> None:
+        """Clear cached PRAGMA table_info results.
+
+        Args:
+            table_name: Specific table name to clear. If ``None`` the entire
+                cache is invalidated.
+
+        """
+        if table_name is None:
+            self._table_info_cache.clear()
+            return
+
+        self._table_info_cache.pop(table_name.lower(), None)
+
+    def get_table_columns(self, table_name: str, *, refresh: bool = False) -> set[str]:
+        """Return cached column names for ``table_name``.
+
+        This utility wraps DuckDB's ``PRAGMA table_info`` with identifier
+        validation and caching so that callers no longer need to run SQL.
+        Missing tables simply return an empty set.
+        """
+        cache_key = table_name.lower()
+        if refresh or cache_key not in self._table_info_cache:
+            # Validate identifier (raises ValueError on invalid characters)
+            quote_identifier(table_name)
+
+            try:
+                rows = self._conn.execute(
+                    f"PRAGMA table_info('{table_name}')",
+                ).fetchall()
+            except duckdb.Error:
+                rows: list[tuple[str, ...]] = []
+
+            self._table_info_cache[cache_key] = {row[0] for row in rows}
+
+        return self._table_info_cache[cache_key]
+
+    def _runs_duration_expression(self) -> str:
+        columns = self.get_table_columns("runs")
+        if "duration_seconds" in columns:
+            return "duration_seconds"
+        if "started_at" in columns and "finished_at" in columns:
+            return "CAST(date_diff('second', started_at, finished_at) AS DOUBLE) AS duration_seconds"
+        return "CAST(NULL AS DOUBLE) AS duration_seconds"
+
+    def _column_or_null(self, table_name: str, column: str, duck_type: str) -> str:
+        columns = self.get_table_columns(table_name)
+        if column in columns:
+            return column
+        return f"CAST(NULL AS {duck_type}) AS {column}"
+
+    def fetch_latest_runs(self, limit: int = 10) -> list[tuple]:
+        """Return summaries for the most recent runs."""
+        duration_expr = self._runs_duration_expression()
+        return self._conn.execute(
+            f"""
+            SELECT
+                run_id,
+                stage,
+                status,
+                started_at,
+                rows_in,
+                rows_out,
+                {duration_expr}
+            FROM runs
+            WHERE started_at IS NOT NULL
+            ORDER BY started_at DESC
+            LIMIT ?
+            """,
+            [limit],
+        ).fetchall()
+
+    def fetch_run_by_partial_id(self, run_id: str):
+        """Return the newest run whose UUID starts with ``run_id``."""
+        parent_run_expr = self._column_or_null("runs", "parent_run_id", "UUID")
+        duration_expr = self._runs_duration_expression()
+        attrs_expr = self._column_or_null("runs", "attrs", "JSON")
+        return self._conn.execute(
+            f"""
+            SELECT
+                run_id,
+                tenant_id,
+                stage,
+                status,
+                error,
+                {parent_run_expr},
+                code_ref,
+                config_hash,
+                started_at,
+                finished_at,
+                {duration_expr},
+                rows_in,
+                rows_out,
+                llm_calls,
+                tokens,
+                {attrs_expr},
+                trace_id
+            FROM runs
+            WHERE CAST(run_id AS VARCHAR) LIKE ?
+            ORDER BY started_at DESC
+            LIMIT 1
+            """,
+            [f"{run_id}%"],
+        ).fetchone()
+
+    def mark_run_completed(
+        self,
+        *,
+        run_id: uuid.UUID,
+        finished_at: datetime,
+        duration_seconds: float,
+        rows_out: int | None,
+    ) -> None:
+        """Update ``runs`` when a stage completes."""
+        self._conn.execute(
+            """
+            UPDATE runs
+            SET status = 'completed',
+                finished_at = ?,
+                duration_seconds = ?,
+                rows_out = ?
+            WHERE run_id = ?
+            """,
+            [finished_at, duration_seconds, rows_out, str(run_id)],
+        )
+
+    def mark_run_failed(
+        self,
+        *,
+        run_id: uuid.UUID,
+        finished_at: datetime,
+        duration_seconds: float,
+        error: str,
+    ) -> None:
+        """Update ``runs`` when a stage fails."""
+        self._conn.execute(
+            """
+            UPDATE runs
+            SET status = 'failed',
+                finished_at = ?,
+                duration_seconds = ?,
+                error = ?
+            WHERE run_id = ?
+            """,
+            [finished_at, duration_seconds, error, str(run_id)],
+        )
 
     # ==================================================================
     # Sequence helpers
@@ -348,7 +534,7 @@ class DuckDBStorageManager:
     def drop_table(self, name: str) -> None:
         """Drop a table if it exists."""
         quoted_name = quote_identifier(name)
-        self.conn.execute(f"DROP TABLE IF EXISTS {quoted_name}")
+        self._conn.execute(f"DROP TABLE IF EXISTS {quoted_name}")
         logger.info("Dropped table if existed: %s", name)
 
     def table_exists(self, name: str) -> bool:
@@ -361,7 +547,7 @@ class DuckDBStorageManager:
             True if table exists, False otherwise
 
         """
-        tables = self.conn.execute(
+        tables = self._conn.execute(
             """
             SELECT table_name
             FROM information_schema.tables
@@ -378,7 +564,7 @@ class DuckDBStorageManager:
             Sorted list of table names
 
         """
-        tables = self.conn.execute(
+        tables = self._conn.execute(
             """
             SELECT table_name
             FROM information_schema.tables
@@ -403,9 +589,9 @@ class DuckDBStorageManager:
         # Use quoted identifier to prevent SQL injection
         quoted_name = quote_identifier(name)
         with contextlib.suppress(Exception):
-            self.conn.execute(f"DROP VIEW IF EXISTS {quoted_name}")
+            self._conn.execute(f"DROP VIEW IF EXISTS {quoted_name}")
         with contextlib.suppress(Exception):
-            self.conn.execute(f"DROP TABLE IF EXISTS {quoted_name}")
+            self._conn.execute(f"DROP TABLE IF EXISTS {quoted_name}")
         logger.info("Dropped table/view: %s", name)
 
         if checkpoint_too:
@@ -419,7 +605,7 @@ class DuckDBStorageManager:
 
         Call this when done with the storage manager to clean up resources.
         """
-        self.conn.close()
+        self._conn.close()
         logger.info("DuckDBStorageManager closed")
 
     def __enter__(self) -> DuckDBStorageManager:

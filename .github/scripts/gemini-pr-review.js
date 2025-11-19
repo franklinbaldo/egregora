@@ -40,7 +40,9 @@ function normalizeModelName(model) {
   const trimmed = (model || fallback).trim();
   const aliasCandidate = MODEL_ALIAS_MAP[trimmed];
   const normalized = aliasCandidate || trimmed;
-  return normalized.startsWith('models/') ? normalized : `models/${normalized}`;
+  const hasProviderNamespace = normalized.includes(':');
+  const needsPrefix = !hasProviderNamespace && !normalized.startsWith('models/');
+  return needsPrefix ? `models/${normalized}` : normalized;
 }
 
 const resolvedModel = normalizeModelName(GEMINI_MODEL);
