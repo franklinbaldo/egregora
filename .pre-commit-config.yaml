@@ -19,5 +19,4 @@ repos:
       - id: mixed-line-ending
       - id: trailing-whitespace
   # Removed custom hooks - now handled by ruff + scripts/quality.sh
-  # - ban-pandas-imports: Now enforced by ruff's flake8-tidy-imports (TID251)
   # - check-complexity, check-dead-code, check-security: Use scripts/quality.sh instead
