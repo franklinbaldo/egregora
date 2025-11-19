@@ -333,7 +333,9 @@ def test_week1_uuid5_namespaces_immutable():
 
 
 def test_week1_runs_schema_validation(runs_db: duckdb.DuckDBPyConnection):
-    """Validate runs table schema matches runs_v1.sql."""
+    """Validate runs table schema matches the canonical IR schema."""
+    from egregora.database.ir_schema import RUNS_TABLE_SCHEMA
+
     # Query runs table columns
     columns = runs_db.execute("""
         SELECT column_name
@@ -344,25 +346,6 @@ def test_week1_runs_schema_validation(runs_db: duckdb.DuckDBPyConnection):
 
     column_names = {col[0] for col in columns}
 
-    # Expected columns from runs_v1.sql
-    expected_columns = {
-        "run_id",
-        "stage",
-        "tenant_id",
-        "started_at",
-        "finished_at",
-        "parent_run_id",
-        "code_ref",
-        "config_hash",
-        "rows_in",
-        "rows_out",
-        "duration_seconds",
-        "llm_calls",
-        "tokens",
-        "status",
-        "error",
-        "attrs",
-        "trace_id",
-    }
+    expected_columns = set(RUNS_TABLE_SCHEMA.names)
 
     assert column_names == expected_columns, f"Runs schema mismatch: {column_names ^ expected_columns}"

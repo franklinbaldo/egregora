@@ -2,6 +2,7 @@
 
 import logging
 import os
+from datetime import date
 from pathlib import Path
 from typing import Annotated
 from zoneinfo import ZoneInfo
@@ -13,8 +14,9 @@ from rich.panel import Panel
 
 from egregora.cli.read import read_app
 from egregora.cli.runs import runs_app
-from egregora.config import ProcessConfig, load_egregora_config
+from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.config_validation import parse_date_arg, validate_retrieval_config
+from egregora.constants import WindowUnit
 from egregora.database.elo_store import EloStore
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration import write_pipeline
@@ -41,7 +43,6 @@ logging.basicConfig(
     format="%(message)s",
     handlers=[RichHandler(console=console, rich_tracebacks=True, show_path=False)],
 )
-from egregora.constants import WindowUnit
 
 logger = logging.getLogger(__name__)
 
@@ -111,101 +112,6 @@ def init(
                 border_style="yellow",
             )
         )
-
-
-def _setup_logging_and_validate_config(config: ProcessConfig):
-    """Sets up logging and performs initial config validation."""
-    if config.debug:
-        logging.getLogger().setLevel(logging.DEBUG)
-    if config.timezone:
-        try:
-            ZoneInfo(config.timezone)
-            console.print(f"[green]Using timezone: {config.timezone}[/green]")
-        except Exception as e:
-            console.print(f"[red]Invalid timezone '{config.timezone}': {e}[/red]")
-            raise typer.Exit(1) from e
-    try:
-        validate_retrieval_config(config)
-    except ValueError as e:
-        console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1) from e
-
-
-def _prepare_environment_and_config(config: ProcessConfig):
-    """Prepares the environment, resolves paths, and builds the final config."""
-    output_dir = config.output_dir.expanduser().resolve()
-    config.output_dir = output_dir
-    _ensure_mkdocs_scaffold(output_dir)
-    api_key = _resolve_gemini_key(config.gemini_key)
-    if not api_key:
-        console.print("[red]Error: GOOGLE_API_KEY not set[/red]")
-        console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
-        raise typer.Exit(1)
-
-    base_config = load_egregora_config(output_dir)
-    return base_config.model_copy(
-        deep=True,
-        update={
-            "pipeline": base_config.pipeline.model_copy(
-                update={
-                    "step_size": config.step_size,
-                    "step_unit": config.step_unit,
-                    "overlap_ratio": config.overlap_ratio,
-                    "timezone": config.timezone,
-                    "from_date": config.from_date.isoformat() if config.from_date else None,
-                    "to_date": config.to_date.isoformat() if config.to_date else None,
-                    "max_prompt_tokens": config.max_prompt_tokens,
-                    "use_full_context_window": config.use_full_context_window,
-                    "max_windows": config.max_windows,
-                }
-            ),
-            "enrichment": base_config.enrichment.model_copy(update={"enabled": config.enable_enrichment}),
-            "rag": base_config.rag.model_copy(
-                update={
-                    "mode": config.retrieval_mode or base_config.rag.mode,
-                    "nprobe": config.retrieval_nprobe
-                    if config.retrieval_nprobe is not None
-                    else base_config.rag.nprobe,
-                    "overfetch": config.retrieval_overfetch
-                    if config.retrieval_overfetch is not None
-                    else base_config.rag.overfetch,
-                }
-            ),
-        },
-    ), api_key
-
-
-def _run_pipeline(source: str, config: ProcessConfig, egregora_config, api_key: str):
-    """Runs the main write pipeline with error handling."""
-    try:
-        console.print(
-            Panel(
-                f"[cyan]Source:[/cyan] {source}\n[cyan]Input:[/cyan] {config.input_file}\n[cyan]Output:[/cyan] {config.output_dir}\n[cyan]Windowing:[/cyan] {config.step_size} {config.step_unit}",
-                title="⚙️  Egregora Pipeline",
-                border_style="cyan",
-            )
-        )
-        write_pipeline.run(
-            source=source,
-            input_path=config.input_file,
-            output_dir=config.output_dir,
-            config=egregora_config,
-            api_key=api_key,
-            model_override=config.model,
-        )
-        console.print("[green]Processing completed successfully.[/green]")
-    except Exception as e:
-        console.print(f"[red]Pipeline failed: {e}[/red]")
-        if config.debug:
-            raise
-        raise typer.Exit(1) from e
-
-
-def _validate_and_run_process(config: ProcessConfig, source: str = "whatsapp") -> None:
-    """Orchestrates the validation and execution of the pipeline."""
-    _setup_logging_and_validate_config(config)
-    egregora_config, api_key = _prepare_environment_and_config(config)
-    _run_pipeline(source, config, egregora_config, api_key)
 
 
 @app.command()
@@ -286,9 +192,13 @@ def write(
     - All metadata (title, slug, tags, summary, etc)
     - Which author profiles to update based on contributions
     """
-    # Parse date arguments
-    from_date_obj = None
-    to_date_obj = None
+    # Setup debug logging
+    if debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    # Parse and validate date arguments
+    from_date_obj: date | None = None
+    to_date_obj: date | None = None
     if from_date:
         try:
             from_date_obj = parse_date_arg(from_date, "from_date")
@@ -302,28 +212,96 @@ def write(
             console.print(f"[red]{e}[/red]")
             raise typer.Exit(1) from e
 
-    config = ProcessConfig(
+    # Validate timezone
+    if timezone:
+        try:
+            ZoneInfo(timezone)
+            console.print(f"[green]Using timezone: {timezone}[/green]")
+        except Exception as e:
+            console.print(f"[red]Invalid timezone '{timezone}': {e}[/red]")
+            raise typer.Exit(1) from e
+
+    # Validate retrieval config
+    try:
+        retrieval_mode = validate_retrieval_config(retrieval_mode, retrieval_nprobe, retrieval_overfetch)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+
+    # Resolve paths and API key
+    output_dir = output.expanduser().resolve()
+    _ensure_mkdocs_scaffold(output_dir)
+
+    api_key = _resolve_gemini_key(gemini_key)
+    if not api_key:
+        console.print("[red]Error: GOOGLE_API_KEY not set[/red]")
+        console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
+        raise typer.Exit(1)
+
+    # Load base config and merge CLI overrides
+    base_config = load_egregora_config(output_dir)
+    egregora_config = base_config.model_copy(
+        deep=True,
+        update={
+            "pipeline": base_config.pipeline.model_copy(
+                update={
+                    "step_size": step_size,
+                    "step_unit": step_unit,
+                    "overlap_ratio": overlap,
+                    "timezone": timezone,
+                    "from_date": from_date_obj.isoformat() if from_date_obj else None,
+                    "to_date": to_date_obj.isoformat() if to_date_obj else None,
+                    "max_prompt_tokens": max_prompt_tokens,
+                    "use_full_context_window": use_full_context_window,
+                    "max_windows": max_windows,
+                    "checkpoint_enabled": resume,
+                }
+            ),
+            "enrichment": base_config.enrichment.model_copy(update={"enabled": enable_enrichment}),
+            "rag": base_config.rag.model_copy(
+                update={
+                    "mode": retrieval_mode,
+                    "nprobe": retrieval_nprobe if retrieval_nprobe is not None else base_config.rag.nprobe,
+                    "overfetch": retrieval_overfetch
+                    if retrieval_overfetch is not None
+                    else base_config.rag.overfetch,
+                }
+            ),
+        },
+    )
+
+    # Create runtime context
+    runtime = RuntimeContext(
+        output_dir=output_dir,
         input_file=input_file,
-        output_dir=output,
-        step_size=step_size,
-        step_unit=step_unit,
-        overlap_ratio=overlap,
-        enable_enrichment=enable_enrichment,
-        from_date=from_date_obj,
-        to_date=to_date_obj,
-        timezone=timezone,
-        gemini_key=gemini_key,
-        model=model,
-        retrieval_mode=retrieval_mode,
-        retrieval_nprobe=retrieval_nprobe,
-        retrieval_overfetch=retrieval_overfetch,
-        max_prompt_tokens=max_prompt_tokens,
-        use_full_context_window=use_full_context_window,
-        max_windows=max_windows,
-        checkpoint_enabled=resume,
+        api_key=api_key,
+        model_override=model,
         debug=debug,
     )
-    _validate_and_run_process(config, source=source)
+
+    # Run pipeline
+    try:
+        console.print(
+            Panel(
+                f"[cyan]Source:[/cyan] {source}\n[cyan]Input:[/cyan] {input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {step_size} {step_unit}",
+                title="⚙️  Egregora Pipeline",
+                border_style="cyan",
+            )
+        )
+        write_pipeline.run(
+            source=source,
+            input_path=runtime.input_file,
+            output_dir=runtime.output_dir,
+            config=egregora_config,
+            api_key=runtime.api_key,
+            model_override=runtime.model_override,
+        )
+        console.print("[green]Processing completed successfully.[/green]")
+    except Exception as e:
+        console.print(f"[red]Pipeline failed: {e}[/red]")
+        if debug:
+            raise
+        raise typer.Exit(1) from e
 
 
 @app.command()

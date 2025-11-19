@@ -46,6 +46,14 @@ To modify the IR schema:
 
 The IR schema was previously maintained in multiple formats (SQL, JSON, Python) which created unnecessary synchronization burden. As of 2025-11-17, all lockfiles have been removed in favor of the Python-only schema. This simplification embraces the alpha mindset: reduce complexity, one canonical source.
 
+Similarly, the `runs` table schema (previously in `runs_v1.sql`) was consolidated into:
+```
+src/egregora/database/ir_schema.py:RUNS_TABLE_SCHEMA  # Ibis schema
+src/egregora/database/ir_schema.py:RUNS_TABLE_DDL     # SQL DDL string
+```
+
+This directory now only contains this README as documentation.
+
 ## Schema Overview (IR v1)
 
 **15 columns**:

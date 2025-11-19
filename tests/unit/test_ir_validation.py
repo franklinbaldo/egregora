@@ -73,12 +73,18 @@ class TestIRv1Schema:
         assert set(IR_MESSAGE_SCHEMA.names) == expected_columns
 
     def test_schema_uuid_columns(self):
-        """Test UUID columns have correct type."""
-        uuid_columns = ["event_id", "thread_id", "author_uuid"]
+        """Test UUID columns are stored as strings in Ibis schema.
+
+        NOTE: UUID columns are stored as dt.string in Ibis because DuckDB
+        handles the conversion to UUID type at the SQL level. The Pydantic
+        validator (IRMessageRow) accepts uuid.UUID objects for convenience.
+        """
+        # These columns store UUIDs as strings in Ibis
+        uuid_columns = ["event_id", "thread_id", "author_uuid", "created_by_run"]
 
         for col in uuid_columns:
             col_type = IR_MESSAGE_SCHEMA[col]
-            assert isinstance(col_type, dt.UUID), f"{col} should be UUID type"
+            assert isinstance(col_type, dt.String), f"{col} should be String type (UUIDs stored as strings)"
 
     def test_schema_nullable_columns(self):
         """Test nullable columns are marked correctly."""

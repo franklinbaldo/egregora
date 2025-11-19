@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import ibis
+
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
@@ -412,6 +414,82 @@ class OutputAdapter(ABC):
         """
 
     # ===== Common Utility Methods (Concrete) =====
+
+    def _scan_directory_for_documents(
+        self,
+        directory: Path,
+        site_root: Path,
+        pattern: str = "*.md",
+        *,
+        recursive: bool = False,
+        exclude_names: set[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Scan a directory for documents and return metadata.
+
+        This helper method provides common logic for list_documents() implementations.
+        Subclasses can call this for each directory they need to scan.
+
+        Args:
+            directory: Directory to scan
+            site_root: Site root for computing relative paths
+            pattern: Glob pattern for matching files (default: "*.md")
+            recursive: Use rglob instead of glob
+            exclude_names: Set of filenames to exclude (e.g., {"index.md"})
+
+        Returns:
+            List of dicts with schema:
+                - storage_identifier: string (relative path from site_root)
+                - mtime_ns: int64 (modification time in nanoseconds)
+
+        Example:
+            >>> results = self._scan_directory_for_documents(
+            ...     self.posts_dir, site_root, "*.md"
+            ... )
+
+        """
+        if not directory.exists():
+            return []
+
+        exclude_names = exclude_names or set()
+        documents = []
+
+        glob_func = directory.rglob if recursive else directory.glob
+        for file_path in glob_func(pattern):
+            if not file_path.is_file():
+                continue
+            if file_path.name in exclude_names:
+                continue
+
+            try:
+                relative_path = str(file_path.relative_to(site_root))
+                mtime_ns = file_path.stat().st_mtime_ns
+                documents.append({"storage_identifier": relative_path, "mtime_ns": mtime_ns})
+            except (OSError, ValueError):
+                continue
+
+        return documents
+
+    def _empty_document_table(self) -> "Table":
+        """Return an empty Ibis table with the document listing schema.
+
+        Returns:
+            Empty Ibis table with storage_identifier and mtime_ns columns
+
+        """
+        return ibis.memtable([], schema=ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"}))
+
+    def _documents_to_table(self, documents: list[dict[str, Any]]) -> "Table":
+        """Convert list of document dicts to Ibis table.
+
+        Args:
+            documents: List of dicts with storage_identifier and mtime_ns
+
+        Returns:
+            Ibis table with document listing schema
+
+        """
+        schema = ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"})
+        return ibis.memtable(documents, schema=schema)
 
     @staticmethod
     def normalize_slug(slug: str) -> str:

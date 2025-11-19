@@ -217,6 +217,19 @@ ELO_HISTORY_SCHEMA = ibis.schema(
 # ----------------------------------------------------------------------------
 # Runs Table Schema (Pipeline Execution Tracking)
 # ----------------------------------------------------------------------------
+# This schema tracks pipeline execution metadata for:
+# 1. Simple lineage tracking (parent_run_id column)
+# 2. Observability (performance metrics, errors)
+# 3. Multi-tenant cost attribution (tokens, LLM calls)
+#
+# Usage Examples:
+#   Find failed runs: SELECT * FROM runs WHERE status = 'failed'
+#   Average duration: SELECT stage, AVG(duration_seconds) FROM runs GROUP BY stage
+#   Build lineage: Use recursive CTE on parent_run_id
+#
+# Note: This is the SINGLE SOURCE OF TRUTH for the runs table schema.
+# The SQL DDL below (RUNS_TABLE_DDL) is used for table creation.
+# ----------------------------------------------------------------------------
 
 RUNS_TABLE_SCHEMA = ibis.schema(
     {
