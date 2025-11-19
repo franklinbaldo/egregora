@@ -11,7 +11,14 @@ This package consolidates all persistence, state management, and infrastructure:
 """
 
 from egregora.database import ir_schema as schemas
-from egregora.database.duckdb_manager import DuckDBStorageManager, duckdb_backend, temp_storage
+from egregora.database.duckdb_manager import (
+    DuckDBNoOpVectorBackend,
+    DuckDBStorageManager,
+    DuckDBVectorBackend,
+    VectorBackend,
+    duckdb_backend,
+    temp_storage,
+)
 from egregora.database.init import initialize_database
 from egregora.database.ir_schema import (
     CONVERSATION_SCHEMA,
@@ -57,6 +64,9 @@ __all__ = [
     "WHATSAPP_CONVERSATION_SCHEMA",
     # Storage
     "DuckDBStorageManager",
+    "DuckDBVectorBackend",
+    "DuckDBNoOpVectorBackend",
+    "VectorBackend",
     # Initialization
     "initialize_database",
     # Streaming

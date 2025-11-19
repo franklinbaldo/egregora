@@ -10,7 +10,7 @@ import ibis
 import pytest
 
 from egregora.agents.shared.rag import store as store_module
-from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.duckdb_manager import DuckDBNoOpVectorBackend, DuckDBStorageManager
 
 ROW_COUNT = 42
 THRESHOLD = 10
@@ -190,6 +190,43 @@ def test_add_rejects_tables_with_incorrect_schema(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="unexpected columns"):
         store.add(ibis.memtable([extra_column_row]))
+
+
+def test_vector_store_accepts_custom_backend(tmp_path):
+    """VectorStore should use the provided backend for table materialization."""
+    store_module = _load_vector_store()
+    storage = DuckDBStorageManager(db_path=tmp_path / "test.db")
+
+    class RecordingBackend(DuckDBNoOpVectorBackend):
+        def __init__(self, conn):
+            super().__init__(conn)
+            self.materialize_calls = 0
+
+        def materialize_chunks_table(self, table_name: str, parquet_path):
+            self.materialize_calls += 1
+            return super().materialize_chunks_table(table_name, parquet_path)
+
+    backend = RecordingBackend(storage.conn)
+    store = store_module.VectorStore(
+        tmp_path / "chunks.parquet",
+        storage=storage,
+        backend=backend,
+    )
+
+    rows = [
+        _vector_store_row(
+            store_module,
+            chunk_id="chunk-backend",
+            document_id="chunk-backend",
+            chunk_index=0,
+            content="hello",
+            embedding=_test_embedding(seed=3),
+            tags=["tag"],
+        )
+    ]
+    table = ibis.memtable(rows, schema=store_module.VECTOR_STORE_SCHEMA)
+    store.add(table)
+    assert backend.materialize_calls >= 1
 
 
 def _load_vector_store():
