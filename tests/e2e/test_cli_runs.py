@@ -20,7 +20,6 @@ import pytest
 from typer.testing import CliRunner
 
 from egregora.cli.main import app
-from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import create_runs_table
 
 # Create a CLI runner for testing
