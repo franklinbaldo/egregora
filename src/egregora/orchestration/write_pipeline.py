@@ -31,8 +31,8 @@ import ibis
 from google import genai
 
 from egregora.agents.model_limits import get_model_context_limit
-from egregora.agents.shared.author_profiles import filter_opted_out_authors, process_commands
 from egregora.agents.shared.annotations import AnnotationStore
+from egregora.agents.shared.author_profiles import filter_opted_out_authors, process_commands
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
