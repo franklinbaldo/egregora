@@ -135,6 +135,7 @@ def render_prompt(
     1. Explicit env parameter
     2. Custom prompts from prompts_dir
     3. Package default prompts
+
     """
     template_env = env
     if template_env is None and prompts_dir is not None:
