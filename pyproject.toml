@@ -156,11 +156,6 @@ ignore = [
     "TID251",  # Banned pandas/pyarrow imports (allowed in tests)
 ]
 
-# Temporary allowlist for pandas imports during refactoring
-"src/egregora/agents/writer/formatting.py" = [
-    "TID251",  # Pandas import (temporary - refactor to Ibis)
-]
-
 # Compat and testing directories - allow pandas/pyarrow
 "src/**/compat/**/*.py" = [
     "TID251",  # Pandas/pyarrow allowed in compatibility layers
