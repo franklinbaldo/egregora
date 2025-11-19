@@ -217,6 +217,40 @@ output:
         assert site_paths.docs_dir == site_root
         assert site_paths.docs_dir != site_root.parent
 
+    def test_load_site_paths_respects_config_path_overrides(self, tmp_path):
+        """Ensure paths.* overrides in config.yml are honored by load_site_paths."""
+        from egregora.output_adapters.mkdocs import load_site_paths
+
+        site_root = tmp_path / "custom-site"
+        site_root.mkdir(parents=True)
+
+        egregora_dir = site_root / ".egregora"
+        egregora_dir.mkdir()
+        (egregora_dir / "mkdocs.yml").write_text("site_name: Custom\n", encoding="utf-8")
+        (egregora_dir / "config.yml").write_text(
+            """
+paths:
+  docs_dir: content
+  posts_dir: content/blog
+  profiles_dir: content/authors
+  media_dir: public/media
+  prompts_dir: overrides/prompts
+  rag_dir: storage/rag
+  cache_dir: storage/cache
+""",
+            encoding="utf-8",
+        )
+
+        site_paths = load_site_paths(site_root)
+
+        assert site_paths.docs_dir == (site_root / "content")
+        assert site_paths.posts_dir == (site_root / "content/blog")
+        assert site_paths.profiles_dir == (site_root / "content/authors")
+        assert site_paths.media_dir == (site_root / "public/media")
+        assert site_paths.prompts_dir == (site_root / "overrides/prompts")
+        assert site_paths.rag_dir == (site_root / "storage/rag")
+        assert site_paths.cache_dir == (site_root / "storage/cache")
+
     def test_write_post(self, tmp_path):
         """Test writing a blog post."""
         output = output_registry.get_format("mkdocs")

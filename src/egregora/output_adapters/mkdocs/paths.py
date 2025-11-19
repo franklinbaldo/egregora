@@ -49,14 +49,16 @@ def load_site_paths(site_root: Path) -> SitePaths:
     resolved_root = site_root.expanduser().resolve()
     config_path = resolved_root / ".egregora" / "config.yml"
     config_data = _load_config_dict(config_path)
+    path_overrides = _extract_path_overrides(resolved_root, config_data)
 
     preferred_mkdocs_path = _preferred_mkdocs_config_path(resolved_root, config_data)
     mkdocs_path = _discover_mkdocs_config(resolved_root, preferred_mkdocs_path, config_data)
     docs_dir, blog_dir = _resolve_docs_and_blog_dirs(resolved_root, mkdocs_path)
+    docs_dir = path_overrides.get("docs_dir", docs_dir)
 
-    posts_dir = _resolve_relative(docs_dir, blog_dir)
-    profiles_dir = _resolve_relative(docs_dir, PROFILES_DIR_NAME)
-    media_dir = _resolve_relative(docs_dir, MEDIA_DIR_NAME)
+    posts_dir = path_overrides.get("posts_dir") or _resolve_relative(docs_dir, blog_dir)
+    profiles_dir = path_overrides.get("profiles_dir") or _resolve_relative(docs_dir, PROFILES_DIR_NAME)
+    media_dir = path_overrides.get("media_dir") or _resolve_relative(docs_dir, MEDIA_DIR_NAME)
 
     egregora_dir = resolved_root / ".egregora"
     return SitePaths(
@@ -65,9 +67,9 @@ def load_site_paths(site_root: Path) -> SitePaths:
         egregora_dir=egregora_dir,
         config_path=config_path,
         mkdocs_config_path=preferred_mkdocs_path,
-        prompts_dir=egregora_dir / "prompts",
-        rag_dir=egregora_dir / "rag",
-        cache_dir=egregora_dir / ".cache",
+        prompts_dir=path_overrides.get("prompts_dir") or (egregora_dir / "prompts"),
+        rag_dir=path_overrides.get("rag_dir") or (egregora_dir / "rag"),
+        cache_dir=path_overrides.get("cache_dir") or (egregora_dir / ".cache"),
         docs_dir=docs_dir,
         blog_dir=blog_dir,
         posts_dir=posts_dir,
@@ -90,6 +92,28 @@ def _load_config_dict(config_path: Path) -> dict[str, Any]:
         return loaded
     logger.warning("Unexpected data in %s; expected mapping, got %s", config_path, type(loaded).__name__)
     return {}
+
+
+def _extract_path_overrides(site_root: Path, config_data: dict[str, Any]) -> dict[str, Path]:
+    raw_paths = config_data.get("paths")
+    if not isinstance(raw_paths, dict):
+        return {}
+
+    overrides: dict[str, Path] = {}
+    allowed_keys = {
+        "docs_dir",
+        "posts_dir",
+        "profiles_dir",
+        "media_dir",
+        "prompts_dir",
+        "rag_dir",
+        "cache_dir",
+    }
+    for key in allowed_keys:
+        value = raw_paths.get(key)
+        if isinstance(value, str) and value.strip():
+            overrides[key] = _resolve_site_relative(site_root, value)
+    return overrides
 
 
 def _preferred_mkdocs_config_path(site_root: Path, config_data: dict[str, Any]) -> Path:
@@ -161,6 +185,13 @@ def _resolve_relative(base_dir: Path, relative_subdir: str | Path) -> Path:
     if not relative_subdir or str(relative_subdir) in {".", ""}:
         return base_dir
     return (base_dir / Path(relative_subdir)).resolve()
+
+
+def _resolve_site_relative(site_root: Path, raw_value: str | Path) -> Path:
+    candidate = Path(raw_value).expanduser()
+    if candidate.is_absolute():
+        return candidate.resolve()
+    return (site_root / candidate).resolve()
 
 
 __all__ = [
