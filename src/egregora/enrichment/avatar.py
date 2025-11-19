@@ -28,9 +28,9 @@ from egregora.enrichment.agents import (
     load_file_as_binary_content,
 )
 from egregora.enrichment.media import detect_media_type, extract_urls
+from egregora.enrichment.runners import ensure_datetime
 from egregora.input_adapters.whatsapp.parser import extract_commands
 from egregora.utils import EnrichmentCache, make_enrichment_cache_key
-from egregora.utils.time_utils import ensure_datetime
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table

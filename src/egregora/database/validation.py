@@ -456,8 +456,8 @@ def validate_adapter_output[F: Callable[..., "Table"]](func: F) -> F:
         ...         return table
 
     Note:
-        This is a convenience decorator. InputAdapterRegistry can also
-        auto-validate outputs when validate_outputs=True.
+        This is a convenience decorator. For explicit validation,
+        use validate_ir_schema() directly in your orchestration code.
 
     """
 

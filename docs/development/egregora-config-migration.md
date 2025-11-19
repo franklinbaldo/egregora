@@ -867,8 +867,7 @@ import pytest
 from pathlib import Path
 from pydantic import ValidationError
 
-from egregora.config.settings import EgregoraConfig, RAGSettings
-from egregora.config.site import find_egregora_dir, load_egregora_config
+from egregora.config.settings import EgregoraConfig, RAGSettings, load_egregora_config
 
 def test_egregora_config_defaults():
     """Test EgregoraConfig has sensible defaults."""
@@ -1004,7 +1003,7 @@ def test_egregora_directory_created(tmp_path):
 def test_config_yml_structure(tmp_path):
     """Test that generated config.yml has correct structure."""
     from egregora.init.scaffolding import ensure_mkdocs_project
-    from egregora.config.site import load_egregora_config
+    from egregora.config.settings import load_egregora_config
 
     ensure_mkdocs_project(tmp_path)
 
