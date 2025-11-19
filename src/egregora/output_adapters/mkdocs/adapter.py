@@ -155,22 +155,6 @@ class MkDocsAdapter(OutputAdapter):
         self._initialized = True
 
     @property
-    def posts(self):
-        return self
-
-    @property
-    def profiles(self):
-        return self
-
-    @property
-    def journals(self):
-        return self
-
-    @property
-    def enrichments(self):
-        return self
-
-    @property
     def format_type(self) -> str:
         """Return 'mkdocs' as the format type identifier."""
         return "mkdocs"

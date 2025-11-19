@@ -340,8 +340,31 @@ class DuckDBStorageManager:
     def drop_table(self, name: str, *, checkpoint_too: bool = False) -> None:
         """Drop table from database."""
 
+    def create_vector_backend(self, *, enable_vss: bool = True) -> VectorBackend:
+        """Return a backend bound to this manager's DuckDB connection."""
+
     def close(self) -> None:
         """Close database connection."""
+```
+
+### Vector Backends
+
+`VectorStore` relies on a backend abstraction to handle DuckDB-specific
+concerns (installing the VSS extension, materializing chunk tables, creating
+ANN indexes). `DuckDBStorageManager.create_vector_backend()` produces one tied
+to an existing connection.
+
+- `DuckDBVectorBackend` (default) installs DuckDB's VSS extension and creates
+  HNSW indexes.
+- `DuckDBNoOpVectorBackend` skips extension/index management and is ideal for
+  tests or CPU-only environments.
+
+```python
+from egregora.database import DuckDBStorageManager
+
+storage = DuckDBStorageManager(db_path=Path("pipeline.duckdb"))
+backend = storage.create_vector_backend(enable_vss=False)
+backend.materialize_chunks_table("rag_chunks", Path("chunks.parquet"))
 ```
 
 ### `temp_storage()`

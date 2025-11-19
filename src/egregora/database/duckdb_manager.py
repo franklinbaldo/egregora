@@ -26,11 +26,14 @@ Usage:
     result = storage.execute_view("chunks", chunks_builder, "conversations")
 """
 
+from __future__ import annotations
+
 import contextlib
 import logging
 import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 
 import duckdb
 import ibis
@@ -67,6 +70,23 @@ def quote_identifier(name: str) -> str:
 
     # Quote with double quotes (DuckDB identifier quoting)
     return f'"{name}"'
+
+
+@dataclass(frozen=True)
+class SequenceState:
+    """Metadata describing the current state of a DuckDB sequence."""
+
+    sequence_name: str
+    start_value: int
+    increment_by: int
+    last_value: int | None
+
+    @property
+    def next_value(self) -> int:
+        """Return the value that will be produced by the next ``nextval`` call."""
+        if self.last_value is None:
+            return self.start_value
+        return self.last_value + self.increment_by
 
 
 class DuckDBStorageManager:
@@ -197,6 +217,92 @@ class DuckDBStorageManager:
             msg = "Append mode requires checkpoint=True"
             raise ValueError(msg)
 
+    # ==================================================================
+    # Sequence helpers
+    # ==================================================================
+
+    def ensure_sequence(self, name: str, *, start: int = 1) -> None:
+        """Create a sequence if it does not exist."""
+        quoted_name = quote_identifier(name)
+        self.conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {quoted_name} START {int(start)}")
+
+    def get_sequence_state(self, name: str) -> SequenceState | None:
+        """Return metadata describing the current state of ``name``."""
+        row = self.conn.execute(
+            """
+            SELECT start_value, increment_by, last_value
+            FROM duckdb_sequences()
+            WHERE schema_name = current_schema() AND sequence_name = ?
+            LIMIT 1
+            """,
+            [name],
+        ).fetchone()
+        if row is None:
+            return None
+        start_value, increment_by, last_value = row
+        return SequenceState(
+            sequence_name=name,
+            start_value=int(start_value),
+            increment_by=int(increment_by),
+            last_value=None if last_value is None else int(last_value),
+        )
+
+    def ensure_sequence_default(self, table: str, column: str, sequence_name: str) -> None:
+        """Ensure ``column`` uses ``sequence_name`` as its default value."""
+        desired_default = f"nextval('{sequence_name}')"
+        column_default = self.conn.execute(
+            """
+            SELECT column_default
+            FROM information_schema.columns
+            WHERE lower(table_name) = lower(?) AND lower(column_name) = lower(?)
+            LIMIT 1
+            """,
+            [table, column],
+        ).fetchone()
+        if not column_default or column_default[0] != desired_default:
+            quoted_table = quote_identifier(table)
+            quoted_column = quote_identifier(column)
+            self.conn.execute(
+                f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} SET DEFAULT {desired_default}"
+            )
+
+    def sync_sequence_with_table(self, sequence_name: str, *, table: str, column: str) -> None:
+        """Advance ``sequence_name`` so it is ahead of ``table.column``."""
+        if not self.table_exists(table):
+            return
+
+        quoted_table = quote_identifier(table)
+        quoted_column = quote_identifier(column)
+        max_row = self.conn.execute(f"SELECT MAX({quoted_column}) FROM {quoted_table}").fetchone()
+        if not max_row or max_row[0] is None:
+            return
+
+        max_value = int(max_row[0])
+        state = self.get_sequence_state(sequence_name)
+        if state is None:
+            msg = f"Sequence '{sequence_name}' not found"
+            raise RuntimeError(msg)
+
+        current_next = state.next_value
+        desired_next = max(max_value + 1, current_next)
+        steps_needed = desired_next - current_next
+        if steps_needed > 0:
+            self.next_sequence_values(sequence_name, count=steps_needed)
+
+    def next_sequence_value(self, sequence_name: str) -> int:
+        """Return the next value from ``sequence_name``."""
+        values = self.next_sequence_values(sequence_name, count=1)
+        return values[0]
+
+    def next_sequence_values(self, sequence_name: str, *, count: int = 1) -> list[int]:
+        """Return ``count`` sequential values from ``sequence_name``."""
+        if count <= 0:
+            msg = "count must be positive"
+            raise ValueError(msg)
+
+        cursor = self.conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
+        return [int(row[0]) for row in cursor.fetchall()]
+
     def execute_view(
         self,
         view_name: str,
@@ -316,7 +422,7 @@ class DuckDBStorageManager:
         self.conn.close()
         logger.info("DuckDBStorageManager closed")
 
-    def __enter__(self) -> "DuckDBStorageManager":
+    def __enter__(self) -> DuckDBStorageManager:
         """Context manager entry."""
         return self
 
@@ -324,10 +430,157 @@ class DuckDBStorageManager:
         """Context manager exit - closes connection."""
         self.close()
 
+    # ------------------------------------------------------------------
+    # Vector backend helpers
+    # ------------------------------------------------------------------
+
+    def create_vector_backend(self, *, enable_vss: bool = True) -> VectorBackend:
+        """Create a vector backend bound to this storage manager."""
+        backend_cls: type[VectorBackend]
+        if enable_vss:
+            backend_cls = DuckDBVectorBackend
+        else:
+            backend_cls = DuckDBNoOpVectorBackend
+        return backend_cls(self.conn)
+
 
 # ============================================================================
 # Convenience Functions (Phase 2.2: Consolidated from connection.py)
 # ============================================================================
+
+
+class VectorBackend(Protocol):
+    """Protocol describing vector-store specific database helpers."""
+
+    conn: duckdb.DuckDBPyConnection
+
+    def install_extensions(self) -> bool:
+        """Install and load the required DuckDB extensions (VSS)."""
+
+    def detect_vss_function(self) -> str:
+        """Return the best available VSS table function name."""
+
+    def drop_index(self, name: str) -> None:
+        """Drop an ANN index if it exists."""
+
+    def drop_table(self, name: str) -> None:
+        """Drop the materialized chunks table if it exists."""
+
+    def materialize_chunks_table(self, table_name: str, parquet_path: Path) -> None:
+        """Populate the chunks table from the Parquet dataset."""
+
+    def table_exists(self, table_name: str) -> bool:
+        """Return True when the given table is present in DuckDB."""
+
+    def row_count(self, table_name: str) -> int:
+        """Return the number of rows in a table (0 if missing)."""
+
+    def create_hnsw_index(self, *, table_name: str, index_name: str, column: str = "embedding") -> bool:
+        """Create an HNSW index, returning True on success."""
+
+
+class DuckDBVectorBackend:
+    """DuckDB implementation of :class:`VectorBackend`."""
+
+    def __init__(self, conn: duckdb.DuckDBPyConnection) -> None:
+        self.conn = conn
+
+    def install_extensions(self) -> bool:
+        try:
+            self.conn.execute("INSTALL vss")
+            self.conn.execute("LOAD vss")
+        except (duckdb.Error, RuntimeError) as exc:
+            logger.warning("VSS extension unavailable: %s", exc)
+            return False
+        return True
+
+    def detect_vss_function(self) -> str:
+        try:
+            rows = self.conn.execute("SELECT name FROM pragma_table_functions()").fetchall()
+        except duckdb.Error as exc:
+            logger.debug("Unable to inspect table functions: %s", exc)
+            return "vss_search"
+        function_names = {str(row[0]).lower() for row in rows if row}
+        if "vss_search" in function_names:
+            return "vss_search"
+        if "vss_match" in function_names:
+            logger.debug("Using vss_match table function for ANN queries")
+            return "vss_match"
+        logger.debug("No VSS table function detected; defaulting to vss_search")
+        return "vss_search"
+
+    def drop_index(self, name: str) -> None:
+        quoted = quote_identifier(name)
+        self.conn.execute(f"DROP INDEX IF EXISTS {quoted}")
+
+    def drop_table(self, name: str) -> None:
+        quoted = quote_identifier(name)
+        with contextlib.suppress(Exception):
+            self.conn.execute(f"DROP VIEW IF EXISTS {quoted}")
+        with contextlib.suppress(Exception):
+            self.conn.execute(f"DROP TABLE IF EXISTS {quoted}")
+
+    def materialize_chunks_table(self, table_name: str, parquet_path: Path) -> None:
+        quoted = quote_identifier(table_name)
+        self.conn.execute(
+            f"CREATE OR REPLACE TABLE {quoted} AS SELECT * FROM read_parquet(?)",
+            [str(parquet_path)],
+        )
+
+    def table_exists(self, table_name: str) -> bool:
+        row = self.conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM information_schema.tables
+            WHERE lower(table_name) = lower(?)
+        """,
+            [table_name],
+        ).fetchone()
+        return bool(row and row[0] > 0)
+
+    def row_count(self, table_name: str) -> int:
+        if not self.table_exists(table_name):
+            return 0
+        quoted = quote_identifier(table_name)
+        row = self.conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
+
+    def create_hnsw_index(self, *, table_name: str, index_name: str, column: str = "embedding") -> bool:
+        quoted_table = quote_identifier(table_name)
+        quoted_index = quote_identifier(index_name)
+        try:
+            self.conn.execute(
+                f"""
+                CREATE INDEX {quoted_index}
+                ON {quoted_table}
+                USING HNSW ({column})
+                WITH (metric = 'cosine')
+                """
+            )
+            logger.info("Created HNSW index %s on %s.%s", index_name, table_name, column)
+        except duckdb.Error as exc:
+            logger.warning("Skipping HNSW index creation: %s", exc)
+            return False
+        return True
+
+
+class DuckDBNoOpVectorBackend(DuckDBVectorBackend):
+    """Fallback backend that skips ANN capabilities while sharing table helpers."""
+
+    def install_extensions(self) -> bool:  # pragma: no cover - trivial override
+        logger.info("Skipping VSS installation (no-op backend)")
+        return False
+
+    def detect_vss_function(self) -> str:  # pragma: no cover - trivial override
+        return "vss_search"
+
+    def create_hnsw_index(self, *, table_name: str, index_name: str, column: str = "embedding") -> bool:
+        logger.info(
+            "No-op backend cannot create ANN indexes (table=%s, index=%s)",
+            table_name,
+            index_name,
+        )
+        return False
 
 
 def temp_storage() -> DuckDBStorageManager:
@@ -377,7 +630,10 @@ def duckdb_backend():
 
 
 __all__ = [
+    "DuckDBNoOpVectorBackend",
     "DuckDBStorageManager",
+    "DuckDBVectorBackend",
+    "VectorBackend",
     "duckdb_backend",
     "temp_storage",
 ]

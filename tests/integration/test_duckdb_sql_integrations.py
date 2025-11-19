@@ -10,6 +10,7 @@ import ibis
 from egregora.agents.shared.annotations import ANNOTATION_AUTHOR, AnnotationStore
 from egregora.config.settings import create_default_config
 from egregora.database import ir_schema as database_schema
+from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.enrichment.runners import EnrichmentRuntimeContext, enrich_table
 from egregora.utils.batch import BatchPromptResult
 from egregora.utils.cache import EnrichmentCache
@@ -48,31 +49,32 @@ def _create_conversation_table(tmp_path: Path) -> tuple[duckdb.DuckDBPyConnectio
     database_schema.create_table_if_not_exists(
         backend.con,
         table_name,
-        database_schema.CONVERSATION_SCHEMA,
+        database_schema.IR_MESSAGE_SCHEMA,
     )
     return backend.con, table_name
 
 
 def test_annotation_store_uses_identity_column(tmp_path: Path):
-    store = AnnotationStore(tmp_path / "annotations.duckdb")
+    with DuckDBStorageManager(db_path=tmp_path / "annotations.duckdb") as storage:
+        store = AnnotationStore(storage)
 
-    first = store.save_annotation("msg-1", "message", "First comment")
-    second = store.save_annotation("msg-1", "message", "Second comment")
+        first = store.save_annotation("msg-1", "message", "First comment")
+        second = store.save_annotation("msg-1", "message", "Second comment")
 
-    assert second.id == first.id + 1
+        assert second.id == first.id + 1
 
-    rows = store._connection.execute(
-        """
-        SELECT id, parent_id, parent_type, author, commentary
-        FROM annotations
-        ORDER BY id
-        """
-    ).fetchall()
+        rows = store._connection.execute(
+            """
+            SELECT id, parent_id, parent_type, author, commentary
+            FROM annotations
+            ORDER BY id
+            """
+        ).fetchall()
 
-    assert rows == [
-        (first.id, "msg-1", "message", ANNOTATION_AUTHOR, "First comment"),
-        (second.id, "msg-1", "message", ANNOTATION_AUTHOR, "Second comment"),
-    ]
+        assert rows == [
+            (first.id, "msg-1", "message", ANNOTATION_AUTHOR, "First comment"),
+            (second.id, "msg-1", "message", ANNOTATION_AUTHOR, "Second comment"),
+        ]
 
 
 def test_enrich_table_persists_results(tmp_path: Path):
@@ -101,6 +103,23 @@ def test_enrich_table_persists_results(tmp_path: Path):
 
     # Create memtable using ibis.memtable (not backend.memtable)
     messages_table = ibis.memtable([base_row], schema=database_schema.CONVERSATION_SCHEMA)
+    messages_table = messages_table.mutate(
+        ts=messages_table.timestamp,
+        text=messages_table.message,
+        event_id=messages_table.message_id,
+        tenant_id=ibis.literal("default"),
+        source=ibis.literal("conversation"),
+        thread_id=ibis.literal("thread-1"),
+        author_raw=ibis.literal("user-123"),
+        author_uuid=ibis.literal("user-123"),
+        media_url=ibis.null(),
+        media_type=ibis.null(),
+        attrs=ibis.literal("{}").cast("json"),
+        pii_flags=ibis.literal("{}").cast("json"),
+        created_at=messages_table.timestamp,
+        created_by_run=ibis.literal("test-run"),
+        msg_id=messages_table.message_id,
+    )
 
     # MODERN (Phase 2): Create config and context
     config = create_default_config(tmp_path)
@@ -135,6 +154,6 @@ def test_enrich_table_persists_results(tmp_path: Path):
 
     assert combined.count().execute() >= messages_table.count().execute()
 
-    persisted_rows = conn.execute(f"SELECT author, message FROM {table_name} ORDER BY timestamp").fetchall()
+    persisted_rows = conn.execute(f"SELECT author_raw, text FROM {table_name} ORDER BY ts").fetchall()
 
     assert any(row[0] == ANNOTATION_AUTHOR for row in persisted_rows)

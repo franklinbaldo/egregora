@@ -15,7 +15,7 @@ from ibis.expr.types import Table
 
 from egregora.config import EMBEDDING_DIM
 from egregora.database import ir_schema as database_schema
-from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.duckdb_manager import DuckDBStorageManager, VectorBackend
 
 logger = logging.getLogger(__name__)
 TABLE_NAME = "rag_chunks"
@@ -70,17 +70,23 @@ class VectorStore:
         parquet_path: Path,
         *,
         storage: DuckDBStorageManager,
+        backend: VectorBackend | None = None,
     ) -> None:
         """Initialize vector store.
 
         Args:
             parquet_path: Path to Parquet file (e.g., output/rag/chunks.parquet)
             storage: The central DuckDB storage manager.
+            backend: Optional vector backend that controls DuckDB-specific
+                behaviors (extension install, table materialization, ANN
+                index management). Defaults to the storage manager's DuckDB
+                implementation.
 
         """
         self.parquet_path = parquet_path
         self.index_path = parquet_path.with_suffix(".duckdb")
         self.conn = _ConnectionProxy(storage.conn)
+        self.backend = backend or storage.create_vector_backend()
         self._vss_available = False
         self._vss_function = "vss_search"
         self._client = ibis.duckdb.from_connection(self.conn)
@@ -97,39 +103,31 @@ class VectorStore:
         """
         if self._vss_available:
             return True
-        try:
-            self.conn.execute("INSTALL vss")
-            self.conn.execute("LOAD vss")
-            self._vss_available = True
-            self._vss_function = self._detect_vss_function()
-            logger.info("DuckDB VSS extension loaded")
-        except (duckdb.Error, RuntimeError) as e:
-            logger.warning("VSS extension unavailable, falling back to exact search: %s", e)
-            self._vss_available = False
+        self._vss_available = self.backend.install_extensions()
+        if not self._vss_available:
+            logger.info("VSS extension unavailable; ANN mode disabled")
             return False
-        else:
-            return True
+        self._vss_function = self.backend.detect_vss_function()
+        logger.info("DuckDB VSS extension loaded")
+        return True
 
     def _ensure_dataset_loaded(self, *, force: bool = False) -> None:
         """Materialize the Parquet dataset into DuckDB and refresh the ANN index."""
         self._ensure_metadata_table()
         if not self.parquet_path.exists():
-            self.conn.execute(f"DROP INDEX IF EXISTS {INDEX_NAME}")
-            self.conn.execute(f"DROP TABLE IF EXISTS {TABLE_NAME}")
+            self.backend.drop_index(INDEX_NAME)
+            self.backend.drop_table(TABLE_NAME)
             self._store_metadata(None)
             self._table_synced = True
             return
         stored_metadata = self._get_stored_metadata()
         current_metadata = self._read_parquet_metadata()
-        table_exists = self._duckdb_table_exists(TABLE_NAME)
+        table_exists = self.backend.table_exists(TABLE_NAME)
         metadata_changed = stored_metadata != current_metadata
         if not force and (not metadata_changed) and table_exists:
             self._table_synced = True
             return
-        self.conn.execute(
-            f"CREATE OR REPLACE TABLE {TABLE_NAME} AS SELECT * FROM read_parquet(?)",  # nosec B608 - TABLE_NAME is module constant
-            [str(self.parquet_path)],
-        )
+        self.backend.materialize_chunks_table(TABLE_NAME, self.parquet_path)
         self._store_metadata(current_metadata)
         if force or metadata_changed or (not table_exists):
             self._rebuild_index()
@@ -226,40 +224,30 @@ class VectorStore:
             mtime_ns=int(stats.st_mtime_ns), size=int(stats.st_size), row_count=int(row_count)
         )
 
-    def _duckdb_table_exists(self, table_name: str) -> bool:
-        """Check whether a DuckDB table is materialized in the current database."""
-        row = self.conn.execute(
-            "\n            SELECT COUNT(*)\n            FROM information_schema.tables\n            WHERE lower(table_name) = lower(?)\n        ",
-            [table_name],
-        ).fetchone()
-        return bool(row and row[0] > 0)
-
     def _rebuild_index(self) -> None:
         """Recreate the VSS index for the materialized chunks table."""
-        self.conn.execute(f"DROP INDEX IF EXISTS {INDEX_NAME}")
+        self.backend.drop_index(INDEX_NAME)
         self._ensure_index_meta_table()
-        table_present = self.conn.execute(
-            "\n            SELECT COUNT(*)\n            FROM information_schema.tables\n            WHERE lower(table_name) = lower(?)\n        ",
-            [TABLE_NAME],
-        ).fetchone()
-        if not table_present or table_present[0] == 0:
+        if not self.backend.table_exists(TABLE_NAME):
             self._clear_index_meta()
             return
-        row = self.conn.execute(f"SELECT COUNT(*) FROM {TABLE_NAME}").fetchone()  # nosec B608 - TABLE_NAME is module constant
-        if not row or row[0] == 0:
+        row_count = self.backend.row_count(TABLE_NAME)
+        if row_count == 0:
             self._clear_index_meta()
             return
         if not self._init_vss():
             logger.info("VSS not available, skipping index creation")
             self._clear_index_meta()
             return
-        try:
-            self.conn.execute(
-                f"\n                CREATE INDEX {INDEX_NAME}\n                ON {TABLE_NAME}\n                USING HNSW (embedding)\n                WITH (metric = 'cosine')\n                "
-            )
-            logger.info("Created HNSW index on embedding column")
-        except duckdb.Error as exc:
-            logger.warning("Skipping HNSW index creation: %s", exc)
+        if not self.backend.create_hnsw_index(table_name=TABLE_NAME, index_name=INDEX_NAME):
+            self._clear_index_meta()
+            return
+        self._upsert_index_meta(
+            mode="ann",
+            row_count=row_count,
+            threshold=0,
+            nlist=None,
+        )
 
     def _upsert_index_meta(
         self,
@@ -552,11 +540,7 @@ class VectorStore:
             logger.warning("Vector store does not exist yet")
             return False
         self._ensure_dataset_loaded()
-        table_present = self.conn.execute(
-            "\n            SELECT COUNT(*)\n            FROM information_schema.tables\n            WHERE lower(table_name) = lower(?)\n        ",
-            [TABLE_NAME],
-        ).fetchone()
-        return not (not table_present or table_present[0] == 0)
+        return self.backend.table_exists(TABLE_NAME)
 
     def _validate_and_normalize_mode(self, mode: str) -> str:
         """Normalize and validate search mode, switching to exact if VSS unavailable."""
@@ -739,22 +723,6 @@ class VectorStore:
         self, function_name: str, *, ann_limit: int, nprobe_clause: str, _embedding_dimensionality: int
     ) -> str:
         return f"\n            WITH candidates AS (\n                SELECT\n                    base.*,\n                    1 - vs.distance AS similarity\n                FROM {function_name}(\n                    '{TABLE_NAME}',\n                    'embedding',\n                    ?::FLOAT[{EMBEDDING_DIM}],\n                    top_k := {ann_limit},\n                    metric := 'cosine'{nprobe_clause}\n                ) AS vs\n                JOIN {TABLE_NAME} AS base\n                  ON vs.rowid = base.rowid\n            )\n            SELECT * FROM candidates\n        "  # nosec B608 - function_name is validated VSS function, TABLE_NAME/EMBEDDING_DIM are module constants
-
-    def _detect_vss_function(self) -> str:
-        """Return the appropriate DuckDB VSS function name."""
-        try:
-            rows = self.conn.execute("SELECT name FROM pragma_table_functions()").fetchall()
-        except duckdb.Error as exc:
-            logger.debug("Unable to inspect table functions: %s", exc)
-            return "vss_search"
-        function_names = {str(row[0]).lower() for row in rows if row}
-        if "vss_search" in function_names:
-            return "vss_search"
-        if "vss_match" in function_names:
-            logger.debug("Using vss_match table function for ANN queries")
-            return "vss_match"
-        logger.debug("No VSS table function detected; defaulting to vss_search")
-        return "vss_search"
 
     def _candidate_vss_functions(self) -> list[str]:
         """Return preferred VSS table functions in fallback order."""

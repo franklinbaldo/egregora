@@ -41,6 +41,16 @@ class OutputAdapter(ABC):
     4. Resolving site paths and configuration
     5. Generating any format-specific files (config, templates, etc.)
 
+    Monolithic adapter contract:
+        Egregora no longer expects adapters to vend bespoke ``PostStorage`` or
+        ``ProfileStorage`` implementations.  All responsibilities flow through
+        this adapter via ``serve()``, ``write_post()``, ``write_profile()``, and
+        the document inventory helpers.  This keeps the public surface small and
+        ensures adapters cannot fall out of sync with the document-oriented
+        pipeline.  Subclasses should therefore *not* expose storage-specific
+        helper attributes.  If a format needs internal helper classes, keep them
+        private and route all operations through the adapter itself.
+
     Directory Structure Properties:
         These properties define the conventional directory names for this format.
         Subclasses should override these to match their format's conventions.
@@ -338,66 +348,13 @@ class OutputAdapter(ABC):
 
         """
 
-    # ===== Storage Protocol Properties (Abstract) =====
-
-    @property
-    @abstractmethod
-    def posts(self) -> "PostStorage":
-        """Get post storage implementation for this format.
-
-        Returns:
-            PostStorage implementation (MkDocs, Hugo, Database, etc.)
-
-        Raises:
-            RuntimeError: If format not initialized (call initialize() first)
-
-        """
-
-    @property
-    @abstractmethod
-    def profiles(self) -> "ProfileStorage":
-        """Get profile storage implementation for this format.
-
-        Returns:
-            ProfileStorage implementation
-
-        Raises:
-            RuntimeError: If format not initialized (call initialize() first)
-
-        """
-
-    @property
-    @abstractmethod
-    def journals(self) -> "JournalStorage":
-        """Get journal storage implementation for this format.
-
-        Returns:
-            JournalStorage implementation
-
-        Raises:
-            RuntimeError: If format not initialized (call initialize() first)
-
-        """
-
-    @property
-    @abstractmethod
-    def enrichments(self) -> "EnrichmentStorage":
-        """Get enrichment storage implementation for this format.
-
-        Returns:
-            EnrichmentStorage implementation
-
-        Raises:
-            RuntimeError: If format not initialized (call initialize() first)
-
-        """
-
     @abstractmethod
     def initialize(self, site_root: Path) -> None:
-        """Initialize storage implementations for a specific site.
+        """Initialize internal state for a specific site.
 
-        Must be called before accessing storage properties (posts, profiles, etc.).
-        Creates necessary directories and sets up storage backends.
+        Must be called before using helper methods such as ``write_post`` or
+        ``serve``.  Implementations should perform any filesystem validation and
+        prepare auxiliary helpers needed during a window.
 
         Args:
             site_root: Root directory of the site
@@ -405,11 +362,6 @@ class OutputAdapter(ABC):
         Raises:
             RuntimeError: If initialization fails
             ValueError: If site_root is invalid
-
-        Example:
-            >>> format = MkDocsOutputAdapter()
-            >>> format.initialize(Path("/path/to/site"))
-            >>> posts = format.posts  # Now safe to access
 
         """
 

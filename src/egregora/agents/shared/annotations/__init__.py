@@ -37,7 +37,9 @@ Example:
     >>> from egregora.agents.shared.annotations import AnnotationStore
     >>>
     >>> # Initialize annotation storage
-    >>> store = AnnotationStore(Path(".egregora-cache/annotations.duckdb"))
+    >>> from egregora.database.duckdb_manager import DuckDBStorageManager
+    >>> storage = DuckDBStorageManager(db_path=Path(".egregora-cache/annotations.duckdb"))
+    >>> store = AnnotationStore(storage)
     >>>
     >>> # Annotate a message
     >>> annotation = store.save_annotation(
@@ -190,6 +192,7 @@ class AnnotationStore:
     def __init__(self, storage: DuckDBStorageManager) -> None:
         self.storage = storage
         self._backend = storage.ibis_conn
+        self._sequence_name = f"{ANNOTATIONS_TABLE}_id_seq"
         self._initialize()
 
     @property
@@ -215,42 +218,17 @@ class AnnotationStore:
         The sequence synchronization ensures that if the database already contains
         annotations, the sequence starts at max(id) + 1 to avoid conflicts.
         """
-        sequence_name = f"{ANNOTATIONS_TABLE}_id_seq"
-        self._connection.execute(f"CREATE SEQUENCE IF NOT EXISTS {sequence_name} START 1")
-        self._connection.execute(
+        sequence_name = self._sequence_name
+        self.storage.ensure_sequence(sequence_name)
+        self._backend.raw_sql(
             f"\n            CREATE TABLE IF NOT EXISTS {ANNOTATIONS_TABLE} (\n                id INTEGER PRIMARY KEY DEFAULT nextval('{sequence_name}'),\n                parent_id VARCHAR NOT NULL,\n                parent_type VARCHAR NOT NULL,\n                author VARCHAR,\n                commentary VARCHAR,\n                created_at TIMESTAMP\n            )\n            "
         )
         database_schema.add_primary_key(self._connection, ANNOTATIONS_TABLE, "id")
-        column_default_row = self._connection.execute(
-            "\n            SELECT column_default\n            FROM information_schema.columns\n            WHERE lower(table_name) = lower(?) AND lower(column_name) = 'id'\n            LIMIT 1\n            ",
-            [ANNOTATIONS_TABLE],
-        ).fetchone()
-        if not column_default_row or column_default_row[0] != f"nextval('{sequence_name}')":
-            self._connection.execute(
-                f"ALTER TABLE {ANNOTATIONS_TABLE} ALTER COLUMN id SET DEFAULT nextval('{sequence_name}')"
-            )
+        self.storage.ensure_sequence_default(ANNOTATIONS_TABLE, "id", sequence_name)
         self._backend.raw_sql(
             f"\n            CREATE INDEX IF NOT EXISTS idx_annotations_parent_created\n            ON {ANNOTATIONS_TABLE} (parent_id, parent_type, created_at)\n            "
         )
-        max_id_row = self._connection.execute(f"SELECT MAX(id) FROM {ANNOTATIONS_TABLE}").fetchone()  # nosec B608 - ANNOTATIONS_TABLE is module constant
-        if max_id_row and max_id_row[0] is not None:
-            max_id = int(max_id_row[0])
-            sequence_state = self._connection.execute(
-                "\n                SELECT start_value, increment_by, last_value\n                FROM duckdb_sequences()\n                WHERE schema_name = current_schema() AND sequence_name = ?\n                LIMIT 1\n                ",
-                [sequence_name],
-            ).fetchone()
-            if sequence_state is None:
-                msg = f"Could not find sequence metadata for {sequence_name}"
-                raise RuntimeError(msg)
-            start_value, increment_by, last_value = sequence_state
-            current_next = int(start_value) if last_value is None else int(last_value) + int(increment_by)
-            desired_next = max(current_next, max_id + 1)
-            steps_needed = desired_next - current_next
-            if steps_needed > 0:
-                cursor = self._connection.execute(
-                    "SELECT nextval(?) FROM range(?)", [sequence_name, steps_needed]
-                )
-                cursor.fetchall()
+        self.storage.sync_sequence_with_table(sequence_name, table=ANNOTATIONS_TABLE, column="id")
 
     # ========================================================================
     # Internal Utilities
@@ -296,15 +274,20 @@ class AnnotationStore:
             if parent_exists == 0:
                 msg = f"parent annotation with id {sanitized_parent_id} does not exist"
                 raise ValueError(msg)
-        cursor = self._connection.execute(
-            f"\n            INSERT INTO {ANNOTATIONS_TABLE} (parent_id, parent_type, author, commentary, created_at)\n            VALUES (?, ?, ?, ?, ?)\n            RETURNING id\n            ",  # nosec B608 - ANNOTATIONS_TABLE is module constant
-            [sanitized_parent_id, sanitized_parent_type, ANNOTATION_AUTHOR, sanitized_commentary, created_at],
+        annotation_id = self.storage.next_sequence_value(self._sequence_name)
+        insert_row = ibis.memtable(
+            [
+                {
+                    "id": annotation_id,
+                    "parent_id": sanitized_parent_id,
+                    "parent_type": sanitized_parent_type,
+                    "author": ANNOTATION_AUTHOR,
+                    "commentary": sanitized_commentary,
+                    "created_at": created_at,
+                }
+            ]
         )
-        row = cursor.fetchone()
-        if row is None:
-            msg = "Could not insert annotation"
-            raise RuntimeError(msg)
-        annotation_id = int(row[0])
+        self._backend.insert(ANNOTATIONS_TABLE, insert_row)
         return Annotation(
             id=annotation_id,
             parent_id=sanitized_parent_id,
