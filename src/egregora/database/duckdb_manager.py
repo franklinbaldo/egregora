@@ -39,8 +39,8 @@ import logging
 import re
 import uuid
 import warnings
-from datetime import datetime
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Literal, Protocol
 
@@ -402,6 +402,7 @@ class DuckDBStorageManager:
             """,
             [finished_at, duration_seconds, error, str(run_id)],
         )
+
     # ==================================================================
     # Sequence helpers
     # ==================================================================
