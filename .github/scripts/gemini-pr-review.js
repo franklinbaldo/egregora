@@ -1,27 +1,17 @@
 #!/usr/bin/env node
 
-/**
- * Gemini PR Code Review Script
- *
- * This script:
- * 1. Reads the repository bundle (repomix.txt) and PR patch (pr.patch)
- * 2. Sends both to Gemini API for comprehensive code review
- * 3. Posts the review as a comment on the PR
- * 4. Handles long reviews by splitting into multiple comments if needed
- */
-
 const fs = require('fs');
-const { execSync } = require('child_process');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { Octokit } = require('@octokit/rest');
 
-// Constants
-const GITHUB_API = 'https://api.github.com';
-const MAX_COMMENT_LENGTH = 65536; // GitHub's max comment length
-const COMMENT_SPLIT_THRESHOLD = 60000; // Leave some buffer
+// Configuration
+const MAX_CONTEXT_CHARS = 2000000; // ~500k tokens (Safety limit)
+const MAX_COMMENT_LENGTH = 65000; // GitHub limit is 65536
 
 // Environment variables
 const {
   GEMINI_API_KEY,
-  GEMINI_MODEL = 'gemini-flash-latest',
+  GEMINI_MODEL = 'gemini-3-pro-preview',
   GITHUB_TOKEN,
   PR_NUMBER,
   REPO_FULL_NAME,
@@ -29,334 +19,187 @@ const {
   USER_COMMENT = ''
 } = process.env;
 
-// Validate required environment variables
-if (!GEMINI_API_KEY) {
-  console.error('❌ Error: GEMINI_API_KEY is required');
-  process.exit(1);
-}
+// Validation
+if (!GEMINI_API_KEY) throw new Error('Missing GEMINI_API_KEY');
+if (!GITHUB_TOKEN) throw new Error('Missing GITHUB_TOKEN');
 
-if (!GITHUB_TOKEN || !PR_NUMBER || !REPO_FULL_NAME) {
-  console.error('❌ Error: GITHUB_TOKEN, PR_NUMBER, and REPO_FULL_NAME are required');
-  process.exit(1);
-}
+// Initialize Clients
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
 /**
- * Install Gemini SDK
+ * Reads a file and returns content, or empty string if missing/error
  */
-function installDependencies() {
-  console.log('📦 Installing @google/generative-ai...');
+function readFileSafe(path) {
   try {
-    execSync('npm install @google/generative-ai', { stdio: 'inherit' });
-    console.log('✅ Dependencies installed');
-  } catch (error) {
-    console.error('❌ Failed to install dependencies:', error.message);
-    process.exit(1);
+    return fs.readFileSync(path, 'utf8');
+  } catch (e) {
+    console.warn(`⚠️ Could not read ${path}: ${e.message}`);
+    return '';
   }
 }
 
 /**
- * Read file contents
+ * Truncates the repository context if the total payload is too large.
+ * Prioritizes the Patch and Conversation over the static Repo Context.
  */
-function readFile(filePath) {
-  try {
-    return fs.readFileSync(filePath, 'utf8');
-  } catch (error) {
-    console.error(`❌ Error reading ${filePath}:`, error.message);
-    process.exit(1);
+function enforceContextLimits(repomix, patch, chat) {
+  const totalSize = repomix.length + patch.length + chat.length;
+  
+  if (totalSize <= MAX_CONTEXT_CHARS) {
+    return repomix;
   }
+
+  console.warn(`⚠️ Total context size (${totalSize} chars) exceeds limit. Truncating repository context...`);
+  
+  // Calculate remaining budget for repo context
+  // Keep patch and chat fully intact
+  const remainingBudget = MAX_CONTEXT_CHARS - patch.length - chat.length;
+  
+  if (remainingBudget <= 0) {
+    console.warn("⚠️ Patch is too large! Removing repository context entirely.");
+    return "[Repository context omitted due to size limits - relying on patch only]";
+  }
+
+  return repomix.substring(0, remainingBudget) + "\n\n[...Truncated due to size limits...]";
 }
 
 /**
- * Format PR conversation from comments JSON
+ * Generates the system prompt using XML tagging for better adherence
  */
-function formatPRConversation(commentsPath) {
-  try {
-    const commentsData = fs.readFileSync(commentsPath, 'utf8');
-    const comments = JSON.parse(commentsData);
+function generatePrompt(repomix, patch, chat) {
+  const userInstruction = TRIGGER_MODE === 'comment' && USER_COMMENT
+    ? `The user has specifically requested: "${USER_COMMENT}". Prioritize this request.`
+    : 'Provide a general code review.';
 
-    if (!comments || comments.length === 0) {
-      return 'No comments yet.';
+  return `
+You are a senior software engineer and code reviewer.
+Your task is to review a GitHub Pull Request based on the provided context.
+
+<instructions>
+1. **Tone:** Professional, concise, and actionable. No fluff.
+2. **Focus:** Identify bugs, security vulnerabilities, performance issues, and breaking changes.
+3. **Priority:** 
+   - 🔴 CRITICAL: Bugs, security exploits, data loss.
+   - 🟡 IMPORTANT: Performance, confusing logic, missing tests.
+   - 🟢 MINOR: Variable naming, style preferences (mention briefly or ignore).
+4. **Context:** Use the <repository_context> to understand the codebase, but focus your review on the <git_patch>.
+5. **History:** Review <pr_conversation> to avoid repeating existing feedback.
+6. **Input:** ${userInstruction}
+</instructions>
+
+<repository_context>
+${repomix}
+</repository_context>
+
+<git_patch>
+${patch}
+</git_patch>
+
+<pr_conversation>
+${chat}
+</pr_conversation>
+
+<output_format>
+Return the review in Markdown format.
+Structure:
+## 📋 Summary
+(1-2 sentences)
+
+## 🔍 Critical Issues (If any)
+- **File.js:45**: Explain the bug/vuln.
+
+## 💡 Suggestions
+- **File.js:90**: Improvement logic.
+
+## 💭 Architecture & Design
+(Optional: Only if relevant)
+
+## 🛠️ Action Items
+- [ ] Fix critical bug in X
+- [ ] Add tests for Y
+</output_format>
+`;
+}
+
+async function run() {
+  console.log(`🚀 Starting review for PR #${PR_NUMBER}`);
+
+  // 1. Read Data
+  const rawRepomix = readFileSafe('repomix.txt');
+  const patch = readFileSafe('pr.patch');
+  const conversationRaw = readFileSafe('pr-comments.json');
+  
+  // 2. Format Conversation
+  let conversation = "No prior conversation.";
+  try {
+    const comments = JSON.parse(conversationRaw);
+    if (Array.isArray(comments) && comments.length > 0) {
+      conversation = comments.map(c => `@${c.user.login}: ${c.body}`).join('\n---\n');
     }
+  } catch (e) { /* ignore json parse errors */ }
 
-    return comments.map(comment => {
-      const author = comment.user?.login || 'unknown';
-      const body = comment.body || '';
-      const createdAt = comment.created_at || '';
-      return `**@${author}** (${createdAt}):\n${body}`;
-    }).join('\n\n---\n\n');
-  } catch (error) {
-    console.warn(`⚠️  Could not read PR conversation: ${error.message}`);
-    return 'No conversation data available.';
-  }
-}
+  // 3. Budget Context
+  const repomix = enforceContextLimits(rawRepomix, patch, conversation);
 
-/**
- * Create the review prompt for Gemini
- */
-function createReviewPrompt(repomixContent, patchContent, conversationContent) {
-  const callToAction = TRIGGER_MODE === 'comment' && USER_COMMENT
-    ? `\n\n## Request\n\n${USER_COMMENT}`
-    : '\n\nPlease provide a code review now, being concise but thorough. Focus on what matters most.';
+  console.log(`📊 Stats: Patch=${patch.length}ch, Repo=${repomix.length}ch, Chat=${conversation.length}ch`);
 
-  return `You are a senior software engineer with exceptional code review skills. Your expertise includes identifying bugs, security vulnerabilities, performance issues, architectural problems, and providing actionable recommendations for improvement.
-
-You will receive:
-1. A complete repository context (generated by Repomix)
-2. A Git patch showing the changes in this pull request
-3. The existing PR conversation to understand what has already been discussed
-
-## Repository Context (Repomix Bundle)
-
-\`\`\`
-${repomixContent}
-\`\`\`
-
-## Pull Request Changes (Git Patch)
-
-\`\`\`diff
-${patchContent}
-\`\`\`
-
-## Existing PR Conversation
-
-${conversationContent}
-
-## Your Code Review Skills & Approach
-
-**Review Philosophy:**
-- **Be concise but complete** - Every sentence should add value. Avoid verbose explanations.
-- **Focus on what's currently relevant** - Consider the existing conversation. Don't repeat what's already been discussed.
-- **Prioritize ruthlessly** - Lead with critical issues, de-emphasize minor style points.
-- **Be actionable** - Provide specific, implementable suggestions.
-
-You excel at providing **candid, professional reviews** that cover these areas:
-
-### 1. Summary
-- Brief overview of what this PR accomplishes
-- Overall assessment (approve with minor comments, needs work, etc.)
-
-### 2. Correctness & Bugs
-- Logic errors or edge cases not handled
-- Potential runtime errors or exceptions
-- Incorrect assumptions or implementations
-
-### 3. API/Contracts & Backwards-Compatibility
-- Breaking changes to public APIs
-- Impact on existing consumers
-- Deprecation strategy if applicable
-
-### 4. Security & Privacy
-- Authentication/authorization issues
-- Data validation and sanitization
-- Secrets or sensitive data exposure
-- Injection vulnerabilities (SQL, command, etc.)
-- Insecure defaults or configurations
-
-### 5. Performance & Complexity
-- Algorithmic complexity issues (O(n²) where O(n) is possible)
-- Unnecessary database queries or network calls
-- Memory leaks or resource management issues
-- Caching opportunities
-
-### 6. Testing & Observability
-- Test coverage for new/changed code
-- Missing test cases or scenarios
-- Logging, monitoring, and debugging considerations
-- Error handling and observability
-
-### 7. Style & Readability
-- Code clarity and maintainability
-- Naming conventions
-- Comments and documentation
-- Consistency with existing codebase patterns
-
-### 8. Architecture/Design Trade-offs
-- Design pattern appropriateness
-- Separation of concerns
-- Code duplication or opportunities for abstraction
-- Long-term maintainability considerations
-
-### 9. Actionable Checklist
-- Create a prioritized list of specific action items
-- Mark critical issues vs. optional improvements
-- Be specific with file names and line numbers when possible
-
-## Review Tone & Style
-
-- **Be direct and candid** - point out real issues without sugar-coating
-- **Be professional** - constructive criticism, not personal attacks
-- **Be specific and concise** - cite exact locations (file:line), use bullet points, avoid paragraphs
-- **Skip the obvious** - don't explain basic concepts or repeat what's in the conversation
-- **Focus on substance** - avoid unnecessary praise, flattery, or preamble
-- **Prioritize impact** - critical security/correctness issues first, minor style last
-
-## Output Format
-
-Return ONLY the Markdown review. Do not include any preamble or meta-commentary about the review itself. Start directly with the review content.
-
-Structure your review using the sections above as Markdown headings (##).${callToAction}`;
-}
-
-/**
- * Send review request to Gemini
- */
-async function getGeminiReview(repomixContent, patchContent, conversationContent) {
-  console.log('🤖 Requesting code review from Gemini...');
-  console.log(`📊 Model: ${GEMINI_MODEL}`);
-  console.log(`📏 Repomix bundle: ${repomixContent.length} chars`);
-  console.log(`📏 PR patch: ${patchContent.length} chars`);
-  console.log(`📏 PR conversation: ${conversationContent.length} chars`);
-
-  const { GoogleGenerativeAI } = require('@google/generative-ai');
-  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-
-  const model = genAI.getGenerativeModel({
+  // 4. Call Gemini
+  const model = genAI.getGenerativeModel({ 
     model: GEMINI_MODEL,
-    generationConfig: {
-      temperature: 0.3, // Lower temperature for more focused, consistent reviews
-      topP: 0.95,
-      topK: 40,
-      maxOutputTokens: 8192,
-    },
+    generationConfig: { temperature: 0.2, maxOutputTokens: 8000 }
   });
 
-  const prompt = createReviewPrompt(repomixContent, patchContent, conversationContent);
+  const prompt = generatePrompt(repomix, patch, conversation);
+  
+  console.log("🤖 Sending to Gemini...");
+  const result = await model.generateContent(prompt);
+  const response = await result.response;
+  const reviewText = response.text();
 
-  try {
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const review = response.text();
+  console.log(`✅ Generated review (${reviewText.length} chars). Posting to GitHub...`);
 
-    console.log(`✅ Review generated: ${review.length} chars`);
-    return review;
-  } catch (error) {
-    console.error('❌ Gemini API error:', error.message);
-    if (error.response) {
-      console.error('Response data:', JSON.stringify(error.response.data, null, 2));
-    }
-    throw error;
-  }
-}
+  // 5. Post Comment (Handling Length Limits)
+  const chunks = splitMessage(reviewText, MAX_COMMENT_LENGTH - 500); // Buffer for headers
+  const [owner, repo] = REPO_FULL_NAME.split('/');
 
-/**
- * Split long review into multiple comments
- */
-function splitReview(review) {
-  if (review.length <= COMMENT_SPLIT_THRESHOLD) {
-    return [review];
-  }
+  for (let i = 0; i < chunks.length; i++) {
+    const header = chunks.length > 1 ? `## 🤖 Review (Part ${i + 1}/${chunks.length})\n\n` : `## 🤖 Gemini Code Review\n\n`;
+    const body = header + chunks[i] + `\n\n*Generated by ${GEMINI_MODEL}*`;
 
-  console.log(`📝 Review is ${review.length} chars, splitting into multiple comments...`);
-
-  const parts = [];
-  const sections = review.split(/\n(?=##\s)/); // Split on markdown H2 headers
-
-  let currentPart = '';
-  let partNumber = 1;
-
-  for (const section of sections) {
-    // If adding this section would exceed the threshold, save current part
-    if (currentPart.length + section.length > COMMENT_SPLIT_THRESHOLD && currentPart.length > 0) {
-      parts.push(`${currentPart}\n\n---\n*Continued in next comment...*`);
-      currentPart = `*...continued from previous comment*\n\n`;
-      partNumber++;
-    }
-    currentPart += section + '\n';
-  }
-
-  // Add the last part
-  if (currentPart.trim()) {
-    parts.push(currentPart);
-  }
-
-  console.log(`✂️  Split into ${parts.length} comments`);
-  return parts;
-}
-
-/**
- * Post comment to GitHub PR
- */
-async function postComment(body, index = 0, total = 1) {
-  const url = `${GITHUB_API}/repos/${REPO_FULL_NAME}/issues/${PR_NUMBER}/comments`;
-
-  // Add header to indicate which part this is
-  let finalBody = body;
-  if (total > 1) {
-    const header = `## 🤖 Gemini Code Review (Part ${index + 1}/${total})\n\n*Model: ${GEMINI_MODEL}*\n\n`;
-    finalBody = header + body;
-  } else {
-    const header = `## 🤖 Gemini Code Review\n\n*Model: ${GEMINI_MODEL}*\n\n`;
-    finalBody = header + body;
-  }
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `token ${GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json',
-        'User-Agent': 'Gemini-PR-Reviewer'
-      },
-      body: JSON.stringify({ body: finalBody })
+    await octokit.issues.createComment({
+      owner,
+      repo,
+      issue_number: PR_NUMBER,
+      body
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`GitHub API responded with ${response.status}: ${errorText}`);
-    }
-
-    const data = await response.json();
-    console.log(`✅ Comment posted: ${data.html_url}`);
-    return data;
-  } catch (error) {
-    console.error('❌ Error posting comment:', error.message);
-    throw error;
+    
+    // Avoid rate limits
+    if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 1000));
   }
+  
+  console.log("✨ Done.");
 }
 
-/**
- * Main execution
- */
-async function main() {
-  console.log('🚀 Starting Gemini PR Code Review');
-  console.log(`📋 PR #${PR_NUMBER} in ${REPO_FULL_NAME}`);
-  console.log(`🎯 Trigger mode: ${TRIGGER_MODE}`);
-  if (TRIGGER_MODE === 'comment' && USER_COMMENT) {
-    console.log(`💬 User request: ${USER_COMMENT}`);
-  }
-
-  // Install dependencies
-  installDependencies();
-
-  // Read input files
-  console.log('📖 Reading input files...');
-  const repomixContent = readFile('repomix.txt');
-  const patchContent = readFile('pr.patch');
-  const conversationContent = formatPRConversation('pr-comments.json');
-
-  // Get review from Gemini
-  const review = await getGeminiReview(repomixContent, patchContent, conversationContent);
-
-  // Split review if necessary
-  const reviewParts = splitReview(review);
-
-  // Post comments to GitHub
-  console.log(`💬 Posting ${reviewParts.length} comment(s) to PR...`);
-  for (let i = 0; i < reviewParts.length; i++) {
-    await postComment(reviewParts[i], i, reviewParts.length);
-
-    // Small delay between comments to avoid rate limiting
-    if (i < reviewParts.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+function splitMessage(text, maxLength) {
+  const chunks = [];
+  let current = "";
+  
+  // Split by newlines to try and keep markdown formatting intact
+  const lines = text.split('\n');
+  
+  for (const line of lines) {
+    if ((current.length + line.length) > maxLength) {
+      chunks.push(current);
+      current = "";
     }
+    current += line + "\n";
   }
-
-  console.log('✨ Code review completed successfully!');
+  if (current) chunks.push(current);
+  return chunks;
 }
 
-// Run main function
-main().catch((error) => {
-  console.error('💥 Fatal error:', error);
+run().catch(err => {
+  console.error("❌ Failed:", err);
   process.exit(1);
 });
