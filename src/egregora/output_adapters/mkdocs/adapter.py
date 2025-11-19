@@ -31,10 +31,7 @@ _ConfigLoader.add_constructor(None, lambda loader, node: None)
 
 from egregora.agents.shared.author_profiles import write_profile as write_profile_content
 from egregora.config.settings import create_default_config
-from egregora.config.site import (
-    SitePaths,
-    resolve_site_paths,
-)
+from egregora.config.site import SitePaths, configured_mkdocs_path, load_config_for_paths, resolve_site_paths
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
@@ -273,17 +270,22 @@ class MkDocsAdapter(OutputAdapter):
         if not site_root.exists():
             return False
 
-        # Check known locations (no upward directory search)
-        # Uses resolve_site_paths which checks:
-        #   1. Custom path from .egregora/config.yml (if configured)
-        #   2. .egregora/mkdocs.yml (default new location)
-        #   3. mkdocs.yml at root (legacy location)
         try:
-            site_paths = resolve_site_paths(site_root)
-            return site_paths.mkdocs_path is not None and site_paths.mkdocs_path.exists()
-        except Exception:
-            # If resolve fails, fall back to simple checks
-            return (site_root / ".egregora" / "mkdocs.yml").exists() or (site_root / "mkdocs.yml").exists()
+            config = load_config_for_paths(site_root)
+        except Exception as exc:  # pragma: no cover - defensive guardrail
+            logger.debug("Failed to load config from %s: %s", site_root, exc)
+            return False
+
+        mkdocs_path = configured_mkdocs_path(site_root, config)
+        if mkdocs_path.exists():
+            return True
+
+        # If no custom path is configured, also guard against legacy mkdocs.yml
+        if not config.output.mkdocs_config_path:
+            legacy_path = site_root / "mkdocs.yml"
+            return legacy_path.exists()
+
+        return False
 
     def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure.
@@ -322,6 +324,11 @@ class MkDocsAdapter(OutputAdapter):
         if site_paths.mkdocs_path and site_paths.mkdocs_path.exists():
             logger.info("MkDocs site already exists at %s (config: %s)", site_root, site_paths.mkdocs_path)
             return (site_paths.mkdocs_path, False)
+
+        legacy_mkdocs = site_root / "mkdocs.yml"
+        if legacy_mkdocs.exists() and legacy_mkdocs != site_paths.mkdocs_path:
+            logger.info("MkDocs site already exists at %s (config: %s)", site_root, legacy_mkdocs)
+            return (legacy_mkdocs, False)
 
         # Site doesn't exist - create it
         try:

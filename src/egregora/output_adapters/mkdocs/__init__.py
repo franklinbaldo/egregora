@@ -10,6 +10,7 @@ Use EgregoraConfig().paths for directory configuration instead:
 
 from egregora.config.site import (
     SitePaths,
+    configured_mkdocs_path,
     find_mkdocs_file,
     load_mkdocs_config,
     resolve_site_paths,
@@ -24,6 +25,7 @@ __all__ = [
     "MkDocsAdapter",
     "MkDocsUrlConvention",
     "SitePaths",
+    "configured_mkdocs_path",
     "find_mkdocs_file",
     "load_mkdocs_config",
     "resolve_site_paths",
