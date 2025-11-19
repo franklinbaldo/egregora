@@ -5,7 +5,7 @@
 
 ## Overview
 
-The **DuckDBStorageManager** provides centralized DuckDB connection management with automatic checkpointing and integration with the ViewRegistry. It eliminates raw SQL usage and provides a consistent interface for table I/O across pipeline stages.
+The **DuckDBStorageManager** provides centralized DuckDB connection management with automatic checkpointing. It eliminates raw SQL usage and provides a consistent interface for table I/O across pipeline stages.
 
 ## Why DuckDBStorageManager?
 
@@ -22,7 +22,7 @@ The **DuckDBStorageManager** provides centralized DuckDB connection management w
 2. **Automatic checkpointing**: Persist intermediate results to disk transparently
 3. **Ibis-first API**: All operations use Ibis tables (no raw SQL)
 4. **Easy testing**: Context manager and in-memory mode for unit tests
-5. **ViewRegistry integration**: Execute named views with automatic materialization
+5. **View builder integration**: Execute named view callables with automatic materialization
 
 ## Architecture
 
@@ -36,9 +36,10 @@ storage = DuckDBStorageManager(db_path=Path("pipeline.duckdb"))
 table = storage.read_table("conversations")
 storage.write_table(enriched, "conversations_enriched", checkpoint=True)
 
-# Execute views from registry
-from egregora.database.views import views
-chunks_builder = views.get("chunks")
+# Execute views from mapping
+from egregora.database.views import COMMON_VIEWS
+
+chunks_builder = COMMON_VIEWS["chunks"]
 result = storage.execute_view("chunks_materialized", chunks_builder, "conversations")
 ```
 
@@ -123,13 +124,13 @@ storage.write_table(table, "mytable", mode="append", checkpoint=True)
 
 ### Executing Views
 
-**With ViewRegistry integration:**
+**With common view builders:**
 
 ```python
-from egregora.database.views import views
+from egregora.database.views import COMMON_VIEWS
 
 # Get view builder
-chunks_builder = views.get("chunks")
+chunks_builder = COMMON_VIEWS["chunks"]
 
 # Execute and materialize
 result = storage.execute_view(
@@ -238,11 +239,11 @@ with DuckDBStorageManager(db_path=Path("pipeline.duckdb")) as storage:
 **Pattern: View-based Stages**
 
 ```python
-from egregora.database.views import views
+from egregora.database.views import COMMON_VIEWS
 
 def chunking_stage(storage: DuckDBStorageManager) -> None:
-    """Chunking stage using ViewRegistry."""
-    chunks_builder = views.get("chunks")
+    """Chunking stage using a common view builder."""
+    chunks_builder = COMMON_VIEWS["chunks"]
     storage.execute_view(
         "chunks",
         chunks_builder,
@@ -460,7 +461,7 @@ storage.write_table(table, "important", checkpoint=True)
   - Centralized DuckDB connection management
   - Automatic parquet checkpointing
   - Ibis-first API (no raw SQL)
-  - ViewRegistry integration
+  - Common view builder integration
   - Context manager support
   - 22 comprehensive tests
 
@@ -468,7 +469,7 @@ storage.write_table(table, "important", checkpoint=True)
 
 - `src/egregora/database/storage.py` - Implementation
 - `tests/unit/test_storage_manager.py` - Test suite (22 tests)
-- `docs/pipeline/view-registry.md` - ViewRegistry (C.1)
+- `docs/pipeline/view-registry.md` - Pipeline views
 - `ARCHITECTURE_ROADMAP.md` - Priority C.2 specification
 
 ## Migration Guide

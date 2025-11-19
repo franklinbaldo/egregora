@@ -1,31 +1,8 @@
-"""Canonical view registry for pipeline stages.
+"""Common view transformations used throughout the pipeline.
 
-Stages reference views by name, not file paths. This allows:
-- SQL optimization when needed (performance)
-- Centralized view definitions
-- Easy testing (swap views for mocks)
-
-This module provides a decorator-based registry for pipeline view builders.
-Unlike src/egregora/database/views.py (SQL materialized views for query optimization),
-this registry focuses on pipeline stage transformations that can be written in
-either Ibis or SQL.
-
-Usage:
-    from egregora.database.views import views
-
-    # Register a view using decorator
-    @views.register("chunks")
-    def chunks_view(ir: ibis.Table) -> ibis.Table:
-        return ir.mutate(chunk_idx=ibis.row_number().over(...))
-
-    # Use in pipeline stage
-    chunks_builder = views.get("chunks")
-    result = chunks_builder(ir_table)
-
-    # Or use SQL for performance
-    @views.register("chunks_optimized")
-    def chunks_sql(ir: ibis.Table) -> ibis.Table:
-        return ir.sql("SELECT *, ROW_NUMBER() OVER (...) FROM ir")
+The previous decorator-based registry added indirection without providing
+meaningful flexibility. Callers now import the view builders they need
+directly from this module or look them up via the ``COMMON_VIEWS`` mapping.
 """
 
 import logging
@@ -40,197 +17,24 @@ logger = logging.getLogger(__name__)
 type ViewBuilder = Callable[[Table], Table]
 
 
-class ViewRegistry:
-    """Registry of canonical pipeline views.
-
-    Provides a centralized registry for pipeline view builders that transform
-    Ibis tables. View builders can use either Ibis expressions or raw SQL
-    for performance-critical operations.
-
-    Attributes:
-        _views: Dictionary mapping view names to builder functions
-
-    Example:
-        >>> registry = ViewRegistry()
-        >>>
-        >>> @registry.register("enriched")
-        >>> def enriched_view(ir: Table) -> Table:
-        ...     return ir.filter(ir.text.notnull())
-        >>>
-        >>> builder = registry.get("enriched")
-        >>> result = builder(my_table)
-
-    """
-
-    def __init__(self) -> None:
-        """Initialize empty view registry."""
-        self._views: dict[str, ViewBuilder] = {}
-        logger.debug("Initialized ViewRegistry")
-
-    def register(self, name: str) -> Callable[[ViewBuilder], ViewBuilder]:
-        """Decorator to register a view builder.
-
-        Args:
-            name: Unique view identifier
-
-        Returns:
-            Decorator function that registers the view builder
-
-        Raises:
-            ValueError: If view name is already registered
-
-        Example:
-            >>> @views.register("my_view")
-            >>> def my_view_builder(ir: Table) -> Table:
-            ...     return ir.limit(100)
-
-        """
-
-        def decorator(func: ViewBuilder) -> ViewBuilder:
-            if name in self._views:
-                msg = f"View '{name}' is already registered"
-                raise ValueError(msg)
-
-            self._views[name] = func
-            logger.debug("Registered view: %s (function: %s)", name, func.__name__)
-            return func
-
-        return decorator
-
-    def register_function(self, name: str, func: ViewBuilder) -> None:
-        """Register a view builder function directly (without decorator).
-
-        Args:
-            name: Unique view identifier
-            func: View builder function
-
-        Raises:
-            ValueError: If view name is already registered
-
-        Example:
-            >>> def chunks(ir: Table) -> Table:
-            ...     return ir.mutate(chunk_idx=...)
-            >>> views.register_function("chunks", chunks)
-
-        """
-        if name in self._views:
-            msg = f"View '{name}' is already registered"
-            raise ValueError(msg)
-
-        self._views[name] = func
-        logger.debug("Registered view: %s (function: %s)", name, func.__name__)
-
-    def get(self, name: str) -> ViewBuilder:
-        """Get view builder by name.
-
-        Args:
-            name: View identifier
-
-        Returns:
-            View builder function
-
-        Raises:
-            KeyError: If view not found
-
-        Example:
-            >>> builder = views.get("chunks")
-            >>> result = builder(ir_table)
-
-        """
-        if name not in self._views:
-            msg = f"View not found: {name}"
-            raise KeyError(msg)
-
-        return self._views[name]
-
-    def has(self, name: str) -> bool:
-        """Check if view is registered.
-
-        Args:
-            name: View identifier
-
-        Returns:
-            True if view exists, False otherwise
-
-        """
-        return name in self._views
-
-    def list_views(self) -> list[str]:
-        """List all registered view names.
-
-        Returns:
-            Sorted list of view names
-
-        """
-        return sorted(self._views.keys())
-
-    def unregister(self, name: str) -> None:
-        """Remove a view from the registry.
-
-        Args:
-            name: View identifier
-
-        Raises:
-            KeyError: If view not found
-
-        """
-        if name not in self._views:
-            msg = f"View not found: {name}"
-            raise KeyError(msg)
-
-        del self._views[name]
-        logger.debug("Unregistered view: %s", name)
-
-    def clear(self) -> None:
-        """Remove all views from the registry."""
-        count = len(self._views)
-        self._views.clear()
-        logger.debug("Cleared %d views from registry", count)
-
-
-# Global singleton registry for pipeline views
-views = ViewRegistry()
-
-
-# ============================================================================
-# Common Pipeline Views
-# ============================================================================
-# These are standard view builders for common pipeline operations.
-# Custom projects can register additional views as needed.
-
-
-@views.register("chunks")
 def chunks_view(ir: Table) -> Table:
     """Chunk conversations into sequential windows.
 
-    Adds a chunk_idx column with row numbers partitioned by thread_id
-    and ordered by timestamp.
-
-    Args:
-        ir: IR v1 table with thread_id and ts columns
-
-    Returns:
-        IR table with added chunk_idx column
-
+    Adds a ``chunk_idx`` column with row numbers partitioned by ``thread_id``
+    and ordered by ``ts``.
     """
     win = ibis.window(group_by="thread_id", order_by="ts")
     return ir.mutate(chunk_idx=ibis.row_number().over(win))
 
 
-@views.register("chunks_optimized")
 def chunks_sql(ir: Table) -> Table:
     """Optimized chunking with raw SQL.
 
-    Same as chunks_view but uses SQL for better performance on large datasets.
-
-    Args:
-        ir: IR v1 table with thread_id and ts columns
-
-    Returns:
-        IR table with added chunk_idx column
-
+    Same as :func:`chunks_view` but uses SQL for better performance on large
+    datasets.
     """
-    return ir.sql("""
+    return ir.sql(
+        """
         SELECT
             *,
             ROW_NUMBER() OVER (
@@ -238,53 +42,22 @@ def chunks_sql(ir: Table) -> Table:
                 ORDER BY ts
             ) AS chunk_idx
         FROM {}
-    """)
+        """
+    )
 
 
-@views.register("messages_with_media")
 def messages_with_media_view(ir: Table) -> Table:
-    """Filter to messages containing media.
-
-    Args:
-        ir: IR v1 table
-
-    Returns:
-        IR table filtered to messages with media_url not null
-
-    """
+    """Filter to messages containing media."""
     return ir.filter(ir.media_url.notnull())
 
 
-@views.register("messages_with_text")
 def messages_with_text_view(ir: Table) -> Table:
-    """Filter to messages containing text.
-
-    Args:
-        ir: IR v1 table
-
-    Returns:
-        IR table filtered to messages with non-empty text
-
-    """
+    """Filter to messages containing non-empty text."""
     return ir.filter(ir.text.notnull() & (ir.text != ""))
 
 
-@views.register("hourly_aggregates")
 def hourly_aggregates_view(ir: Table) -> Table:
-    """Aggregate messages by hour.
-
-    Groups messages into hourly windows and computes:
-    - Message count per hour
-    - Unique authors per hour
-    - First and last message timestamps
-
-    Args:
-        ir: IR v1 table with ts and author_uuid columns
-
-    Returns:
-        Aggregated table with hourly statistics
-
-    """
+    """Aggregate messages by hour."""
     return (
         ir.mutate(hour=ir.ts.truncate("hour"))
         .group_by("hour")
@@ -298,22 +71,8 @@ def hourly_aggregates_view(ir: Table) -> Table:
     )
 
 
-@views.register("daily_aggregates")
 def daily_aggregates_view(ir: Table) -> Table:
-    """Aggregate messages by day.
-
-    Groups messages into daily windows and computes:
-    - Message count per day
-    - Unique authors per day
-    - First and last message timestamps
-
-    Args:
-        ir: IR v1 table with ts and author_uuid columns
-
-    Returns:
-        Aggregated table with daily statistics
-
-    """
+    """Aggregate messages by day."""
     return (
         ir.mutate(day=ir.ts.truncate("day"))
         .group_by("day")
@@ -327,9 +86,46 @@ def daily_aggregates_view(ir: Table) -> Table:
     )
 
 
-# Export public API
+COMMON_VIEWS: dict[str, ViewBuilder] = {
+    "chunks": chunks_view,
+    "chunks_optimized": chunks_sql,
+    "messages_with_media": messages_with_media_view,
+    "messages_with_text": messages_with_text_view,
+    "hourly_aggregates": hourly_aggregates_view,
+    "daily_aggregates": daily_aggregates_view,
+}
+
+
+def get_view_builder(name: str) -> ViewBuilder:
+    """Return a view builder by name.
+
+    Raises
+    ------
+    KeyError
+        If the requested view name is not defined in ``COMMON_VIEWS``.
+
+    """
+    try:
+        return COMMON_VIEWS[name]
+    except KeyError as exc:  # pragma: no cover - defensive logging path
+        logger.error("Unknown view requested: %s", name)
+        raise KeyError(f"Unknown view: {name}") from exc
+
+
+def list_common_views() -> list[str]:
+    """Return the sorted list of known view names."""
+    return sorted(COMMON_VIEWS)
+
+
 __all__ = [
+    "COMMON_VIEWS",
     "ViewBuilder",
-    "ViewRegistry",
-    "views",
+    "chunks_sql",
+    "chunks_view",
+    "daily_aggregates_view",
+    "get_view_builder",
+    "hourly_aggregates_view",
+    "list_common_views",
+    "messages_with_media_view",
+    "messages_with_text_view",
 ]

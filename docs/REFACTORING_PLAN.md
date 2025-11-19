@@ -32,14 +32,15 @@ Based on ChatGPT analysis and alpha mindset principles, we're simplifying the co
 #### 6. Test Views Rewrite ✅ (commit f492c6b)
 **Impact**: +253 lines new tests, -507 lines obsolete tests = -254 lines net
 
-**Created**: `tests/unit/test_views.py` - 18 comprehensive tests for current ViewBuilder API
-- ViewRegistry class tests (register, get, has, list, unregister, clear)
+**Created**: `tests/unit/test_views.py` - 18 comprehensive tests for former ViewBuilder API (registry removed 2025-01-09)
+- Registry management (register, list, unregister)
 - Decorator and function registration
 - Error handling (duplicates, missing views)
 - View builder functionality (filter, mutate, aggregate, chaining)
 - Global registry instance
 
 **Deleted**: `tests/unit/test_views.py.skip` - Obsolete SQL-based view registry tests
+**Retired**: `tests/unit/test_views.py` - superseded by direct view builder callables (no registry)
 
 **Old API** (removed):
 - ViewDefinition dataclass with SQL strings

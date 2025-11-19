@@ -355,7 +355,7 @@ class NewStage(PipelineStage):
 - `src/egregora/database/validation.py` - Implementation (validate_stage decorator)
 - `tests/unit/test_stage_validation.py` - Test suite (7 tests)
 - `src/egregora/pipeline/base.py` - PipelineStage base class
-- `docs/pipeline/view-registry.md` - ViewRegistry (C.1)
+- `docs/pipeline/view-registry.md` - Pipeline view builders (C.1)
 - `docs/database/storage-manager.md` - DuckDBStorageManager (C.2)
 - `ARCHITECTURE_ROADMAP.md` - Priority C specification
 
