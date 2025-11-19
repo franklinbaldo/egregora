@@ -12,7 +12,6 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-import duckdb
 import ibis
 import pytest
 
@@ -38,44 +37,48 @@ def storage(temp_db_path: Path) -> DuckDBStorageManager:
     return DuckDBStorageManager(db_path=temp_db_path)
 
 
+TEST_RUNS_TABLE_SQL = """
+CREATE TABLE runs (
+    run_id UUID PRIMARY KEY,
+    stage VARCHAR NOT NULL,
+    tenant_id VARCHAR,
+    started_at TIMESTAMP NOT NULL,
+    finished_at TIMESTAMP,
+    duration_seconds DOUBLE,
+    code_ref VARCHAR,
+    config_hash VARCHAR,
+    rows_in INTEGER,
+    rows_out INTEGER,
+    llm_calls INTEGER DEFAULT 0,
+    tokens INTEGER DEFAULT 0,
+    status VARCHAR NOT NULL,
+    error TEXT,
+    trace_id VARCHAR
+)
+"""
+
+
+TEST_LINEAGE_TABLE_SQL = """
+CREATE TABLE lineage (
+    child_run_id UUID NOT NULL,
+    parent_run_id UUID NOT NULL,
+    PRIMARY KEY (child_run_id, parent_run_id),
+    FOREIGN KEY (child_run_id) REFERENCES runs(run_id),
+    FOREIGN KEY (parent_run_id) REFERENCES runs(run_id)
+)
+"""
+
+
 @pytest.fixture
-def runs_db(storage: DuckDBStorageManager) -> duckdb.DuckDBPyConnection:
-    """Create DuckDB with runs and lineage tables."""
-    conn = storage.conn
+def storage_with_tracking_schema(storage: DuckDBStorageManager) -> DuckDBStorageManager:
+    """Ensure runs + lineage tables exist with FK-friendly schema."""
 
-    # Create runs table (simplified schema for testing)
-    conn.execute("""
-        CREATE TABLE runs (
-            run_id UUID PRIMARY KEY,
-            stage VARCHAR NOT NULL,
-            tenant_id VARCHAR,
-            started_at TIMESTAMP NOT NULL,
-            finished_at TIMESTAMP,
-            duration_seconds DOUBLE,
-            code_ref VARCHAR,
-            config_hash VARCHAR,
-            rows_in INTEGER,
-            rows_out INTEGER,
-            llm_calls INTEGER DEFAULT 0,
-            tokens INTEGER DEFAULT 0,
-            status VARCHAR NOT NULL,
-            error TEXT,
-            trace_id VARCHAR
-        )
-    """)
-
-    # Create lineage table
-    conn.execute("""
-        CREATE TABLE lineage (
-            child_run_id UUID NOT NULL,
-            parent_run_id UUID NOT NULL,
-            PRIMARY KEY (child_run_id, parent_run_id),
-            FOREIGN KEY (child_run_id) REFERENCES runs(run_id),
-            FOREIGN KEY (parent_run_id) REFERENCES runs(run_id)
-        )
-    """)
-
-    return conn
+    with storage.connection() as conn:
+        conn.execute("DROP TABLE IF EXISTS lineage")
+        conn.execute("DROP TABLE IF EXISTS runs")
+        conn.execute(TEST_RUNS_TABLE_SQL)
+        conn.execute(TEST_LINEAGE_TABLE_SQL)
+    return storage
 
 
 @pytest.fixture
@@ -129,13 +132,13 @@ def test_run_context_with_parents():
 # ==============================================================================
 
 
-def test_record_run_minimal(runs_db: duckdb.DuckDBPyConnection):
+def test_record_run_minimal(storage: DuckDBStorageManager):
     """record_run() writes minimal run record."""
     run_id = uuid.uuid4()
     started_at = datetime.now(UTC)
 
     record_run(
-        conn=runs_db,
+        conn=storage,
         run_id=run_id,
         stage="privacy",
         status="running",
@@ -143,10 +146,11 @@ def test_record_run_minimal(runs_db: duckdb.DuckDBPyConnection):
     )
 
     # Verify record exists
-    result = runs_db.execute(
-        "SELECT run_id, stage, status FROM runs WHERE run_id = ?",
-        [str(run_id)],
-    ).fetchone()
+    with storage.connection() as conn:
+        result = conn.execute(
+            "SELECT run_id, stage, status FROM runs WHERE run_id = ?",
+            [str(run_id)],
+        ).fetchone()
 
     assert result is not None
     assert result[0] == run_id  # DuckDB returns UUID objects
@@ -154,37 +158,39 @@ def test_record_run_minimal(runs_db: duckdb.DuckDBPyConnection):
     assert result[2] == "running"
 
 
-def test_record_run_full_metadata(runs_db: duckdb.DuckDBPyConnection):
+def test_record_run_full_metadata(storage: DuckDBStorageManager):
     """record_run() writes all metadata fields."""
     run_id = uuid.uuid4()
     started_at = datetime.now(UTC)
     finished_at = datetime.now(UTC)
 
-    record_run(
-        conn=runs_db,
-        run_id=run_id,
-        stage="enrichment",
-        status="completed",
-        started_at=started_at,
-        finished_at=finished_at,
-        tenant_id="acme",
-        code_ref="a1b2c3d4",
-        config_hash="sha256:def456",
-        rows_in=100,
-        rows_out=100,
-        llm_calls=5,
-        tokens=1200,
-        trace_id="trace-xyz",
-    )
+    with storage.connection() as conn:
+        record_run(
+            conn=conn,
+            run_id=run_id,
+            stage="enrichment",
+            status="completed",
+            started_at=started_at,
+            finished_at=finished_at,
+            tenant_id="acme",
+            code_ref="a1b2c3d4",
+            config_hash="sha256:def456",
+            rows_in=100,
+            rows_out=100,
+            llm_calls=5,
+            tokens=1200,
+            trace_id="trace-xyz",
+        )
 
     # Verify all fields
-    result = runs_db.execute(
-        """
-        SELECT tenant_id, rows_in, rows_out, llm_calls, tokens
-        FROM runs WHERE run_id = ?
-        """,
-        [str(run_id)],
-    ).fetchone()
+    with storage.connection() as conn:
+        result = conn.execute(
+            """
+            SELECT tenant_id, rows_in, rows_out, llm_calls, tokens
+            FROM runs WHERE run_id = ?
+            """,
+            [str(run_id)],
+        ).fetchone()
 
     assert result[0] == "acme"  # tenant_id
     assert result[1] == 100  # rows_in
@@ -193,13 +199,13 @@ def test_record_run_full_metadata(runs_db: duckdb.DuckDBPyConnection):
     assert result[4] == 1200  # tokens
 
 
-def test_record_run_auto_detects_git_commit(runs_db: duckdb.DuckDBPyConnection):
+def test_record_run_auto_detects_git_commit(storage: DuckDBStorageManager):
     """record_run() auto-detects git commit SHA if not provided."""
     run_id = uuid.uuid4()
     started_at = datetime.now(UTC)
 
     record_run(
-        conn=runs_db,
+        conn=storage,
         run_id=run_id,
         stage="privacy",
         status="completed",
@@ -208,10 +214,11 @@ def test_record_run_auto_detects_git_commit(runs_db: duckdb.DuckDBPyConnection):
     )
 
     # Verify code_ref is populated (or None if not in git repo)
-    result = runs_db.execute(
-        "SELECT code_ref FROM runs WHERE run_id = ?",
-        [str(run_id)],
-    ).fetchone()
+    with storage.connection() as conn:
+        result = conn.execute(
+            "SELECT code_ref FROM runs WHERE run_id = ?",
+            [str(run_id)],
+        ).fetchone()
 
     code_ref = result[0]
     # If in git repo, should be 40-char SHA
@@ -224,14 +231,15 @@ def test_record_run_auto_detects_git_commit(runs_db: duckdb.DuckDBPyConnection):
 # ==============================================================================
 
 
-def test_record_lineage_single_parent(runs_db: duckdb.DuckDBPyConnection):
+def test_record_lineage_single_parent(storage_with_tracking_schema: DuckDBStorageManager):
     """record_lineage() creates child → parent edge."""
+    storage = storage_with_tracking_schema
     parent_id = uuid.uuid4()
     child_id = uuid.uuid4()
 
     # Create parent run first
     record_run(
-        conn=runs_db,
+        conn=storage,
         run_id=parent_id,
         stage="privacy",
         status="completed",
@@ -241,7 +249,7 @@ def test_record_lineage_single_parent(runs_db: duckdb.DuckDBPyConnection):
 
     # Create child run
     record_run(
-        conn=runs_db,
+        conn=storage,
         run_id=child_id,
         stage="enrichment",
         status="running",
@@ -250,23 +258,25 @@ def test_record_lineage_single_parent(runs_db: duckdb.DuckDBPyConnection):
 
     # Record lineage
     record_lineage(
-        conn=runs_db,
+        conn=storage,
         child_run_id=child_id,
         parent_run_ids=[parent_id],
     )
 
     # Verify lineage edge
-    result = runs_db.execute(
-        "SELECT child_run_id, parent_run_id FROM lineage",
-    ).fetchall()
+    with storage.connection() as conn:
+        result = conn.execute(
+            "SELECT child_run_id, parent_run_id FROM lineage",
+        ).fetchall()
 
     assert len(result) == 1
     assert result[0][0] == child_id  # DuckDB returns UUID objects
     assert result[0][1] == parent_id
 
 
-def test_record_lineage_multiple_parents(runs_db: duckdb.DuckDBPyConnection):
+def test_record_lineage_multiple_parents(storage_with_tracking_schema: DuckDBStorageManager):
     """record_lineage() supports multiple parents (join operation)."""
+    storage = storage_with_tracking_schema
     parent1_id = uuid.uuid4()
     parent2_id = uuid.uuid4()
     child_id = uuid.uuid4()
@@ -274,7 +284,7 @@ def test_record_lineage_multiple_parents(runs_db: duckdb.DuckDBPyConnection):
     # Create parent runs
     for parent_id in [parent1_id, parent2_id]:
         record_run(
-            conn=runs_db,
+            conn=storage,
             run_id=parent_id,
             stage="privacy",
             status="completed",
@@ -284,7 +294,7 @@ def test_record_lineage_multiple_parents(runs_db: duckdb.DuckDBPyConnection):
 
     # Create child run
     record_run(
-        conn=runs_db,
+        conn=storage,
         run_id=child_id,
         stage="enrichment",
         status="running",
@@ -293,34 +303,37 @@ def test_record_lineage_multiple_parents(runs_db: duckdb.DuckDBPyConnection):
 
     # Record lineage (multiple parents)
     record_lineage(
-        conn=runs_db,
+        conn=storage,
         child_run_id=child_id,
         parent_run_ids=[parent1_id, parent2_id],
     )
 
     # Verify both edges exist
-    result = runs_db.execute(
-        "SELECT child_run_id, parent_run_id FROM lineage ORDER BY parent_run_id",
-    ).fetchall()
+    with storage.connection() as conn:
+        result = conn.execute(
+            "SELECT child_run_id, parent_run_id FROM lineage ORDER BY parent_run_id",
+        ).fetchall()
 
     assert len(result) == 2
     assert all(row[0] == child_id for row in result)  # DuckDB returns UUID objects
 
 
-def test_record_lineage_no_parents(runs_db: duckdb.DuckDBPyConnection):
+def test_record_lineage_no_parents(storage_with_tracking_schema: DuckDBStorageManager):
     """record_lineage() handles empty parent list (entry point)."""
+    storage = storage_with_tracking_schema
     child_id = uuid.uuid4()
 
     # No error should occur
     record_lineage(
-        conn=runs_db,
+        conn=storage,
         child_run_id=child_id,
         parent_run_ids=[],
     )
 
     # No lineage edges created
-    result = runs_db.execute("SELECT * FROM lineage").fetchall()
-    assert len(result) == 0
+    with storage.connection() as conn:
+        result = conn.execute("SELECT COUNT(*) FROM lineage").fetchone()
+    assert result[0] == 0
 
 
 # ==============================================================================
@@ -354,10 +367,11 @@ def test_run_stage_with_tracking_success(
     assert run_id == ctx.run_id
 
     # Verify run record
-    run_record = storage.conn.execute(
-        "SELECT stage, status, rows_in FROM runs WHERE run_id = ?",
-        [str(run_id)],
-    ).fetchone()
+    with storage.connection() as conn:
+        run_record = conn.execute(
+            "SELECT stage, status, rows_in FROM runs WHERE run_id = ?",
+            [str(run_id)],
+        ).fetchone()
 
     assert run_record[0] == "test-stage"
     assert run_record[1] == "completed"
@@ -385,21 +399,23 @@ def test_run_stage_with_tracking_failure(storage: DuckDBStorageManager):
         )
 
     # Verify failure was recorded
-    run_record = storage.conn.execute(
-        "SELECT status, error FROM runs WHERE run_id = ?",
-        [str(ctx.run_id)],
-    ).fetchone()
+    with storage.connection() as conn:
+        run_record = conn.execute(
+            "SELECT status, error FROM runs WHERE run_id = ?",
+            [str(ctx.run_id)],
+        ).fetchone()
 
     assert run_record[0] == "failed"
     assert "ValueError: Intentional test failure" in run_record[1]
 
 
-def test_run_stage_with_tracking_records_lineage(storage: DuckDBStorageManager):
+def test_run_stage_with_tracking_records_lineage(storage_with_tracking_schema: DuckDBStorageManager):
     """run_stage_with_tracking() records parent → child lineage."""
+    storage = storage_with_tracking_schema
     # Create parent run
     parent_id = uuid.uuid4()
     record_run(
-        conn=storage.conn,
+        conn=storage,
         run_id=parent_id,
         stage="parent-stage",
         status="completed",
@@ -426,9 +442,10 @@ def test_run_stage_with_tracking_records_lineage(storage: DuckDBStorageManager):
     )
 
     # Verify lineage was recorded
-    lineage_record = storage.conn.execute(
-        "SELECT child_run_id, parent_run_id FROM lineage",
-    ).fetchone()
+    with storage.connection() as conn:
+        lineage_record = conn.execute(
+            "SELECT child_run_id, parent_run_id FROM lineage",
+        ).fetchone()
 
     assert lineage_record[0] == run_id  # DuckDB returns UUID objects
     assert lineage_record[1] == parent_id

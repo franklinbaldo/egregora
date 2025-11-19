@@ -20,7 +20,7 @@ Usage:
 
     # Record run metadata manually
     record_run(
-        conn=duckdb_conn,
+        conn=storage_manager,
         run_id=uuid.uuid4(),
         stage="enrichment",
         status="completed",
@@ -29,6 +29,7 @@ Usage:
     )
 """
 
+import contextlib
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -106,8 +107,19 @@ class RunContext:
         )
 
 
+@contextlib.contextmanager
+def _connection_scope(conn: duckdb.DuckDBPyConnection | DuckDBStorageManager):
+    """Yield a DuckDB connection from either a manager or connection."""
+
+    if isinstance(conn, DuckDBStorageManager):
+        with conn.connection() as managed_conn:
+            yield managed_conn
+    else:
+        yield conn
+
+
 def record_run(
-    conn: duckdb.DuckDBPyConnection,
+    conn: duckdb.DuckDBPyConnection | DuckDBStorageManager,
     run_id: uuid.UUID,
     stage: str,
     status: str,
@@ -127,7 +139,7 @@ def record_run(
     """Record run metadata to runs table.
 
     Args:
-        conn: DuckDB connection
+        conn: DuckDB connection or :class:`DuckDBStorageManager`
         run_id: Unique run identifier
         stage: Pipeline stage (ingestion, privacy, enrichment, etc.)
         status: Run status (running, completed, failed, degraded)
@@ -150,56 +162,57 @@ def record_run(
     # Ensure runs table exists (idempotent)
     from egregora.database.ir_schema import ensure_runs_table_exists
 
-    ensure_runs_table_exists(conn)
+    with _connection_scope(conn) as resolved_conn:
+        ensure_runs_table_exists(resolved_conn)
 
-    # Auto-detect code_ref if not provided
-    if code_ref is None:
-        code_ref = get_git_commit_sha()
+        # Auto-detect code_ref if not provided
+        if code_ref is None:
+            code_ref = get_git_commit_sha()
 
-    # Calculate duration if both timestamps provided
-    duration_seconds = None
-    if started_at and finished_at:
-        duration_seconds = (finished_at - started_at).total_seconds()
+        # Calculate duration if both timestamps provided
+        duration_seconds = None
+        if started_at and finished_at:
+            duration_seconds = (finished_at - started_at).total_seconds()
 
-    # Insert run record
-    conn.execute(
-        """
-        INSERT INTO runs (
-            run_id, tenant_id, stage, status, error,
-            code_ref, config_hash,
-            started_at, finished_at, duration_seconds,
-            rows_in, rows_out, llm_calls, tokens, trace_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        [
-            str(run_id),
-            tenant_id,
-            stage,
-            status,
-            error,
-            code_ref,
-            config_hash,
-            started_at,
-            finished_at,
-            duration_seconds,
-            rows_in,
-            rows_out,
-            llm_calls,
-            tokens,
-            trace_id,
-        ],
-    )
+        # Insert run record
+        resolved_conn.execute(
+            """
+            INSERT INTO runs (
+                run_id, tenant_id, stage, status, error,
+                code_ref, config_hash,
+                started_at, finished_at, duration_seconds,
+                rows_in, rows_out, llm_calls, tokens, trace_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                str(run_id),
+                tenant_id,
+                stage,
+                status,
+                error,
+                code_ref,
+                config_hash,
+                started_at,
+                finished_at,
+                duration_seconds,
+                rows_in,
+                rows_out,
+                llm_calls,
+                tokens,
+                trace_id,
+            ],
+        )
 
 
 def record_lineage(
-    conn: duckdb.DuckDBPyConnection,
+    conn: duckdb.DuckDBPyConnection | DuckDBStorageManager,
     child_run_id: uuid.UUID,
     parent_run_ids: list[uuid.UUID],
 ) -> None:
     """Record lineage relationships between runs.
 
     Args:
-        conn: DuckDB connection
+        conn: DuckDB connection or :class:`DuckDBStorageManager`
         child_run_id: Downstream run ID (depends on parents)
         parent_run_ids: Upstream run IDs (dependencies)
 
@@ -213,18 +226,19 @@ def record_lineage(
     # Ensure lineage table exists (idempotent)
     from egregora.database.ir_schema import ensure_lineage_table_exists
 
-    ensure_lineage_table_exists(conn)
+    with _connection_scope(conn) as resolved_conn:
+        ensure_lineage_table_exists(resolved_conn)
 
-    # Insert lineage edges
-    for parent_id in parent_run_ids:
-        conn.execute(
-            """
-            INSERT INTO lineage (child_run_id, parent_run_id)
-            VALUES (?, ?)
-            ON CONFLICT DO NOTHING
-            """,
-            [str(child_run_id), str(parent_id)],
-        )
+        # Insert lineage edges
+        for parent_id in parent_run_ids:
+            resolved_conn.execute(
+                """
+                INSERT INTO lineage (child_run_id, parent_run_id)
+                VALUES (?, ?)
+                ON CONFLICT DO NOTHING
+                """,
+                [str(child_run_id), str(parent_id)],
+            )
 
 
 def run_stage_with_tracking[T](
@@ -268,8 +282,6 @@ def run_stage_with_tracking[T](
         ... )
 
     """
-    conn = storage.conn
-
     # Calculate input metrics
     rows_in = None
     if input_table is not None:
@@ -278,7 +290,7 @@ def run_stage_with_tracking[T](
     # Record run start
     started_at = datetime.now(UTC)
     record_run(
-        conn=conn,
+        conn=storage,
         run_id=context.run_id,
         stage=context.stage,
         status="running",
@@ -291,7 +303,7 @@ def run_stage_with_tracking[T](
     # Record lineage (if parent runs exist)
     if context.parent_run_ids:
         record_lineage(
-            conn=conn,
+            conn=storage,
             child_run_id=context.run_id,
             parent_run_ids=list(context.parent_run_ids),
         )
@@ -310,16 +322,11 @@ def run_stage_with_tracking[T](
             rows_out = result.count().execute()
 
         # Update run record (completed)
-        conn.execute(
-            """
-            UPDATE runs
-            SET status = 'completed',
-                finished_at = ?,
-                duration_seconds = ?,
-                rows_out = ?
-            WHERE run_id = ?
-            """,
-            [finished_at, duration_seconds, rows_out, str(context.run_id)],
+        storage.mark_run_completed(
+            run_id=context.run_id,
+            finished_at=finished_at,
+            duration_seconds=duration_seconds,
+            rows_out=rows_out,
         )
     except Exception as e:
         # Record failure
@@ -327,16 +334,11 @@ def run_stage_with_tracking[T](
         duration_seconds = (finished_at - started_at).total_seconds()
         error_msg = f"{type(e).__name__}: {e!s}"
 
-        conn.execute(
-            """
-            UPDATE runs
-            SET status = 'failed',
-                finished_at = ?,
-                duration_seconds = ?,
-                error = ?
-            WHERE run_id = ?
-            """,
-            [finished_at, duration_seconds, error_msg, str(context.run_id)],
+        storage.mark_run_failed(
+            run_id=context.run_id,
+            finished_at=finished_at,
+            duration_seconds=duration_seconds,
+            error=error_msg,
         )
 
         raise  # Re-raise exception after recording
