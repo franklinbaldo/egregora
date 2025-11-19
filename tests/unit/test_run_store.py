@@ -1,8 +1,8 @@
 """Tests for the RunStore facade that now relies on DuckDBStorageManager."""
 
+import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-import uuid
 
 import pytest
 

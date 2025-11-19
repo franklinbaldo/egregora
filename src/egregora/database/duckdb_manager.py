@@ -140,7 +140,6 @@ class DuckDBStorageManager:
         :meth:`connection` or table/query helpers instead of storing this
         attribute.
         """
-
         warnings.warn(
             "DuckDBStorageManager.conn is deprecated; use the helper methods "
             "or connection() context manager instead.",
@@ -157,7 +156,6 @@ class DuckDBStorageManager:
         access to DuckDB. Callers should prefer dedicated helper methods when
         available and avoid caching the returned handle.
         """
-
         yield self._conn
 
     def read_table(self, name: str) -> Table:
@@ -244,8 +242,8 @@ class DuckDBStorageManager:
         Args:
             table_name: Specific table name to clear. If ``None`` the entire
                 cache is invalidated.
-        """
 
+        """
         if table_name is None:
             self._table_info_cache.clear()
             return
@@ -259,7 +257,6 @@ class DuckDBStorageManager:
         validation and caching so that callers no longer need to run SQL.
         Missing tables simply return an empty set.
         """
-
         cache_key = table_name.lower()
         if refresh or cache_key not in self._table_info_cache:
             # Validate identifier (raises ValueError on invalid characters)
@@ -292,7 +289,6 @@ class DuckDBStorageManager:
 
     def fetch_latest_runs(self, limit: int = 10) -> list[tuple]:
         """Return summaries for the most recent runs."""
-
         duration_expr = self._runs_duration_expression()
         return self._conn.execute(
             f"""
@@ -314,7 +310,6 @@ class DuckDBStorageManager:
 
     def fetch_run_by_partial_id(self, run_id: str):
         """Return the newest run whose UUID starts with ``run_id``."""
-
         parent_run_expr = self._column_or_null("runs", "parent_run_id", "UUID")
         duration_expr = self._runs_duration_expression()
         attrs_expr = self._column_or_null("runs", "attrs", "JSON")
@@ -355,7 +350,6 @@ class DuckDBStorageManager:
         rows_out: int | None,
     ) -> None:
         """Update ``runs`` when a stage completes."""
-
         self._conn.execute(
             """
             UPDATE runs
@@ -377,7 +371,6 @@ class DuckDBStorageManager:
         error: str,
     ) -> None:
         """Update ``runs`` when a stage fails."""
-
         self._conn.execute(
             """
             UPDATE runs

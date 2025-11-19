@@ -110,7 +110,6 @@ class RunContext:
 @contextlib.contextmanager
 def _connection_scope(conn: duckdb.DuckDBPyConnection | DuckDBStorageManager):
     """Yield a DuckDB connection from either a manager or connection."""
-
     if isinstance(conn, DuckDBStorageManager):
         with conn.connection() as managed_conn:
             yield managed_conn
