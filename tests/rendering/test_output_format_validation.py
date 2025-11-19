@@ -169,8 +169,8 @@ Body content."""
         assert "Body content" in body
 
 
-class TestMkDocsPostStorageIntegration:
-    """Integration tests for MkDocsPostStorage with OutputAdapter utilities."""
+class TestMkDocsPostWritingIntegration:
+    """Integration tests for MkDocsAdapter post handling helpers."""
 
     def test_write_with_output_format_normalizes_slug(self, tmp_path: Path):
         """write() normalizes slug when output_format provided."""
