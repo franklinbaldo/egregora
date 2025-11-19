@@ -10,6 +10,7 @@ import ibis
 
 from egregora.agents.model_limits import PromptTooLargeError
 from egregora.agents.shared.rag.store import VectorStore
+from egregora.utils.frontmatter_utils import parse_frontmatter
 
 
 def _load_document_from_path(path: Path) -> Document | None:
@@ -20,24 +21,7 @@ def _load_document_from_path(path: Path) -> Document | None:
         logger.warning("Failed to read document at %s: %s", path, e)
         return None
 
-    metadata: dict[str, object] = {}
-    body = content
-
-    if content.startswith("---\n"):
-        try:
-            import yaml
-
-            end_marker = content.find("\n---\n", 4)
-            if end_marker != -1:
-                frontmatter_text = content[4:end_marker]
-                body = content[end_marker + 5 :].lstrip()
-
-                metadata = yaml.safe_load(frontmatter_text) or {}
-                if not isinstance(metadata, dict):
-                    logger.warning("Frontmatter is not a dict at %s", path)
-                    metadata = {}
-        except Exception as e:
-            logger.warning("Failed to parse frontmatter at %s: %s", path, e)
+    metadata, body = parse_frontmatter(content)
 
     path_str = str(path)
     if "/posts/" in path_str and "/journal/" not in path_str:

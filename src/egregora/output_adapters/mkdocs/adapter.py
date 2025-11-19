@@ -41,6 +41,7 @@ from egregora.output_adapters.mkdocs.paths import (
     load_config_for_paths,
     resolve_site_paths,
 )
+from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import safe_path_join, slugify
 
 if TYPE_CHECKING:
@@ -245,18 +246,7 @@ class MkDocsAdapter(OutputAdapter):
                 actual_content = content
             else:
                 content = path.read_text(encoding="utf-8")
-                metadata = {}
-                actual_content = content
-
-                if content.startswith("---\n"):
-                    try:
-                        parts = content.split("---\n", 2)
-                        if len(parts) >= 3:
-                            frontmatter_yaml = parts[1]
-                            actual_content = parts[2].strip()
-                            metadata = yaml.safe_load(frontmatter_yaml) or {}
-                    except (ImportError, yaml.YAMLError) as exc:
-                        logger.warning("Failed to parse frontmatter for %s: %s", path, exc)
+                metadata, actual_content = parse_frontmatter(content)
         except OSError:
             logger.exception("Failed to read document at %s", path)
             return None
