@@ -140,11 +140,23 @@ class WriterAgentSettings(BaseModel):
 
 
 class PrivacySettings(BaseModel):
-    """Privacy and data protection settings.
+    """Privacy and data protection settings (YAML configuration).
 
     .. note::
        Currently all privacy features (anonymization, PII detection) are always enabled.
        This config section is reserved for future configurable privacy controls.
+
+    .. warning::
+       This Pydantic model (for YAML config) has the same name as the dataclass in
+       ``egregora.privacy.config.PrivacySettings`` (for runtime policy). They are NOT
+       duplicates - they serve different purposes:
+
+       - **This class**: YAML configuration placeholder (persisted to config.yml)
+       - **privacy.config.PrivacySettings**: Runtime policy with tenant isolation, PII
+         detection settings, and re-identification escrow (never persisted)
+
+       When privacy configuration becomes user-configurable, this class will hold the
+       YAML settings which get mapped to runtime PrivacySettings instances.
     """
 
     # REMOVED (Phase 3): anonymization_enabled - never accessed (always enabled)

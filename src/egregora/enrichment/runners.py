@@ -275,9 +275,11 @@ def _process_single_url(
     url_agent: Any,
     cache: EnrichmentCache,
     context: EnrichmentRuntimeContext,
-    prompts_dir: Path | None,
 ) -> tuple[str | None, str]:
-    """Process a single URL for enrichment."""
+    """Process a single URL for enrichment.
+
+    The prompts_dir is now captured in the url_agent factory closure.
+    """
     cache_key = make_enrichment_cache_key(kind="url", identifier=url)
 
     cache_entry = cache.load(cache_key)
@@ -285,7 +287,7 @@ def _process_single_url(
         markdown = cache_entry.get("markdown", "")
     else:
         try:
-            markdown = run_url_enrichment(url_agent, url, prompts_dir=prompts_dir)
+            markdown = run_url_enrichment(url_agent, url)
             cache.store(cache_key, {"markdown": markdown, "type": "url"})
         except Exception:
             logger.exception("URL enrichment failed for %s", url)
@@ -307,9 +309,11 @@ def _process_single_media(
     media_agent: Any,
     cache: EnrichmentCache,
     context: EnrichmentRuntimeContext,
-    prompts_dir: Path | None,
 ) -> tuple[str | None, str, bool]:
-    """Process a single media file for enrichment."""
+    """Process a single media file for enrichment.
+
+    The prompts_dir is now captured in the media_agent factory closure.
+    """
     lookup_result = media_filename_lookup.get(ref)
     if not lookup_result:
         return None, "", False
@@ -327,9 +331,7 @@ def _process_single_media(
         markdown_content = cache_entry.get("markdown", "")
     else:
         try:
-            markdown_content = run_media_enrichment(
-                media_agent, file_path, mime_hint=media_type, prompts_dir=prompts_dir
-            )
+            markdown_content = run_media_enrichment(media_agent, file_path, mime_hint=media_type)
             cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
         except Exception:
             logger.exception("Media enrichment failed for %s (%s)", file_path, media_type)
@@ -459,7 +461,7 @@ def _enrich_urls(
     )
 
     for url, metadata in sorted_urls[:max_enrichments]:
-        enrichment_id_str, _markdown = _process_single_url(url, url_agent, cache, context, prompts_dir)
+        enrichment_id_str, _markdown = _process_single_url(url, url_agent, cache, context)
         if enrichment_id_str is None:
             continue
 
@@ -584,7 +586,7 @@ def _enrich_media(
         _original_filename, file_path = lookup_result
 
         enrichment_id_str, _markdown_content, pii_detected = _process_single_media(
-            ref, media_filename_lookup, media_agent, cache, context, prompts_dir
+            ref, media_filename_lookup, media_agent, cache, context
         )
 
         if enrichment_id_str is None:

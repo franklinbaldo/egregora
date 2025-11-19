@@ -191,31 +191,52 @@ def load_file_as_binary_content(file_path: Path, max_size_mb: int = 20) -> Binar
 
 # ---------------------------------------------------------------------------
 # Thin agent helpers (one agent per enrichment call)
+#
+# CONSOLIDATED (2025-11-19): Removed duplicate EnrichmentOut class.
+# Now uses EnrichmentOutput everywhere for consistency.
+# The alias below maintains backward compatibility.
 
-
-class EnrichmentOut(BaseModel):
-    """Structured output for thin enrichment agents."""
-
-    markdown: str
+# Alias for backward compatibility - use EnrichmentOutput for new code
+EnrichmentOut = EnrichmentOutput
 
 
 class UrlEnrichmentDeps(BaseModel):
-    """Dependencies for URL enrichment agent."""
+    """Dependencies for URL enrichment agent (simple mode).
+
+    For detailed enrichment with message context (sender, date, original message),
+    use UrlEnrichmentContext with create_url_enrichment_agent() instead.
+
+    The agent receives the pre-rendered system prompt from the factory, not prompts_dir.
+    This keeps the prompt resolution logic in the factory where it belongs.
+    """
 
     url: str
-    prompts_dir: Path | None = None
+    # REMOVED (2025-11-19): prompts_dir moved to factory function
+    # Agents should not know about prompt resolution - they receive rendered content
 
 
 class MediaEnrichmentDeps(BaseModel):
-    """Dependencies for media enrichment agent."""
+    """Dependencies for media enrichment agent (simple mode).
 
-    prompts_dir: Path | None = None
+    For detailed enrichment with message context (sender, date, original message),
+    use MediaEnrichmentContext with create_media_enrichment_agent() instead.
+
+    The agent receives the pre-rendered system prompt from the factory, not prompts_dir.
+    This keeps the prompt resolution logic in the factory where it belongs.
+    """
+
+    # REMOVED (2025-11-19): prompts_dir moved to factory function
+    # Agents should not know about prompt resolution - they receive rendered content
 
 
 def make_url_agent(
     model_name: str, prompts_dir: Path | None = None
 ) -> Agent[UrlEnrichmentDeps, EnrichmentOut]:
-    """Create a URL enrichment agent using Jinja templates with grounding enabled."""
+    """Create a URL enrichment agent using Jinja templates with grounding enabled.
+
+    The prompts_dir is captured in a closure, not passed through deps.
+    This keeps prompt resolution logic in the factory where it belongs.
+    """
     model_settings = GoogleModelSettings(google_tools=[{"url_context": {}}])
 
     agent = Agent[UrlEnrichmentDeps, EnrichmentOut](
@@ -224,9 +245,12 @@ def make_url_agent(
         model_settings=model_settings,
     )
 
+    # Capture prompts_dir in closure - deps should only contain runtime data
+    captured_prompts_dir = prompts_dir
+
     @agent.system_prompt
     def url_system_prompt(ctx: RunContext[UrlEnrichmentDeps]) -> str:
-        template = UrlEnrichmentPromptTemplate(url=ctx.deps.url, prompts_dir=ctx.deps.prompts_dir)
+        template = UrlEnrichmentPromptTemplate(url=ctx.deps.url, prompts_dir=captured_prompts_dir)
         return template.render()
 
     return agent
@@ -235,16 +259,20 @@ def make_url_agent(
 def make_media_agent(
     model_name: str, prompts_dir: Path | None = None
 ) -> Agent[MediaEnrichmentDeps, EnrichmentOut]:
-    """Create a minimal media enrichment agent using Jinja templates."""
+    """Create a minimal media enrichment agent using Jinja templates.
+
+    The prompts_dir is captured in a closure and the system prompt is pre-rendered.
+    This keeps prompt resolution logic in the factory where it belongs.
+    """
+    # Pre-render the system prompt since it doesn't depend on runtime data
+    template = MediaEnrichmentPromptTemplate(prompts_dir=prompts_dir)
+    rendered_prompt = template.render()
+
     agent = Agent[MediaEnrichmentDeps, EnrichmentOut](
         model=model_name,
         output_type=EnrichmentOut,
+        system_prompt=rendered_prompt,  # Pass pre-rendered prompt directly
     )
-
-    @agent.system_prompt
-    def media_system_prompt(ctx: RunContext[MediaEnrichmentDeps]) -> str:
-        template = MediaEnrichmentPromptTemplate(prompts_dir=ctx.deps.prompts_dir)
-        return template.render()
 
     return agent
 
@@ -256,14 +284,16 @@ def _sanitize_prompt_input(text: str, max_length: int = 2000) -> str:
     return "\n".join(line for line in cleaned.split("\n") if line.strip())
 
 
-def run_url_enrichment(
-    agent: Agent[UrlEnrichmentDeps, EnrichmentOut], url: str | AnyUrl, prompts_dir: Path | None = None
-) -> str:
-    """Run URL enrichment with grounding to fetch actual content."""
+def run_url_enrichment(agent: Agent[UrlEnrichmentDeps, EnrichmentOut], url: str | AnyUrl) -> str:
+    """Run URL enrichment with grounding to fetch actual content.
+
+    The prompts_dir is already captured in the agent factory closure.
+    Deps only contain runtime data (the URL to enrich).
+    """
     url_str = str(url)
     sanitized_url = _sanitize_prompt_input(url_str, max_length=2000)
 
-    deps = UrlEnrichmentDeps(url=url_str, prompts_dir=prompts_dir)
+    deps = UrlEnrichmentDeps(url=url_str)
     prompt = (
         "Fetch and summarize the content at this URL. Include the main topic, key points, and any important metadata "
         "(author, date, etc.).\n\nURL: {sanitized_url}"
@@ -279,10 +309,13 @@ def run_media_enrichment(
     agent: Agent[MediaEnrichmentDeps, EnrichmentOut],
     file_path: Path,
     mime_hint: str | None = None,
-    prompts_dir: Path | None = None,
 ) -> str:
-    """Run media enrichment with a single agent call."""
-    deps = MediaEnrichmentDeps(prompts_dir=prompts_dir)
+    """Run media enrichment with a single agent call.
+
+    The prompts_dir is already captured in the agent factory closure.
+    Deps are empty since MediaEnrichmentDeps has no runtime data fields.
+    """
+    deps = MediaEnrichmentDeps()
     desc = "Describe this media file in 2-3 sentences, highlighting what a reader would learn by viewing it."
     sanitized_filename = _sanitize_prompt_input(file_path.name, max_length=255)
     sanitized_mime = _sanitize_prompt_input(mime_hint, max_length=50) if mime_hint else None
