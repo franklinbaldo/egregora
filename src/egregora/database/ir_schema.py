@@ -85,6 +85,39 @@ WHATSAPP_SCHEMA = MESSAGE_SCHEMA
 # ============================================================================
 
 # ----------------------------------------------------------------------------
+# Interchange Representation (IR) v1 Message Schema
+# ----------------------------------------------------------------------------
+
+IR_MESSAGE_SCHEMA = ibis.schema(
+    {
+        # Identity
+        # NOTE: UUID columns stored as dt.string in Ibis, DuckDB schema handles conversion to UUID type
+        "event_id": dt.string,
+        # Multi-Tenant
+        "tenant_id": dt.string,
+        "source": dt.string,
+        # Threading
+        "thread_id": dt.string,
+        "msg_id": dt.string,
+        # Temporal
+        "ts": dt.Timestamp(timezone="UTC"),
+        # Authors (PRIVACY BOUNDARY)
+        "author_raw": dt.string,
+        "author_uuid": dt.string,
+        # Content
+        "text": dt.String(nullable=True),
+        "media_url": dt.String(nullable=True),
+        "media_type": dt.String(nullable=True),
+        # Metadata
+        "attrs": dt.JSON(nullable=True),
+        "pii_flags": dt.JSON(nullable=True),
+        # Lineage
+        "created_at": dt.Timestamp(timezone="UTC"),
+        "created_by_run": dt.string,
+    }
+)
+
+# ----------------------------------------------------------------------------
 # RAG Vector Store Schemas
 # ----------------------------------------------------------------------------
 # NOTE: Windows are runtime-only constructs (see pipeline.py Window dataclass).
@@ -825,6 +858,7 @@ __all__ = [
     # Ephemeral schemas
     "CONVERSATION_SCHEMA",
     "DEFAULT_TIMEZONE",
+    "IR_MESSAGE_SCHEMA",
     # Elo schemas
     "ELO_HISTORY_SCHEMA",
     "ELO_RATINGS_SCHEMA",
