@@ -31,7 +31,7 @@ _ConfigLoader.add_constructor(None, lambda loader, node: None)
 
 from egregora.agents.shared.author_profiles import write_profile as write_profile_content
 from egregora.config.settings import create_default_config
-from egregora.config.site import configured_mkdocs_path, load_config_for_paths, resolve_site_paths, SitePaths
+from egregora.config.site import SitePaths, configured_mkdocs_path, load_config_for_paths, resolve_site_paths
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration

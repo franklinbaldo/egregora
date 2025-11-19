@@ -4,17 +4,15 @@ from __future__ import annotations
 
 import logging
 import os
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
-import warnings
 from typing import Annotated, Any
 
 import yaml
-
 from pydantic import ValidationError
 
 from egregora.config.settings import EgregoraConfig
-
 from egregora.constants import PluginType
 
 logger = logging.getLogger(__name__)
@@ -98,7 +96,6 @@ class SitePaths:
 
 def _resolve_relative_path(site_root: Path, path_value: str | Path) -> Path:
     """Resolve a potentially relative path against the site root."""
-
     candidate = Path(path_value)
     if candidate.is_absolute():
         return candidate.resolve()
@@ -107,7 +104,6 @@ def _resolve_relative_path(site_root: Path, path_value: str | Path) -> Path:
 
 def load_config_for_paths(site_root: Path) -> EgregoraConfig:
     """Load config without creating files (safe for path resolution)."""
-
     config_path = site_root / ".egregora" / "config.yml"
     if not config_path.exists():
         return EgregoraConfig()
@@ -135,8 +131,8 @@ def configured_mkdocs_path(
         start: Site root directory
         config: Optional preloaded ``EgregoraConfig``. When omitted, the config
             is loaded from ``start/.egregora/config.yml``.
-    """
 
+    """
     site_root = start.expanduser().resolve()
     config_model = config or load_config_for_paths(site_root)
     configured_path = config_model.output.mkdocs_config_path or ".egregora/mkdocs.yml"
@@ -152,7 +148,6 @@ def find_mkdocs_file(
     It now resolves the configured path from ``.egregora/config.yml`` and does
     not perform any filesystem search.
     """
-
     warnings.warn(
         "find_mkdocs_file() is deprecated. Use configured_mkdocs_path() instead.",
         DeprecationWarning,
@@ -167,7 +162,6 @@ def find_mkdocs_file(
 
 def _read_mkdocs_config(mkdocs_path: Path) -> dict[str, Any]:
     """Read mkdocs.yml content using the tolerant YAML loader."""
-
     try:
         return yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
     except yaml.YAMLError as exc:
@@ -187,7 +181,6 @@ def load_mkdocs_config(
     This function now resolves ``mkdocs.yml`` using :func:`configured_mkdocs_path`
     without performing directory searches.
     """
-
     warnings.warn(
         "load_mkdocs_config() is deprecated. Use resolve_site_paths() instead.",
         DeprecationWarning,
@@ -307,8 +300,8 @@ __all__ = [
     "PROFILES_DIR_NAME",
     "SitePaths",
     "configured_mkdocs_path",
-    "load_config_for_paths",
     "find_mkdocs_file",
+    "load_config_for_paths",
     "load_mkdocs_config",
     "resolve_site_paths",
 ]
