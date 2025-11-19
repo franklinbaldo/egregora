@@ -127,7 +127,7 @@ class InputAdapterRegistry:
         self._load_plugins()
 
     def _load_builtin(self) -> None:
-        """Load built-in adapters (WhatsApp, Slack)."""
+        """Load built-in adapters (WhatsApp)."""
         try:
             from egregora.input_adapters.whatsapp import WhatsAppAdapter
 
@@ -142,21 +142,6 @@ class InputAdapterRegistry:
             logger.debug("Loaded built-in adapter: %s v%s", meta["name"], meta["version"])
         except Exception:
             logger.exception("Failed to load WhatsAppAdapter")
-
-        try:
-            from egregora.input_adapters.slack import SlackAdapter
-
-            adapter = SlackAdapter()
-            meta = adapter.get_adapter_metadata()
-
-            # Wrap with validation if enabled
-            if self._validate_outputs:
-                adapter = ValidatedAdapter(adapter)  # type: ignore[assignment]
-
-            self._adapters[meta["source"]] = adapter
-            logger.debug("Loaded built-in adapter: %s v%s", meta["name"], meta["version"])
-        except Exception:
-            logger.exception("Failed to load SlackAdapter")
 
     def _load_plugins(self) -> None:
         """Load third-party adapters from entry points.
@@ -207,7 +192,7 @@ class InputAdapterRegistry:
         """Get adapter by source identifier.
 
         Args:
-            source_identifier: Source identifier (e.g., "whatsapp", "slack")
+            source_identifier: Source identifier (e.g., "whatsapp")
 
         Returns:
             Adapter instance
