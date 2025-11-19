@@ -461,6 +461,9 @@ Consult your Hugo theme documentation for available shortcodes.
         Returns Ibis table with storage identifiers (relative paths) and modification times.
         This enables efficient delta detection using Ibis joins/filters.
 
+        REFACTORED (2025-11-19): Now uses base class helper _scan_directory_for_documents()
+        to reduce code duplication with other output adapters.
+
         Returns:
             Ibis table with schema:
                 - storage_identifier: string (relative path from site_root)
@@ -473,52 +476,33 @@ Consult your Hugo theme documentation for available shortcodes.
 
         """
         if not hasattr(self, "_site_root") or self._site_root is None:
-            # Return empty table with correct schema
-            return ibis.memtable(
-                [], schema=ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"})
-            )
+            return self._empty_document_table()
 
-        documents = []
+        site_root = self._site_root
+        documents: list[dict] = []
 
         # Scan posts directory
-        posts_dir = self._site_root / "content" / "posts"
-        if posts_dir.exists():
-            for post_file in posts_dir.glob("*.md"):
-                if post_file.is_file():
-                    try:
-                        relative_path = str(post_file.relative_to(self._site_root))
-                        mtime_ns = post_file.stat().st_mtime_ns
-                        documents.append({"storage_identifier": relative_path, "mtime_ns": mtime_ns})
-                    except (OSError, ValueError):
-                        continue
+        documents.extend(
+            self._scan_directory_for_documents(
+                site_root / "content" / "posts", site_root, "*.md"
+            )
+        )
 
         # Scan profiles directory
-        profiles_dir = self._site_root / "content" / "profiles"
-        if profiles_dir.exists():
-            for profile_file in profiles_dir.glob("*.md"):
-                if profile_file.is_file():
-                    try:
-                        relative_path = str(profile_file.relative_to(self._site_root))
-                        mtime_ns = profile_file.stat().st_mtime_ns
-                        documents.append({"storage_identifier": relative_path, "mtime_ns": mtime_ns})
-                    except (OSError, ValueError):
-                        continue
+        documents.extend(
+            self._scan_directory_for_documents(
+                site_root / "content" / "profiles", site_root, "*.md"
+            )
+        )
 
         # Scan media directory (static/media)
-        media_dir = self._site_root / "static" / "media"
-        if media_dir.exists():
-            for enrichment_file in media_dir.rglob("*.md"):
-                if enrichment_file.is_file():
-                    try:
-                        relative_path = str(enrichment_file.relative_to(self._site_root))
-                        mtime_ns = enrichment_file.stat().st_mtime_ns
-                        documents.append({"storage_identifier": relative_path, "mtime_ns": mtime_ns})
-                    except (OSError, ValueError):
-                        continue
+        documents.extend(
+            self._scan_directory_for_documents(
+                site_root / "static" / "media", site_root, "*.md", recursive=True
+            )
+        )
 
-        # Return as Ibis table
-        schema = ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"})
-        return ibis.memtable(documents, schema=schema)
+        return self._documents_to_table(documents)
 
     def resolve_document_path(self, identifier: str) -> Path:
         """Resolve Hugo storage identifier (relative path) to absolute filesystem path.

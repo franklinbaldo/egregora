@@ -18,8 +18,16 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ibis
+import yaml
 from dateutil import parser as dateutil_parser
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
+
+# Custom YAML loader that ignores unknown tags
+class _ConfigLoader(yaml.SafeLoader):
+    """YAML loader that ignores unknown tags (like !ENV)."""
+    pass
+
+_ConfigLoader.add_constructor(None, lambda loader, node: None)
 
 from egregora.agents.shared.author_profiles import write_profile as write_profile_content
 from egregora.config.settings import create_default_config
@@ -259,25 +267,26 @@ class MkDocsAdapter(OutputAdapter):
             site_root: Path to check
 
         Returns:
-            True if mkdocs.yml exists in site_root or parent directories
+            True if mkdocs.yml exists in site_root or standard locations
 
         """
         if not site_root.exists():
             return False
 
         # Check known locations (no upward directory search)
-        # 1. Check .egregora/config.yml for custom mkdocs_config_path
-        mkdocs_path_from_config = _try_load_mkdocs_path_from_config(site_root)
-
-        # 2. Check default location: .egregora/mkdocs.yml
-        # 3. Check legacy location: root mkdocs.yml
-        return any(
-            (
-                mkdocs_path_from_config and mkdocs_path_from_config.exists(),
-                (site_root / ".egregora" / "mkdocs.yml").exists(),
-                (site_root / "mkdocs.yml").exists(),
+        # Uses resolve_site_paths which checks:
+        #   1. Custom path from .egregora/config.yml (if configured)
+        #   2. .egregora/mkdocs.yml (default new location)
+        #   3. mkdocs.yml at root (legacy location)
+        try:
+            site_paths = resolve_site_paths(site_root)
+            return site_paths.mkdocs_path is not None and site_paths.mkdocs_path.exists()
+        except Exception:
+            # If resolve fails, fall back to simple checks
+            return (
+                (site_root / ".egregora" / "mkdocs.yml").exists()
+                or (site_root / "mkdocs.yml").exists()
             )
-        )
 
     def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure.
@@ -884,6 +893,9 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
         Returns Ibis table with storage identifiers (relative paths) and modification times.
         This enables efficient delta detection using Ibis joins/filters.
 
+        REFACTORED (2025-11-19): Now uses base class helper _scan_directory_for_documents()
+        to reduce code duplication with other output adapters.
+
         Returns:
             Ibis table with schema:
                 - storage_identifier: string (relative path from site_root)
@@ -897,65 +909,40 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
 
         """
         if not hasattr(self, "_site_root") or self._site_root is None:
-            # Return empty table with correct schema
-            return ibis.memtable(
-                [], schema=ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"})
-            )
+            return self._empty_document_table()
 
-        documents = []
+        site_root = self._site_root
+        documents: list[dict] = []
 
         # Scan posts directory
-        posts_dir = self._site_root / "posts"
-        if posts_dir.exists():
-            for post_file in posts_dir.glob("*.md"):
-                if post_file.is_file():
-                    try:
-                        relative_path = str(post_file.relative_to(self._site_root))
-                        mtime_ns = post_file.stat().st_mtime_ns
-                        documents.append({"storage_identifier": relative_path, "mtime_ns": mtime_ns})
-                    except (OSError, ValueError):
-                        continue
+        documents.extend(
+            self._scan_directory_for_documents(site_root / "posts", site_root, "*.md")
+        )
 
         # Scan profiles directory
-        profiles_dir = self._site_root / "profiles"
-        if profiles_dir.exists():
-            for profile_file in profiles_dir.glob("*.md"):
-                if profile_file.is_file():
-                    try:
-                        relative_path = str(profile_file.relative_to(self._site_root))
-                        mtime_ns = profile_file.stat().st_mtime_ns
-                        documents.append({"storage_identifier": relative_path, "mtime_ns": mtime_ns})
-                    except (OSError, ValueError):
-                        continue
+        documents.extend(
+            self._scan_directory_for_documents(site_root / "profiles", site_root, "*.md")
+        )
 
         # Scan media enrichments (docs/media/**/*.md, excluding index.md)
-        docs_media_dir = self._site_root / "docs" / "media"
-        if docs_media_dir.exists():
-            for enrichment_file in docs_media_dir.rglob("*.md"):
-                if enrichment_file.is_file() and enrichment_file.name != "index.md":
-                    try:
-                        relative_path = str(enrichment_file.relative_to(self._site_root))
-                        mtime_ns = enrichment_file.stat().st_mtime_ns
-                        documents.append({"storage_identifier": relative_path, "mtime_ns": mtime_ns})
-                    except (OSError, ValueError):
-                        continue
+        documents.extend(
+            self._scan_directory_for_documents(
+                site_root / "docs" / "media",
+                site_root,
+                "*.md",
+                recursive=True,
+                exclude_names={"index.md"},
+            )
+        )
 
         # Scan URL enrichments (media/urls/**/*.md)
-        # Published via mkdocs.yml configuration (docs_dir: '.' or navigation)
-        media_dir = self._site_root / "media"
-        if media_dir.exists():
-            for enrichment_file in media_dir.rglob("*.md"):
-                if enrichment_file.is_file():
-                    try:
-                        relative_path = str(enrichment_file.relative_to(self._site_root))
-                        mtime_ns = enrichment_file.stat().st_mtime_ns
-                        documents.append({"storage_identifier": relative_path, "mtime_ns": mtime_ns})
-                    except (OSError, ValueError):
-                        continue
+        documents.extend(
+            self._scan_directory_for_documents(
+                site_root / "media", site_root, "*.md", recursive=True
+            )
+        )
 
-        # Return as Ibis table
-        schema = ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"})
-        return ibis.memtable(documents, schema=schema)
+        return self._documents_to_table(documents)
 
     def resolve_document_path(self, identifier: str) -> Path:
         """Resolve MkDocs storage identifier (relative path) to absolute filesystem path.
