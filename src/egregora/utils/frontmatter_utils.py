@@ -20,8 +20,8 @@ def parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
     Returns:
         Tuple of (metadata dict, body string). If parsing fails or metadata is not a
         mapping, metadata will be an empty dict and the original content is returned.
-    """
 
+    """
     try:
         parsed = frontmatter.loads(content)
     except Exception as exc:  # broad catch to avoid breaking indexing on malformed files
@@ -51,7 +51,7 @@ def parse_frontmatter_file(path: Path, *, encoding: str = "utf-8") -> tuple[dict
 
     Raises:
         OSError: If the file cannot be read.
-    """
 
+    """
     content = path.read_text(encoding=encoding)
     return parse_frontmatter(content)
