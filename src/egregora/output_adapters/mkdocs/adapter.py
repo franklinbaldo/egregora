@@ -7,7 +7,8 @@ This module consolidates all MkDocs-specific logic that used to live across
 ``MkDocsFilesystemAdapter`` alongside shared helpers for resolving site
 configuration and working with MkDocs' filesystem layout.
 
-MODERN (2025-11-18): Imports site path resolution from config.site to eliminate duplication.
+MODERN (2025-11-18): Imports site path resolution from
+``egregora.output_adapters.mkdocs.paths`` to eliminate duplication.
 """
 
 from __future__ import annotations
@@ -31,13 +32,13 @@ _ConfigLoader.add_constructor(None, lambda loader, node: None)
 
 from egregora.agents.shared.author_profiles import write_profile as write_profile_content
 from egregora.config.settings import create_default_config
-from egregora.config.site import (
-    SitePaths,
-    resolve_site_paths,
-)
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
+from egregora.output_adapters.mkdocs.paths import (
+    SitePaths,
+    resolve_site_paths,
+)
 from egregora.utils.paths import safe_path_join, slugify
 
 if TYPE_CHECKING:
