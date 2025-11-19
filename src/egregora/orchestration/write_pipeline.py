@@ -31,10 +31,9 @@ import ibis
 from google import genai
 
 from egregora.agents.model_limits import get_model_context_limit
-from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.author_profiles import filter_opted_out_authors, process_commands
 from egregora.agents.shared.rag import VectorStore, index_all_media
-from egregora.agents.writer import WriterConfig, write_posts_for_window
+from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.tracking import record_run
@@ -201,28 +200,11 @@ def _process_single_window(
         enriched_table = window_table_processed
 
     # Write posts
-    writer_config = WriterConfig(
-        output_dir=ctx.posts_dir,
-        profiles_dir=ctx.profiles_dir,
-        site_root=ctx.site_root,
-        egregora_config=ctx.config,
-        enable_rag=True,
-        retrieval_mode=ctx.retrieval_mode,
-        retrieval_nprobe=ctx.retrieval_nprobe,
-        retrieval_overfetch=ctx.retrieval_overfetch,
-    )
-
-    annotations_store = AnnotationStore(ctx.storage)
-    rag_store = VectorStore(ctx.site_root / ".egregora" / "rag" / "chunks.parquet", storage=ctx.storage)
-
     result = write_posts_for_window(
         enriched_table,
         window.start_time,
         window.end_time,
-        ctx.client,
-        annotations_store,
-        rag_store,
-        writer_config,
+        ctx,
     )
     post_count = len(result.get("posts", []))
     profile_count = len(result.get("profiles", []))

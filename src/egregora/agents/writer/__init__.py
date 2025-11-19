@@ -11,7 +11,6 @@ Documentation:
 
 from egregora.agents.writer.schemas import PostMetadata
 from egregora.agents.writer.writer_runner import (
-    WriterConfig,
     get_top_authors,
     index_documents_for_rag,
     write_posts_for_window,
@@ -19,7 +18,6 @@ from egregora.agents.writer.writer_runner import (
 
 __all__ = [
     "PostMetadata",
-    "WriterConfig",
     "get_top_authors",
     "index_documents_for_rag",
     "write_posts_for_window",
