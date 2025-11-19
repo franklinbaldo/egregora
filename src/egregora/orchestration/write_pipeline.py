@@ -34,7 +34,7 @@ from egregora.agents.model_limits import get_model_context_limit
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.author_profiles import filter_opted_out_authors, process_commands
 from egregora.agents.shared.rag import VectorStore, index_all_media
-from egregora.agents.writer import WriterConfig, write_posts_for_window
+from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.tracking import record_run
@@ -44,6 +44,7 @@ from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
 from egregora.enrichment.runners import EnrichmentRuntimeContext
 from egregora.input_adapters import get_adapter
 from egregora.input_adapters.whatsapp.parser import extract_commands, filter_egregora_messages
+from egregora.orchestration.context import PipelineContext
 from egregora.output_adapters.mkdocs import load_site_paths
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.transformations.media import process_media_for_window
@@ -146,58 +147,25 @@ def process_whatsapp_export(
 
 
 @dataclass
-class WindowProcessingContext:
-    """Context for window processing to reduce parameter passing."""
-
-    adapter: any
-    input_path: Path
-    site_paths: any
-    posts_dir: Path
-    profiles_dir: Path
-    config: EgregoraConfig
-    enrichment_cache: EnrichmentCache
-    output_format: any
-    enable_enrichment: bool
-    retrieval_mode: str
-    retrieval_nprobe: int
-    retrieval_overfetch: int
-    client: genai.Client
-    storage: DuckDBStorageManager
-
-
-@dataclass
-class PipelineEnvironment:
-    """Resources required to execute the write pipeline."""
-
-    site_paths: any
-    runtime_db_uri: str
-    pipeline_backend: any
-    runs_backend: any
-    client: genai.Client
-    enrichment_cache: EnrichmentCache
-    storage: DuckDBStorageManager
-
-
-@dataclass
 class PreparedPipelineData:
     """Artifacts produced during dataset preparation."""
 
     messages_table: ir.Table
     windows_iterator: any
     checkpoint_path: Path
-    window_context: WindowProcessingContext
+    context: PipelineContext
     enable_enrichment: bool
     embedding_model: str
 
 
 def _process_single_window(
-    window: any, ctx: WindowProcessingContext, *, depth: int = 0
+    window: any, ctx: PipelineContext, *, depth: int = 0
 ) -> dict[str, dict[str, list[str]]]:
     """Process a single window with media extraction, enrichment, and post writing.
 
     Args:
         window: Window to process
-        ctx: Window processing context
+        ctx: Pipeline context
         depth: Current split depth (for logging)
 
     Returns:
@@ -218,9 +186,9 @@ def _process_single_window(
         window_table_processed, media_mapping = process_media_for_window(
             window_table=window_table,
             adapter=ctx.adapter,
-            media_dir=ctx.site_paths.media_dir,
+            media_dir=ctx.media_dir,
             temp_dir=temp_dir,
-            docs_dir=ctx.site_paths.docs_dir,
+            docs_dir=ctx.docs_dir,
             posts_dir=ctx.posts_dir,
             zip_path=ctx.input_path,
         )
@@ -228,41 +196,16 @@ def _process_single_window(
     # Enrichment
     if ctx.enable_enrichment:
         logger.info("%s✨ [cyan]Enriching[/] window %s", indent, window_label)
-        enriched_table = _perform_enrichment(
-            window_table_processed,
-            media_mapping,
-            ctx.config,
-            ctx.enrichment_cache,
-            ctx.site_paths,
-            ctx.posts_dir,
-            ctx.output_format,
-        )
+        enriched_table = _perform_enrichment(window_table_processed, media_mapping, ctx)
     else:
         enriched_table = window_table_processed
 
     # Write posts
-    writer_config = WriterConfig(
-        output_dir=ctx.posts_dir,
-        profiles_dir=ctx.profiles_dir,
-        site_root=ctx.site_paths.site_root,
-        egregora_config=ctx.config,
-        enable_rag=True,
-        retrieval_mode=ctx.retrieval_mode,
-        retrieval_nprobe=ctx.retrieval_nprobe,
-        retrieval_overfetch=ctx.retrieval_overfetch,
-    )
-
-    annotations_store = AnnotationStore(ctx.storage)
-    rag_store = VectorStore(ctx.site_paths.rag_dir / "chunks.parquet", storage=ctx.storage)
-
     result = write_posts_for_window(
         enriched_table,
         window.start_time,
         window.end_time,
-        ctx.client,
-        annotations_store,
-        rag_store,
-        writer_config,
+        ctx,
     )
     post_count = len(result.get("posts", []))
     profile_count = len(result.get("profiles", []))
@@ -278,9 +221,20 @@ def _process_single_window(
 
 
 def _process_window_with_auto_split(
-    window: any, ctx: WindowProcessingContext, *, depth: int = 0, max_depth: int = 5
+    window: any, ctx: PipelineContext, *, depth: int = 0, max_depth: int = 5
 ) -> dict[str, dict[str, list[str]]]:
-    """Process a window with automatic splitting if prompt exceeds model limit."""
+    """Process a window with automatic splitting if prompt exceeds model limit.
+
+    Args:
+        window: Window to process
+        ctx: Pipeline context
+        depth: Current split depth
+        max_depth: Maximum split depth before failing
+
+    Returns:
+        Dict mapping window labels to {'posts': [...], 'profiles': [...]}
+
+    """
     from egregora.agents.model_limits import PromptTooLargeError
     from egregora.transformations import split_window_into_n_parts
 
@@ -460,14 +414,13 @@ def _validate_window_size(window: any, max_size: int) -> None:
 
 
 def _process_all_windows(
-    windows_iterator: any, ctx: WindowProcessingContext, runs_backend: any
+    windows_iterator: any, ctx: PipelineContext
 ) -> tuple[dict[str, dict[str, list[str]]], datetime | None]:
     """Process all windows with tracking and error handling.
 
     Args:
         windows_iterator: Iterator of Window objects
-        ctx: Window processing context
-        runs_backend: Ibis backend for run tracking
+        ctx: Pipeline context
 
     Returns:
         Tuple of (results dict, max_processed_timestamp)
@@ -493,13 +446,10 @@ def _process_all_windows(
         max_windows = None  # 0 means process all windows
 
     windows_processed = 0
-    stopped_early = False
-    last_processed_timestamp: datetime | None = None
     for window in windows_iterator:
         # Check if we've hit the max_windows limit
         if max_windows is not None and windows_processed >= max_windows:
             logger.info("Reached max_windows limit (%d). Stopping processing.", max_windows)
-            stopped_early = True
             break
         # Skip empty windows
         if window.size == 0:
@@ -538,11 +488,7 @@ def _process_all_windows(
 def _perform_enrichment(
     window_table: ir.Table,
     media_mapping: dict[str, Path],
-    config: EgregoraConfig,
-    enrichment_cache: EnrichmentCache,
-    site_paths: any,
-    posts_dir: Path,
-    output_format: any,
+    ctx: PipelineContext,
 ) -> ir.Table:
     """Execute enrichment for a window's table.
 
@@ -551,27 +497,23 @@ def _perform_enrichment(
     Args:
         window_table: Table to enrich
         media_mapping: Media file mapping
-        config: Egregora configuration
-        enrichment_cache: Enrichment cache instance
-        site_paths: Site path configuration
-        posts_dir: Posts output directory
-        output_format: OutputAdapter instance for storage protocol access
+        ctx: Pipeline context
 
     Returns:
         Enriched table
 
     """
     enrichment_context = EnrichmentRuntimeContext(
-        cache=enrichment_cache,
-        docs_dir=site_paths.docs_dir,
-        posts_dir=posts_dir,
-        output_format=output_format,
-        site_root=site_paths.site_root,
+        cache=ctx.enrichment_cache,
+        docs_dir=ctx.docs_dir,
+        posts_dir=ctx.posts_dir,
+        output_format=ctx.output_format,
+        site_root=ctx.site_root,
     )
     return enrich_table(
         window_table,
         media_mapping,
-        config,
+        ctx.config,
         enrichment_context,
     )
 
@@ -681,7 +623,7 @@ def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> an
     return site_paths
 
 
-def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> SitePaths:
+def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> any:
     """Resolve site paths for the configured output format."""
     output_dir = output_dir.expanduser().resolve()
     base_paths = load_site_paths(output_dir)
@@ -693,6 +635,10 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> Si
 
     output_format = create_output_format(output_dir, format_type=config.output.format)
     site_config = output_format.resolve_paths(output_dir)
+
+    # Import SitePaths for construction
+    from egregora.output_adapters.mkdocs import SitePaths
+
     return SitePaths(
         site_root=site_config.site_root,
         mkdocs_path=None,
@@ -726,36 +672,75 @@ def _create_gemini_client(api_key: str | None) -> genai.Client:
     return genai.Client(api_key=api_key, http_options=http_options)
 
 
-def _setup_pipeline_environment(
+def _create_pipeline_context(
     output_dir: Path,
     config: EgregoraConfig,
     api_key: str | None,
     client: genai.Client | None,
-) -> PipelineEnvironment:
-    """Set up pipeline environment including paths, backends, and clients."""
+    run_id: uuid.UUID,
+    start_time: datetime,
+    source_type: str,
+    input_path: Path,
+) -> tuple[PipelineContext, any, any]:
+    """Create pipeline context with all resources and configuration.
+
+    Args:
+        output_dir: Output directory for the pipeline
+        config: Egregora configuration
+        api_key: Google API key
+        client: Optional existing Gemini client
+        run_id: Unique run identifier
+        start_time: Run start timestamp
+        source_type: Source type (e.g., "whatsapp", "slack")
+        input_path: Path to input file
+
+    Returns:
+        Tuple of (PipelineContext, pipeline_backend, runs_backend)
+        The backends are returned for cleanup by the context manager.
+
+    """
     resolved_output = output_dir.expanduser().resolve()
     site_paths = _resolve_site_paths_or_raise(resolved_output, config)
-    runtime_db_uri, backend, runs_backend = _create_database_backends(site_paths.site_root, config)
+    _runtime_db_uri, pipeline_backend, runs_backend = _create_database_backends(site_paths.site_root, config)
 
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
     from egregora.database import initialize_database
 
-    initialize_database(backend)
+    initialize_database(pipeline_backend)
 
     client_instance = client or _create_gemini_client(api_key)
     cache_dir = Path(".egregora-cache") / site_paths.site_root.name
     enrichment_cache = EnrichmentCache(cache_dir)
     storage = DuckDBStorageManager(db_path=site_paths.site_root / ".egregora.db")
 
-    return PipelineEnvironment(
-        site_paths=site_paths,
-        runtime_db_uri=runtime_db_uri,
-        pipeline_backend=backend,
-        runs_backend=runs_backend,
+    rag_store = None
+    if config.rag.enabled:
+        rag_dir = site_paths.site_root / ".egregora" / "rag"
+        rag_dir.mkdir(parents=True, exist_ok=True)
+        rag_store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
+
+    annotations_store = AnnotationStore(storage)
+
+    ctx = PipelineContext(
+        config=config,
+        run_id=run_id,
+        start_time=start_time,
+        source_type=source_type,
+        input_path=input_path,
+        output_dir=resolved_output,
+        site_root=site_paths.site_root,
+        docs_dir=site_paths.docs_dir,
+        posts_dir=site_paths.posts_dir,
+        profiles_dir=site_paths.profiles_dir,
+        media_dir=site_paths.media_dir,
         client=client_instance,
-        enrichment_cache=enrichment_cache,
         storage=storage,
+        enrichment_cache=enrichment_cache,
+        rag_store=rag_store,
+        annotations_store=annotations_store,
     )
+
+    return ctx, pipeline_backend, runs_backend
 
 
 @contextmanager
@@ -764,23 +749,43 @@ def _pipeline_environment(
     config: EgregoraConfig,
     api_key: str | None,
     client: genai.Client | None,
+    run_id: uuid.UUID,
+    start_time: datetime,
+    source_type: str,
+    input_path: Path,
 ):
-    """Context manager that provisions and tears down pipeline resources."""
+    """Context manager that provisions and tears down pipeline resources.
+
+    Args:
+        output_dir: Output directory for the pipeline
+        config: Egregora configuration
+        api_key: Google API key
+        client: Optional existing Gemini client
+        run_id: Unique run identifier
+        start_time: Run start timestamp
+        source_type: Source type (e.g., "whatsapp", "slack")
+        input_path: Path to input file
+
+    Yields:
+        Tuple of (PipelineContext, runs_backend) for use in the pipeline
+
+    """
     options = getattr(ibis, "options", None)
     old_backend = getattr(options, "default_backend", None) if options else None
-    env = _setup_pipeline_environment(output_dir, config, api_key, client)
+    ctx, pipeline_backend, runs_backend = _create_pipeline_context(
+        output_dir, config, api_key, client, run_id, start_time, source_type, input_path
+    )
 
     if options is not None:
-        options.default_backend = env.pipeline_backend
+        options.default_backend = pipeline_backend
 
     try:
-        yield env
+        yield ctx, runs_backend
     finally:
         try:
-            env.enrichment_cache.close()
+            ctx.enrichment_cache.close()
         finally:
             try:
-                runs_backend = env.runs_backend
                 close_method = getattr(runs_backend, "close", None)
                 if callable(close_method):
                     close_method()
@@ -788,17 +793,16 @@ def _pipeline_environment(
                     runs_backend.con.close()
             finally:
                 try:
-                    if env.client:
-                        env.client.close()
+                    if ctx.client:
+                        ctx.client.close()
                 finally:
                     if options is not None:
                         options.default_backend = old_backend
-                    backend = env.pipeline_backend
-                    backend_close = getattr(backend, "close", None)
+                    backend_close = getattr(pipeline_backend, "close", None)
                     if callable(backend_close):
                         backend_close()
-                    elif hasattr(backend, "con") and hasattr(backend.con, "close"):
-                        backend.con.close()
+                    elif hasattr(pipeline_backend, "con") and hasattr(pipeline_backend.con, "close"):
+                        pipeline_backend.con.close()
 
 
 def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) -> ir.Table:
@@ -837,56 +841,58 @@ def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) ->
     return messages_table
 
 
-def _setup_content_directories(site_paths: any) -> None:
+def _setup_content_directories(ctx: PipelineContext) -> None:
     """Create and validate content directories.
 
     Args:
-        site_paths: Site path configuration
+        ctx: Pipeline context
 
     Raises:
         ValueError: If directories are not inside docs_dir
 
     """
     content_dirs = {
-        "posts": site_paths.posts_dir,
-        "profiles": site_paths.profiles_dir,
-        "media": site_paths.media_dir,
+        "posts": ctx.posts_dir,
+        "profiles": ctx.profiles_dir,
+        "media": ctx.media_dir,
     }
 
     for label, directory in content_dirs.items():
         if label == "media":
             try:
-                directory.relative_to(site_paths.docs_dir)
+                directory.relative_to(ctx.docs_dir)
             except ValueError:
                 try:
-                    directory.relative_to(site_paths.site_root)
+                    directory.relative_to(ctx.site_root)
                 except ValueError as exc:
                     msg = (
                         "Media directory must reside inside the MkDocs docs_dir or the site root. "
-                        f"Expected parent {site_paths.docs_dir} or {site_paths.site_root}, got {directory}."
+                        f"Expected parent {ctx.docs_dir} or {ctx.site_root}, got {directory}."
                     )
                     raise ValueError(msg) from exc
             directory.mkdir(parents=True, exist_ok=True)
             continue
 
         try:
-            directory.relative_to(site_paths.docs_dir)
+            directory.relative_to(ctx.docs_dir)
         except ValueError as exc:
-            msg = f"{label.capitalize()} directory must reside inside the MkDocs docs_dir. Expected parent {site_paths.docs_dir}, got {directory}."
+            msg = (
+                f"{label.capitalize()} directory must reside inside the MkDocs docs_dir. "
+                f"Expected parent {ctx.docs_dir}, got {directory}."
+            )
             raise ValueError(msg) from exc
         directory.mkdir(parents=True, exist_ok=True)
 
 
 def _process_commands_and_avatars(
-    messages_table: ir.Table, site_paths: any, vision_model: str, enrichment_cache: EnrichmentCache
+    messages_table: ir.Table, ctx: PipelineContext, vision_model: str
 ) -> ir.Table:
     """Process egregora commands and avatar commands.
 
     Args:
         messages_table: Input messages table
-        site_paths: Site path configuration
+        ctx: Pipeline context
         vision_model: Vision model identifier
-        enrichment_cache: Enrichment cache instance
 
     Returns:
         Messages table (unchanged, commands are side effects)
@@ -894,18 +900,18 @@ def _process_commands_and_avatars(
     """
     commands = extract_commands(messages_table)
     if commands:
-        process_commands(commands, site_paths.profiles_dir)
+        process_commands(commands, ctx.profiles_dir)
         logger.info("[magenta]🧾 Processed[/] %s /egregora commands", len(commands))
     else:
         logger.info("[magenta]🧾 No /egregora commands detected[/]")
 
     logger.info("[cyan]🖼️  Processing avatar commands...[/]")
     avatar_context = AvatarContext(
-        docs_dir=site_paths.docs_dir,
-        media_dir=site_paths.media_dir,
-        profiles_dir=site_paths.profiles_dir,
+        docs_dir=ctx.docs_dir,
+        media_dir=ctx.media_dir,
+        profiles_dir=ctx.profiles_dir,
         vision_model=vision_model,
-        cache=enrichment_cache,
+        cache=ctx.enrichment_cache,
     )
     avatar_results = process_avatar_commands(
         messages_table=messages_table,
@@ -921,10 +927,22 @@ def _prepare_pipeline_data(
     adapter: any,
     input_path: Path,
     config: EgregoraConfig,
-    env: PipelineEnvironment,
+    ctx: PipelineContext,
     output_dir: Path,
 ) -> PreparedPipelineData:
-    """Prepare messages, filters, and windowing context for processing."""
+    """Prepare messages, filters, and windowing context for processing.
+
+    Args:
+        adapter: Input adapter instance
+        input_path: Path to input file
+        config: Egregora configuration
+        ctx: Pipeline context
+        output_dir: Output directory
+
+    Returns:
+        PreparedPipelineData with messages table, windows iterator, and updated context
+
+    """
     timezone = config.pipeline.timezone
     step_size = config.pipeline.step_size
     step_unit = config.pipeline.step_unit
@@ -932,9 +950,6 @@ def _prepare_pipeline_data(
     max_window_time_hours = config.pipeline.max_window_time
     max_window_time = timedelta(hours=max_window_time_hours) if max_window_time_hours else None
     enable_enrichment = config.enrichment.enabled
-    retrieval_mode = config.rag.mode
-    retrieval_nprobe = config.rag.nprobe
-    retrieval_overfetch = config.rag.overfetch
 
     from_date: date_type | None = None
     to_date: date_type | None = None
@@ -947,15 +962,13 @@ def _prepare_pipeline_data(
     embedding_model = config.models.embedding
 
     messages_table = _parse_and_validate_source(adapter, input_path, timezone)
-    _setup_content_directories(env.site_paths)
-    messages_table = _process_commands_and_avatars(
-        messages_table, env.site_paths, vision_model, env.enrichment_cache
-    )
+    _setup_content_directories(ctx)
+    messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
 
-    checkpoint_path = env.site_paths.site_root / ".egregora" / "checkpoint.json"
+    checkpoint_path = ctx.site_root / ".egregora" / "checkpoint.json"
     messages_table = _apply_filters(
         messages_table,
-        env.site_paths,
+        ctx,
         from_date,
         to_date,
         checkpoint_path,
@@ -971,23 +984,23 @@ def _prepare_pipeline_data(
         max_window_time=max_window_time,
     )
 
-    posts_dir = env.site_paths.posts_dir
-    profiles_dir = env.site_paths.profiles_dir
-
     from egregora.output_adapters import create_output_format
 
     output_format = create_output_format(output_dir, format_type=config.output.format)
+
+    # Update context with adapter and output format
+    ctx = ctx.with_adapter(adapter)
+    ctx = ctx.with_output_format(output_format)
 
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
             from egregora.agents.shared.rag.indexing import index_documents_for_rag
 
-            rag_store = VectorStore(env.site_paths.rag_dir / "chunks.parquet", storage=env.storage)
             indexed_count = index_documents_for_rag(
                 output_format,
-                env.site_paths.rag_dir,
-                env.storage,
+                ctx.site_root / ".egregora" / "rag",
+                ctx.storage,
                 embedding_model=embedding_model,
             )
             if indexed_count > 0:
@@ -997,28 +1010,11 @@ def _prepare_pipeline_data(
         except Exception:
             logger.exception("[yellow]⚠️  Failed to index documents into RAG[/]")
 
-    window_ctx = WindowProcessingContext(
-        adapter=adapter,
-        input_path=input_path,
-        site_paths=env.site_paths,
-        posts_dir=posts_dir,
-        profiles_dir=profiles_dir,
-        config=config,
-        enrichment_cache=env.enrichment_cache,
-        output_format=output_format,
-        enable_enrichment=enable_enrichment,
-        retrieval_mode=retrieval_mode,
-        retrieval_nprobe=retrieval_nprobe,
-        retrieval_overfetch=retrieval_overfetch,
-        client=env.client,
-        storage=env.storage,
-    )
-
     return PreparedPipelineData(
         messages_table=messages_table,
         windows_iterator=windows_iterator,
         checkpoint_path=checkpoint_path,
-        window_context=window_ctx,
+        context=ctx,
         enable_enrichment=enable_enrichment,
         embedding_model=embedding_model,
     )
@@ -1027,18 +1023,16 @@ def _prepare_pipeline_data(
 def _index_media_into_rag(
     enable_enrichment: bool,
     results: dict,
-    site_paths: any,
+    ctx: PipelineContext,
     embedding_model: str,
-    storage: DuckDBStorageManager,
 ) -> None:
     """Index media enrichments into RAG after window processing.
 
     Args:
         enable_enrichment: Whether enrichment is enabled
         results: Window processing results
-        site_paths: Site path configuration
+        ctx: Pipeline context
         embedding_model: Embedding model identifier
-        storage: The central DuckDB storage manager.
 
     """
     if not (enable_enrichment and results):
@@ -1046,9 +1040,9 @@ def _index_media_into_rag(
 
     logger.info("[bold cyan]📚 Indexing media into RAG...[/]")
     try:
-        rag_dir = site_paths.rag_dir
-        store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
-        media_chunks = index_all_media(site_paths.docs_dir, store, embedding_model=embedding_model)
+        rag_dir = ctx.site_root / ".egregora" / "rag"
+        store = VectorStore(rag_dir / "chunks.parquet", storage=ctx.storage)
+        media_chunks = index_all_media(ctx.docs_dir, store, embedding_model=embedding_model)
         if media_chunks > 0:
             logger.info("[green]✓ Indexed[/] %s media chunks into RAG", media_chunks)
         else:
@@ -1064,8 +1058,6 @@ def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, ch
         results: Window processing results
         max_processed_timestamp: Latest end_time from successfully processed windows
         checkpoint_path: Path to checkpoint file
-        last_processed_timestamp: Timestamp of the last processed window (if any)
-        stopped_early: Whether processing stopped early due to max_windows
 
     """
     if not results or max_processed_timestamp is None:
@@ -1088,7 +1080,7 @@ def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, ch
 
 def _apply_filters(
     messages_table: ir.Table,
-    site_paths: any,
+    ctx: PipelineContext,
     from_date: date_type | None,
     to_date: date_type | None,
     checkpoint_path: Path,
@@ -1098,7 +1090,7 @@ def _apply_filters(
 
     Args:
         messages_table: Input messages table
-        site_paths: Site path configuration
+        ctx: Pipeline context
         from_date: Filter start date (inclusive)
         to_date: Filter end date (inclusive)
         checkpoint_path: Path to checkpoint file
@@ -1114,7 +1106,7 @@ def _apply_filters(
         logger.info("[yellow]🧹 Removed[/] %s /egregora messages", egregora_removed)
 
     # Filter opted-out authors
-    messages_table, removed_count = filter_opted_out_authors(messages_table, site_paths.profiles_dir)
+    messages_table, removed_count = filter_opted_out_authors(messages_table, ctx.profiles_dir)
     if removed_count > 0:
         logger.warning("⚠️  %s messages removed from opted-out users", removed_count)
 
@@ -1179,17 +1171,32 @@ def run(
     api_key: str | None = None,
     client: genai.Client | None = None,
 ) -> dict[str, dict[str, list[str]]]:
-    """Run the complete write pipeline workflow."""
+    """Run the complete write pipeline workflow.
+
+    Args:
+        source: Source type (e.g., "whatsapp", "slack")
+        input_path: Path to input file
+        output_dir: Output directory
+        config: Egregora configuration
+        api_key: Optional Google API key
+        client: Optional existing Gemini client
+
+    Returns:
+        Dict mapping window labels to {'posts': [...], 'profiles': [...]}
+
+    """
     logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", source)
     adapter = get_adapter(source)
 
-    # Generate run ID for tracking
+    # Generate run ID and timestamp for tracking
     run_id = uuid.uuid4()
     started_at = datetime.now(UTC)
 
-    with _pipeline_environment(output_dir, config, api_key, client) as env:
+    with _pipeline_environment(
+        output_dir, config, api_key, client, run_id, started_at, source, input_path
+    ) as (ctx, runs_backend):
         # Get DuckDB connection from Ibis backend for run tracking
-        runs_conn = getattr(env.runs_backend, "con", None)
+        runs_conn = getattr(runs_backend, "con", None)
         if runs_conn is None:
             logger.warning("Unable to access DuckDB connection for run tracking - runs will not be recorded")
 
@@ -1207,16 +1214,13 @@ def run(
                 logger.debug("Failed to record run start: %s", exc)
 
         try:
-            dataset = _prepare_pipeline_data(adapter, input_path, config, env, output_dir)
-            results, max_processed_timestamp = _process_all_windows(
-                dataset.windows_iterator, dataset.window_context, env.runs_backend
-            )
+            dataset = _prepare_pipeline_data(adapter, input_path, config, ctx, output_dir)
+            results, max_processed_timestamp = _process_all_windows(dataset.windows_iterator, dataset.context)
             _index_media_into_rag(
                 dataset.enable_enrichment,
                 results,
-                env.site_paths,
+                dataset.context,
                 dataset.embedding_model,
-                env.storage,
             )
             _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
 

@@ -136,8 +136,9 @@ def ibis_schema_to_pydantic(
     Args:
         schema: Ibis schema to convert
         model_name: Name for the generated Pydantic model
-        field_overrides: Dict mapping field names to Pydantic Field() objects
-                        for custom validation (e.g., regex patterns, min_length)
+        field_overrides: Dict mapping field names to either:
+                        - Pydantic Field() objects for custom validation
+                        - Tuples (type, Field()) for type + validation overrides
         frozen: Whether the model should be frozen (immutable)
 
     Returns:
@@ -147,6 +148,13 @@ def ibis_schema_to_pydantic(
         >>> schema = ibis.schema({"name": dt.string, "age": dt.Int64(nullable=True)})
         >>> Model = ibis_schema_to_pydantic(schema, "Person")
         >>> person = Model(name="Alice", age=30)
+
+        >>> # With type override for UUID field
+        >>> overrides = {
+        ...     "user_id": (uuid.UUID, Field(...)),  # Override type + validation
+        ...     "email": Field(pattern=r".*@.*"),    # Keep generated type, add validation
+        ... }
+        >>> Model = ibis_schema_to_pydantic(schema, "User", field_overrides=overrides)
 
     """
     from pydantic import ConfigDict
@@ -161,9 +169,16 @@ def ibis_schema_to_pydantic(
         if ibis_type.nullable:
             python_type = python_type | None
 
-        # Check for field override (custom validation)
+        # Check for field override
         if name in field_overrides:
-            fields[name] = (python_type, field_overrides[name])
+            override = field_overrides[name]
+            # Support two override formats:
+            # 1. Tuple (type, Field()) - full type + validation override
+            # 2. Field() only - keep generated type, override validation
+            if isinstance(override, tuple):
+                fields[name] = override  # Use provided (type, Field())
+            else:
+                fields[name] = (python_type, override)  # Use generated type with Field()
         elif ibis_type.nullable:
             fields[name] = (python_type, None)
         else:
@@ -180,56 +195,52 @@ def ibis_schema_to_pydantic(
 # Runtime Validator (Pydantic)
 # ============================================================================
 
-# NOTE: IRMessageRow is manually defined rather than generated because:
-# 1. UUID fields in Ibis are stored as strings, but we want to accept uuid.UUID objects
-# 2. Custom validators (regex patterns, min_length) require semantic knowledge
-# 3. The Pydantic model serves as a runtime validator with coercion, not just schema matching
+# Generate IRMessageRow from IR_MESSAGE_SCHEMA for single source of truth
+# This approach eliminates duplication between Ibis schema (creation) and Pydantic model (validation)
 #
-# The ibis_schema_to_pydantic() utility can be used for simpler cases where
-# the Ibis schema directly maps to Python types.
+# Key Design Decisions:
+# 1. UUID fields: Ibis stores as dt.string, but Pydantic accepts uuid.UUID for type safety
+# 2. Custom validators: Field overrides add semantic validation (regex, min_length)
+# 3. Type coercion: Pydantic auto-converts string UUIDs to uuid.UUID objects
+#
+# Benefits:
+# - Schema changes automatically propagate to validation
+# - Reduced maintenance burden (update IR_MESSAGE_SCHEMA only)
+# - Type synchronization guaranteed at generation time
 
+# Field overrides for custom validation and UUID type handling
+# Format: field_name -> (type, Field()) for type override, or Field() to keep generated type
+_IR_FIELD_OVERRIDES = {
+    # UUID fields: Override type from str to uuid.UUID (Ibis stores as string, Pydantic validates as UUID)
+    "event_id": (uuid.UUID | None, Field(default=None)),  # Optional UUID
+    "thread_id": (uuid.UUID, Field(...)),  # Required UUID
+    "author_uuid": (uuid.UUID, Field(...)),  # Required UUID
+    "created_by_run": (uuid.UUID | None, Field(default=None)),  # Optional UUID
+    # Custom validators (keep generated str type, add validation)
+    "tenant_id": Field(min_length=1),  # Non-empty string
+    "source": Field(pattern=r"^[a-z][a-z0-9_-]*$"),  # lowercase alphanumeric + underscore/dash
+}
 
-class IRMessageRow(BaseModel):
-    """Runtime validator for IR v1 rows.
+# Generate Pydantic model from Ibis schema
+IRMessageRow = ibis_schema_to_pydantic(
+    schema=IR_MESSAGE_SCHEMA,
+    model_name="IRMessageRow",
+    field_overrides=_IR_FIELD_OVERRIDES,
+    frozen=True,
+)
 
-    This Pydantic model validates individual rows conform to IR v1 schema.
-    Used for runtime validation of sample data.
+# Add docstring to generated class (Pydantic create_model doesn't preserve docstrings)
+IRMessageRow.__doc__ = """Runtime validator for IR v1 rows.
 
-    Attributes match IR v1 specification exactly.
-    """
+This Pydantic model validates individual rows conform to IR v1 schema.
+Used for runtime validation of sample data.
 
-    # Identity
-    event_id: uuid.UUID | None = None
+Generated from IR_MESSAGE_SCHEMA with custom field validators for:
+- UUID type coercion (string → uuid.UUID)
+- Semantic validation (regex patterns, min_length)
 
-    # Multi-Tenant
-    tenant_id: str = Field(min_length=1)
-    source: str = Field(pattern=r"^[a-z][a-z0-9_-]*$")  # lowercase, alphanumeric + underscore/dash
-
-    # Threading
-    thread_id: uuid.UUID
-    msg_id: str | None = None  # Required identifier in canonical schema
-
-    # Temporal
-    ts: datetime
-
-    # Authors
-    author_raw: str
-    author_uuid: uuid.UUID
-
-    # Content
-    text: str | None = None
-    media_url: str | None = None
-    media_type: str | None = None
-
-    # Metadata
-    attrs: dict[str, Any] | None = None
-    pii_flags: dict[str, Any] | None = None
-
-    # Lineage
-    created_at: datetime
-    created_by_run: uuid.UUID | None = None
-
-    model_config = {"frozen": True}
+Attributes match IR v1 specification exactly.
+"""
 
 
 # ============================================================================

@@ -21,20 +21,18 @@ from typing import TYPE_CHECKING
 import ibis
 
 from egregora.agents.model_limits import PromptTooLargeError
-from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.author_profiles import get_active_authors
 from egregora.agents.shared.rag import VectorStore, index_document
 from egregora.agents.writer.agent import WriterAgentContext, write_posts_with_pydantic_agent
 from egregora.agents.writer.context_builder import _load_profiles_context, build_rag_context_for_prompt
 from egregora.agents.writer.formatting import _build_conversation_markdown_table, _load_journal_memory
-from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.data_primitives.protocols import UrlContext
+from egregora.orchestration.context import PipelineContext
 from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.mkdocs import MkDocsAdapter
 from egregora.prompt_templates import render_prompt
 
 if TYPE_CHECKING:
-    from google import genai
     from ibis.expr.types import Table
 
     from egregora.output_adapters.base import OutputAdapter
@@ -43,37 +41,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class WriterConfig:
-    """Configuration for the writer functions.
-
-    All embeddings use fixed 768-dimension output.
-    """
-
-    output_dir: Path = Path("output/posts")
-    profiles_dir: Path = Path("output/profiles")
-    site_root: Path | None = None  # For custom prompt overrides in {site_root}/.egregora/prompts/
-    egregora_config: EgregoraConfig | None = None
-    enable_rag: bool = True
-    retrieval_mode: str = "ann"
-    retrieval_nprobe: int | None = None
-    retrieval_overfetch: int | None = None
-
-
 MAX_CONVERSATION_TURNS = 10
-
-
-@dataclass
-class WriterEnvironment:
-    """Precomputed resources required to run the writer agent."""
-
-    writer_config: WriterConfig
-    egregora_config: EgregoraConfig
-    output_format: OutputAdapter
-    runtime_context: WriterAgentContext
-    annotations_store: AnnotationStore
-    rag_store: VectorStore
-    embedding_model: str
 
 
 def load_format_instructions(site_root: Path | None) -> str:
@@ -247,62 +215,58 @@ def _cast_uuid_columns_to_str(table: Table) -> Table:
     )
 
 
-def _build_writer_environment(
-    config: WriterConfig,
-    start_time: datetime,
-    end_time: datetime,
-    client: genai.Client,
-    annotations_store: AnnotationStore,
-    rag_store: VectorStore,
-) -> WriterEnvironment:
-    """Construct the configuration and runtime context required by the writer agent."""
-    site_root = config.site_root
-    if config.egregora_config is None:
-        egregora_config = create_default_config(site_root) if site_root else create_default_config(Path.cwd())
-    else:
-        egregora_config = config.egregora_config.model_copy(deep=True)
+def _build_writer_agent_context(
+    ctx: PipelineContext,
+    window_start: datetime,
+    window_end: datetime,
+) -> WriterAgentContext:
+    """Construct WriterAgentContext from PipelineContext for a specific window.
 
-    embedding_model = egregora_config.models.embedding
+    Args:
+        ctx: Unified pipeline context with configuration and resources
+        window_start: Start timestamp of the window
+        window_end: End timestamp of the window
 
-    storage_root = site_root if site_root else config.output_dir.parent
-    format_type = egregora_config.output.format
-    output_format = create_output_format(storage_root, format_type=format_type)
+    Returns:
+        WriterAgentContext configured for this window
 
+    """
+    storage_root = ctx.site_root if ctx.site_root else ctx.output_dir
+    format_type = ctx.config.output.format
+
+    # Determine prompts directory
     prompts_dir = (
         storage_root / ".egregora" / "prompts" if (storage_root / ".egregora" / "prompts").is_dir() else None
     )
 
-    url_context = UrlContext(base_url="", site_prefix="", base_path=storage_root)
-
-    if format_type == "mkdocs":
+    # Use existing output_format from context, or create runtime format if needed
+    if format_type == "mkdocs" and ctx.output_format:
         runtime_output_format = MkDocsAdapter()
+        url_context = ctx.url_context or UrlContext(base_url="", site_prefix="", base_path=storage_root)
         runtime_output_format.initialize(site_root=storage_root, url_context=url_context)
         url_convention = runtime_output_format.url_convention
-    else:
-        runtime_output_format = output_format
+    elif ctx.output_format:
+        runtime_output_format = ctx.output_format
         url_convention = runtime_output_format.url_convention
+        url_context = ctx.url_context or UrlContext(base_url="", site_prefix="", base_path=storage_root)
         logger.debug("Using url_convention from %s adapter", format_type)
+    else:
+        # Fallback: create output format
+        output_format = create_output_format(storage_root, format_type=format_type)
+        runtime_output_format = output_format
+        url_convention = output_format.url_convention
+        url_context = UrlContext(base_url="", site_prefix="", base_path=storage_root)
 
-    runtime_context = WriterAgentContext(
-        start_time=start_time,
-        end_time=end_time,
+    return WriterAgentContext(
+        start_time=window_start,
+        end_time=window_end,
         url_convention=url_convention,
         url_context=url_context,
         output_format=runtime_output_format,
-        rag_store=rag_store,
-        annotations_store=annotations_store,
-        client=client,
+        rag_store=ctx.rag_store,
+        annotations_store=ctx.annotations_store,
+        client=ctx.client,
         prompts_dir=prompts_dir,
-    )
-
-    return WriterEnvironment(
-        writer_config=config,
-        egregora_config=egregora_config,
-        output_format=output_format,
-        runtime_context=runtime_context,
-        annotations_store=annotations_store,
-        rag_store=rag_store,
-        embedding_model=embedding_model,
     )
 
 
@@ -319,29 +283,37 @@ class WriterPromptContext:
 
 def _build_writer_prompt_context(
     table_with_str_uuids: Table,
-    environment: WriterEnvironment,
-    client: genai.Client,
+    ctx: PipelineContext,
 ) -> WriterPromptContext:
-    """Collect contextual inputs used when rendering the writer prompt."""
-    messages_table = table_with_str_uuids.to_pyarrow()
-    conversation_md = _build_conversation_markdown_table(messages_table, environment.annotations_store)
+    """Collect contextual inputs used when rendering the writer prompt.
 
-    if environment.writer_config.enable_rag:
+    Args:
+        table_with_str_uuids: Message table with UUIDs cast to strings
+        ctx: Pipeline context with configuration and resources
+
+    Returns:
+        WriterPromptContext with all prompt components
+
+    """
+    messages_table = table_with_str_uuids.to_pyarrow()
+    conversation_md = _build_conversation_markdown_table(messages_table, ctx.annotations_store)
+
+    if ctx.enable_rag and ctx.rag_store:
         rag_context = build_rag_context_for_prompt(
             conversation_md,
-            environment.rag_store,
-            client,
-            embedding_model=environment.embedding_model,
-            retrieval_mode=environment.writer_config.retrieval_mode,
-            retrieval_nprobe=environment.writer_config.retrieval_nprobe,
-            retrieval_overfetch=environment.writer_config.retrieval_overfetch,
+            ctx.rag_store,
+            ctx.client,
+            embedding_model=ctx.embedding_model,
+            retrieval_mode=ctx.retrieval_mode,
+            retrieval_nprobe=ctx.retrieval_nprobe,
+            retrieval_overfetch=ctx.retrieval_overfetch,
             use_pydantic_helpers=True,
         )
     else:
         rag_context = ""
 
-    profiles_context = _load_profiles_context(table_with_str_uuids, environment.writer_config.profiles_dir)
-    journal_memory = _load_journal_memory(environment.writer_config.profiles_dir.parent)
+    profiles_context = _load_profiles_context(table_with_str_uuids, ctx.profiles_dir)
+    journal_memory = _load_journal_memory(ctx.output_dir)
     active_authors = get_active_authors(table_with_str_uuids)
 
     return WriterPromptContext(
@@ -354,15 +326,30 @@ def _build_writer_prompt_context(
 
 
 def _render_writer_prompt(
-    prompt_context: WriterPromptContext, environment: WriterEnvironment, *, date_range: str
+    prompt_context: WriterPromptContext,
+    ctx: PipelineContext,
+    agent_context: WriterAgentContext,
+    *,
+    date_range: str,
 ) -> str:
-    """Render the final writer prompt text."""
-    format_instructions = environment.output_format.get_format_instructions()
-    custom_instructions = environment.egregora_config.writer.custom_instructions or ""
+    """Render the final writer prompt text.
+
+    Args:
+        prompt_context: Collected prompt components (conversation, RAG, profiles, etc.)
+        ctx: Pipeline context with configuration
+        agent_context: Writer agent context with runtime resources
+        date_range: Human-readable date range for the window
+
+    Returns:
+        Rendered prompt text
+
+    """
+    format_instructions = ctx.output_format.get_format_instructions() if ctx.output_format else ""
+    custom_instructions = ctx.config.writer.custom_instructions or ""
 
     return render_prompt(
         "system/writer.jinja",
-        prompts_dir=environment.runtime_context.prompts_dir,
+        prompts_dir=agent_context.prompts_dir,
         date=date_range,
         markdown_table=prompt_context.conversation_md,
         active_authors=", ".join(prompt_context.active_authors),
@@ -377,12 +364,9 @@ def _render_writer_prompt(
 
 def _write_posts_for_window_pydantic(
     table: Table,
-    start_time: datetime,
-    end_time: datetime,
-    client: genai.Client,
-    annotations_store: AnnotationStore,
-    rag_store: VectorStore,
-    config: WriterConfig | None = None,
+    window_start: datetime,
+    window_end: datetime,
+    ctx: PipelineContext,
 ) -> dict[str, list[str]]:
     """Pydantic AI backend: Let LLM analyze window's messages using Pydantic AI.
 
@@ -391,37 +375,34 @@ def _write_posts_for_window_pydantic(
 
     Args:
         table: Table with messages for the period (already enriched)
-        start_time: Start timestamp of the window
-        end_time: End timestamp of the window
-        client: Gemini client for embeddings
-        annotations_store: AnnotationStore instance
-        rag_store: VectorStore instance
-        config: Writer configuration object
+        window_start: Start timestamp of the window
+        window_end: End timestamp of the window
+        ctx: Pipeline context with configuration and resources
 
     Returns:
         Dict with 'posts' and 'profiles' lists of saved file paths
 
     """
-    if config is None:
-        config = WriterConfig()
     if table.count().execute() == 0:
         return {"posts": [], "profiles": []}
 
-    environment = _build_writer_environment(
-        config, start_time, end_time, client, annotations_store, rag_store
-    )
+    # Build window-specific agent context from pipeline context
+    agent_context = _build_writer_agent_context(ctx, window_start, window_end)
 
+    # Build prompt context from table and pipeline context
     table_with_str_uuids = _cast_uuid_columns_to_str(table)
-    prompt_context = _build_writer_prompt_context(table_with_str_uuids, environment, client)
+    prompt_context = _build_writer_prompt_context(table_with_str_uuids, ctx)
 
-    date_range = f"{start_time:%Y-%m-%d %H:%M} to {end_time:%H:%M}"
-    prompt = _render_writer_prompt(prompt_context, environment, date_range=date_range)
+    # Render the prompt
+    date_range = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
+    prompt = _render_writer_prompt(prompt_context, ctx, agent_context, date_range=date_range)
 
+    # Execute the writer agent
     try:
         saved_posts, saved_profiles = write_posts_with_pydantic_agent(
             prompt=prompt,
-            config=environment.egregora_config,
-            context=environment.runtime_context,
+            config=ctx.config,
+            context=agent_context,
         )
     except PromptTooLargeError:
         raise
@@ -431,21 +412,22 @@ def _write_posts_for_window_pydantic(
         raise RuntimeError(msg) from exc
 
     # Call format-specific finalization hook (e.g., update .authors.yml, regenerate indexes)
-    environment.output_format.finalize_window(
-        window_label=date_range,
-        posts_created=saved_posts,
-        profiles_updated=saved_profiles,
-        metadata=None,  # Future: pass token counts, duration, etc.
-    )
+    if ctx.output_format:
+        ctx.output_format.finalize_window(
+            window_label=date_range,
+            posts_created=saved_posts,
+            profiles_updated=saved_profiles,
+            metadata=None,  # Future: pass token counts, duration, etc.
+        )
 
     # Index new/changed documents in RAG after writing
     # Uses native deduplication via Ibis joins - safe to call anytime
-    if config.enable_rag and (saved_posts or saved_profiles):
+    if ctx.enable_rag and ctx.rag_store and ctx.output_format and (saved_posts or saved_profiles):
         try:
             indexed_count = index_documents_for_rag(
-                environment.output_format,
-                rag_store,
-                embedding_model=environment.embedding_model,
+                ctx.output_format,
+                ctx.rag_store,
+                embedding_model=ctx.embedding_model,
             )
             if indexed_count > 0:
                 logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
@@ -458,12 +440,9 @@ def _write_posts_for_window_pydantic(
 
 def write_posts_for_window(
     table: Table,
-    start_time: datetime,
-    end_time: datetime,
-    client: genai.Client,
-    annotations_store: AnnotationStore,
-    rag_store: VectorStore,
-    config: WriterConfig | None = None,
+    window_start: datetime,
+    window_end: datetime,
+    ctx: PipelineContext,
 ) -> dict[str, list[str]]:
     """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
 
@@ -478,12 +457,9 @@ def write_posts_for_window(
 
     Args:
         table: Table with messages for the period (already enriched)
-        start_time: Start timestamp of the window
-        end_time: End timestamp of the window
-        client: Gemini client for embeddings
-        annotations_store: AnnotationStore instance
-        rag_store: VectorStore instance
-        config: Writer configuration object
+        window_start: Start timestamp of the window
+        window_end: End timestamp of the window
+        ctx: Pipeline context with configuration and resources
 
     Returns:
         Dict with 'posts' and 'profiles' lists of saved file paths
@@ -492,21 +468,16 @@ def write_posts_for_window(
         LOGFIRE_TOKEN: Optional, enables Logfire observability
 
     Examples:
-        >>> writer_config = WriterConfig()
+        >>> from egregora.orchestration.context import PipelineContext
         >>> start = datetime(2025, 1, 1, 0, 0)
         >>> end = datetime(2025, 1, 1, 23, 59)
-        >>> result = write_posts_for_window(table, start, end, client, writer_config)
+        >>> result = write_posts_for_window(table, start, end, ctx)
 
     """
-    if config is None:
-        config = WriterConfig()
     logger.info("Using Pydantic AI backend for writer")
     return _write_posts_for_window_pydantic(
         table=table,
-        start_time=start_time,
-        end_time=end_time,
-        client=client,
-        annotations_store=annotations_store,
-        rag_store=rag_store,
-        config=config,
+        window_start=window_start,
+        window_end=window_end,
+        ctx=ctx,
     )
