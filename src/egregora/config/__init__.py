@@ -19,7 +19,7 @@ This module is part of the Phase 2 refactoring to replace parameter soup (12-16 
 configuration objects (3-6 params). The pattern includes:
 
 - **Pydantic V2 models** (.schema): Validated, typed config loaded from `.egregora/config.yml`
-- **Runtime contexts** (.types): Dataclasses for function parameters (ProcessConfig, WriterConfig)
+- **Runtime contexts** (.settings): Dataclasses and helpers for runtime parameters
 - **Model utilities** (.model): LLM model configuration and defaults
 - **Site paths** (.site): MkDocs site structure and path resolution
 
@@ -27,7 +27,7 @@ configuration objects (3-6 params). The pattern includes:
 
 - `EgregoraConfig`: Root Pydantic V2 config model (loads from `.egregora/config.yml`)
 - `load_egregora_config()`: Config loader with validation
-- `WriterConfig`, `EnrichmentSettings`: Runtime context dataclasses
+- `EnrichmentSettings`: Enrichment configuration
 - `ModelConfig`: LLM model configuration (backend-agnostic)
 
 **Architecture:**
@@ -44,11 +44,11 @@ config/
 
 - ✅ New system: Pydantic V2 configs in `.egregora/config.yml` (PRIMARY)
 - 🔄 Transitional: Runtime context dataclasses for function signatures
-- ⚠️ Legacy: Old ProcessConfig/WriterConfig will be migrated to use EgregoraConfig internally
+- ⚠️ Legacy: Older contexts will be migrated to use EgregoraConfig internally
 
 See Also:
     - `egregora.config.schema`: Pydantic V2 models and validation
-    - `egregora.config.types`: Runtime context dataclasses
+    - `egregora.config.settings`: Runtime context dataclasses and helpers
     - CLAUDE.md: Configuration section for environment variables and MkDocs config
 
 """
@@ -111,7 +111,6 @@ __all__ = [
     "RAGSettings",  # Retrieval settings
     "PipelineSettings",  # Pipeline execution settings
     "WriterAgentSettings",  # Writer agent settings (Pydantic model)
-    "WriterConfig",  # Writer agent runtime context (dataclass from writer_runner)
     "create_default_config",  # Create default config
     "find_egregora_config",  # Find config file in directory tree
     # ==========================================================================
