@@ -74,8 +74,8 @@ def list_adapters() -> list[str]:
 
 
 __all__ = [
-    "InputAdapterRegistry",
     "SLACK_ADAPTER_PLACEHOLDER",
+    "InputAdapterRegistry",
     "WhatsAppAdapter",
     "get_adapter",
     "get_global_registry",
