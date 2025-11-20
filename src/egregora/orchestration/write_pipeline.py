@@ -46,7 +46,7 @@ from egregora.knowledge.profiles import filter_opted_out_authors, process_comman
 from egregora.knowledge.rag import VectorStore, index_all_media
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
-from egregora.output_adapters.mkdocs import load_site_paths
+from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.utils.cache import EnrichmentCache
 
@@ -87,9 +87,7 @@ def process_whatsapp_export(
     """High-level helper for processing WhatsApp ZIP exports using :func:`run`."""
     opts = options or WhatsAppProcessOptions()
     output_dir = opts.output_dir.expanduser().resolve()
-    site_paths = load_site_paths(output_dir)
-
-    base_config = load_egregora_config(site_paths.site_root)
+    base_config = load_egregora_config(output_dir)
 
     # Apply CLI model override to all text generation models if provided
     models_update = {}
@@ -593,29 +591,33 @@ def _create_database_backends(
     return runtime_db_uri, pipeline_backend, runs_backend
 
 
-def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> any:
+def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> dict[str, Path]:
     """Resolve site paths for the configured output format and validate structure."""
+
     site_paths = _resolve_pipeline_site_paths(output_dir, config)
     format_type = config.output.format
 
+    mkdocs_path = site_paths.get("mkdocs_path")
+    docs_dir = site_paths.get("docs_dir")
+
     if format_type != "eleventy-arrow":
-        if not site_paths.mkdocs_path or not site_paths.mkdocs_path.exists():
+        if not mkdocs_path or not mkdocs_path.exists():
             msg = (
                 f"No mkdocs.yml found for site at {output_dir}. "
                 "Run 'egregora init <site-dir>' before processing exports."
             )
             raise ValueError(msg)
 
-        if not site_paths.docs_dir.exists():
+        if not docs_dir or not docs_dir.exists():
             msg = (
-                f"Docs directory not found: {site_paths.docs_dir}. "
+                f"Docs directory not found: {docs_dir}. "
                 "Re-run 'egregora init' to scaffold the MkDocs project."
             )
             raise ValueError(msg)
-    elif not site_paths.docs_dir.exists():
+    elif not docs_dir or not docs_dir.exists():
         msg = (
             "Eleventy content directory not found at "
-            f"{site_paths.docs_dir}. Run 'egregora init <site-dir> --output-format eleventy-arrow' "
+            f"{docs_dir}. Run 'egregora init <site-dir> --output-format eleventy-arrow' "
             "to scaffold the project before processing exports."
         )
         raise ValueError(msg)
@@ -623,10 +625,11 @@ def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> an
     return site_paths
 
 
-def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> any:
+def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> dict[str, Path]:
     """Resolve site paths for the configured output format."""
+
     output_dir = output_dir.expanduser().resolve()
-    base_paths = load_site_paths(output_dir)
+    base_paths = derive_mkdocs_paths(output_dir)
 
     if config.output.format != "eleventy-arrow":
         return base_paths
@@ -636,26 +639,13 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> an
     output_format = create_output_format(output_dir, format_type=config.output.format)
     site_config = output_format.resolve_paths(output_dir)
 
-    # Import SitePaths for construction
-    from egregora.output_adapters.mkdocs import SitePaths  # noqa: PLC0415
-
-    return SitePaths(
-        site_root=site_config.site_root,
-        mkdocs_path=None,
-        egregora_dir=base_paths.egregora_dir,
-        config_path=base_paths.config_path,
-        mkdocs_config_path=base_paths.mkdocs_config_path,
-        prompts_dir=base_paths.prompts_dir,
-        rag_dir=base_paths.rag_dir,
-        cache_dir=base_paths.cache_dir,
-        docs_dir=site_config.docs_dir,
-        blog_dir=base_paths.blog_dir,
-        posts_dir=site_config.posts_dir,
-        profiles_dir=site_config.profiles_dir,
-        media_dir=site_config.media_dir,
-        rankings_dir=base_paths.rankings_dir,
-        enriched_dir=base_paths.enriched_dir,
-    )
+    return {
+        **base_paths,
+        "docs_dir": site_config.get("docs_dir", base_paths["docs_dir"]),
+        "posts_dir": site_config.get("posts_dir", base_paths["posts_dir"]),
+        "profiles_dir": site_config.get("profiles_dir", base_paths["profiles_dir"]),
+        "media_dir": site_config.get("media_dir", base_paths["media_dir"]),
+    }
 
 
 def _create_gemini_client(api_key: str | None) -> genai.Client:
@@ -701,7 +691,8 @@ def _create_pipeline_context(  # noqa: PLR0913
     """
     resolved_output = output_dir.expanduser().resolve()
     site_paths = _resolve_site_paths_or_raise(resolved_output, config)
-    _runtime_db_uri, pipeline_backend, runs_backend = _create_database_backends(site_paths.site_root, config)
+    site_root = site_paths.get("site_root", resolved_output)
+    _runtime_db_uri, pipeline_backend, runs_backend = _create_database_backends(site_root, config)
 
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
     from egregora.database import initialize_database  # noqa: PLC0415
@@ -709,13 +700,13 @@ def _create_pipeline_context(  # noqa: PLR0913
     initialize_database(pipeline_backend)
 
     client_instance = client or _create_gemini_client(api_key)
-    cache_dir = Path(".egregora-cache") / site_paths.site_root.name
+    cache_dir = Path(".egregora-cache") / site_root.name
     enrichment_cache = EnrichmentCache(cache_dir)
-    storage = DuckDBStorageManager(db_path=site_paths.site_root / ".egregora.db")
+    storage = DuckDBStorageManager(db_path=site_root / ".egregora.db")
 
     rag_store = None
     if config.rag.enabled:
-        rag_dir = site_paths.site_root / ".egregora" / "rag"
+        rag_dir = site_root / ".egregora" / "rag"
         rag_dir.mkdir(parents=True, exist_ok=True)
         rag_store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
 
@@ -726,11 +717,11 @@ def _create_pipeline_context(  # noqa: PLR0913
     config_obj = PipelineConfig(
         config=config,
         output_dir=resolved_output,
-        site_root=site_paths.site_root,
-        docs_dir=site_paths.docs_dir,
-        posts_dir=site_paths.posts_dir,
-        profiles_dir=site_paths.profiles_dir,
-        media_dir=site_paths.media_dir,
+        site_root=site_root,
+        docs_dir=site_paths["docs_dir"],
+        posts_dir=site_paths["posts_dir"],
+        profiles_dir=site_paths["profiles_dir"],
+        media_dir=site_paths["media_dir"],
     )
 
     state = PipelineState(

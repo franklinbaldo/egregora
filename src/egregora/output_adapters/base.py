@@ -3,7 +3,6 @@
 import datetime
 import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -15,20 +14,6 @@ if TYPE_CHECKING:
 # Constants
 ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
 FILENAME_PARTS_WITH_EXTENSION = 2  # Parts when splitting filename by "." (name, extension)
-
-
-@dataclass
-class SiteConfiguration:
-    """Configuration for a documentation/blog site."""
-
-    site_root: Path
-    site_name: str
-    docs_dir: Path
-    posts_dir: Path
-    profiles_dir: Path
-    media_dir: Path
-    config_file: Path | None
-    additional_paths: dict[str, Path] | None = None
 
 
 class OutputAdapter(ABC):
@@ -90,7 +75,8 @@ class OutputAdapter(ABC):
 
         """
         site_config = self.resolve_paths(site_root)
-        return str(media_file.relative_to(site_config.docs_dir))
+        docs_dir = site_config.get("docs_dir", site_root)
+        return str(media_file.relative_to(docs_dir))
 
     def get_profile_url_path(self, profile_slug: str) -> str:
         """Get the relative URL path for a profile page.
@@ -138,19 +124,12 @@ class OutputAdapter(ABC):
         """
 
     @abstractmethod
-    def resolve_paths(self, site_root: Path) -> SiteConfiguration:
-        """Resolve all paths for an existing site.
+    def resolve_paths(self, site_root: Path) -> dict[str, Any]:
+        """Resolve paths for an existing site from the provided root.
 
-        Args:
-            site_root: Root directory of the site
-
-        Returns:
-            SiteConfiguration with all resolved paths
-
-        Raises:
-            ValueError: If site_root is not a valid site
-            FileNotFoundError: If required directories don't exist
-
+        Adapters are expected to derive any internal structure from the
+        ``site_root`` alone (for example, ``site_root / "posts"``) rather
+        than relying on external configuration objects.
         """
 
     @abstractmethod

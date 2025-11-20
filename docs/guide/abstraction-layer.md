@@ -205,7 +205,7 @@ Create a new file: `src/egregora/init/<format>_output.py`
 ```python
 from pathlib import Path
 from typing import Any
-from egregora.core.output_format import OutputAdapter, SiteConfiguration
+from egregora.core.output_format import OutputAdapter
 
 class HugoOutputAdapter(OutputAdapter):
     @property
@@ -229,11 +229,17 @@ class HugoOutputAdapter(OutputAdapter):
         # 4. Return (config_path, was_created)
         pass
 
-    def resolve_paths(self, site_root: Path) -> SiteConfiguration:
+    def resolve_paths(self, site_root: Path) -> dict[str, Path]:
         """Resolve all paths for existing Hugo site."""
-        # Return SiteConfiguration with:
+        # Return a mapping with:
         # - site_root, docs_dir, posts_dir, profiles_dir, media_dir
-        pass
+        return {
+            "site_root": site_root,
+            "docs_dir": site_root / "docs",
+            "posts_dir": site_root / "posts",
+            "profiles_dir": site_root / "profiles",
+            "media_dir": site_root / "media",
+        }
 
     def write_post(
         self,

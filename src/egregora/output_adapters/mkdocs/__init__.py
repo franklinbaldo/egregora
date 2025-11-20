@@ -10,16 +10,12 @@ Use EgregoraConfig().paths for directory configuration instead:
 
 from egregora.output_adapters.mkdocs.adapter import (
     MkDocsAdapter,
+    derive_mkdocs_paths,
     secure_path_join,
-)
-from egregora.output_adapters.mkdocs.paths import (
-    SitePaths,
-    load_site_paths,
 )
 
 __all__ = [
     "MkDocsAdapter",
-    "SitePaths",
-    "load_site_paths",
+    "derive_mkdocs_paths",
     "secure_path_join",
 ]
