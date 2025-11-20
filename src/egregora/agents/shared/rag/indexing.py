@@ -1,4 +1,4 @@
-"""This module contains the logic for indexing documents into the RAG vector store."""
+"""Logic for indexing documents into the RAG vector store."""
 
 from __future__ import annotations
 
@@ -9,7 +9,11 @@ from typing import TYPE_CHECKING
 import ibis
 
 from egregora.agents.model_limits import PromptTooLargeError
-from egregora.agents.shared.rag.store import VectorStore
+from egregora.agents.shared.rag.chunker import chunk_from_document
+from egregora.agents.shared.rag.embedder import embed_chunks
+from egregora.agents.shared.rag.retriever import _coerce_message_datetime, _coerce_post_date
+from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA, VectorStore
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.utils.frontmatter_utils import parse_frontmatter
 
@@ -45,19 +49,10 @@ def _load_document_from_path(path: Path) -> Document | None:
     )
 
 
-from egregora.data_primitives.document import Document
-
 if TYPE_CHECKING:
     from egregora.output_adapters.base import OutputAdapter
 
 logger = logging.getLogger(__name__)
-
-
-from egregora.agents.shared.rag.chunker import chunk_from_document
-from egregora.agents.shared.rag.embedder import embed_chunks
-from egregora.agents.shared.rag.retriever import _coerce_message_datetime, _coerce_post_date
-from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA
-from egregora.data_primitives.document import DocumentType
 
 
 def index_document(
@@ -171,7 +166,7 @@ def index_document(
     return len(chunks)
 
 
-def index_documents_for_rag(
+def index_documents_for_rag(  # noqa: C901
     output_format: OutputAdapter,
     rag_dir: Path,
     storage: DuckDBStorageManager,
@@ -275,17 +270,17 @@ def index_documents_for_rag(
                 )
                 indexed_count += 1
                 logger.debug("Indexed document: %s", row.storage_identifier)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning("Failed to index document %s: %s", row.storage_identifier, e)
                 continue
 
         if indexed_count > 0:
             logger.info("Indexed %d new/changed documents in RAG (incremental)", indexed_count)
 
-        return indexed_count
-
     except PromptTooLargeError:
         raise
     except Exception:
         logger.exception("Failed to index documents in RAG")
         return 0
+
+    return indexed_count
