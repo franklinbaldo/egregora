@@ -31,13 +31,13 @@ from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager, combine_with_enrichment_rows
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
-from egregora.enrichment.media import (
+from egregora.ops.media import (
     detect_media_type,
     extract_urls,
     find_media_references,
     replace_media_mentions,
 )
-from egregora.prompt_templates import render_prompt
+from egregora.resources.prompts import render_prompt
 from egregora.utils import BatchPromptRequest, BatchPromptResult, make_enrichment_cache_key
 
 if TYPE_CHECKING:
@@ -925,61 +925,16 @@ def enrich_table_simple(
         raise ValueError(msg)
 
     if duckdb_connection and target_table:
-        # If duckdb_connection is provided (DuckDBBackend), we can use DuckDBStorageManager to wrap it?
-        # Or replicate logic? The goal was to use DuckDBStorageManager logic.
-        # DuckDBStorageManager methods require an instance.
-        # We can create a temporary one wrapping the connection if needed, or expose the logic as static/module level.
-        # I added persist_atomic as a method on DuckDBStorageManager.
-        # But here we have a backend/connection.
-
-        # To use persist_atomic, we need a DuckDBStorageManager instance.
-        # Assuming duckdb_connection.con gives the raw connection.
         try:
-            # Attempt to create a temporary manager wrapper
+            # Create a temporary storage manager wrapping the backend connection
+            # to reuse the robust atomic persistence logic
             raw_conn = duckdb_connection.con
-            storage = DuckDBStorageManager(
-                db_path=None
-            )  # In-memory wrapper, but we want to use existing conn
-            storage._conn = raw_conn  # Inject connection
+            storage = DuckDBStorageManager(db_path=None)
+            storage._conn = raw_conn  # Inject existing connection
             storage.persist_atomic(combined, target_table, schema=IR_MESSAGE_SCHEMA)
         except Exception:
-            # Fallback to inline logic if wrapper fails (e.g. type mismatch)
-            # Or just reimplement inline here? No, user said "Merge logic ... into DuckDBStorageManager"
-            # I should use the logic from there.
-
-            # Let's try to instantiate properly if possible, or maybe I should have made it a static function.
-            # I'll assume I can construct it or use a helper.
-            # Actually, I can just use the method if I can get an instance.
-
-            # Re-implementing briefly to avoid complex dependency injection refactor in this step
-            # But using the improved logic from the manager would be better.
-
-            # Let's assume we can use a temporary manager for the operation.
-            # The connection object from Ibis backend is usually accessible.
-
-            from egregora.database import schemas  # re-import if needed
-
-            schemas.create_table_if_not_exists(duckdb_connection, target_table, IR_MESSAGE_SCHEMA)
-            quoted_table = schemas.quote_identifier(target_table)
-            column_list = ", ".join(schemas.quote_identifier(col) for col in IR_MESSAGE_SCHEMA.names)
-            temp_view = f"_egregora_enrichment_{uuid.uuid4().hex}"
-
-            try:
-                duckdb_connection.create_view(temp_view, combined, overwrite=True)
-                quoted_view = schemas.quote_identifier(temp_view)
-                duckdb_connection.raw_sql("BEGIN TRANSACTION")
-                try:
-                    duckdb_connection.raw_sql(f"DELETE FROM {quoted_table}")
-                    duckdb_connection.raw_sql(
-                        f"INSERT INTO {quoted_table} ({column_list}) SELECT {column_list} FROM {quoted_view}"
-                    )
-                    duckdb_connection.raw_sql("COMMIT")
-                except Exception:
-                    logger.exception("Transaction failed during DuckDB persistence, rolling back")
-                    duckdb_connection.raw_sql("ROLLBACK")
-                    raise
-            finally:
-                duckdb_connection.drop_view(temp_view, force=True)
+            logger.exception("Failed to persist enrichments using DuckDBStorageManager")
+            raise
 
     if pii_detected_count > 0:
         logger.info("Privacy summary: %d media file(s) deleted due to PII detection", pii_detected_count)

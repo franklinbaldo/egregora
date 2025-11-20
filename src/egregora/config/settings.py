@@ -464,6 +464,58 @@ class EgregoraConfig(BaseModel):
         validate_assignment=True,  # Validate on attribute assignment
     )
 
+    @classmethod
+    def from_cli_overrides(cls, base_config: EgregoraConfig, **cli_args: Any) -> EgregoraConfig:
+        """Create a new config instance with CLI overrides applied.
+
+        Handles nested updates for pipeline, enrichment, rag, etc.
+        CLI arguments are expected to be flat key-value pairs or dicts
+        matching the argument structure of CLI commands.
+        """
+        # Create dict representation for updates
+        updates = base_config.model_dump()
+
+        # Pipeline overrides
+        if "step_size" in cli_args and cli_args["step_size"] is not None:
+            updates["pipeline"]["step_size"] = cli_args["step_size"]
+        if "step_unit" in cli_args and cli_args["step_unit"] is not None:
+            updates["pipeline"]["step_unit"] = cli_args["step_unit"]
+        if "overlap_ratio" in cli_args and cli_args["overlap_ratio"] is not None:
+            updates["pipeline"]["overlap_ratio"] = cli_args["overlap_ratio"]
+        if "timezone" in cli_args and cli_args["timezone"] is not None:
+            updates["pipeline"]["timezone"] = str(cli_args["timezone"])
+        if "from_date" in cli_args and cli_args["from_date"] is not None:
+            updates["pipeline"]["from_date"] = cli_args["from_date"].isoformat()
+        if "to_date" in cli_args and cli_args["to_date"] is not None:
+            updates["pipeline"]["to_date"] = cli_args["to_date"].isoformat()
+        if "max_prompt_tokens" in cli_args and cli_args["max_prompt_tokens"] is not None:
+            updates["pipeline"]["max_prompt_tokens"] = cli_args["max_prompt_tokens"]
+        if "use_full_context_window" in cli_args and cli_args["use_full_context_window"] is not None:
+            updates["pipeline"]["use_full_context_window"] = cli_args["use_full_context_window"]
+
+        # Enrichment overrides
+        if "enable_enrichment" in cli_args:
+            updates["enrichment"]["enabled"] = cli_args["enable_enrichment"]
+
+        # RAG overrides
+        if "retrieval_mode" in cli_args and cli_args["retrieval_mode"] is not None:
+            updates["rag"]["mode"] = cli_args["retrieval_mode"]
+        if "retrieval_nprobe" in cli_args and cli_args["retrieval_nprobe"] is not None:
+            updates["rag"]["nprobe"] = cli_args["retrieval_nprobe"]
+        if "retrieval_overfetch" in cli_args and cli_args["retrieval_overfetch"] is not None:
+            updates["rag"]["overfetch"] = cli_args["retrieval_overfetch"]
+
+        # Model overrides (apply single CLI model arg to all relevant models)
+        if cli_args.get("model"):
+            model = cli_args["model"]
+            updates["models"]["writer"] = model
+            updates["models"]["enricher"] = model
+            updates["models"]["enricher_vision"] = model
+            updates["models"]["ranking"] = model
+            updates["models"]["editor"] = model
+
+        return cls.model_validate(updates)
+
 
 # ============================================================================
 # Configuration Loading and Saving

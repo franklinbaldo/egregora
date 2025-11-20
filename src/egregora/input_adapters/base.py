@@ -31,6 +31,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 from uuid import UUID, uuid5
 
+from egregora.data_primitives.document import Document
+
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
@@ -250,36 +252,35 @@ class InputAdapter(ABC):
         """
         return {}
 
-    def deliver_media(self, _media_reference: str, _temp_dir: Path, **_kwargs: Any) -> Path | None:
-        """Deliver media file to temporary directory (OPTIONAL).
+    def deliver_media(self, _media_reference: str, **_kwargs: Any) -> Document | None:
+        """Deliver media file as a Document (OPTIONAL).
 
         This method is called lazily by the runner for each media reference
         found in markdown links. The adapter is responsible for obtaining the
-        actual file content and writing it to the temp directory.
+        actual file content and returning it as a Document object.
 
         **Implementation Examples:**
         - WhatsApp: Extract file from ZIP archive
         - Slack: Download file from URL
         - Discord: Download from CDN with authentication
-        - Local files: Copy from filesystem
+        - Local files: Read from filesystem
 
-        **Content-based naming**: The runner will hash the file content and
-        rename it using UUIDv5 for deduplication. The adapter just needs to
-        deliver the original file.
+        The runner will handle content hashing and deduplication based on the
+        Document's content bytes.
 
         Args:
             media_reference: Media reference from markdown link (e.g., "photo.jpg")
-            temp_dir: Temporary directory where file should be written
             **kwargs: Source-specific parameters (e.g., auth tokens, ZIP handle)
 
         Returns:
-            Path to the delivered file in temp_dir, or None if not found
+            Document containing the media content, or None if not found.
+            The Document type should be MEDIA.
 
         Example:
             >>> adapter = WhatsAppAdapter()
             >>> # Message contains: ![photo](IMG-001.jpg)
-            >>> temp_file = adapter.deliver_media("IMG-001.jpg", Path("/tmp"))
-            >>> # Returns: Path("/tmp/IMG-001.jpg")
+            >>> document = adapter.deliver_media("IMG-001.jpg", zip_path=Path("export.zip"))
+            >>> # Returns: Document(content=b'...', type=MEDIA, metadata={'filename': 'IMG-001.jpg'})
 
         Note:
             Default implementation returns None (no media support).
@@ -374,7 +375,7 @@ class InputAdapter(ABC):
             Absolute path to standardized file
 
         Example:
-            >>> from egregora.enrichment.media import get_media_subfolder
+            >>> from egregora.ops.media import get_media_subfolder
             >>> adapter = WhatsAppAdapter()
             >>> standardized = adapter.standardize_media_file(
             ...     Path("/tmp/IMG-001.jpg"),

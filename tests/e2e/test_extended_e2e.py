@@ -24,10 +24,10 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
-from egregora.output_adapters.eleventy_arrow.adapter import EleventyArrowAdapter
-
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
 from egregora.agents.reader.reader_runner import run_reader_evaluation
+from egregora.output_adapters.eleventy_arrow.adapter import EleventyArrowAdapter
+
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore

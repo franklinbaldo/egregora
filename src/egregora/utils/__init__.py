@@ -11,13 +11,14 @@ from egregora.utils.batch import (
     chunk_requests,
 )
 from egregora.utils.cache import ENRICHMENT_CACHE_VERSION, EnrichmentCache, make_enrichment_cache_key
-from egregora.utils.genai import (
-    call_with_retries,
-    call_with_retries_sync,
-    extract_retry_delay,
-    is_rate_limit_error,
-    sleep_with_progress_sync,
-)
+
+# from egregora.utils.genai import (
+#     call_with_retries,
+#     call_with_retries_sync,
+#     extract_retry_delay,
+#     is_rate_limit_error,
+#     sleep_with_progress_sync,
+# )
 from egregora.utils.paths import PathTraversalError, ensure_dir, safe_path_join, slugify
 from egregora.utils.zip import (
     ZipValidationError,
@@ -37,17 +38,17 @@ __all__ = [
     "PathTraversalError",
     "ZipValidationError",
     "ZipValidationSettings",
-    "call_with_retries",
-    "call_with_retries_sync",
+    # "call_with_retries",
+    # "call_with_retries_sync",
     "chunk_requests",
     "configure_default_limits",
     "ensure_dir",
     "ensure_safe_member_size",
-    "extract_retry_delay",
-    "is_rate_limit_error",
+    # "extract_retry_delay",
+    # "is_rate_limit_error",
     "make_enrichment_cache_key",
     "safe_path_join",
-    "sleep_with_progress_sync",
+    # "sleep_with_progress_sync",
     "slugify",
     "validate_zip_contents",
 ]
