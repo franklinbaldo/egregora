@@ -42,7 +42,7 @@ def runs_db(tmp_path: Path) -> duckdb.DuckDBPyConnection:
     db_path = tmp_path / "runs.duckdb"
     conn = duckdb.connect(str(db_path))
 
-    # Create runs table (simplified for testing)
+    # Create runs table (matches RUNS_TABLE_SCHEMA)
     conn.execute("""
         CREATE TABLE runs (
             run_id UUID PRIMARY KEY,
@@ -59,7 +59,9 @@ def runs_db(tmp_path: Path) -> duckdb.DuckDBPyConnection:
             tokens INTEGER DEFAULT 0,
             status VARCHAR NOT NULL,
             error TEXT,
-            trace_id VARCHAR
+            trace_id VARCHAR,
+            parent_run_id UUID,
+            attrs JSON
         )
     """)
 
@@ -116,28 +118,39 @@ def test_week1_golden_whatsapp_pipeline(
 
     # Parse WhatsApp export
     table = parse_source(export)
-    table = table.mutate(message_id=ibis.row_number(), event_id=ibis.literal(uuid.uuid4()))
+    table = table.mutate(event_id=ibis.literal(uuid.uuid4()))
 
     # Validate IR v1 schema conformance
-    assert set(table.columns) == set(CONVERSATION_SCHEMA.keys()) | {"message_id", "event_id"}, (
-        "Schema mismatch"
+    # Parser returns: ts, date, author, author_raw, author_uuid, text, original_line, tagged_line, message_id
+    expected_ir_v1_columns = {
+        "ts",
+        "date",
+        "author",
+        "author_raw",
+        "author_uuid",
+        "text",
+        "original_line",
+        "tagged_line",
+        "message_id",
+        "event_id",
+    }
+    assert set(table.columns) == expected_ir_v1_columns, (
+        f"Schema mismatch\n"
+        f"  Expected: {expected_ir_v1_columns}\n"
+        f"  Actual:   {set(table.columns)}\n"
+        f"  Missing:  {expected_ir_v1_columns - set(table.columns)}\n"
+        f"  Extra:    {set(table.columns) - expected_ir_v1_columns}"
     )
-
-    # Validate data types
-    for col_name in CONVERSATION_SCHEMA:
-        str(table[col_name].type())
-        # DuckDB type names may differ slightly, just check column exists
-        assert col_name in table.columns, f"Missing column: {col_name}"
 
     # Validate data contents
     row_count = table.count().execute()
     assert row_count > 0, "No messages parsed"
 
-    # Validate required fields are populated
+    # Validate required fields are populated (using IR v1 column names)
     df = table.execute()
-    assert df["timestamp"].notna().all(), "Missing timestamps"
+    assert df["ts"].notna().all(), "Missing timestamps"
     assert df["author"].notna().all(), "Missing authors"
-    assert df["message"].notna().all(), "Missing messages"
+    assert df["text"].notna().all(), "Missing messages"
 
     # Record ingestion run
     ingestion_end_time = datetime.now(UTC)
@@ -161,18 +174,12 @@ def test_week1_golden_whatsapp_pipeline(
     privacy_run_id = uuid.uuid4()
     privacy_start = time.time()
 
-    # Convert to IR schema for privacy processing
-    ir_table = table.relabel(
-        {
-            "author": "author_raw",
-            "message": "text",
-            "timestamp": "ts",
-        }
-    ).mutate(
+    # Parser already produces IR v1 schema (ts, text, author_raw, author_uuid)
+    # Only add the additional columns needed for privacy processing
+    ir_table = table.mutate(
         tenant_id=ibis.literal(str(export.group_slug)),
         source=ibis.literal("whatsapp"),
         thread_id=ibis.literal(uuid.uuid4()),
-        author_uuid=ibis.literal(uuid.uuid4()),
         media_url=ibis.null().cast(dt.string),
         media_type=ibis.null().cast(dt.string),
         attrs=ibis.null().cast(dt.json),
@@ -181,7 +188,8 @@ def test_week1_golden_whatsapp_pipeline(
         created_by_run=ibis.literal(uuid.uuid4()),
     )
 
-    # Anonymize table (deterministic UUID5)
+    # Note: parse_source already calls anonymize_table, so authors are already UUIDs
+    # The second call tests idempotency
     anonymized_table = anonymize_table(ir_table)
 
     # Validate anonymization respects new IR schema
@@ -192,10 +200,11 @@ def test_week1_golden_whatsapp_pipeline(
     ir_df = ir_table.execute()
     unique_authors_raw = ir_df["author_raw"].unique()
 
-    # Verify anonymization happened (raw != anonymized)
+    # Verify authors are anonymized (should be UUID format)
+    import re
+    uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
     for author_raw in unique_authors_raw:
-        author_anon = anon_df[ir_df["author_raw"] == author_raw]["author_raw"].iloc[0]
-        assert author_anon != author_raw, f"Author not anonymized: {author_raw}"
+        assert uuid_pattern.match(author_raw), f"Author not anonymized to UUID format: {author_raw}"
 
     # Record privacy run
     privacy_end_time = datetime.now(UTC)
@@ -227,26 +236,23 @@ def test_week1_golden_whatsapp_pipeline(
 
     time.time()
 
-    # Re-parse same export
+    # Re-parse same export (parse_source already anonymizes)
     table2 = parse_source(export)
-    ir_table2 = create_ir_table(
-        table2,
-        tenant_id=str(export.group_slug),
-        source="whatsapp",
-        thread_key=str(export.group_slug),
-    )
-    anonymized_table2 = anonymize_table(ir_table2)
+    df2 = table2.execute()
 
     # Validate identical anonymized values on re-ingest
-    df2 = ir_table2.execute()
-    anon_df2 = anonymized_table2.execute()
+    # Both parses should produce the same anonymized UUIDs
+    unique_authors_raw2 = df2["author_raw"].unique()
 
-    for author_raw in unique_authors_raw:
-        # Get anonymized value from first ingest
-        anon1 = anon_df[ir_df["author_raw"] == author_raw]["author_raw"].iloc[0]
-        # Get anonymized value from second ingest
-        anon2 = anon_df2[df2["author_raw"] == author_raw]["author_raw"].iloc[0]
-        assert anon1 == anon2, f"Anonymized value changed on re-ingest for {author_raw}"
+    # Same number of unique authors
+    assert len(unique_authors_raw) == len(unique_authors_raw2), (
+        f"Author count mismatch: {len(unique_authors_raw)} vs {len(unique_authors_raw2)}"
+    )
+
+    # Same anonymized UUIDs (order may differ, so compare sets)
+    assert set(unique_authors_raw) == set(unique_authors_raw2), (
+        "Anonymized UUIDs differ between re-ingests"
+    )
 
     time.time()
 
