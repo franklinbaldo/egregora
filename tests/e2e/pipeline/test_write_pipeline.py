@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from tests.utils.pydantic_test_models import install_writer_test_model
+
 from egregora.orchestration.write_pipeline import (
     WhatsAppProcessOptions,
     process_whatsapp_export,
@@ -109,53 +111,7 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
     monkeypatch.setattr("egregora.orchestration.write_pipeline.genai.Client", DummyGenaiClient)
     # Note: GeminiDispatcher has been removed - pipeline now uses genai.Client directly
 
-    # We need to mock the agent's behavior without bypassing the orchestration logic.
-    # We do this by patching `_setup_agent_and_state` to return an agent using a TestModel.
-    from pydantic_ai import Agent
-    from pydantic_ai.models.test import TestModel
-
-    from egregora.agents.writer.agent import (
-        WriterAgentReturn,
-        WriterAgentState,
-        _create_writer_agent_state,
-    )
-    from egregora.agents.writer.tools import register_writer_tools
-
-    def _stub_agent_setup(config, context, test_model=None):
-        window_label = f"{context.start_time:%Y-%m-%d %H:%M} to {context.end_time:%H:%M}"
-        captured_dates.append(window_label)
-
-        # We need to register tools so the TestModel can 'call' them (simulated)
-        # However, TestModel generates random tool calls by default unless configured.
-        # Let's override gen_tool_args in a subclass for deterministic behavior.
-
-        class DeterministicTestModel(TestModel):
-            def gen_tool_args(self, tool_def):
-                if tool_def.name == "write_post_tool":
-                    return {
-                        "metadata": {
-                            "title": f"Stub Post for {window_label}",
-                            "slug": f"{context.start_time:%Y%m%d_%H%M%S}-stub",
-                            "date": f"{context.start_time:%Y-%m-%d}",
-                            "tags": [],
-                            "authors": ["system"],
-                            "summary": "Stub summary",
-                        },
-                        "content": "This is a placeholder post used during testing.",
-                    }
-                return super().gen_tool_args(tool_def)
-
-        agent = Agent[WriterAgentState, WriterAgentReturn](
-            model=DeterministicTestModel(call_tools=["write_post_tool"]), deps_type=WriterAgentState
-        )
-
-        # Register real tools so the agent can actually execute them (writing files)
-        register_writer_tools(agent, enable_banner=False, enable_rag=False)
-
-        state = _create_writer_agent_state(context, config)
-        return agent, state, window_label
-
-    monkeypatch.setattr("egregora.agents.writer.agent._setup_agent_and_state", _stub_agent_setup)
+    install_writer_test_model(monkeypatch, captured_dates)
 
 
 # =============================================================================
