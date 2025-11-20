@@ -15,7 +15,6 @@ Part of the three-layer architecture:
 from __future__ import annotations
 
 import logging
-import tempfile
 import uuid
 from collections import deque
 from contextlib import contextmanager
@@ -33,6 +32,7 @@ from google import genai
 from egregora.agents.model_limits import get_model_context_limit
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
+from egregora.data_primitives.protocols import UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.tracking import record_run
 from egregora.database.validation import validate_ir_schema
@@ -40,6 +40,7 @@ from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
 from egregora.enrichment.runners import EnrichmentRuntimeContext
 from egregora.input_adapters import get_adapter
+from egregora.input_adapters.base import MediaMapping
 from egregora.input_adapters.whatsapp import extract_commands, filter_egregora_messages
 from egregora.knowledge.annotations import AnnotationStore
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
@@ -47,6 +48,7 @@ from egregora.knowledge.rag import VectorStore, index_all_media
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
 from egregora.output_adapters.mkdocs import load_site_paths
+from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.utils.cache import EnrichmentCache
 
@@ -180,18 +182,19 @@ def _process_single_window(
     logger.info("%s➡️  [bold]%s[/] — %s messages (depth=%d)", indent, window_label, window_count, depth)
 
     # Process media
-    temp_prefix = f"egregora-media-{window.start_time:%Y%m%d_%H%M%S}-"
-    with tempfile.TemporaryDirectory(prefix=temp_prefix) as temp_dir_str:
-        temp_dir = Path(temp_dir_str)
-        window_table_processed, media_mapping = process_media_for_window(
-            window_table=window_table,
-            adapter=ctx.adapter,
-            media_dir=ctx.media_dir,
-            temp_dir=temp_dir,
-            docs_dir=ctx.docs_dir,
-            posts_dir=ctx.posts_dir,
-            zip_path=ctx.input_path,
-        )
+    output_adapter = ctx.output_format
+    if output_adapter is None:
+        msg = "Output adapter must be initialized before processing windows."
+        raise RuntimeError(msg)
+
+    url_context = ctx.url_context or UrlContext()
+    window_table_processed, media_mapping = process_media_for_window(
+        window_table=window_table,
+        adapter=ctx.adapter,
+        url_convention=output_adapter.url_convention,
+        url_context=url_context,
+        zip_path=ctx.input_path,
+    )
 
     # Enrichment
     if ctx.enable_enrichment:
@@ -199,6 +202,15 @@ def _process_single_window(
         enriched_table = _perform_enrichment(window_table_processed, media_mapping, ctx)
     else:
         enriched_table = window_table_processed
+
+    if media_mapping:
+        for media_doc in media_mapping.values():
+            if media_doc.metadata.get("pii_deleted"):
+                continue
+            try:
+                output_adapter.serve(media_doc)
+            except Exception:  # pragma: no cover - defensive
+                logger.exception("Failed to serve media document %s", media_doc.metadata.get("filename"))
 
     # Write posts
     result = write_posts_for_window(
@@ -487,7 +499,7 @@ def _process_all_windows(
 
 def _perform_enrichment(
     window_table: ir.Table,
-    media_mapping: dict[str, Path],
+    media_mapping: MediaMapping,
     ctx: PipelineContext,
 ) -> ir.Table:
     """Execute enrichment for a window's table.
@@ -505,8 +517,6 @@ def _perform_enrichment(
     """
     enrichment_context = EnrichmentRuntimeContext(
         cache=ctx.enrichment_cache,
-        docs_dir=ctx.docs_dir,
-        posts_dir=ctx.posts_dir,
         output_format=ctx.output_format,
         site_root=ctx.site_root,
     )
@@ -723,6 +733,12 @@ def _create_pipeline_context(  # noqa: PLR0913
 
     from egregora.orchestration.context import PipelineConfig, PipelineState  # noqa: PLC0415
 
+    url_ctx = UrlContext(
+        base_url="",
+        site_prefix=compute_site_prefix(site_paths.site_root, site_paths.docs_dir),
+        base_path=site_paths.site_root,
+    )
+
     config_obj = PipelineConfig(
         config=config,
         output_dir=resolved_output,
@@ -731,6 +747,7 @@ def _create_pipeline_context(  # noqa: PLR0913
         posts_dir=site_paths.posts_dir,
         profiles_dir=site_paths.profiles_dir,
         media_dir=site_paths.media_dir,
+        url_context=url_ctx,
     )
 
     state = PipelineState(

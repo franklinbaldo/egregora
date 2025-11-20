@@ -87,7 +87,7 @@ class AdapterMeta(TypedDict):
     ir_version: str
 
 
-MediaMapping = dict[str, Path]
+MediaMapping = dict[str, Document]
 MEDIA_UUID_NAMESPACE = UUID("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
 
 

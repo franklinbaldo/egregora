@@ -233,8 +233,10 @@ def test_media_extraction_creates_expected_files(whatsapp_fixture: WhatsAppFixtu
     )
 
     assert len(media_mapping) == 4
-    for extracted_path in media_mapping.values():
-        assert extracted_path.exists()
+    for media_doc in media_mapping.values():
+        public_url = media_doc.metadata.get("public_url")
+        assert public_url is not None
+        assert public_url.endswith((".jpg", ".jpeg", ".png", ".gif"))
 
 
 @pytest.mark.xfail(reason="Media extraction not returning files - needs investigation")
@@ -379,8 +381,6 @@ def test_enrichment_adds_egregora_messages(
 
     enrichment_context = EnrichmentRuntimeContext(
         cache=cache,
-        docs_dir=docs_dir,
-        posts_dir=posts_dir,
         output_format=None,  # Not needed for test
     )
 
@@ -439,8 +439,6 @@ def test_enrichment_handles_schema_mismatch(
 
     enrichment_context = EnrichmentRuntimeContext(
         cache=cache,
-        docs_dir=docs_dir,
-        posts_dir=posts_dir,
         output_format=None,  # Not needed for test
     )
 

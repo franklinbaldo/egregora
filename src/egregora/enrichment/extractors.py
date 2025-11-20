@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from typing import TYPE_CHECKING
+
+from egregora.data_primitives.document import Document
+from egregora.input_adapters.base import MediaMapping
+from egregora.ops.media import extract_urls
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
-
-from egregora.ops.media import extract_urls
 
 
 def extract_unique_urls(messages_table: Table, max_enrichments: int) -> set[str]:
@@ -27,16 +28,17 @@ def extract_unique_urls(messages_table: Table, max_enrichments: int) -> set[str]
     return unique_urls
 
 
-def _build_media_filename_lookup(media_mapping: dict[str, Path]) -> dict[str, tuple[str, Path]]:
-    """Build a lookup dict mapping media filenames to (original_filename, file_path)."""
-    lookup: dict[str, tuple[str, Path]] = {}
-    for original_filename, file_path in media_mapping.items():
-        lookup[original_filename] = (original_filename, file_path)
-        lookup[file_path.name] = (original_filename, file_path)
+def _build_media_filename_lookup(media_mapping: MediaMapping) -> dict[str, tuple[str, Document]]:
+    """Build a lookup dict mapping media filenames to (original_filename, Document)."""
+    lookup: dict[str, tuple[str, Document]] = {}
+    for original_filename, document in media_mapping.items():
+        filename = document.metadata.get("filename") or original_filename
+        lookup[original_filename] = (original_filename, document)
+        lookup[filename] = (original_filename, document)
     return lookup
 
 
-def extract_unique_media_references(messages_table: Table, media_mapping: dict[str, Path]) -> set[str]:
+def extract_unique_media_references(messages_table: Table, media_mapping: MediaMapping) -> set[str]:
     """Extract unique media references from messages table."""
     media_filename_lookup = _build_media_filename_lookup(media_mapping)
     media_messages = messages_table.filter(messages_table.text.notnull()).execute()

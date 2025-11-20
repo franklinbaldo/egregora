@@ -19,6 +19,19 @@ MEDIA_DIR_NAME = "media"
 logger = logging.getLogger(__name__)
 
 
+class _MkDocsLoader(yaml.SafeLoader):
+    """YAML loader that tolerates mkdocs' custom tags (e.g., !!python/name)."""
+
+
+def _python_name_constructor(loader: yaml.SafeLoader, suffix: str, node: yaml.Node) -> Any:
+    if isinstance(node, yaml.ScalarNode):
+        return loader.construct_scalar(node)
+    return loader.construct_object(node)
+
+
+_MkDocsLoader.add_multi_constructor("tag:yaml.org,2002:python/name:", _python_name_constructor)
+
+
 @dataclass(frozen=True, slots=True)
 class SitePaths:
     """Resolved paths for an Egregora MkDocs site."""
@@ -84,7 +97,7 @@ def _load_config_dict(config_path: Path) -> dict[str, Any]:
     if not config_path.exists():
         return {}
     try:
-        loaded = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        loaded = yaml.load(config_path.read_text(encoding="utf-8"), Loader=_MkDocsLoader) or {}
     except (OSError, yaml.YAMLError) as exc:
         logger.warning("Failed to read %s: %s", config_path, exc)
         return {}
@@ -155,7 +168,7 @@ def _resolve_docs_and_blog_dirs(site_root: Path, mkdocs_path: Path | None) -> tu
         return site_root, "posts"
 
     try:
-        mkdocs_data = yaml.safe_load(mkdocs_path.read_text(encoding="utf-8")) or {}
+        mkdocs_data = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_MkDocsLoader) or {}
     except (OSError, yaml.YAMLError) as exc:
         logger.warning("Failed to parse mkdocs config at %s: %s", mkdocs_path, exc)
         mkdocs_data = {}
@@ -194,6 +207,19 @@ def _resolve_site_relative(site_root: Path, raw_value: str | Path) -> Path:
     return (site_root / candidate).resolve()
 
 
+def compute_site_prefix(site_root: Path, docs_dir: Path) -> str:
+    """Return docs_dir relative to site_root for URL generation."""
+    try:
+        relative = docs_dir.relative_to(site_root)
+    except ValueError:
+        return ""
+
+    rel_str = relative.as_posix().strip("/")
+    if rel_str in {"", "."}:
+        return ""
+    return rel_str
+
+
 __all__ = [
     "DEFAULT_BLOG_DIR",
     "DEFAULT_DOCS_DIR",
@@ -201,4 +227,5 @@ __all__ = [
     "PROFILES_DIR_NAME",
     "SitePaths",
     "load_site_paths",
+    "compute_site_prefix",
 ]
