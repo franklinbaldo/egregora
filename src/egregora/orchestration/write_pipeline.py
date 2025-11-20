@@ -30,14 +30,14 @@ from zoneinfo import ZoneInfo
 import ibis
 from google import genai
 
+from egregora.agents.avatar import AvatarContext, process_avatar_commands
+from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
 from egregora.agents.model_limits import get_model_context_limit
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.tracking import record_run
 from egregora.database.validation import validate_ir_schema
-from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
-from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.input_adapters import get_adapter
 from egregora.input_adapters.whatsapp import extract_commands, filter_egregora_messages
 from egregora.knowledge.annotations import AnnotationStore
