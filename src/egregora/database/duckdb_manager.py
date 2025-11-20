@@ -42,12 +42,14 @@ import warnings
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Protocol, Self
+from typing import Literal, Self
 
 import duckdb
 import ibis
 from ibis.expr.types import Table
 
+from egregora.database import schemas
+from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.database.views import ViewBuilder
 
 logger = logging.getLogger(__name__)
@@ -96,6 +98,40 @@ class SequenceState:
         if self.last_value is None:
             return self.start_value
         return self.last_value + self.increment_by
+
+
+def combine_with_enrichment_rows(
+    messages_table: Table,
+    new_rows: list[dict],
+    schema: ibis.Schema | None = None,
+) -> Table:
+    """Combines a base messages table with new enrichment rows."""
+    target_schema = schema or IR_MESSAGE_SCHEMA
+    messages_table_filtered = messages_table.select(*target_schema.names)
+
+    # Ensure timestamps are UTC
+    if "ts" in messages_table_filtered.columns:
+        messages_table_filtered = messages_table_filtered.mutate(
+            ts=messages_table_filtered.ts.cast("timestamp('UTC')")
+        )
+    elif "timestamp" in messages_table_filtered.columns:
+        messages_table_filtered = messages_table_filtered.mutate(
+            timestamp=messages_table_filtered.timestamp.cast("timestamp('UTC', 9)")
+        )
+
+    messages_table_filtered = messages_table_filtered.cast(target_schema)
+
+    if new_rows:
+        normalized_rows = [{column: row.get(column) for column in target_schema.names} for row in new_rows]
+        enrichment_table = ibis.memtable(normalized_rows).cast(target_schema)
+        combined = messages_table_filtered.union(enrichment_table, distinct=False)
+
+        sort_col = "ts" if "ts" in target_schema.names else "timestamp"
+        combined = combined.order_by(sort_col)
+    else:
+        combined = messages_table_filtered
+
+    return combined
 
 
 class DuckDBStorageManager:
@@ -255,6 +291,45 @@ class DuckDBStorageManager:
         else:
             msg = "Append mode requires checkpoint=True"
             raise ValueError(msg)
+
+    def persist_atomic(self, table: Table, name: str, schema: ibis.Schema | None = None) -> None:
+        """Persist an Ibis table to a DuckDB table atomically using a transaction.
+
+        This preserves existing table properties (like indexes) by performing a
+        DELETE + INSERT transaction instead of dropping and recreating the table.
+        """
+        if not re.fullmatch("[A-Za-z_][A-Za-z0-9_]*", name):
+            msg = "target_table must be a valid DuckDB identifier"
+            raise ValueError(msg)
+
+        target_schema = schema or IR_MESSAGE_SCHEMA
+        schemas.create_table_if_not_exists(self._conn, name, target_schema)
+
+        quoted_table = quote_identifier(name)
+        column_list = ", ".join(quote_identifier(col) for col in target_schema.names)
+        temp_view = f"_egregora_persist_{uuid.uuid4().hex}"
+
+        try:
+            # Create temp view from table expression
+            self._conn.create_view(temp_view, table.to_pyarrow(), overwrite=True)
+            quoted_view = quote_identifier(temp_view)
+
+            self._conn.execute("BEGIN TRANSACTION")
+            try:
+                self._conn.execute(f"DELETE FROM {quoted_table}")
+                self._conn.execute(
+                    f"INSERT INTO {quoted_table} ({column_list}) SELECT {column_list} FROM {quoted_view}"
+                )
+                self._conn.execute("COMMIT")
+            except Exception:
+                logger.exception("Transaction failed during DuckDB persistence, rolling back")
+                self._conn.execute("ROLLBACK")
+                raise
+        finally:
+            try:
+                self._conn.unregister(temp_view)
+            except Exception:
+                pass
 
     def invalidate_table_cache(self, table_name: str | None = None) -> None:
         """Clear cached PRAGMA table_info results.
@@ -610,65 +685,14 @@ class DuckDBStorageManager:
         """Context manager exit - closes connection."""
         self.close()
 
-    # ------------------------------------------------------------------
-    # Vector backend helpers
-    # ------------------------------------------------------------------
+    # ==================================================================
+    # Vector backend helpers (Consolidated)
+    # ==================================================================
 
-    def create_vector_backend(self, *, enable_vss: bool = True) -> VectorBackend:
-        """Create a vector backend bound to this storage manager."""
-        backend_cls: type[VectorBackend]
-        if enable_vss:
-            backend_cls = DuckDBVectorBackend
-        else:
-            backend_cls = DuckDBNoOpVectorBackend
-        return backend_cls(self.conn)
-
-
-# ============================================================================
-# Convenience Functions (Phase 2.2: Consolidated from connection.py)
-# ============================================================================
-
-
-class VectorBackend(Protocol):
-    """Protocol describing vector-store specific database helpers."""
-
-    conn: duckdb.DuckDBPyConnection
-
-    def install_extensions(self) -> bool:
-        """Install and load the required DuckDB extensions (VSS)."""
-
-    def detect_vss_function(self) -> str:
-        """Return the best available VSS table function name."""
-
-    def drop_index(self, name: str) -> None:
-        """Drop an ANN index if it exists."""
-
-    def drop_table(self, name: str) -> None:
-        """Drop the materialized chunks table if it exists."""
-
-    def materialize_chunks_table(self, table_name: str, parquet_path: Path) -> None:
-        """Populate the chunks table from the Parquet dataset."""
-
-    def table_exists(self, table_name: str) -> bool:
-        """Return True when the given table is present in DuckDB."""
-
-    def row_count(self, table_name: str) -> int:
-        """Return the number of rows in a table (0 if missing)."""
-
-    def create_hnsw_index(self, *, table_name: str, index_name: str, column: str = "embedding") -> bool:
-        """Create an HNSW index, returning True on success."""
-
-
-class DuckDBVectorBackend:
-    """DuckDB implementation of :class:`VectorBackend`."""
-
-    def __init__(self, conn: duckdb.DuckDBPyConnection) -> None:
-        self.conn = conn
-
-    def install_extensions(self) -> bool:
+    def install_vss_extensions(self) -> bool:
         try:
-            self.conn.execute("INSTALL vss")
-            self.conn.execute("LOAD vss")
+            self._conn.execute("INSTALL vss")
+            self._conn.execute("LOAD vss")
         except (duckdb.Error, RuntimeError) as exc:
             logger.warning("VSS extension unavailable: %s", exc)
             return False
@@ -676,7 +700,7 @@ class DuckDBVectorBackend:
 
     def detect_vss_function(self) -> str:
         try:
-            rows = self.conn.execute("SELECT name FROM pragma_table_functions()").fetchall()
+            rows = self._conn.execute("SELECT name FROM pragma_table_functions()").fetchall()
         except duckdb.Error as exc:
             logger.debug("Unable to inspect table functions: %s", exc)
             return "vss_search"
@@ -691,45 +715,20 @@ class DuckDBVectorBackend:
 
     def drop_index(self, name: str) -> None:
         quoted = quote_identifier(name)
-        self.conn.execute(f"DROP INDEX IF EXISTS {quoted}")
-
-    def drop_table(self, name: str) -> None:
-        quoted = quote_identifier(name)
-        with contextlib.suppress(Exception):
-            self.conn.execute(f"DROP VIEW IF EXISTS {quoted}")
-        with contextlib.suppress(Exception):
-            self.conn.execute(f"DROP TABLE IF EXISTS {quoted}")
-
-    def materialize_chunks_table(self, table_name: str, parquet_path: Path) -> None:
-        quoted = quote_identifier(table_name)
-        self.conn.execute(
-            f"CREATE OR REPLACE TABLE {quoted} AS SELECT * FROM read_parquet(?)",
-            [str(parquet_path)],
-        )
-
-    def table_exists(self, table_name: str) -> bool:
-        row = self.conn.execute(
-            """
-            SELECT COUNT(*)
-            FROM information_schema.tables
-            WHERE lower(table_name) = lower(?)
-        """,
-            [table_name],
-        ).fetchone()
-        return bool(row and row[0] > 0)
+        self._conn.execute(f"DROP INDEX IF EXISTS {quoted}")
 
     def row_count(self, table_name: str) -> int:
         if not self.table_exists(table_name):
             return 0
         quoted = quote_identifier(table_name)
-        row = self.conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()
+        row = self._conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()
         return int(row[0]) if row and row[0] is not None else 0
 
     def create_hnsw_index(self, *, table_name: str, index_name: str, column: str = "embedding") -> bool:
         quoted_table = quote_identifier(table_name)
         quoted_index = quote_identifier(index_name)
         try:
-            self.conn.execute(
+            self._conn.execute(
                 f"""
                 CREATE INDEX {quoted_index}
                 ON {quoted_table}
@@ -742,25 +741,6 @@ class DuckDBVectorBackend:
             logger.warning("Skipping HNSW index creation: %s", exc)
             return False
         return True
-
-
-class DuckDBNoOpVectorBackend(DuckDBVectorBackend):
-    """Fallback backend that skips ANN capabilities while sharing table helpers."""
-
-    def install_extensions(self) -> bool:  # pragma: no cover - trivial override
-        logger.info("Skipping VSS installation (no-op backend)")
-        return False
-
-    def detect_vss_function(self) -> str:  # pragma: no cover - trivial override
-        return "vss_search"
-
-    def create_hnsw_index(self, *, table_name: str, index_name: str, column: str = "embedding") -> bool:
-        logger.info(
-            "No-op backend cannot create ANN indexes (table=%s, index=%s)",
-            table_name,
-            index_name,
-        )
-        return False
 
 
 def temp_storage() -> DuckDBStorageManager:
@@ -810,10 +790,9 @@ def duckdb_backend() -> ibis.BaseBackend:
 
 
 __all__ = [
-    "DuckDBNoOpVectorBackend",
     "DuckDBStorageManager",
-    "DuckDBVectorBackend",
-    "VectorBackend",
+    "combine_with_enrichment_rows",
     "duckdb_backend",
+    "quote_identifier",
     "temp_storage",
 ]

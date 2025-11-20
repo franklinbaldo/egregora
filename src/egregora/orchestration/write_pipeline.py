@@ -34,6 +34,7 @@ from egregora.agents.model_limits import get_model_context_limit
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.author_profiles import filter_opted_out_authors, process_commands
 from egregora.agents.shared.rag import VectorStore, index_all_media
+from egregora.agents.writer.agent import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.tracking import record_run
@@ -200,8 +201,6 @@ def _process_single_window(
         enriched_table = window_table_processed
 
     # Write posts
-    from egregora.agents.writer import write_posts_for_window
-
     result = write_posts_for_window(
         enriched_table,
         window.start_time,
