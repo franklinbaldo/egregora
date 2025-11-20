@@ -27,7 +27,6 @@ import pytest
 
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
 from egregora.agents.reader.reader_runner import run_reader_evaluation
-from egregora.config.settings import ReaderSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
@@ -39,7 +38,10 @@ from egregora.output_adapters.eleventy_arrow.adapter import EleventyArrowAdapter
 
 
 @pytest.mark.asyncio
-async def test_reader_agent_evaluates_posts_and_persists_elo_rankings(tmp_path: Path) -> None:
+async def test_reader_agent_evaluates_posts_and_persists_elo_rankings(
+    tmp_path: Path,
+    reader_test_config,
+) -> None:
     """Validate that Reader Agent can evaluate posts and persist quality rankings.
 
     Why this matters:
@@ -65,13 +67,8 @@ async def test_reader_agent_evaluates_posts_and_persists_elo_rankings(tmp_path: 
     (posts_dir / "post2.md").write_text("# Post 2\nContent B", encoding="utf-8")
     (posts_dir / "post3.md").write_text("# Post 3\nContent C", encoding="utf-8")
 
-    # Configure Reader Agent with minimal comparisons for fast testing
-    config = ReaderSettings(
-        enabled=True,
-        comparisons_per_post=1,
-        k_factor=32,
-        database_path=".egregora/reader.duckdb",
-    )
+    # Use centralized config fixture (already configured for fast testing)
+    config = reader_test_config.reader
 
     # Mock the AI comparison to avoid Gemini API calls
     # In production, this would use an LLM to judge which post is better

@@ -376,3 +376,94 @@ def vcr_config():
         "before_record_request": _serialize_request_body,
         "before_record_response": _serialize_response_body,
     }
+
+
+# =============================================================================
+# Centralized Configuration Fixtures
+# =============================================================================
+# See: docs/testing/config_refactoring_plan.md for design rationale
+
+
+@pytest.fixture
+def test_config(tmp_path: Path):
+    """Test configuration with tmp_path for isolation.
+
+    Creates a minimal valid configuration using pytest's tmp_path to ensure
+    test isolation and prevent tests from affecting each other or the filesystem.
+
+    All tests should use this or derived fixtures instead of manually
+    constructing Settings objects.
+
+    Args:
+        tmp_path: pytest's temporary directory fixture
+
+    Returns:
+        EgregoraConfig configured for test environment
+    """
+    from egregora.config.settings import create_default_config
+
+    # Create site root in tmp_path for test isolation
+    site_root = tmp_path / "site"
+    site_root.mkdir(parents=True, exist_ok=True)
+
+    # Create default config with test site_root
+    config = create_default_config(site_root=site_root)
+
+    return config
+
+
+@pytest.fixture
+def reader_test_config(test_config):
+    """Configuration with reader agent enabled for testing.
+
+    Use this fixture for tests that involve the reader agent (post evaluation,
+    ELO ranking, etc.). Config optimized for fast test execution.
+
+    Args:
+        test_config: Base test configuration
+
+    Returns:
+        EgregoraConfig with reader agent enabled and test-optimized settings
+    """
+    config = test_config.model_copy(deep=True)
+    config.reader.enabled = True
+    config.reader.comparisons_per_post = 1  # Fast tests (minimal comparisons)
+    config.reader.k_factor = 32  # Standard ELO K-factor
+    return config
+
+
+@pytest.fixture
+def enrichment_test_config(test_config):
+    """Configuration with enrichment enabled for testing.
+
+    Use this fixture for tests that involve enrichment (URL descriptions,
+    media analysis, author profiling, etc.).
+
+    Args:
+        test_config: Base test configuration
+
+    Returns:
+        EgregoraConfig with enrichment enabled
+    """
+    config = test_config.model_copy(deep=True)
+    # Enrichment settings will be added here when needed
+    return config
+
+
+@pytest.fixture
+def pipeline_test_config(test_config):
+    """Configuration for full pipeline E2E tests.
+
+    Use this fixture for tests that run the entire write pipeline.
+    Slow components (reader, enrichment) are disabled for faster execution.
+
+    Args:
+        test_config: Base test configuration
+
+    Returns:
+        EgregoraConfig optimized for pipeline E2E tests
+    """
+    config = test_config.model_copy(deep=True)
+    config.reader.enabled = False  # Disable slow components for faster tests
+    # Additional pipeline-specific overrides can be added here
+    return config
