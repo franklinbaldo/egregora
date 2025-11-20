@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import sys
-import types
 import zipfile
 from dataclasses import dataclass
 from datetime import date
@@ -32,7 +31,6 @@ except ImportError:  # pragma: no cover - depends on test env
         "ibis is required for the test suite; install project dependencies to run tests",
         allow_module_level=True,
     )
-
 
 
 # Imports below require sys.path setup above
