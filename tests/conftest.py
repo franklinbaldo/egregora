@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import sys
-import types
 import zipfile
 from dataclasses import dataclass
 from datetime import date
@@ -33,99 +32,6 @@ except ImportError:  # pragma: no cover - depends on test env
         allow_module_level=True,
     )
 
-
-try:  # Prefer the real SDK if it is available in the environment.
-    from google.genai import types as genai_types  # type: ignore[import-not-found]
-
-    # Some historical versions lacked the newer helper classes we rely on.
-    _real_sdk_available = bool(hasattr(genai_types, "FunctionCall"))
-except (ImportError, AttributeError):  # pragma: no cover - runtime safety for optional dependency
-    # SDK not installed or incompatible version
-    _real_sdk_available = False
-
-
-def _install_google_stubs() -> None:
-    """Ensure google genai modules exist so imports succeed during tests."""
-    if _real_sdk_available:
-        # Some historical versions lacked the newer helper classes we rely on.
-        if hasattr(genai_types, "FunctionCall"):
-            return
-
-    google_module = types.ModuleType("google")
-    genai_module = types.ModuleType("google.genai")
-    genai_types_module = types.ModuleType("google.genai.types")
-
-    class _SimpleStruct:
-        def __init__(self, *args, **kwargs):
-            for key, value in kwargs.items():
-                setattr(self, key, value)
-
-    class _DummyType:
-        OBJECT = "object"
-        STRING = "string"
-        ARRAY = "array"
-        INTEGER = "integer"
-
-    class _DummyClient:
-        def __init__(self, *args, **kwargs):
-            empty_response = types.SimpleNamespace(candidates=[])
-            self.models = types.SimpleNamespace(generate_content=lambda *a, **k: empty_response)
-            self.aio = types.SimpleNamespace(models=self.models)
-            self.files = types.SimpleNamespace(
-                upload=lambda *a, **k: types.SimpleNamespace(
-                    uri="stub://file", mime_type="application/octet-stream"
-                )
-            )
-
-            dummy_job = types.SimpleNamespace(
-                name="stub-job",
-                dest=types.SimpleNamespace(inlined_responses=[]),
-                state=types.SimpleNamespace(name="JOB_STATE_SUCCEEDED"),
-                done=True,
-                error=None,
-            )
-            self.batches = types.SimpleNamespace(
-                create=lambda *a, **k: dummy_job, get=lambda *a, **k: dummy_job
-            )
-
-        def close(self) -> None:  # pragma: no cover - compatibility stub
-            return None
-
-    # Populate genai.types namespace with simple containers used in code paths.
-    for attr in (
-        "Schema",
-        "FunctionDeclaration",
-        "FunctionCall",
-        "Tool",
-        "FunctionResponse",
-        "FunctionCall",
-        "Part",
-        "Content",
-        "GenerateContentConfig",
-        "BatchJobSource",
-        "CreateBatchJobConfig",
-        "InlinedRequest",
-        "EmbeddingsBatchJobSource",
-        "EmbedContentBatch",
-        "EmbedContentConfig",
-        "FileData",
-        "BatchJob",
-        "JobError",
-    ):
-        setattr(genai_types_module, attr, _SimpleStruct)
-
-    genai_types_module.Type = _DummyType
-
-    google_module.genai = genai_module
-    genai_module.types = genai_types_module
-    genai_module.Client = _DummyClient
-
-    sys.modules["google"] = google_module
-    sys.modules["google.genai"] = genai_module
-    sys.modules["google.genai.types"] = genai_types_module
-
-
-_install_google_stubs()
 
 # Imports below require sys.path setup above
 from egregora.data_primitives import GroupSlug
