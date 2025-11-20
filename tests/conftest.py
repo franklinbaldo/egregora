@@ -210,7 +210,6 @@ def mock_batch_client(monkeypatch):
     return MockGeminiClient
 
 
-
 @pytest.fixture
 def writer_test_agent(monkeypatch):
     """Install deterministic writer agent built on ``pydantic-ai`` TestModel."""

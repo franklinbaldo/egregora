@@ -412,7 +412,6 @@ class TestWriteCommandEdgeCases:
     def test_write_command_with_relative_output_path(self, test_zip_file, tmp_path):
         """Test write command with relative output path."""
         # Change to temp directory and use relative path
-        import os
 
         old_cwd = os.getcwd()
         try:

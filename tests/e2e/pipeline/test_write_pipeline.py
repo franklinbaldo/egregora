@@ -20,12 +20,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.utils.pydantic_test_models import install_writer_test_model
-
 from egregora.orchestration.write_pipeline import (
     WhatsAppProcessOptions,
     process_whatsapp_export,
 )
+from tests.utils.pydantic_test_models import install_writer_test_model
 
 if TYPE_CHECKING:
     from conftest import WhatsAppFixture
