@@ -62,7 +62,9 @@ class SkillLoader:
         logger.warning("No .egregora/skills/ directory found, will use: %s", fallback)
         return fallback
 
-    def _verify_path_safety(self, skill_path_resolved: Path, skills_dir_resolved: Path, skill_name: str) -> None:
+    def _verify_path_safety(
+        self, skill_path_resolved: Path, skills_dir_resolved: Path, skill_name: str
+    ) -> None:
         """Verify that the resolved skill path is within the skills directory.
 
         Args:
