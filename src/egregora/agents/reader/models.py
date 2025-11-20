@@ -24,8 +24,9 @@ class ReaderFeedback:
 
     def __post_init__(self) -> None:
         """Validate star rating is in valid range."""
-        if not 1 <= self.star_rating <= 5:
-            msg = f"Star rating must be 1-5, got {self.star_rating}"
+        max_stars = 5
+        if not 1 <= self.star_rating <= max_stars:
+            msg = f"Star rating must be 1-{max_stars}, got {self.star_rating}"
             raise ValueError(msg)
 
 

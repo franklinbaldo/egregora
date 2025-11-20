@@ -139,7 +139,7 @@ class EloStore:
             created_at=row["created_at"],
         )
 
-    def update_ratings(
+    def update_ratings(  # noqa: PLR0913
         self,
         post_a_slug: str,
         post_b_slug: str,
@@ -215,7 +215,7 @@ class EloStore:
             rating_b_new,
         )
 
-    def _upsert_rating(
+    def _upsert_rating(  # noqa: PLR0913
         self,
         post_slug: str,
         rating: float,
@@ -253,7 +253,7 @@ class EloStore:
 
         self.storage.ibis_conn.insert("elo_ratings", new_row)
 
-    def _record_comparison(
+    def _record_comparison(  # noqa: PLR0913
         self,
         comparison_id: str,
         post_a_slug: str,

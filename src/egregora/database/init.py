@@ -43,7 +43,7 @@ def initialize_database(backend: BaseBackend) -> None:
         >>> # All tables now exist and can be used
 
     """
-    from egregora.database.ir_schema import IR_MESSAGE_SCHEMA, create_table_if_not_exists
+    from egregora.database.ir_schema import IR_MESSAGE_SCHEMA, create_table_if_not_exists  # noqa: PLC0415
 
     logger.info("Initializing database tables...")
 
@@ -95,7 +95,7 @@ def initialize_database(backend: BaseBackend) -> None:
     logger.info("✓ Database tables initialized successfully")
 
 
-def _execute_sql(conn, sql: str) -> None:
+def _execute_sql(conn: object, sql: str) -> None:
     """Execute raw SQL on a connection or backend.
 
     Args:

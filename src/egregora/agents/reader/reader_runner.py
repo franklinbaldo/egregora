@@ -39,8 +39,9 @@ def select_post_pairs(
         List of (slug_a, slug_b) tuples to compare
 
     """
-    if len(post_slugs) < 2:
-        logger.warning("Need at least 2 posts for comparison, got %d", len(post_slugs))
+    min_posts = 2
+    if len(post_slugs) < min_posts:
+        logger.warning("Need at least %d posts for comparison, got %d", min_posts, len(post_slugs))
         return []
 
     # Get current ratings for all posts
@@ -172,7 +173,7 @@ async def run_reader_evaluation(
             )
 
             # Store comparison result with feedback
-            import json
+            import json  # noqa: PLC0415
 
             feedback_json = json.dumps(
                 {
