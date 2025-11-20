@@ -126,23 +126,30 @@ def stub_enrichment_agents(monkeypatch):
         return f"Stub enrichment for {media_path}"
 
     monkeypatch.setattr(
-        "egregora.enrichment.runners.make_url_agent",
-        lambda model, prompts_dir=None: _stub_url_agent(model, prompts_dir),
+        "egregora.agents.enricher.create_url_enrichment_agent",
+        lambda model, simple=True: _stub_url_agent(model),
         raising=False,
     )
     monkeypatch.setattr(
-        "egregora.enrichment.runners.make_media_agent",
-        lambda model, prompts_dir=None: _stub_media_agent(model, prompts_dir),
+        "egregora.agents.enricher.create_media_enrichment_agent",
+        lambda model, simple=False: _stub_media_agent(model),
+        raising=False,
+    )
+
+    async def _stub_url_enrichment_async(agent, url, prompts_dir=None):
+        return f"Stub enrichment for {url}"
+
+    async def _stub_media_enrichment_async(agent, file_path, mime_hint=None, prompts_dir=None):
+        return f"Stub enrichment for {file_path}"
+
+    monkeypatch.setattr(
+        "egregora.agents.enricher._run_url_enrichment_async",
+        _stub_url_enrichment_async,
         raising=False,
     )
     monkeypatch.setattr(
-        "egregora.enrichment.runners.run_url_enrichment",
-        lambda agent, url, prompts_dir=None: _stub_url_run(agent, url, prompts_dir),
-        raising=False,
-    )
-    monkeypatch.setattr(
-        "egregora.enrichment.runners.run_media_enrichment",
-        lambda agent, file_path, **kwargs: _stub_media_run(agent, file_path, **kwargs),
+        "egregora.agents.enricher._run_media_enrichment_async",
+        _stub_media_enrichment_async,
         raising=False,
     )
 
@@ -153,17 +160,15 @@ def stub_enrichment_agents(monkeypatch):
             def run_sync(self, *args, **kwargs):
                 return SimpleNamespace(
                     output=SimpleNamespace(
-                        is_appropriate=True,
-                        reason="stub",
-                        description="stub",
+                        markdown="Stub enrichment for avatar",
                     )
                 )
 
         return _StubAvatar()
 
     monkeypatch.setattr(
-        "egregora.enrichment.avatar.create_avatar_enrichment_agent",
-        lambda model: _avatar_agent(model),
+        "egregora.agents.enricher.create_media_enrichment_agent",
+        lambda model, simple=False: _avatar_agent(model),
         raising=False,
     )
 
