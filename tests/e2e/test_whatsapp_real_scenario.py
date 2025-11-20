@@ -11,8 +11,8 @@ import ibis
 import pytest
 
 from egregora.config.settings import create_default_config
-from egregora.enrichment.media import extract_and_replace_media
 from egregora.database.validation import create_ir_table
+from egregora.enrichment.media import extract_and_replace_media
 from egregora.enrichment.runners import EnrichmentRuntimeContext, enrich_table
 from egregora.input_adapters.whatsapp.parser import filter_egregora_messages, parse_source
 from egregora.orchestration.write_pipeline import (
@@ -61,6 +61,7 @@ def _bootstrap_site(tmp_path: Path) -> Path:
 
     # Remove root level content dirs created earlier (if any)
     import shutil
+
     if posts_dir.exists() and posts_dir != (docs_dir / "posts"):
         shutil.rmtree(posts_dir)
     if profiles_dir.exists() and profiles_dir != (docs_dir / "profiles"):
