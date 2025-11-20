@@ -531,7 +531,6 @@ class DuckDBStorageManager:
 
         return result
 
-
     def table_exists(self, name: str) -> bool:
         """Check if table exists in database.
 
