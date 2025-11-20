@@ -22,9 +22,9 @@ __all__ = [
     "DocumentType",
     # Type aliases
     "GroupSlug",
-    "PostSlug",
     # Protocols
     "OutputAdapter",
+    "PostSlug",
     "UrlContext",
     "UrlConvention",
 ]

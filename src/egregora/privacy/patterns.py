@@ -1,4 +1,4 @@
-"""This module defines the regular expression patterns used for PII detection.
+"""Defines the regular expression patterns used for PII detection.
 
 Separating patterns from the detection logic allows for easier management,
 testing, and reuse of these regular expressions across different privacy-related

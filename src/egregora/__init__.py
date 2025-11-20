@@ -20,4 +20,5 @@ def __getattr__(name: str) -> Any:  # pragma: no cover - convenience import shim
     if name == "process_whatsapp_export":
         module = import_module("egregora.orchestration.write_pipeline")
         return getattr(module, name)
-    raise AttributeError(f"module 'egregora' has no attribute {name!r}")
+    msg = f"module 'egregora' has no attribute {name!r}"
+    raise AttributeError(msg)

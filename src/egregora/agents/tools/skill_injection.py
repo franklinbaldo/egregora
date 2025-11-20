@@ -83,7 +83,7 @@ async def use_skill(ctx: RunContext[Any], skill_name: str, task: str) -> str:
         >>> await use_skill(ctx, "data-analysis", "Generate statistics from conversation data")
 
     """
-    logger.info(f"Loading skill: {skill_name} for task: {task[:100]}...")
+    logger.info("Loading skill: %s for task: %s...", skill_name, task[:100])
 
     # Check if parent deps supports skill injection
     if not isinstance(ctx.deps, SkillInjectionSupport):
@@ -127,13 +127,13 @@ async def use_skill(ctx: RunContext[Any], skill_name: str, task: str) -> str:
     # This ensures parent tools work correctly (can access storage, RAG, etc.)
     try:
         summary = await _run_sub_agent(sub_agent, task, skill_name, ctx.deps)
-        logger.info(f"Skill usage completed: {skill_name} - {summary[:100]}...")
-        return summary
-
     except Exception as e:
         error_msg = f"Sub-agent execution failed: {e}"
         logger.error(error_msg, exc_info=True)
         return f"ERROR: {error_msg}"
+
+    logger.info("Skill usage completed: %s - %s...", skill_name, summary[:100])
+    return summary
 
 
 def end_skill_use(summary: str) -> SkillCompletionResult:
@@ -156,7 +156,7 @@ def end_skill_use(summary: str) -> SkillCompletionResult:
         >>> end_skill_use("Stats: 1,234 messages from 15 authors. Top: Python (45%), AI (30%).")
 
     """
-    logger.debug(f"Sub-agent calling end_skill_use: {summary[:100]}...")
+    logger.debug("Sub-agent calling end_skill_use: %s...", summary[:100])
     return SkillCompletionResult(summary=summary)
 
 
@@ -172,6 +172,7 @@ def _build_skill_system_prompt(parent_prompt: str, skill_content: str, task: str
         Combined system prompt for sub-agent.
 
     """
+    truncate_limit = 500
     return f"""{parent_prompt}
 
 # SKILL INJECTION MODE
@@ -179,9 +180,9 @@ def _build_skill_system_prompt(parent_prompt: str, skill_content: str, task: str
 You are currently in SKILL INJECTION MODE. You have been given a special skill
 to help you complete a specific task.
 
-## Injected Skill: {skill_content[:500]}...
+## Injected Skill: {skill_content[:truncate_limit]}...
 
-{"...(skill content truncated)..." if len(skill_content) > 500 else ""}
+{"...(skill content truncated)..." if len(skill_content) > truncate_limit else ""}
 
 ## Your Task
 
@@ -233,7 +234,7 @@ async def _run_sub_agent(agent: Agent[Any, Any], task: str, skill_name: str, par
         # Agent explicitly called end_skill_use
         # Extract the actual summary (remove marker)
         clean_summary = summary.replace(_SKILL_COMPLETION_MARKER, "").strip()
-        logger.debug(f"Sub-agent used end_skill_use: {clean_summary[:100]}...")
+        logger.debug("Sub-agent used end_skill_use: %s...", clean_summary[:100])
         return clean_summary
     # Agent finished naturally without calling end_skill_use
     logger.debug("Sub-agent finished without end_skill_use, using final response as summary")

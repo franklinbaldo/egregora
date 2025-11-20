@@ -156,7 +156,7 @@ class PipelineContext:
 
     def with_adapter(self, adapter: Any) -> PipelineContext:
         """Create a new context with the input adapter populated."""
-        from dataclasses import replace
+        from dataclasses import replace  # noqa: PLC0415
 
         return replace(self, adapter=adapter)
 
@@ -166,7 +166,7 @@ class PipelineContext:
         url_context: UrlContext | None = None,
     ) -> PipelineContext:
         """Create a new context with output format and URL context populated."""
-        from dataclasses import replace
+        from dataclasses import replace  # noqa: PLC0415
 
         return replace(
             self,

@@ -82,8 +82,9 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
 
     """
     normalized_parts = []
+    min_windows_abs_path_len = 3
     for part in parts:
-        if len(part) >= 3 and part[1:3] == ":\\":
+        if len(part) >= min_windows_abs_path_len and part[1:3] == ":\\":
             msg = f"Absolute Windows paths not allowed: {part}"
             raise PathTraversalError(msg)
         normalized_parts.append(part.replace("\\", "/"))

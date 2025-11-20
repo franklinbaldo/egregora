@@ -115,7 +115,7 @@ def init(
 
 
 @app.command()
-def write(
+def write(  # noqa: C901, PLR0913
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     source: Annotated[str, typer.Option(help="Source type: 'whatsapp' or 'slack'")] = "whatsapp",
@@ -328,7 +328,7 @@ def top(
         egregora top my-blog/ --limit 20
 
     """
-    from rich.table import Table
+    from rich.table import Table  # noqa: PLC0415
 
     site_root = site_root.expanduser().resolve()
 
@@ -411,7 +411,7 @@ def show_reader_history(
         egregora show reader-history my-blog/ --limit 50
 
     """
-    from rich.table import Table
+    from rich.table import Table  # noqa: PLC0415
 
     site_root = site_root.expanduser().resolve()
 
@@ -476,7 +476,7 @@ def doctor(
     ] = False,
 ) -> None:
     """Run diagnostic checks to verify Egregora setup."""
-    from egregora.diagnostics import HealthStatus, run_diagnostics
+    from egregora.diagnostics import HealthStatus, run_diagnostics  # noqa: PLC0415
 
     console.print("[bold cyan]Running diagnostics...[/bold cyan]")
     console.print()
@@ -498,7 +498,7 @@ def doctor(
             icon = "❌"
             color = "red"
         else:
-            icon = "ℹ️"
+            icon = "ℹ️"  # noqa: RUF001
             color = "cyan"
 
         console.print(f"[{color}]{icon} {result.check}:[/{color}] {result.message}")

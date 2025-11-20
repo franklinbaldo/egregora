@@ -59,8 +59,26 @@ class SkillLoader:
 
         # Fallback: create in current directory
         fallback = Path.cwd() / ".egregora" / "skills"
-        logger.warning(f"No .egregora/skills/ directory found, will use: {fallback}")
+        logger.warning("No .egregora/skills/ directory found, will use: %s", fallback)
         return fallback
+
+    def _verify_path_safety(
+        self, skill_path_resolved: Path, skills_dir_resolved: Path, skill_name: str
+    ) -> None:
+        """Verify that the resolved skill path is within the skills directory.
+
+        Args:
+            skill_path_resolved: The resolved path of the skill file.
+            skills_dir_resolved: The resolved path of the skills directory.
+            skill_name: The name of the skill.
+
+        Raises:
+            ValueError: If the skill path escapes the skills directory.
+
+        """
+        if not skill_path_resolved.is_relative_to(skills_dir_resolved):
+            msg = f"Security violation: skill path escapes skills directory: {skill_name}"
+            raise ValueError(msg)
 
     def _validate_skill_name(self, skill_name: str) -> None:
         """Validate skill name to prevent directory traversal attacks.
@@ -117,13 +135,11 @@ class SkillLoader:
             try:
                 skill_path_resolved = skill_path.resolve()
                 skills_dir_resolved = self.skills_dir.resolve()
-                if not skill_path_resolved.is_relative_to(skills_dir_resolved):
-                    msg = f"Security violation: skill path escapes skills directory: {skill_name}"
-                    raise ValueError(msg)
-            except ValueError:
+                self._verify_path_safety(skill_path_resolved, skills_dir_resolved, skill_name)
+            except ValueError as exc:
                 # is_relative_to raises ValueError if path is not relative
                 msg = f"Security violation: skill path escapes skills directory: {skill_name}"
-                raise ValueError(msg) from None
+                raise ValueError(msg) from exc
 
             if skill_path.exists():
                 break
@@ -139,7 +155,7 @@ class SkillLoader:
         # Extract description from first paragraph or heading
         description = self._extract_description(content)
 
-        logger.info(f"Loaded skill: {skill_name} from {skill_path} ({len(content)} chars)")
+        logger.info("Loaded skill: %s from %s (%d chars)", skill_name, skill_path, len(content))
 
         return SkillContent(
             name=skill_name,
@@ -182,12 +198,13 @@ class SkillLoader:
         """
         lines = content.strip().split("\n")
         for line in lines:
-            line = line.strip()
-            if not line or line.startswith("#"):
+            stripped_line = line.strip()
+            if not stripped_line or stripped_line.startswith("#"):
                 continue
             # Return first substantial line (>10 chars)
-            if len(line) > 10:
-                return line[:200]  # Truncate at 200 chars
+            min_len = 10
+            if len(stripped_line) > min_len:
+                return stripped_line[:200]  # Truncate at 200 chars
         return None
 
 
@@ -197,7 +214,7 @@ _default_loader: SkillLoader | None = None
 
 def get_skill_loader() -> SkillLoader:
     """Get the default global skill loader instance."""
-    global _default_loader
+    global _default_loader  # noqa: PLW0603
     if _default_loader is None:
         _default_loader = SkillLoader()
     return _default_loader

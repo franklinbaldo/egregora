@@ -23,18 +23,18 @@ from egregora.agents.reader.models import (
 from egregora.database.elo_store import EloRating, EloStore
 
 __all__ = [
-    # Agent
-    "compare_posts",
-    # ELO calculations
-    "calculate_elo_update",
     "DEFAULT_ELO",
     "K_FACTOR",
+    "EloRating",
     # Persistence
     "EloStore",
-    "EloRating",
+    "EvaluationRequest",
+    "PostComparison",
+    "RankingResult",
     # Data models
     "ReaderFeedback",
-    "PostComparison",
-    "EvaluationRequest",
-    "RankingResult",
+    # ELO calculations
+    "calculate_elo_update",
+    # Agent
+    "compare_posts",
 ]

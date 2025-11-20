@@ -60,14 +60,12 @@ from egregora.transformations.windowing import (
 )
 
 __all__ = [
-    # Windowing
     "Window",
     "create_windows",
-    "load_checkpoint",
-    "save_checkpoint",
-    "split_window_into_n_parts",
-    # Media
     "extract_markdown_media_refs",
+    "load_checkpoint",
     "process_media_for_window",
     "replace_markdown_media_refs",
+    "save_checkpoint",
+    "split_window_into_n_parts",
 ]

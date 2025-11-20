@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING
 
 import ibis
 
-from . import schemas
-from .ir_schema import CONVERSATION_SCHEMA
+from egregora.database import schemas
+from egregora.database.ir_schema import CONVERSATION_SCHEMA
 
 if TYPE_CHECKING:
     from ibis.backends.duckdb import Backend as DuckDBBackend

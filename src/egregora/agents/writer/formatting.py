@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pathlib import Path
-import pyarrow as pa
+import pyarrow as pa  # noqa: TID251
 from ibis.expr.types import Table
 
 from egregora.agents.shared.annotations import (
@@ -305,12 +305,11 @@ def _build_conversation_markdown_verbose(table: Table) -> str:
             missing.append("author/author_uuid")
         if not message_col:
             missing.append("message/text")
-        raise ValueError(
-            f"Table missing required columns: {', '.join(missing)}. Available columns: {', '.join(cols)}"
-        )
+        msg = f"Table missing required columns: {', '.join(missing)}. Available columns: {', '.join(cols)}"
+        raise ValueError(msg)
 
     # Deterministic ordering
-    order_columns: list[Any] = [table[time_col]]
+    order_columns: list[object] = [table[time_col]]
 
     # Add message_id or msg_id for secondary sorting (if available)
     if "message_id" in cols:

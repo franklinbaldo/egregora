@@ -463,7 +463,7 @@ class OutputAdapter(ABC):
             'ai-machine-learning'
 
         """
-        from egregora.utils import slugify
+        from egregora.utils import slugify  # noqa: PLC0415
 
         return slugify(slug)
 
@@ -548,7 +548,7 @@ class OutputAdapter(ABC):
             Path("/posts/my-post-2.md")
 
         """
-        from egregora.utils import safe_path_join
+        from egregora.utils import safe_path_join  # noqa: PLC0415
 
         # Try original filename first
         if "{suffix}" not in filename_pattern:
@@ -593,7 +593,7 @@ class OutputAdapter(ABC):
             ValueError: If frontmatter is malformed
 
         """
-        import yaml
+        import yaml  # noqa: PLC0415
 
         if not content.startswith("---\n"):
             return {}, content
@@ -649,7 +649,7 @@ class OutputAdapter(ABC):
         # Base implementation does nothing - subclasses override for specific tasks
         return None
 
-    def finalize_window(
+    def finalize_window(  # noqa: B027
         self,
         window_label: str,
         posts_created: list[str],

@@ -55,7 +55,7 @@ class DiagnosticResult:
 
 def check_python_version() -> DiagnosticResult:
     """Check if Python version meets minimum requirement (3.12+)."""
-    import sys
+    import sys  # noqa: PLC0415
 
     version = sys.version_info
     if version >= (3, 12):
@@ -178,7 +178,7 @@ def check_duckdb_extensions() -> DiagnosticResult:
         finally:
             conn.close()
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return DiagnosticResult(
             check="DuckDB VSS Extension",
             status=HealthStatus.ERROR,
@@ -190,7 +190,7 @@ def check_git() -> DiagnosticResult:
     """Check if git is available for code_ref tracking."""
     try:
         result = subprocess.run(
-            ["git", "--version"],
+            ["git", "--version"],  # noqa: S607
             capture_output=True,
             text=True,
             check=True,
@@ -270,7 +270,7 @@ def check_egregora_config() -> DiagnosticResult:
 
     try:
         # Try loading config
-        from egregora.config import load_egregora_config
+        from egregora.config import load_egregora_config  # noqa: PLC0415
 
         config = load_egregora_config(config_file.parent.parent)  # Pass site root
 
@@ -285,7 +285,7 @@ def check_egregora_config() -> DiagnosticResult:
             },
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return DiagnosticResult(
             check="Egregora Config",
             status=HealthStatus.ERROR,
@@ -296,7 +296,7 @@ def check_egregora_config() -> DiagnosticResult:
 def check_adapters() -> DiagnosticResult:
     """Check available source adapters."""
     try:
-        from egregora.input_adapters import list_adapters
+        from egregora.input_adapters import list_adapters  # noqa: PLC0415
 
         sources = list_adapters()
 
@@ -314,7 +314,7 @@ def check_adapters() -> DiagnosticResult:
             message="No adapters registered",
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return DiagnosticResult(
             check="Source Adapters",
             status=HealthStatus.ERROR,
@@ -350,7 +350,7 @@ def run_diagnostics() -> list[DiagnosticResult]:
         try:
             result = check_func()
             results.append(result)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # Catch-all for unexpected errors
             check_name = getattr(check_func, "__name__", "Unknown Check")
             check_name = check_name.replace("check_", "").replace("_", " ").title()

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
-from .media import extract_urls
+from egregora.enrichment.media import extract_urls
 
 
 def extract_unique_urls(messages_table: Table, max_enrichments: int) -> set[str]:
@@ -43,7 +43,7 @@ def extract_unique_media_references(messages_table: Table, media_mapping: dict[s
     unique_media: set[str] = set()
 
     for row in media_messages.itertuples():
-        from .media import find_media_references
+        from egregora.enrichment.media import find_media_references  # noqa: PLC0415
 
         refs = find_media_references(row.text)
         markdown_refs = re.findall("!\\[[^\\]]*\\]\\([^)]*?([a-f0-9\\-]+\\.\\w+)\\)", row.text)

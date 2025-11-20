@@ -382,7 +382,7 @@ def create_table_if_not_exists(
         conn.execute(create_sql)
 
 
-def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:
+def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:  # noqa: PLR0911
     """Convert Ibis data type to DuckDB SQL type string.
 
     Args:
@@ -392,7 +392,7 @@ def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:
         DuckDB SQL type string
 
     """
-    import ibis.expr.datatypes as dt
+    import ibis.expr.datatypes as dt  # noqa: PLC0415
 
     if isinstance(ibis_type, dt.Timestamp):
         return "TIMESTAMP WITH TIME ZONE"
@@ -858,10 +858,10 @@ __all__ = [
     # Ephemeral schemas
     "CONVERSATION_SCHEMA",
     "DEFAULT_TIMEZONE",
-    "IR_MESSAGE_SCHEMA",
     # Elo schemas
     "ELO_HISTORY_SCHEMA",
     "ELO_RATINGS_SCHEMA",
+    "IR_MESSAGE_SCHEMA",
     "MESSAGE_SCHEMA",
     # RAG schemas
     "RAG_CHUNKS_METADATA_SCHEMA",

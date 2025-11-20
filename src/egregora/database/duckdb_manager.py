@@ -42,7 +42,7 @@ import warnings
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Literal, Protocol, Self
 
 import duckdb
 import ibis
@@ -328,7 +328,7 @@ class DuckDBStorageManager:
             [limit],
         ).fetchall()
 
-    def fetch_run_by_partial_id(self, run_id: str):
+    def fetch_run_by_partial_id(self, run_id: str) -> dict | None:
         """Return the newest run whose UUID starts with ``run_id``."""
         parent_run_expr = self._column_or_null("runs", "parent_run_id", "UUID")
         duration_expr = self._runs_duration_expression()
@@ -531,12 +531,6 @@ class DuckDBStorageManager:
 
         return result
 
-    def drop_table(self, name: str) -> None:
-        """Drop a table if it exists."""
-        quoted_name = quote_identifier(name)
-        self._conn.execute(f"DROP TABLE IF EXISTS {quoted_name}")
-        logger.info("Dropped table if existed: %s", name)
-
     def table_exists(self, name: str) -> bool:
         """Check if table exists in database.
 
@@ -608,11 +602,11 @@ class DuckDBStorageManager:
         self._conn.close()
         logger.info("DuckDBStorageManager closed")
 
-    def __enter__(self) -> DuckDBStorageManager:
+    def __enter__(self) -> Self:
         """Context manager entry."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore[no-untyped-def]
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
         """Context manager exit - closes connection."""
         self.close()
 
@@ -781,11 +775,11 @@ def temp_storage() -> DuckDBStorageManager:
         ...     result = storage.read_table("temp")
 
     """
-    return DuckDBStorageManager(db_path=None, checkpoint_dir=Path("/tmp/.egregora-temp"))
+    return DuckDBStorageManager(db_path=None, checkpoint_dir=Path("/tmp/.egregora-temp"))  # noqa: S108
 
 
 @contextlib.contextmanager
-def duckdb_backend():
+def duckdb_backend() -> ibis.BaseBackend:
     """Context manager for temporary DuckDB backend.
 
     MODERN (Phase 2.2): Moved from connection.py to storage.py for consolidation.

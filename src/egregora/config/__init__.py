@@ -83,39 +83,21 @@ from egregora.config.settings import (
 )
 
 __all__ = [
-    "EMBEDDING_DIM",  # Embedding vector dimensions
-    # Note: DEFAULT_BLOG_DIR, DEFAULT_DOCS_DIR, MEDIA_DIR_NAME, PROFILES_DIR_NAME
-    # moved to egregora.output_adapters.mkdocs to avoid circular imports
-    # ==========================================================================
-    # Core Pydantic V2 Config Models (PRIMARY - Phase 2 modernization)
-    # ==========================================================================
-    # Root config and sub-configs loaded from .egregora/config.yml
-    "EgregoraConfig",  # Root config (contains all sub-configs)
-    "EnrichmentSettings",  # Enrichment stage parameters
-    "FeaturesSettings",  # Feature flags
-    "MediaEnrichmentContext",  # Media enrichment runtime context
-    # ==========================================================================
-    # Model Configuration Utilities
-    # ==========================================================================
-    "ModelType",  # Type literal for model roles
-    "ModelSettings",  # LLM model names
-    # ==========================================================================
-    # Pipeline-Specific Configs
-    # ==========================================================================
-    "PipelineEnrichmentConfig",  # Enrichment batch processing config
-    "PrivacySettings",  # Anonymization settings
-    # ==========================================================================
-    # Runtime Context Dataclasses
-    # ==========================================================================
-    "RuntimeContext",  # Minimal runtime-only context (paths, api key, debug)
-    "RAGSettings",  # Retrieval settings
-    "PipelineSettings",  # Pipeline execution settings
-    "WriterAgentSettings",  # Writer agent settings (Pydantic model)
-    "create_default_config",  # Create default config
-    "find_egregora_config",  # Find config file in directory tree
-    # ==========================================================================
-    # Config Loading & Persistence
-    # ==========================================================================
-    "load_egregora_config",  # Load config from .egregora/config.yml
-    "save_egregora_config",  # Save config to disk
+    "EMBEDDING_DIM",
+    "EgregoraConfig",
+    "EnrichmentSettings",
+    "FeaturesSettings",
+    "MediaEnrichmentContext",
+    "ModelSettings",
+    "ModelType",
+    "PipelineEnrichmentConfig",
+    "PipelineSettings",
+    "PrivacySettings",
+    "RAGSettings",
+    "RuntimeContext",
+    "WriterAgentSettings",
+    "create_default_config",
+    "find_egregora_config",
+    "load_egregora_config",
+    "save_egregora_config",
 ]

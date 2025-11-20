@@ -80,24 +80,24 @@ def _format_status(status: str) -> str:
     return status
 
 
-def _build_run_panel_content(
-    run_id,
-    tenant_id,
-    stage,
-    status,
-    error,
-    parent_run_id,
-    code_ref,
-    config_hash,
-    started_at,
-    finished_at,
-    duration_seconds,
-    rows_in,
-    rows_out,
-    llm_calls,
-    tokens,
-    attrs,
-    trace_id,
+def _build_run_panel_content(  # noqa: C901, PLR0913, PLR0912
+    run_id: str,
+    tenant_id: str | None,
+    stage: str,
+    status: str,
+    error: str | None,
+    parent_run_id: str | None,
+    code_ref: str | None,
+    config_hash: str | None,
+    started_at: str,
+    finished_at: str | None,
+    duration_seconds: float | None,
+    rows_in: int | None,
+    rows_out: int | None,
+    llm_calls: int,
+    tokens: int,
+    attrs: dict | None,
+    trace_id: str | None,
 ) -> str:
     """Build formatted panel content from run data."""
     lines = []
@@ -200,6 +200,6 @@ def runs_show(
             )
             panel = Panel(panel_content, title=f"[bold]Run Details: {stage}[/bold]", border_style="cyan")
             console.print(panel)
-    except FileNotFoundError:
+    except FileNotFoundError as exc:
         console.print(f"[red]No runs database found at {db_path}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc

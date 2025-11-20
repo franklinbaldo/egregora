@@ -235,8 +235,8 @@ def _process_window_with_auto_split(
         Dict mapping window labels to {'posts': [...], 'profiles': [...]}
 
     """
-    from egregora.agents.model_limits import PromptTooLargeError
-    from egregora.transformations import split_window_into_n_parts
+    from egregora.agents.model_limits import PromptTooLargeError  # noqa: PLC0415
+    from egregora.transformations import split_window_into_n_parts  # noqa: PLC0415
 
     min_window_size = 5
     results: dict[str, dict[str, list[str]]] = {}
@@ -296,7 +296,7 @@ def _split_window_for_retry(
     indent: str,
     splitter: any,
 ) -> list[tuple[any, int]]:
-    import math
+    import math  # noqa: PLC0415
 
     estimated_tokens = getattr(error, "estimated_tokens", 0)
     effective_limit = getattr(error, "effective_limit", 1) or 1
@@ -631,13 +631,13 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> an
     if config.output.format != "eleventy-arrow":
         return base_paths
 
-    from egregora.output_adapters import create_output_format
+    from egregora.output_adapters import create_output_format  # noqa: PLC0415
 
     output_format = create_output_format(output_dir, format_type=config.output.format)
     site_config = output_format.resolve_paths(output_dir)
 
     # Import SitePaths for construction
-    from egregora.output_adapters.mkdocs import SitePaths
+    from egregora.output_adapters.mkdocs import SitePaths  # noqa: PLC0415
 
     return SitePaths(
         site_root=site_config.site_root,
@@ -672,7 +672,7 @@ def _create_gemini_client(api_key: str | None) -> genai.Client:
     return genai.Client(api_key=api_key, http_options=http_options)
 
 
-def _create_pipeline_context(
+def _create_pipeline_context(  # noqa: PLR0913
     output_dir: Path,
     config: EgregoraConfig,
     api_key: str | None,
@@ -704,7 +704,7 @@ def _create_pipeline_context(
     _runtime_db_uri, pipeline_backend, runs_backend = _create_database_backends(site_paths.site_root, config)
 
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
-    from egregora.database import initialize_database
+    from egregora.database import initialize_database  # noqa: PLC0415
 
     initialize_database(pipeline_backend)
 
@@ -744,7 +744,7 @@ def _create_pipeline_context(
 
 
 @contextmanager
-def _pipeline_environment(
+def _pipeline_environment(  # noqa: PLR0913
     output_dir: Path,
     config: EgregoraConfig,
     api_key: str | None,
@@ -753,7 +753,7 @@ def _pipeline_environment(
     start_time: datetime,
     source_type: str,
     input_path: Path,
-):
+) -> any:
     """Context manager that provisions and tears down pipeline resources.
 
     Args:
@@ -984,7 +984,7 @@ def _prepare_pipeline_data(
         max_window_time=max_window_time,
     )
 
-    from egregora.output_adapters import create_output_format
+    from egregora.output_adapters import create_output_format  # noqa: PLC0415
 
     output_format = create_output_format(output_dir, format_type=config.output.format)
 
@@ -995,7 +995,7 @@ def _prepare_pipeline_data(
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
-            from egregora.agents.shared.rag.indexing import index_documents_for_rag
+            from egregora.agents.shared.rag.indexing import index_documents_for_rag  # noqa: PLC0415
 
             indexed_count = index_documents_for_rag(
                 output_format,
@@ -1021,7 +1021,7 @@ def _prepare_pipeline_data(
 
 
 def _index_media_into_rag(
-    enable_enrichment: bool,
+    enable_enrichment: bool,  # noqa: FBT001
     results: dict,
     ctx: PipelineContext,
     embedding_model: str,
@@ -1078,13 +1078,13 @@ def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, ch
     )
 
 
-def _apply_filters(
+def _apply_filters(  # noqa: C901, PLR0913, PLR0912
     messages_table: ir.Table,
     ctx: PipelineContext,
     from_date: date_type | None,
     to_date: date_type | None,
     checkpoint_path: Path,
-    checkpoint_enabled: bool = False,
+    checkpoint_enabled: bool = False,  # noqa: FBT001, FBT002
 ) -> ir.Table:
     """Apply all filters: egregora messages, opted-out users, date range, checkpoint resume.
 
@@ -1162,7 +1162,7 @@ def _apply_filters(
     return messages_table
 
 
-def run(
+def run(  # noqa: PLR0913
     source: str,
     input_path: Path,
     output_dir: Path,
@@ -1256,7 +1256,6 @@ def run(
                     logger.debug("Failed to record run completion: %s", exc)
 
             logger.info("[bold green]🎉 Pipeline completed successfully![/]")
-            return results
 
         except Exception as exc:
             # Update run to failed
@@ -1279,3 +1278,5 @@ def run(
                 except Exception as tracking_exc:  # noqa: BLE001
                     logger.debug("Failed to record run failure: %s", tracking_exc)
             raise  # Re-raise original exception
+
+        return results

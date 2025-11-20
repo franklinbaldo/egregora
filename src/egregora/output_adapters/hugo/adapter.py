@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def escape_toml_string(value: str) -> str:
-    """Escape a string for safe use in TOML basic strings.
+    r"""Escape a string for safe use in TOML basic strings.
 
     Args:
         value: String to escape
@@ -92,10 +92,11 @@ class HugoOutputAdapter(OutputAdapter):
         # TODO: Update this template to use MkDocsAdapter instead of deleted storage classes
         # The storage classes (MkDocsPostStorage, etc.) were consolidated into
         # MkDocsAdapter in PR #750. This template needs architectural updates.
-        raise NotImplementedError(
+        msg = (
             "Hugo adapter is a template/example and needs to be updated to use "
             "the new MkDocsAdapter architecture after PR #750 refactoring"
         )
+        raise NotImplementedError(msg)
 
     def supports_site(self, site_root: Path) -> bool:
         """Check if the site root is a Hugo site.

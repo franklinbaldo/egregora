@@ -24,13 +24,10 @@ from typing import TYPE_CHECKING, Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from .schemas import (
-    WriterAgentReturn,
-    WriterAgentState,
-)
+from egregora.agents.writer.schemas import WriterAgentReturn, WriterAgentState
 
 try:
-    from pydantic_ai import Agent, ModelMessagesTypeAdapter, RunContext
+    from pydantic_ai import Agent, ModelMessagesTypeAdapter
 except ImportError:
     from pydantic_ai import Agent
 
@@ -154,7 +151,9 @@ class JournalEntry:
     tool_name: str | None = None
 
 
-def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
+def _extract_intercalated_log(  # noqa: C901
+    messages: MessageHistory,
+) -> list[JournalEntry]:
     """Extract intercalated journal log preserving actual execution order.
 
     Processes agent message history to create a timeline showing:
@@ -291,11 +290,12 @@ def _save_journal_to_file(
             source_window=window_label,
         )
         output_format.serve(doc)
-        logger.info("Saved journal entry: %s", doc.document_id)
-        return doc.document_id
     except Exception:  # Broad catch: journal is non-critical, various backends may raise different exceptions
         logger.exception("Failed to write journal for window %s", window_label)
         return None
+
+    logger.info("Saved journal entry: %s", doc.document_id)
+    return doc.document_id
 
 
 def _parse_content_to_dict(content: Any) -> dict[str, Any] | None:
@@ -457,7 +457,7 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
     return (saved_posts, saved_profiles)
 
 
-from .tools import register_writer_tools
+from egregora.agents.writer.tools import register_writer_tools  # noqa: E402
 
 
 def _create_writer_agent_state(context: WriterAgentContext, config: EgregoraConfig) -> WriterAgentState:
@@ -514,7 +514,7 @@ def _validate_prompt_fits(
         PromptTooLargeError: If prompt exceeds hard model limit
 
     """
-    from egregora.agents.model_limits import (
+    from egregora.agents.model_limits import (  # noqa: PLC0415
         PromptTooLargeError,
         get_model_context_limit,
         validate_prompt_fits,

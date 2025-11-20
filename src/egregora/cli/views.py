@@ -21,10 +21,10 @@ def _select_builders(view_name: str | None) -> dict[str, callable]:
 
     try:
         builder = get_view_builder(view_name)
-    except KeyError:
+    except KeyError as exc:
         console.print(f"[red]Unknown view: {view_name}[/red]")
         console.print(f"Available views: {', '.join(list_common_views())}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from exc
 
     return {view_name: builder}
 

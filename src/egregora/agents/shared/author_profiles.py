@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import ibis.expr.types as ir
-import pyarrow as pa
+import pyarrow as pa  # noqa: TID251
 
 logger = logging.getLogger(__name__)
 MAX_ALIAS_LENGTH = 40
@@ -81,7 +81,7 @@ def write_profile(
         front_matter["commands_used"] = metadata["commands_used"]
 
     # Write profile with front-matter
-    import yaml
+    import yaml  # noqa: PLC0415
 
     yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
     full_profile = f"---\n{yaml_front}---\n\n{content}"
@@ -174,7 +174,7 @@ def _validate_alias(alias: str) -> str | None:
     return alias.replace("`", "&#96;")
 
 
-def apply_command_to_profile(
+def apply_command_to_profile(  # noqa: C901
     author_uuid: Annotated[str, "The anonymized author UUID"],
     command: Annotated[dict[str, Any], "The command dictionary from the parser"],
     timestamp: Annotated[str, "The timestamp of when the command was issued"],
@@ -540,7 +540,7 @@ def get_avatar_info(
     }
 
 
-def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:
+def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:  # noqa: C901
     """Extract metadata from an existing profile file.
 
     Reads YAML front-matter and profile sections to build metadata dict.
@@ -555,7 +555,7 @@ def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:
     if not profile_path.exists():
         return {}
 
-    import yaml
+    import yaml  # noqa: PLC0415
 
     content = profile_path.read_text(encoding="utf-8")
     metadata: dict[str, Any] = {}
@@ -611,7 +611,7 @@ def _update_authors_yml(site_root: Path, author_uuid: str, front_matter: dict[st
         front_matter: Profile front-matter dict
 
     """
-    import yaml
+    import yaml  # noqa: PLC0415
 
     authors_yml_path = site_root / ".authors.yml"
 
@@ -642,8 +642,7 @@ def _update_authors_yml(site_root: Path, author_uuid: str, front_matter: dict[st
 
     # Social links
     if "social" in front_matter:
-        for platform, url in front_matter["social"].items():
-            author_entry[platform] = url
+        author_entry.update(dict(front_matter["social"].items()))
 
     # Update authors dict
     authors[author_uuid] = author_entry

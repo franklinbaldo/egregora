@@ -131,7 +131,7 @@ def replace_markdown_media_refs(
     return updated_table
 
 
-def process_media_for_window(
+def process_media_for_window(  # noqa: PLR0913
     window_table: Table,
     adapter: InputAdapter,
     media_dir: Path,
