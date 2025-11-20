@@ -25,7 +25,6 @@ import ibis
 from egregora.agents.model_limits import PromptTooLargeError
 from egregora.agents.shared.author_profiles import get_active_authors, read_profile
 from egregora.agents.shared.rag import VectorStore, build_rag_context_for_writer, index_document
-from egregora.agents.shared.rag.chunker import chunk_markdown
 from egregora.agents.shared.rag.embedder import embed_query_text
 from egregora.agents.writer.agent import WriterAgentContext, write_posts_with_pydantic_agent
 from egregora.agents.writer.formatting import (
