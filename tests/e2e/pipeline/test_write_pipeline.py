@@ -139,15 +139,14 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
                             "date": f"{context.start_time:%Y-%m-%d}",
                             "tags": [],
                             "authors": ["system"],
-                            "summary": "Stub summary"
+                            "summary": "Stub summary",
                         },
-                        "content": "This is a placeholder post used during testing."
+                        "content": "This is a placeholder post used during testing.",
                     }
                 return super().gen_tool_args(tool_def)
 
         agent = Agent[WriterAgentState, WriterAgentReturn](
-            model=DeterministicTestModel(call_tools=["write_post_tool"]),
-            deps_type=WriterAgentState
+            model=DeterministicTestModel(call_tools=["write_post_tool"]), deps_type=WriterAgentState
         )
 
         # Register real tools so the agent can actually execute them (writing files)
