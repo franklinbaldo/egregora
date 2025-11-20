@@ -30,6 +30,7 @@ from egregora.data_primitives.protocols import UrlContext
 from egregora.orchestration.context import PipelineContext
 from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.mkdocs import MkDocsAdapter
+from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.prompt_templates import render_prompt
 
 if TYPE_CHECKING:
@@ -242,7 +243,11 @@ def _build_writer_agent_context(
     # Use existing output_format from context, or create runtime format if needed
     if format_type == "mkdocs" and ctx.output_format:
         runtime_output_format = MkDocsAdapter()
-        url_context = ctx.url_context or UrlContext(base_url="", site_prefix="", base_path=storage_root)
+        if ctx.url_context:
+            url_context = ctx.url_context
+        else:
+            prefix = compute_site_prefix(storage_root, ctx.docs_dir)
+            url_context = UrlContext(base_url="", site_prefix=prefix, base_path=storage_root)
         runtime_output_format.initialize(site_root=storage_root, url_context=url_context)
         url_convention = runtime_output_format.url_convention
     elif ctx.output_format:
@@ -304,6 +309,7 @@ def _build_writer_prompt_context(
             ctx.rag_store,
             ctx.client,
             embedding_model=ctx.embedding_model,
+            storage=ctx.storage,
             retrieval_mode=ctx.retrieval_mode,
             retrieval_nprobe=ctx.retrieval_nprobe,
             retrieval_overfetch=ctx.retrieval_overfetch,

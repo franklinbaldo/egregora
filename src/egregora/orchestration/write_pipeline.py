@@ -36,6 +36,7 @@ from egregora.agents.shared.author_profiles import filter_opted_out_authors, pro
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
+from egregora.data_primitives.protocols import UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.tracking import record_run
 from egregora.database.validation import validate_ir_schema
@@ -46,6 +47,7 @@ from egregora.input_adapters import get_adapter
 from egregora.input_adapters.whatsapp.parser import extract_commands, filter_egregora_messages
 from egregora.orchestration.context import PipelineContext
 from egregora.output_adapters.mkdocs import load_site_paths
+from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.transformations.media import process_media_for_window
 from egregora.utils.cache import EnrichmentCache
@@ -633,6 +635,8 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> an
 
     from egregora.output_adapters import create_output_format
 
+    site_prefix = compute_site_prefix(ctx.site_root, ctx.docs_dir)
+    url_context = UrlContext(base_url="", site_prefix=site_prefix, base_path=ctx.site_root)
     output_format = create_output_format(output_dir, format_type=config.output.format)
     site_config = output_format.resolve_paths(output_dir)
 
@@ -990,7 +994,7 @@ def _prepare_pipeline_data(
 
     # Update context with adapter and output format
     ctx = ctx.with_adapter(adapter)
-    ctx = ctx.with_output_format(output_format)
+    ctx = ctx.with_output_format(output_format, url_context=url_context)
 
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")

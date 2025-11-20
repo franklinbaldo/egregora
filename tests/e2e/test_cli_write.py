@@ -116,6 +116,49 @@ class TestWriteCommandBasic:
 class TestWriteCommandConfiguration:
     """Tests for 'egregora write' command with configuration options."""
 
+    def test_write_command_with_model_override(
+        self,
+        monkeypatch,
+        test_zip_file,
+        test_output_dir,
+    ):
+        """CLI --model flag should rewrite all generation models before executing the pipeline."""
+
+        captured: dict[str, object] = {}
+
+        def fake_run(*, source, input_path, output_dir, config, api_key):
+            captured["source"] = source
+            captured["input_path"] = input_path
+            captured["output_dir"] = output_dir
+            captured["config"] = config
+            captured["api_key"] = api_key
+            return {}
+
+        monkeypatch.setattr("egregora.cli.main.write_pipeline.run", fake_run)
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+
+        model_name = "google-gla:gemini-pro"
+        result = runner.invoke(
+            app,
+            [
+                "write",
+                str(test_zip_file),
+                "--output",
+                str(test_output_dir),
+                "--model",
+                model_name,
+            ],
+        )
+
+        assert result.exit_code == 0, f"Unexpected failure: {result.stdout}"
+        assert captured, "write_pipeline.run was not called"
+        config = captured["config"]
+        assert config.models.writer == model_name
+        assert config.models.enricher == model_name
+        assert config.models.enricher_vision == model_name
+        assert config.models.ranking == model_name
+        assert config.models.editor == model_name
+
     def test_write_command_with_step_size(self, test_zip_file, test_output_dir):
         """Test write command with custom step-size parameter."""
         result = runner.invoke(

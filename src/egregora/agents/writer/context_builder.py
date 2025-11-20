@@ -16,6 +16,7 @@ from egregora.agents.shared.rag import VectorStore, build_rag_context_for_writer
 from egregora.agents.shared.rag.chunker import chunk_markdown
 from egregora.agents.shared.rag.embedder import embed_query_text
 from egregora.agents.writer.formatting import _build_conversation_markdown_verbose
+from egregora.database.duckdb_manager import DuckDBStorageManager
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +142,7 @@ def build_rag_context_for_prompt(
     client: genai.Client,
     *,
     embedding_model: str,
+    storage: DuckDBStorageManager | None = None,
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
@@ -160,6 +162,7 @@ def build_rag_context_for_prompt(
         store: VectorStore instance
         client: Gemini client
         embedding_model: Embedding model name
+        storage: DuckDB storage manager (required when use_pydantic_helpers=True)
         retrieval_mode: "ann" or "exact"
         retrieval_nprobe: ANN nprobe
         retrieval_overfetch: ANN overfetch
@@ -171,11 +174,15 @@ def build_rag_context_for_prompt(
 
     """
     if use_pydantic_helpers:
+        if storage is None:
+            msg = "storage is required when use_pydantic_helpers=True"
+            raise ValueError(msg)
         return asyncio.run(
             build_rag_context_for_writer(
                 query=table_markdown,
                 client=client,
                 rag_dir=store.parquet_path.parent,
+                storage=storage,
                 embedding_model=embedding_model,
                 top_k=top_k,
                 retrieval_mode=retrieval_mode,

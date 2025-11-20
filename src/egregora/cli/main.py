@@ -240,6 +240,16 @@ def write(
 
     # Load base config and merge CLI overrides
     base_config = load_egregora_config(output_dir)
+    models_update: dict[str, str] = {}
+    if model:
+        models_update = {
+            "writer": model,
+            "enricher": model,
+            "enricher_vision": model,
+            "ranking": model,
+            "editor": model,
+        }
+
     egregora_config = base_config.model_copy(
         deep=True,
         update={
@@ -267,6 +277,7 @@ def write(
                     else base_config.rag.overfetch,
                 }
             ),
+            **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
         },
     )
 
@@ -294,7 +305,6 @@ def write(
             output_dir=runtime.output_dir,
             config=egregora_config,
             api_key=runtime.api_key,
-            model_override=runtime.model_override,
         )
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:

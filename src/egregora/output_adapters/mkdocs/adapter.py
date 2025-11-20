@@ -27,7 +27,7 @@ from egregora.config.settings import create_default_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
-from egregora.output_adapters.mkdocs.paths import SitePaths, load_site_paths
+from egregora.output_adapters.mkdocs.paths import SitePaths, compute_site_prefix, load_site_paths
 from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import safe_path_join, slugify
 
@@ -82,6 +82,8 @@ class MkDocsUrlConvention:
 
         """
         base = ctx.base_url.rstrip("/")
+        docs_prefix = ctx.site_prefix.strip("/") if ctx and ctx.site_prefix else ""
+        docs_prefix = f"/{docs_prefix}" if docs_prefix else ""
 
         if document.type == DocumentType.POST:
             slug = document.metadata.get("slug", document.document_id[:8])
@@ -94,36 +96,38 @@ class MkDocsUrlConvention:
                     date_str = date_val.strftime("%Y-%m-%d")
                 else:
                     date_str = str(date_val)
-                return f"{base}/posts/{date_str}-{normalized_slug}/"
-            return f"{base}/posts/{normalized_slug}/"
+                return f"{base}{docs_prefix}/posts/{date_str}-{normalized_slug}/"
+            return f"{base}{docs_prefix}/posts/{normalized_slug}/"
 
         if document.type == DocumentType.PROFILE:
             author_uuid = document.metadata.get("uuid") or document.metadata.get("author_uuid")
             if not author_uuid:
                 msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
                 raise ValueError(msg)
-            return f"{base}/profiles/{author_uuid}/"
+            return f"{base}{docs_prefix}/profiles/{author_uuid}/"
 
         if document.type == DocumentType.JOURNAL:
             window_label = document.metadata.get("window_label", document.source_window or "unlabeled")
             safe_label = window_label.replace(" ", "_").replace(":", "-")
-            return f"{base}/posts/journal/journal_{safe_label}/"
+            return f"{base}{docs_prefix}/posts/journal/journal_{safe_label}/"
 
         if document.type == DocumentType.ENRICHMENT_URL:
-            return f"{base}/docs/media/urls/{document.document_id}/"
+            return f"{base}{docs_prefix}/media/urls/{document.document_id}/"
 
         if document.type == DocumentType.ENRICHMENT_MEDIA:
             filename = document.suggested_path or f"{document.document_id}.md"
             filename = filename.removeprefix("docs/media/")
-            return f"{base}/docs/media/{filename}"
+            filename = filename.removeprefix("media/")
+            return f"{base}{docs_prefix}/media/{filename}"
 
         if document.type == DocumentType.MEDIA:
             filename = document.suggested_path or document.document_id
             filename = filename.removeprefix("docs/media/")
-            return f"{base}/docs/media/{filename}"
+            filename = filename.removeprefix("media/")
+            return f"{base}{docs_prefix}/media/{filename}"
 
         # Fallback for unknown types
-        return f"{base}/documents/{document.document_id}/"
+        return f"{base}{docs_prefix}/documents/{document.document_id}/"
 
 
 class MkDocsAdapter(OutputAdapter):
@@ -139,19 +143,19 @@ class MkDocsAdapter(OutputAdapter):
 
     def initialize(self, site_root: Path, url_context: UrlContext | None = None) -> None:
         """Initializes the adapter with all necessary paths and dependencies."""
-        self.site_root = site_root
-        self._ctx = url_context or UrlContext(base_url="")
-        self.posts_dir = site_root / "posts"
-        self.profiles_dir = site_root / "profiles"
-        self.journal_dir = site_root / "posts" / "journal"
-        self.urls_dir = site_root / "docs" / "media" / "urls"
-        self.media_dir = site_root / "docs" / "media"
+        site_paths = load_site_paths(site_root)
+        self.site_root = site_paths.site_root
+        docs_prefix = compute_site_prefix(site_paths.site_root, site_paths.docs_dir)
+        self._ctx = url_context or UrlContext(base_url="", site_prefix=docs_prefix, base_path=site_paths.site_root)
+        self.posts_dir = site_paths.posts_dir
+        self.profiles_dir = site_paths.profiles_dir
+        self.journal_dir = site_paths.posts_dir / "journal"
+        self.media_dir = site_paths.media_dir
+        self.urls_dir = self.media_dir / "urls"
 
-        self.posts_dir.mkdir(parents=True, exist_ok=True)
-        self.profiles_dir.mkdir(parents=True, exist_ok=True)
-        self.journal_dir.mkdir(parents=True, exist_ok=True)
-        self.urls_dir.mkdir(parents=True, exist_ok=True)
-        self.media_dir.mkdir(parents=True, exist_ok=True)
+        for directory in (self.posts_dir, self.profiles_dir, self.journal_dir, self.media_dir, self.urls_dir):
+            directory.mkdir(parents=True, exist_ok=True)
+
         self._initialized = True
 
     @property

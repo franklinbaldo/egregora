@@ -406,9 +406,8 @@ def _process_single_media(
     }
     media_subdir = media_subdir_map.get(media_type, "files")
 
-    # Suggest path: media/{subdir}/{filename}.md
-    # The .md extension will be added by OutputAdapter based on DocumentType
-    suggested_path = f"media/{media_subdir}/{file_path.stem}"
+    # Suggest path relative to the media root; the adapter normalizes the final prefix.
+    suggested_path = f"media/{media_subdir}/{file_path.stem}.md"
 
     doc = Document(
         content=markdown_content,
