@@ -44,41 +44,6 @@ class PipelineContext:
 
     This consolidates all runtime state, configuration, and resources
     into a single object that flows through the pipeline stages.
-
-    Attributes:
-        # Core Configuration
-        config: The main Egregora configuration
-
-        # Pipeline State
-        run_id: Unique identifier for this pipeline run
-        start_time: When this pipeline run started
-        source_type: Type of input source (whatsapp, slack, etc.)
-        input_path: Path to the input file/directory
-
-        # Directory Paths
-        output_dir: Root output directory
-        site_root: Site root directory (for prompts, config)
-        docs_dir: Documentation directory
-        posts_dir: Posts output directory
-        profiles_dir: Profiles output directory
-        media_dir: Media files directory
-
-        # Resources & Clients
-        client: Google GenAI client
-        storage: DuckDB storage manager
-        enrichment_cache: Cache for enrichment results
-
-        # Stores (Optional - created as needed)
-        rag_store: Vector store for RAG functionality
-        annotations_store: Store for conversation annotations
-
-        # Output & Formatting
-        output_format: Output adapter (MkDocs, Hugo, etc.)
-        url_context: URL generation context
-
-        # Input Adapter
-        adapter: Input adapter instance (for media extraction)
-
     """
 
     # Core Configuration
