@@ -191,9 +191,9 @@ def test_parse_basic_message():
     assert "author" in df.columns
 ```
 
-### VCR Tests
+### Live API Tests
 
-For tests involving API calls, use `pytest-vcr`:
+For tests involving API calls, prefer mocks; if you must hit the live API, set `GOOGLE_API_KEY`:
 
 ```python
 @pytest.mark.vcr()

@@ -12,7 +12,6 @@
 *[Gemini]: Google's Large Language Model
 *[MkDocs]: Static site generator for project documentation
 *[Elo]: A rating system for calculating relative skill levels
-*[VCR]: Video Cassette Recorder - here refers to pytest-vcr for recording API interactions
 *[uv]: A fast Python package installer and resolver
 *[ETL]: Extract, Transform, Load
 *[OLAP]: Online Analytical Processing

@@ -15,15 +15,15 @@ tests/
 ├── linting/          # Code quality checks (imports, style)
 ├── evals/            # LLM output quality evaluation
 ├── fixtures/         # Shared test fixtures and golden files
-└── cassettes/        # VCR HTTP recordings for API replay
+└── cassettes/        # (kept empty) legacy location for HTTP recordings
 ```
 
 ### Statistics
 
-- **648 total tests** across 55 test files
+- **648 total tests** across 55 test files (legacy counts)
 - **470 unit tests** (73% of suite)
-- **127 integration/e2e tests** (20% of suite)
-- **42 agent tests** (6% of suite)
+- **127 integration/e2e tests** (20% of suite, counts evolving)
+- **42 agent tests** (6% of suite, counts evolving)
 - **9 linting tests** (1% of suite)
 
 ## Rationale for Current Organization
@@ -49,9 +49,9 @@ tests/
    - Grouped by agent type (writer, editor, ranking) not source location
    - Makes sense as a top-level category
 
-4. **Fixtures and cassettes benefit from centralization**
+4. **Shared fixtures benefit from centralization**
    - `fixtures/golden/` used across unit/integration/e2e
-   - `cassettes/` (VCR recordings) used by multiple test categories
+   - `cassettes/` kept empty to discourage recorded HTTP fixtures
    - Sharing is easier with flat structure
 
 ### Test Naming Conventions
@@ -91,7 +91,7 @@ tests/
 - ✅ Meaningful names (not `test_1`, `test_2`)
 
 ### Integration Tests Must:
-- ✅ Use VCR cassettes for API calls (deterministic, no key needed)
+- ✅ Avoid recorded HTTP fixtures; prefer mocks or live calls with explicit API keys
 - ✅ Clean up DuckDB connections
 - ✅ Be runnable in CI without external services
 

@@ -1,7 +1,7 @@
 """Tests for independent pipeline stage CLI commands.
 
 These tests verify that each stage command works correctly in isolation,
-using pytest-vcr to replay API interactions where needed.
+run against live APIs when GOOGLE_API_KEY is set; prefer mocks elsewhere.
 """
 
 from __future__ import annotations
@@ -248,10 +248,10 @@ class TestGroupCommand:
 @pytest.mark.vcr
 @pytest.mark.skipif(
     not os.getenv("GOOGLE_API_KEY"),
-    reason="GOOGLE_API_KEY required for enrich tests with VCR",
+    reason="GOOGLE_API_KEY required for enrich tests with live Gemini",
 )
 class TestEnrichCommand:
-    """Tests for 'egregora enrich' command with VCR."""
+    """Tests for 'egregora enrich' command with live Gemini."""
 
     @pytest.fixture
     def parsed_csv(self, test_zip_file, test_output_dir):
@@ -272,7 +272,7 @@ class TestEnrichCommand:
         return site
 
     def test_enrich_basic(self, parsed_csv, test_zip_file, site_dir, test_output_dir):
-        """Test basic enrich command with VCR."""
+        """Test basic enrich command with live Gemini."""
         enriched_csv = test_output_dir / "enriched.csv"
 
         result = runner.invoke(
@@ -287,7 +287,7 @@ class TestEnrichCommand:
                 "--site-dir",
                 str(site_dir),
                 "--max-enrichments",
-                "2",  # Limit to reduce VCR cassette size
+                "2",  # Limit to reduce live API calls
             ],
         )
 
@@ -298,10 +298,10 @@ class TestEnrichCommand:
 @pytest.mark.vcr
 @pytest.mark.skipif(
     not os.getenv("GOOGLE_API_KEY"),
-    reason="GOOGLE_API_KEY required for gather-context tests with VCR",
+    reason="GOOGLE_API_KEY required for gather-context tests with live Gemini",
 )
 class TestGatherContextCommand:
-    """Tests for 'egregora gather-context' command with VCR."""
+    """Tests for 'egregora gather-context' command with live Gemini."""
 
     @pytest.fixture
     def enriched_csv(self, test_zip_file, test_output_dir):
@@ -324,7 +324,7 @@ class TestGatherContextCommand:
         return site
 
     def test_gather_context_basic(self, enriched_csv, site_dir, test_output_dir):
-        """Test basic gather-context command with VCR."""
+        """Test basic gather-context command with live Gemini."""
         context_json = test_output_dir / "context.json"
 
         result = runner.invoke(
@@ -349,10 +349,10 @@ class TestGatherContextCommand:
 @pytest.mark.vcr
 @pytest.mark.skipif(
     not os.getenv("GOOGLE_API_KEY"),
-    reason="GOOGLE_API_KEY required for write-posts tests with VCR",
+    reason="GOOGLE_API_KEY required for write-posts tests with live Gemini",
 )
 class TestWritePostsCommand:
-    """Tests for 'egregora write-posts' command with VCR."""
+    """Tests for 'egregora write-posts' command with live Gemini."""
 
     @pytest.fixture
     def enriched_csv(self, test_zip_file, test_output_dir):
@@ -375,7 +375,7 @@ class TestWritePostsCommand:
         return site
 
     def test_write_posts_basic(self, enriched_csv, site_dir):
-        """Test basic write-posts command with VCR."""
+        """Test basic write-posts command with live Gemini."""
         result = runner.invoke(
             app,
             [

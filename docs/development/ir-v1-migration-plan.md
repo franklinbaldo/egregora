@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the plan to migrate input adapters from the legacy `CONVERSATION_SCHEMA` to the new `IR_MESSAGE_SCHEMA` (IR v1). This migration is required to complete end-to-end testing with VCR recording.
+This document outlines the plan to migrate input adapters from the legacy `CONVERSATION_SCHEMA` to the new `IR_MESSAGE_SCHEMA` (IR v1). This migration is required to complete end-to-end testing with live API validation.
 
 **Status**: 🔴 BLOCKING - Pipeline fails at ingestion stage
 **Priority**: P0 - Critical for all pipeline functionality
@@ -430,7 +430,7 @@ assert "tenant_id" in schema.names
 assert "source" in schema.names
 ```
 
-### Step 7: Run End-to-End Test with VCR
+### Step 7: Run End-to-End Test with Live API
 
 ```bash
 export GOOGLE_API_KEY="..."
@@ -443,7 +443,7 @@ This will:
 - ✅ Run privacy stage (PII detection)
 - ✅ Run enrichment (if enabled)
 - ✅ Generate posts
-- ✅ Record VCR cassettes for future replay
+- ✅ Avoid recording HTTP fixtures; run live tests with GOOGLE_API_KEY for future replay
 
 ---
 
@@ -534,7 +534,7 @@ def test_ir_v1_end_to_end():
 - [ ] **Step 6**: Update tests
   - [ ] Unit tests for adapters
   - [ ] Integration tests for pipeline
-  - [ ] VCR cassette recording
+  - [ ] Live API validation (no cassette recording)
 
 - [ ] **Step 7**: Update documentation
   - [ ] CLAUDE.md: Document IR v1 schema
@@ -558,7 +558,7 @@ def test_ir_v1_end_to_end():
 ### Phase C: Validation (Day 3)
 - Update remaining adapters (Slack)
 - Run full end-to-end test
-- Record VCR cassettes
+- Avoid recording HTTP fixtures; run live tests with GOOGLE_API_KEY
 
 ### Phase D: Cleanup (Day 4)
 - Remove CONVERSATION_SCHEMA (if no longer used)
@@ -602,13 +602,13 @@ def test_ir_v1_end_to_end():
 
 ✅ **End-to-End Test**
 - Full pipeline runs without errors
-- VCR cassettes recorded successfully
+- Live API validation completed successfully
 - Output posts generated correctly
 
 ✅ **Test Coverage**
 - Unit tests for each adapter
 - Integration tests for privacy stage
-- End-to-end tests with VCR
+- End-to-end tests with live API calls
 
 ---
 
@@ -639,7 +639,7 @@ def test_ir_v1_end_to_end():
 2. **Clarify open questions** (especially run_id tracking)
 3. **Create implementation PR** following checklist
 4. **Run tests** to validate migration
-5. **Record VCR cassettes** for future test replay
+5. **Avoid recording HTTP fixtures; run live tests with GOOGLE_API_KEY** for future test replay
 
 ---
 

@@ -1,6 +1,6 @@
 # Testing
 
-Egregora uses pytest for testing with VCR for recording API interactions.
+Egregora uses pytest for testing; recorded HTTP cassettes are no longer maintained.
 
 ## Running Tests
 
@@ -40,7 +40,7 @@ tests/
 ├── test_writer.py                   # Generation tests
 ├── test_integration.py              # End-to-end tests
 ├── test_gemini_dispatcher.py        # API dispatcher tests
-├── test_with_golden_fixtures.py     # VCR integration tests
+├── test_with_golden_fixtures.py     # Integration tests with golden fixtures
 └── fixtures/
     ├── vcr_cassettes/               # Recorded API responses
     ├── sample_chats/                # Test WhatsApp exports
@@ -85,22 +85,9 @@ def test_full_pipeline():
     assert len(posts) > 0
 ```
 
-### VCR Tests
+### Live API Tests
 
-Tests that use `pytest-vcr` to record and replay API calls:
-
-```python
-@pytest.mark.vcr()
-def test_gemini_embedding():
-    """Test embedding with recorded API responses."""
-    from egregora.knowledge.rag import embed_text
-
-    # First run: records API call to cassette
-    # Subsequent runs: replays from cassette
-    embedding = embed_text("test message", client)
-
-    assert len(embedding) == 768
-```
+Use mocks whenever possible. When a live Gemini call is unavoidable, set `GOOGLE_API_KEY` and avoid recording HTTP responses. The `tests/cassettes/` directory should remain empty.
 
 ## Fixtures
 
@@ -136,35 +123,9 @@ def test_with_fixture(sample_messages):
     assert len(df) == 1
 ```
 
-## VCR Configuration
+## Live API Guidance
 
-### Configuration in pyproject.toml
-
-```toml
-[tool.pytest.ini_options]
-vcr_record_mode = "once"  # Record once, then replay
-vcr_cassette_dir = "tests/fixtures/vcr_cassettes"
-```
-
-### Recording New Cassettes
-
-```bash
-# Delete existing cassette to force re-recording
-rm tests/fixtures/vcr_cassettes/test_name.yaml
-
-# Run test (will record new cassette)
-uv run pytest tests/test_name.py
-
-# Commit the new cassette
-git add tests/fixtures/vcr_cassettes/test_name.yaml
-```
-
-### VCR Modes
-
-- `once`: Record once, replay afterwards (default)
-- `new_episodes`: Record new requests, replay existing
-- `all`: Always record (overwrites cassettes)
-- `none`: Never record (fail if cassette missing)
+Recorded HTTP cassettes are no longer kept. Prefer mocks for external services, and only hit live Gemini APIs when `GOOGLE_API_KEY` is available. Remove any generated cassette files.
 
 ## Test Data
 
@@ -310,7 +271,7 @@ uv run pytest -x --pdb tests/
 2. **One assertion per test**: Keep tests focused
 3. **Descriptive names**: `test_parser_handles_multiline_messages`
 4. **Use fixtures**: Share setup code
-5. **Mock external calls**: Use VCR for API tests
+5. **Mock external calls**: Prefer mocks; use live APIs explicitly when required
 6. **Clean up**: Use `tmp_path` for file tests
 7. **Test edge cases**: Empty inputs, null values, errors
 

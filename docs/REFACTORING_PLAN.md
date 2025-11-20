@@ -330,7 +330,7 @@ uv run pytest tests/unit/ --no-cov -v
 # 6. Integration tests
 uv run pytest tests/integration/ --no-cov -v
 
-# 7. E2E tests (with GOOGLE_API_KEY or VCR)
+# 7. E2E tests (with GOOGLE_API_KEY)
 uv run pytest tests/e2e/ --no-cov -v
 
 # 8. Full suite with coverage

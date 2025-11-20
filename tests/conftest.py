@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import sys
 import types
 import zipfile
@@ -304,75 +303,3 @@ def mock_batch_client(monkeypatch):
     return MockGeminiClient
 
 
-def _serialize_request_body(request):
-    """Serialize request body, encoding binary data as base64."""
-    if hasattr(request, "body") and request.body:
-        try:
-            # Try to decode as UTF-8 (for JSON/text requests)
-            request.body.decode("utf-8")
-        except (UnicodeDecodeError, AttributeError):
-            # Binary data - encode as base64 for YAML serialization
-            if isinstance(request.body, bytes):
-                request.body = base64.b64encode(request.body).decode("ascii")
-                request.headers["X-VCR-Binary-Body"] = ["true"]
-        else:
-            return request
-    return request
-
-
-def _deserialize_request_body(request):
-    """Deserialize request body, decoding base64 back to binary if needed."""
-    if request.headers.get("X-VCR-Binary-Body") == ["true"]:
-        request.body = base64.b64decode(request.body.encode("ascii"))
-        del request.headers["X-VCR-Binary-Body"]
-    return request
-
-
-def _serialize_response_body(response):
-    """Serialize response body, encoding binary data as base64."""
-    if response.get("body"):
-        try:
-            # Try to decode as UTF-8
-            if isinstance(response["body"], bytes):
-                response["body"].decode("utf-8")
-            elif isinstance(response["body"], str):
-                response["body"].encode("utf-8")
-        except (UnicodeDecodeError, AttributeError):
-            # Binary data - encode as base64
-            if isinstance(response["body"], bytes):
-                response["body"] = {"string": base64.b64encode(response["body"]).decode("ascii")}
-                response["headers"]["X-VCR-Binary-Body"] = ["true"]
-        else:
-            return response
-    return response
-
-
-@pytest.fixture(scope="module")
-def vcr_config():
-    """VCR configuration for recording and replaying HTTP interactions.
-
-    This configuration filters out sensitive data like API keys from cassettes
-    and properly handles binary file uploads (images, etc.).
-    """
-    return {
-        # Record mode: 'once' means record the first time, then replay
-        "record_mode": "once",
-        # Directory containing pre-recorded cassettes
-        "cassette_library_dir": str(Path(__file__).parent / "cassettes"),
-        # Filter API keys from recordings
-        "filter_headers": [
-            ("x-goog-api-key", "DUMMY_API_KEY"),
-            ("authorization", "DUMMY_AUTH"),
-        ],
-        # Filter query parameters with API keys
-        "filter_query_parameters": [
-            ("key", "DUMMY_API_KEY"),
-        ],
-        # Match requests on method, scheme, host, port, and path (not body for binary uploads)
-        "match_on": ["method", "scheme", "host", "port", "path"],
-        # Decode compressed responses
-        "decode_compressed_response": True,
-        # Handle binary content in requests/responses
-        "before_record_request": _serialize_request_body,
-        "before_record_response": _serialize_response_body,
-    }

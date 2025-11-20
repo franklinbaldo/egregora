@@ -6,7 +6,7 @@ These tests verify end-to-end functionality of the write command, including:
 - Resume/checkpoint logic
 - Date range filtering
 
-Uses pytest-vcr to replay API interactions where needed.
+Runs against live APIs when GOOGLE_API_KEY is set; prefer mocks elsewhere.
 """
 
 from __future__ import annotations
@@ -348,12 +348,12 @@ class TestWriteCommandDateFiltering:
 @pytest.mark.vcr
 @pytest.mark.skipif(
     not os.getenv("GOOGLE_API_KEY"),
-    reason="GOOGLE_API_KEY required for write command tests with VCR",
+    reason="GOOGLE_API_KEY required for write command tests hitting live APIs",
 )
 class TestWriteCommandWithAPI:
     """Tests for 'egregora write' command that require API interactions.
 
-    These tests use pytest-vcr to record and replay API calls, so they only
+    These tests hit live APIs when GOOGLE_API_KEY is set, so they
     need to be run once with a valid API key. Subsequent runs replay cassettes.
     """
 

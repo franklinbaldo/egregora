@@ -5,7 +5,7 @@ produce deterministic results. This is important for other tests that
 rely on the mocks.
 
 Note: Pipeline-level tests have been moved to test_with_golden_fixtures.py
-which uses VCR to replay real API responses, providing better integration testing.
+which previously replayed recorded API responses; prefer mocks or live tests with GOOGLE_API_KEY.
 """
 
 from __future__ import annotations

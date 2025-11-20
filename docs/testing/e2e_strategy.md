@@ -58,7 +58,7 @@ tests/
 ├── fixtures/
 │   ├── Conversa do WhatsApp com Teste.zip
 │   └── golden/expected_output/
-├── cassettes/                        # VCR recordings
+├── cassettes/                        # (kept empty) legacy recordings
 └── utils/
     └── mock_batch_client.py          # Mock infrastructure
 ```
@@ -67,7 +67,7 @@ tests/
 
 ✅ **Comprehensive WhatsApp Testing**: `test_whatsapp_real_scenario.py` provides excellent coverage of the input adapter layer
 ✅ **Mock Infrastructure**: Solid mocking utilities in `tests/utils/mock_batch_client.py`
-✅ **VCR Integration**: Cassette-based API replay works well for integration tests
+✅ **Live API Integration**: Live Gemini calls work when GOOGLE_API_KEY is set
 ✅ **CLI Testing**: Good coverage of CLI commands and options
 ✅ **Observability**: Run tracking tests validate the tracking infrastructure
 
@@ -75,7 +75,7 @@ tests/
 
 ❌ **Broken Golden Fixtures**: `test_with_golden_fixtures.py` is marked as `xfail` due to pydantic-ai migration
 ⚠️  **Unclear Boundaries**: E2E tests mix concerns (parser + pipeline + CLI)
-⚠️  **Inconsistent Mocking**: Multiple mocking strategies (monkeypatch, VCR, TestModel) without clear guidelines
+⚠️  **Inconsistent Mocking**: Multiple mocking strategies (monkeypatch, live calls, TestModel) without clear guidelines
 ⚠️  **Missing Output Adapter E2E**: No dedicated tests for MkDocs/Eleventy output generation
 ⚠️  **Temporal Tests**: Tests like `test_week1_golden.py` are time-bound and unclear
 ⚠️  **Limited Unit Tests**: Only 2 unit test files for a large codebase
@@ -141,7 +141,7 @@ tests/
 │       ├── posts/
 │       ├── profiles/
 │       └── metadata/
-├── cassettes/                    # VCR recordings (integration tests only)
+├── cassettes/                    # (kept empty) legacy recordings
 └── helpers/                      # Test utilities (renamed from utils)
     ├── mock_agents.py
     ├── mock_batch_client.py
@@ -370,7 +370,7 @@ def test_whatsapp_parser_produces_valid_ir(whatsapp_fixture):
 | Test Type | What to Mock | How to Mock | Why |
 |-----------|--------------|-------------|-----|
 | **Unit** | External dependencies (file I/O, DB, API) | `unittest.mock.patch` | Isolate pure function logic |
-| **Integration** | Expensive APIs (Gemini, embeddings) | `pytest-vcr` cassettes | Test real integrations with recorded responses |
+| **Integration** | Expensive APIs (Gemini, embeddings) | live Gemini calls (GOOGLE_API_KEY) or mocks | Test real integrations with recorded responses |
 | **E2E Input Adapter** | Nothing (use real ZIPs) | N/A | Validate real file parsing |
 | **E2E Pipeline** | LLM agent decisions | `pydantic_ai.models.test.TestModel` | Deterministic agent output |
 | **E2E Output Adapter** | Nothing (use real file writes) | N/A | Validate real file generation |
@@ -395,7 +395,7 @@ def test_whatsapp_parser_produces_valid_ir(whatsapp_fixture):
 
 **Acceptance Criteria**:
 - All E2E pipeline tests use `TestModel` for agent mocking
-- All integration tests use VCR cassettes for API recording
+- Integration tests should avoid recorded HTTP fixtures; prefer mocks or gated live calls
 - All mocking code centralized in `tests/helpers/`
 - README documents mocking patterns clearly
 
@@ -467,7 +467,7 @@ If a phase introduces issues:
 ### Quantitative Metrics
 
 - **Test Organization**: 100% of E2E tests in correct layer directory
-- **Test Health**: 0 xfail tests, 0 skipped tests (except optional VCR tests)
+- **Test Health**: 0 xfail tests, 0 skipped tests (except optional live-API tests)
 - **Coverage**: >80% line coverage for pipeline orchestration code
 - **Performance**: E2E test suite completes in <60 seconds
 - **Determinism**: 100% of E2E tests pass consistently (no flakes)

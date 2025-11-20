@@ -83,7 +83,7 @@ uv run pytest tests/
 
 # Run specific test suites
 uv run pytest tests/test_gemini_dispatcher.py  # Dispatcher tests
-uv run pytest tests/test_with_golden_fixtures.py  # VCR integration tests
+uv run pytest tests/test_with_golden_fixtures.py  # Integration tests
 
 # Lint code
 uv run ruff check src/
@@ -118,7 +118,7 @@ cd output && uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs ser
 - **Type checking**: mypy (strict mode with per-file overrides)
 - **Line length**: 100 characters
 - **CLI entry point**: `egregora.orchestration.cli:main`
-- **Testing**: pytest with VCR cassettes for API replay
+- **Testing**: pytest with live API calls (GOOGLE_API_KEY) or mocks
 
 ## Ibis-First Coding Standard
 
@@ -281,7 +281,7 @@ Ingestion → Privacy → Augmentation → Knowledge → Generation → Publicat
   - `genai.py`: Gemini client initialization
 
 - **Testing** (`src/egregora/testing/`)
-  - `gemini_recorder.py`: Record/replay Gemini API calls for VCR tests
+  - `gemini_recorder.py`: Legacy recorder for Gemini API calls (avoid using)
 
 ### Data Flow Example
 
@@ -309,7 +309,7 @@ Static site (mkdocs serve)
 2. **UUIDs are deterministic** - Same author always gets same UUID (stable across runs)
 3. **Schemas enforce contracts** - All data transformations validated by Ibis schemas
 4. **RAG is stateful** - Vector store persists across runs for context continuity
-5. **VCR tests use exact mode** - `retrieval_mode="exact"` avoids VSS extension dependency in tests
+5. **Live API tests** should set `retrieval_mode="exact"` to avoid VSS extension dependency
 6. **CONVERSATION_SCHEMA is canonical** - All pipeline stages must return tables conforming to `CONVERSATION_SCHEMA` from `core/database_schema.py`. Stages that add columns during processing MUST filter them out before returning (see `augmentation/enrichment/core.py` for reference implementation). This prevents schema drift and downstream errors.
 
 ### File Organization Patterns

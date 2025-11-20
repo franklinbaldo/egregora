@@ -38,7 +38,7 @@ tests/
 | Test Type | Mock Strategy |
 |-----------|---------------|
 | Unit | `unittest.mock.patch` for external deps |
-| Integration | `pytest-vcr` cassettes for APIs |
+| Integration | Live API calls (GOOGLE_API_KEY) or mocks |
 | E2E Input | No mocking (real files) |
 | E2E Pipeline | `pydantic_ai.models.test.TestModel` for agents |
 | E2E Output | No mocking (real file writes) |

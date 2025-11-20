@@ -235,11 +235,11 @@ uv run pytest tests/e2e/               # End-to-end tests
 # With coverage
 uv run pytest --cov=egregora --cov-report=html tests/
 
-# VCR cassette replay (no API key needed for most tests)
+# End-to-end tests (live Gemini calls require GOOGLE_API_KEY)
 uv run pytest tests/e2e/
 ```
 
-**Note**: Integration tests use [pytest-vcr](https://pytest-vcr.readthedocs.io/) to record/replay Gemini API calls. First runs need `GOOGLE_API_KEY`, subsequent runs use cassettes from `tests/cassettes/`.
+**Note**: Recorded VCR cassettes are no longer kept; integration and E2E tests that hit Gemini require `GOOGLE_API_KEY`.
 
 ### Code Quality
 

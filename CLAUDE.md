@@ -83,7 +83,7 @@ formatting, and security checks as CI. Run `python dev_tools/setup_hooks.py` (pr
 opening a pull request, and re-run the command whenever the hook list changes. If the hooks are missing, your commits may fail in
 CI and will be blocked from merging.
 
-**VCR cassettes**: First run needs `GOOGLE_API_KEY`, subsequent runs replay from `tests/cassettes/`.
+**Live API tests**: Set `GOOGLE_API_KEY` when hitting Gemini; do not commit recorded cassettes.
 
 ## Parallel Subagent Delegation
 
@@ -385,11 +385,11 @@ All in `database/ir_schema.py`:
 ## Testing
 
 - `tests/unit/`: Pure functions
-- `tests/integration/`: DuckDB, API (VCR)
+- `tests/integration/`: DuckDB, API (live or mocked)
 - `tests/e2e/`: Full pipeline (golden fixtures)
 - `tests/agents/`: Agent tests
 
-**VCR**: Record/replay Gemini calls (cassettes in `tests/cassettes/`)
+**Live API**: Use real calls with `GOOGLE_API_KEY` when needed (no recorded cassettes)
 **Golden fixtures**: `tests/fixtures/golden/expected_output/`
 **VSS**: Use `--retrieval-mode=exact` in CI
 
@@ -464,7 +464,7 @@ settings = AnthropicModelSettings(anthropic_thinking={'type': 'enabled', 'budget
 1. Define in `agents/writer/tools.py`
 2. Register in `ToolRegistry`
 3. Add to agent init
-4. Test with VCR
+4. Test with live API (when needed)
 
 ### Debugging
 
@@ -552,13 +552,13 @@ See `CONTRIBUTING.md` for details.
 1. Never bypass privacy stage
 2. Use Ibis, not pandas (convert only at boundaries)
 3. Respect schemas in `database/schema.py`
-4. Commit VCR cassettes to repo
+4. Do not commit HTTP cassettes; keep `tests/cassettes/` empty
 5. Use `--retrieval-mode=exact` without VSS extension
 
 ## Dependencies
 
 **Core**: Ibis, DuckDB, Pydantic-AI, Google Gemini, MkDocs Material, uv
-**Optional**: pytest-vcr, Pydantic Logfire, mkdocs-rss-plugin
+**Optional**: Pydantic Logfire, mkdocs-rss-plugin
 
 ## Deployment
 

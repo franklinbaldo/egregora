@@ -266,7 +266,7 @@ track_run_event("reader_comparison", metadata={
 **Tests:**
 - Unit tests for ELO calculation
 - Integration tests for store (DuckDB CRUD)
-- Agent tests with VCR cassettes
+- Agent tests with live API calls when necessary
 
 **Deliverable:** `egregora.agents.reader` module working standalone
 
@@ -827,7 +827,7 @@ def migrate_rankings(old_db: Path, new_db: Path):
 
 ### Integration Tests
 - DuckDB store CRUD operations (`tests/integration/test_reader_store.py`)
-- Reader agent with VCR cassettes
+- Reader agent validated with live API calls when necessary
 - Profile loading
 - Reader pipeline orchestration (`tests/integration/test_read_pipeline.py`)
 
