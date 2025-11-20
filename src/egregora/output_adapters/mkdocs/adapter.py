@@ -25,13 +25,11 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import write_profile as write_profile_content
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
-from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
-from egregora.output_adapters.mkdocs.paths import derive_mkdocs_paths
+from egregora.output_adapters.conventions import StandardUrlConvention
+from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
 from egregora.utils.filesystem import (
     _ensure_author_entries,
     _format_frontmatter_datetime,
-)
-from egregora.utils.filesystem import (
     write_markdown_post as _write_mkdocs_post,
 )
 from egregora.utils.frontmatter_utils import parse_frontmatter
@@ -58,25 +56,21 @@ class MkDocsAdapter(OutputAdapter):
         """Initializes the adapter."""
         self._initialized = False
         self.site_root = None
-        self._url_convention = StandardUrlConvention(
-            routes=RouteConfig(
-                posts_prefix="posts",
-                profiles_prefix="profiles",
-                media_prefix="docs/media",
-            )
-        )
+        self._url_convention = StandardUrlConvention()
         self._index: dict[str, Path] = {}
         self._ctx: UrlContext | None = None
 
     def initialize(self, site_root: Path, url_context: UrlContext | None = None) -> None:
         """Initializes the adapter with all necessary paths and dependencies."""
-        self.site_root = site_root
-        self._ctx = url_context or UrlContext(base_url="")
-        self.posts_dir = site_root / "posts"
-        self.profiles_dir = site_root / "profiles"
-        self.journal_dir = site_root / "posts" / "journal"
-        self.urls_dir = site_root / "docs" / "media" / "urls"
-        self.media_dir = site_root / "docs" / "media"
+        site_paths = derive_mkdocs_paths(site_root)
+        self.site_root = site_paths["site_root"]
+        prefix = compute_site_prefix(self.site_root, site_paths["docs_dir"])
+        self._ctx = url_context or UrlContext(base_url="", site_prefix=prefix, base_path=self.site_root)
+        self.posts_dir = site_paths["posts_dir"]
+        self.profiles_dir = site_paths["profiles_dir"]
+        self.journal_dir = self.posts_dir / "journal"
+        self.media_dir = site_paths["media_dir"]
+        self.urls_dir = self.media_dir / "urls"
 
         self.posts_dir.mkdir(parents=True, exist_ok=True)
         self.profiles_dir.mkdir(parents=True, exist_ok=True)

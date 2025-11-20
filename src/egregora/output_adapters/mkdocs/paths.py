@@ -22,6 +22,7 @@ __all__ = [
     "MEDIA_DIR_NAME",
     "PROFILES_DIR_NAME",
     "derive_mkdocs_paths",
+    "compute_site_prefix",
 ]
 
 
@@ -97,3 +98,16 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
         "rankings_dir": egregora_dir / "rankings",
         "enriched_dir": egregora_dir / "enriched",
     }
+
+
+def compute_site_prefix(site_root: Path, docs_dir: Path) -> str:
+    """Return docs_dir relative to site_root for URL generation."""
+    try:
+        relative = docs_dir.relative_to(site_root)
+    except ValueError:
+        return ""
+
+    rel_str = relative.as_posix().strip("/")
+    if rel_str in {"", "."}:
+        return ""
+    return rel_str
