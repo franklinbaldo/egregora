@@ -14,7 +14,6 @@ Tests in this file validate:
 
 from __future__ import annotations
 
-import string
 import zipfile
 from datetime import date
 from pathlib import Path
