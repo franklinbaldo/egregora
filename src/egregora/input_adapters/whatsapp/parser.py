@@ -602,7 +602,8 @@ def parse_source(
     if _IMPORT_ORDER_COLUMN in messages.columns:
         messages = messages.drop(_IMPORT_ORDER_COLUMN)
 
-    messages = anonymize_table(messages)
+    if not expose_raw_author:
+        messages = anonymize_table(messages)
 
     # IR v1: Drop internal helper columns, keep author_raw and author_uuid for IR schema
     helper_columns = [_AUTHOR_UUID_HEX_COLUMN]
