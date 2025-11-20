@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import sys
-import types
 import zipfile
 from dataclasses import dataclass
 from datetime import date
@@ -33,99 +32,6 @@ except ImportError:  # pragma: no cover - depends on test env
         allow_module_level=True,
     )
 
-
-try:  # Prefer the real SDK if it is available in the environment.
-    from google.genai import types as genai_types  # type: ignore[import-not-found]
-
-    # Some historical versions lacked the newer helper classes we rely on.
-    _real_sdk_available = bool(hasattr(genai_types, "FunctionCall"))
-except (ImportError, AttributeError):  # pragma: no cover - runtime safety for optional dependency
-    # SDK not installed or incompatible version
-    _real_sdk_available = False
-
-
-def _install_google_stubs() -> None:
-    """Ensure google genai modules exist so imports succeed during tests."""
-    if _real_sdk_available:
-        # Some historical versions lacked the newer helper classes we rely on.
-        if hasattr(genai_types, "FunctionCall"):
-            return
-
-    google_module = types.ModuleType("google")
-    genai_module = types.ModuleType("google.genai")
-    genai_types_module = types.ModuleType("google.genai.types")
-
-    class _SimpleStruct:
-        def __init__(self, *args, **kwargs):
-            for key, value in kwargs.items():
-                setattr(self, key, value)
-
-    class _DummyType:
-        OBJECT = "object"
-        STRING = "string"
-        ARRAY = "array"
-        INTEGER = "integer"
-
-    class _DummyClient:
-        def __init__(self, *args, **kwargs):
-            empty_response = types.SimpleNamespace(candidates=[])
-            self.models = types.SimpleNamespace(generate_content=lambda *a, **k: empty_response)
-            self.aio = types.SimpleNamespace(models=self.models)
-            self.files = types.SimpleNamespace(
-                upload=lambda *a, **k: types.SimpleNamespace(
-                    uri="stub://file", mime_type="application/octet-stream"
-                )
-            )
-
-            dummy_job = types.SimpleNamespace(
-                name="stub-job",
-                dest=types.SimpleNamespace(inlined_responses=[]),
-                state=types.SimpleNamespace(name="JOB_STATE_SUCCEEDED"),
-                done=True,
-                error=None,
-            )
-            self.batches = types.SimpleNamespace(
-                create=lambda *a, **k: dummy_job, get=lambda *a, **k: dummy_job
-            )
-
-        def close(self) -> None:  # pragma: no cover - compatibility stub
-            return None
-
-    # Populate genai.types namespace with simple containers used in code paths.
-    for attr in (
-        "Schema",
-        "FunctionDeclaration",
-        "FunctionCall",
-        "Tool",
-        "FunctionResponse",
-        "FunctionCall",
-        "Part",
-        "Content",
-        "GenerateContentConfig",
-        "BatchJobSource",
-        "CreateBatchJobConfig",
-        "InlinedRequest",
-        "EmbeddingsBatchJobSource",
-        "EmbedContentBatch",
-        "EmbedContentConfig",
-        "FileData",
-        "BatchJob",
-        "JobError",
-    ):
-        setattr(genai_types_module, attr, _SimpleStruct)
-
-    genai_types_module.Type = _DummyType
-
-    google_module.genai = genai_module
-    genai_module.types = genai_types_module
-    genai_module.Client = _DummyClient
-
-    sys.modules["google"] = google_module
-    sys.modules["google.genai"] = genai_module
-    sys.modules["google.genai.types"] = genai_types_module
-
-
-_install_google_stubs()
 
 # Imports below require sys.path setup above
 from egregora.data_primitives import GroupSlug
@@ -376,3 +282,94 @@ def vcr_config():
         "before_record_request": _serialize_request_body,
         "before_record_response": _serialize_response_body,
     }
+
+
+# =============================================================================
+# Centralized Configuration Fixtures
+# =============================================================================
+# See: docs/testing/config_refactoring_plan.md for design rationale
+
+
+@pytest.fixture
+def test_config(tmp_path: Path):
+    """Test configuration with tmp_path for isolation.
+
+    Creates a minimal valid configuration using pytest's tmp_path to ensure
+    test isolation and prevent tests from affecting each other or the filesystem.
+
+    All tests should use this or derived fixtures instead of manually
+    constructing Settings objects.
+
+    Args:
+        tmp_path: pytest's temporary directory fixture
+
+    Returns:
+        EgregoraConfig configured for test environment
+    """
+    from egregora.config.settings import create_default_config
+
+    # Create site root in tmp_path for test isolation
+    site_root = tmp_path / "site"
+    site_root.mkdir(parents=True, exist_ok=True)
+
+    # Create default config with test site_root
+    config = create_default_config(site_root=site_root)
+
+    return config
+
+
+@pytest.fixture
+def reader_test_config(test_config):
+    """Configuration with reader agent enabled for testing.
+
+    Use this fixture for tests that involve the reader agent (post evaluation,
+    ELO ranking, etc.). Config optimized for fast test execution.
+
+    Args:
+        test_config: Base test configuration
+
+    Returns:
+        EgregoraConfig with reader agent enabled and test-optimized settings
+    """
+    config = test_config.model_copy(deep=True)
+    config.reader.enabled = True
+    config.reader.comparisons_per_post = 1  # Fast tests (minimal comparisons)
+    config.reader.k_factor = 32  # Standard ELO K-factor
+    return config
+
+
+@pytest.fixture
+def enrichment_test_config(test_config):
+    """Configuration with enrichment enabled for testing.
+
+    Use this fixture for tests that involve enrichment (URL descriptions,
+    media analysis, author profiling, etc.).
+
+    Args:
+        test_config: Base test configuration
+
+    Returns:
+        EgregoraConfig with enrichment enabled
+    """
+    config = test_config.model_copy(deep=True)
+    # Enrichment settings will be added here when needed
+    return config
+
+
+@pytest.fixture
+def pipeline_test_config(test_config):
+    """Configuration for full pipeline E2E tests.
+
+    Use this fixture for tests that run the entire write pipeline.
+    Slow components (reader, enrichment) are disabled for faster execution.
+
+    Args:
+        test_config: Base test configuration
+
+    Returns:
+        EgregoraConfig optimized for pipeline E2E tests
+    """
+    config = test_config.model_copy(deep=True)
+    config.reader.enabled = False  # Disable slow components for faster tests
+    # Additional pipeline-specific overrides can be added here
+    return config

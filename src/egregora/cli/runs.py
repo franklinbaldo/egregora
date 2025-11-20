@@ -30,6 +30,12 @@ def runs_tail(
     db_path: Annotated[Path, typer.Option(help="Runs database path")] = Path(".egregora-cache/runs.duckdb"),
 ) -> None:
     """Show last N runs."""
+    # Check if database exists before trying to open
+    if not db_path.exists():
+        console.print(f"[yellow]No runs database found at {db_path}[/yellow]")
+        console.print("[dim]Runs will be tracked after first pipeline execution[/dim]")
+        return
+
     try:
         storage = get_storage(db_path)
         with RunStore(storage) as store:
@@ -151,6 +157,11 @@ def runs_show(
     db_path: Annotated[Path, typer.Option(help="Runs database path")] = Path(".egregora-cache/runs.duckdb"),
 ) -> None:
     """Show detailed run info."""
+    # Check if database exists before trying to open
+    if not db_path.exists():
+        console.print(f"[red]No runs database found at {db_path}[/red]")
+        raise typer.Exit(1)
+
     try:
         storage = get_storage(db_path)
         with RunStore(storage) as store:

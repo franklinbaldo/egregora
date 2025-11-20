@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 from egregora.agents.reader.agent import compare_posts
 from egregora.agents.reader.elo import calculate_elo_update
 from egregora.agents.reader.models import EvaluationRequest, RankingResult
+from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
 
 if TYPE_CHECKING:
@@ -113,7 +114,8 @@ async def run_reader_evaluation(
     # Initialize ELO store
     db_path = posts_dir.parent / config.database_path
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    elo_store = EloStore(db_path)
+    storage = DuckDBStorageManager(db_path=db_path)
+    elo_store = EloStore(storage)
 
     try:
         # Discover posts
@@ -235,4 +237,4 @@ async def run_reader_evaluation(
         return rankings
 
     finally:
-        elo_store.close()
+        storage.close()
