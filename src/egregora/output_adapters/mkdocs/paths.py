@@ -228,6 +228,6 @@ __all__ = [
     "MEDIA_DIR_NAME",
     "PROFILES_DIR_NAME",
     "SitePaths",
-    "load_site_paths",
     "compute_site_prefix",
+    "load_site_paths",
 ]

@@ -146,7 +146,9 @@ class MkDocsAdapter(OutputAdapter):
         site_paths = load_site_paths(site_root)
         self.site_root = site_paths.site_root
         docs_prefix = compute_site_prefix(site_paths.site_root, site_paths.docs_dir)
-        self._ctx = url_context or UrlContext(base_url="", site_prefix=docs_prefix, base_path=site_paths.site_root)
+        self._ctx = url_context or UrlContext(
+            base_url="", site_prefix=docs_prefix, base_path=site_paths.site_root
+        )
         self.posts_dir = site_paths.posts_dir
         self.profiles_dir = site_paths.profiles_dir
         self.journal_dir = site_paths.posts_dir / "journal"
