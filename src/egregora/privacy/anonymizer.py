@@ -41,6 +41,10 @@ def anonymize_table(table: Table, *, redact_token: str = DEFAULT_REDACTED) -> Ta
     sanitized_author = table["author_raw"].substitute(mapping, else_=redact_token)
     anonymized = table.mutate(author_raw=sanitized_author)
 
+    # Also update the 'author' display column if it exists (common in WhatsApp schema)
+    if "author" in anonymized.columns:
+        anonymized = anonymized.mutate(author=sanitized_author)
+
     if "text" in anonymized.columns:
 
         @ibis.udf.scalar.python
