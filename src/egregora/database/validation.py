@@ -57,11 +57,6 @@ import ibis.expr.datatypes as dt
 from pydantic import BaseModel, Field, ValidationError, create_model
 
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
-from egregora.privacy.uuid_namespaces import (
-    deterministic_author_uuid,
-    deterministic_event_uuid,
-    deterministic_thread_uuid,
-)
 
 if TYPE_CHECKING:
     from zoneinfo import ZoneInfo
@@ -412,116 +407,6 @@ def _types_compatible(expected: dt.DataType, actual: dt.DataType) -> bool:
 # See docs/SIMPLIFICATION_PLAN.md for details.
 
 
-# ============================================================================
-# IR Table Creation (Compatibility Layer)
-# ============================================================================
-
-
-def create_ir_table(  # noqa: C901, PLR0913
-    table: Table,
-    *,
-    tenant_id: str,
-    source: str,
-    timezone: str | ZoneInfo | None = None,
-    thread_key: str | None = None,
-    run_id: uuid.UUID | None = None,
-    author_namespace: uuid.UUID | None = None,
-) -> Table:
-    """Convert legacy conversation table to IR v1 schema."""
-    if not tenant_id:
-        msg = "tenant_id is required when constructing IR table"
-        raise ValueError(msg)
-    if not source:
-        msg = "source is required when constructing IR table"
-        raise ValueError(msg)
-
-    # CLEAN BREAK: Adapters MUST return IR-like schema (ts, text, author_raw, author_uuid)
-    # No legacy CONVERSATION schema support - fix adapters instead
-
-    # Verify adapter returned IR schema
-    required_cols = {"ts", "text", "author_raw", "author_uuid"}
-    missing = required_cols - set(table.columns)
-    if missing:
-        msg = f"Adapter must return IR schema. Missing columns: {missing}"
-        raise ValueError(msg)
-
-    # No normalization - use IR column names directly
-    if "message_id" not in table.columns:
-        table = table.mutate(message_id=ibis.row_number().cast(dt.string))
-
-    namespace_override = author_namespace
-
-    @ibis.udf.scalar.python
-    def author_uuid_udf(author_raw: str | None) -> str:
-        if author_raw is None or not author_raw.strip():
-            msg = "author_raw column cannot be empty when generating author_uuid"
-            raise ValueError(msg)
-        if namespace_override is not None:
-            normalized_author = author_raw.strip().lower()
-            return str(uuid.uuid5(namespace_override, normalized_author))
-        return str(deterministic_author_uuid(tenant_id, source, author_raw))
-
-    @ibis.udf.scalar.python
-    def event_uuid_udf(message_id: str | None, ts_value: datetime) -> str:
-        if ts_value is None:
-            msg = "ts is required to generate event_id"
-            raise ValueError(msg)
-        key = message_id or ts_value.isoformat()
-        return str(deterministic_event_uuid(tenant_id, source, key, ts_value))
-
-    @ibis.udf.scalar.python
-    def attrs_udf(
-        original_line: str | None,
-        tagged_line: str | None,
-        date_value: date | None,
-    ) -> dict[str, str] | None:
-        data: dict[str, str] = {}
-        if original_line:
-            data["original_line"] = original_line
-        if tagged_line:
-            data["tagged_line"] = tagged_line
-        if date_value:
-            data["date"] = date_value.isoformat()
-        return data or None
-
-    thread_identifier = thread_key or tenant_id
-    thread_uuid = deterministic_thread_uuid(tenant_id, source, thread_identifier)
-
-    if run_id is not None:
-        # Convert Python UUID to string - DuckDB handles str→UUID conversion
-        created_by_run_literal = ibis.literal(str(run_id), type=dt.string)
-    else:
-        created_by_run_literal = ibis.null().cast(dt.string)
-
-    # CLEAN BREAK: Use IR column names directly (ts, text, author_raw, author_uuid)
-    # NOTE: UDF functions already return str, matching the VARCHAR-based IR schema.
-    ir_table = table.mutate(
-        event_id=event_uuid_udf(
-            table.message_id.cast(dt.string),
-            table.ts.cast(dt.Timestamp()),
-        ),
-        tenant_id=ibis.literal(tenant_id, type=dt.string),
-        source=ibis.literal(source, type=dt.string),
-        # thread_uuid is Python UUID → convert to string for DuckDB
-        thread_id=ibis.literal(str(thread_uuid), type=dt.string),
-        msg_id=table.message_id.cast(dt.string),
-        ts=table.ts.cast(dt.Timestamp(timezone="UTC")),
-        author_raw=table.author_raw,
-        author_uuid=author_uuid_udf(table.author_raw),
-        text=table.text,
-        media_url=ibis.null().cast(dt.String(nullable=True)),
-        media_type=ibis.null().cast(dt.String(nullable=True)),
-        attrs=attrs_udf(
-            table.original_line if "original_line" in table.columns else ibis.null(),
-            table.tagged_line if "tagged_line" in table.columns else ibis.null(),
-            table.date if "date" in table.columns else ibis.null(),
-        ).cast(dt.JSON(nullable=True)),
-        pii_flags=ibis.null().cast(dt.JSON(nullable=True)),
-        created_at=ibis.literal(datetime.now(UTC), type=dt.Timestamp(timezone="UTC")),
-        created_by_run=created_by_run_literal,
-    )
-
-    return ir_table.select(*IR_MESSAGE_SCHEMA.names)
 
 
 # ============================================================================
@@ -532,7 +417,6 @@ __all__ = [
     "IR_MESSAGE_SCHEMA",
     "IRMessageRow",
     "SchemaError",
-    "create_ir_table",
     "ibis_schema_to_pydantic",
     "ibis_type_to_python",
     "schema_diff",

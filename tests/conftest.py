@@ -126,17 +126,9 @@ def stub_enrichment_agents(monkeypatch):
         return f"Stub enrichment for {media_path}"
 
     monkeypatch.setattr(
-        "egregora.enrichment.agents.make_url_agent",
-        lambda model, prompts_dir=None: _stub_url_agent(model, prompts_dir),
-    )
-    monkeypatch.setattr(
         "egregora.enrichment.runners.make_url_agent",
         lambda model, prompts_dir=None: _stub_url_agent(model, prompts_dir),
         raising=False,
-    )
-    monkeypatch.setattr(
-        "egregora.enrichment.agents.make_media_agent",
-        lambda model, prompts_dir=None: _stub_media_agent(model, prompts_dir),
     )
     monkeypatch.setattr(
         "egregora.enrichment.runners.make_media_agent",
@@ -144,17 +136,9 @@ def stub_enrichment_agents(monkeypatch):
         raising=False,
     )
     monkeypatch.setattr(
-        "egregora.enrichment.agents.run_url_enrichment",
-        lambda agent, url, prompts_dir=None: _stub_url_run(agent, url, prompts_dir),
-    )
-    monkeypatch.setattr(
         "egregora.enrichment.runners.run_url_enrichment",
         lambda agent, url, prompts_dir=None: _stub_url_run(agent, url, prompts_dir),
         raising=False,
-    )
-    monkeypatch.setattr(
-        "egregora.enrichment.agents.run_media_enrichment",
-        lambda agent, file_path, **kwargs: _stub_media_run(agent, file_path, **kwargs),
     )
     monkeypatch.setattr(
         "egregora.enrichment.runners.run_media_enrichment",

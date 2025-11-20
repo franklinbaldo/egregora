@@ -46,7 +46,7 @@ Media processing:
 
 """
 
-from egregora.transformations.media import (
+from egregora.ops.media import (
     extract_markdown_media_refs,
     process_media_for_window,
     replace_markdown_media_refs,

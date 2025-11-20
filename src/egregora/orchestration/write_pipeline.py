@@ -31,10 +31,10 @@ import ibis
 from google import genai
 
 from egregora.agents.model_limits import get_model_context_limit
-from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.shared.author_profiles import filter_opted_out_authors, process_commands
-from egregora.agents.shared.rag import VectorStore, index_all_media
-from egregora.agents.writer.agent import write_posts_for_window
+from egregora.knowledge.annotations import AnnotationStore
+from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
+from egregora.knowledge.rag import VectorStore, index_all_media
+from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.tracking import record_run
@@ -43,11 +43,11 @@ from egregora.enrichment import enrich_table
 from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
 from egregora.enrichment.runners import EnrichmentRuntimeContext
 from egregora.input_adapters import get_adapter
-from egregora.input_adapters.whatsapp.parser import extract_commands, filter_egregora_messages
+from egregora.input_adapters.whatsapp import extract_commands, filter_egregora_messages
 from egregora.orchestration.context import PipelineContext
 from egregora.output_adapters.mkdocs import load_site_paths
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
-from egregora.transformations.media import process_media_for_window
+from egregora.ops.media import process_media_for_window
 from egregora.utils.cache import EnrichmentCache
 
 if TYPE_CHECKING:
@@ -721,24 +721,31 @@ def _create_pipeline_context(  # noqa: PLR0913
 
     annotations_store = AnnotationStore(storage)
 
-    ctx = PipelineContext(
+    from egregora.orchestration.context import PipelineConfig, PipelineState  # noqa: PLC0415
+
+    config_obj = PipelineConfig(
         config=config,
-        run_id=run_id,
-        start_time=start_time,
-        source_type=source_type,
-        input_path=input_path,
         output_dir=resolved_output,
         site_root=site_paths.site_root,
         docs_dir=site_paths.docs_dir,
         posts_dir=site_paths.posts_dir,
         profiles_dir=site_paths.profiles_dir,
         media_dir=site_paths.media_dir,
+    )
+
+    state = PipelineState(
+        run_id=run_id,
+        start_time=start_time,
+        source_type=source_type,
+        input_path=input_path,
         client=client_instance,
         storage=storage,
         enrichment_cache=enrichment_cache,
         rag_store=rag_store,
         annotations_store=annotations_store,
     )
+
+    ctx = PipelineContext(config_obj, state)
 
     return ctx, pipeline_backend, runs_backend
 
@@ -995,7 +1002,7 @@ def _prepare_pipeline_data(
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
-            from egregora.agents.shared.rag.indexing import index_documents_for_rag  # noqa: PLC0415
+            from egregora.knowledge.rag import index_documents_for_rag  # noqa: PLC0415
 
             indexed_count = index_documents_for_rag(
                 output_format,

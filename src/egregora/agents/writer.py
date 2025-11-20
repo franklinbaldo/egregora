@@ -31,29 +31,30 @@ from pydantic_ai.messages import (
 
 from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.model_limits import PromptTooLargeError
-from egregora.agents.shared.author_profiles import get_active_authors, read_profile
-from egregora.agents.shared.rag import (
+from egregora.knowledge.profiles import get_active_authors, read_profile
+from egregora.knowledge.rag import (
     VectorStore,
     embed_query_text,
     index_documents_for_rag,
     is_rag_available,
     query_media,
 )
-from egregora.agents.writer.formatting import (
+from egregora.agents.formatting import (
     _build_conversation_markdown_table,
     _load_journal_memory,
 )
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
-from egregora.orchestration.context import PipelineContext
 from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.mkdocs import MkDocsAdapter
-from egregora.prompt_templates import render_prompt
-from egregora.utils.genai import call_with_retries_sync
+from egregora.resources.prompts import render_prompt
+from egregora.utils.batch import call_with_retries_sync
 
 if TYPE_CHECKING:
     from google import genai
+
+    from egregora.orchestration.context import PipelineContext
 
 logger = logging.getLogger(__name__)
 

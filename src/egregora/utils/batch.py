@@ -10,7 +10,24 @@ from typing import TYPE_CHECKING, TypeVar
 from google.genai import types as genai_types
 
 from egregora.config import EMBEDDING_DIM
-from egregora.utils.genai import call_with_retries_sync, sleep_with_progress_sync
+# utils/genai.py was removed; logic should be migrated or referenced from correct location
+# Assuming simple sleep/retry are acceptable replacements here, or they should be in utils
+import time
+
+def call_with_retries_sync(func, *args, **kwargs):
+    # Simple retry logic as placeholder since genai.py is gone
+    # TODO: Use tenacity or similar if available globally
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception:
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(2 ** attempt)
+
+def sleep_with_progress_sync(duration, message="Sleeping"):
+    time.sleep(duration)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence

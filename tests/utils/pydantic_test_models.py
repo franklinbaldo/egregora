@@ -11,14 +11,13 @@ import hashlib
 import random
 from typing import Any
 
-from egregora.agents.writer.tools import register_writer_tools
+from egregora.agents.writer import register_writer_tools
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
-from egregora.agents.writer.agent import (
+from egregora.agents.writer import (
     WriterAgentReturn,
-    WriterAgentState,
-    _create_writer_agent_state,
+    WriterDeps,
 )
 
 
@@ -63,17 +62,44 @@ class WriterTestModel(TestModel):
 def install_writer_test_model(monkeypatch, captured_windows: list[str] | None = None) -> None:
     """Install deterministic writer agent that avoids network calls."""
 
-    def _stub_agent_setup(config, context, test_model=None):
-        window_label = f"{context.start_time:%Y-%m-%d %H:%M} to {context.end_time:%H:%M}"
-        if captured_windows is not None:
-            captured_windows.append(window_label)
+    from egregora.agents.writer import _prepare_deps
 
-        agent = Agent[WriterAgentState, WriterAgentReturn](
-            model=WriterTestModel(window_label=window_label), deps_type=WriterAgentState
+    def _stub_agent_setup(prompt, config, context, test_model=None):
+        # This mocks write_posts_with_pydantic_agent but we need to patch deeper or higher
+        # Actually, write_posts_with_pydantic_agent creates the agent.
+        # We can pass a test model via the `test_model` argument if we control the caller.
+        # But since we are patching, let's patch write_posts_with_pydantic_agent to use our TestModel?
+        # No, better to rely on `write_posts_with_pydantic_agent` accepting `test_model`.
+        # But we need to inject it.
+        pass
+
+    # The original patching target `_setup_agent_and_state` is gone.
+    # `write_posts_with_pydantic_agent` takes `test_model`.
+    # Consumers call `write_posts_for_window`, which calls `write_posts_with_pydantic_agent`.
+    # We should patch `write_posts_with_pydantic_agent` to force a TestModel?
+    # Or better, we just mock the call to agent.run_sync inside it?
+    # The simplest is to monkeypatch `write_posts_with_pydantic_agent` to inject the model.
+
+    original_func = None
+    try:
+        from egregora.agents.writer import write_posts_with_pydantic_agent as original
+        original_func = original
+    except ImportError:
+        pass
+
+    def _wrapper(*, prompt, config, context, test_model=None):
+        if captured_windows is not None:
+            captured_windows.append(context.window_label)
+
+        # Use our deterministic TestModel
+        test_model = WriterTestModel(window_label=context.window_label)
+
+        return original_func(
+            prompt=prompt,
+            config=config,
+            context=context,
+            test_model=test_model
         )
 
-        register_writer_tools(agent, enable_banner=False, enable_rag=False)
-        state = _create_writer_agent_state(context, config)
-        return agent, state, window_label
-
-    monkeypatch.setattr("egregora.agents.writer.agent._setup_agent_and_state", _stub_agent_setup)
+    if original_func:
+        monkeypatch.setattr("egregora.agents.writer.write_posts_with_pydantic_agent", _wrapper)

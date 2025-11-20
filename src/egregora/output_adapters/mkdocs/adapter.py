@@ -22,12 +22,14 @@ import yaml
 from dateutil import parser as dateutil_parser
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
-from egregora.agents.shared.author_profiles import write_profile as write_profile_content
+from egregora.knowledge.profiles import write_profile as write_profile_content
 from egregora.config.settings import create_default_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
+from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import SitePaths, load_site_paths
+from egregora.utils.filesystem import write_markdown_post as _write_mkdocs_post
 from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import safe_path_join, slugify
 
@@ -46,86 +48,6 @@ class _ConfigLoader(yaml.SafeLoader):
 _ConfigLoader.add_constructor(None, lambda loader, node: None)
 
 
-class MkDocsUrlConvention:
-    """Canonical URL convention for MkDocs sites.
-
-    This is the ONE and ONLY URL scheme for Egregora MkDocs output.
-
-    URL patterns:
-    - Posts: /posts/{YYYY-MM-DD}-{slug}/
-    - Profiles: /profiles/{uuid}/
-    - Journals: /posts/journal/journal_{window_label}/
-    - URL enrichments: /docs/media/urls/{doc_id}/
-    - Media enrichments: /docs/media/{filename}
-    - Media files: /docs/media/{filename}
-    """
-
-    @property
-    def name(self) -> str:
-        """Convention identifier."""
-        return "mkdocs-v1"
-
-    @property
-    def version(self) -> str:
-        """Convention version."""
-        return "1.0.0"
-
-    def canonical_url(self, document: Document, ctx: UrlContext) -> str:  # noqa: PLR0911
-        """Generate canonical URL for a document.
-
-        Args:
-            document: Document to generate URL for
-            ctx: URL context with base_url
-
-        Returns:
-            Canonical URL string
-
-        """
-        base = ctx.base_url.rstrip("/")
-
-        if document.type == DocumentType.POST:
-            slug = document.metadata.get("slug", document.document_id[:8])
-            date_val = document.metadata.get("date", "")
-            normalized_slug = slugify(slug)
-
-            if date_val:
-                # Handle datetime objects or strings
-                if hasattr(date_val, "strftime"):
-                    date_str = date_val.strftime("%Y-%m-%d")
-                else:
-                    date_str = str(date_val)
-                return f"{base}/posts/{date_str}-{normalized_slug}/"
-            return f"{base}/posts/{normalized_slug}/"
-
-        if document.type == DocumentType.PROFILE:
-            author_uuid = document.metadata.get("uuid") or document.metadata.get("author_uuid")
-            if not author_uuid:
-                msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
-                raise ValueError(msg)
-            return f"{base}/profiles/{author_uuid}/"
-
-        if document.type == DocumentType.JOURNAL:
-            window_label = document.metadata.get("window_label", document.source_window or "unlabeled")
-            safe_label = window_label.replace(" ", "_").replace(":", "-")
-            return f"{base}/posts/journal/journal_{safe_label}/"
-
-        if document.type == DocumentType.ENRICHMENT_URL:
-            return f"{base}/docs/media/urls/{document.document_id}/"
-
-        if document.type == DocumentType.ENRICHMENT_MEDIA:
-            filename = document.suggested_path or f"{document.document_id}.md"
-            filename = filename.removeprefix("docs/media/")
-            return f"{base}/docs/media/{filename}"
-
-        if document.type == DocumentType.MEDIA:
-            filename = document.suggested_path or document.document_id
-            filename = filename.removeprefix("docs/media/")
-            return f"{base}/docs/media/{filename}"
-
-        # Fallback for unknown types
-        return f"{base}/documents/{document.document_id}/"
-
-
 class MkDocsAdapter(OutputAdapter):
     """Unified MkDocs output adapter."""
 
@@ -133,7 +55,13 @@ class MkDocsAdapter(OutputAdapter):
         """Initializes the adapter."""
         self._initialized = False
         self.site_root = None
-        self._url_convention = MkDocsUrlConvention()
+        self._url_convention = StandardUrlConvention(
+            routes=RouteConfig(
+                posts_prefix="posts",
+                profiles_prefix="profiles",
+                media_prefix="docs/media",
+            )
+        )
         self._index: dict[str, Path] = {}
         self._ctx: UrlContext | None = None
 
@@ -474,6 +402,8 @@ class MkDocsAdapter(OutputAdapter):
             env: Jinja2 environment (optional, will be created if not provided)
 
         """
+        from egregora.resources.prompts import PromptManager  # noqa: PLC0415
+
         egregora_dir = site_paths.egregora_dir
         egregora_dir.mkdir(parents=True, exist_ok=True)
 
@@ -490,8 +420,8 @@ class MkDocsAdapter(OutputAdapter):
         (prompts_dir / "system").mkdir(exist_ok=True)
         (prompts_dir / "enrichment").mkdir(exist_ok=True)
 
-        # Copy default prompts from package to site (version pinning strategy)
-        self._copy_default_prompts(prompts_dir)
+        # Copy default prompts from package to site using centralized manager
+        PromptManager.copy_defaults(prompts_dir)
 
         # Create prompts README from template
         prompts_readme = prompts_dir / "README.md"
@@ -527,43 +457,6 @@ class MkDocsAdapter(OutputAdapter):
                 encoding="utf-8",
             )
             logger.info("Created .egregora/.gitignore")
-
-    def _copy_default_prompts(self, target_prompts_dir: Path) -> None:
-        """Copy default prompt templates from package to site.
-
-        This implements the "version pinning" strategy: prompts are copied once during
-        init and become site-specific. Users can customize without losing changes,
-        and Egregora can update defaults without breaking existing sites.
-
-        Args:
-            target_prompts_dir: Destination directory (.egregora/prompts/)
-
-        """
-        # Find source prompts directory in package
-        package_prompts_dir = Path(__file__).resolve().parent.parent / "prompts"
-
-        if not package_prompts_dir.exists():
-            logger.warning("Package prompts directory not found: %s", package_prompts_dir)
-            return
-
-        # Copy all .jinja files from package to site
-        prompt_files_copied = 0
-        for source_file in package_prompts_dir.rglob("*.jinja"):
-            # Compute relative path to preserve directory structure
-            rel_path = source_file.relative_to(package_prompts_dir)
-            target_file = target_prompts_dir / rel_path
-
-            # Only copy if target doesn't exist (don't overwrite customizations)
-            if not target_file.exists():
-                target_file.parent.mkdir(parents=True, exist_ok=True)
-                try:
-                    target_file.write_text(source_file.read_text(encoding="utf-8"), encoding="utf-8")
-                    prompt_files_copied += 1
-                except (OSError, UnicodeDecodeError) as e:
-                    logger.warning("Failed to copy prompt %s: %s", source_file.name, e)
-
-        if prompt_files_copied > 0:
-            logger.info("Copied %d default prompt templates to %s", prompt_files_copied, target_prompts_dir)
 
     def resolve_paths(self, site_root: Path) -> SiteConfiguration:
         """Resolve all paths for an existing MkDocs site.
@@ -987,7 +880,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             full_content = f"---\n{yaml_front}---\n\n{document.content}"
             path.write_text(full_content, encoding="utf-8")
         elif document.type == DocumentType.PROFILE:
-            from egregora.agents.shared.author_profiles import (  # noqa: PLC0415
+            from egregora.knowledge.profiles import (  # noqa: PLC0415
                 write_profile as write_profile_content,
             )
 
@@ -1086,140 +979,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
 
 
-def _extract_clean_date(date_str: str) -> str:
-    """Extract a clean ``YYYY-MM-DD`` date from user-provided strings."""
-    import datetime  # noqa: PLC0415
-    import re  # noqa: PLC0415
+# ============================================================================
+# MkDocs filesystem storage helpers
+# ============================================================================
 
-    date_str = date_str.strip()
-
-    try:
-        if len(date_str) == ISO_DATE_LENGTH and date_str[4] == "-" and date_str[7] == "-":
-            datetime.date.fromisoformat(date_str)
-            return date_str
-    except (ValueError, AttributeError):
-        pass
-
-    match = re.match(r"(\d{4}-\d{2}-\d{2})", date_str)
-    if match:
-        clean_date = match.group(1)
-        try:
-            datetime.date.fromisoformat(clean_date)
-        except (ValueError, AttributeError):
-            pass
-        else:
-            return clean_date
-
-    return date_str
-
-
-def _format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
-    """Normalize a metadata date into the RSS-friendly ``YYYY-MM-DD HH:MM`` string."""
-    if raw_date is None:
-        return ""
-
-    if isinstance(raw_date, datetime):
-        dt = raw_date
-    elif isinstance(raw_date, date):
-        dt = datetime.combine(raw_date, datetime.min.time())
-    else:
-        raw = str(raw_date).strip()
-        if not raw:
-            return ""
-        try:
-            dt = datetime.fromisoformat(raw)
-        except (ValueError, TypeError):
-            try:
-                dt = dateutil_parser.parse(raw)
-            except (ImportError, ValueError, TypeError):
-                return raw
-
-    return dt.strftime("%Y-%m-%d %H:%M")
-
-
-def _ensure_author_entries(output_dir: Path, author_ids: list[str] | None) -> None:
-    """Ensure every referenced author has an entry in `.authors.yml`."""
-    if not author_ids:
-        return
-
-    site_root = output_dir.resolve().parent
-    authors_path = site_root / ".authors.yml"
-
-    try:
-        authors = yaml.safe_load(authors_path.read_text(encoding="utf-8")) or {}
-    except (OSError, yaml.YAMLError):
-        authors = {}
-
-    new_ids: list[str] = []
-    for author_id in author_ids:
-        if not author_id:
-            continue
-        if author_id in authors:
-            continue
-        authors[author_id] = {"name": author_id}
-        new_ids.append(author_id)
-
-    if not new_ids:
-        return
-
-    try:
-        authors_path.parent.mkdir(parents=True, exist_ok=True)
-        authors_path.write_text(
-            yaml.dump(authors, default_flow_style=False, allow_unicode=True, sort_keys=False),
-            encoding="utf-8",
-        )
-        logger.info("Registered %d new author(s) in %s", len(new_ids), authors_path)
-    except OSError as exc:
-        logger.warning("Failed to update %s: %s", authors_path, exc)
-
-
-def _write_mkdocs_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
-    """Save a MkDocs blog post with YAML front matter and unique slugging."""
-    required = ["title", "slug", "date"]
-    for key in required:
-        if key not in metadata:
-            msg = f"Missing required metadata: {key}"
-            raise ValueError(msg)
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    raw_date = metadata["date"]
-    date_prefix = _extract_clean_date(raw_date)
-
-    base_slug = slugify(metadata["slug"])
-    slug_candidate = base_slug
-    filename = f"{date_prefix}-{slug_candidate}.md"
-    filepath = safe_path_join(output_dir, filename)
-    suffix = 2
-    while filepath.exists():
-        slug_candidate = f"{base_slug}-{suffix}"
-        filename = f"{date_prefix}-{slug_candidate}.md"
-        filepath = safe_path_join(output_dir, filename)
-        suffix += 1
-
-    front_matter = {
-        "title": metadata["title"],
-        "slug": slug_candidate,
-    }
-
-    front_matter["date"] = _format_frontmatter_datetime(raw_date)
-
-    if "authors" in metadata:
-        _ensure_author_entries(output_dir, metadata.get("authors"))
-
-    if "tags" in metadata:
-        front_matter["tags"] = metadata["tags"]
-    if "summary" in metadata:
-        front_matter["summary"] = metadata["summary"]
-    if "authors" in metadata:
-        front_matter["authors"] = metadata["authors"]
-    if "category" in metadata:
-        front_matter["category"] = metadata["category"]
-
-    yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
-    full_post = f"---\n{yaml_front}---\n\n{content}"
-    filepath.write_text(full_post, encoding="utf-8")
-    return str(filepath)
+# Moved to src/egregora/utils/filesystem.py
 
 
 def secure_path_join(base_dir: Path, user_path: str) -> Path:
