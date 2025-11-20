@@ -407,75 +407,6 @@ def _types_compatible(expected: dt.DataType, actual: dt.DataType) -> bool:
     return False
 
 
-def adapter_output_validator(table: Table) -> Table:
-    """Validate adapter output before pipeline.
-
-    This function validates adapter outputs at the pipeline boundary
-    to ensure they conform to IR v1 schema.
-
-    Args:
-        table: Adapter output table
-
-    Returns:
-        Validated table (same as input)
-
-    Raises:
-        SchemaError: If schema validation fails
-
-    Usage:
-        >>> table = adapter.parse_source(input_path)
-        >>> table = adapter_output_validator(table)  # Enforce contract
-
-    """
-    validate_ir_schema(table)
-    return table
-
-
-def validate_adapter_output[F: Callable[..., "Table"]](func: F) -> F:
-    """Decorator to validate adapter outputs against IR v1 schema.
-
-    This decorator wraps adapter methods (typically `parse()`) to automatically
-    validate their outputs conform to IR v1 schema specification.
-
-    Args:
-        func: Function returning an Ibis Table (adapter parse method)
-
-    Returns:
-        Wrapped function that validates output
-
-    Raises:
-        SchemaError: If adapter output doesn't match IR v1 schema
-
-    Example:
-        >>> class MyAdapter(InputAdapter):
-        ...     @validate_adapter_output
-        ...     def parse(self, input_path: Path) -> Table:
-        ...         # Parse logic here
-        ...         return table
-
-    Note:
-        This is a convenience decorator. For explicit validation,
-        use validate_ir_schema() directly in your orchestration code.
-
-    """
-
-    @wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> Table:
-        # Call original function
-        result = func(*args, **kwargs)
-
-        # Validate output
-        try:
-            validate_ir_schema(result)
-        except SchemaError as e:
-            # Enhance error with function context
-            func_name = getattr(func, "__qualname__", func.__name__)
-            msg = f"Adapter output validation failed in {func_name}: {e}"
-            raise SchemaError(msg) from e
-
-        return result
-
-    return wrapper  # type: ignore[return-value]
 
 
 # validate_stage decorator - REMOVED (2025-11-17)
@@ -604,11 +535,9 @@ __all__ = [
     "IR_MESSAGE_SCHEMA",
     "IRMessageRow",
     "SchemaError",
-    "adapter_output_validator",
     "create_ir_table",
     "ibis_schema_to_pydantic",
     "ibis_type_to_python",
     "schema_diff",
-    "validate_adapter_output",
     "validate_ir_schema",
 ]

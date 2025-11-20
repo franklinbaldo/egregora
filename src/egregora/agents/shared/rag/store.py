@@ -15,7 +15,7 @@ from ibis.expr.types import Table
 
 from egregora.config import EMBEDDING_DIM
 from egregora.database import ir_schema as database_schema
-from egregora.database.duckdb_manager import DuckDBStorageManager, VectorBackend
+from egregora.database.duckdb_manager import DuckDBStorageManager
 
 logger = logging.getLogger(__name__)
 TABLE_NAME = "rag_chunks"
@@ -70,23 +70,18 @@ class VectorStore:
         parquet_path: Path,
         *,
         storage: DuckDBStorageManager,
-        backend: VectorBackend | None = None,
     ) -> None:
         """Initialize vector store.
 
         Args:
             parquet_path: Path to Parquet file (e.g., output/rag/chunks.parquet)
             storage: The central DuckDB storage manager.
-            backend: Optional vector backend that controls DuckDB-specific
-                behaviors (extension install, table materialization, ANN
-                index management). Defaults to the storage manager's DuckDB
-                implementation.
 
         """
         self.parquet_path = parquet_path
         self.index_path = parquet_path.with_suffix(".duckdb")
         self.conn = _ConnectionProxy(storage.conn)
-        self.backend = backend or storage.create_vector_backend()
+        self.backend = storage # Use storage directly as backend
         self._vss_available = False
         self._vss_function = "vss_search"
         self._client = ibis.duckdb.from_connection(self.conn)
@@ -103,7 +98,7 @@ class VectorStore:
         """
         if self._vss_available:
             return True
-        self._vss_available = self.backend.install_extensions()
+        self._vss_available = self.backend.install_vss_extensions()
         if not self._vss_available:
             logger.info("VSS extension unavailable; ANN mode disabled")
             return False
@@ -116,7 +111,7 @@ class VectorStore:
         self._ensure_metadata_table()
         if not self.parquet_path.exists():
             self.backend.drop_index(INDEX_NAME)
-            self.backend.drop_table(TABLE_NAME)
+            self.backend.drop_table(TABLE_NAME, checkpoint_too=False)
             self._store_metadata(None)
             self._table_synced = True
             return
@@ -127,7 +122,20 @@ class VectorStore:
         if not force and (not metadata_changed) and table_exists:
             self._table_synced = True
             return
-        self.backend.materialize_chunks_table(TABLE_NAME, self.parquet_path)
+
+        # Materialize chunks table from parquet
+        quoted_table = f'"{TABLE_NAME}"'
+        # Use DuckDBStorageManager functionality or raw sql since method removed
+        # But we can just do CREATE TABLE AS SELECT FROM read_parquet
+        try:
+            self.backend.conn.execute(
+                f"CREATE OR REPLACE TABLE {quoted_table} AS SELECT * FROM read_parquet(?)",
+                [str(self.parquet_path)],
+            )
+        except Exception as e:
+             logger.error(f"Failed to materialize chunks table: {e}")
+             raise
+
         self._store_metadata(current_metadata)
         if force or metadata_changed or (not table_exists):
             self._rebuild_index()

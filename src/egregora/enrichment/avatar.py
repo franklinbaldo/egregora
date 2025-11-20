@@ -22,7 +22,7 @@ import httpx
 from PIL import Image
 
 from egregora.agents.shared.author_profiles import remove_profile_avatar, update_profile_avatar
-from egregora.enrichment.agents import (
+from egregora.enrichment.runners import (
     MediaEnrichmentContext,
     create_media_enrichment_agent,
     load_file_as_binary_content,

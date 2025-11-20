@@ -12,10 +12,8 @@ This package consolidates all persistence, state management, and infrastructure:
 
 from egregora.database import ir_schema as schemas
 from egregora.database.duckdb_manager import (
-    DuckDBNoOpVectorBackend,
     DuckDBStorageManager,
-    DuckDBVectorBackend,
-    VectorBackend,
+    combine_with_enrichment_rows,
     duckdb_backend,
     temp_storage,
 )
@@ -64,13 +62,11 @@ __all__ = [
     "RUNS_TABLE_DDL",
     "RUNS_TABLE_SCHEMA",
     "WHATSAPP_CONVERSATION_SCHEMA",
-    "DuckDBNoOpVectorBackend",
     # Storage
     "DuckDBStorageManager",
-    "DuckDBVectorBackend",
+    "combine_with_enrichment_rows",
     # Tracking & Observability
     "RunContext",
-    "VectorBackend",
     "ViewBuilder",
     "chunks_sql",
     "chunks_view",
