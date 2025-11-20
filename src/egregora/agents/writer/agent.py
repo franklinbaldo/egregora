@@ -1,50 +1,25 @@
 """Pydantic-AI powered writer agent.
 
 This module implements the writer workflow using Pydantic-AI.
-It exposes ``write_posts_with_pydantic_agent`` which mirrors the signature of
-``write_posts_for_window`` but routes the LLM conversation through a
-``pydantic_ai.Agent`` instance. The implementation keeps the existing tool
-surface (write_post, read/write_profile, search_media, annotate, banner)
-so the rest of the pipeline can remain unchanged during the migration.
-
-MODERN (Phase 1): Deps are frozen/immutable, no mutation in tools.
-MODERN (Phase 2): Uses WriterAgentContext to reduce parameters.
+It exposes ``write_posts_for_window`` which routes the LLM conversation through a
+``pydantic_ai.Agent`` instance.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import ibis
+from ibis.expr.types import Table
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-
-from egregora.agents.writer.schemas import WriterAgentReturn, WriterAgentState
-
-try:
-    from pydantic_ai import Agent, ModelMessagesTypeAdapter
-except ImportError:
-    from pydantic_ai import Agent
-
-    class ModelMessagesTypeAdapter:
-        """Lightweight shim mirroring the adapter interface used in tests."""
-
-        @staticmethod
-        def dump_json(messages: object) -> str:
-            if hasattr(messages, "model_dump_json"):
-                return messages.model_dump_json(indent=2)
-            if hasattr(messages, "model_dump"):
-                return json.dumps(messages.model_dump(mode="json"), indent=2)
-            if hasattr(messages, "to_json"):
-                return messages.to_json(indent=2)
-            return json.dumps(messages, indent=2, default=str)
-
-
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -54,96 +29,394 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
-from egregora.agents.banner import is_banner_generation_available
-from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.shared.rag import VectorStore, is_rag_available
+from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
+from egregora.agents.model_limits import PromptTooLargeError
+from egregora.agents.shared.author_profiles import get_active_authors, read_profile
+from egregora.agents.shared.rag import (
+    VectorStore,
+    embed_query_text,
+    index_documents_for_rag,
+    is_rag_available,
+    query_media,
+)
+from egregora.agents.writer.formatting import (
+    _build_conversation_markdown_table,
+    _load_journal_memory,
+)
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
+from egregora.orchestration.context import PipelineContext
+from egregora.output_adapters import create_output_format, output_registry
+from egregora.output_adapters.mkdocs import MkDocsAdapter
+from egregora.prompt_templates import render_prompt
 from egregora.utils.genai import call_with_retries_sync
 
 if TYPE_CHECKING:
-    from pydantic_ai.result import RunResult
+    from google import genai
 
 logger = logging.getLogger(__name__)
 
 # Type aliases for improved type safety
-# Note: Some types remain as Any due to Pydantic limitations with Protocol validation
 MessageHistory = Sequence[ModelRequest | ModelResponse]
-LLMClient = Any  # Could be various client types (Google, Anthropic, etc.)
-AgentModel = Any  # Model specification (string or configured model object)
+LLMClient = Any
+AgentModel = Any
 
 
-@dataclass(frozen=True, slots=True)
-class WriterAgentContext:
-    """Runtime context for writer agent execution."""
+# ============================================================================
+# Data Structures (Schemas)
+# ============================================================================
 
-    start_time: datetime
-    end_time: datetime
-    url_convention: UrlConvention
-    url_context: UrlContext
-    output_format: OutputAdapter
-    rag_store: VectorStore
-    annotations_store: AnnotationStore | None
-    client: LLMClient
-    prompts_dir: Path | None = None
+
+class PostMetadata(BaseModel):
+    """Metadata schema for the write_post tool."""
+
+    title: str
+    slug: str
+    date: str
+    tags: list[str] = Field(default_factory=list)
+    summary: str | None = None
+    authors: list[str] = Field(default_factory=list)
+    category: str | None = None
+
+
+class WritePostResult(BaseModel):
+    status: str
+    path: str
+
+
+class WriteProfileResult(BaseModel):
+    status: str
+    path: str
+
+
+class ReadProfileResult(BaseModel):
+    content: str
+
+
+class MediaItem(BaseModel):
+    media_type: str | None = None
+    media_path: str | None = None
+    original_filename: str | None = None
+    description: str | None = None
+    similarity: float | None = None
+
+
+class SearchMediaResult(BaseModel):
+    results: list[MediaItem]
+
+
+class AnnotationResult(BaseModel):
+    status: str
+    annotation_id: str | None = None
+    parent_id: str | None = None
+    parent_type: str | None = None
+
+
+class BannerResult(BaseModel):
+    status: str
+    path: str | None = None
+
+
+class WriterAgentReturn(BaseModel):
+    """Final assistant response when the agent finishes."""
+
+    summary: str | None = None
+    notes: str | None = None
+
+
+@dataclass(frozen=True)
+class WriterDeps:
+    """Immutable dependencies passed to agent tools.
+
+    Replaces WriterAgentContext and WriterAgentState with a single,
+    simplified structure wrapping the PipelineContext.
+    """
+
+    ctx: PipelineContext
+    window_start: datetime
+    window_end: datetime
+    window_label: str
+    prompts_dir: Path | None
+
+    @property
+    def output_format(self) -> OutputAdapter:
+        if self.ctx.output_format is None:
+            raise RuntimeError("Output format not initialized in context")
+        return self.ctx.output_format
+
+    @property
+    def url_convention(self) -> UrlConvention:
+        return self.output_format.url_convention
+
+    @property
+    def url_context(self) -> UrlContext:
+        if self.ctx.url_context is None:
+            # Fallback if not set, though it should be
+            storage_root = self.ctx.site_root if self.ctx.site_root else self.ctx.output_dir
+            return UrlContext(base_url="", site_prefix="", base_path=storage_root)
+        return self.ctx.url_context
+
+
+# ============================================================================
+# Tool Definitions
+# ============================================================================
+
+
+def register_writer_tools(
+    agent: Agent[WriterDeps, WriterAgentReturn],
+    *,
+    enable_banner: bool = False,
+    enable_rag: bool = False,
+) -> None:
+    """Attach tool implementations to the agent."""
+
+    @agent.tool
+    def write_post_tool(ctx: RunContext[WriterDeps], metadata: PostMetadata, content: str) -> WritePostResult:
+        doc = Document(
+            content=content,
+            type=DocumentType.POST,
+            metadata=metadata.model_dump(exclude_none=True),
+            source_window=ctx.deps.window_label,
+        )
+        url = ctx.deps.url_convention.canonical_url(doc, ctx.deps.url_context)
+        ctx.deps.output_format.serve(doc)
+        logger.info("Writer agent saved post at URL: %s (doc_id: %s)", url, doc.document_id)
+        return WritePostResult(status="success", path=url)
+
+    @agent.tool
+    def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str) -> ReadProfileResult:
+        doc = ctx.deps.output_format.read_document(DocumentType.PROFILE, author_uuid)
+        content = doc.content if doc else "No profile exists yet."
+        return ReadProfileResult(content=content)
+
+    @agent.tool
+    def write_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str, content: str) -> WriteProfileResult:
+        doc = Document(
+            content=content,
+            type=DocumentType.PROFILE,
+            metadata={"uuid": author_uuid},
+            source_window=ctx.deps.window_label,
+        )
+        url = ctx.deps.url_convention.canonical_url(doc, ctx.deps.url_context)
+        ctx.deps.output_format.serve(doc)
+        logger.info("Writer agent saved profile at URL: %s (doc_id: %s)", url, doc.document_id)
+        return WriteProfileResult(status="success", path=url)
+
+    if enable_rag:
+
+        @agent.tool
+        def search_media_tool(
+            ctx: RunContext[WriterDeps],
+            query: str,
+            media_types: list[str] | None = None,
+            limit: int = 5,
+        ) -> SearchMediaResult:
+            if not ctx.deps.ctx.rag_store:
+                return SearchMediaResult(results=[])
+
+            results = query_media(
+                query=query,
+                store=ctx.deps.ctx.rag_store,
+                media_types=media_types,
+                top_k=limit,
+                min_similarity_threshold=0.7,
+                embedding_model=ctx.deps.ctx.embedding_model,
+                retrieval_mode=ctx.deps.ctx.retrieval_mode,
+                retrieval_nprobe=ctx.deps.ctx.retrieval_nprobe,
+                retrieval_overfetch=ctx.deps.ctx.retrieval_overfetch,
+            )
+            df = results.execute()
+            items = [MediaItem(**row) for row in df.to_dict("records")]
+            return SearchMediaResult(results=items)
+
+    @agent.tool
+    def annotate_conversation_tool(
+        ctx: RunContext[WriterDeps], parent_id: str, parent_type: str, commentary: str
+    ) -> AnnotationResult:
+        if ctx.deps.ctx.annotations_store is None:
+            msg = "Annotation store is not configured"
+            raise RuntimeError(msg)
+        annotation = ctx.deps.ctx.annotations_store.save_annotation(
+            parent_id=parent_id, parent_type=parent_type, commentary=commentary
+        )
+        return AnnotationResult(
+            status="success",
+            annotation_id=annotation.id,
+            parent_id=annotation.parent_id,
+            parent_type=annotation.parent_type,
+        )
+
+    if enable_banner:
+
+        @agent.tool
+        def generate_banner_tool(
+            ctx: RunContext[WriterDeps], post_slug: str, title: str, summary: str
+        ) -> BannerResult:
+            banner_output_dir = ctx.deps.output_format.media_dir / "images"
+            banner_path = generate_banner_for_post(
+                post_title=title, post_summary=summary, output_dir=banner_output_dir, slug=post_slug
+            )
+            if banner_path:
+                return BannerResult(status="success", path=str(banner_path))
+            return BannerResult(status="failed", path=None)
+
+
+# ============================================================================
+# Context Building (RAG & Profiles)
+# ============================================================================
+
+
+@dataclass
+class RagContext:
+    """RAG query result with formatted text and metadata."""
+
+    text: str
+    records: list[dict[str, Any]]
+
+
+def build_rag_context_for_prompt(
+    table_markdown: str,
+    store: VectorStore,
+    client: genai.Client,
+    *,
+    embedding_model: str,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
+    top_k: int = 5,
+) -> str:
+    """Build a lightweight RAG context string from the conversation markdown."""
+    if not table_markdown.strip():
+        return ""
+
+    # Simple query strategy for prompt context
+    query_vector = embed_query_text(table_markdown, model=embedding_model)
+    search_results = store.search(
+        query_vec=query_vector,
+        top_k=top_k,
+        min_similarity_threshold=0.7,
+        mode=retrieval_mode,
+        nprobe=retrieval_nprobe,
+        overfetch=retrieval_overfetch,
+    )
+    df = search_results.execute()
+    if getattr(df, "empty", False):
+        logger.info("Writer RAG: no similar posts found for query")
+        return ""
+    records = df.to_dict("records")
+    if not records:
+        return ""
+    lines = [
+        "## Related Previous Posts (for continuity and linking):",
+        "You can reference these posts in your writing to maintain conversation continuity.\n",
+    ]
+    for row in records:
+        title = row.get("post_title") or "Untitled"
+        post_date = row.get("post_date") or ""
+        snippet = (row.get("content") or "")[:400]
+        tags = row.get("tags") or []
+        similarity = row.get("similarity")
+        lines.append(f"### [{title}] ({post_date})")
+        lines.append(f"{snippet}...")
+        lines.append(f"- Tags: {(', '.join(tags) if tags else 'none')}")
+        if similarity is not None:
+            lines.append(f"- Similarity: {float(similarity):.2f}")
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
+def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
+    """Load profiles for top active authors."""
+    top_authors = get_active_authors(table, limit=20)
+    if not top_authors:
+        return ""
+    logger.info("Loading profiles for %s active authors", len(top_authors))
+    profiles_context = "\n\n## Active Participants (Profiles):\n"
+    profiles_context += "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n"
+    for author_uuid in top_authors:
+        profile_content = read_profile(author_uuid, profiles_dir)
+        if profile_content:
+            profiles_context += f"### Author: {author_uuid}\n"
+            profiles_context += f"{profile_content}\n\n"
+        else:
+            profiles_context += f"### Author: {author_uuid}\n"
+            profiles_context += "(No profile yet - first appearance)\n\n"
+    logger.info("Profiles context: %s characters", len(profiles_context))
+    return profiles_context
+
+
+@dataclass
+class WriterPromptContext:
+    """Values used to populate the writer prompt template."""
+
+    conversation_md: str
+    rag_context: str
+    profiles_context: str
+    journal_memory: str
+    active_authors: list[str]
+
+
+def _build_writer_prompt_context(
+    table_with_str_uuids: Table,
+    ctx: PipelineContext,
+) -> WriterPromptContext:
+    """Collect contextual inputs used when rendering the writer prompt."""
+    messages_table = table_with_str_uuids.to_pyarrow()
+    conversation_md = _build_conversation_markdown_table(messages_table, ctx.annotations_store)
+
+    if ctx.enable_rag and ctx.rag_store:
+        rag_context = build_rag_context_for_prompt(
+            conversation_md,
+            ctx.rag_store,
+            ctx.client,
+            embedding_model=ctx.embedding_model,
+            retrieval_mode=ctx.retrieval_mode,
+            retrieval_nprobe=ctx.retrieval_nprobe,
+            retrieval_overfetch=ctx.retrieval_overfetch,
+        )
+    else:
+        rag_context = ""
+
+    profiles_context = _load_profiles_context(table_with_str_uuids, ctx.profiles_dir)
+    journal_memory = _load_journal_memory(ctx.output_dir)
+    active_authors = get_active_authors(table_with_str_uuids)
+
+    return WriterPromptContext(
+        conversation_md=conversation_md,
+        rag_context=rag_context,
+        profiles_context=profiles_context,
+        journal_memory=journal_memory,
+        active_authors=active_authors,
+    )
+
+
+# ============================================================================
+# Agent Runners & Orchestration
+# ============================================================================
 
 
 def _extract_thinking_content(messages: MessageHistory) -> list[str]:
-    """Extract thinking/reasoning content from agent message history.
-
-    Parses ModelResponse messages to find ThinkingPart objects containing
-    the model's step-by-step reasoning process.
-
-    Args:
-        messages: Agent message history from result.all_messages()
-
-    Returns:
-        List of thinking content strings
-
-    """
+    """Extract thinking/reasoning content from agent message history."""
     thinking_contents: list[str] = []
-
     for message in messages:
-        # Check if this is a ModelResponse message
         if isinstance(message, ModelResponse):
-            # Iterate through parts to find ThinkingPart
             thinking_contents.extend(part.content for part in message.parts if isinstance(part, ThinkingPart))
-
     return thinking_contents
 
 
 def _extract_journal_content(messages: MessageHistory) -> str:
-    """Extract journal content from agent message history.
-
-    Journal content is plain text output from the model that's NOT a tool call.
-    This is typically the model's continuity journal / reflection memo.
-
-    Args:
-        messages: Agent message history from result.all_messages()
-
-    Returns:
-        Combined journal content as a single string
-
-    """
+    """Extract journal content from agent message history."""
     journal_parts: list[str] = []
-
     for message in messages:
-        # Check if this is a ModelResponse message
         if isinstance(message, ModelResponse):
-            # Iterate through parts to find TextPart (non-tool text output)
             journal_parts.extend(part.content for part in message.parts if isinstance(part, TextPart))
-
     return "\n\n".join(journal_parts).strip()
 
 
 @dataclass(frozen=True)
 class JournalEntry:
-    """Represents a single entry in the intercalated journal log.
-
-    Each entry is one of: thinking, journal text, or tool usage.
-    Entries preserve the actual execution order from the agent's message history.
-    """
+    """Represents a single entry in the intercalated journal log."""
 
     entry_type: str  # "thinking", "journal", "tool_call", "tool_return"
     content: str
@@ -151,82 +424,52 @@ class JournalEntry:
     tool_name: str | None = None
 
 
-def _extract_intercalated_log(  # noqa: C901
-    messages: MessageHistory,
-) -> list[JournalEntry]:
-    """Extract intercalated journal log preserving actual execution order.
-
-    Processes agent message history to create a timeline showing:
-    - Model thinking/reasoning
-    - Journal text output
-    - Tool calls and their returns
-
-    Args:
-        messages: Agent message history from result.all_messages()
-
-    Returns:
-        List of JournalEntry objects in chronological order
-
-    """
+def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
+    """Extract intercalated journal log preserving actual execution order."""
     entries: list[JournalEntry] = []
 
     for message in messages:
-        # Handle ModelResponse (contains thinking and journal output)
+        # Handle ModelResponse
         if isinstance(message, ModelResponse):
             for part in message.parts:
                 if isinstance(part, ThinkingPart):
                     entries.append(
-                        JournalEntry(
-                            entry_type="thinking",
-                            content=part.content,
-                            timestamp=getattr(message, "timestamp", None),
-                        )
+                        JournalEntry("thinking", part.content, getattr(message, "timestamp", None))
                     )
                 elif isinstance(part, TextPart):
-                    entries.append(
-                        JournalEntry(
-                            entry_type="journal",
-                            content=part.content,
-                            timestamp=getattr(message, "timestamp", None),
-                        )
-                    )
+                    entries.append(JournalEntry("journal", part.content, getattr(message, "timestamp", None)))
                 elif isinstance(part, ToolCallPart):
-                    # Format tool call
                     args_str = json.dumps(part.args, indent=2) if hasattr(part, "args") else "{}"
-                    tool_call_content = f"Tool: {part.tool_name}\nArguments:\n{args_str}"
                     entries.append(
                         JournalEntry(
-                            entry_type="tool_call",
-                            content=tool_call_content,
-                            timestamp=getattr(message, "timestamp", None),
-                            tool_name=part.tool_name,
+                            "tool_call",
+                            f"Tool: {part.tool_name}\nArguments:\n{args_str}",
+                            getattr(message, "timestamp", None),
+                            part.tool_name,
                         )
                     )
                 elif isinstance(part, ToolReturnPart):
-                    # Format tool return
                     result_str = str(part.content) if hasattr(part, "content") else "No result"
-                    tool_return_content = f"Result: {result_str}"
                     entries.append(
                         JournalEntry(
-                            entry_type="tool_return",
-                            content=tool_return_content,
-                            timestamp=getattr(message, "timestamp", None),
-                            tool_name=getattr(part, "tool_name", None),
+                            "tool_return",
+                            f"Result: {result_str}",
+                            getattr(message, "timestamp", None),
+                            getattr(part, "tool_name", None),
                         )
                     )
 
-        # Handle ModelRequest (contains tool calls from model side)
+        # Handle ModelRequest
         elif isinstance(message, ModelRequest):
             for part in message.parts:
                 if isinstance(part, ToolCallPart):
                     args_str = json.dumps(part.args, indent=2) if hasattr(part, "args") else "{}"
-                    tool_call_content = f"Tool: {part.tool_name}\nArguments:\n{args_str}"
                     entries.append(
                         JournalEntry(
-                            entry_type="tool_call",
-                            content=tool_call_content,
-                            timestamp=getattr(message, "timestamp", None),
-                            tool_name=part.tool_name,
+                            "tool_call",
+                            f"Tool: {part.tool_name}\nArguments:\n{args_str}",
+                            getattr(message, "timestamp", None),
+                            part.tool_name,
                         )
                     )
 
@@ -238,37 +481,20 @@ def _save_journal_to_file(
     window_label: str,
     output_format: OutputAdapter,
 ) -> str | None:
-    """Save journal entry with intercalated thinking, freeform, and tool usage to markdown file.
-
-    Args:
-        intercalated_log: List of journal entries in chronological order
-        window_label: Human-readable window identifier (e.g., "2025-01-15 10:00 to 12:00")
-        output_format: OutputAdapter instance for document persistence
-
-    Returns:
-        Journal identifier (opaque string), or None if no content
-
-    """
-    # Skip if no content at all
+    """Save journal entry to markdown file."""
     if not intercalated_log:
         return None
 
-    # Load template from templates directory
     templates_dir = Path(__file__).parent.parent.parent / "templates"
-    if not templates_dir.exists():
-        logger.warning("Templates directory not found: %s", templates_dir)
-        return None
-
     try:
         env = Environment(
             loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape(enabled_extensions=())
         )
         template = env.get_template("journal.md.jinja")
-    except (OSError, ValueError):  # TemplateNotFound, file I/O errors
+    except Exception:
         logger.exception("Failed to load journal template")
         return None
 
-    # Render journal content
     now_utc = datetime.now(tz=UTC)
     try:
         journal_content = template.render(
@@ -277,11 +503,10 @@ def _save_journal_to_file(
             created=now_utc.isoformat(),
             intercalated_log=intercalated_log,
         )
-    except (TypeError, ValueError):  # Template rendering errors
+    except Exception:
         logger.exception("Failed to render journal template")
         return None
 
-    # Write using OutputAdapter
     try:
         doc = Document(
             content=journal_content,
@@ -290,210 +515,81 @@ def _save_journal_to_file(
             source_window=window_label,
         )
         output_format.serve(doc)
-    except Exception:  # Broad catch: journal is non-critical, various backends may raise different exceptions
-        logger.exception("Failed to write journal for window %s", window_label)
+        logger.info("Saved journal entry: %s", doc.document_id)
+        return doc.document_id
+    except Exception:
+        logger.exception("Failed to write journal")
         return None
-
-    logger.info("Saved journal entry: %s", doc.document_id)
-    return doc.document_id
-
-
-def _parse_content_to_dict(content: Any) -> dict[str, Any] | None:
-    """Parse tool result content into a dictionary.
-
-    Handles multiple content formats:
-    - JSON strings
-    - Pydantic models with model_dump()
-    - Objects with __dict__
-    - Raw dictionaries
-
-    Args:
-        content: Content to parse (Any type needed: str, Pydantic model, dict, or arbitrary object)
-
-    Returns:
-        Parsed dictionary or None if parsing fails
-
-    """
-    if isinstance(content, str):
-        try:
-            return json.loads(content)
-        except (json.JSONDecodeError, ValueError):
-            return None
-    if hasattr(content, "model_dump"):
-        return content.model_dump()
-    if hasattr(content, "__dict__"):
-        return vars(content)
-    if isinstance(content, dict):
-        return content
-    return None
-
-
-def _categorize_tool_result(tool_name: str | None, doc_id: str) -> tuple[str | None, str]:
-    """Determine if tool result is a post or profile.
-
-    Uses tool name first, falls back to path heuristics for legacy messages.
-
-    Args:
-        tool_name: Tool name if available (e.g., "write_post_tool")
-        doc_id: Document ID/path string
-
-    Returns:
-        Tuple of ("post"|"profile"|None, doc_id). None if type cannot be determined.
-
-    """
-    # Primary: Use tool name
-    if tool_name == "write_post_tool":
-        return ("post", doc_id)
-    if tool_name == "write_profile_tool":
-        return ("profile", doc_id)
-
-    # Fallback: Use path heuristics for legacy messages
-    if "/posts/" in doc_id or doc_id.endswith(".md"):
-        return ("post", doc_id)
-    if "/profiles/" in doc_id:
-        return ("profile", doc_id)
-
-    return (None, doc_id)
-
-
-def _extract_from_success_result(data: dict[str, Any], tool_name: str | None) -> tuple[list[str], list[str]]:
-    """Extract document IDs from a successful tool result dictionary.
-
-    Args:
-        data: Parsed tool result dictionary
-        tool_name: Tool name (used to categorize result)
-
-    Returns:
-        Tuple of (saved_posts, saved_profiles)
-
-    """
-    saved_posts: list[str] = []
-    saved_profiles: list[str] = []
-
-    if data.get("status") == "success" and "path" in data:
-        doc_id = data["path"]
-        result_type, doc_id = _categorize_tool_result(tool_name, doc_id)
-
-        if result_type == "post":
-            saved_posts.append(doc_id)
-        elif result_type == "profile":
-            saved_profiles.append(doc_id)
-
-    return (saved_posts, saved_profiles)
-
-
-def _extract_from_tool_return_part(part: ToolReturnPart) -> tuple[list[str], list[str]]:
-    """Extract document IDs from a ToolReturnPart message.
-
-    Args:
-        part: ToolReturnPart with parsed result
-
-    Returns:
-        Tuple of (saved_posts, saved_profiles)
-
-    """
-    parsed = _parse_content_to_dict(part.content)
-    if parsed is None:
-        return ([], [])
-
-    return _extract_from_success_result(parsed, part.tool_name)
-
-
-def _extract_from_legacy_tool_return(message: Any) -> tuple[list[str], list[str]]:
-    """Extract document IDs from legacy tool-return message.
-
-    Args:
-        message: Legacy tool-return message with kind="tool-return"
-                 (Any type needed: legacy messages have arbitrary structure)
-
-    Returns:
-        Tuple of (saved_posts, saved_profiles)
-
-    """
-    parsed = _parse_content_to_dict(message.content)
-    if parsed is None:
-        return ([], [])
-
-    tool_name = getattr(message, "tool_name", None)
-    return _extract_from_success_result(parsed, tool_name)
 
 
 def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str]]:
-    """Extract saved post and profile document IDs from agent message history.
-
-    Parses the agent's tool call results to find WritePostResult and
-    WriteProfileResult returns. Uses tool names to distinguish document types
-    instead of parsing filesystem paths (supports opaque document IDs).
-
-    Args:
-        messages: Agent message history from result.all_messages()
-
-    Returns:
-        Tuple of (saved_posts, saved_profiles) as lists of document IDs
-
-    """
+    """Extract saved post and profile document IDs from agent message history."""
     saved_posts: list[str] = []
     saved_profiles: list[str] = []
 
-    try:
-        for message in messages:
-            # Handle ModelResponse messages with parts
-            if hasattr(message, "parts"):
-                for part in message.parts:
-                    if isinstance(part, ToolReturnPart):
-                        posts, profiles = _extract_from_tool_return_part(part)
-                        saved_posts.extend(posts)
-                        saved_profiles.extend(profiles)
+    def _process_result(content: Any, tool_name: str | None) -> None:
+        if isinstance(content, str):
+            try:
+                data = json.loads(content)
+            except:
+                return
+        elif hasattr(content, "model_dump"):
+            data = content.model_dump()
+        elif isinstance(content, dict):
+            data = content
+        else:
+            return
 
-            # Handle legacy tool-return messages
-            elif hasattr(message, "kind") and message.kind == "tool-return":
-                posts, profiles = _extract_from_legacy_tool_return(message)
-                saved_posts.extend(posts)
-                saved_profiles.extend(profiles)
+        if data.get("status") == "success" and "path" in data:
+            path = data["path"]
+            if tool_name == "write_post_tool" or "/posts/" in path:
+                saved_posts.append(path)
+            elif tool_name == "write_profile_tool" or "/profiles/" in path:
+                saved_profiles.append(path)
 
-    except (AttributeError, TypeError) as e:
-        logger.debug("Could not parse tool results: %s", e)
+    for message in messages:
+        if hasattr(message, "parts"):
+            for part in message.parts:
+                if isinstance(part, ToolReturnPart):
+                    _process_result(part.content, part.tool_name)
+        elif hasattr(message, "kind") and message.kind == "tool-return":
+            _process_result(message.content, getattr(message, "tool_name", None))
 
-    return (saved_posts, saved_profiles)
+    return saved_posts, saved_profiles
 
 
-from egregora.agents.writer.tools import register_writer_tools  # noqa: E402
+def _prepare_deps(
+    ctx: PipelineContext,
+    window_start: datetime,
+    window_end: datetime,
+) -> WriterDeps:
+    """Prepare writer dependencies from pipeline context."""
+    window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
 
+    # Ensure OutputAdapter is initialized
+    if not ctx.output_format:
+        storage_root = ctx.site_root if ctx.site_root else ctx.output_dir
+        format_type = ctx.config.output.format
 
-def _create_writer_agent_state(context: WriterAgentContext, config: EgregoraConfig) -> WriterAgentState:
-    """Creates a WriterAgentState from the given context and config."""
-    window_label = f"{context.start_time:%Y-%m-%d %H:%M} to {context.end_time:%H:%M}"
-    return WriterAgentState(
-        window_id=window_label,
-        url_convention=context.url_convention,
-        url_context=context.url_context,
-        output_format=context.output_format,
-        rag_store=context.rag_store,
-        annotations_store=context.annotations_store,
-        batch_client=context.client,
-        embedding_model=config.models.embedding,
-        retrieval_mode=config.rag.mode,
-        retrieval_nprobe=config.rag.nprobe,
-        retrieval_overfetch=config.rag.overfetch,
+        if format_type == "mkdocs":
+            output_format = MkDocsAdapter()
+            url_context = ctx.url_context or UrlContext(base_url="", site_prefix="", base_path=storage_root)
+            output_format.initialize(site_root=storage_root, url_context=url_context)
+        else:
+            output_format = create_output_format(storage_root, format_type=format_type)
+
+        # We need a new context with this format
+        ctx = ctx.with_output_format(output_format)
+
+    prompts_dir = ctx.site_root / ".egregora" / "prompts" if ctx.site_root else None
+
+    return WriterDeps(
+        ctx=ctx,
+        window_start=window_start,
+        window_end=window_end,
+        window_label=window_label,
+        prompts_dir=prompts_dir,
     )
-
-
-def _setup_agent_and_state(
-    config: EgregoraConfig,
-    context: WriterAgentContext,
-    test_model: AgentModel | None = None,
-) -> tuple[Agent[WriterAgentState, WriterAgentReturn], WriterAgentState, str]:
-    """Set up writer agent and execution state."""
-    model_name = test_model if test_model is not None else config.models.writer
-    agent = Agent[WriterAgentState, WriterAgentReturn](model=model_name, deps_type=WriterAgentState)
-    register_writer_tools(
-        agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available()
-    )
-
-    state = _create_writer_agent_state(context, config)
-    window_label = f"{context.start_time:%Y-%m-%d %H:%M} to {context.end_time:%H:%M}"
-
-    return agent, state, window_label
 
 
 def _validate_prompt_fits(
@@ -502,19 +598,8 @@ def _validate_prompt_fits(
     config: EgregoraConfig,
     window_label: str,
 ) -> None:
-    """Validate prompt fits within model context window limits.
-
-    Args:
-        prompt: System prompt to validate
-        model_name: Name of the LLM model
-        config: Egregora configuration with token limits
-        window_label: Window identifier for logging
-
-    Raises:
-        PromptTooLargeError: If prompt exceeds hard model limit
-
-    """
-    from egregora.agents.model_limits import (  # noqa: PLC0415
+    """Validate prompt fits within model context window limits."""
+    from egregora.agents.model_limits import (
         PromptTooLargeError,
         get_model_context_limit,
         validate_prompt_fits,
@@ -534,18 +619,9 @@ def _validate_prompt_fits(
         model_limit = get_model_context_limit(model_name)
         model_effective_limit = int(model_limit * 0.9)
 
-        if estimated_tokens <= model_effective_limit:
-            logger.warning(
-                "Prompt exceeds %dk cap (%d tokens) but fits in model limit (%d tokens) for %s (window: %s) - allowing as exception (likely single large message)",
-                max_prompt_tokens // 1000,
-                estimated_tokens,
-                model_effective_limit,
-                model_name,
-                window_label,
-            )
-        else:
+        if estimated_tokens > model_effective_limit:
             logger.error(
-                "Prompt exceeds model hard limit: %d tokens > %d limit for %s (window: %s) - will split window",
+                "Prompt exceeds limit: %d > %d for %s (window: %s)",
                 estimated_tokens,
                 model_effective_limit,
                 model_name,
@@ -557,123 +633,167 @@ def _validate_prompt_fits(
                 model_name=model_name,
                 window_id=window_label,
             )
-    else:
-        logger.info(
-            "Prompt fits: %d tokens / %d limit (%.1f%% usage) for %s",
-            estimated_tokens,
-            effective_limit,
-            (estimated_tokens / effective_limit) * 100,
-            model_name,
-        )
-
-
-def _run_agent_with_retries(
-    agent: Agent[WriterAgentState, WriterAgentReturn],
-    state: WriterAgentState,
-    prompt: str,
-) -> RunResult[WriterAgentReturn]:
-    """Run agent with exponential backoff retry logic.
-
-    Args:
-        agent: Configured writer agent
-        state: Agent execution state
-        prompt: System prompt
-
-    Returns:
-        Agent execution result with message history and usage metrics
-
-    """
-    return call_with_retries_sync(agent.run_sync, prompt, deps=state)
-
-
-def _log_agent_completion(
-    result: RunResult[WriterAgentReturn],
-    saved_posts: list[str],
-    saved_profiles: list[str],
-    intercalated_log: list[JournalEntry],
-    window_label: str,
-) -> None:
-    """Log agent completion metrics and results.
-
-    Args:
-        result: Agent execution result with message history and usage metrics
-        saved_posts: List of created post IDs
-        saved_profiles: List of updated profile IDs
-        intercalated_log: Journal entries from execution
-        window_label: Window identifier for logging
-
-    """
-    result_payload = getattr(result, "output", getattr(result, "data", result))
-    usage = result.usage()
-
-    logger.info(
-        "Writer agent completed: period=%s posts=%d profiles=%d tokens=%d",
-        window_label,
-        len(saved_posts),
-        len(saved_profiles),
-        usage.total_tokens if usage else 0,
-    )
-    logger.info("Writer agent finished with summary: %s", getattr(result_payload, "summary", None))
-
-
-def _record_agent_conversation(
-    result: RunResult[WriterAgentReturn],
-    context: WriterAgentContext,
-) -> None:
-    """Record agent conversation to file if configured.
-
-    Args:
-        result: Agent execution result with message history
-        context: Runtime context with start_time and output paths
-
-    """
-    record_dir = os.environ.get("EGREGORA_LLM_RECORD_DIR")
-    if not record_dir:
-        return
-
-    try:
-        output_path = Path(record_dir).expanduser()
-        output_path.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
-        filename = output_path / f"writer-{context.start_time:%Y%m%d_%H%M%S}-{timestamp}.json"
-        payload = ModelMessagesTypeAdapter.dump_json(result.all_messages())
-        filename.write_bytes(payload)
-        logger.info("Recorded writer agent conversation to %s", filename)
-    except (OSError, TypeError, ValueError, AttributeError) as exc:
-        logger.warning("Failed to persist writer agent messages: %s", exc)
 
 
 def write_posts_with_pydantic_agent(
     *,
     prompt: str,
     config: EgregoraConfig,
-    context: WriterAgentContext,
+    context: WriterDeps,
     test_model: AgentModel | None = None,
 ) -> tuple[list[str], list[str]]:
     """Execute the writer flow using Pydantic-AI agent tooling."""
     logger.info("Running writer via Pydantic-AI backend")
 
-    # Setup: Create agent, state, and window label
-    agent, state, window_label = _setup_agent_and_state(config, context, test_model)
-
-    # Validate: Check prompt fits in context window
     model_name = test_model if test_model is not None else config.models.writer
-    _validate_prompt_fits(prompt, model_name, config, window_label)
+    agent = Agent[WriterDeps, WriterAgentReturn](model=model_name, deps_type=WriterDeps)
+    register_writer_tools(
+        agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available()
+    )
 
-    # Execute: Run agent and process results
-    result = _run_agent_with_retries(agent, state, prompt)
+    _validate_prompt_fits(prompt, model_name, config, context.window_label)
 
-    # Extract results from agent output
+    result = call_with_retries_sync(agent.run_sync, prompt, deps=context)
+
     saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
-
-    # Extract and save journal
     intercalated_log = _extract_intercalated_log(result.all_messages())
-    _save_journal_to_file(intercalated_log, window_label, context.output_format)
+    _save_journal_to_file(intercalated_log, context.window_label, context.output_format)
 
-    # Log comprehensive metrics
-    _log_agent_completion(result, saved_posts, saved_profiles, intercalated_log, window_label)
-
-    # Record conversation if configured
-    _record_agent_conversation(result, context)
+    logger.info(
+        "Writer agent completed: period=%s posts=%d profiles=%d tokens=%d",
+        context.window_label,
+        len(saved_posts),
+        len(saved_profiles),
+        result.usage().total_tokens if result.usage() else 0,
+    )
 
     return saved_posts, saved_profiles
+
+
+def _render_writer_prompt(
+    prompt_context: WriterPromptContext,
+    ctx: PipelineContext,
+    deps: WriterDeps,
+) -> str:
+    """Render the final writer prompt text."""
+    format_instructions = ctx.output_format.get_format_instructions() if ctx.output_format else ""
+    custom_instructions = ctx.config.writer.custom_instructions or ""
+
+    return render_prompt(
+        "system/writer.jinja",
+        prompts_dir=deps.prompts_dir,
+        date=deps.window_label,
+        markdown_table=prompt_context.conversation_md,
+        active_authors=", ".join(prompt_context.active_authors),
+        custom_instructions=custom_instructions,
+        format_instructions=format_instructions,
+        profiles_context=prompt_context.profiles_context,
+        rag_context=prompt_context.rag_context,
+        journal_memory=prompt_context.journal_memory,
+        enable_memes=False,
+    )
+
+
+def _cast_uuid_columns_to_str(table: Table) -> Table:
+    """Ensure UUID-like columns are serialised to strings."""
+    return table.mutate(
+        event_id=table.event_id.cast(str),
+        author_uuid=table.author_uuid.cast(str),
+        thread_id=table.thread_id.cast(str),
+        created_by_run=table.created_by_run.cast(str),
+    )
+
+
+def write_posts_for_window(
+    table: Table,
+    window_start: datetime,
+    window_end: datetime,
+    ctx: PipelineContext,
+) -> dict[str, list[str]]:
+    """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
+
+    This acts as the public entry point, orchestrating the setup and execution
+    of the writer agent.
+    """
+    if table.count().execute() == 0:
+        return {"posts": [], "profiles": []}
+
+    logger.info("Using Pydantic AI backend for writer")
+
+    # Prepare dependencies
+    deps = _prepare_deps(ctx, window_start, window_end)
+
+    # Prepare prompt context
+    table_with_str_uuids = _cast_uuid_columns_to_str(table)
+    prompt_context = _build_writer_prompt_context(table_with_str_uuids, ctx)
+
+    # Render prompt
+    prompt = _render_writer_prompt(prompt_context, ctx, deps)
+
+    try:
+        saved_posts, saved_profiles = write_posts_with_pydantic_agent(
+            prompt=prompt,
+            config=ctx.config,
+            context=deps,
+        )
+    except PromptTooLargeError:
+        raise
+    except Exception as exc:
+        msg = f"Writer agent failed for {deps.window_label}"
+        logger.exception(msg)
+        raise RuntimeError(msg) from exc
+
+    # Finalize
+    if ctx.output_format:
+        ctx.output_format.finalize_window(
+            window_label=deps.window_label,
+            posts_created=saved_posts,
+            profiles_updated=saved_profiles,
+            metadata=None,
+        )
+
+    # Index newly created content
+    if ctx.enable_rag and ctx.rag_store and ctx.output_format and (saved_posts or saved_profiles):
+        try:
+            indexed_count = index_documents_for_rag(
+                ctx.output_format,
+                ctx.rag_store.parquet_path.parent,  # Use parent dir
+                ctx.storage,
+                embedding_model=ctx.embedding_model,
+            )
+            if indexed_count > 0:
+                logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
+        except Exception as e:
+            logger.warning("Failed to update RAG index after writing: %s", e)
+
+    return {"posts": saved_posts, "profiles": saved_profiles}
+
+
+def load_format_instructions(site_root: Path | None) -> str:
+    """Load output format instructions for the writer agent."""
+    if site_root:
+        detected_format = output_registry.detect_format(site_root)
+        if detected_format:
+            return detected_format.get_format_instructions()
+
+    try:
+        default_format = output_registry.get_format("mkdocs")
+        return default_format.get_format_instructions()
+    except KeyError:
+        return ""
+
+
+def get_top_authors(table: Table, limit: int = 20) -> list[str]:
+    """Get top N active authors by message count."""
+    author_counts = (
+        table.filter(~table.author_uuid.cast("string").isin(["system", "egregora"]))
+        .filter(table.author_uuid.notnull())
+        .filter(table.author_uuid.cast("string") != "")
+        .group_by("author_uuid")
+        .aggregate(count=ibis._.count())
+        .order_by(ibis.desc("count"))
+        .limit(limit)
+    )
+    if author_counts.count().execute() == 0:
+        return []
+    return author_counts.author_uuid.cast("string").execute().tolist()
