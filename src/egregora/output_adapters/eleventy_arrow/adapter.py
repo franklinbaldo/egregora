@@ -76,7 +76,7 @@ class EleventyArrowOutputAdapter(OutputAdapter):
     def get_format_instructions(self) -> str:
         return "Use Eleventy-style slugs and lightweight markdown."
 
-    def list_documents(self) -> "ibis.Table":  # type: ignore[override]
+    def list_documents(self) -> ibis.Table:  # type: ignore[override]
         empty = pd.DataFrame(columns=["storage_identifier", "mtime_ns"])
         return ibis.memtable(empty)
 
@@ -170,5 +170,3 @@ class EleventyArrowOutputAdapter(OutputAdapter):
 
 class EleventyArrowAdapter(EleventyArrowOutputAdapter):
     """Alias kept for backwards compatibility with existing imports."""
-
-    pass

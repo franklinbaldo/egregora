@@ -20,12 +20,12 @@ from pathlib import Path
 import duckdb
 import ibis
 import pytest
-from egregora.input_adapters.whatsapp.parser import parse_source
 from ibis.expr import datatypes as dt
 
 from egregora.database.ir_schema import CONVERSATION_SCHEMA
 from egregora.database.tracking import record_run
 from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file
+from egregora.input_adapters.whatsapp.parser import parse_source
 from egregora.privacy.anonymizer import anonymize_table
 
 

@@ -26,7 +26,6 @@ async def compare_posts(request: EvaluationRequest, **_: Any) -> PostComparison:
     patch this coroutine to provide deterministic outcomes without invoking an
     external LLM.
     """
-
     logger.info("Default compare_posts invoked for %s vs %s", request.post_a_slug, request.post_b_slug)
     return PostComparison(
         post_a_slug=request.post_a_slug,

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import inspect
 import json
 import logging
@@ -19,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 async def _run_comparison(request: EvaluationRequest) -> PostComparison:
     """Call the comparison helper and normalize sync/async implementations."""
-
     result = compare_posts(request)
     if inspect.isawaitable(result):
         return await result
@@ -34,7 +32,6 @@ async def run_reader_evaluation(posts_dir: Path, config: Any) -> list[dict[str, 
     - Results are persisted via :class:`EloStore`
     - Rankings are returned as a list of dictionaries for convenience
     """
-
     posts = sorted(posts_dir.glob("*.md"))
     if len(posts) < 2:
         logger.info("Not enough posts to compare; skipping reader evaluation")

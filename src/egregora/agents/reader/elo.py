@@ -8,7 +8,6 @@ K_FACTOR = 32.0
 
 def calculate_elo(rating_a: float, rating_b: float, winner: str) -> tuple[float, float]:
     """Calculate new ELO ratings for two competitors."""
-
     expected_a = 1 / (1 + 10 ** ((rating_b - rating_a) / 400))
     expected_b = 1 - expected_a
 
