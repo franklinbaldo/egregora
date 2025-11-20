@@ -62,6 +62,22 @@ class SkillLoader:
         logger.warning("No .egregora/skills/ directory found, will use: %s", fallback)
         return fallback
 
+    def _verify_path_safety(self, skill_path_resolved: Path, skills_dir_resolved: Path, skill_name: str) -> None:
+        """Verify that the resolved skill path is within the skills directory.
+
+        Args:
+            skill_path_resolved: The resolved path of the skill file.
+            skills_dir_resolved: The resolved path of the skills directory.
+            skill_name: The name of the skill.
+
+        Raises:
+            ValueError: If the skill path escapes the skills directory.
+
+        """
+        if not skill_path_resolved.is_relative_to(skills_dir_resolved):
+            msg = f"Security violation: skill path escapes skills directory: {skill_name}"
+            raise ValueError(msg)
+
     def _validate_skill_name(self, skill_name: str) -> None:
         """Validate skill name to prevent directory traversal attacks.
 
@@ -117,9 +133,7 @@ class SkillLoader:
             try:
                 skill_path_resolved = skill_path.resolve()
                 skills_dir_resolved = self.skills_dir.resolve()
-                if not skill_path_resolved.is_relative_to(skills_dir_resolved):
-                    msg = f"Security violation: skill path escapes skills directory: {skill_name}"
-                    raise ValueError(msg)
+                self._verify_path_safety(skill_path_resolved, skills_dir_resolved, skill_name)
             except ValueError as exc:
                 # is_relative_to raises ValueError if path is not relative
                 msg = f"Security violation: skill path escapes skills directory: {skill_name}"
