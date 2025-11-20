@@ -235,11 +235,11 @@ uv run pytest tests/e2e/               # End-to-end tests
 # With coverage
 uv run pytest --cov=egregora --cov-report=html tests/
 
-# VCR cassette replay (no API key needed for most tests)
+# Mocked LLM + embeddings (no API key needed for most tests)
 uv run pytest tests/e2e/
 ```
 
-**Note**: Integration tests use [pytest-vcr](https://pytest-vcr.readthedocs.io/) to record/replay Gemini API calls. First runs need `GOOGLE_API_KEY`, subsequent runs use cassettes from `tests/cassettes/`.
+**Note**: Tests prefer deterministic doubles over live Gemini calls. Pydantic-AI agents are exercised with `pydantic_ai.models.test.TestModel`, and embedding calls are mocked via `tests/utils/mock_batch_client.py`. Choose the TestModel when validating agent tool orchestration and scripted outputs; opt into the mock batch client when a test needs embeddings or `genai.Client` behavior without network access. If a prompt changes, update the scripted TestModel outputs or mock response text alongside the prompt to keep expectations aligned.
 
 ### Code Quality
 

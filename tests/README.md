@@ -59,9 +59,9 @@ uv run pytest tests/unit/ -v
 
 **Characteristics:**
 - Uses DuckDB database operations
-- May call external APIs (Gemini)
-- Tests component interactions
-- Uses VCR for recording/replaying API calls
+- Exercises component interactions
+- Prefers deterministic doubles over live Gemini calls (TestModel and mock embeddings)
+- Limited legacy tests still reference existing VCR cassettes
 
 **Examples:**
 - `test_rag_store.py` - Vector store operations with DuckDB VSS
@@ -81,13 +81,6 @@ uv run pytest tests/integration/
 
 # Use exact mode to avoid VSS extension dependency
 uv run pytest tests/integration/ --retrieval-mode=exact
-
-# First run (records API calls - requires GOOGLE_API_KEY)
-export GOOGLE_API_KEY="your-api-key"
-uv run pytest tests/integration/test_enrichment_avatars.py
-
-# Subsequent runs (replays from cassettes)
-uv run pytest tests/integration/test_enrichment_avatars.py
 ```
 
 ---
@@ -217,71 +210,29 @@ uv run pytest tests/linting/test_banned_imports.py
 
 ---
 
-## VCR Cassette Strategy
+## Deterministic LLM + Embedding Strategy
 
-Egregora uses **pytest-vcr** to record and replay HTTP interactions with the Gemini API, enabling **deterministic tests without API keys** on subsequent runs.
+Tests now avoid recording new VCR cassettes. Instead, they rely on deterministic doubles for both LLM calls and embeddings so the suite can run offline and stay stable when prompts evolve.
 
-### How VCR Works
+### LLM behavior via `TestModel`
 
-1. **First run (recording)**: Real API calls are made and saved to YAML cassettes
-2. **Subsequent runs (replay)**: HTTP interactions are replayed from cassettes
-3. **No API key needed** after initial recording
+- Agent tests and end-to-end flows stub `GeminiModel` with `pydantic_ai.models.test.TestModel`.
+- Use a subclass when you need scripted tool arguments or fixed content. Example: `GoldenTestModel` in `tests/e2e/test_with_golden_fixtures.py` wires explicit tool payloads to keep the writer pipeline deterministic.
+- Expected behavior: the same prompt and seed always yield the same tool calls and text, making golden fixtures reproducible.
+- Choose `TestModel` when validating agent orchestration, tool wiring, or prompt shaping without hitting the network.
 
-### VCR Configuration
+### Embedding and client mocks
 
-VCR is configured in `tests/conftest.py`:
+- Embedding and `genai.Client` interactions are replaced by `MockGeminiBatchClient` / `MockGeminiClient` from `tests/utils/mock_batch_client.py`.
+- The `mock_batch_client` fixture monkeypatches Gemini clients globally so embedding vectors and content responses are generated locally and deterministically.
+- Expected behavior: identical text produces identical vectors (deterministic MD5 seeding), enabling stable similarity assertions; mock content generation returns structured text with predictable headers for downstream parsing.
+- Choose these mocks when a test touches embeddings, batch prompts, or file uploads but should remain offline.
 
-```python
-@pytest.fixture(scope="module")
-def vcr_config():
-    return {
-        "record_mode": "once",  # Record first time, then replay
-        "cassette_library_dir": "tests/cassettes/",
-        "filter_headers": [
-            ("x-goog-api-key", "DUMMY_API_KEY"),  # Redact API keys
-            ("authorization", "DUMMY_AUTH"),
-        ],
-        "match_on": ["method", "scheme", "host", "port", "path"],
-    }
-```
+### Updating mocks when prompts change
 
-### Recording Cassettes
-
-```bash
-# Set API key for first run
-export GOOGLE_API_KEY="your-api-key"
-
-# Run test - creates cassette in tests/cassettes/
-uv run pytest tests/integration/test_enrichment_avatars.py
-
-# Cassette saved to: tests/cassettes/test_enrichment_avatars.yaml
-```
-
-### Re-recording Cassettes
-
-```bash
-# Delete old cassette
-rm tests/cassettes/test_enrichment_avatars.yaml
-
-# Set API key
-export GOOGLE_API_KEY="your-api-key"
-
-# Re-run test to record new cassette
-uv run pytest tests/integration/test_enrichment_avatars.py
-```
-
-### Mock-Based Testing (Current Approach)
-
-Currently, most tests use **mocks instead of VCR cassettes** for faster, more deterministic testing:
-
-```python
-def test_with_mock(mock_batch_client):
-    """Tests run ~100x faster with mocks instead of real API calls."""
-    # All API calls are automatically mocked
-    process_whatsapp_export(...)
-```
-
-Mock infrastructure is in `tests/utils/mock_batch_client.py`.
+- If you adjust a prompt or tool signature, update the scripted outputs in the relevant `TestModel` subclass (e.g., `GoldenTestModel`) so tool arguments match the new contract.
+- For embedding-dependent logic, refresh expectations in tests and, if needed, tweak `MockGeminiBatchClient.generate_content` or response text to mirror the new prompt shape.
+- Rerun the affected tests to confirm deterministic behavior—no cassette re-recording is needed. Legacy VCR cassettes remain for historical coverage but should not require updates unless explicitly touched.
 
 ---
 
@@ -508,7 +459,7 @@ def mock_batch_client():
 
 @pytest.fixture
 def vcr_config():
-    """VCR configuration for recording API calls."""
+    """Legacy VCR configuration (kept for existing cassettes, avoid new recordings)."""
     ...
 ```
 
@@ -516,7 +467,7 @@ def vcr_config():
 
 - `mock_batch_client.py` - Deterministic Gemini API mocks
 - `raw_gemini_client.py` - Real client wrapper for integration tests
-- `vcr_adapter.py` - VCR HTTP recording adapter
+- `vcr_adapter.py` - Legacy VCR HTTP recording adapter (do not use for new tests)
 
 ### Test Data (tests/fixtures/)
 
@@ -575,7 +526,7 @@ open htmlcov/index.html
 - **Don't share state between tests** - Use fixtures for setup
 - **Don't skip tests without reason** - Fix or remove failing tests
 - **Don't commit without running tests** - Use pre-commit hooks
-- **Don't make real API calls in tests** - Use mocks or VCR
+- **Don't make real API calls in tests** - Use deterministic mocks
 - **Don't ignore flaky tests** - Fix root causes
 
 ---
@@ -591,15 +542,17 @@ open htmlcov/index.html
 uv run pytest tests/ --retrieval-mode=exact
 ```
 
-### VCR Cassette Mismatch
+### Mock Output Drift
 
-**Problem**: Test fails with "VCR could not find a matching HTTP interaction"
+**Problem**: A test fails because scripted `TestModel` output or mock response no longer matches the prompt.
 
-**Solution**: Delete and re-record cassette
+**Solution**: Update the relevant deterministic mock instead of re-recording traffic.
 ```bash
-rm tests/cassettes/problematic_test.yaml
-export GOOGLE_API_KEY="your-api-key"
-uv run pytest tests/integration/problematic_test.py
+# Adjust the scripted tool args/text in the appropriate TestModel subclass
+uv run pytest tests/e2e/test_with_golden_fixtures.py
+
+# Or tweak MockGeminiBatchClient.generate_content/mock embeddings if shape changed
+uv run pytest tests/e2e/test_fast_with_mock.py
 ```
 
 ### Missing GOOGLE_API_KEY
@@ -627,7 +580,6 @@ uv run pytest tests/ --timeout=30
 ## Further Reading
 
 - [pytest Documentation](https://docs.pytest.org/)
-- [pytest-vcr](https://pytest-vcr.readthedocs.io/) - HTTP recording/replay
 - [Pydantic-AI Testing](https://ai.pydantic.dev/testing/) - Agent test utilities
 - [CONTRIBUTING.md](../CONTRIBUTING.md) - Contributor guidelines
 - [CLAUDE.md](../CLAUDE.md) - Project architecture and conventions
