@@ -36,9 +36,8 @@ from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.tracking import record_run
 from egregora.database.validation import validate_ir_schema
-from egregora.enrichment import enrich_table
-from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
-from egregora.enrichment.runners import EnrichmentRuntimeContext
+from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
+from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.input_adapters import get_adapter
 from egregora.input_adapters.whatsapp import extract_commands, filter_egregora_messages
 from egregora.knowledge.annotations import AnnotationStore

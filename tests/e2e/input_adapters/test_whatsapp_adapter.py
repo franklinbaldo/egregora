@@ -25,7 +25,7 @@ import pytest
 from egregora.config.settings import create_default_config
 
 # from egregora.ops.media import extract_and_replace_media
-from egregora.enrichment.runners import EnrichmentRuntimeContext, enrich_table
+from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
 from egregora.input_adapters.whatsapp import WhatsAppAdapter, filter_egregora_messages, parse_source
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
