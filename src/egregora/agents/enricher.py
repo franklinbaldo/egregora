@@ -12,6 +12,7 @@ import asyncio
 import logging
 import mimetypes
 import re
+import tempfile
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -19,8 +20,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ibis
+from google.genai import types as genai_types
 from ibis.expr.types import Table
-from pydantic import BaseModel
+from pydantic import AnyUrl, BaseModel
 from pydantic_ai import Agent, AgentRunResult, RunContext
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
@@ -40,6 +42,7 @@ from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 
 if TYPE_CHECKING:
     import pandas as pd
+    import pyarrow as pa
     from ibis.backends.duckdb import Backend as DuckDBBackend
 
 logger = logging.getLogger(__name__)
@@ -150,15 +153,12 @@ class EnrichmentRuntimeContext:
 # ---------------------------------------------------------------------------
 
 
-def create_url_enrichment_agent(
-    model: str, simple: bool = True
-) -> Agent[UrlEnrichmentDeps, EnrichmentOutput]:
+def create_url_enrichment_agent(model: str, simple: bool = True) -> Agent[UrlEnrichmentDeps, EnrichmentOutput]:
     """Create URL enrichment agent.
 
     Args:
         model: The model name to use.
         simple: If True, uses simple mode (just URL). If False, uses detailed mode (with context).
-
     """
     model_settings = GoogleModelSettings(google_tools=[{"url_context": {}}]) if simple else None
 
@@ -176,22 +176,21 @@ def create_url_enrichment_agent(
                 prompts_dir=ctx.deps.prompts_dir,
                 url=ctx.deps.url,
             )
-        return render_prompt(
-            "enrichment/url_detailed.jinja",
-            prompts_dir=ctx.deps.prompts_dir,
-            url=ctx.deps.url,
-            original_message=ctx.deps.original_message,
-            sender_uuid=ctx.deps.sender_uuid,
-            date=ctx.deps.date,
-            time=ctx.deps.time,
-        )
+        else:
+            return render_prompt(
+                "enrichment/url_detailed.jinja",
+                prompts_dir=ctx.deps.prompts_dir,
+                url=ctx.deps.url,
+                original_message=ctx.deps.original_message,
+                sender_uuid=ctx.deps.sender_uuid,
+                date=ctx.deps.date,
+                time=ctx.deps.time,
+            )
 
     return agent
 
 
-def create_media_enrichment_agent(
-    model: str, simple: bool = False
-) -> Agent[MediaEnrichmentDeps, EnrichmentOutput]:
+def create_media_enrichment_agent(model: str, simple: bool = False) -> Agent[MediaEnrichmentDeps, EnrichmentOutput]:
     """Create media enrichment agent.
 
     Args:
@@ -199,7 +198,6 @@ def create_media_enrichment_agent(
         simple: If True, uses simple mode. If False, uses detailed mode (with context).
         Note: 'simple' defaults to False for media in legacy code (avatar uses detailed),
         but enrichment pipeline uses simple.
-
     """
     agent = Agent[MediaEnrichmentDeps, EnrichmentOutput](
         model=model,
@@ -213,17 +211,18 @@ def create_media_enrichment_agent(
                 "enrichment/media_simple.jinja",
                 prompts_dir=ctx.deps.prompts_dir,
             )
-        return render_prompt(
-            "enrichment/media_detailed.jinja",
-            prompts_dir=ctx.deps.prompts_dir,
-            media_type=ctx.deps.media_type,
-            media_filename=ctx.deps.media_filename,
-            media_path=ctx.deps.media_path,
-            original_message=ctx.deps.original_message,
-            sender_uuid=ctx.deps.sender_uuid,
-            date=ctx.deps.date,
-            time=ctx.deps.time,
-        )
+        else:
+            return render_prompt(
+                "enrichment/media_detailed.jinja",
+                prompts_dir=ctx.deps.prompts_dir,
+                media_type=ctx.deps.media_type,
+                media_filename=ctx.deps.media_filename,
+                media_path=ctx.deps.media_path,
+                original_message=ctx.deps.original_message,
+                sender_uuid=ctx.deps.sender_uuid,
+                date=ctx.deps.date,
+                time=ctx.deps.time,
+            )
 
     return agent
 
@@ -324,18 +323,41 @@ def _create_enrichment_row(
     }
 
 
+def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert backend frames into dict records consistently."""
+    if hasattr(frame, "to_dict"):
+        return [dict(row) for row in frame.to_dict("records")]
+    if hasattr(frame, "to_pylist"):
+        try:
+            return [dict(row) for row in frame.to_pylist()]
+        except (ValueError, TypeError, AttributeError) as exc:  # pragma: no cover - defensive
+            msg = f"Failed to convert frame to records. Original error: {exc}"
+            raise RuntimeError(msg) from exc
+    return [dict(row) for row in frame]
+
+
 def _iter_table_batches(table: Table, batch_size: int = 1000):
-    """Stream table rows as batches of dictionaries."""
+    """Stream table rows as batches of dictionaries without loading entire table into memory."""
+    from egregora.database.streaming import ensure_deterministic_order, stream_ibis
+
+    try:
+        backend = table._find_backend()
+    except (AttributeError, Exception):  # pragma: no cover - fallback path
+        backend = None
+
+    if backend is not None and hasattr(backend, "con"):
+        try:
+            ordered_table = ensure_deterministic_order(table)
+            yield from stream_ibis(ordered_table, backend, batch_size=batch_size)
+            return
+        except (AttributeError, Exception):  # pragma: no cover - fallback path
+            pass
+
     if "ts" in table.columns:
         table = table.order_by("ts")
 
-    # Simple execution for now, can optimize with streaming if needed like in runners.py
     df = table.execute()
-    if hasattr(df, "to_dict"):
-        records = [dict(row) for row in df.to_dict("records")]
-    else:
-        records = [dict(row) for row in df]
-
+    records = _frame_to_records(df)
     for start in range(0, len(records), batch_size):
         yield records[start : start + batch_size]
 
@@ -493,29 +515,22 @@ async def _enrich_table_async(
 
         for url, metadata in url_candidates:
             tasks.append(
-                _process_url_task(url, metadata, url_agent, context.cache, context, prompts_dir, semaphore)
+                _process_url_task(
+                    url, metadata, url_agent, context.cache, context, prompts_dir, semaphore
+                )
             )
 
     # 2. Media Enrichment
     if enable_media and media_mapping:
         media_agent = create_media_enrichment_agent(vision_model, simple=True)
+
+        # NOTE: We deliberately overfetch media candidates because we don't yet know
+        # how many URL tasks will succeed. We filter later.
         media_candidates = _extract_media_candidates(
-            messages_table,
-            media_mapping,
-            max_enrichments - len(new_rows),  # Approximation
+            messages_table, media_mapping, max_enrichments
         )
 
-        # Adjust if URL candidates already filled quota?
-        # Logic in runners.py was sequential: URLs first, then Media filling remainder.
-        # Here we gather all. We should respect total limit.
-
-        total_slots = max_enrichments
-        used_slots = len(url_candidates) if enable_url else 0
-        remaining_slots = max(0, total_slots - used_slots)
-
-        for i, (ref, file_path, metadata) in enumerate(media_candidates):
-            if i >= remaining_slots:
-                break
+        for ref, file_path, metadata in media_candidates:
             tasks.append(
                 _process_media_task(
                     ref, file_path, metadata, media_agent, context.cache, context, prompts_dir, semaphore
@@ -528,21 +543,39 @@ async def _enrich_table_async(
     logger.info("Running %d enrichment tasks...", len(tasks))
     results = await asyncio.gather(*tasks)
 
+    url_success_count = 0
+
+    # First pass: Collect successful URL enrichments
     for res in results:
         if res is None:
             continue
 
-        # Check if it's a media result tuple
+        if not isinstance(res, tuple):
+            # This is a URL result
+            new_rows.append(res)
+            url_success_count += 1
+
+    # Second pass: Collect media enrichments, respecting remaining quota
+    remaining_slots = max(0, max_enrichments - url_success_count)
+    media_added_count = 0
+
+    for res in results:
+        if res is None:
+            continue
+
         if isinstance(res, tuple):
+            # This is a media result (row, pii_detected)
+            if media_added_count >= remaining_slots:
+                break
+
             row, pii = res
             if row:
                 new_rows.append(row)
+                media_added_count += 1
+
             if pii:
                 pii_detected_count += 1
                 pii_media_deleted = True
-        else:
-            # URL result
-            new_rows.append(res)
 
     if pii_media_deleted:
         messages_table = _replace_pii_media_references(
@@ -575,22 +608,17 @@ async def _enrich_table_async(
     return combined
 
 
-def _extract_url_candidates(messages_table: Table, max_enrichments: int) -> list[tuple[str, dict[str, Any]]]:
+def _extract_url_candidates(
+    messages_table: Table, max_enrichments: int
+) -> list[tuple[str, dict[str, Any]]]:
     """Extract unique URL candidates with metadata, up to max_enrichments."""
     url_metadata: dict[str, dict[str, Any]] = {}
     discovered_count = 0
 
     for batch in _iter_table_batches(
         messages_table.select(
-            "ts",
-            "text",
-            "event_id",
-            "tenant_id",
-            "source",
-            "thread_id",
-            "author_uuid",
-            "created_at",
-            "created_by_run",
+            "ts", "text", "event_id", "tenant_id", "source",
+            "thread_id", "author_uuid", "created_at", "created_by_run"
         )
     ):
         for row in batch:
@@ -659,15 +687,8 @@ def _extract_media_candidates(
 
     for batch in _iter_table_batches(
         messages_table.select(
-            "ts",
-            "text",
-            "event_id",
-            "tenant_id",
-            "source",
-            "thread_id",
-            "author_uuid",
-            "created_at",
-            "created_by_run",
+            "ts", "text", "event_id", "tenant_id", "source",
+            "thread_id", "author_uuid", "created_at", "created_by_run"
         )
     ):
         for row in batch:
@@ -703,7 +724,7 @@ def _extract_media_candidates(
                     unique_media.add(ref)
                     metadata_lookup[ref] = row_metadata.copy()
                 else:
-                    # Keep earliest timestamp
+                     # Keep earliest timestamp
                     existing_ts = existing.get("ts")
                     if timestamp is not None and (existing_ts is None or timestamp < existing_ts):
                         existing.update(row_metadata)
