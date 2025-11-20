@@ -11,6 +11,7 @@ import hashlib
 import random
 from typing import Any
 
+from egregora.agents.writer.tools import register_writer_tools
 from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
@@ -19,7 +20,6 @@ from egregora.agents.writer.agent import (
     WriterAgentState,
     _create_writer_agent_state,
 )
-from egregora.agents.writer.tools import register_writer_tools
 
 
 class MockEmbeddingModel:
