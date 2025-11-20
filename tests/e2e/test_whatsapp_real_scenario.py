@@ -145,7 +145,7 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
 
         return {"posts": [str(post_path)], "profiles": [str(profile_path)]}
 
-    monkeypatch.setattr("egregora.pipeline.runner.write_posts_for_window", _stub_writer)
+    monkeypatch.setattr("egregora.agents.writer.writer_runner.write_posts_for_window", _stub_writer)
 
 
 def test_zip_extraction_completes_without_error(whatsapp_fixture: WhatsAppFixture):
@@ -162,12 +162,13 @@ def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    assert {"timestamp", "author", "message"}.issubset(table.columns)
+    # IR v1 column names: ts, text, author_raw, author_uuid
+    assert {"ts", "author", "text"}.issubset(table.columns)
     assert table.count().execute() == 10
-    messages = table["message"].execute().tolist()
+    messages = table["text"].execute().tolist()
     assert all(message is not None and message.strip() for message in messages)
 
-    timestamps = table["timestamp"].execute()
+    timestamps = table["ts"].execute()
     assert all(ts.tzinfo is not None for ts in timestamps)
 
 
@@ -191,7 +192,7 @@ def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    combined = " ".join(table["message"].execute().tolist())
+    combined = " ".join(table["text"].execute().tolist())
     assert "IMG-20251028-WA0035.jpg" in combined
     assert "arquivo anexado" in combined
 
@@ -204,7 +205,7 @@ def test_anonymization_removes_real_author_names(whatsapp_fixture: WhatsAppFixtu
     for forbidden in ("Franklin", "Iuri Brasil", "Você", "Eurico Max"):
         assert forbidden not in authors
 
-    messages = table["message"].execute().tolist()
+    messages = table["text"].execute().tolist()
     assert any("@" in message and "teste de menção" in message for message in messages)
 
 
@@ -281,7 +282,7 @@ def test_media_references_replaced_in_messages(whatsapp_fixture: WhatsAppFixture
         posts_dir,
     )
 
-    joined_messages = " ".join(updated_table["message"].execute().dropna().tolist())
+    joined_messages = " ".join(updated_table["text"].execute().dropna().tolist())
     assert "![Image]" in joined_messages
 
 
@@ -402,14 +403,14 @@ def test_egregora_commands_are_filtered_out(whatsapp_fixture: WhatsAppFixture):
     sample_record = original_records[0]
     synthetic = {
         **sample_record,
-        "message": "/egregora opt-out",
+        "text": "/egregora opt-out",
     }
     augmented = table.union(ibis.memtable([synthetic], schema=table.schema()))
 
     filtered, removed_count = filter_egregora_messages(augmented)
     assert removed_count == 1
 
-    messages = " ".join(filtered["message"].execute().dropna().tolist())
+    messages = " ".join(filtered["text"].execute().dropna().tolist())
     assert "/egregora opt-out" not in messages
 
 
@@ -447,6 +448,7 @@ def test_enrichment_adds_egregora_messages(
         cache=cache,
         docs_dir=docs_dir,
         posts_dir=posts_dir,
+        output_format=None,  # Not needed for test
     )
 
     try:
@@ -516,12 +518,14 @@ def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    # Verify table only has MESSAGE_SCHEMA columns (including message_id)
+    # Verify table has IR v1 schema columns
     expected_columns = {
-        "timestamp",
+        "ts",
         "date",
         "author",
-        "message",
+        "author_raw",
+        "author_uuid",
+        "text",
         "original_line",
         "tagged_line",
         "message_id",
@@ -544,7 +548,7 @@ def test_enrichment_handles_schema_mismatch(
 
     # Add extra columns to simulate the schema mismatch
     table = table.mutate(
-        time=table.timestamp.strftime("%H:%M:%S"),
+        time=table.ts.strftime("%H:%M:%S"),
         group_slug=ibis.literal("test-group"),
         group_name=ibis.literal("Test Group"),
     )
@@ -576,6 +580,7 @@ def test_enrichment_handles_schema_mismatch(
         cache=cache,
         docs_dir=docs_dir,
         posts_dir=posts_dir,
+        output_format=None,  # Not needed for test
     )
 
     try:
