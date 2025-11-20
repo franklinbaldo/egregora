@@ -24,12 +24,23 @@ from typing import TYPE_CHECKING, Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from egregora.agents.writer.schemas import WriterAgentReturn, WriterAgentState
+from egregora.agents.writer.schemas import (
+    AnnotationResult,
+    BannerResult,
+    MediaItem,
+    PostMetadata,
+    ReadProfileResult,
+    SearchMediaResult,
+    WritePostResult,
+    WriteProfileResult,
+    WriterAgentReturn,
+    WriterAgentState,
+)
 
 try:
-    from pydantic_ai import Agent, ModelMessagesTypeAdapter
+    from pydantic_ai import Agent, ModelMessagesTypeAdapter, RunContext
 except ImportError:
-    from pydantic_ai import Agent
+    from pydantic_ai import Agent, RunContext
 
     class ModelMessagesTypeAdapter:
         """Lightweight shim mirroring the adapter interface used in tests."""
@@ -54,9 +65,10 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
-from egregora.agents.banner import is_banner_generation_available
+from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore, is_rag_available
+from egregora.agents.shared.rag.retriever import query_media
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
@@ -457,7 +469,114 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
     return (saved_posts, saved_profiles)
 
 
-from egregora.agents.writer.tools import register_writer_tools  # noqa: E402
+# ============================================================================
+# Writer Agent Tools (merged from tools.py)
+# ============================================================================
+
+
+def register_writer_tools(  # noqa: C901
+    agent: Agent[WriterAgentState, WriterAgentReturn],
+    *,
+    enable_banner: bool = False,
+    enable_rag: bool = False,
+) -> None:
+    """Attach tool implementations to the agent."""
+
+    @agent.tool
+    def write_post_tool(
+        ctx: RunContext[WriterAgentState], metadata: PostMetadata, content: str
+    ) -> WritePostResult:
+        doc = Document(
+            content=content,
+            type=DocumentType.POST,
+            metadata=metadata.model_dump(exclude_none=True),
+            source_window=ctx.deps.window_id,
+        )
+        url = ctx.deps.url_convention.canonical_url(doc, ctx.deps.url_context)
+        ctx.deps.output_format.serve(doc)
+        logger.info("Writer agent saved post at URL: %s (doc_id: %s)", url, doc.document_id)
+        return WritePostResult(status="success", path=url)
+
+    @agent.tool
+    def read_profile_tool(ctx: RunContext[WriterAgentState], author_uuid: str) -> ReadProfileResult:
+        doc = ctx.deps.output_format.read_document(DocumentType.PROFILE, author_uuid)
+        content = doc.content if doc else "No profile exists yet."
+        return ReadProfileResult(content=content)
+
+    @agent.tool
+    def write_profile_tool(
+        ctx: RunContext[WriterAgentState], author_uuid: str, content: str
+    ) -> WriteProfileResult:
+        doc = Document(
+            content=content,
+            type=DocumentType.PROFILE,
+            metadata={"uuid": author_uuid},
+            source_window=ctx.deps.window_id,
+        )
+        url = ctx.deps.url_convention.canonical_url(doc, ctx.deps.url_context)
+        ctx.deps.output_format.serve(doc)
+        logger.info("Writer agent saved profile at URL: %s (doc_id: %s)", url, doc.document_id)
+        return WriteProfileResult(status="success", path=url)
+
+    if enable_rag:
+
+        @agent.tool
+        def search_media_tool(
+            ctx: RunContext[WriterAgentState],
+            query: str,
+            media_types: list[str] | None = None,
+            limit: int = 5,
+        ) -> SearchMediaResult:
+            results = query_media(
+                query=query,
+                store=ctx.deps.rag_store,
+                media_types=media_types,
+                top_k=limit,
+                min_similarity_threshold=0.7,
+                embedding_model=ctx.deps.embedding_model,
+                retrieval_mode=ctx.deps.retrieval_mode,
+                retrieval_nprobe=ctx.deps.retrieval_nprobe,
+                retrieval_overfetch=ctx.deps.retrieval_overfetch,
+            )
+            df = results.execute()
+            items = [MediaItem(**row) for row in df.to_dict("records")]
+            return SearchMediaResult(results=items)
+
+    @agent.tool
+    def annotate_conversation_tool(
+        ctx: RunContext[WriterAgentState], parent_id: str, parent_type: str, commentary: str
+    ) -> AnnotationResult:
+        if ctx.deps.annotations_store is None:
+            msg = "Annotation store is not configured"
+            raise RuntimeError(msg)
+        annotation = ctx.deps.annotations_store.save_annotation(
+            parent_id=parent_id, parent_type=parent_type, commentary=commentary
+        )
+        return AnnotationResult(
+            status="success",
+            annotation_id=annotation.id,
+            parent_id=annotation.parent_id,
+            parent_type=annotation.parent_type,
+        )
+
+    if enable_banner:
+
+        @agent.tool
+        def generate_banner_tool(
+            ctx: RunContext[WriterAgentState], post_slug: str, title: str, summary: str
+        ) -> BannerResult:
+            banner_output_dir = ctx.deps.output_format.media_dir / "images"
+            banner_path = generate_banner_for_post(
+                post_title=title, post_summary=summary, output_dir=banner_output_dir, slug=post_slug
+            )
+            if banner_path:
+                return BannerResult(status="success", path=str(banner_path))
+            return BannerResult(status="failed", path=None)
+
+
+# ============================================================================
+# Agent Setup and Execution
+# ============================================================================
 
 
 def _create_writer_agent_state(context: WriterAgentContext, config: EgregoraConfig) -> WriterAgentState:

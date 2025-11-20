@@ -118,8 +118,8 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
         WriterAgentReturn,
         WriterAgentState,
         _create_writer_agent_state,
+        register_writer_tools,
     )
-    from egregora.agents.writer.tools import register_writer_tools
 
     def _stub_agent_setup(config, context, test_model=None):
         window_label = f"{context.start_time:%Y-%m-%d %H:%M} to {context.end_time:%H:%M}"

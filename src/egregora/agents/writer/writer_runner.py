@@ -12,20 +12,26 @@ Documentation:
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import ibis
 
 from egregora.agents.model_limits import PromptTooLargeError
-from egregora.agents.shared.author_profiles import get_active_authors
-from egregora.agents.shared.rag import VectorStore, index_document
+from egregora.agents.shared.author_profiles import get_active_authors, read_profile
+from egregora.agents.shared.rag import VectorStore, build_rag_context_for_writer, index_document
+from egregora.agents.shared.rag.chunker import chunk_markdown
+from egregora.agents.shared.rag.embedder import embed_query_text
 from egregora.agents.writer.agent import WriterAgentContext, write_posts_with_pydantic_agent
-from egregora.agents.writer.context_builder import _load_profiles_context, build_rag_context_for_prompt
-from egregora.agents.writer.formatting import _build_conversation_markdown_table, _load_journal_memory
+from egregora.agents.writer.formatting import (
+    _build_conversation_markdown_table,
+    _load_journal_memory,
+)
 from egregora.data_primitives.protocols import UrlContext
 from egregora.orchestration.context import PipelineContext
 from egregora.output_adapters import create_output_format, output_registry
@@ -42,6 +48,202 @@ logger = logging.getLogger(__name__)
 
 
 MAX_CONVERSATION_TURNS = 10
+
+
+# ============================================================================
+# Context Building Helpers (merged from context_builder.py)
+# ============================================================================
+
+
+def deduplicate_by_document(results: list[dict], n: int = 1) -> list[dict]:
+    """Keep top-n chunks per document_id, ranked by similarity.
+
+    Args:
+        results: List of result dicts with 'document_id' and 'similarity' keys
+        n: Number of chunks to keep per document (default: 1)
+
+    Returns:
+        Deduplicated list of results
+
+    """
+    # Group by document_id
+    by_doc: dict[str, list[dict]] = defaultdict(list)
+    for result in results:
+        doc_id = result.get("document_id")
+        if doc_id:
+            by_doc[doc_id].append(result)
+
+    # Keep top-n per document
+    deduplicated = []
+    for doc_results in by_doc.values():
+        # Sort by similarity (descending)
+        sorted_results = sorted(doc_results, key=lambda x: x.get("similarity", 0.0), reverse=True)
+        deduplicated.extend(sorted_results[:n])
+
+    logger.debug(
+        "Deduplication: %d results → %d unique documents (n=%d per doc)", len(results), len(deduplicated), n
+    )
+
+    return deduplicated
+
+
+def query_rag_per_chunk(  # noqa: PLR0913
+    chunks: list[str],
+    store: VectorStore,
+    embedding_model: str,
+    top_k: int = 5,
+    min_similarity_threshold: float = 0.7,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
+) -> list[dict]:
+    """Query RAG for each chunk and collect all results.
+
+    Args:
+        chunks: List of text chunks from chunk_markdown()
+        store: VectorStore instance
+        embedding_model: Embedding model name (e.g., "google-gla:gemini-embedding-001")
+        top_k: Number of results per chunk query
+        min_similarity_threshold: Minimum cosine similarity (0-1)
+        retrieval_mode: "ann" (approximate) or "exact" (brute-force)
+        retrieval_nprobe: ANN nprobe parameter (IVF index)
+        retrieval_overfetch: Candidate multiplier for ANN
+
+    Returns:
+        List of result dicts with keys: content, similarity, document_id, etc.
+
+    """
+    all_results = []
+
+    for i, chunk in enumerate(chunks):
+        logger.debug("Querying RAG for chunk %d/%d", i + 1, len(chunks))
+        query_vec = embed_query_text(chunk, model=embedding_model)
+        results = store.search(
+            query_vec=query_vec,
+            top_k=top_k,
+            min_similarity_threshold=min_similarity_threshold,
+            mode=retrieval_mode,
+            nprobe=retrieval_nprobe,
+            overfetch=retrieval_overfetch,
+        )
+
+        # Convert Ibis table to dict records
+        df = results.execute()
+        chunk_results = df.to_dict("records")
+        all_results.extend(chunk_results)
+
+    logger.info("Collected %d total results from %d chunks", len(all_results), len(chunks))
+    return all_results
+
+
+def build_rag_context_for_prompt(  # noqa: PLR0913
+    table_markdown: str,
+    store: VectorStore,
+    client: Any,
+    *,
+    embedding_model: str,
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
+    top_k: int = 5,
+    use_pydantic_helpers: bool = False,
+) -> str:
+    """Build a lightweight RAG context string from the conversation markdown.
+
+    This mirrors the pattern from the Pydantic-AI RAG example: embed the query,
+    fetch similar chunks, and convert them into a short "Relevant context" block
+    for the LLM prompt.
+
+    All embeddings use fixed 768 dimensions.
+
+    Args:
+        table_markdown: Conversation text to use as query
+        store: VectorStore instance
+        client: Gemini client
+        embedding_model: Embedding model name
+        retrieval_mode: "ann" or "exact"
+        retrieval_nprobe: ANN nprobe
+        retrieval_overfetch: ANN overfetch
+        top_k: Number of results
+        use_pydantic_helpers: If True, use async pydantic_helpers instead of sync code
+
+    Returns:
+        Formatted RAG context string
+
+    """
+    if use_pydantic_helpers:
+        return asyncio.run(
+            build_rag_context_for_writer(
+                query=table_markdown,
+                client=client,
+                rag_dir=store.parquet_path.parent,
+                embedding_model=embedding_model,
+                top_k=top_k,
+                retrieval_mode=retrieval_mode,
+                retrieval_nprobe=retrieval_nprobe,
+                retrieval_overfetch=retrieval_overfetch,
+            )
+        )
+    if not table_markdown.strip():
+        return ""
+    query_vector = embed_query_text(table_markdown, model=embedding_model)
+    search_results = store.search(
+        query_vec=query_vector,
+        top_k=top_k,
+        min_similarity_threshold=0.7,
+        mode=retrieval_mode,
+        nprobe=retrieval_nprobe,
+        overfetch=retrieval_overfetch,
+    )
+    df = search_results.execute()
+    if getattr(df, "empty", False):
+        logger.info("Writer RAG: no similar posts found for query")
+        return ""
+    records = df.to_dict("records")
+    if not records:
+        return ""
+    lines = [
+        "## Related Previous Posts (for continuity and linking):",
+        "You can reference these posts in your writing to maintain conversation continuity.\n",
+    ]
+    for row in records:
+        title = row.get("post_title") or "Untitled"
+        post_date = row.get("post_date") or ""
+        snippet = (row.get("content") or "")[:400]
+        tags = row.get("tags") or []
+        similarity = row.get("similarity")
+        lines.append(f"### [{title}] ({post_date})")
+        lines.append(f"{snippet}...")
+        lines.append(f"- Tags: {(', '.join(tags) if tags else 'none')}")
+        if similarity is not None:
+            lines.append(f"- Similarity: {float(similarity):.2f}")
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
+def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
+    """Load profiles for top active authors."""
+    top_authors = get_active_authors(table, limit=20)
+    if not top_authors:
+        return ""
+    logger.info("Loading profiles for %s active authors", len(top_authors))
+    profiles_context = "\n\n## Active Participants (Profiles):\n"
+    profiles_context += "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n"
+    for author_uuid in top_authors:
+        profile_content = read_profile(author_uuid, profiles_dir)
+        if profile_content:
+            profiles_context += f"### Author: {author_uuid}\n"
+            profiles_context += f"{profile_content}\n\n"
+        else:
+            profiles_context += f"### Author: {author_uuid}\n"
+            profiles_context += "(No profile yet - first appearance)\n\n"
+    logger.info("Profiles context: %s characters", len(profiles_context))
+    return profiles_context
+
+
+# ============================================================================
+# Output Format and Writer Functions
+# ============================================================================
 
 
 def load_format_instructions(site_root: Path | None) -> str:
