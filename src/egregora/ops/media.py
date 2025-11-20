@@ -22,10 +22,9 @@ import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
-import ibis
-
 if TYPE_CHECKING:
     from ibis.expr.types import Table
+
     from egregora.input_adapters.base import InputAdapter
 
 
@@ -257,10 +256,7 @@ def replace_media_mentions(
 
 
 def replace_markdown_media_refs(
-    table: Table,
-    media_mapping: dict[str, Path],
-    docs_dir: Path,
-    posts_dir: Path
+    table: Table, media_mapping: dict[str, Path], docs_dir: Path, posts_dir: Path
 ) -> Table:
     """Replace markdown media references with standardized paths in Ibis table."""
     if not media_mapping:
@@ -307,9 +303,7 @@ def process_media_for_window(
     for media_ref in media_refs:
         try:
             # Adapter delivers a Document containing the media content
-            document = adapter.deliver_media(
-                media_reference=media_ref, **adapter_kwargs
-            )
+            document = adapter.deliver_media(media_reference=media_ref, **adapter_kwargs)
             if not document:
                 continue
 
@@ -323,9 +317,7 @@ def process_media_for_window(
                 temp_file.write_text(document.content, encoding="utf-8")
 
             standardized_path = adapter.standardize_media_file(
-                source_file=temp_file,
-                media_dir=media_dir,
-                get_subfolder=get_media_subfolder
+                source_file=temp_file, media_dir=media_dir, get_subfolder=get_media_subfolder
             )
             media_mapping[media_ref] = standardized_path
 

@@ -246,6 +246,7 @@ class PipelineContext:
         if url_context:
             # Create new config object since it's immutable
             from dataclasses import replace
+
             new_config = replace(self.config_obj, url_context=url_context)
             return PipelineContext(new_config, self.state)
         return self

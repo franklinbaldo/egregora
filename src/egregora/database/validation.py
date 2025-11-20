@@ -49,7 +49,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any, TypeVar
 
 import ibis
@@ -59,8 +59,6 @@ from pydantic import BaseModel, Field, ValidationError, create_model
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 
 if TYPE_CHECKING:
-    from zoneinfo import ZoneInfo
-
     from ibis.expr.types import Table
 
 # Type variable for decorator
@@ -405,8 +403,6 @@ def _types_compatible(expected: dt.DataType, actual: dt.DataType) -> bool:
 # Rationale: Not used anywhere in codebase. Stages should call validate_ir_schema()
 # directly when validation is needed, rather than using a decorator.
 # See docs/SIMPLIFICATION_PLAN.md for details.
-
-
 
 
 # ============================================================================

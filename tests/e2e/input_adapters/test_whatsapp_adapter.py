@@ -23,6 +23,7 @@ import ibis
 import pytest
 
 from egregora.config.settings import create_default_config
+
 # from egregora.ops.media import extract_and_replace_media
 from egregora.enrichment.runners import EnrichmentRuntimeContext, enrich_table
 from egregora.input_adapters.whatsapp import WhatsAppAdapter, filter_egregora_messages, parse_source
@@ -280,7 +281,7 @@ def test_media_files_have_deterministic_names(whatsapp_fixture: WhatsAppFixture,
     # Assuming there's at least one IMG-*.jpg reference
 
     adapter = WhatsAppAdapter()
-    media_ref = "IMG-20251028-WA0001.jpg" # Example from fixture if known
+    media_ref = "IMG-20251028-WA0001.jpg"  # Example from fixture if known
 
     # Actually, let's just use the adapter's standardize method directly
     # since that's what ensures determinism

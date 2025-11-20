@@ -11,14 +11,7 @@ import hashlib
 import random
 from typing import Any
 
-from egregora.agents.writer import register_writer_tools
-from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
-
-from egregora.agents.writer import (
-    WriterAgentReturn,
-    WriterDeps,
-)
 
 
 class MockEmbeddingModel:
@@ -62,8 +55,6 @@ class WriterTestModel(TestModel):
 def install_writer_test_model(monkeypatch, captured_windows: list[str] | None = None) -> None:
     """Install deterministic writer agent that avoids network calls."""
 
-    from egregora.agents.writer import _prepare_deps
-
     def _stub_agent_setup(prompt, config, context, test_model=None):
         # This mocks write_posts_with_pydantic_agent but we need to patch deeper or higher
         # Actually, write_posts_with_pydantic_agent creates the agent.
@@ -83,6 +74,7 @@ def install_writer_test_model(monkeypatch, captured_windows: list[str] | None = 
     original_func = None
     try:
         from egregora.agents.writer import write_posts_with_pydantic_agent as original
+
         original_func = original
     except ImportError:
         pass
@@ -94,12 +86,7 @@ def install_writer_test_model(monkeypatch, captured_windows: list[str] | None = 
         # Use our deterministic TestModel
         test_model = WriterTestModel(window_label=context.window_label)
 
-        return original_func(
-            prompt=prompt,
-            config=config,
-            context=context,
-            test_model=test_model
-        )
+        return original_func(prompt=prompt, config=config, context=context, test_model=test_model)
 
     if original_func:
         monkeypatch.setattr("egregora.agents.writer.write_posts_with_pydantic_agent", _wrapper)

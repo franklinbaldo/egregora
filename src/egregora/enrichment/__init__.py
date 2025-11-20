@@ -8,14 +8,6 @@ Documentation:
 - Core Concepts: docs/getting-started/concepts.md#4-enrich-optional
 """
 
-from egregora.ops.media import (
-    detect_media_type,
-    extract_media_from_zip,
-    extract_urls,
-    find_media_references,
-    get_media_subfolder,
-    replace_media_mentions,
-)
 from egregora.enrichment.runners import (
     EnrichmentRuntimeContext,
     MediaEnrichmentJob,
@@ -23,6 +15,14 @@ from egregora.enrichment.runners import (
     build_batch_requests,
     enrich_table,
     map_batch_results,
+)
+from egregora.ops.media import (
+    detect_media_type,
+    extract_media_from_zip,
+    extract_urls,
+    find_media_references,
+    get_media_subfolder,
+    replace_media_mentions,
 )
 
 __all__ = [

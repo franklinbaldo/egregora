@@ -13,7 +13,6 @@ Priority:
 from __future__ import annotations
 
 import logging
-import shutil
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +34,7 @@ class PromptManager:
         Args:
             prompts_dir: Optional custom prompts directory (e.g., site/.egregora/prompts).
                          If provided, it takes precedence over package defaults.
+
         """
         self.prompts_dir = prompts_dir
         self.env = self._create_environment()
@@ -79,6 +79,7 @@ class PromptManager:
 
         Returns:
             Rendered string
+
         """
         template = self.env.get_template(template_name)
         return template.render(**context)
@@ -94,6 +95,7 @@ class PromptManager:
 
         Returns:
             Number of files copied
+
         """
         if not PACKAGE_PROMPTS_DIR.exists():
             logger.warning("Package prompts directory not found: %s", PACKAGE_PROMPTS_DIR)

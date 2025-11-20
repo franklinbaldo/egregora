@@ -14,24 +14,21 @@ MODERN (2025-11-18): Imports site path resolution from
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
-from dateutil import parser as dateutil_parser
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
-from egregora.knowledge.profiles import write_profile as write_profile_content
 from egregora.config.settings import create_default_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
+from egregora.knowledge.profiles import write_profile as write_profile_content
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import SitePaths, load_site_paths
 from egregora.utils.filesystem import write_markdown_post as _write_mkdocs_post
 from egregora.utils.frontmatter_utils import parse_frontmatter
-from egregora.utils.paths import safe_path_join, slugify
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table

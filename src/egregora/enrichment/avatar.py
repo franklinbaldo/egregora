@@ -21,8 +21,6 @@ from urllib.parse import urljoin, urlparse
 import httpx
 from PIL import Image
 
-from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
-from egregora.ops.media import detect_media_type, extract_urls
 from egregora.enrichment.runners import (
     MediaEnrichmentContext,
     create_media_enrichment_agent,
@@ -30,6 +28,8 @@ from egregora.enrichment.runners import (
     load_file_as_binary_content,
 )
 from egregora.input_adapters.whatsapp import extract_commands
+from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
+from egregora.ops.media import detect_media_type, extract_urls
 from egregora.utils import EnrichmentCache, make_enrichment_cache_key
 
 if TYPE_CHECKING:

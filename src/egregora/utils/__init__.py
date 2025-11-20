@@ -11,6 +11,7 @@ from egregora.utils.batch import (
     chunk_requests,
 )
 from egregora.utils.cache import ENRICHMENT_CACHE_VERSION, EnrichmentCache, make_enrichment_cache_key
+
 # from egregora.utils.genai import (
 #     call_with_retries,
 #     call_with_retries_sync,

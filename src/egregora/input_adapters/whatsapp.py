@@ -20,7 +20,6 @@ import ibis
 from dateutil import parser as date_parser
 from pydantic import BaseModel
 
-from egregora.constants import EgregoraCommand
 from egregora.data_primitives import GroupSlug
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.ir_schema import MESSAGE_SCHEMA
@@ -30,7 +29,6 @@ from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
     from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
@@ -41,8 +39,10 @@ __all__ = ["WhatsAppAdapter", "discover_chat_file"]
 # Models
 # ============================================================================
 
+
 class WhatsAppExport(BaseModel):
     """Metadata for a WhatsApp ZIP export."""
+
     zip_path: Path
     group_name: str
     group_slug: GroupSlug
@@ -189,9 +189,7 @@ def _parse_messages_duckdb(
     # Identify message groups
     # A new group starts where is_header is True
     # We use cumulative sum (scan) to assign group IDs
-    grouped = parsed.mutate(
-        msg_group_id=parsed.is_header.cast("int").cumsum()
-    )
+    grouped = parsed.mutate(msg_group_id=parsed.is_header.cast("int").cumsum())
 
     # Filter out lines before the first valid message
     valid_messages = grouped.filter(grouped.msg_group_id > 0)
@@ -208,7 +206,6 @@ def _parse_messages_duckdb(
         # Combine text: header's message_part + subsequent full lines
         # We can't easily use string_agg with complex condition in one go in standard Ibis without window functions
         # But since we grouped, we can try list_agg or similar if supported, or do a window operation before aggregate.
-
         # Strategy:
         # 1. Identify content for each line:
         #    - Header line: message_part
@@ -225,19 +222,23 @@ def _parse_messages_duckdb(
         else_=valid_messages.line,
     )
 
-    final_table = valid_messages.group_by("msg_group_id").aggregate(
-        date_str=valid_messages.date_str.first(),
-        time_str=valid_messages.time_str.first(),
-        author_raw=valid_messages.author_raw.first(),
-        # Use standard aggregation if group_concat isn't available on older ibis versions
-        # DuckDB supports list_agg or string_agg
-        # Ibis usually exposes group_concat, but let's try a more backend-agnostic approach or direct SQL if needed.
-        # Since we are using ibis.memtable (DuckDB backend), we can use .agg(ibis.literal("\n").join(content_expr))? No.
-        # Let's try ibis.string_agg if group_concat fails. But Ibis standardizes.
-        # The error says 'ibis' module has no attribute 'group_concat'. It might be an expression method.
-        # Try content_expr.group_concat("\n")
-        full_text=content_expr.group_concat(sep="\n")
-    ).order_by("msg_group_id")
+    final_table = (
+        valid_messages.group_by("msg_group_id")
+        .aggregate(
+            date_str=valid_messages.date_str.first(),
+            time_str=valid_messages.time_str.first(),
+            author_raw=valid_messages.author_raw.first(),
+            # Use standard aggregation if group_concat isn't available on older ibis versions
+            # DuckDB supports list_agg or string_agg
+            # Ibis usually exposes group_concat, but let's try a more backend-agnostic approach or direct SQL if needed.
+            # Since we are using ibis.memtable (DuckDB backend), we can use .agg(ibis.literal("\n").join(content_expr))? No.
+            # Let's try ibis.string_agg if group_concat fails. But Ibis standardizes.
+            # The error says 'ibis' module has no attribute 'group_concat'. It might be an expression method.
+            # Try content_expr.group_concat("\n")
+            full_text=content_expr.group_concat(sep="\n"),
+        )
+        .order_by("msg_group_id")
+    )
 
     # Execute to get Python objects for final date parsing (since date formats vary wildly)
     # We could do date parsing in SQL if formats were standard, but WhatsApp dates are messy.
@@ -276,8 +277,10 @@ def _parse_messages_duckdb(
             "timestamp": timestamp,
             "date": msg_date,
             "author_raw": author_raw,
-            "_continuation_lines": [text], # Already joined, but finalize expects list structure or we adapt finalize
-            "_original_lines": [], # We skip original lines tracking for speed in this path
+            "_continuation_lines": [
+                text
+            ],  # Already joined, but finalize expects list structure or we adapt finalize
+            "_original_lines": [],  # We skip original lines tracking for speed in this path
         }
 
         # Adapted finalizer for pre-joined text
@@ -331,6 +334,7 @@ def _add_message_ids(messages: Table) -> Table:
 # ============================================================================
 # Command Parsing
 # ============================================================================
+
 
 def _parse_set_command(args: str) -> dict | None:
     parts = args.split(maxsplit=1)
@@ -531,6 +535,7 @@ def parse_source(
 # Adapter Implementation
 # ============================================================================
 
+
 def discover_chat_file(zip_path: Path) -> tuple[str, str]:
     """Find the chat .txt file in zip_path and infer the group name."""
     with zipfile.ZipFile(zip_path) as zf:
@@ -565,6 +570,7 @@ class _EmptyKwargs(TypedDict):
 
 class DeliverMediaKwargs(TypedDict, total=False):
     """Kwargs for WhatsAppAdapter.deliver_media method."""
+
     zip_path: Path
 
 
@@ -680,9 +686,7 @@ class WhatsAppAdapter(InputAdapter):
         logger.debug("Parsed WhatsApp export with %s messages", messages_table.count().execute())
         return messages_table
 
-    def deliver_media(
-        self, media_reference: str, **kwargs: Unpack[DeliverMediaKwargs]
-    ) -> Document | None:
+    def deliver_media(self, media_reference: str, **kwargs: Unpack[DeliverMediaKwargs]) -> Document | None:
         """Deliver media file from WhatsApp ZIP as a Document."""
         if not self._validate_media_reference(media_reference):
             return None

@@ -31,9 +31,6 @@ import ibis
 from google import genai
 
 from egregora.agents.model_limits import get_model_context_limit
-from egregora.knowledge.annotations import AnnotationStore
-from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
-from egregora.knowledge.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database.duckdb_manager import DuckDBStorageManager
@@ -44,10 +41,13 @@ from egregora.enrichment.avatar import AvatarContext, process_avatar_commands
 from egregora.enrichment.runners import EnrichmentRuntimeContext
 from egregora.input_adapters import get_adapter
 from egregora.input_adapters.whatsapp import extract_commands, filter_egregora_messages
+from egregora.knowledge.annotations import AnnotationStore
+from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
+from egregora.knowledge.rag import VectorStore, index_all_media
+from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
 from egregora.output_adapters.mkdocs import load_site_paths
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
-from egregora.ops.media import process_media_for_window
 from egregora.utils.cache import EnrichmentCache
 
 if TYPE_CHECKING:

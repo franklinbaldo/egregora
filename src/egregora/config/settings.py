@@ -465,9 +465,7 @@ class EgregoraConfig(BaseModel):
     )
 
     @classmethod
-    def from_cli_overrides(
-        cls, base_config: EgregoraConfig, **cli_args: Any
-    ) -> EgregoraConfig:
+    def from_cli_overrides(cls, base_config: EgregoraConfig, **cli_args: Any) -> EgregoraConfig:
         """Create a new config instance with CLI overrides applied.
 
         Handles nested updates for pipeline, enrichment, rag, etc.
@@ -508,7 +506,7 @@ class EgregoraConfig(BaseModel):
             updates["rag"]["overfetch"] = cli_args["retrieval_overfetch"]
 
         # Model overrides (apply single CLI model arg to all relevant models)
-        if "model" in cli_args and cli_args["model"]:
+        if cli_args.get("model"):
             model = cli_args["model"]
             updates["models"]["writer"] = model
             updates["models"]["enricher"] = model
