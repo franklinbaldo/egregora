@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from egregora.agents.shared.rag.embedder import embed_query_text
+from egregora.agents.shared.rag.core import embed_query_text
 from egregora.agents.shared.rag.store import VectorStore
 from egregora.database.duckdb_manager import DuckDBStorageManager
 

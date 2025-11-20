@@ -16,18 +16,18 @@ Documentation:
 
 import os
 
-from egregora.agents.shared.rag.indexing import index_document
-from egregora.agents.shared.rag.pydantic_helpers import (
-    build_rag_context_for_writer,
-    find_relevant_docs,
-    format_rag_context,
-)
-from egregora.agents.shared.rag.retriever import (
+from egregora.agents.shared.rag.operations import (
     index_all_media,
+    index_document,
     index_media_enrichment,
     index_post,
     query_media,
     query_similar_posts,
+)
+from egregora.agents.shared.rag.pydantic_helpers import (
+    build_rag_context_for_writer,
+    find_relevant_docs,
+    format_rag_context,
 )
 from egregora.agents.shared.rag.store import VectorStore
 
