@@ -186,6 +186,56 @@ def check_duckdb_extensions() -> DiagnosticResult:
         )
 
 
+def check_duckdb_zipfs_extension() -> DiagnosticResult:
+    """Check if DuckDB zipfs extension can be installed and loaded."""
+
+    try:
+        duckdb = importlib.import_module("duckdb")
+    except ImportError:
+        return DiagnosticResult(
+            check="DuckDB zipfs Extension",
+            status=HealthStatus.ERROR,
+            message="DuckDB not installed (run: uv sync --all-extras)",
+            details={"missing_package": "duckdb"},
+        )
+
+    try:
+        conn = duckdb.connect(":memory:")
+        try:
+            conn.execute("INSTALL zipfs")
+            conn.execute("LOAD zipfs")
+            result = conn.execute(
+                "SELECT extension_name, loaded FROM duckdb_extensions() WHERE extension_name = 'zipfs'"
+            ).fetchone()
+            if result and result[1]:
+                return DiagnosticResult(
+                    check="DuckDB zipfs Extension",
+                    status=HealthStatus.OK,
+                    message="zipfs extension available and loaded",
+                )
+
+            return DiagnosticResult(
+                check="DuckDB zipfs Extension",
+                status=HealthStatus.WARNING,
+                message="zipfs extension installed but not loaded",
+            )
+        except duckdb.IOException as e:
+            return DiagnosticResult(
+                check="DuckDB zipfs Extension",
+                status=HealthStatus.WARNING,
+                message=f"zipfs extension not available: {e}",
+                details={"workaround": "Ensure DuckDB can download extensions or install manually"},
+            )
+        finally:
+            conn.close()
+    except Exception as e:  # noqa: BLE001
+        return DiagnosticResult(
+            check="DuckDB zipfs Extension",
+            status=HealthStatus.ERROR,
+            message=f"Failed to check zipfs extension: {e}",
+        )
+
+
 def check_git() -> DiagnosticResult:
     """Check if git is available for code_ref tracking."""
     try:
@@ -339,6 +389,7 @@ def run_diagnostics() -> list[DiagnosticResult]:
         check_required_packages,
         check_api_key,
         check_duckdb_extensions,
+        check_duckdb_zipfs_extension,
         check_git,
         check_cache_directory,
         check_egregora_config,

@@ -26,7 +26,6 @@ from egregora.database.ir_schema import MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.privacy.uuid_namespaces import deterministic_author_uuid
-from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -58,7 +57,20 @@ class WhatsAppExport(BaseModel):
 # Internal columns for tracking during parsing
 _IMPORT_ORDER_COLUMN = "_import_order"
 _IMPORT_SOURCE_COLUMN = "_import_source"
-_AUTHOR_UUID_HEX_COLUMN = "_author_uuid_hex"
+DEFAULT_CHAT_FILE_LIMIT_BYTES = 2 * 1024**3
+_WHATSAPP_OUTPUT_SCHEMA = ibis.schema(
+    {
+        "ts": "timestamp",
+        "date": "date",
+        "author": "string",
+        "author_raw": "string",
+        "author_uuid": "string",
+        "text": "string",
+        "original_line": "string",
+        "tagged_line": "string",
+        "message_id": "string",
+    }
+)
 
 # WhatsApp message line pattern
 WHATSAPP_LINE_PATTERN = re.compile(
@@ -146,7 +158,6 @@ def _finalize_message(msg: dict, tenant_id: str, source: str) -> dict:
         "author": author_raw,
         "author_raw": author_raw,
         "author_uuid": str(author_uuid),
-        _AUTHOR_UUID_HEX_COLUMN: author_uuid.hex,
         "text": message_text,
         "original_line": original_text or None,
         "tagged_line": None,
@@ -292,7 +303,6 @@ def _parse_messages_duckdb(
             "author": author_raw,
             "author_raw": author_raw,
             "author_uuid": str(author_uuid),
-            _AUTHOR_UUID_HEX_COLUMN: author_uuid.hex,
             "text": text.strip(),
             "original_line": None,
             "tagged_line": None,
@@ -489,25 +499,36 @@ def parse_source(
     expose_raw_author: bool = False,
 ) -> Table:
     """Parse WhatsApp export using pure Ibis/DuckDB operations."""
-    with zipfile.ZipFile(export.zip_path) as zf:
-        validate_zip_contents(zf)
-        ensure_safe_member_size(zf, export.chat_file)
-        try:
-            with zf.open(export.chat_file) as raw:
-                text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
-                lines = [line.rstrip("\n") for line in text_stream]
-        except UnicodeDecodeError as exc:
-            msg = f"Failed to decode chat file '{export.chat_file}': {exc}"
-            raise ZipValidationError(msg) from exc
+    try:
+        backend = ibis.get_backend()
+        _install_zipfs_extension(backend)
+
+        chat_uri = _build_zip_uri(export.zip_path, export.chat_file)
+        lines_table = ibis.read_csv(
+            chat_uri,
+            columns={"line": "string"},
+            header=False,
+            delim="\t",
+            auto_detect=False,
+        )
+
+        lines = [value or "" for value in lines_table["line"].execute().tolist()]
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "zipfs path read failed for %s: %s; falling back to in-memory extraction",
+            export.zip_path,
+            exc,
+        )
+        lines = _read_chat_lines_with_zipfile(export.zip_path, export.chat_file)
 
     if not lines:
         logger.warning("No messages found in %s", export.zip_path)
-        return ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
+        return ibis.memtable([], schema=_WHATSAPP_OUTPUT_SCHEMA)
 
     rows = _parse_messages_duckdb(lines, export, timezone)
 
     if not rows:
-        return ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
+        return ibis.memtable([], schema=_WHATSAPP_OUTPUT_SCHEMA)
 
     messages = ibis.memtable(rows)
     if _IMPORT_ORDER_COLUMN in messages.columns:
@@ -523,12 +544,71 @@ def parse_source(
     if not expose_raw_author:
         messages = anonymize_table(messages)
 
-    helper_columns = [_AUTHOR_UUID_HEX_COLUMN]
-    columns_to_drop = [col for col in helper_columns if col in messages.columns]
-    if columns_to_drop:
-        messages = messages.drop(*columns_to_drop)
+    extra_columns = [
+        column for column in messages.columns if column not in _WHATSAPP_OUTPUT_SCHEMA.names
+    ]
+    if extra_columns:
+        messages = messages.drop(*extra_columns)
+    selected_columns = [
+        messages[column] for column in _WHATSAPP_OUTPUT_SCHEMA.names if column in messages.columns
+    ]
+    messages = messages.select(*selected_columns)
 
     return messages
+
+
+def _build_zip_uri(zip_path: Path, member_name: str) -> str:
+    return f"zip://{zip_path.as_posix()}!{member_name}"
+
+
+def _install_zipfs_extension(backend: ibis.BaseBackend) -> None:
+    try:
+        backend.raw_sql("LOAD zipfs")
+        return
+    except Exception:
+        logger.debug("zipfs extension not preloaded; attempting install")
+
+    try:
+        backend.raw_sql("SET custom_extension_repository='https://extensions.duckdb.org'")
+    except Exception:
+        logger.debug("Unable to set custom_extension_repository for DuckDB")
+
+    try:
+        backend.raw_sql("INSTALL zipfs")
+        backend.raw_sql("LOAD zipfs")
+    except Exception as exc:  # noqa: BLE001
+        msg = (
+            "DuckDB zipfs extension is required to read WhatsApp exports. "
+            "Run `egregora doctor` to verify extension availability."
+        )
+        raise RuntimeError(msg) from exc
+
+
+def _validate_zip_safety(zip_path: Path, target_file: str, *, max_bytes: int = DEFAULT_CHAT_FILE_LIMIT_BYTES) -> None:
+    """Lightweight 'Bouncer' to prevent processing zip bombs."""
+
+    with zipfile.ZipFile(zip_path) as zf:
+        try:
+            info = zf.getinfo(target_file)
+        except KeyError:
+            return
+
+        if info.file_size > max_bytes:
+            raise ValueError(
+                f"Security limit exceeded: '{target_file}' is {info.file_size} bytes "
+                f"(max allowed: {max_bytes}). Processing aborted."
+            )
+
+
+def _read_chat_lines_with_zipfile(zip_path: Path, chat_file: str) -> list[str]:
+    with zipfile.ZipFile(zip_path) as zf:
+        try:
+            with zf.open(chat_file) as raw:
+                text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
+                return [line.rstrip("\n") for line in text_stream]
+        except UnicodeDecodeError as exc:
+            msg = f"Failed to decode chat file '{chat_file}': {exc}"
+            raise ValueError(msg) from exc
 
 
 # ============================================================================
@@ -652,7 +732,14 @@ class WhatsAppAdapter(InputAdapter):
             ir_version="v1",
         )
 
-    def parse(self, input_path: Path, *, timezone: str | None = None, **_kwargs: _EmptyKwargs) -> Table:
+    def parse(
+        self,
+        input_path: Path,
+        *,
+        timezone: str | None = None,
+        max_chat_bytes: int | None = None,
+        **_kwargs: _EmptyKwargs,
+    ) -> Table:
         if not input_path.exists():
             msg = f"Input path does not exist: {input_path}"
             raise FileNotFoundError(msg)
@@ -660,6 +747,11 @@ class WhatsAppAdapter(InputAdapter):
             msg = f"Expected a ZIP file, got: {input_path}"
             raise ValueError(msg)
         group_name, chat_file = discover_chat_file(input_path)
+        _validate_zip_safety(
+            input_path,
+            chat_file,
+            max_bytes=max_chat_bytes or DEFAULT_CHAT_FILE_LIMIT_BYTES,
+        )
         export = WhatsAppExport(
             zip_path=input_path,
             group_name=group_name,

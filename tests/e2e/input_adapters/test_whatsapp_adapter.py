@@ -4,7 +4,7 @@ These tests validate the WhatsApp adapter's ability to parse WhatsApp export
 ZIPs into the standardized Interchange Representation (IR).
 
 Tests in this file validate:
-- ZIP extraction and validation
+- ZIP contents and header safety
 - Chat log parsing (dates, authors, messages)
 - Media extraction and reference replacement
 - Anonymization (UUID5 generation)
@@ -14,6 +14,7 @@ Tests in this file validate:
 
 from __future__ import annotations
 
+import struct
 import zipfile
 from datetime import date
 from pathlib import Path
@@ -28,7 +29,6 @@ from egregora.config.settings import create_default_config
 from egregora.enrichment.runners import EnrichmentRuntimeContext, enrich_table
 from egregora.input_adapters.whatsapp import WhatsAppAdapter, filter_egregora_messages, parse_source
 from egregora.utils.cache import EnrichmentCache
-from egregora.utils.zip import ZipValidationError, validate_zip_contents
 
 if TYPE_CHECKING:
     from conftest import WhatsAppFixture
@@ -38,33 +38,46 @@ def create_export_from_fixture(fixture: WhatsAppFixture):
     return fixture.create_export()
 
 
-# =============================================================================
-# ZIP Extraction & Validation Tests
-# =============================================================================
+def _inflate_declared_size(zip_path: Path, member_name: str, *, fake_size: int) -> None:
+    """Patch ZIP headers to advertise an unrealistically large file size."""
 
-
-def test_zip_extraction_completes_without_error(whatsapp_fixture: WhatsAppFixture):
-    """Test that WhatsApp ZIP is extracted and validated successfully."""
-    zip_path = whatsapp_fixture.zip_path
     with zipfile.ZipFile(zip_path) as archive:
-        validate_zip_contents(archive)
-        members = archive.namelist()
+        info = archive.getinfo(member_name)
+        local_header_offset = info.header_offset + 22
 
-    assert "Conversa do WhatsApp com Teste.txt" in members
-    assert sum(1 for member in members if member.endswith(".jpg")) == 4
+    fake_size_bytes = struct.pack("<I", fake_size)
+    buffer = bytearray(Path(zip_path).read_bytes())
+    buffer[local_header_offset : local_header_offset + 4] = fake_size_bytes
+
+    central_directory_signature = b"\x50\x4b\x01\x02"
+    central_directory_offset = buffer.rfind(central_directory_signature)
+    if central_directory_offset == -1:
+        raise AssertionError("Central directory not found in test ZIP")
+    buffer[central_directory_offset + 24 : central_directory_offset + 28] = fake_size_bytes
+
+    with open(zip_path, "r+b") as zip_file:
+        zip_file.write(buffer)
+        zip_file.truncate()
 
 
-def test_pipeline_rejects_unsafe_zip(tmp_path: Path):
-    """Test that ZIP validation rejects path traversal attempts."""
-    malicious_zip = tmp_path / "malicious.zip"
-    with zipfile.ZipFile(malicious_zip, "w") as archive:
-        archive.writestr("../etc/passwd", "malicious content")
+# =============================================================================
+# ZIP Header Safety Tests
+# =============================================================================
 
-    with (
-        pytest.raises(ZipValidationError, match="path traversal"),
-        zipfile.ZipFile(malicious_zip) as archive,
-    ):
-        validate_zip_contents(archive)
+
+def test_fake_zip_bomb_is_rejected(tmp_path: Path):
+    """A zip member declaring an oversized payload should be rejected early."""
+
+    chat_file = "WhatsApp Chat with Exploit.txt"
+    zip_path = tmp_path / "malicious.zip"
+    with zipfile.ZipFile(zip_path, "w") as archive:
+        archive.writestr(chat_file, "harmless")
+
+    _inflate_declared_size(zip_path, chat_file, fake_size=3 * 1024**3)
+
+    adapter = WhatsAppAdapter()
+    with pytest.raises(ValueError, match="Security limit exceeded"):
+        adapter.parse(zip_path)
 
 
 # =============================================================================

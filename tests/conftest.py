@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sys
-import zipfile
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -35,7 +34,6 @@ except ImportError:  # pragma: no cover - depends on test env
 # Imports below require sys.path setup above
 from egregora.data_primitives import GroupSlug
 from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file
-from egregora.utils.zip import validate_zip_contents
 from tests.utils.mock_batch_client import MockGeminiClient
 from tests.utils.pydantic_test_models import MockEmbeddingModel, install_writer_test_model
 
@@ -86,8 +84,6 @@ class WhatsAppFixture:
 def whatsapp_fixture() -> WhatsAppFixture:
     """Load WhatsApp archive metadata once for the entire test session."""
     zip_path = Path(__file__).parent / "fixtures" / "Conversa do WhatsApp com Teste.zip"
-    with zipfile.ZipFile(zip_path) as archive:
-        validate_zip_contents(archive)
     group_name, chat_file = discover_chat_file(zip_path)
     group_slug = GroupSlug(group_name.lower().replace(" ", "-"))
     return WhatsAppFixture(
