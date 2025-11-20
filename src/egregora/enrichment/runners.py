@@ -599,7 +599,9 @@ def _process_single_media(
             else:
                 payload = str(raw_content).encode("utf-8")
 
-            filename = media_doc.metadata.get("filename") or media_doc.metadata.get("original_filename") or ref
+            filename = (
+                media_doc.metadata.get("filename") or media_doc.metadata.get("original_filename") or ref
+            )
             binary_content = BinaryContent(
                 data=payload,
                 media_type=_guess_binary_mime_type(filename, media_type),
@@ -859,7 +861,9 @@ def _enrich_media(  # noqa: PLR0913
             pii_media_deleted = True
 
         filename = media_doc.metadata.get("filename") or media_doc.metadata.get("original_filename") or ref
-        enrichment_row = _create_enrichment_row(metadata_lookup.get(ref), "Media", filename, enrichment_id_str)
+        enrichment_row = _create_enrichment_row(
+            metadata_lookup.get(ref), "Media", filename, enrichment_id_str
+        )
         if enrichment_row:
             new_rows.append(enrichment_row)
 

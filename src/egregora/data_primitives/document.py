@@ -88,7 +88,7 @@ class Document:
 
     # Parent relationship (for enrichments)
     parent_id: str | None = None
-    parent: "Document" | None = field(default=None, repr=False, compare=False)
+    parent: Document | None = field(default=None, repr=False, compare=False)
 
     # Provenance
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -128,7 +128,7 @@ class Document:
         content_hash = hashlib.sha256(payload).hexdigest()
         return str(uuid5(NAMESPACE_DOCUMENT, content_hash))
 
-    def with_parent(self, parent: "Document | str") -> "Document":
+    def with_parent(self, parent: Document | str) -> Document:
         """Return new document with parent relationship.
 
         Useful for creating enrichments that reference parent media.
