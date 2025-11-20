@@ -24,6 +24,7 @@ from egregora.orchestration.write_pipeline import (
     WhatsAppProcessOptions,
     process_whatsapp_export,
 )
+from tests.utils.pydantic_test_models import install_writer_test_model
 
 if TYPE_CHECKING:
     from conftest import WhatsAppFixture
@@ -109,45 +110,7 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
     monkeypatch.setattr("egregora.orchestration.write_pipeline.genai.Client", DummyGenaiClient)
     # Note: GeminiDispatcher has been removed - pipeline now uses genai.Client directly
 
-    # We need to mock the agent's behavior without bypassing the orchestration logic.
-    # We do this by patching `_setup_agent_and_state` to return an agent using a TestModel.
-
-    # Mock write_posts_with_pydantic_agent to simulate agent run
-    def _stub_write_posts(prompt, config, context, test_model=None):
-        window_label = context.window_label
-        captured_dates.append(window_label)
-
-        # Directly simulate the tool execution without invoking the actual agent runtime
-        # This avoids dealing with mocking the complex Agent/RunContext machinery in the consolidated code
-
-        # Create dummy post
-        post_doc = context.output_format.create_document(
-            content="This is a placeholder post used during testing.",
-            doc_type="post",
-            metadata={
-                "title": f"Stub Post for {window_label}",
-                "slug": f"{context.window_start:%Y%m%d_%H%M%S}-stub",
-                "date": f"{context.window_start:%Y-%m-%d}",
-                "tags": [],
-                "authors": ["system"],
-                "summary": "Stub summary",
-            },
-            source_window=window_label,
-        )
-        context.output_format.serve(post_doc)
-
-        # Create dummy profile
-        profile_doc = context.output_format.create_document(
-            content="Stub profile",
-            doc_type="profile",
-            metadata={"uuid": "system"},
-            source_window=window_label,
-        )
-        context.output_format.serve(profile_doc)
-
-        return [post_doc.document_id], [profile_doc.document_id]
-
-    monkeypatch.setattr("egregora.agents.writer.agent.write_posts_with_pydantic_agent", _stub_write_posts)
+    install_writer_test_model(monkeypatch, captured_dates)
 
 
 # =============================================================================

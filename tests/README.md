@@ -127,6 +127,12 @@ def mock_batch_client():
 ### Mock Utilities (tests/utils/)
 
 - `mock_batch_client.py` - Deterministic Gemini API mocks that simulate LLM responses without network calls. This is crucial for fast E2E tests.
+- `pydantic_test_models.py` - ``pydantic-ai`` TestModel classes and embedding stubs that encode expected tool calls directly in code (no VCR cassettes).
+
+### Deterministic LLM fixtures
+
+- ``writer_test_agent`` (from ``tests/conftest.py``) installs a ``WriterTestModel`` that always calls ``write_post_tool`` with predictable metadata and content.
+- ``mock_embedding_model`` returns a deterministic hashing-based embedding stub so retrieval tests can run offline.
 
 ---
 
@@ -142,7 +148,7 @@ def mock_batch_client():
 ### ❌ DON'T
 
 - **Don't add unit tests for internal functions.** Test behavior through the public interface (CLI/Pipeline).
-- **Don't make real API calls in standard tests.** Use mocks or VCR.
+- **Don't make real API calls in standard tests.** Use deterministic pydantic-ai TestModels and offline stubs.
 - **Don't rely on integration tests.** If components need to work together, test them in an E2E scenario.
 
 ---
