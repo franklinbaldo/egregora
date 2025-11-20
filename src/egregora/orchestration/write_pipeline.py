@@ -593,7 +593,6 @@ def _create_database_backends(
 
 def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> dict[str, Path]:
     """Resolve site paths for the configured output format and validate structure."""
-
     site_paths = _resolve_pipeline_site_paths(output_dir, config)
     format_type = config.output.format
 
@@ -627,7 +626,6 @@ def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> di
 
 def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> dict[str, Path]:
     """Resolve site paths for the configured output format."""
-
     output_dir = output_dir.expanduser().resolve()
     base_paths = derive_mkdocs_paths(output_dir)
 

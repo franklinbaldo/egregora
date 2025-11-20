@@ -35,7 +35,6 @@ logger = logging.getLogger(__name__)
 
 def derive_mkdocs_paths(site_root: Path) -> dict[str, Path]:
     """Derive MkDocs-related paths directly from the site root."""
-
     resolved_root = site_root.expanduser().resolve()
     egregora_dir = resolved_root / ".egregora"
     mkdocs_path = egregora_dir / "mkdocs.yml"
@@ -458,7 +457,6 @@ class MkDocsAdapter(OutputAdapter):
 
     def resolve_paths(self, site_root: Path) -> dict[str, Any]:
         """Resolve basic MkDocs paths from the provided site root."""
-
         if not self.supports_site(site_root):
             msg = f"{site_root} is not a valid MkDocs site (no mkdocs.yml found)"
             raise ValueError(msg)
