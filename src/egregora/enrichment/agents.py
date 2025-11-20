@@ -250,6 +250,8 @@ def make_url_agent(
             url=ctx.deps.url,
         )
 
+    return agent
+
 
 def make_media_agent(
     model_name: str, prompts_dir: Path | None = None
