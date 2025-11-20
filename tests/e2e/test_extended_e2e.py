@@ -52,7 +52,6 @@ async def test_e2e_reader_evaluation(tmp_path: Path) -> None:
     # 2. Mock the AI Comparison Agent
     # We mock `compare_posts` to avoid calling Gemini
     with patch("egregora.agents.reader.reader_runner.compare_posts") as mock_compare:
-
         # Define a deterministic winner (Post 1 always wins)
         def side_effect(request, **kwargs):
             return PostComparison(
