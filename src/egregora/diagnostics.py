@@ -188,7 +188,6 @@ def check_duckdb_extensions() -> DiagnosticResult:
 
 def check_duckdb_zipfs_extension() -> DiagnosticResult:
     """Check if DuckDB zipfs extension can be installed and loaded."""
-
     try:
         duckdb = importlib.import_module("duckdb")
     except ImportError:

@@ -22,7 +22,6 @@ from pydantic import BaseModel
 
 from egregora.data_primitives import GroupSlug
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.database.ir_schema import MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.privacy.uuid_namespaces import deterministic_author_uuid
@@ -544,9 +543,7 @@ def parse_source(
     if not expose_raw_author:
         messages = anonymize_table(messages)
 
-    extra_columns = [
-        column for column in messages.columns if column not in _WHATSAPP_OUTPUT_SCHEMA.names
-    ]
+    extra_columns = [column for column in messages.columns if column not in _WHATSAPP_OUTPUT_SCHEMA.names]
     if extra_columns:
         messages = messages.drop(*extra_columns)
     selected_columns = [
@@ -576,7 +573,7 @@ def _install_zipfs_extension(backend: ibis.BaseBackend) -> None:
     try:
         backend.raw_sql("INSTALL zipfs")
         backend.raw_sql("LOAD zipfs")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         msg = (
             "DuckDB zipfs extension is required to read WhatsApp exports. "
             "Run `egregora doctor` to verify extension availability."
@@ -584,9 +581,10 @@ def _install_zipfs_extension(backend: ibis.BaseBackend) -> None:
         raise RuntimeError(msg) from exc
 
 
-def _validate_zip_safety(zip_path: Path, target_file: str, *, max_bytes: int = DEFAULT_CHAT_FILE_LIMIT_BYTES) -> None:
+def _validate_zip_safety(
+    zip_path: Path, target_file: str, *, max_bytes: int = DEFAULT_CHAT_FILE_LIMIT_BYTES
+) -> None:
     """Lightweight 'Bouncer' to prevent processing zip bombs."""
-
     with zipfile.ZipFile(zip_path) as zf:
         try:
             info = zf.getinfo(target_file)
