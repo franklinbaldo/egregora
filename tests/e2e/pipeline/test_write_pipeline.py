@@ -111,15 +111,6 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
 
     # We need to mock the agent's behavior without bypassing the orchestration logic.
     # We do this by patching `_setup_agent_and_state` to return an agent using a TestModel.
-    from pydantic_ai import Agent
-    from pydantic_ai.models.test import TestModel
-
-    from egregora.agents.writer.agent import (
-        WriterAgentReturn,
-        WriterDeps,
-        _prepare_deps,
-    )
-    from egregora.agents.writer.agent import register_writer_tools
 
     # Mock write_posts_with_pydantic_agent to simulate agent run
     def _stub_write_posts(prompt, config, context, test_model=None):
@@ -141,16 +132,16 @@ def _install_pipeline_stubs(monkeypatch, captured_dates: list[str]):
                 "authors": ["system"],
                 "summary": "Stub summary",
             },
-            source_window=window_label
+            source_window=window_label,
         )
         context.output_format.serve(post_doc)
 
         # Create dummy profile
         profile_doc = context.output_format.create_document(
-             content="Stub profile",
-             doc_type="profile",
-             metadata={"uuid": "system"},
-             source_window=window_label
+            content="Stub profile",
+            doc_type="profile",
+            metadata={"uuid": "system"},
+            source_window=window_label,
         )
         context.output_format.serve(profile_doc)
 

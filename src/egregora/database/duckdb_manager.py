@@ -111,7 +111,7 @@ def combine_with_enrichment_rows(
 
     # Ensure timestamps are UTC
     if "ts" in messages_table_filtered.columns:
-         messages_table_filtered = messages_table_filtered.mutate(
+        messages_table_filtered = messages_table_filtered.mutate(
             ts=messages_table_filtered.ts.cast("timestamp('UTC')")
         )
     elif "timestamp" in messages_table_filtered.columns:
@@ -741,6 +741,7 @@ class DuckDBStorageManager:
             logger.warning("Skipping HNSW index creation: %s", exc)
             return False
         return True
+
 
 def temp_storage() -> DuckDBStorageManager:
     """Create temporary in-memory storage manager.

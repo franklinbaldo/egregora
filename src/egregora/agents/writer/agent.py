@@ -7,11 +7,8 @@ It exposes ``write_posts_for_window`` which routes the LLM conversation through 
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-import os
-from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -21,8 +18,8 @@ from typing import TYPE_CHECKING, Any
 import ibis
 from ibis.expr.types import Table
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from pydantic import BaseModel, ConfigDict, Field
-from pydantic_ai import Agent, ModelMessagesTypeAdapter, RunContext
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -31,13 +28,21 @@ from pydantic_ai.messages import (
     ToolCallPart,
     ToolReturnPart,
 )
-from returns.result import Failure, Result, Success
 
 from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.model_limits import PromptTooLargeError
 from egregora.agents.shared.author_profiles import get_active_authors, read_profile
-from egregora.agents.shared.rag import VectorStore, chunk_document, embed_query_text, index_document, is_rag_available, query_media, index_documents_for_rag
-from egregora.agents.writer.formatting import _build_conversation_markdown_table, _build_conversation_markdown_verbose, _load_journal_memory
+from egregora.agents.shared.rag import (
+    VectorStore,
+    embed_query_text,
+    index_documents_for_rag,
+    is_rag_available,
+    query_media,
+)
+from egregora.agents.writer.formatting import (
+    _build_conversation_markdown_table,
+    _load_journal_memory,
+)
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
@@ -49,7 +54,6 @@ from egregora.utils.genai import call_with_retries_sync
 
 if TYPE_CHECKING:
     from google import genai
-    from pydantic_ai.result import RunResult
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +66,7 @@ AgentModel = Any
 # ============================================================================
 # Data Structures (Schemas)
 # ============================================================================
+
 
 class PostMetadata(BaseModel):
     """Metadata schema for the write_post tool."""
@@ -127,6 +132,7 @@ class WriterDeps:
     Replaces WriterAgentContext and WriterAgentState with a single,
     simplified structure wrapping the PipelineContext.
     """
+
     ctx: PipelineContext
     window_start: datetime
     window_end: datetime
@@ -146,15 +152,16 @@ class WriterDeps:
     @property
     def url_context(self) -> UrlContext:
         if self.ctx.url_context is None:
-             # Fallback if not set, though it should be
-             storage_root = self.ctx.site_root if self.ctx.site_root else self.ctx.output_dir
-             return UrlContext(base_url="", site_prefix="", base_path=storage_root)
+            # Fallback if not set, though it should be
+            storage_root = self.ctx.site_root if self.ctx.site_root else self.ctx.output_dir
+            return UrlContext(base_url="", site_prefix="", base_path=storage_root)
         return self.ctx.url_context
 
 
 # ============================================================================
 # Tool Definitions
 # ============================================================================
+
 
 def register_writer_tools(
     agent: Agent[WriterDeps, WriterAgentReturn],
@@ -165,9 +172,7 @@ def register_writer_tools(
     """Attach tool implementations to the agent."""
 
     @agent.tool
-    def write_post_tool(
-        ctx: RunContext[WriterDeps], metadata: PostMetadata, content: str
-    ) -> WritePostResult:
+    def write_post_tool(ctx: RunContext[WriterDeps], metadata: PostMetadata, content: str) -> WritePostResult:
         doc = Document(
             content=content,
             type=DocumentType.POST,
@@ -186,9 +191,7 @@ def register_writer_tools(
         return ReadProfileResult(content=content)
 
     @agent.tool
-    def write_profile_tool(
-        ctx: RunContext[WriterDeps], author_uuid: str, content: str
-    ) -> WriteProfileResult:
+    def write_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str, content: str) -> WriteProfileResult:
         doc = Document(
             content=content,
             type=DocumentType.PROFILE,
@@ -210,7 +213,7 @@ def register_writer_tools(
             limit: int = 5,
         ) -> SearchMediaResult:
             if not ctx.deps.ctx.rag_store:
-                 return SearchMediaResult(results=[])
+                return SearchMediaResult(results=[])
 
             results = query_media(
                 query=query,
@@ -263,9 +266,11 @@ def register_writer_tools(
 # Context Building (RAG & Profiles)
 # ============================================================================
 
+
 @dataclass
 class RagContext:
     """RAG query result with formatted text and metadata."""
+
     text: str
     records: list[dict[str, Any]]
 
@@ -344,6 +349,7 @@ def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
 @dataclass
 class WriterPromptContext:
     """Values used to populate the writer prompt template."""
+
     conversation_md: str
     rag_context: str
     profiles_context: str
@@ -384,9 +390,11 @@ def _build_writer_prompt_context(
         active_authors=active_authors,
     )
 
+
 # ============================================================================
 # Agent Runners & Orchestration
 # ============================================================================
+
 
 def _extract_thinking_content(messages: MessageHistory) -> list[str]:
     """Extract thinking/reasoning content from agent message history."""
@@ -409,6 +417,7 @@ def _extract_journal_content(messages: MessageHistory) -> str:
 @dataclass(frozen=True)
 class JournalEntry:
     """Represents a single entry in the intercalated journal log."""
+
     entry_type: str  # "thinking", "journal", "tool_call", "tool_return"
     content: str
     timestamp: datetime | None = None
@@ -424,22 +433,45 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
         if isinstance(message, ModelResponse):
             for part in message.parts:
                 if isinstance(part, ThinkingPart):
-                    entries.append(JournalEntry("thinking", part.content, getattr(message, "timestamp", None)))
+                    entries.append(
+                        JournalEntry("thinking", part.content, getattr(message, "timestamp", None))
+                    )
                 elif isinstance(part, TextPart):
                     entries.append(JournalEntry("journal", part.content, getattr(message, "timestamp", None)))
                 elif isinstance(part, ToolCallPart):
                     args_str = json.dumps(part.args, indent=2) if hasattr(part, "args") else "{}"
-                    entries.append(JournalEntry("tool_call", f"Tool: {part.tool_name}\nArguments:\n{args_str}", getattr(message, "timestamp", None), part.tool_name))
+                    entries.append(
+                        JournalEntry(
+                            "tool_call",
+                            f"Tool: {part.tool_name}\nArguments:\n{args_str}",
+                            getattr(message, "timestamp", None),
+                            part.tool_name,
+                        )
+                    )
                 elif isinstance(part, ToolReturnPart):
                     result_str = str(part.content) if hasattr(part, "content") else "No result"
-                    entries.append(JournalEntry("tool_return", f"Result: {result_str}", getattr(message, "timestamp", None), getattr(part, "tool_name", None)))
+                    entries.append(
+                        JournalEntry(
+                            "tool_return",
+                            f"Result: {result_str}",
+                            getattr(message, "timestamp", None),
+                            getattr(part, "tool_name", None),
+                        )
+                    )
 
         # Handle ModelRequest
         elif isinstance(message, ModelRequest):
             for part in message.parts:
                 if isinstance(part, ToolCallPart):
                     args_str = json.dumps(part.args, indent=2) if hasattr(part, "args") else "{}"
-                    entries.append(JournalEntry("tool_call", f"Tool: {part.tool_name}\nArguments:\n{args_str}", getattr(message, "timestamp", None), part.tool_name))
+                    entries.append(
+                        JournalEntry(
+                            "tool_call",
+                            f"Tool: {part.tool_name}\nArguments:\n{args_str}",
+                            getattr(message, "timestamp", None),
+                            part.tool_name,
+                        )
+                    )
 
     return entries
 
@@ -455,7 +487,9 @@ def _save_journal_to_file(
 
     templates_dir = Path(__file__).parent.parent.parent / "templates"
     try:
-        env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape(enabled_extensions=()))
+        env = Environment(
+            loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape(enabled_extensions=())
+        )
         template = env.get_template("journal.md.jinja")
     except Exception:
         logger.exception("Failed to load journal template")
@@ -497,7 +531,8 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
         if isinstance(content, str):
             try:
                 data = json.loads(content)
-            except: return
+            except:
+                return
         elif hasattr(content, "model_dump"):
             data = content.model_dump()
         elif isinstance(content, dict):
@@ -533,18 +568,18 @@ def _prepare_deps(
 
     # Ensure OutputAdapter is initialized
     if not ctx.output_format:
-         storage_root = ctx.site_root if ctx.site_root else ctx.output_dir
-         format_type = ctx.config.output.format
+        storage_root = ctx.site_root if ctx.site_root else ctx.output_dir
+        format_type = ctx.config.output.format
 
-         if format_type == "mkdocs":
-             output_format = MkDocsAdapter()
-             url_context = ctx.url_context or UrlContext(base_url="", site_prefix="", base_path=storage_root)
-             output_format.initialize(site_root=storage_root, url_context=url_context)
-         else:
-             output_format = create_output_format(storage_root, format_type=format_type)
+        if format_type == "mkdocs":
+            output_format = MkDocsAdapter()
+            url_context = ctx.url_context or UrlContext(base_url="", site_prefix="", base_path=storage_root)
+            output_format.initialize(site_root=storage_root, url_context=url_context)
+        else:
+            output_format = create_output_format(storage_root, format_type=format_type)
 
-         # We need a new context with this format
-         ctx = ctx.with_output_format(output_format)
+        # We need a new context with this format
+        ctx = ctx.with_output_format(output_format)
 
     prompts_dir = ctx.site_root / ".egregora" / "prompts" if ctx.site_root else None
 
@@ -587,7 +622,10 @@ def _validate_prompt_fits(
         if estimated_tokens > model_effective_limit:
             logger.error(
                 "Prompt exceeds limit: %d > %d for %s (window: %s)",
-                estimated_tokens, model_effective_limit, model_name, window_label
+                estimated_tokens,
+                model_effective_limit,
+                model_name,
+                window_label,
             )
             raise PromptTooLargeError(
                 estimated_tokens=estimated_tokens,
@@ -719,7 +757,7 @@ def write_posts_for_window(
         try:
             indexed_count = index_documents_for_rag(
                 ctx.output_format,
-                ctx.rag_store.parquet_path.parent, # Use parent dir
+                ctx.rag_store.parquet_path.parent,  # Use parent dir
                 ctx.storage,
                 embedding_model=ctx.embedding_model,
             )

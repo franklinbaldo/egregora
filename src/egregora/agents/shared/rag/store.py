@@ -81,7 +81,7 @@ class VectorStore:
         self.parquet_path = parquet_path
         self.index_path = parquet_path.with_suffix(".duckdb")
         self.conn = _ConnectionProxy(storage.conn)
-        self.backend = storage # Use storage directly as backend
+        self.backend = storage  # Use storage directly as backend
         self._vss_available = False
         self._vss_function = "vss_search"
         self._client = ibis.duckdb.from_connection(self.conn)
@@ -133,8 +133,8 @@ class VectorStore:
                 [str(self.parquet_path)],
             )
         except Exception as e:
-             logger.error(f"Failed to materialize chunks table: {e}")
-             raise
+            logger.error(f"Failed to materialize chunks table: {e}")
+            raise
 
         self._store_metadata(current_metadata)
         if force or metadata_changed or (not table_exists):

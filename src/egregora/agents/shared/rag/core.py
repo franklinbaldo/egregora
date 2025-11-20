@@ -10,7 +10,7 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Annotated, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated, Any
 
 import httpx
 

@@ -29,7 +29,7 @@ from pydantic_ai.models.google import GoogleModelSettings
 
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.database.duckdb_manager import combine_with_enrichment_rows, DuckDBStorageManager
+from egregora.database.duckdb_manager import DuckDBStorageManager, combine_with_enrichment_rows
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.enrichment.media import (
     detect_media_type,
@@ -104,15 +104,20 @@ def ensure_datetime(value: datetime | str | Any) -> datetime:
 # ---------------------------------------------------------------------------
 # Formerly in src/egregora/enrichment/agents.py
 
+
 class EnrichmentOutput(BaseModel):
     """Structured output for enrichment agents."""
+
     markdown: str
+
 
 # Alias for backward compatibility
 EnrichmentOut = EnrichmentOutput
 
+
 class UrlEnrichmentContext(BaseModel):
     """Context for URL enrichment agent (detailed mode)."""
+
     url: str
     original_message: str
     sender_uuid: str
@@ -120,8 +125,10 @@ class UrlEnrichmentContext(BaseModel):
     time: str
     prompts_dir: Path | None = None
 
+
 class MediaEnrichmentContext(BaseModel):
     """Context for media enrichment agent (detailed mode)."""
+
     media_type: str
     media_filename: str
     media_path: str
@@ -131,13 +138,16 @@ class MediaEnrichmentContext(BaseModel):
     time: str
     prompts_dir: Path | None = None
 
+
 class UrlEnrichmentDeps(BaseModel):
     """Dependencies for URL enrichment agent (simple mode)."""
+
     url: str
+
 
 class MediaEnrichmentDeps(BaseModel):
     """Dependencies for media enrichment agent (simple mode)."""
-    pass
+
 
 def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentContext, EnrichmentOutput]:
     """Create URL enrichment agent for detailed mode."""
@@ -154,7 +164,9 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentContext, Enric
             date=ctx.deps.date,
             time=ctx.deps.time,
         )
+
     return agent
+
 
 def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentContext, EnrichmentOutput]:
     """Create media enrichment agent for detailed mode."""
@@ -173,7 +185,9 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentContext, E
             date=ctx.deps.date,
             time=ctx.deps.time,
         )
+
     return agent
+
 
 def make_url_agent(
     model_name: str, prompts_dir: Path | None = None
@@ -196,7 +210,9 @@ def make_url_agent(
             prompts_dir=captured_prompts_dir,
             url=ctx.deps.url,
         )
+
     return agent
+
 
 def make_media_agent(
     model_name: str, prompts_dir: Path | None = None
@@ -213,11 +229,13 @@ def make_media_agent(
         system_prompt=rendered_prompt,
     )
 
+
 def _sanitize_prompt_input(text: str, max_length: int = 2000) -> str:
     """Sanitize user input for LLM prompts to prevent prompt injection."""
     text = text[:max_length]
     cleaned = "".join(char for char in text if char.isprintable() or char in "\n\t")
     return "\n".join(line for line in cleaned.split("\n") if line.strip())
+
 
 def run_url_enrichment(agent: Agent[UrlEnrichmentDeps, EnrichmentOutput], url: str | AnyUrl) -> str:
     """Run URL enrichment with grounding to fetch actual content."""
@@ -235,6 +253,7 @@ def run_url_enrichment(agent: Agent[UrlEnrichmentDeps, EnrichmentOutput], url: s
     output = getattr(result, "data", getattr(result, "output", result))
     return output.markdown.strip()
 
+
 def load_file_as_binary_content(file_path: Path, max_size_mb: int = 20) -> BinaryContent:
     """Load a file as BinaryContent for pydantic-ai agents."""
     if not file_path.exists():
@@ -251,6 +270,7 @@ def load_file_as_binary_content(file_path: Path, max_size_mb: int = 20) -> Binar
         media_type = "application/octet-stream"
     file_bytes = file_path.read_bytes()
     return BinaryContent(data=file_bytes, media_type=media_type)
+
 
 def run_media_enrichment(
     agent: Agent[MediaEnrichmentDeps, EnrichmentOutput],
@@ -915,35 +935,36 @@ def enrich_table_simple(
         # To use persist_atomic, we need a DuckDBStorageManager instance.
         # Assuming duckdb_connection.con gives the raw connection.
         try:
-             # Attempt to create a temporary manager wrapper
-             raw_conn = duckdb_connection.con
-             storage = DuckDBStorageManager(db_path=None) # In-memory wrapper, but we want to use existing conn
-             storage._conn = raw_conn # Inject connection
-             storage.persist_atomic(combined, target_table, schema=IR_MESSAGE_SCHEMA)
+            # Attempt to create a temporary manager wrapper
+            raw_conn = duckdb_connection.con
+            storage = DuckDBStorageManager(
+                db_path=None
+            )  # In-memory wrapper, but we want to use existing conn
+            storage._conn = raw_conn  # Inject connection
+            storage.persist_atomic(combined, target_table, schema=IR_MESSAGE_SCHEMA)
         except Exception:
-             # Fallback to inline logic if wrapper fails (e.g. type mismatch)
-             # Or just reimplement inline here? No, user said "Merge logic ... into DuckDBStorageManager"
-             # I should use the logic from there.
+            # Fallback to inline logic if wrapper fails (e.g. type mismatch)
+            # Or just reimplement inline here? No, user said "Merge logic ... into DuckDBStorageManager"
+            # I should use the logic from there.
 
-             # Let's try to instantiate properly if possible, or maybe I should have made it a static function.
-             # I'll assume I can construct it or use a helper.
-             # Actually, I can just use the method if I can get an instance.
-             pass
+            # Let's try to instantiate properly if possible, or maybe I should have made it a static function.
+            # I'll assume I can construct it or use a helper.
+            # Actually, I can just use the method if I can get an instance.
 
-             # Re-implementing briefly to avoid complex dependency injection refactor in this step
-             # But using the improved logic from the manager would be better.
+            # Re-implementing briefly to avoid complex dependency injection refactor in this step
+            # But using the improved logic from the manager would be better.
 
-             # Let's assume we can use a temporary manager for the operation.
-             # The connection object from Ibis backend is usually accessible.
+            # Let's assume we can use a temporary manager for the operation.
+            # The connection object from Ibis backend is usually accessible.
 
-             from egregora.database import schemas # re-import if needed
+            from egregora.database import schemas  # re-import if needed
 
-             schemas.create_table_if_not_exists(duckdb_connection, target_table, IR_MESSAGE_SCHEMA)
-             quoted_table = schemas.quote_identifier(target_table)
-             column_list = ", ".join(schemas.quote_identifier(col) for col in IR_MESSAGE_SCHEMA.names)
-             temp_view = f"_egregora_enrichment_{uuid.uuid4().hex}"
+            schemas.create_table_if_not_exists(duckdb_connection, target_table, IR_MESSAGE_SCHEMA)
+            quoted_table = schemas.quote_identifier(target_table)
+            column_list = ", ".join(schemas.quote_identifier(col) for col in IR_MESSAGE_SCHEMA.names)
+            temp_view = f"_egregora_enrichment_{uuid.uuid4().hex}"
 
-             try:
+            try:
                 duckdb_connection.create_view(temp_view, combined, overwrite=True)
                 quoted_view = schemas.quote_identifier(temp_view)
                 duckdb_connection.raw_sql("BEGIN TRANSACTION")
@@ -957,9 +978,8 @@ def enrich_table_simple(
                     logger.exception("Transaction failed during DuckDB persistence, rolling back")
                     duckdb_connection.raw_sql("ROLLBACK")
                     raise
-             finally:
+            finally:
                 duckdb_connection.drop_view(temp_view, force=True)
-
 
     if pii_detected_count > 0:
         logger.info("Privacy summary: %d media file(s) deleted due to PII detection", pii_detected_count)
@@ -1000,8 +1020,8 @@ def enrich_table(
 
 
 __all__ = [
-    "EnrichmentOutput",
     "EnrichmentOut",
+    "EnrichmentOutput",
     "EnrichmentRuntimeContext",
     "MediaEnrichmentContext",
     "MediaEnrichmentDeps",

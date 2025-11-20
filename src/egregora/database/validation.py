@@ -50,7 +50,6 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 from datetime import UTC, date, datetime
-from functools import wraps
 from typing import TYPE_CHECKING, Any, TypeVar
 
 import ibis
@@ -405,8 +404,6 @@ def _types_compatible(expected: dt.DataType, actual: dt.DataType) -> bool:
             return True
 
     return False
-
-
 
 
 # validate_stage decorator - REMOVED (2025-11-17)
