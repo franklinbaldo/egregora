@@ -476,7 +476,7 @@ class VectorStore:
             table = table.mutate(**casts)
         return table.select(VECTOR_STORE_SCHEMA.names)
 
-    def search(
+    def search(  # noqa: PLR0913
         self,
         query_vec: list[float],
         top_k: int = 5,
@@ -567,7 +567,7 @@ class VectorStore:
             msg = "nprobe must be a positive integer"
             raise ValueError(msg)
 
-    def _build_search_filters(
+    def _build_search_filters(  # noqa: PLR0913
         self,
         query_vec: list[float],
         min_similarity_threshold: float,
@@ -627,7 +627,7 @@ class VectorStore:
             logger.exception("Search failed")
             return self._empty_table(SEARCH_RESULT_SCHEMA)
 
-    def _search_ann(
+    def _search_ann(  # noqa: PLR0913
         self,
         where_clause: str,
         order_clause: str,
@@ -663,7 +663,7 @@ class VectorStore:
             last_error, where_clause, order_clause, params, min_similarity_threshold
         )
 
-    def _try_ann_search(
+    def _try_ann_search(  # noqa: PLR0913
         self,
         function_name: str,
         where_clause: str,

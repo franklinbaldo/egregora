@@ -9,9 +9,7 @@ from pydantic_ai import RunContext
 
 from egregora.agents.banner import generate_banner_for_post
 from egregora.agents.shared.rag.retriever import query_media
-from egregora.data_primitives.document import Document, DocumentType
-
-from .schemas import (
+from egregora.agents.writer.schemas import (
     AnnotationResult,
     BannerResult,
     MediaItem,
@@ -23,6 +21,7 @@ from .schemas import (
     WriterAgentReturn,
     WriterAgentState,
 )
+from egregora.data_primitives.document import Document, DocumentType
 
 if TYPE_CHECKING:
     from pydantic_ai import Agent
@@ -30,7 +29,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def register_writer_tools(
+def register_writer_tools(  # noqa: C901
     agent: Agent[WriterAgentState, WriterAgentReturn],
     *,
     enable_banner: bool = False,
@@ -103,7 +102,8 @@ def register_writer_tools(
         ctx: RunContext[WriterAgentState], parent_id: str, parent_type: str, commentary: str
     ) -> AnnotationResult:
         if ctx.deps.annotations_store is None:
-            raise RuntimeError("Annotation store is not configured")
+            msg = "Annotation store is not configured"
+            raise RuntimeError(msg)
         annotation = ctx.deps.annotations_store.save_annotation(
             parent_id=parent_id, parent_type=parent_type, commentary=commentary
         )

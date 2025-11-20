@@ -72,4 +72,4 @@ class PrivacySettings:
 
         if not isinstance(self.author_namespace, uuid.UUID):
             msg = "author_namespace must be a uuid.UUID instance"
-            raise ValueError(msg)
+            raise TypeError(msg)

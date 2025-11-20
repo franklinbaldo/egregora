@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import frontmatter
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ def parse_frontmatter(content: str) -> tuple[dict[str, Any], str]:
     """
     try:
         parsed = frontmatter.loads(content)
-    except Exception as exc:  # broad catch to avoid breaking indexing on malformed files
+    except (yaml.YAMLError, ValueError) as exc:
         logger.warning("Failed to parse frontmatter content: %s", exc)
         return {}, content
 

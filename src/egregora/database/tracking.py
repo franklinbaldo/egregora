@@ -52,7 +52,7 @@ def get_git_commit_sha() -> str | None:
     """
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
+            ["git", "rev-parse", "HEAD"],  # noqa: S607
             capture_output=True,
             text=True,
             check=True,
@@ -129,7 +129,9 @@ class RunContext:
 
 
 @contextlib.contextmanager
-def _connection_scope(conn: duckdb.DuckDBPyConnection | DuckDBStorageManager):
+def _connection_scope(
+    conn: duckdb.DuckDBPyConnection | DuckDBStorageManager,
+) -> duckdb.DuckDBPyConnection:
     """Yield a DuckDB connection from either a manager or connection."""
     if isinstance(conn, DuckDBStorageManager):
         with conn.connection() as managed_conn:
@@ -138,7 +140,7 @@ def _connection_scope(conn: duckdb.DuckDBPyConnection | DuckDBStorageManager):
         yield conn
 
 
-def record_run(
+def record_run(  # noqa: PLR0913
     conn: duckdb.DuckDBPyConnection | DuckDBStorageManager,
     run_id: uuid.UUID,
     stage: str,
@@ -180,7 +182,7 @@ def record_run(
 
     """
     # Ensure runs table exists (idempotent)
-    from egregora.database.ir_schema import ensure_runs_table_exists
+    from egregora.database.ir_schema import ensure_runs_table_exists  # noqa: PLC0415
 
     with _connection_scope(conn) as resolved_conn:
         ensure_runs_table_exists(resolved_conn)
@@ -244,7 +246,7 @@ def record_lineage(
         return  # No lineage to record
 
     # Ensure lineage table exists (idempotent)
-    from egregora.database.ir_schema import ensure_lineage_table_exists
+    from egregora.database.ir_schema import ensure_lineage_table_exists  # noqa: PLC0415
 
     with _connection_scope(conn) as resolved_conn:
         ensure_lineage_table_exists(resolved_conn)

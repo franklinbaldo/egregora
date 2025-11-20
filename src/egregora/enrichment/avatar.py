@@ -513,7 +513,7 @@ def _enrich_avatar(
         if context.cache:
             context.cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
 
-    except Exception as exc:  # pragma: no cover - enrichment failures are logged
+    except Exception as exc:  # pragma: no cover - enrichment failures are logged  # noqa: BLE001
         logger.warning("Failed to enrich avatar %s: %s", avatar_path.name, exc)
 
 

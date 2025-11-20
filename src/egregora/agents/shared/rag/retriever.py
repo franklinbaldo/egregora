@@ -103,7 +103,7 @@ def index_post(post_path: Path, store: VectorStore, *, embedding_model: str) -> 
     return len(chunks)
 
 
-def query_similar_posts(
+def query_similar_posts(  # noqa: PLR0913
     table: Table,
     store: VectorStore,
     *,
@@ -426,7 +426,7 @@ def _coerce_message_datetime(value: object) -> datetime | None:
     return result
 
 
-def query_media(
+def query_media(  # noqa: PLR0913
     query: str,
     store: VectorStore,
     media_types: list[str] | None = None,

@@ -67,7 +67,7 @@ def deduplicate_by_document(results: list[dict], n: int = 1) -> list[dict]:
 
     # Keep top-n per document
     deduplicated = []
-    for doc_id, doc_results in by_doc.items():
+    for doc_results in by_doc.values():
         # Sort by similarity (descending)
         sorted_results = sorted(doc_results, key=lambda x: x.get("similarity", 0.0), reverse=True)
         deduplicated.extend(sorted_results[:n])
@@ -79,7 +79,7 @@ def deduplicate_by_document(results: list[dict], n: int = 1) -> list[dict]:
     return deduplicated
 
 
-def query_rag_per_chunk(
+def query_rag_per_chunk(  # noqa: PLR0913
     chunks: list[str],
     store: VectorStore,
     embedding_model: str,
@@ -135,7 +135,7 @@ def query_rag_per_chunk(
     return all_results
 
 
-def build_rag_context_for_prompt(
+def build_rag_context_for_prompt(  # noqa: PLR0913
     table_markdown: str,
     store: VectorStore,
     client: genai.Client,
@@ -220,7 +220,7 @@ def build_rag_context_for_prompt(
     return "\n".join(lines).strip()
 
 
-def _query_rag_for_context(
+def _query_rag_for_context(  # noqa: PLR0913, PLR0911
     table: Table,
     store: VectorStore,
     *,

@@ -41,8 +41,8 @@ from egregora.enrichment.media import (
 from egregora.utils import BatchPromptRequest, BatchPromptResult, make_enrichment_cache_key
 
 if TYPE_CHECKING:
-    import pandas as pd
-    import pyarrow as pa
+    import pandas as pd  # noqa: TID251
+    import pyarrow as pa  # noqa: TID251
     from ibis.backends.duckdb import Backend as DuckDBBackend
 
     from egregora.utils.cache import EnrichmentCache
@@ -164,19 +164,19 @@ def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> 
 
 def _iter_table_record_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
     """Stream table rows as batches of dictionaries without loading entire table into memory."""
-    from egregora.database.streaming import ensure_deterministic_order, stream_ibis
+    from egregora.database.streaming import ensure_deterministic_order, stream_ibis  # noqa: PLC0415
 
     try:
         backend = table._find_backend()
-    except (AttributeError, Exception):  # pragma: no cover - fallback path
+    except (AttributeError, Exception):  # pragma: no cover - fallback path  # noqa: BLE001
         backend = None
 
     if backend is not None and hasattr(backend, "con"):
         try:
             ordered_table = ensure_deterministic_order(table)
             yield from stream_ibis(ordered_table, backend, batch_size=batch_size)
-            return
-        except (AttributeError, Exception):  # pragma: no cover - fallback path
+            return  # noqa: TRY300
+        except (AttributeError, Exception):  # pragma: no cover - fallback path  # noqa: BLE001, S110
             pass
 
     if "ts" in table.columns:
@@ -425,7 +425,7 @@ def _process_single_media(
     return enrichment_id_str, markdown_content, pii_detected
 
 
-def _enrich_urls(
+def _enrich_urls(  # noqa: C901, PLR0913, PLR0912
     messages_table: Table,
     url_agent: Any,
     cache: EnrichmentCache,
@@ -596,7 +596,7 @@ def _extract_media_references(
     return unique_media, metadata_lookup
 
 
-def _enrich_media(
+def _enrich_media(  # noqa: PLR0913
     messages_table: Table,
     media_mapping: dict[str, Path],
     media_agent: Any,

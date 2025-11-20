@@ -250,8 +250,6 @@ def make_url_agent(
             url=ctx.deps.url,
         )
 
-    return agent
-
 
 def make_media_agent(
     model_name: str, prompts_dir: Path | None = None
@@ -267,13 +265,11 @@ def make_media_agent(
         prompts_dir=prompts_dir,
     )
 
-    agent = Agent[MediaEnrichmentDeps, EnrichmentOut](
+    return Agent[MediaEnrichmentDeps, EnrichmentOut](
         model=model_name,
         output_type=EnrichmentOut,
         system_prompt=rendered_prompt,  # Pass pre-rendered prompt directly
     )
-
-    return agent
 
 
 def _sanitize_prompt_input(text: str, max_length: int = 2000) -> str:

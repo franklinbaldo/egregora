@@ -70,7 +70,7 @@ class MkDocsUrlConvention:
         """Convention version."""
         return "1.0.0"
 
-    def canonical_url(self, document: Document, ctx: UrlContext) -> str:
+    def canonical_url(self, document: Document, ctx: UrlContext) -> str:  # noqa: PLR0911
         """Generate canonical URL for a document.
 
         Args:
@@ -188,7 +188,7 @@ class MkDocsAdapter(OutputAdapter):
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
 
-    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
+    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:  # noqa: C901
         if isinstance(doc_type, str):
             doc_type = DocumentType(doc_type)
         path: Path | None = None
@@ -343,8 +343,12 @@ class MkDocsAdapter(OutputAdapter):
             context: Template rendering context
 
         """
-        assert isinstance(site_paths, SitePaths), "site_paths must be a SitePaths instance"
-        assert isinstance(env, Environment), "env must be a Jinja2 Environment"
+        if not isinstance(site_paths, SitePaths):
+            msg = "site_paths must be a SitePaths instance"
+            raise TypeError(msg)
+        if not isinstance(env, Environment):
+            msg = "env must be a Jinja2 Environment"
+            raise TypeError(msg)
 
         # Create .egregora/ structure
         self._create_egregora_structure(site_paths, env)
@@ -365,7 +369,9 @@ class MkDocsAdapter(OutputAdapter):
             site_paths: SitePaths configuration object
 
         """
-        assert isinstance(site_paths, SitePaths), "site_paths must be a SitePaths instance"
+        if not isinstance(site_paths, SitePaths):
+            msg = "site_paths must be a SitePaths instance"
+            raise TypeError(msg)
 
         posts_dir = site_paths.posts_dir
         profiles_dir = site_paths.profiles_dir
@@ -397,8 +403,12 @@ class MkDocsAdapter(OutputAdapter):
             context: Template rendering context
 
         """
-        assert isinstance(site_paths, SitePaths), "site_paths must be a SitePaths instance"
-        assert isinstance(env, Environment), "env must be a Jinja2 Environment"
+        if not isinstance(site_paths, SitePaths):
+            msg = "site_paths must be a SitePaths instance"
+            raise TypeError(msg)
+        if not isinstance(env, Environment):
+            msg = "env must be a Jinja2 Environment"
+            raise TypeError(msg)
 
         site_root = site_paths.site_root
         profiles_dir = site_paths.profiles_dir
@@ -429,8 +439,12 @@ class MkDocsAdapter(OutputAdapter):
             env: Jinja2 environment for rendering templates
 
         """
-        assert isinstance(site_paths, SitePaths), "site_paths must be a SitePaths instance"
-        assert isinstance(env, Environment), "env must be a Jinja2 Environment"
+        if not isinstance(site_paths, SitePaths):
+            msg = "site_paths must be a SitePaths instance"
+            raise TypeError(msg)
+        if not isinstance(env, Environment):
+            msg = "env must be a Jinja2 Environment"
+            raise TypeError(msg)
 
         config_path = site_paths.config_path
         if not config_path.exists():
@@ -578,7 +592,7 @@ class MkDocsAdapter(OutputAdapter):
         if site_paths.mkdocs_path:
             try:
                 mkdocs_config = (
-                    yaml.load(site_paths.mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
+                    yaml.load(site_paths.mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}  # noqa: S506
                 )
             except yaml.YAMLError as exc:
                 logger.warning("Failed to parse mkdocs.yml at %s: %s", site_paths.mkdocs_path, exc)
@@ -682,7 +696,7 @@ class MkDocsAdapter(OutputAdapter):
             msg = f"No mkdocs.yml found in {site_root}"
             raise FileNotFoundError(msg)
         try:
-            config = yaml.load(site_paths.mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}
+            config = yaml.load(site_paths.mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}  # noqa: S506
         except yaml.YAMLError as exc:
             logger.warning("Failed to parse mkdocs.yml at %s: %s", site_paths.mkdocs_path, exc)
             config = {}
@@ -957,8 +971,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             return self.site_root / url_path
         return self.site_root / f"{url_path}.md"
 
-    def _write_document(self, document: Document, path: Path) -> None:
-        import yaml as _yaml
+    def _write_document(self, document: Document, path: Path) -> None:  # noqa: C901, PLR0912
+        import yaml as _yaml  # noqa: PLC0415
 
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -973,7 +987,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             full_content = f"---\n{yaml_front}---\n\n{document.content}"
             path.write_text(full_content, encoding="utf-8")
         elif document.type == DocumentType.PROFILE:
-            from egregora.agents.shared.author_profiles import write_profile as write_profile_content
+            from egregora.agents.shared.author_profiles import (  # noqa: PLC0415
+                write_profile as write_profile_content,
+            )
 
             author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
             if not author_uuid:
@@ -1018,10 +1034,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         body = raw_content
         metadata: dict[str, Any] = {}
 
+        min_parts_count = 3
         if raw_content.startswith("---\n"):
             try:
                 parts = raw_content.split("---\n", 2)
-                if len(parts) >= 3:
+                if len(parts) >= min_parts_count:
                     loaded_metadata = yaml.safe_load(parts[1]) or {}
                     metadata = loaded_metadata if isinstance(loaded_metadata, dict) else {}
                     body = parts[2]
@@ -1056,8 +1073,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             if existing_doc_id == document_id:
                 return new_path
             counter += 1
-            if counter > 1000:
-                msg = f"Failed to resolve collision for {path} after 1000 attempts"
+            max_attempts = 1000
+            if counter > max_attempts:
+                msg = f"Failed to resolve collision for {path} after {max_attempts} attempts"
                 raise RuntimeError(msg)
 
 
@@ -1070,8 +1088,8 @@ ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
 
 def _extract_clean_date(date_str: str) -> str:
     """Extract a clean ``YYYY-MM-DD`` date from user-provided strings."""
-    import datetime
-    import re
+    import datetime  # noqa: PLC0415
+    import re  # noqa: PLC0415
 
     date_str = date_str.strip()
 

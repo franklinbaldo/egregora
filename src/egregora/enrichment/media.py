@@ -197,7 +197,7 @@ def extract_and_replace_media(
         - Media mapping (original → extracted path)
 
     """
-    from egregora.enrichment.runners import _iter_table_record_batches
+    from egregora.enrichment.runners import _iter_table_record_batches  # noqa: PLC0415
 
     all_media = set()
     batch_size = 1000

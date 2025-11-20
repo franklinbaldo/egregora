@@ -17,7 +17,7 @@ MODERN (Phase 2): Moved from top-level pipeline.py to pipeline/windowing.py.
 DESIGN PHILOSOPHY: Calculate, Don't Iterate
 - When max_window_time constraint would be exceeded, calculate exact reduction upfront
 - max_window_time constrains the **step** (advancement), not the overlap-adjusted span
-- Formula: effective_step_size = max_window_time (actual span will be × (1 + overlap_ratio))
+- Formula: effective_step_size = max_window_time (actual span will be x (1 + overlap_ratio))
 - Creates correctly-sized windows from the start (no post-hoc splitting)
 - Only applies to time-based windowing (hours/days); message-based windowing
   cannot enforce time limits without knowing message density beforehand
@@ -124,7 +124,7 @@ class Window:
     size: int  # Number of messages
 
 
-def create_windows(
+def create_windows(  # noqa: PLR0913
     table: Table,
     *,
     step_size: int = 100,
@@ -157,7 +157,7 @@ def create_windows(
             Values outside this range are clamped before processing.
         max_window_time: Optional maximum time span per window **step** (not
             including overlap). Actual window duration will be
-            max_window_time × (1 + overlap_ratio). To strictly bound total
+            max_window_time x (1 + overlap_ratio). To strictly bound total
             duration, set max_window_time = desired_max / (1 + overlap_ratio)
         max_bytes_per_window: Max bytes per window (for bytes mode, ~4 bytes/token)
 

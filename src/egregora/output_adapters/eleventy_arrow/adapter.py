@@ -22,8 +22,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ibis
-import pyarrow as pa
-import pyarrow.parquet as pq
+import pyarrow as pa  # noqa: TID251
+import pyarrow.parquet as pq  # noqa: TID251
 import yaml
 
 if TYPE_CHECKING:
@@ -265,8 +265,6 @@ class EleventyArrowAdapter:
                 metadata = self._deserialize_metadata(row.get("metadata"))
                 if identifier in self._identifier_candidates(doc_type, row, metadata):
                     # Reconstruct Document
-                    from egregora.data_primitives.document import Document
-
                     created_at = row.get("created_at")
                     parsed_created_at = (
                         datetime.fromisoformat(created_at)
@@ -334,8 +332,6 @@ class EleventyArrowAdapter:
             List of documents
 
         """
-        from egregora.data_primitives.document import Document
-
         documents: list[Document] = []
 
         # Scan all window Parquet files
@@ -518,19 +514,25 @@ class EleventyArrowOutputAdapter(OutputAdapter):
 
     def serve(self, document: Document) -> None:
         self._ensure_initialized()
-        assert self._eleventy is not None  # For type checkers
+        if self._eleventy is None:
+            msg = "EleventyArrowOutputAdapter not initialized"
+            raise RuntimeError(msg)
         self._eleventy.serve(document)
 
     def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
         self._ensure_initialized()
-        assert self._eleventy is not None
+        if self._eleventy is None:
+            msg = "EleventyArrowOutputAdapter not initialized"
+            raise RuntimeError(msg)
         return self._eleventy.read_document(doc_type, identifier)
 
     def prepare_window(
         self, window_label: str, _window_data: dict[str, Any] | None = None
     ) -> dict[str, Any] | None:
         self._ensure_initialized()
-        assert self._eleventy is not None
+        if self._eleventy is None:
+            msg = "EleventyArrowOutputAdapter not initialized"
+            raise RuntimeError(msg)
         return self._eleventy.prepare_window(window_label, _window_data)
 
     def finalize_window(
@@ -541,7 +543,9 @@ class EleventyArrowOutputAdapter(OutputAdapter):
         metadata: dict[str, Any] | None = None,
     ) -> None:
         self._ensure_initialized()
-        assert self._eleventy is not None
+        if self._eleventy is None:
+            msg = "EleventyArrowOutputAdapter not initialized"
+            raise RuntimeError(msg)
         self._eleventy.finalize_window(window_label, posts_created, profiles_updated, metadata)
         self._refresh_document_cache()
 

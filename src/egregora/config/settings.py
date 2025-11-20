@@ -187,7 +187,7 @@ class EnrichmentSettings(BaseModel):
     )
 
 
-from egregora.constants import WindowUnit
+from egregora.constants import WindowUnit  # noqa: E402
 
 
 class PipelineSettings(BaseModel):
@@ -513,20 +513,20 @@ def load_egregora_config(site_root: Path) -> EgregoraConfig:
 
     try:
         raw_config = config_path.read_text(encoding="utf-8")
-    except OSError as exc:
-        logger.error("Failed to read config from %s: %s", config_path, exc)
+    except OSError:
+        logger.exception("Failed to read config from %s", config_path)
         raise
 
     try:
         data = yaml.safe_load(raw_config) or {}
-    except yaml.YAMLError as exc:
-        logger.error("Failed to parse YAML in %s: %s", config_path, exc)
+    except yaml.YAMLError:
+        logger.exception("Failed to parse YAML in %s", config_path)
         raise
 
     try:
         return EgregoraConfig(**data)
-    except ValidationError as exc:
-        logger.error("Validation failed for %s: %s", config_path, exc)
+    except ValidationError:
+        logger.exception("Validation failed for %s", config_path)
         logger.warning("Creating default config due to validation error")
         return create_default_config(site_root)
 
@@ -589,7 +589,7 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
 # They replace parameter soup (12-16 params → 3-6 params).
 
 
-from egregora.constants import WindowUnit
+from egregora.constants import WindowUnit  # noqa: E402
 
 
 @dataclass
@@ -690,34 +690,29 @@ ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor"
 
 
 __all__ = [
-    # Pydantic config schemas (persisted in .egregora/config.yml)
+    "DEFAULT_BANNER_MODEL",
+    "DEFAULT_EMBEDDING_MODEL",
+    "DEFAULT_MODEL",
+    "EMBEDDING_DIM",
     "EgregoraConfig",
+    "EnrichmentRuntimeConfig",
     "EnrichmentSettings",
     "FeaturesSettings",
+    "MediaEnrichmentContext",
     "ModelSettings",
+    "ModelType",
     "OutputSettings",
     "PathsSettings",
+    "PipelineEnrichmentConfig",
     "PipelineSettings",
     "PrivacySettings",
     "RAGSettings",
     "ReaderSettings",
+    "RuntimeContext",
     "WriterAgentSettings",
-    # Config loading functions
+    "WriterRuntimeConfig",
     "create_default_config",
     "find_egregora_config",
     "load_egregora_config",
     "save_egregora_config",
-    # Runtime dataclasses (not persisted, for function parameters)
-    "RuntimeContext",  # Minimal runtime-only context
-    "WriterRuntimeConfig",
-    "MediaEnrichmentContext",
-    "EnrichmentRuntimeConfig",
-    "PipelineEnrichmentConfig",
-    # Model configuration
-    "ModelType",
-    # Constants
-    "DEFAULT_MODEL",
-    "DEFAULT_EMBEDDING_MODEL",
-    "DEFAULT_BANNER_MODEL",
-    "EMBEDDING_DIM",
 ]

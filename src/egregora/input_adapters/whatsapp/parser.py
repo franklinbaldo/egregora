@@ -133,7 +133,7 @@ def _resolve_timezone(timezone: str | ZoneInfo | None) -> ZoneInfo:
     return ZoneInfo(timezone)
 
 
-def _parse_messages_pure_python(
+def _parse_messages_pure_python(  # noqa: C901
     lines: list[str], export: WhatsAppExport, timezone: str | ZoneInfo | None
 ) -> list[dict]:
     """Parse messages using pure Python (transitional implementation).
@@ -303,8 +303,8 @@ SMART_QUOTES_TRANSLATION = str.maketrans(
     {
         "“": '"',
         "”": '"',
-        "‘": "'",
-        "’": "'",
+        "‘": "'",  # noqa: RUF001
+        "’": "'",  # noqa: RUF001
     }
 )
 
@@ -341,7 +341,7 @@ def parse_egregora_command(message: str) -> dict | None:
     - /egregora opt-in
 
     Smart quotes are normalized to their ASCII equivalents before parsing, so
-    commands like `/egregora set alias “Franklin”` or `/egregora set alias ‘Franklin’`
+    commands like `/egregora set alias "Franklin"` or `/egregora set alias 'Franklin'`
     are accepted.
 
     Args:
@@ -434,7 +434,7 @@ def extract_commands(messages: Table) -> list[dict]:
         set_has_value=ibis.coalesce(
             enriched.args_trimmed.length()
             > ibis.coalesce(enriched.target_candidate.length(), ibis.literal(0)),
-            ibis.literal(False),
+            ibis.literal(False),  # noqa: FBT003
         ),
     )
 
@@ -480,11 +480,11 @@ def extract_commands(messages: Table) -> list[dict]:
         command_payload = {"command": row["command_name"]}
 
         target = row.get("command_target")
-        if target is not None and target == target:
+        if target is not None and target == target:  # noqa: PLR0124
             command_payload["target"] = target
 
         value = row.get("command_value")
-        if value is not None and value == value:
+        if value is not None and value == value:  # noqa: PLR0124
             command_payload["value"] = value
 
         commands.append(
@@ -579,16 +579,14 @@ def parse_source(
     if not lines:
         logger.warning("No messages found in %s", export.zip_path)
         # IR v1: Return empty table with IR schema directly (no validation needed)
-        empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
-        return empty_table
+        return ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
 
     # Parse lines with pure Python (will be replaced with SQL in next step)
     rows = _parse_messages_pure_python(lines, export, timezone)
 
     if not rows:
         # IR v1: Return empty table with IR schema directly (no validation needed)
-        empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
-        return empty_table
+        return ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
 
     messages = ibis.memtable(rows)
     # IR v1: use 'ts' column instead of 'timestamp'
@@ -637,8 +635,7 @@ def parse_multiple(
 
     if not tables:
         # IR v1: Return empty table with IR schema directly (no validation needed)
-        empty_table = ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
-        return empty_table
+        return ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
 
     combined = tables[0]
     for table in tables[1:]:

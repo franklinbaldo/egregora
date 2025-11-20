@@ -135,7 +135,7 @@ async def compare_posts(
     model: str | None = None,
     api_key: str | None = None,
 ) -> PostComparison:
-    """Compare two posts and return structured comparison result.
+    r"""Compare two posts and return structured comparison result.
 
     Implements exponential backoff retry strategy for rate limit errors (429).
     Retries up to 5 times with wait times: 4s, 8s, 16s, 32s, 60s (max).

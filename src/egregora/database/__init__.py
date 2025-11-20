@@ -56,45 +56,45 @@ from egregora.database.views import (
 )
 
 __all__ = [
+    # Views
+    "COMMON_VIEWS",
     # Schemas
     "CONVERSATION_SCHEMA",
     "MESSAGE_SCHEMA",
     "RUNS_TABLE_DDL",
     "RUNS_TABLE_SCHEMA",
     "WHATSAPP_CONVERSATION_SCHEMA",
+    "DuckDBNoOpVectorBackend",
     # Storage
     "DuckDBStorageManager",
     "DuckDBVectorBackend",
-    "DuckDBNoOpVectorBackend",
-    "VectorBackend",
-    # Initialization
-    "initialize_database",
-    # Streaming
-    "copy_expr_to_ndjson",
-    "copy_expr_to_parquet",
-    "ensure_deterministic_order",
-    "stream_ibis",
     # Tracking & Observability
     "RunContext",
-    # Views
-    "COMMON_VIEWS",
+    "VectorBackend",
     "ViewBuilder",
     "chunks_sql",
     "chunks_view",
+    # Streaming
+    "copy_expr_to_ndjson",
+    "copy_expr_to_parquet",
+    # Runs table utilities
+    "create_runs_table",
     "daily_aggregates_view",
+    "duckdb_backend",
+    "ensure_deterministic_order",
+    "ensure_runs_table_exists",
+    "get_git_commit_sha",
     "get_view_builder",
     "hourly_aggregates_view",
+    # Initialization
+    "initialize_database",
     "list_common_views",
     "messages_with_media_view",
     "messages_with_text_view",
-    # Runs table utilities
-    "create_runs_table",
-    "duckdb_backend",
-    "ensure_runs_table_exists",
-    "get_git_commit_sha",
     "record_lineage",
     "record_run",
     "run_stage_with_tracking",
     "schemas",
+    "stream_ibis",
     "temp_storage",
 ]

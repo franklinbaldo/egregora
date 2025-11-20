@@ -108,8 +108,9 @@ def get_view_builder(name: str) -> ViewBuilder:
     try:
         return COMMON_VIEWS[name]
     except KeyError as exc:  # pragma: no cover - defensive logging path
-        logger.error("Unknown view requested: %s", name)
-        raise KeyError(f"Unknown view: {name}") from exc
+        logger.exception("Unknown view requested: %s", name)
+        msg = f"Unknown view: {name}"
+        raise KeyError(msg) from exc
 
 
 def list_common_views() -> list[str]:

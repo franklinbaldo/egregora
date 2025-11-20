@@ -858,10 +858,10 @@ __all__ = [
     # Ephemeral schemas
     "CONVERSATION_SCHEMA",
     "DEFAULT_TIMEZONE",
-    "IR_MESSAGE_SCHEMA",
     # Elo schemas
     "ELO_HISTORY_SCHEMA",
     "ELO_RATINGS_SCHEMA",
+    "IR_MESSAGE_SCHEMA",
     "MESSAGE_SCHEMA",
     # RAG schemas
     "RAG_CHUNKS_METADATA_SCHEMA",

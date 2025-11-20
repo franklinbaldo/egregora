@@ -134,7 +134,7 @@ def _fetch_format_documents(output_format: OutputAdapter) -> tuple[list, int] | 
 # Now using Document objects directly from OutputAdapter
 
 
-def index_documents_for_rag(
+def index_documents_for_rag(  # noqa: C901
     output_format: OutputAdapter, rag_store: VectorStore, *, embedding_model: str
 ) -> int:
     """Index documents directly from OutputAdapter into RAG vector store.
@@ -166,7 +166,7 @@ def index_documents_for_rag(
             if indexed_table.count().execute() > 0:
                 # Assuming source_path contains document_id for Document-based indexing
                 indexed_ids = set(indexed_table.source_path.execute().tolist())
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.debug("No existing index found (first run): %s", e)
 
         # Index only new documents (not already indexed)
@@ -192,10 +192,8 @@ def index_documents_for_rag(
 
         if indexed_count > 0:
             logger.info("Indexed %d new documents in RAG (total: %d)", indexed_count, doc_count)
-        else:
+        elif doc_count > 0:
             logger.debug("All %d documents already indexed", doc_count)
-
-        return indexed_count
 
     except PromptTooLargeError:
         raise
@@ -203,6 +201,8 @@ def index_documents_for_rag(
         # RAG indexing is non-critical - log error but don't fail pipeline
         logger.exception("Failed to index documents in RAG")
         return 0
+
+    return indexed_count
 
 
 def _cast_uuid_columns_to_str(table: Table) -> Table:
@@ -431,7 +431,7 @@ def _write_posts_for_window_pydantic(
             )
             if indexed_count > 0:
                 logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # RAG indexing is non-critical - log error but don't fail
             logger.warning("Failed to update RAG index after writing: %s", e)
 

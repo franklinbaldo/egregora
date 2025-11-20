@@ -157,7 +157,7 @@ def ibis_schema_to_pydantic(
         >>> Model = ibis_schema_to_pydantic(schema, "User", field_overrides=overrides)
 
     """
-    from pydantic import ConfigDict
+    from pydantic import ConfigDict  # noqa: PLC0415
 
     field_overrides = field_overrides or {}
     fields: dict[str, Any] = {}
@@ -268,15 +268,13 @@ def schema_diff(expected: ibis.Schema, actual: ibis.Schema) -> str:
     missing = expected_cols - actual_cols
     if missing:
         lines.append("Missing columns:")
-        for col in sorted(missing):
-            lines.append(f"  - {col}: {expected[col]}")
+        lines.extend(f"  - {col}: {expected[col]}" for col in sorted(missing))
 
     # Check for extra columns
     extra = actual_cols - expected_cols
     if extra:
         lines.append("Extra columns:")
-        for col in sorted(extra):
-            lines.append(f"  + {col}: {actual[col]}")
+        lines.extend(f"  + {col}: {actual[col]}" for col in sorted(extra))
 
     # Check for type mismatches
     common_cols = expected_cols & actual_cols
@@ -294,7 +292,7 @@ def schema_diff(expected: ibis.Schema, actual: ibis.Schema) -> str:
     return "\n".join(lines) if lines else "No differences"
 
 
-def validate_ir_schema(table: Table, *, sample_size: int = 100) -> None:
+def validate_ir_schema(table: Table, *, sample_size: int = 100) -> None:  # noqa: C901
     """Validate table schema matches IR v1 lockfile.
 
     This function performs two levels of validation:
@@ -376,7 +374,7 @@ def validate_ir_schema(table: Table, *, sample_size: int = 100) -> None:
             raise
         # Runtime validation failure is not critical - schema validation passed
         # Log warning but don't fail (execution issues with memtable, etc.)
-        import logging
+        import logging  # noqa: PLC0415
 
         logging.getLogger(__name__).warning("IR v1 runtime validation skipped due to execution error: %s", e)
 
@@ -491,7 +489,7 @@ def validate_adapter_output[F: Callable[..., "Table"]](func: F) -> F:
 # ============================================================================
 
 
-def create_ir_table(
+def create_ir_table(  # noqa: C901, PLR0913
     table: Table,
     *,
     tenant_id: str,
@@ -561,7 +559,6 @@ def create_ir_table(
     thread_identifier = thread_key or tenant_id
     thread_uuid = deterministic_thread_uuid(tenant_id, source, thread_identifier)
 
-    created_at_literal = ibis.literal(datetime.now(UTC), type=dt.Timestamp(timezone="UTC"))
     if run_id is not None:
         # Convert Python UUID to string - DuckDB handles str→UUID conversion
         created_by_run_literal = ibis.literal(str(run_id), type=dt.string)
@@ -604,21 +601,14 @@ def create_ir_table(
 # ============================================================================
 
 __all__ = [
-    # Exceptions
-    "SchemaError",
-    # Schema definitions
     "IR_MESSAGE_SCHEMA",
-    # Schema generation utilities
-    "ibis_type_to_python",
-    "ibis_schema_to_pydantic",
-    # Validation models
     "IRMessageRow",
-    # Validation functions
-    "validate_ir_schema",
-    "schema_diff",
-    # Adapter validation
+    "SchemaError",
     "adapter_output_validator",
-    "validate_adapter_output",
-    # IR table creation
     "create_ir_table",
+    "ibis_schema_to_pydantic",
+    "ibis_type_to_python",
+    "schema_diff",
+    "validate_adapter_output",
+    "validate_ir_schema",
 ]
