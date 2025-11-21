@@ -12,13 +12,13 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from egregora.cli.main import app
+
 pytest.skip(
     "Stage command suite (parse/group/enrich/write-posts) was removed from the CLI; "
     "retain this module skipped until the commands are reintroduced.",
     allow_module_level=True,
 )
-
-from egregora.cli.main import app
 
 # Create a CLI runner for testing
 runner = CliRunner()
@@ -418,9 +418,9 @@ class TestWritePostsCommand:
             post_files = list(posts_target_dir.glob("*.md"))
             # If there are posts, ensure they are in the right place
             if post_files:
-                assert all(p.parent == posts_target_dir for p in post_files), (
-                    "Posts should be in the '.posts' subdirectory."
-                )
+                assert all(
+                    p.parent == posts_target_dir for p in post_files
+                ), "Posts should be in the '.posts' subdirectory."
         else:
             # If the directory doesn't exist, it means no posts were written, which is a valid outcome.
             # We can also check that no posts were written to the *wrong* directory.
@@ -442,9 +442,9 @@ class TestSerializationFormats:
         # Verify it's a valid Parquet file
         pd = pytest.importorskip("pandas")
 
-        df = pd.read_parquet(output_parquet)
-        assert len(df) > 0
-        assert "message" in df.columns
+        parquet_df = pd.read_parquet(output_parquet)
+        assert len(parquet_df) > 0
+        assert "message" in parquet_df.columns
 
     def test_group_from_parquet(self, test_zip_file, test_output_dir):
         """Test grouping from Parquet input."""

@@ -149,7 +149,7 @@ def ibis_schema_to_pydantic(
         >>> Model = ibis_schema_to_pydantic(schema, "User", field_overrides=overrides)
 
     """
-    from pydantic import ConfigDict  # noqa: PLC0415
+    from pydantic import ConfigDict
 
     field_overrides = field_overrides or {}
     fields: dict[str, Any] = {}
@@ -366,7 +366,7 @@ def validate_ir_schema(table: Table, *, sample_size: int = 100) -> None:  # noqa
             raise
         # Runtime validation failure is not critical - schema validation passed
         # Log warning but don't fail (execution issues with memtable, etc.)
-        import logging  # noqa: PLC0415
+        import logging
 
         logging.getLogger(__name__).warning("IR v1 runtime validation skipped due to execution error: %s", e)
 

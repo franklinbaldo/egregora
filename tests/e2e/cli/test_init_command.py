@@ -24,10 +24,10 @@ def test_init_creates_all_template_files(tmp_path: Path):
     expected_files = [
         "README.md",
         ".gitignore",
-        "index.md",
-        "about.md",
-        "profiles/index.md",
-        "media/index.md",
+        "docs/index.md",
+        "docs/about.md",
+        "docs/profiles/index.md",
+        "docs/media/index.md",
     ]
 
     for expected_path in expected_files:
@@ -46,14 +46,14 @@ def test_init_directory_structure(tmp_path: Path):
 
     # Verify directory structure (new structure: content at root level)
     expected_dirs = [
-        "posts",
-        "profiles",
-        "media",
-        "media/images",
-        "media/videos",
-        "media/audio",
-        "media/documents",
-        "posts/journal",
+        "docs/posts",
+        "docs/profiles",
+        "docs/media",
+        "docs/media/images",
+        "docs/media/videos",
+        "docs/media/audio",
+        "docs/media/documents",
+        "docs/posts/journal",
     ]
 
     for dir_path in expected_dirs:
@@ -62,7 +62,7 @@ def test_init_directory_structure(tmp_path: Path):
 
     # Verify .gitkeep files in media subdirectories
     for subdir in ["images", "videos", "audio", "documents"]:
-        gitkeep = tmp_path / "media" / subdir / ".gitkeep"
+        gitkeep = tmp_path / "docs" / "media" / subdir / ".gitkeep"
         assert gitkeep.exists(), f".gitkeep missing in media/{subdir}"
 
 
@@ -141,9 +141,9 @@ def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
 
     # Should NOT have extra.egregora
     extra_section = mkdocs_dict.get("extra", {})
-    assert "egregora" not in extra_section, (
-        "mkdocs.yml should NOT contain extra.egregora (config moved to .egregora/config.yml)"
-    )
+    assert (
+        "egregora" not in extra_section
+    ), "mkdocs.yml should NOT contain extra.egregora (config moved to .egregora/config.yml)"
 
 
 def test_prompts_readme_created(tmp_path: Path):
@@ -161,9 +161,9 @@ def test_prompts_readme_created(tmp_path: Path):
 
     # Verify it has useful content
     content = readme.read_text()
-    assert "Custom Prompt" in content or "prompt" in content.lower(), (
-        "README should contain information about prompts"
-    )
+    assert (
+        "Custom Prompt" in content or "prompt" in content.lower()
+    ), "README should contain information about prompts"
 
 
 def test_prompts_subdirectories_created(tmp_path: Path):

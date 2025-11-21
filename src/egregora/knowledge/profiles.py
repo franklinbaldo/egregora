@@ -81,7 +81,7 @@ def write_profile(
         front_matter["commands_used"] = metadata["commands_used"]
 
     # Write profile with front-matter
-    import yaml  # noqa: PLC0415
+    import yaml
 
     yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
     full_profile = f"---\n{yaml_front}---\n\n{content}"
@@ -555,7 +555,7 @@ def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:  # noqa: C9
     if not profile_path.exists():
         return {}
 
-    import yaml  # noqa: PLC0415
+    import yaml
 
     content = profile_path.read_text(encoding="utf-8")
     metadata: dict[str, Any] = {}
@@ -611,7 +611,7 @@ def _update_authors_yml(site_root: Path, author_uuid: str, front_matter: dict[st
         front_matter: Profile front-matter dict
 
     """
-    import yaml  # noqa: PLC0415
+    import yaml
 
     authors_yml_path = site_root / ".authors.yml"
 

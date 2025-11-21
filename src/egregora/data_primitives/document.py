@@ -128,6 +128,14 @@ class Document:
         content_hash = hashlib.sha256(payload).hexdigest()
         return str(uuid5(NAMESPACE_DOCUMENT, content_hash))
 
+    @property
+    def slug(self) -> str:
+        """Return a human-friendly identifier when available."""
+        slug_value = self.metadata.get("slug")
+        if isinstance(slug_value, str) and slug_value.strip():
+            return slug_value.strip()
+        return self.document_id[:8]
+
     def with_parent(self, parent: Document | str) -> Document:
         """Return new document with parent relationship.
 

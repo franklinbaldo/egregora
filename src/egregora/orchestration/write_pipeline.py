@@ -245,8 +245,8 @@ def _process_window_with_auto_split(
         Dict mapping window labels to {'posts': [...], 'profiles': [...]}
 
     """
-    from egregora.agents.model_limits import PromptTooLargeError  # noqa: PLC0415
-    from egregora.transformations import split_window_into_n_parts  # noqa: PLC0415
+    from egregora.agents.model_limits import PromptTooLargeError
+    from egregora.transformations import split_window_into_n_parts
 
     min_window_size = 5
     results: dict[str, dict[str, list[str]]] = {}
@@ -306,7 +306,7 @@ def _split_window_for_retry(
     indent: str,
     splitter: any,
 ) -> list[tuple[any, int]]:
-    import math  # noqa: PLC0415
+    import math
 
     estimated_tokens = getattr(error, "estimated_tokens", 0)
     effective_limit = getattr(error, "effective_limit", 1) or 1
@@ -676,7 +676,7 @@ def _create_pipeline_context(  # noqa: PLR0913
     )
 
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
-    from egregora.database import initialize_database  # noqa: PLC0415
+    from egregora.database import initialize_database
 
     initialize_database(pipeline_backend)
 
@@ -693,7 +693,7 @@ def _create_pipeline_context(  # noqa: PLR0913
 
     annotations_store = AnnotationStore(storage)
 
-    from egregora.orchestration.context import PipelineConfig, PipelineState  # noqa: PLC0415
+    from egregora.orchestration.context import PipelineConfig, PipelineState
 
     url_ctx = UrlContext(
         base_url="",
@@ -970,7 +970,7 @@ def _prepare_pipeline_data(
         max_window_time=max_window_time,
     )
 
-    from egregora.output_adapters import create_output_format  # noqa: PLC0415
+    from egregora.output_adapters import create_output_format
 
     output_format = create_output_format(output_dir, format_type=config.output.format)
 
@@ -981,7 +981,7 @@ def _prepare_pipeline_data(
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
-            from egregora.agents.shared.rag import index_documents_for_rag  # noqa: PLC0415
+            from egregora.agents.shared.rag import index_documents_for_rag
 
             indexed_count = index_documents_for_rag(
                 output_format,

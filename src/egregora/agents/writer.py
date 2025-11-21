@@ -57,6 +57,7 @@ if TYPE_CHECKING:
     from egregora.orchestration.context import PipelineContext
 
 logger = logging.getLogger(__name__)
+MAX_RAG_QUERY_BYTES = 30000
 
 # Type aliases for improved type safety
 MessageHistory = Sequence[ModelRequest | ModelResponse]
@@ -143,7 +144,8 @@ class WriterDeps:
     @property
     def output_format(self) -> OutputAdapter:
         if self.ctx.output_format is None:
-            raise RuntimeError("Output format not initialized in context")
+            message = "Output format not initialized in context"
+            raise RuntimeError(message)
         return self.ctx.output_format
 
     @property
@@ -164,7 +166,7 @@ class WriterDeps:
 # ============================================================================
 
 
-def register_writer_tools(
+def register_writer_tools(  # noqa: C901
     agent: Agent[WriterDeps, WriterAgentReturn],
     *,
     enable_banner: bool = False,
@@ -227,8 +229,8 @@ def register_writer_tools(
                 retrieval_nprobe=ctx.deps.ctx.retrieval_nprobe,
                 retrieval_overfetch=ctx.deps.ctx.retrieval_overfetch,
             )
-            df = results.execute()
-            items = [MediaItem(**row) for row in df.to_dict("records")]
+            media_df = results.execute()
+            items = [MediaItem(**row) for row in media_df.to_dict("records")]
             return SearchMediaResult(results=items)
 
     @agent.tool
@@ -276,7 +278,7 @@ class RagContext:
     records: list[dict[str, Any]]
 
 
-def build_rag_context_for_prompt(
+def build_rag_context_for_prompt(  # noqa: PLR0913
     table_markdown: str,
     store: VectorStore,
     client: genai.Client,
@@ -292,7 +294,8 @@ def build_rag_context_for_prompt(
         return ""
 
     # Simple query strategy for prompt context
-    query_vector = embed_query_text(table_markdown, model=embedding_model)
+    query_text = _truncate_for_embedding(table_markdown)
+    query_vector = embed_query_text(query_text, model=embedding_model)
     search_results = store.search(
         query_vec=query_vector,
         top_k=top_k,
@@ -301,11 +304,11 @@ def build_rag_context_for_prompt(
         nprobe=retrieval_nprobe,
         overfetch=retrieval_overfetch,
     )
-    df = search_results.execute()
-    if getattr(df, "empty", False):
+    results_df = search_results.execute()
+    if getattr(results_df, "empty", False):
         logger.info("Writer RAG: no similar posts found for query")
         return ""
-    records = df.to_dict("records")
+    records = results_df.to_dict("records")
     if not records:
         return ""
     lines = [
@@ -356,6 +359,21 @@ class WriterPromptContext:
     profiles_context: str
     journal_memory: str
     active_authors: list[str]
+
+
+def _truncate_for_embedding(text: str, byte_limit: int = MAX_RAG_QUERY_BYTES) -> str:
+    """Clamp markdown payloads before embedding to respect API limits."""
+    encoded = text.encode("utf-8")
+    if len(encoded) <= byte_limit:
+        return text
+    truncated = encoded[:byte_limit]
+    truncated_text = truncated.decode("utf-8", errors="ignore").rstrip()
+    logger.info(
+        "Truncated RAG query markdown from %s bytes to %s bytes to fit embedding limits",
+        len(encoded),
+        byte_limit,
+    )
+    return truncated_text + "\n\n<!-- truncated for RAG query -->"
 
 
 def _build_writer_prompt_context(
@@ -425,7 +443,7 @@ class JournalEntry:
     tool_name: str | None = None
 
 
-def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
+def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:  # noqa: C901
     """Extract intercalated journal log preserving actual execution order."""
     entries: list[JournalEntry] = []
 
@@ -516,14 +534,14 @@ def _save_journal_to_file(
             source_window=window_label,
         )
         output_format.serve(doc)
-        logger.info("Saved journal entry: %s", doc.document_id)
-        return doc.document_id
     except Exception:
         logger.exception("Failed to write journal")
         return None
+    logger.info("Saved journal entry: %s", doc.document_id)
+    return doc.document_id
 
 
-def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str]]:
+def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str]]:  # noqa: C901
     """Extract saved post and profile document IDs from agent message history."""
     saved_posts: list[str] = []
     saved_profiles: list[str] = []
@@ -532,7 +550,7 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
         if isinstance(content, str):
             try:
                 data = json.loads(content)
-            except:
+            except (ValueError, json.JSONDecodeError):
                 return
         elif hasattr(content, "model_dump"):
             data = content.model_dump()
@@ -764,7 +782,7 @@ def write_posts_for_window(
             )
             if indexed_count > 0:
                 logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning("Failed to update RAG index after writing: %s", e)
 
     return {"posts": saved_posts, "profiles": saved_profiles}
@@ -788,7 +806,7 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     """Get top N active authors by message count."""
     author_counts = (
         table.filter(~table.author_uuid.cast("string").isin(["system", "egregora"]))
-        .filter(table.author_uuid.notnull())
+        .filter(table.author_uuid.notna())
         .filter(table.author_uuid.cast("string") != "")
         .group_by("author_uuid")
         .aggregate(count=ibis._.count())

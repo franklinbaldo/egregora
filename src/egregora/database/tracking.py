@@ -51,7 +51,7 @@ def get_git_commit_sha() -> str | None:
 
     """
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603
             ["git", "rev-parse", "HEAD"],  # noqa: S607
             capture_output=True,
             text=True,
@@ -182,7 +182,7 @@ def record_run(  # noqa: PLR0913
 
     """
     # Ensure runs table exists (idempotent)
-    from egregora.database.ir_schema import ensure_runs_table_exists  # noqa: PLC0415
+    from egregora.database.ir_schema import ensure_runs_table_exists
 
     with _connection_scope(conn) as resolved_conn:
         ensure_runs_table_exists(resolved_conn)
@@ -246,7 +246,7 @@ def record_lineage(
         return  # No lineage to record
 
     # Ensure lineage table exists (idempotent)
-    from egregora.database.ir_schema import ensure_lineage_table_exists  # noqa: PLC0415
+    from egregora.database.ir_schema import ensure_lineage_table_exists
 
     with _connection_scope(conn) as resolved_conn:
         ensure_lineage_table_exists(resolved_conn)

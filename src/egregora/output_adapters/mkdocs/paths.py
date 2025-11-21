@@ -26,7 +26,7 @@ __all__ = [
 ]
 
 
-def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[str, Path | str | None]:
+def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[str, Path | str | None]:  # noqa: C901
     """Derive MkDocs paths from configuration settings.
 
     This is a simplified alternative to load_site_paths() that:
@@ -54,7 +54,7 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
 
     # Load config if not provided
     if config is None:
-        from egregora.config import load_egregora_config  # noqa: PLC0415
+        from egregora.config import load_egregora_config
 
         config = load_egregora_config(resolved_root)
 
@@ -80,7 +80,37 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
     elif legacy_path.exists():
         mkdocs_path = legacy_path
 
-    # Resolve all paths from settings (no discovery logic)
+    docs_dir = resolve_path(paths_settings.docs_dir)
+
+    def resolve_content_path(path_str: str) -> Path:
+        """Resolve a content path relative to docs_dir when not absolute."""
+        path_obj = Path(path_str)
+        if path_obj.is_absolute():
+            return path_obj.resolve()
+
+        candidate = (resolved_root / path_obj).resolve()
+        try:
+            candidate.relative_to(docs_dir)
+        except ValueError:
+            pass
+        else:
+            return candidate
+
+        return (docs_dir / path_obj).resolve()
+
+    posts_dir = resolve_content_path(paths_settings.posts_dir)
+    profiles_dir = resolve_content_path(paths_settings.profiles_dir)
+    media_dir = resolve_content_path(paths_settings.media_dir)
+
+    try:
+        blog_relative = posts_dir.relative_to(docs_dir).as_posix()
+    except ValueError as exc:  # pragma: no cover - enforced earlier
+        msg = (
+            "Posts directory must reside inside the MkDocs docs_dir. "
+            f"docs_dir={docs_dir}, posts_dir={posts_dir}"
+        )
+        raise ValueError(msg) from exc
+
     return {
         "site_root": resolved_root,
         "mkdocs_path": mkdocs_path,
@@ -90,11 +120,11 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
         "prompts_dir": resolve_path(paths_settings.prompts_dir),
         "rag_dir": resolve_path(paths_settings.rag_dir),
         "cache_dir": resolve_path(paths_settings.cache_dir),
-        "docs_dir": resolve_path(paths_settings.docs_dir),
-        "blog_dir": paths_settings.posts_dir,  # Keep as string for compatibility
-        "posts_dir": resolve_path(paths_settings.posts_dir),
-        "profiles_dir": resolve_path(paths_settings.profiles_dir),
-        "media_dir": resolve_path(paths_settings.media_dir),
+        "docs_dir": docs_dir,
+        "blog_dir": blog_relative,
+        "posts_dir": posts_dir,
+        "profiles_dir": profiles_dir,
+        "media_dir": media_dir,
         "rankings_dir": egregora_dir / "rankings",
         "enriched_dir": egregora_dir / "enriched",
     }

@@ -43,7 +43,7 @@ def initialize_database(backend: BaseBackend) -> None:
         >>> # All tables now exist and can be used
 
     """
-    from egregora.database.ir_schema import IR_MESSAGE_SCHEMA, create_table_if_not_exists  # noqa: PLC0415
+    from egregora.database.ir_schema import IR_MESSAGE_SCHEMA, create_table_if_not_exists
 
     logger.info("Initializing database tables...")
 

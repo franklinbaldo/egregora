@@ -25,8 +25,8 @@ ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
 
 def _extract_clean_date(date_str: str) -> str:
     """Extract a clean ``YYYY-MM-DD`` date from user-provided strings."""
-    import datetime  # noqa: PLC0415
-    import re  # noqa: PLC0415
+    import datetime
+    import re
 
     date_str = date_str.strip()
 

@@ -1,17 +1,14 @@
 name: CI
+# Security: Limit GITHUB_TOKEN permissions to minimum required
+# See: https://docs.github.com/en/actions/security-guides/automatic-token-authentication#permissions-for-the-github_token
 permissions:
-  contents: read
+  contents: read  # Allow checkout
 
 on:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
-
-# Security: Limit GITHUB_TOKEN permissions to minimum required
-# See: https://docs.github.com/en/actions/security-guides/automatic-token-authentication#permissions-for-the-github_token
-permissions:
-  contents: read  # Allow checkout
 
 jobs:
   lint-and-test:

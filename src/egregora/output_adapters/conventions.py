@@ -64,7 +64,7 @@ class StandardUrlConvention(UrlConvention):
             return url.rstrip("/") + "/"
         return url
 
-    def canonical_url(self, document: Document, ctx: UrlContext) -> str:
+    def canonical_url(self, document: Document, ctx: UrlContext) -> str:  # noqa: PLR0911
         """Generate a canonical URL based on the standard convention."""
         # 1. Blog Posts
         if document.type == DocumentType.POST:
@@ -95,7 +95,9 @@ class StandardUrlConvention(UrlConvention):
             if document.suggested_path:
                 clean_path = document.suggested_path.strip("/")
                 return self._join(ctx, clean_path, trailing_slash=False)
-            return self._join(ctx, self.routes.media_prefix, "urls", document.document_id, trailing_slash=False)
+            return self._join(
+                ctx, self.routes.media_prefix, "urls", document.document_id, trailing_slash=False
+            )
 
         # Fallback
         return self._join(ctx, "documents", document.document_id)
