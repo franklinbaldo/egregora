@@ -551,8 +551,8 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
     pii_detected_count = 0
     pii_media_deleted = False
 
-    # Concurrency limit (can be configurable)
-    concurrency = 10
+    # Concurrency limit (configurable)
+    concurrency = max(1, config.enrichment.max_concurrent_enrichments)
     semaphore = asyncio.Semaphore(concurrency)
 
     tasks = []

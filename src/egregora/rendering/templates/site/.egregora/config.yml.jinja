@@ -43,6 +43,7 @@ enrichment:
   enable_url: true              # Enrich URLs with LLM-generated descriptions
   enable_media: true            # Enrich images/videos with LLM-generated descriptions
   max_enrichments: 50           # Maximum number of enrichments per run
+  max_concurrent_enrichments: 4 # Number of enrichment calls to run in parallel
 
 # Pipeline windowing settings
 pipeline:

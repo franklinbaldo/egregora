@@ -185,6 +185,12 @@ class EnrichmentSettings(BaseModel):
         le=200,
         description="Maximum number of enrichments per run",
     )
+    max_concurrent_enrichments: int = Field(
+        default=4,
+        ge=1,
+        le=20,
+        description="Number of concurrent LLM enrichment calls to run in parallel",
+    )
 
 
 from egregora.constants import WindowUnit  # noqa: E402
