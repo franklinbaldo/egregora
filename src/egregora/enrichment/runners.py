@@ -14,7 +14,7 @@ import re
 import tempfile
 import uuid
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -624,6 +624,7 @@ def _process_single_media(
         pii_detected = True
         media_doc.metadata["pii_deleted"] = True
         media_doc.metadata["public_url"] = None
+        media_doc = replace(media_doc, suggested_path=None)
 
     if not markdown_content:
         filename = media_doc.metadata.get("filename") or ref
