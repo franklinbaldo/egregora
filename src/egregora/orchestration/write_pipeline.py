@@ -33,6 +33,8 @@ from google import genai
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
 from egregora.agents.model_limits import get_model_context_limit
+from egregora.agents.shared.annotations import AnnotationStore
+from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.database.duckdb_manager import DuckDBStorageManager
@@ -40,9 +42,7 @@ from egregora.database.tracking import record_run
 from egregora.database.validation import validate_ir_schema
 from egregora.input_adapters import get_adapter
 from egregora.input_adapters.whatsapp import extract_commands, filter_egregora_messages
-from egregora.knowledge.annotations import AnnotationStore
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
-from egregora.knowledge.rag import VectorStore, index_all_media
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
 from egregora.output_adapters.mkdocs import load_site_paths
@@ -1001,7 +1001,7 @@ def _prepare_pipeline_data(
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
-            from egregora.knowledge.rag import index_documents_for_rag  # noqa: PLC0415
+            from egregora.agents.shared.rag import index_documents_for_rag  # noqa: PLC0415
 
             indexed_count = index_documents_for_rag(
                 output_format,
