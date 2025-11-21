@@ -20,12 +20,12 @@ from pathlib import Path
 import duckdb
 import ibis
 import pytest
+from egregora.input_adapters.whatsapp.parser import parse_source
 from ibis.expr import datatypes as dt
 
 from egregora.database.ir_schema import CONVERSATION_SCHEMA
 from egregora.database.tracking import record_run
 from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file
-from egregora.input_adapters.whatsapp.parser import parse_source
 from egregora.privacy.anonymizer import anonymize_table
 
 
@@ -245,9 +245,9 @@ def test_week1_golden_whatsapp_pipeline(  # noqa: PLR0915
     unique_authors_raw2 = second_df["author_raw"].unique()
 
     # Same number of unique authors
-    assert len(unique_authors_raw) == len(
-        unique_authors_raw2
-    ), f"Author count mismatch: {len(unique_authors_raw)} vs {len(unique_authors_raw2)}"
+    assert len(unique_authors_raw) == len(unique_authors_raw2), (
+        f"Author count mismatch: {len(unique_authors_raw)} vs {len(unique_authors_raw2)}"
+    )
 
     # Same anonymized UUIDs (order may differ, so compare sets)
     assert set(unique_authors_raw) == set(unique_authors_raw2), "Anonymized UUIDs differ between re-ingests"
