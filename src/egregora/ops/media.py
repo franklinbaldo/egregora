@@ -211,6 +211,9 @@ def _normalize_public_url(value: str | None) -> str | None:
 
 
 def _media_public_url(media_doc: Document) -> str | None:
+    if media_doc.metadata.get("pii_deleted"):
+        return None
+
     url = media_doc.metadata.get("public_url")
     if url:
         return _normalize_public_url(url)
