@@ -20,6 +20,7 @@ from ibis.expr.types import Table
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -28,7 +29,6 @@ from pydantic_ai.messages import (
     ToolCallPart,
     ToolReturnPart,
 )
-from pydantic_ai.exceptions import UnexpectedModelBehavior
 
 from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.formatting import (
