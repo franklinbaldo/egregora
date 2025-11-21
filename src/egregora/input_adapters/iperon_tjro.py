@@ -39,11 +39,11 @@ class IperonTJROAdapter(InputAdapter):
     """Adapter that fetches diaries and notifications referencing IPERON from TJRO."""
 
     @property
-    def source_name(self) -> str:  # noqa: D401
+    def source_name(self) -> str:
         return "TJRO Comunica API"
 
     @property
-    def source_identifier(self) -> str:  # noqa: D401
+    def source_identifier(self) -> str:
         return "iperon-tjro"
 
     @property

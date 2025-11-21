@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import logging
 import json
-from datetime import UTC, datetime, date
+import logging
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid5
@@ -29,11 +29,11 @@ class SelfInputAdapter(InputAdapter):
     source_slug = "self"
 
     @property
-    def source_name(self) -> str:  # noqa: D401
+    def source_name(self) -> str:
         return "Egregora Self-Reflection"
 
     @property
-    def source_identifier(self) -> str:  # noqa: D401
+    def source_identifier(self) -> str:
         return self.source_slug
 
     @property
@@ -176,9 +176,7 @@ class SelfInputAdapter(InputAdapter):
         return ts.astimezone(UTC)
 
     def _sanitize_metadata(self, metadata: dict[str, Any], markdown_path: Path) -> dict[str, Any]:
-        sanitized: dict[str, Any] = {
-            key: self._serialize_value(value) for key, value in metadata.items()
-        }
+        sanitized: dict[str, Any] = {key: self._serialize_value(value) for key, value in metadata.items()}
         sanitized.setdefault("source_path", str(markdown_path))
         return sanitized
 
