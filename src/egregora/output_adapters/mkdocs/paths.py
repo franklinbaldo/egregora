@@ -287,4 +287,3 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
         "rankings_dir": egregora_dir / "rankings",
         "enriched_dir": egregora_dir / "enriched",
     }
-
