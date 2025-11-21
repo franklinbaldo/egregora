@@ -12,7 +12,7 @@ consume and publish it).
 """
 
 from egregora.data_primitives.base_types import GroupSlug, PostSlug
-from egregora.data_primitives.document import Document, DocumentCollection, DocumentType
+from egregora.data_primitives.document import Document, DocumentCollection, DocumentType, MediaAsset
 from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
 
 __all__ = [
@@ -22,6 +22,7 @@ __all__ = [
     "DocumentType",
     # Type aliases
     "GroupSlug",
+    "MediaAsset",
     # Protocols
     "OutputAdapter",
     "PostSlug",

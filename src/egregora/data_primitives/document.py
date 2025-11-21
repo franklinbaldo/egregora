@@ -68,10 +68,11 @@ class Document:
         'parent-doc-id'
 
     Attributes:
-        content: Markdown content of the document
+        content: Markdown (str) or binary (bytes) content of the document
         type: Type of document (post, profile, journal, enrichment, media)
         metadata: Format-agnostic metadata (title, date, author, etc.)
         parent_id: Document ID of parent (for enrichments)
+        parent: Optional in-memory parent Document reference
         created_at: Timestamp when document was created
         source_window: Window label if from windowed pipeline
         suggested_path: Optional hint for output format (not authoritative)
@@ -79,7 +80,7 @@ class Document:
     """
 
     # Core identity
-    content: str
+    content: str | bytes
     type: DocumentType
 
     # Metadata (format-agnostic)
@@ -87,6 +88,7 @@ class Document:
 
     # Parent relationship (for enrichments)
     parent_id: str | None = None
+    parent: Document | None = field(default=None, repr=False, compare=False)
 
     # Provenance
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -119,16 +121,20 @@ class Document:
             False
 
         """
-        content_hash = hashlib.sha256(self.content.encode("utf-8")).hexdigest()
+        if isinstance(self.content, bytes):
+            payload = self.content
+        else:
+            payload = self.content.encode("utf-8")
+        content_hash = hashlib.sha256(payload).hexdigest()
         return str(uuid5(NAMESPACE_DOCUMENT, content_hash))
 
-    def with_parent(self, parent_id: str) -> Document:
+    def with_parent(self, parent: Document | str) -> Document:
         """Return new document with parent relationship.
 
         Useful for creating enrichments that reference parent media.
 
         Args:
-            parent_id: Document ID of parent
+            parent: Parent Document instance or ID string
 
         Returns:
             New Document instance with parent_id set
@@ -140,11 +146,15 @@ class Document:
             'media-doc-id'
 
         """
-        return Document(
+        parent_id = parent.document_id if isinstance(parent, Document) else parent
+        parent_obj = parent if isinstance(parent, Document) else self.parent
+        cls = self.__class__
+        return cls(
             content=self.content,
             type=self.type,
             metadata=self.metadata.copy(),
             parent_id=parent_id,
+            parent=parent_obj,
             created_at=self.created_at,
             source_window=self.source_window,
             suggested_path=self.suggested_path,
@@ -172,11 +182,13 @@ class Document:
         """
         new_metadata = self.metadata.copy()
         new_metadata.update(updates)
-        return Document(
+        cls = self.__class__
+        return cls(
             content=self.content,
             type=self.type,
             metadata=new_metadata,
             parent_id=self.parent_id,
+            parent=self.parent,
             created_at=self.created_at,
             source_window=self.source_window,
             suggested_path=self.suggested_path,
@@ -266,3 +278,22 @@ class DocumentCollection:
     def __iter__(self) -> Iterator[Document]:
         """Iterate over documents."""
         return iter(self.documents)
+
+
+@dataclass(frozen=True, slots=True)
+class MediaAsset(Document):
+    r"""Specialized Document for binary media assets managed by the pipeline.
+
+    MediaAsset is a Document subclass for binary content (images, videos, audio).
+    It inherits all Document behavior but is semantically distinct.
+
+    Examples:
+        >>> media = MediaAsset(
+        ...     content=b"\x89PNG...",  # Binary image data
+        ...     type=DocumentType.MEDIA,
+        ...     metadata={"filename": "photo.jpg", "mime_type": "image/jpeg"},
+        ... )
+        >>> isinstance(media, Document)
+        True
+
+    """
