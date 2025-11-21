@@ -606,10 +606,7 @@ def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> di
 
     docs_dir = site_paths["docs_dir"]
     if not docs_dir.exists():
-        msg = (
-            f"Docs directory not found: {docs_dir}. "
-            "Re-run 'egregora init' to scaffold the MkDocs project."
-        )
+        msg = f"Docs directory not found: {docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
         raise ValueError(msg)
 
     return site_paths

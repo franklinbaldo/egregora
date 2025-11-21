@@ -18,16 +18,13 @@ These tests validate two critical production capabilities:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
-import pandas as pd
 import pytest
 from egregora.agents.reader.reader_runner import run_reader_evaluation
 
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
-from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
 
@@ -123,5 +120,3 @@ async def test_reader_agent_evaluates_posts_and_persists_elo_rankings(
         # Verify comparison history is tracked (for auditing and analysis)
         history = store.get_comparison_history().execute()
         assert len(history) > 0, "Comparison history should be recorded"
-
-
