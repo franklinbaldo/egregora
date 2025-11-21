@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
-from egregora.config.settings import create_default_config
+from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import write_profile as write_profile_content
@@ -244,6 +244,7 @@ class MkDocsAdapter(OutputAdapter):
                 "docs_dir": docs_relative,
                 "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
                 "generated_date": datetime.now(UTC).strftime("%Y-%m-%d"),
+                "default_writer_model": EgregoraConfig().models.writer,
             }
 
             # Create mkdocs.yml in .egregora/ (default location)
