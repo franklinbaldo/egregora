@@ -30,6 +30,8 @@ from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mk
 from egregora.utils.filesystem import (
     _ensure_author_entries,
     _format_frontmatter_datetime,
+)
+from egregora.utils.filesystem import (
     write_markdown_post as _write_mkdocs_post,
 )
 from egregora.utils.frontmatter_utils import parse_frontmatter

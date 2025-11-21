@@ -21,8 +21,8 @@ __all__ = [
     "DEFAULT_DOCS_DIR",
     "MEDIA_DIR_NAME",
     "PROFILES_DIR_NAME",
-    "derive_mkdocs_paths",
     "compute_site_prefix",
+    "derive_mkdocs_paths",
 ]
 
 

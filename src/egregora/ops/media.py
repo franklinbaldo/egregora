@@ -235,7 +235,9 @@ def replace_media_mentions(
 
         media_type = media_doc.metadata.get("media_type")
         display_name = media_doc.metadata.get("filename") or original_filename
-        replacement = f"![Image]({public_url})" if media_type == "image" else f"[{display_name}]({public_url})"
+        replacement = (
+            f"![Image]({public_url})" if media_type == "image" else f"[{display_name}]({public_url})"
+        )
 
         for marker in ATTACHMENT_MARKERS:
             pattern = re.escape(original_filename) + r"\s*" + re.escape(marker)
@@ -298,7 +300,9 @@ def process_media_for_window(
         media_doc = media_doc.with_metadata(public_url=_normalize_public_url(public_url))
         media_mapping[media_ref] = media_doc
 
-    updated_table = replace_markdown_media_refs(window_table, media_mapping) if media_mapping else window_table
+    updated_table = (
+        replace_markdown_media_refs(window_table, media_mapping) if media_mapping else window_table
+    )
 
     return (updated_table, media_mapping)
 

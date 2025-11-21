@@ -671,7 +671,9 @@ def _create_pipeline_context(  # noqa: PLR0913
     """
     resolved_output = output_dir.expanduser().resolve()
     site_paths = _resolve_site_paths_or_raise(resolved_output, config)
-    _runtime_db_uri, pipeline_backend, runs_backend = _create_database_backends(site_paths["site_root"], config)
+    _runtime_db_uri, pipeline_backend, runs_backend = _create_database_backends(
+        site_paths["site_root"], config
+    )
 
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
     from egregora.database import initialize_database  # noqa: PLC0415
