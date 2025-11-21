@@ -28,6 +28,7 @@ from pydantic_ai.messages import (
     ToolCallPart,
     ToolReturnPart,
 )
+from pydantic_ai.exceptions import UnexpectedModelBehavior
 
 from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.formatting import (
@@ -504,7 +505,7 @@ def _save_journal_to_file(
     if not intercalated_log:
         return None
 
-    templates_dir = Path(__file__).parent.parent.parent / "templates"
+    templates_dir = Path(__file__).resolve().parents[1] / "templates"
     try:
         env = Environment(
             loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape(enabled_extensions=())
@@ -672,10 +673,36 @@ def write_posts_with_pydantic_agent(
 
     _validate_prompt_fits(prompt, model_name, config, context.window_label)
 
-    result = call_with_retries_sync(agent.run_sync, prompt, deps=context)
+    last_error: UnexpectedModelBehavior | None = None
+    for attempt in range(3):
+        try:
+            result = call_with_retries_sync(agent.run_sync, prompt, deps=context)
+            break
+        except UnexpectedModelBehavior as exc:
+            last_error = exc
+            if "MALFORMED_FUNCTION_CALL" not in str(exc):
+                raise
+            logger.warning(
+                "Writer model returned malformed function call (attempt %s/3). Retrying...",
+                attempt + 1,
+            )
+    else:
+        raise last_error  # pragma: no cover
 
     saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
     intercalated_log = _extract_intercalated_log(result.all_messages())
+    if not intercalated_log:
+        fallback_content = _extract_journal_content(result.all_messages())
+        if fallback_content:
+            intercalated_log = [JournalEntry("journal", fallback_content, datetime.now(tz=UTC))]
+        else:
+            intercalated_log = [
+                JournalEntry(
+                    "journal",
+                    "Writer agent completed without emitting a detailed reasoning trace.",
+                    datetime.now(tz=UTC),
+                )
+            ]
     _save_journal_to_file(intercalated_log, context.window_label, context.output_format)
 
     logger.info(

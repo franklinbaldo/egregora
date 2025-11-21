@@ -875,7 +875,17 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        if document.type in (DocumentType.POST, DocumentType.JOURNAL):
+        if document.type == DocumentType.JOURNAL:
+            if isinstance(document.content, str) and document.content.lstrip().startswith("---"):
+                path.write_text(document.content, encoding="utf-8")
+            else:
+                metadata = dict(document.metadata or {})
+                yaml_front = _yaml.dump(
+                    metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
+                )
+                full_content = f"---\n{yaml_front}---\n\n{document.content}"
+                path.write_text(full_content, encoding="utf-8")
+        elif document.type == DocumentType.POST:
             metadata = dict(document.metadata or {})
             if "date" in metadata:
                 metadata["date"] = _format_frontmatter_datetime(metadata["date"])
@@ -895,21 +905,18 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
                 raise ValueError(msg)
             write_profile_content(author_uuid, document.content, self.profiles_dir)
-        elif document.type == DocumentType.ENRICHMENT_URL:
-            if document.parent_id or document.metadata:
-                metadata = document.metadata.copy()
-                if document.parent_id:
-                    metadata["parent_id"] = document.parent_id
+        elif document.type in (DocumentType.ENRICHMENT_URL, DocumentType.ENRICHMENT_MEDIA):
+            metadata = document.metadata.copy()
+            metadata.setdefault("document_type", document.type.value)
+            metadata.setdefault("slug", document.slug)
+            if document.parent_id:
+                metadata.setdefault("parent_id", document.parent_id)
+            if document.parent and document.parent.metadata.get("slug"):
+                metadata.setdefault("parent_slug", document.parent.metadata.get("slug"))
 
-                yaml_front = _yaml.dump(
-                    metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
-                )
-                full_content = f"---\n{yaml_front}---\n\n{document.content}"
-                path.write_text(full_content, encoding="utf-8")
-            else:
-                path.write_text(document.content, encoding="utf-8")
-        elif document.type == DocumentType.ENRICHMENT_MEDIA:
-            path.write_text(document.content, encoding="utf-8")
+            yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+            full_content = f"---\n{yaml_front}---\n\n{document.content}"
+            path.write_text(full_content, encoding="utf-8")
         elif document.type == DocumentType.MEDIA:
             if isinstance(document.content, bytes):
                 path.write_bytes(document.content)

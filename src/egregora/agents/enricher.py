@@ -13,6 +13,7 @@ import logging
 import mimetypes
 import re
 import uuid
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -40,8 +41,8 @@ from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 
 if TYPE_CHECKING:
-    import pandas as pd
-    import pyarrow as pa
+    import pandas as pd  # noqa: TID251
+    import pyarrow as pa  # noqa: TID251
     from ibis.backends.duckdb import Backend as DuckDBBackend
 
 logger = logging.getLogger(__name__)
@@ -151,7 +152,8 @@ class EnrichmentRuntimeContext:
 
 
 def create_url_enrichment_agent(
-    model: str, simple: bool = True
+    model: str,
+    simple: bool = True,  # noqa: FBT001, FBT002
 ) -> Agent[UrlEnrichmentDeps, EnrichmentOutput]:
     """Create URL enrichment agent.
 
@@ -190,7 +192,8 @@ def create_url_enrichment_agent(
 
 
 def create_media_enrichment_agent(
-    model: str, simple: bool = False
+    model: str,
+    simple: bool = False,  # noqa: FBT001, FBT002
 ) -> Agent[MediaEnrichmentDeps, EnrichmentOutput]:
     """Create media enrichment agent.
 
@@ -255,7 +258,7 @@ async def _run_url_enrichment_async(
     return output.markdown.strip()
 
 
-async def _run_media_enrichment_async(
+async def _run_media_enrichment_async(  # noqa: PLR0913
     agent: Agent[MediaEnrichmentDeps, EnrichmentOutput],
     *,
     filename: str,
@@ -344,7 +347,7 @@ def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> 
     return [dict(row) for row in frame]
 
 
-def _iter_table_batches(table: Table, batch_size: int = 1000):
+def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
     """Stream table rows as batches of dictionaries without loading entire table into memory."""
     from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 
@@ -356,16 +359,17 @@ def _iter_table_batches(table: Table, batch_size: int = 1000):
     if backend is not None and hasattr(backend, "con"):
         try:
             ordered_table = ensure_deterministic_order(table)
+        except (AttributeError, Exception):  # pragma: no cover - fallback path
+            logger.debug("Falling back to pandas streaming for enrichment batches", exc_info=True)
+        else:
             yield from stream_ibis(ordered_table, backend, batch_size=batch_size)
             return
-        except (AttributeError, Exception):  # pragma: no cover - fallback path
-            pass
 
     if "ts" in table.columns:
         table = table.order_by("ts")
 
-    df = table.execute()
-    records = _frame_to_records(df)
+    results_df = table.execute()
+    records = _frame_to_records(results_df)
     for start in range(0, len(records), batch_size):
         yield records[start : start + batch_size]
 
@@ -375,7 +379,7 @@ def _iter_table_batches(table: Table, batch_size: int = 1000):
 # ---------------------------------------------------------------------------
 
 
-async def _process_url_task(
+async def _process_url_task(  # noqa: PLR0913
     url: str,
     metadata: dict[str, Any],
     agent: Agent[UrlEnrichmentDeps, EnrichmentOutput],
@@ -408,7 +412,7 @@ async def _process_url_task(
         return _create_enrichment_row(metadata, "URL", url, doc.document_id)
 
 
-async def _process_media_task(
+async def _process_media_task(  # noqa: PLR0913
     ref: str,
     media_doc: Document,
     metadata: dict[str, Any],
@@ -494,7 +498,7 @@ def enrich_table(
     return asyncio.run(_enrich_table_async(messages_table, media_mapping, config, context))
 
 
-async def _enrich_table_async(
+async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
     messages_table: Table,
     media_mapping: MediaMapping,
     config: EgregoraConfig,
@@ -536,7 +540,7 @@ async def _enrich_table_async(
 
     # 2. Media Enrichment
     if enable_media and media_mapping:
-        media_agent = create_media_enrichment_agent(vision_model, simple=True)
+        media_agent = create_media_enrichment_agent(vision_model, simple=False)
 
         # NOTE: We deliberately overfetch media candidates because we don't yet know
         # how many URL tasks will succeed. We filter later.
@@ -616,7 +620,9 @@ async def _enrich_table_async(
     return combined
 
 
-def _extract_url_candidates(messages_table: Table, max_enrichments: int) -> list[tuple[str, dict[str, Any]]]:
+def _extract_url_candidates(  # noqa: C901
+    messages_table: Table, max_enrichments: int
+) -> list[tuple[str, dict[str, Any]]]:
     """Extract unique URL candidates with metadata, up to max_enrichments."""
     url_metadata: dict[str, dict[str, Any]] = {}
     discovered_count = 0
@@ -679,7 +685,7 @@ def _extract_url_candidates(messages_table: Table, max_enrichments: int) -> list
     return sorted_items[:max_enrichments]
 
 
-def _extract_media_candidates(
+def _extract_media_candidates(  # noqa: C901, PLR0912
     messages_table: Table, media_mapping: MediaMapping, limit: int
 ) -> list[tuple[str, Document, dict[str, Any]]]:
     """Extract unique Media candidates with metadata."""
