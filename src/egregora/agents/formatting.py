@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 import pyarrow as pa  # noqa: TID251
 from ibis.expr.types import Table
 
-from egregora.knowledge.annotations import (
+from egregora.agents.shared.annotations import (
     ANNOTATION_AUTHOR,
     Annotation,
     AnnotationStore,

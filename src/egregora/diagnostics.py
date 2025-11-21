@@ -186,6 +186,69 @@ def check_duckdb_extensions() -> DiagnosticResult:
         )
 
 
+def check_duckdb_zipfs() -> DiagnosticResult:
+    """Check if DuckDB zipfs extension is available for streaming ZIP reads."""
+    # Lazy import - allows doctor command to run even if duckdb not installed
+    try:
+        duckdb = importlib.import_module("duckdb")
+    except ImportError:
+        return DiagnosticResult(
+            check="DuckDB ZipFS Extension",
+            status=HealthStatus.INFO,
+            message="DuckDB not installed",
+            details={"missing_package": "duckdb"},
+        )
+
+    try:
+        conn = duckdb.connect(":memory:")
+
+        # Try to install zipfs extension from community repository
+        try:
+            conn.execute("INSTALL zipfs FROM community")
+            conn.execute("LOAD zipfs")
+
+            # Verify extension is loaded
+            result = conn.execute(
+                "SELECT extension_name, loaded FROM duckdb_extensions() WHERE extension_name = 'zipfs'"
+            ).fetchone()
+
+            if result and result[1]:  # loaded = True
+                return DiagnosticResult(
+                    check="DuckDB ZipFS Extension",
+                    status=HealthStatus.OK,
+                    message="ZipFS extension available (enables vectorized ZIP parsing)",
+                    details={"benefit": "WhatsApp adapter can use fully vectorized parsing"},
+                )
+
+            return DiagnosticResult(
+                check="DuckDB ZipFS Extension",
+                status=HealthStatus.INFO,
+                message="ZipFS extension installed but not loaded",
+            )
+
+        except duckdb.IOException:
+            # Extension not available (requires DuckDB 1.4.2+)
+            return DiagnosticResult(
+                check="DuckDB ZipFS Extension",
+                status=HealthStatus.INFO,
+                message="ZipFS not available (requires DuckDB 1.4.2+, using Python fallback)",
+                details={
+                    "workaround": "WhatsApp adapter uses hybrid Python+DuckDB approach",
+                    "repo": "https://github.com/isaacbrodsky/duckdb-zipfs",
+                },
+            )
+
+        finally:
+            conn.close()
+
+    except Exception as e:  # noqa: BLE001
+        return DiagnosticResult(
+            check="DuckDB ZipFS Extension",
+            status=HealthStatus.INFO,
+            message=f"Failed to check zipfs extension: {e}",
+        )
+
+
 def check_git() -> DiagnosticResult:
     """Check if git is available for code_ref tracking."""
     try:
@@ -339,6 +402,7 @@ def run_diagnostics() -> list[DiagnosticResult]:
         check_required_packages,
         check_api_key,
         check_duckdb_extensions,
+        check_duckdb_zipfs,
         check_git,
         check_cache_directory,
         check_egregora_config,

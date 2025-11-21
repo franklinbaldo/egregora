@@ -16,11 +16,11 @@ from uuid import UUID
 if TYPE_CHECKING:
     from google import genai
 
+    from egregora.agents.shared.annotations import AnnotationStore
+    from egregora.agents.shared.rag import VectorStore
     from egregora.config.settings import EgregoraConfig
     from egregora.data_primitives.protocols import UrlContext
     from egregora.database.duckdb_manager import DuckDBStorageManager
-    from egregora.knowledge.annotations import AnnotationStore
-    from egregora.knowledge.rag import VectorStore
     from egregora.output_adapters.base import OutputAdapter
     from egregora.utils.cache import EnrichmentCache
 

@@ -1,6 +1,15 @@
 """WhatsApp source adapter - parses WhatsApp ZIP exports into IR format.
 
 This module consolidates the WhatsApp adapter, parser, and models into a single file.
+
+Performance Notes:
+    The parser uses a hybrid Python+DuckDB approach for optimal performance:
+    - ZIP reading: Python zipfile (streaming, no disk extraction)
+    - Message parsing: DuckDB vectorized operations (regex, window functions)
+
+    Future: When DuckDB zipfs extension is available (DuckDB 1.4.2+), will automatically
+    use fully vectorized parsing with `zip://` URIs. Use `egregora doctor` to check
+    availability.
 """
 
 from __future__ import annotations

@@ -35,17 +35,17 @@ from egregora.agents.formatting import (
     _load_journal_memory,
 )
 from egregora.agents.model_limits import PromptTooLargeError
-from egregora.config.settings import EgregoraConfig
-from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
-from egregora.knowledge.profiles import get_active_authors, read_profile
-from egregora.knowledge.rag import (
+from egregora.agents.shared.rag import (
     VectorStore,
     embed_query_text,
     index_documents_for_rag,
     is_rag_available,
     query_media,
 )
+from egregora.config.settings import EgregoraConfig
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
+from egregora.knowledge.profiles import get_active_authors, read_profile
 from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.mkdocs import MkDocsAdapter
 from egregora.resources.prompts import render_prompt

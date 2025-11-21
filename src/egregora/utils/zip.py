@@ -13,6 +13,7 @@ __all__ = [
     "ZipValidationSettings",
     "configure_default_limits",
     "ensure_safe_member_size",
+    "get_zip_info",
     "validate_zip_contents",
 ]
 
@@ -28,6 +29,7 @@ class ZipValidationSettings:
     max_total_size: int = 500 * 1024 * 1024
     max_member_size: int = 50 * 1024 * 1024
     max_member_count: int = 2000
+    max_compression_ratio: float = 100.0  # Detect zip bombs (100:1 ratio)
 
 
 _DEFAULT_LIMITS: ZipValidationSettings = ZipValidationSettings()
@@ -41,6 +43,29 @@ def configure_default_limits(
     _DEFAULT_LIMITS = limits
 
 
+def get_zip_info(
+    zf: Annotated[zipfile.ZipFile, "The ZIP file to inspect"],
+) -> dict[str, dict[str, int | float]]:
+    """Get detailed metadata for all members in a ZIP archive.
+
+    Returns a dictionary mapping filenames to their metadata:
+    - file_size: Uncompressed size in bytes
+    - compress_size: Compressed size in bytes
+    - compression_ratio: Ratio of uncompressed to compressed size
+
+    This is useful for diagnostics and understanding ZIP structure.
+    """
+    info_dict = {}
+    for info in zf.infolist():
+        ratio = info.file_size / info.compress_size if info.compress_size > 0 else 1.0
+        info_dict[info.filename] = {
+            "file_size": info.file_size,
+            "compress_size": info.compress_size,
+            "compression_ratio": ratio,
+        }
+    return info_dict
+
+
 def validate_zip_contents(
     zf: Annotated[zipfile.ZipFile, "The ZIP file to validate"],
     *,
@@ -50,6 +75,13 @@ def validate_zip_contents(
 
     Guards against zip bombs, resource exhaustion and path traversal by
     inspecting the metadata of each member before extraction.
+
+    Checks performed:
+    - Member count limit
+    - Individual file size limit
+    - Total uncompressed size limit
+    - Compression ratio (zip bomb detection)
+    - Path traversal prevention
     """
     limits = limits or _DEFAULT_LIMITS
     total_size = 0
@@ -62,6 +94,18 @@ def validate_zip_contents(
         if info.file_size > limits.max_member_size:
             msg = f"ZIP member '{info.filename}' exceeds maximum size of {limits.max_member_size} bytes"
             raise ZipValidationError(msg)
+
+        # Check compression ratio to detect zip bombs
+        if info.compress_size > 0 and info.file_size > 0:
+            ratio = info.file_size / info.compress_size
+            if ratio > limits.max_compression_ratio:
+                msg = (
+                    f"ZIP member '{info.filename}' has suspicious compression ratio "
+                    f"({ratio:.1f}:1 > {limits.max_compression_ratio}:1). "
+                    f"This may indicate a zip bomb attack."
+                )
+                raise ZipValidationError(msg)
+
         total_size += info.file_size
         if total_size > limits.max_total_size:
             msg = f"ZIP archive uncompressed size exceeds {limits.max_total_size} bytes"

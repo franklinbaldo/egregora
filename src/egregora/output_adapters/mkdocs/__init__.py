@@ -13,13 +13,11 @@ from egregora.output_adapters.mkdocs.adapter import (
     secure_path_join,
 )
 from egregora.output_adapters.mkdocs.paths import (
-    SitePaths,
-    load_site_paths,
+    derive_mkdocs_paths,
 )
 
 __all__ = [
     "MkDocsAdapter",
-    "SitePaths",
-    "load_site_paths",
+    "derive_mkdocs_paths",
     "secure_path_join",
 ]
