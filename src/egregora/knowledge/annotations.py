@@ -21,8 +21,8 @@ from egregora.agents.shared.annotations import (
 )
 
 __all__ = [
-    "ANNOTATION_AUTHOR",
     "ANNOTATIONS_TABLE",
+    "ANNOTATION_AUTHOR",
     "Annotation",
     "AnnotationStore",
 ]

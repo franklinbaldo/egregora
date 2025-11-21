@@ -414,4 +414,4 @@ class AnnotationStore:
 # - ANNOTATION_AUTHOR: Default author identifier
 # - Annotation: Dataclass for annotation records
 # - AnnotationStore: Main storage class for CRUD operations
-__all__ = ["ANNOTATION_AUTHOR", "ANNOTATIONS_TABLE", "Annotation", "AnnotationStore"]
+__all__ = ["ANNOTATIONS_TABLE", "ANNOTATION_AUTHOR", "Annotation", "AnnotationStore"]
