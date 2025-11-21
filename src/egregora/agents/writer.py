@@ -52,7 +52,6 @@ from egregora.output_adapters.mkdocs import MkDocsAdapter
 from egregora.resources.prompts import render_prompt
 from egregora.utils.batch import call_with_retries_sync
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
-from egregora.utils.quota import QuotaExceededError
 
 if TYPE_CHECKING:
     from google import genai
