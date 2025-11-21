@@ -6,17 +6,9 @@ functionality for the RAG knowledge system.
 Architecture:
     - chunker: Text chunking with token limits and overlap
     - embedder: Google GenAI embedding generation
-    - store: Vector storage (DuckDB VSS) - TODO: extract from knowledge.rag
-    - indexing: Document indexing operations - TODO: extract from knowledge.rag
-    - retriever: Similarity search and retrieval - TODO: extract from knowledge.rag
-
-Phase 2 Progress:
-    ✅ Package structure created
-    ✅ chunker.py extracted (chunk_markdown, chunk_from_document)
-    ✅ embedder.py extracted (embed_text, embed_chunks, embed_query_text)
-    🔄 store.py - TODO: Extract VectorStore class from knowledge.rag
-    🔄 indexing.py - TODO: Extract index_document, index_documents_for_rag
-    🔄 retriever.py - TODO: Extract query_similar_posts, query_media
+    - store: Vector storage (DuckDB VSS + Parquet)
+    - indexing: Document indexing operations
+    - retriever: Similarity search and retrieval
 
 Public API:
     Chunking:
@@ -32,16 +24,24 @@ Public API:
         - embed_texts_in_batch: Batch embedding
         - is_rag_available: Check if API key is available
 
-    Storage (from knowledge.rag - temporary):
+    Storage:
         - VectorStore: Vector storage with DuckDB VSS
+        - DatasetMetadata: Metadata container for vector datasets
+
+    Indexing:
         - index_document: Index a Document for RAG
         - index_documents_for_rag: Batch index Documents
+        - index_post: Index a post file
+        - index_all_media: Index all media enrichments
+        - index_media_enrichment: Index single media enrichment
+
+    Retrieval:
         - query_similar_posts: Retrieve similar posts
         - query_media: Retrieve media enrichments
         - format_rag_context: Format retrieval results
 
 Example:
-    >>> from egregora.agents.shared.rag import chunk_from_document, embed_chunks
+    >>> from egregora.agents.shared.rag import chunk_from_document, embed_chunks, VectorStore
     >>> from egregora.data_primitives import Document, DocumentType
     >>>
     >>> # Chunk a document
@@ -51,6 +51,10 @@ Example:
     >>> # Embed the chunks
     >>> texts = [chunk["content"] for chunk in chunks]
     >>> embeddings = embed_chunks(texts, model="models/text-embedding-004")
+    >>>
+    >>> # Store in vector store
+    >>> store = VectorStore(parquet_path, storage=storage_manager)
+    >>> # (indexing operations...)
 
 """
 
@@ -68,19 +72,29 @@ from egregora.agents.shared.rag.embedder import (
     embed_texts_in_batch,
     is_rag_available,
 )
-
-# Temporary: Import from knowledge.rag until extraction complete
-from egregora.knowledge.rag import (
-    VectorStore,
-    format_rag_context,
+from egregora.agents.shared.rag.indexing import (
+    MediaEnrichmentMetadata,
+    index_all_media,
     index_document,
     index_documents_for_rag,
+    index_media_enrichment,
+    index_post,
+)
+from egregora.agents.shared.rag.retriever import (
+    format_rag_context,
     query_media,
     query_similar_posts,
 )
+from egregora.agents.shared.rag.store import (
+    DatasetMetadata,
+    VectorStore,
+)
 
 __all__ = [
-    # Storage & Retrieval (temporary from knowledge.rag)
+    # Storage & Retrieval
+    "DatasetMetadata",
+    # Indexing
+    "MediaEnrichmentMetadata",
     "VectorStore",
     # Chunking
     "chunk_document",
@@ -93,10 +107,14 @@ __all__ = [
     "embed_texts_in_batch",
     "estimate_tokens",
     "format_rag_context",
+    "index_all_media",
     "index_document",
     "index_documents_for_rag",
+    "index_media_enrichment",
+    "index_post",
     "is_rag_available",
     "parse_post",
+    # Retrieval
     "query_media",
     "query_similar_posts",
 ]
