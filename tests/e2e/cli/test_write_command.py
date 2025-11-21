@@ -413,7 +413,7 @@ class TestWriteCommandEdgeCases:
         """Test write command with relative output path."""
         # Change to temp directory and use relative path
 
-        old_cwd = os.getcwd()
+        old_cwd = Path.cwd()
         try:
             os.chdir(tmp_path)
             result = runner.invoke(

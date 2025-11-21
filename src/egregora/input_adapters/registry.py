@@ -54,7 +54,7 @@ class InputAdapterRegistry:
     def _load_builtin(self) -> None:
         """Load built-in adapters (WhatsApp)."""
         try:
-            from egregora.input_adapters.whatsapp import WhatsAppAdapter  # noqa: PLC0415
+            from egregora.input_adapters.whatsapp import WhatsAppAdapter
 
             adapter = WhatsAppAdapter()
             meta = adapter.get_adapter_metadata()

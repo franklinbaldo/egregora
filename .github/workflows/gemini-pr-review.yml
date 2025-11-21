@@ -20,7 +20,7 @@ jobs:
   review:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    
+
     # Only run if:
     # 1. It's a non-draft PR
     # 2. OR It's a comment on a PR starting with @gemini
@@ -38,7 +38,7 @@ jobs:
           script: |
             const eventName = context.eventName;
             let prData = {};
-            
+
             // --- 1. Get PR Details ---
             if (eventName === 'issue_comment') {
               const { data: pr } = await github.rest.pulls.get({
@@ -50,9 +50,9 @@ jobs:
             } else {
               prData = context.payload.pull_request;
             }
-            
+
             const isFork = prData.head.repo.full_name !== prData.base.repo.full_name;
-            
+
             // --- 2. Security: Check Secrets & Permissions ---
             // If this is an automatic run on a fork, secrets are missing. We must skip.
             if (!process.env.GEMINI_API_KEY) {
@@ -151,7 +151,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
+
       - name: 📥 Install Script Dependencies
         if: steps.setup.outputs.skip != 'true'
         run: npm install @google/generative-ai @octokit/rest dotenv --no-save
@@ -181,7 +181,7 @@ jobs:
           script: |
             const fs = require('fs');
             const prNumber = parseInt('${{ steps.setup.outputs.pr_number }}');
-            
+
             // 1. Get Diff
             const diff = await github.rest.pulls.get({
               owner: context.repo.owner,
@@ -190,7 +190,7 @@ jobs:
               mediaType: { format: "diff" }
             });
             fs.writeFileSync('pr.patch', diff.data);
-            
+
             // 2. Get Comments
             const comments = await github.rest.issues.listComments({
               owner: context.repo.owner,

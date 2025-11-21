@@ -15,7 +15,6 @@ Part of the three-layer architecture:
 from __future__ import annotations
 
 import logging
-import tempfile
 import uuid
 from collections import deque
 from contextlib import contextmanager
@@ -37,15 +36,18 @@ from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
+from egregora.data_primitives.protocols import UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.tracking import record_run
 from egregora.database.validation import validate_ir_schema
 from egregora.input_adapters import get_adapter
+from egregora.input_adapters.base import MediaMapping
 from egregora.input_adapters.whatsapp import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
+from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.utils.cache import EnrichmentCache
 
@@ -178,18 +180,19 @@ def _process_single_window(
     logger.info("%s➡️  [bold]%s[/] — %s messages (depth=%d)", indent, window_label, window_count, depth)
 
     # Process media
-    temp_prefix = f"egregora-media-{window.start_time:%Y%m%d_%H%M%S}-"
-    with tempfile.TemporaryDirectory(prefix=temp_prefix) as temp_dir_str:
-        temp_dir = Path(temp_dir_str)
-        window_table_processed, media_mapping = process_media_for_window(
-            window_table=window_table,
-            adapter=ctx.adapter,
-            media_dir=ctx.media_dir,
-            temp_dir=temp_dir,
-            docs_dir=ctx.docs_dir,
-            posts_dir=ctx.posts_dir,
-            zip_path=ctx.input_path,
-        )
+    output_adapter = ctx.output_format
+    if output_adapter is None:
+        msg = "Output adapter must be initialized before processing windows."
+        raise RuntimeError(msg)
+
+    url_context = ctx.url_context or UrlContext()
+    window_table_processed, media_mapping = process_media_for_window(
+        window_table=window_table,
+        adapter=ctx.adapter,
+        url_convention=output_adapter.url_convention,
+        url_context=url_context,
+        zip_path=ctx.input_path,
+    )
 
     # Enrichment
     if ctx.enable_enrichment:
@@ -197,6 +200,15 @@ def _process_single_window(
         enriched_table = _perform_enrichment(window_table_processed, media_mapping, ctx)
     else:
         enriched_table = window_table_processed
+
+    if media_mapping:
+        for media_doc in media_mapping.values():
+            if media_doc.metadata.get("pii_deleted"):
+                continue
+            try:
+                output_adapter.serve(media_doc)
+            except Exception:  # pragma: no cover - defensive
+                logger.exception("Failed to serve media document %s", media_doc.metadata.get("filename"))
 
     # Write posts
     result = write_posts_for_window(
@@ -233,8 +245,8 @@ def _process_window_with_auto_split(
         Dict mapping window labels to {'posts': [...], 'profiles': [...]}
 
     """
-    from egregora.agents.model_limits import PromptTooLargeError  # noqa: PLC0415
-    from egregora.transformations import split_window_into_n_parts  # noqa: PLC0415
+    from egregora.agents.model_limits import PromptTooLargeError
+    from egregora.transformations import split_window_into_n_parts
 
     min_window_size = 5
     results: dict[str, dict[str, list[str]]] = {}
@@ -294,7 +306,7 @@ def _split_window_for_retry(
     indent: str,
     splitter: any,
 ) -> list[tuple[any, int]]:
-    import math  # noqa: PLC0415
+    import math
 
     estimated_tokens = getattr(error, "estimated_tokens", 0)
     effective_limit = getattr(error, "effective_limit", 1) or 1
@@ -485,7 +497,7 @@ def _process_all_windows(
 
 def _perform_enrichment(
     window_table: ir.Table,
-    media_mapping: dict[str, Path],
+    media_mapping: MediaMapping,
     ctx: PipelineContext,
 ) -> ir.Table:
     """Execute enrichment for a window's table.
@@ -503,8 +515,6 @@ def _perform_enrichment(
     """
     enrichment_context = EnrichmentRuntimeContext(
         cache=ctx.enrichment_cache,
-        docs_dir=ctx.docs_dir,
-        posts_dir=ctx.posts_dir,
         output_format=ctx.output_format,
         site_root=ctx.site_root,
     )
@@ -594,33 +604,20 @@ def _create_database_backends(
 def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> dict[str, any]:
     """Resolve site paths for the configured output format and validate structure."""
     site_paths = _resolve_pipeline_site_paths(output_dir, config)
-    format_type = config.output.format
 
-    if format_type != "eleventy-arrow":
-        mkdocs_path = site_paths.get("mkdocs_path")
-        if not mkdocs_path or not mkdocs_path.exists():
-            msg = (
-                f"No mkdocs.yml found for site at {output_dir}. "
-                "Run 'egregora init <site-dir>' before processing exports."
-            )
-            raise ValueError(msg)
+    # Default validation for MkDocs/standard structure
+    mkdocs_path = site_paths.get("mkdocs_path")
+    if not mkdocs_path or not mkdocs_path.exists():
+        msg = (
+            f"No mkdocs.yml found for site at {output_dir}. "
+            "Run 'egregora init <site-dir>' before processing exports."
+        )
+        raise ValueError(msg)
 
-        docs_dir = site_paths["docs_dir"]
-        if not docs_dir.exists():
-            msg = (
-                f"Docs directory not found: {docs_dir}. "
-                "Re-run 'egregora init' to scaffold the MkDocs project."
-            )
-            raise ValueError(msg)
-    else:
-        docs_dir = site_paths["docs_dir"]
-        if not docs_dir.exists():
-            msg = (
-                "Eleventy content directory not found at "
-                f"{docs_dir}. Run 'egregora init <site-dir> --output-format eleventy-arrow' "
-                "to scaffold the project before processing exports."
-            )
-            raise ValueError(msg)
+    docs_dir = site_paths["docs_dir"]
+    if not docs_dir.exists():
+        msg = f"Docs directory not found: {docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
+        raise ValueError(msg)
 
     return site_paths
 
@@ -628,26 +625,7 @@ def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> di
 def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> dict[str, any]:
     """Resolve site paths for the configured output format."""
     output_dir = output_dir.expanduser().resolve()
-    base_paths = derive_mkdocs_paths(output_dir, config=config)
-
-    if config.output.format != "eleventy-arrow":
-        return base_paths
-
-    from egregora.output_adapters import create_output_format  # noqa: PLC0415
-
-    output_format = create_output_format(output_dir, format_type=config.output.format)
-    site_config = output_format.resolve_paths(output_dir)
-
-    # Merge eleventy-arrow paths with base paths
-    return {
-        **base_paths,
-        "site_root": site_config.site_root,
-        "mkdocs_path": None,
-        "docs_dir": site_config.docs_dir,
-        "posts_dir": site_config.posts_dir,
-        "profiles_dir": site_config.profiles_dir,
-        "media_dir": site_config.media_dir,
-    }
+    return derive_mkdocs_paths(output_dir, config=config)
 
 
 def _create_gemini_client(api_key: str | None) -> genai.Client:
@@ -693,36 +671,45 @@ def _create_pipeline_context(  # noqa: PLR0913
     """
     resolved_output = output_dir.expanduser().resolve()
     site_paths = _resolve_site_paths_or_raise(resolved_output, config)
-    _runtime_db_uri, pipeline_backend, runs_backend = _create_database_backends(site_paths.site_root, config)
+    _runtime_db_uri, pipeline_backend, runs_backend = _create_database_backends(
+        site_paths["site_root"], config
+    )
 
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
-    from egregora.database import initialize_database  # noqa: PLC0415
+    from egregora.database import initialize_database
 
     initialize_database(pipeline_backend)
 
     client_instance = client or _create_gemini_client(api_key)
-    cache_dir = Path(".egregora-cache") / site_paths.site_root.name
+    cache_dir = Path(".egregora-cache") / site_paths["site_root"].name
     enrichment_cache = EnrichmentCache(cache_dir)
-    storage = DuckDBStorageManager(db_path=site_paths.site_root / ".egregora.db")
+    storage = DuckDBStorageManager(db_path=site_paths["site_root"] / ".egregora.db")
 
     rag_store = None
     if config.rag.enabled:
-        rag_dir = site_paths.site_root / ".egregora" / "rag"
+        rag_dir = site_paths["site_root"] / ".egregora" / "rag"
         rag_dir.mkdir(parents=True, exist_ok=True)
         rag_store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
 
     annotations_store = AnnotationStore(storage)
 
-    from egregora.orchestration.context import PipelineConfig, PipelineState  # noqa: PLC0415
+    from egregora.orchestration.context import PipelineConfig, PipelineState
+
+    url_ctx = UrlContext(
+        base_url="",
+        site_prefix=compute_site_prefix(site_paths["site_root"], site_paths["docs_dir"]),
+        base_path=site_paths["site_root"],
+    )
 
     config_obj = PipelineConfig(
         config=config,
         output_dir=resolved_output,
-        site_root=site_paths.site_root,
-        docs_dir=site_paths.docs_dir,
-        posts_dir=site_paths.posts_dir,
-        profiles_dir=site_paths.profiles_dir,
-        media_dir=site_paths.media_dir,
+        site_root=site_paths["site_root"],
+        docs_dir=site_paths["docs_dir"],
+        posts_dir=site_paths["posts_dir"],
+        profiles_dir=site_paths["profiles_dir"],
+        media_dir=site_paths["media_dir"],
+        url_context=url_ctx,
     )
 
     state = PipelineState(
@@ -983,7 +970,7 @@ def _prepare_pipeline_data(
         max_window_time=max_window_time,
     )
 
-    from egregora.output_adapters import create_output_format  # noqa: PLC0415
+    from egregora.output_adapters import create_output_format
 
     output_format = create_output_format(output_dir, format_type=config.output.format)
 
@@ -994,7 +981,7 @@ def _prepare_pipeline_data(
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
-            from egregora.agents.shared.rag import index_documents_for_rag  # noqa: PLC0415
+            from egregora.agents.shared.rag import index_documents_for_rag
 
             indexed_count = index_documents_for_rag(
                 output_format,

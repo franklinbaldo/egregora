@@ -73,6 +73,19 @@ def _call_with_retries(func: Any, max_retries: int = 3) -> Any:
                     logger.warning("429 error but could not parse response. Waiting 10s...")
                     time.sleep(10)
                     continue
+            else:
+                response = getattr(e, "response", None)
+                if response is not None and getattr(response, "text", None):
+                    logger.exception(
+                        "Embedding request failed with status %s: %s",
+                        getattr(response, "status_code", "unknown"),
+                        response.text,
+                    )
+                else:
+                    logger.exception(
+                        "Embedding request failed with status %s",
+                        getattr(response, "status_code", "unknown"),
+                    )
             if attempt < max_retries - 1:
                 logger.warning("Attempt %s/%s failed: %s. Retrying...", attempt + 1, max_retries, e)
                 time.sleep(2)

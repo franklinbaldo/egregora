@@ -14,6 +14,7 @@ MODERN (2025-11-18): Imports site path resolution from
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -25,8 +26,8 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import write_profile as write_profile_content
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
-from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
-from egregora.output_adapters.mkdocs.paths import derive_mkdocs_paths
+from egregora.output_adapters.conventions import StandardUrlConvention
+from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
 from egregora.utils.filesystem import (
     _ensure_author_entries,
     _format_frontmatter_datetime,
@@ -58,25 +59,21 @@ class MkDocsAdapter(OutputAdapter):
         """Initializes the adapter."""
         self._initialized = False
         self.site_root = None
-        self._url_convention = StandardUrlConvention(
-            routes=RouteConfig(
-                posts_prefix="posts",
-                profiles_prefix="profiles",
-                media_prefix="docs/media",
-            )
-        )
+        self._url_convention = StandardUrlConvention()
         self._index: dict[str, Path] = {}
         self._ctx: UrlContext | None = None
 
     def initialize(self, site_root: Path, url_context: UrlContext | None = None) -> None:
         """Initializes the adapter with all necessary paths and dependencies."""
-        self.site_root = site_root
-        self._ctx = url_context or UrlContext(base_url="")
-        self.posts_dir = site_root / "posts"
-        self.profiles_dir = site_root / "profiles"
-        self.journal_dir = site_root / "posts" / "journal"
-        self.urls_dir = site_root / "docs" / "media" / "urls"
-        self.media_dir = site_root / "docs" / "media"
+        site_paths = derive_mkdocs_paths(site_root)
+        self.site_root = site_paths["site_root"]
+        prefix = compute_site_prefix(self.site_root, site_paths["docs_dir"])
+        self._ctx = url_context or UrlContext(base_url="", site_prefix=prefix, base_path=self.site_root)
+        self.posts_dir = site_paths["posts_dir"]
+        self.profiles_dir = site_paths["profiles_dir"]
+        self.journal_dir = self.posts_dir / "journal"
+        self.media_dir = site_paths["media_dir"]
+        self.urls_dir = self.media_dir / "urls"
 
         self.posts_dir.mkdir(parents=True, exist_ok=True)
         self.profiles_dir.mkdir(parents=True, exist_ok=True)
@@ -236,13 +233,16 @@ class MkDocsAdapter(OutputAdapter):
             templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
             env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
 
-            # Render context
-            # NOTE: docs_dir is relative to mkdocs.yml location (.egregora/)
-            # Since content is in site root, use ".." to point one directory up
+            # Render context (paths relative to mkdocs.yml inside .egregora/)
+            mkdocs_config_dir = site_paths["mkdocs_config_path"].parent
+            docs_dir = site_paths["docs_dir"]
+            docs_relative = Path(os.path.relpath(docs_dir, mkdocs_config_dir)).as_posix()
+            blog_relative = Path(os.path.relpath(site_paths["posts_dir"], docs_dir)).as_posix()
+
             context = {
                 "site_name": site_name or site_root.name or "Egregora Archive",
-                "blog_dir": "posts",
-                "docs_dir": "..",  # Relative to .egregora/mkdocs.yml -> points to site root
+                "blog_dir": blog_relative,
+                "docs_dir": docs_relative,
                 "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
             }
 
@@ -342,6 +342,7 @@ class MkDocsAdapter(OutputAdapter):
             raise TypeError(msg)
 
         site_root = site_paths["site_root"]
+        docs_dir = site_paths["docs_dir"]
         profiles_dir = site_paths["profiles_dir"]
         media_dir = site_paths["media_dir"]
 
@@ -349,8 +350,8 @@ class MkDocsAdapter(OutputAdapter):
         templates_to_render = [
             (site_root / "README.md", "README.md.jinja"),
             (site_root / ".gitignore", ".gitignore.jinja"),
-            (site_root / "index.md", "docs/index.md.jinja"),
-            (site_root / "about.md", "docs/about.md.jinja"),
+            (docs_dir / "index.md", "docs/index.md.jinja"),
+            (docs_dir / "about.md", "docs/about.md.jinja"),
             (profiles_dir / "index.md", "docs/profiles/index.md.jinja"),
             (media_dir / "index.md", "docs/media/index.md.jinja"),
         ]
@@ -405,7 +406,7 @@ class MkDocsAdapter(OutputAdapter):
             env: Jinja2 environment (optional, will be created if not provided)
 
         """
-        from egregora.resources.prompts import PromptManager  # noqa: PLC0415
+        from egregora.resources.prompts import PromptManager
 
         egregora_dir = site_paths["egregora_dir"]
         egregora_dir.mkdir(parents=True, exist_ok=True)
@@ -870,7 +871,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         return self.site_root / f"{url_path}.md"
 
     def _write_document(self, document: Document, path: Path) -> None:  # noqa: C901, PLR0912
-        import yaml as _yaml  # noqa: PLC0415
+        import yaml as _yaml
 
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -885,7 +886,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             full_content = f"---\n{yaml_front}---\n\n{document.content}"
             path.write_text(full_content, encoding="utf-8")
         elif document.type == DocumentType.PROFILE:
-            from egregora.knowledge.profiles import (  # noqa: PLC0415
+            from egregora.knowledge.profiles import (
                 write_profile as write_profile_content,
             )
 

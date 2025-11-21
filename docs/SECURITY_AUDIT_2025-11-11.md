@@ -1,7 +1,7 @@
 # Security & Code Quality Audit Report
 ## Egregora: src/egregora/core/, src/egregora/database/, src/egregora/config/
 
-**Scan Date**: 2025-11-11  
+**Scan Date**: 2025-11-11
 **Scope**: Security vulnerabilities, dead code, missing validation, type safety, unclear abstractions, database query vulnerabilities
 
 ---
@@ -10,9 +10,9 @@
 
 ### 1. Unquoted Table Names in DuckDB Operations
 
-**File**: `/home/user/egregora/src/egregora/database/storage.py`  
-**Lines**: 145-151, 149-151, 259, 261  
-**Severity**: CRITICAL  
+**File**: `/home/user/egregora/src/egregora/database/storage.py`
+**Lines**: 145-151, 149-151, 259, 261
+**Severity**: CRITICAL
 **Issue Type**: SQL Injection
 
 **Description**:
@@ -47,9 +47,9 @@ sql = f"CREATE OR REPLACE TABLE {quote_identifier(name)} AS SELECT * FROM read_p
 
 ### 2. SQL Injection in ViewRegistry (obsolete)
 
-**File**: `/home/user/egregora/src/egregora/database/views.py`  
-**Lines**: 126-128, 137-140, 184-185, 222, 265, 267  
-**Severity**: CRITICAL  
+**File**: `/home/user/egregora/src/egregora/database/views.py`
+**Lines**: 126-128, 137-140, 184-185, 222, 265, 267
+**Severity**: CRITICAL
 **Issue Type**: SQL Injection
 
 **Description**:
@@ -87,9 +87,9 @@ self.connection.execute(f"DROP VIEW IF EXISTS {view.name}")
 
 ### 3. SQL Injection in Schema Utility Functions
 
-**File**: `/home/user/egregora/src/egregora/database/schemas.py`  
-**Lines**: 386, 413-414, 449-452  
-**Severity**: CRITICAL  
+**File**: `/home/user/egregora/src/egregora/database/schemas.py`
+**Lines**: 386, 413-414, 449-452
+**Severity**: CRITICAL
 **Issue Type**: SQL Injection
 
 **Description**:
@@ -122,9 +122,9 @@ conn.execute(
 
 ### 4. Missing SQL Injection Prevention Despite Comments
 
-**File**: `/home/user/egregora/src/egregora/database/storage.py`  
-**Lines**: 145, 151  
-**Severity**: HIGH  
+**File**: `/home/user/egregora/src/egregora/database/storage.py`
+**Lines**: 145, 151
+**Severity**: HIGH
 **Issue Type**: Misleading Security Comment
 
 **Description**:
@@ -141,9 +141,9 @@ The comment claims validation but `name` is a raw parameter from the caller with
 
 ### 5. Misleading Security Comments in register_common_views()
 
-**File**: `/home/user/egregora/src/egregora/database/views.py`  
-**Lines**: 376, 402, 418, 434  
-**Severity**: HIGH  
+**File**: `/home/user/egregora/src/egregora/database/views.py`
+**Lines**: 376, 402, 418, 434
+**Severity**: HIGH
 **Issue Type**: Misleading Security Comment
 
 **Description**:
@@ -166,9 +166,9 @@ This is factually incorrect - `table_name` is passed as a parameter to `register
 
 ### 6. Overly Broad Exception Handling
 
-**File**: `/home/user/egregora/src/egregora/database/storage.py`  
-**Line**: 109  
-**Severity**: HIGH  
+**File**: `/home/user/egregora/src/egregora/database/storage.py`
+**Line**: 109
+**Severity**: HIGH
 **Issue Type**: Error Handling
 
 **Description**:
@@ -192,9 +192,9 @@ except Exception as e:  # Too broad - catches all exceptions
 
 ### 7. Bare except Clause in Config Loader
 
-**File**: `/home/user/egregora/src/egregora/config/loader.py`  
-**Lines**: 75-78  
-**Severity**: HIGH  
+**File**: `/home/user/egregora/src/egregora/config/loader.py`
+**Lines**: 75-78
+**Severity**: HIGH
 **Issue Type**: Error Handling
 
 **Description**:
@@ -216,9 +216,9 @@ This silently creates default config on ANY error, even programming mistakes.
 
 ### 8. Silent Validation Failure Masking
 
-**File**: `/home/user/egregora/src/egregora/database/validation.py`  
-**Lines**: 309-316  
-**Severity**: HIGH  
+**File**: `/home/user/egregora/src/egregora/database/validation.py`
+**Lines**: 309-316
+**Severity**: HIGH
 **Issue Type**: Error Handling
 
 **Description**:
@@ -243,9 +243,9 @@ except Exception as e:
 
 ### 9. Shallow Dictionary Copy Exposes Shared References
 
-**File**: `/home/user/egregora/src/egregora/core/document.py`  
-**Lines**: 145, 172-173  
-**Severity**: MEDIUM  
+**File**: `/home/user/egregora/src/egregora/core/document.py`
+**Lines**: 145, 172-173
+**Severity**: MEDIUM
 **Issue Type**: Data Integrity
 
 **Description**:
@@ -275,9 +275,9 @@ doc2.metadata["nested"]["value"] = 999  # Also changes doc1!
 
 ### 10. No Explicit Error Handling for JSON Parsing
 
-**File**: `/home/user/egregora/src/egregora/database/validation.py`  
-**Lines**: 175-183  
-**Severity**: MEDIUM  
+**File**: `/home/user/egregora/src/egregora/database/validation.py`
+**Lines**: 175-183
+**Severity**: MEDIUM
 **Issue Type**: Error Handling
 
 **Description**:
@@ -302,9 +302,9 @@ except json.JSONDecodeError as e:
 
 ### 11. Silent Environment Variable Defaults
 
-**File**: `/home/user/egregora/src/egregora/config/site.py`  
-**Lines**: 42-49  
-**Severity**: MEDIUM  
+**File**: `/home/user/egregora/src/egregora/config/site.py`
+**Lines**: 42-49
+**Severity**: MEDIUM
 **Issue Type**: Configuration Validation
 
 **Description**:
@@ -341,9 +341,9 @@ If `GOOGLE_API_KEY` is not set, silently becomes empty string, causing cryptic A
 
 ### 12. Redundant Type Conversion
 
-**File**: `/home/user/egregora/src/egregora/config/site.py`  
-**Line**: 156  
-**Severity**: LOW  
+**File**: `/home/user/egregora/src/egregora/config/site.py`
+**Line**: 156
+**Severity**: LOW
 **Issue Type**: Code Quality
 
 **Description**:
@@ -363,9 +363,9 @@ docs_path = Path(docs_setting)
 
 ### 13. Inconsistent Type Hints
 
-**File**: `/home/user/egregora/src/egregora/database/storage.py`  
-**Line**: 282  
-**Severity**: LOW  
+**File**: `/home/user/egregora/src/egregora/database/storage.py`
+**Line**: 282
+**Severity**: LOW
 **Issue Type**: Type Safety
 
 **Description**:
@@ -385,9 +385,9 @@ def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException 
 
 ### 14. Bare Except in Views Registry
 
-**File**: `/home/user/egregora/src/egregora/database/views.py`  
-**Lines**: 130, 279  
-**Severity**: LOW  
+**File**: `/home/user/egregora/src/egregora/database/views.py`
+**Lines**: 130, 279
+**Severity**: LOW
 **Issue Type**: Error Handling
 
 **Description**:
@@ -435,4 +435,3 @@ This silently passes for ANY DuckDB error, not just "view doesn't exist".
 - Proper use of logging throughout
 - Type hints on most functions
 - Configuration validation with constraints (RAGConfig.top_k with ge=1, le=20)
-

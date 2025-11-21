@@ -72,17 +72,17 @@ function readFileSafe(path) {
  */
 function enforceContextLimits(repomix, patch, chat) {
   const totalSize = repomix.length + patch.length + chat.length;
-  
+
   if (totalSize <= MAX_CONTEXT_CHARS) {
     return repomix;
   }
 
   console.warn(`⚠️ Total context size (${totalSize} chars) exceeds limit. Truncating repository context...`);
-  
+
   // Calculate remaining budget for repo context
   // Keep patch and chat fully intact
   const remainingBudget = MAX_CONTEXT_CHARS - patch.length - chat.length;
-  
+
   if (remainingBudget <= 0) {
     console.warn("⚠️ Patch is too large! Removing repository context entirely.");
     return "[Repository context omitted due to size limits - relying on patch only]";
@@ -106,7 +106,7 @@ Your task is to review a GitHub Pull Request based on the provided context.
 <instructions>
 1. **Tone:** Professional, concise, and actionable. No fluff.
 2. **Focus:** Identify bugs, security vulnerabilities, performance issues, and breaking changes.
-3. **Priority:** 
+3. **Priority:**
    - 🔴 CRITICAL: Bugs, security exploits, data loss.
    - 🟡 IMPORTANT: Performance, confusing logic, missing tests.
    - 🟢 MINOR: Variable naming, style preferences (mention briefly or ignore).
@@ -156,7 +156,7 @@ async function run() {
   const rawRepomix = readFileSafe('repomix.txt');
   const patch = readFileSafe('pr.patch');
   const conversationRaw = readFileSafe('pr-comments.json');
-  
+
   // 2. Format Conversation
   let conversation = "No prior conversation.";
   try {
@@ -178,7 +178,7 @@ async function run() {
   });
 
   const prompt = generatePrompt(repomix, patch, conversation);
-  
+
   console.log("🤖 Sending to Gemini...");
   const result = await model.generateContent(prompt);
   const response = await result.response;
@@ -200,21 +200,21 @@ async function run() {
       issue_number: PR_NUMBER,
       body
     });
-    
+
     // Avoid rate limits
     if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 1000));
   }
-  
+
   console.log("✨ Done.");
 }
 
 function splitMessage(text, maxLength) {
   const chunks = [];
   let current = "";
-  
+
   // Split by newlines to try and keep markdown formatting intact
   const lines = text.split('\n');
-  
+
   for (const line of lines) {
     if ((current.length + line.length) > maxLength) {
       chunks.push(current);
