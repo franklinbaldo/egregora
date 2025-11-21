@@ -28,9 +28,9 @@ from egregora.agents.reader.models import (
 )
 
 __all__ = [
-    "compare_posts",
     "EvaluationRequest",
     "PostComparison",
     "RankingResult",
     "ReaderFeedback",
+    "compare_posts",
 ]
