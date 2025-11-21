@@ -9,7 +9,10 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from egregora.agents.reader.reader_runner import run_reader_evaluation
+try:
+    from egregora.agents.reader.reader_runner import run_reader_evaluation
+except ModuleNotFoundError:  # pragma: no cover - optional legacy path
+    run_reader_evaluation = None
 from egregora.config import load_egregora_config
 
 logger = logging.getLogger(__name__)
@@ -83,6 +86,13 @@ def main(
         console.print("[yellow]Reader agent is disabled in config[/yellow]")
         console.print("Set reader.enabled = true in .egregora/config.yml to enable")
         raise typer.Exit(0)
+
+    if run_reader_evaluation is None:
+        console.print(
+            "[red]Reader evaluation is not available in this build.[/red]\n"
+            "The legacy reader runner was removed; update to the new reader workflow or pull the latest tooling."
+        )
+        raise typer.Exit(1)
 
     # Get posts directory from config
     posts_dir = site_root / config.paths.posts_dir
