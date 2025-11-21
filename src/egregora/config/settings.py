@@ -304,7 +304,7 @@ class OutputSettings(BaseModel):
     Specifies which output format to use for generated content.
     """
 
-    format: Literal["mkdocs", "hugo", "eleventy-arrow"] = Field(
+    format: Literal["mkdocs", "hugo"] = Field(
         default="mkdocs",
         description="Output format: 'mkdocs' (default), 'hugo', or future formats (database, s3)",
     )

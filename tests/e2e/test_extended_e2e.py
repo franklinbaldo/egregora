@@ -18,17 +18,13 @@ These tests validate two critical production capabilities:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
-import pandas as pd
 import pytest
 from egregora.agents.reader.reader_runner import run_reader_evaluation
-from egregora.output_adapters.eleventy_arrow.adapter import EleventyArrowAdapter
 
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
-from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
 
@@ -124,103 +120,3 @@ async def test_reader_agent_evaluates_posts_and_persists_elo_rankings(
         # Verify comparison history is tracked (for auditing and analysis)
         history = store.get_comparison_history().execute()
         assert len(history) > 0, "Comparison history should be recorded"
-
-
-# =============================================================================
-# Eleventy Arrow Adapter: High-Performance Output Storage
-# =============================================================================
-
-
-def test_eleventy_adapter_buffers_documents_and_writes_parquet_per_window(tmp_path: Path) -> None:
-    """Validate Eleventy Arrow adapter's document buffering and Parquet output.
-
-    Why this matters:
-    - Parquet storage enables efficient static site generation without intermediate files
-    - Per-window batching allows incremental publishing (add new windows without rewrite)
-    - Column-oriented storage enables fast filtering/sorting at build time
-    - This is the high-performance alternative to markdown file output
-
-    What we test:
-    1. Document buffering by window label
-    2. Parquet file creation per window
-    3. Correct schema in Parquet files (id, slug, kind, body_md, etc.)
-    4. Document retrieval by type and identifier
-    5. Multiple document types (posts, profiles) in same window
-    """
-    # Setup: Initialize the adapter
-    site_root = tmp_path / "eleventy_site"
-    adapter = EleventyArrowAdapter(site_root=site_root, url_context=None)
-
-    now = datetime.now(UTC)
-
-    # Create documents for two different time windows
-    # Window 1: A post and a profile (demonstrates mixed document types)
-    post_1 = Document(
-        content="# Post 1\n\nThis is the first post.",
-        type=DocumentType.POST,
-        metadata={"slug": "p1", "title": "First Post"},
-        source_window="2025-01-01",
-        created_at=now,
-    )
-    profile_1 = Document(
-        content="Author bio for user 1",
-        type=DocumentType.PROFILE,
-        metadata={"uuid": "u1"},
-        source_window="2025-01-01",
-        created_at=now,
-    )
-
-    # Window 2: Another post (demonstrates incremental publishing)
-    post_2 = Document(
-        content="# Post 2\n\nThis is the second post.",
-        type=DocumentType.POST,
-        metadata={"slug": "p2", "title": "Second Post"},
-        source_window="2025-01-02",
-        created_at=now,
-    )
-
-    # Buffer documents (simulates pipeline output during window processing)
-    adapter.serve(post_1)
-    adapter.serve(profile_1)
-    adapter.serve(post_2)
-
-    # Finalize windows (triggers Parquet write)
-    metadata1 = adapter.prepare_window("2025-01-01")
-    adapter.finalize_window("2025-01-01", [], [], metadata1)
-
-    metadata2 = adapter.prepare_window("2025-01-02")
-    adapter.finalize_window("2025-01-02", [], [], metadata2)
-
-    # Verify: Parquet files were created
-    data_dir = site_root / "data"
-    assert data_dir.exists(), "Data directory should be created"
-
-    parquet_files = sorted(data_dir.glob("*.parquet"))
-    assert len(parquet_files) == 2, "Should have one Parquet file per window"
-
-    # Verify: Window 1 contains post and profile
-    df_window_1 = pd.read_parquet(parquet_files[0])
-    assert len(df_window_1) == 2, "Window 1 should have 2 documents"
-    assert "p1" in df_window_1[df_window_1["kind"] == "post"]["slug"].to_numpy()
-
-    profile_rows = df_window_1[df_window_1["kind"] == "profile"]
-    assert len(profile_rows) == 1, "Should have 1 profile"
-    assert "u1" in str(profile_rows["metadata"].to_numpy())
-
-    # Verify: Window 2 contains second post
-    df_window_2 = pd.read_parquet(parquet_files[1])
-    assert len(df_window_2) == 1, "Window 2 should have 1 document"
-    assert df_window_2.iloc[0]["slug"] == "p2"
-
-    # Verify: Documents can be retrieved by type and identifier
-    retrieved_post_1 = adapter.read_document(DocumentType.POST, "p1")
-    assert retrieved_post_1 is not None, "Should find post p1"
-    assert "first post" in retrieved_post_1.content.lower()
-
-    retrieved_post_2 = adapter.read_document(DocumentType.POST, "p2")
-    assert retrieved_post_2 is not None, "Should find post p2"
-    assert "second post" in retrieved_post_2.content.lower()
-
-    # Verify: Missing documents return None (not error)
-    missing = adapter.read_document(DocumentType.POST, "nonexistent")
-    assert missing is None, "Missing documents should return None"

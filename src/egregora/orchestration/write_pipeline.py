@@ -594,33 +594,20 @@ def _create_database_backends(
 def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> dict[str, any]:
     """Resolve site paths for the configured output format and validate structure."""
     site_paths = _resolve_pipeline_site_paths(output_dir, config)
-    format_type = config.output.format
 
-    if format_type != "eleventy-arrow":
-        mkdocs_path = site_paths.get("mkdocs_path")
-        if not mkdocs_path or not mkdocs_path.exists():
-            msg = (
-                f"No mkdocs.yml found for site at {output_dir}. "
-                "Run 'egregora init <site-dir>' before processing exports."
-            )
-            raise ValueError(msg)
+    # Default validation for MkDocs/standard structure
+    mkdocs_path = site_paths.get("mkdocs_path")
+    if not mkdocs_path or not mkdocs_path.exists():
+        msg = (
+            f"No mkdocs.yml found for site at {output_dir}. "
+            "Run 'egregora init <site-dir>' before processing exports."
+        )
+        raise ValueError(msg)
 
-        docs_dir = site_paths["docs_dir"]
-        if not docs_dir.exists():
-            msg = (
-                f"Docs directory not found: {docs_dir}. "
-                "Re-run 'egregora init' to scaffold the MkDocs project."
-            )
-            raise ValueError(msg)
-    else:
-        docs_dir = site_paths["docs_dir"]
-        if not docs_dir.exists():
-            msg = (
-                "Eleventy content directory not found at "
-                f"{docs_dir}. Run 'egregora init <site-dir> --output-format eleventy-arrow' "
-                "to scaffold the project before processing exports."
-            )
-            raise ValueError(msg)
+    docs_dir = site_paths["docs_dir"]
+    if not docs_dir.exists():
+        msg = f"Docs directory not found: {docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
+        raise ValueError(msg)
 
     return site_paths
 
@@ -628,26 +615,7 @@ def _resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> di
 def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> dict[str, any]:
     """Resolve site paths for the configured output format."""
     output_dir = output_dir.expanduser().resolve()
-    base_paths = derive_mkdocs_paths(output_dir, config=config)
-
-    if config.output.format != "eleventy-arrow":
-        return base_paths
-
-    from egregora.output_adapters import create_output_format  # noqa: PLC0415
-
-    output_format = create_output_format(output_dir, format_type=config.output.format)
-    site_config = output_format.resolve_paths(output_dir)
-
-    # Merge eleventy-arrow paths with base paths
-    return {
-        **base_paths,
-        "site_root": site_config.site_root,
-        "mkdocs_path": None,
-        "docs_dir": site_config.docs_dir,
-        "posts_dir": site_config.posts_dir,
-        "profiles_dir": site_config.profiles_dir,
-        "media_dir": site_config.media_dir,
-    }
+    return derive_mkdocs_paths(output_dir, config=config)
 
 
 def _create_gemini_client(api_key: str | None) -> genai.Client:
