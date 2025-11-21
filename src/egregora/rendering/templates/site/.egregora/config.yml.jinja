@@ -66,3 +66,7 @@ output:
 features:
   ranking_enabled: false        # Elo-based post ranking
   annotations_enabled: true     # Conversation annotations/threading
+
+# Quota guardrails
+quota:
+  daily_llm_requests: 220      # Soft daily limit for LLM calls (writer + enrichments)

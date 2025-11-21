@@ -377,6 +377,16 @@ class FeaturesSettings(BaseModel):
     )
 
 
+class QuotaSettings(BaseModel):
+    """Configuration for LLM usage budgets."""
+
+    daily_llm_requests: int = Field(
+        default=220,
+        ge=1,
+        description="Soft limit for daily LLM calls (writer + enrichment).",
+    )
+
+
 class EgregoraConfig(BaseModel):
     """Root configuration for Egregora.
 
@@ -457,6 +467,10 @@ class EgregoraConfig(BaseModel):
     features: FeaturesSettings = Field(
         default_factory=FeaturesSettings,
         description="Feature flags",
+    )
+    quota: QuotaSettings = Field(
+        default_factory=QuotaSettings,
+        description="LLM usage quota tracking",
     )
 
     model_config = ConfigDict(

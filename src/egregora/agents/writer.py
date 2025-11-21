@@ -51,6 +51,8 @@ from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.mkdocs import MkDocsAdapter
 from egregora.resources.prompts import render_prompt
 from egregora.utils.batch import call_with_retries_sync
+from egregora.utils.quota import QuotaExceededError, QuotaTracker
+from egregora.utils.quota import QuotaExceededError
 
 if TYPE_CHECKING:
     from google import genai
@@ -141,6 +143,8 @@ class WriterDeps:
     window_end: datetime
     window_label: str
     prompts_dir: Path | None
+
+    quota: QuotaTracker | None
 
     @property
     def output_format(self) -> OutputAdapter:
@@ -631,6 +635,7 @@ def _prepare_deps(
         window_end=window_end,
         window_label=window_label,
         prompts_dir=prompts_dir,
+        quota=ctx.quota_tracker,
     )
 
 
@@ -696,6 +701,17 @@ def write_posts_with_pydantic_agent(
     _validate_prompt_fits(prompt, model_name, config, context.window_label)
 
     last_error: UnexpectedModelBehavior | None = None
+    try:
+        if context.quota:
+            context.quota.reserve(1)
+    except QuotaExceededError as exc:
+        msg = (
+            "LLM quota exceeded for this day. No additional posts can be generated "
+            "until the usage window resets."
+        )
+        logger.error(msg)
+        raise RuntimeError(msg) from exc
+
     for attempt in range(3):
         try:
             result = call_with_retries_sync(agent.run_sync, prompt, deps=context)

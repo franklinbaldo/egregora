@@ -50,6 +50,7 @@ from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.utils.cache import EnrichmentCache
+from egregora.utils.quota import QuotaTracker
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
@@ -517,6 +518,7 @@ def _perform_enrichment(
         cache=ctx.enrichment_cache,
         output_format=ctx.output_format,
         site_root=ctx.site_root,
+        quota=ctx.quota_tracker,
     )
     return enrich_table(
         window_table,
@@ -695,6 +697,8 @@ def _create_pipeline_context(  # noqa: PLR0913
 
     from egregora.orchestration.context import PipelineConfig, PipelineState
 
+    quota_tracker = QuotaTracker(site_paths["egregora_dir"], config.quota.daily_llm_requests)
+
     url_ctx = UrlContext(
         base_url="",
         site_prefix=compute_site_prefix(site_paths["site_root"], site_paths["docs_dir"]),
@@ -722,6 +726,7 @@ def _create_pipeline_context(  # noqa: PLR0913
         enrichment_cache=enrichment_cache,
         rag_store=rag_store,
         annotations_store=annotations_store,
+        quota_tracker=quota_tracker,
     )
 
     ctx = PipelineContext(config_obj, state)

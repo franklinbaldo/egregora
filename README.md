@@ -413,3 +413,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 ---
 
 **Egregora** - Because your group chat deserves to be preserved as more than just scrollback.
+- **LLM quota guard:** the daily limit (`quota.daily_llm_requests`, default 220) is enforced by the pipeline so you can keep producing runs without accidentally burning through your Gemini quota.

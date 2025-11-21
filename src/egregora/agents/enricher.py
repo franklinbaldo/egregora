@@ -40,6 +40,7 @@ from egregora.ops.media import (
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.paths import slugify
+from egregora.utils.quota import QuotaExceededError, QuotaTracker
 
 if TYPE_CHECKING:
     import pandas as pd  # noqa: TID251
@@ -154,6 +155,7 @@ class EnrichmentRuntimeContext:
     site_root: Path | None = None
     duckdb_connection: DuckDBBackend | None = None
     target_table: str | None = None
+    quota: QuotaTracker | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -393,10 +395,15 @@ async def _process_url_task(  # noqa: PLR0913
             cached_slug = cache_entry.get("slug")
         else:
             try:
+                if context.quota:
+                    context.quota.reserve(1)
                 output_data = await _run_url_enrichment_async(agent, url, prompts_dir)
                 markdown = output_data.markdown
                 cached_slug = output_data.slug
                 cache.store(cache_key, {"markdown": markdown, "slug": cached_slug, "type": "url"})
+            except QuotaExceededError:
+                logger.warning("LLM quota reached; skipping URL enrichment for %s", url)
+                return None
             except Exception:
                 logger.exception("URL enrichment failed for %s", url)
                 return None
@@ -456,6 +463,8 @@ async def _process_media_task(  # noqa: PLR0913
             cached_slug = cache_entry.get("slug")
         else:
             try:
+                if context.quota:
+                    context.quota.reserve(1)
                 output_data = await _run_media_enrichment_async(
                     agent,
                     filename=filename or ref,
@@ -466,6 +475,9 @@ async def _process_media_task(  # noqa: PLR0913
                 markdown = output_data.markdown
                 cached_slug = output_data.slug
                 cache.store(cache_key, {"markdown": markdown, "slug": cached_slug, "type": "media"})
+            except QuotaExceededError:
+                logger.warning("LLM quota reached; skipping media enrichment for %s", filename or ref)
+                return None, False, ref, None
             except Exception:
                 logger.exception("Media enrichment failed for %s", filename or ref)
                 return None, False, ref, None
