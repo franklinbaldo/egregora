@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -71,7 +72,7 @@ class MkDocsAdapter(OutputAdapter):
         self._ctx = url_context or UrlContext(base_url="", site_prefix=prefix, base_path=self.site_root)
         self.posts_dir = site_paths["posts_dir"]
         self.profiles_dir = site_paths["profiles_dir"]
-        self.journal_dir = self.posts_dir / "journal"
+        self.journal_dir = site_paths["journal_dir"]
         self.media_dir = site_paths["media_dir"]
         self.urls_dir = self.media_dir / "urls"
 
@@ -128,8 +129,8 @@ class MkDocsAdapter(OutputAdapter):
             if matches:
                 path = max(matches, key=lambda p: p.stat().st_mtime)
         elif doc_type == DocumentType.JOURNAL:
-            safe_label = identifier.replace(" ", "_").replace(":", "-")
-            path = self.journal_dir / f"journal_{safe_label}.md"
+            safe_identifier = identifier.replace("/", "-")
+            path = self.journal_dir / f"{safe_identifier}.md"
         elif doc_type == DocumentType.ENRICHMENT_URL:
             path = self.urls_dir / f"{identifier}.md"
         elif doc_type == DocumentType.ENRICHMENT_MEDIA:
@@ -148,12 +149,10 @@ class MkDocsAdapter(OutputAdapter):
         try:
             if doc_type == DocumentType.MEDIA:
                 raw_bytes = path.read_bytes()
-                content = raw_bytes.decode("utf-8", errors="ignore")
-                metadata: dict[str, Any] = {"filename": path.name}
-                actual_content = content
-            else:
-                content = path.read_text(encoding="utf-8")
-                metadata, actual_content = parse_frontmatter(content)
+                metadata = {"filename": path.name}
+                return Document(content=raw_bytes, type=doc_type, metadata=metadata)
+            content = path.read_text(encoding="utf-8")
+            metadata, actual_content = parse_frontmatter(content)
         except OSError:
             logger.exception("Failed to read document at %s", path)
             return None
@@ -244,6 +243,7 @@ class MkDocsAdapter(OutputAdapter):
                 "blog_dir": blog_relative,
                 "docs_dir": docs_relative,
                 "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
+                "generated_date": datetime.now(UTC).strftime("%Y-%m-%d"),
             }
 
             # Create mkdocs.yml in .egregora/ (default location)
@@ -307,9 +307,10 @@ class MkDocsAdapter(OutputAdapter):
         posts_dir = site_paths["posts_dir"]
         profiles_dir = site_paths["profiles_dir"]
         media_dir = site_paths["media_dir"]
+        journal_dir = site_paths["journal_dir"]
 
         # Create main content directories at root
-        for directory in (posts_dir, profiles_dir, media_dir):
+        for directory in (posts_dir, profiles_dir, media_dir, journal_dir):
             directory.mkdir(parents=True, exist_ok=True)
 
         # Create media subdirectories with .gitkeep
@@ -318,8 +319,7 @@ class MkDocsAdapter(OutputAdapter):
             media_subdir.mkdir(exist_ok=True)
             (media_subdir / ".gitkeep").touch()
 
-        # Create journal directory for agent logs
-        journal_dir = posts_dir / "journal"
+        # Ensure journal dir has gitkeep
         journal_dir.mkdir(exist_ok=True)
         (journal_dir / ".gitkeep").touch()
 
@@ -345,6 +345,8 @@ class MkDocsAdapter(OutputAdapter):
         docs_dir = site_paths["docs_dir"]
         profiles_dir = site_paths["profiles_dir"]
         media_dir = site_paths["media_dir"]
+        posts_dir = site_paths["posts_dir"]
+        egregora_dir = site_paths["egregora_dir"]
 
         # Define templates to render
         templates_to_render = [
@@ -352,8 +354,11 @@ class MkDocsAdapter(OutputAdapter):
             (site_root / ".gitignore", ".gitignore.jinja"),
             (docs_dir / "index.md", "docs/index.md.jinja"),
             (docs_dir / "about.md", "docs/about.md.jinja"),
+            (docs_dir / "journal" / "index.md", "docs/journal/index.md.jinja"),
             (profiles_dir / "index.md", "docs/profiles/index.md.jinja"),
             (media_dir / "index.md", "docs/media/index.md.jinja"),
+            (posts_dir / "index.md", "docs/posts/index.md.jinja"),
+            (posts_dir / "tags.md", "docs/posts/tags.md.jinja"),
         ]
 
         # Render each template
@@ -362,6 +367,14 @@ class MkDocsAdapter(OutputAdapter):
                 template = env.get_template(template_name)
                 content = template.render(**context)
                 target_path.write_text(content, encoding="utf-8")
+
+        templates_dir = egregora_dir / "templates"
+        templates_dir.mkdir(parents=True, exist_ok=True)
+        blog_template = templates_dir / "egregora_blog.html"
+        if not blog_template.exists():
+            templates_source = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
+            blog_source = templates_source / ".egregora" / "templates" / "egregora_blog.html.jinja"
+            blog_template.write_text(blog_source.read_text(encoding="utf-8"), encoding="utf-8")
 
     def _create_egregora_config(self, site_paths: dict[str, Any], env: Environment) -> None:
         """Create .egregora/config.yml from template.
@@ -395,9 +408,7 @@ class MkDocsAdapter(OutputAdapter):
 
         Creates:
         - .egregora/config.yml (from template with comments)
-        - .egregora/prompts/ (for custom prompt overrides + default copies)
-        - .egregora/prompts/system/ (writer system prompts)
-        - .egregora/prompts/enrichment/ (URL, media prompts)
+        - .egregora/prompts/ (flat directory for prompt overrides)
         - .egregora/prompts/README.md (usage guide)
         - .egregora/.gitignore (ignore ephemeral data)
 
@@ -416,13 +427,9 @@ class MkDocsAdapter(OutputAdapter):
             templates_dir = Path(__file__).resolve().parent.parent / "rendering" / "templates" / "site"
             env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
 
-        # Create prompts directory structure
+        # Create prompts directory
         prompts_dir = site_paths["prompts_dir"]
         prompts_dir.mkdir(exist_ok=True)
-
-        # Create subdirectories for prompt categories
-        (prompts_dir / "system").mkdir(exist_ok=True)
-        (prompts_dir / "enrichment").mkdir(exist_ok=True)
 
         # Copy default prompts from package to site using centralized manager
         PromptManager.copy_defaults(prompts_dir)
@@ -866,32 +873,39 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             return self.site_root / f"{url_path}.md"
         if document.type == DocumentType.ENRICHMENT_URL:
             return self.site_root / f"{url_path}.md"
-        if document.type in (DocumentType.ENRICHMENT_MEDIA, DocumentType.MEDIA):
+        if document.type == DocumentType.ENRICHMENT_MEDIA:
+            return self.site_root / f"{url_path}.md"
+        if document.type == DocumentType.MEDIA:
             return self.site_root / url_path
         return self.site_root / f"{url_path}.md"
 
-    def _write_document(self, document: Document, path: Path) -> None:  # noqa: C901, PLR0912
+    def _write_document(self, document: Document, path: Path) -> None:  # noqa: C901
         import yaml as _yaml
 
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        if document.type == DocumentType.JOURNAL:
-            if isinstance(document.content, str) and document.content.lstrip().startswith("---"):
-                path.write_text(document.content, encoding="utf-8")
-            else:
-                metadata = dict(document.metadata or {})
-                yaml_front = _yaml.dump(
-                    metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
-                )
-                full_content = f"---\n{yaml_front}---\n\n{document.content}"
-                path.write_text(full_content, encoding="utf-8")
-        elif document.type == DocumentType.POST:
+        def _ensure_hidden(metadata: dict[str, Any]) -> dict[str, Any]:
+            hide = metadata.get("hide", [])
+            if isinstance(hide, str):
+                hide = [hide]
+            if "navigation" not in hide:
+                hide.append("navigation")
+            metadata["hide"] = hide
+            metadata["nav_exclude"] = metadata.get("nav_exclude", True)
+            return metadata
+
+        if document.type == DocumentType.POST:
             metadata = dict(document.metadata or {})
             if "date" in metadata:
                 metadata["date"] = _format_frontmatter_datetime(metadata["date"])
             if "authors" in metadata:
                 _ensure_author_entries(path.parent, metadata.get("authors"))
 
+            yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+            full_content = f"---\n{yaml_front}---\n\n{document.content}"
+            path.write_text(full_content, encoding="utf-8")
+        elif document.type == DocumentType.JOURNAL:
+            metadata = _ensure_hidden(dict(document.metadata or {}))
             yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
             full_content = f"---\n{yaml_front}---\n\n{document.content}"
             path.write_text(full_content, encoding="utf-8")
@@ -906,7 +920,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 raise ValueError(msg)
             write_profile_content(author_uuid, document.content, self.profiles_dir)
         elif document.type in (DocumentType.ENRICHMENT_URL, DocumentType.ENRICHMENT_MEDIA):
-            metadata = document.metadata.copy()
+            metadata = _ensure_hidden(document.metadata.copy())
             metadata.setdefault("document_type", document.type.value)
             metadata.setdefault("slug", document.slug)
             if document.parent_id:
@@ -918,10 +932,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             full_content = f"---\n{yaml_front}---\n\n{document.content}"
             path.write_text(full_content, encoding="utf-8")
         elif document.type == DocumentType.MEDIA:
-            if isinstance(document.content, bytes):
-                path.write_bytes(document.content)
-            else:
-                path.write_text(document.content, encoding="utf-8")
+            payload = (
+                document.content if isinstance(document.content, bytes) else document.content.encode("utf-8")
+            )
+            path.write_bytes(payload)
         elif isinstance(document.content, bytes):
             path.write_bytes(document.content)
         else:

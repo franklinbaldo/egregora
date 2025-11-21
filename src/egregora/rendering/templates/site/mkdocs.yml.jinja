@@ -22,7 +22,6 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
   features:
-    - navigation.instant
     - navigation.tracking
     - navigation.tabs
     - navigation.sections
@@ -35,13 +34,18 @@ theme:
 plugins:
   - search:
       lang: en
-  - blog:
-      blog_dir: {{ blog_dir }}
-      blog_toc: true
-      post_date_format: long
-      post_url_date_format: yyyy/MM/dd
-      post_url_format: '{date}/{slug}'
-      pagination_per_page: 10
+  - blogging:
+      dirs:
+        - {{ blog_dir }}
+      size: 10
+      paging: true
+      show_total: true
+      locale: en
+      template: templates/egregora_blog.html
+      features:
+        tags:
+          index_page: {{ blog_dir }}/tags.md
+          insert: bottom
   - rss:
       match_path: "{{ blog_dir }}/.*"
       date_from_meta:
@@ -91,7 +95,10 @@ markdown_extensions:
 {% else -%}
 nav:
   - Home: index.md
-  - Blog: {{ blog_dir }}/index.md
+  - Blog:
+      - Latest: {{ blog_dir }}/index.md
+      - Tags & Topics: {{ blog_dir }}/tags.md
+  - Journal: journal/index.md
   - Profiles: profiles/index.md
   - Media: media/index.md
   - About: about.md

@@ -5,18 +5,26 @@ description: Group participants
 
 # Participant Profiles
 
-Group participants are identified by UUIDs to preserve privacy.
+> Every contributor is represented by a deterministic UUID (e.g. `23e57074`) to keep privacy intact while still letting the writer agent reference recurring voices.
 
-Profiles are automatically generated based on participation patterns and topics of interest.
+## Reading profiles
 
-## Identity System
+- **Style overview** – High-level notes about cadence, tone, and argumentative habits
+- **Topic orbit** – Subjects the participant consistently gravitates toward
+- **Recent contributions** – Links to posts where that UUID made a visible impact
 
-- **Default UUID**: Everyone starts with anonymous pseudonym (e.g., `a1b2c3d4`)
-- **Optional aliases**: Use `/egregora set alias "Your Name"` to humanize
-- **Full opt-out**: Use `/egregora opt-out` to remove your messages
+All of this text is generated automatically after each pipeline run, so expect it to evolve as new behavior emerges.
 
-See [alias documentation](https://github.com/franklinbaldo/egregora/blob/main/ALIASES.md) for more details.
+## Choosing an alias
+
+Want something more memorable than a UUID?
+
+1. In your chat, send `/egregora set alias "Your Chosen Name"`
+2. Optionally add `/egregora set bio "One-line description"`
+3. Regenerate the blog; your profile will now reflect the alias while still keeping the real identity private.
+
+Need to disappear entirely? Use `/egregora opt-out` before the next run.
 
 ---
 
-*Profiles are dynamically updated as conversations evolve.*
+*Profiles refresh with every ingestion window. No manual edits are needed.*

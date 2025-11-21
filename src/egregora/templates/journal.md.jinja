@@ -1,20 +1,25 @@
----
-window_label: {{ window_label }}
-date: {{ date }}
-created: {{ created }}
-draft: true
----
+# Agent Execution Log · {{ window_label }}
 
-# Agent Execution Log
+> Snapshot captured on **{{ date }}** at **{{ created }} UTC**
+>
+> Conversation window: **{{ window_start }} → {{ window_end }}**
+
+## Run Summary
+
+- **Posts published:** {{ posts_published }}
+- **Profiles updated:** {{ profiles_updated }}
+- **Reasoning segments captured:** {{ entry_count }}
+
+---
 
 {% for entry in intercalated_log %}
 {% if entry.entry_type == "thinking" %}
-## Thinking
+### Thinking
 
 {{ entry.content }}
 
 {% elif entry.entry_type == "journal" %}
-## Freeform
+### Freeform
 
 {{ entry.content }}
 

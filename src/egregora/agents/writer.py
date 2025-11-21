@@ -20,6 +20,7 @@ from ibis.expr.types import Table
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -28,7 +29,6 @@ from pydantic_ai.messages import (
     ToolCallPart,
     ToolReturnPart,
 )
-from pydantic_ai.exceptions import UnexpectedModelBehavior
 
 from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.formatting import (
@@ -500,6 +500,10 @@ def _save_journal_to_file(
     intercalated_log: list[JournalEntry],
     window_label: str,
     output_format: OutputAdapter,
+    posts_published: int,
+    profiles_updated: int,
+    window_start: datetime,
+    window_end: datetime,
 ) -> str | None:
     """Save journal entry to markdown file."""
     if not intercalated_log:
@@ -516,22 +520,40 @@ def _save_journal_to_file(
         return None
 
     now_utc = datetime.now(tz=UTC)
+    window_start_iso = window_start.astimezone(UTC).isoformat()
+    window_end_iso = window_end.astimezone(UTC).isoformat()
+    journal_slug = now_utc.strftime("%Y-%m-%d-%H-%M-%S")
     try:
         journal_content = template.render(
             window_label=window_label,
             date=now_utc.strftime("%Y-%m-%d"),
             created=now_utc.isoformat(),
+            posts_published=posts_published,
+            profiles_updated=profiles_updated,
+            entry_count=len(intercalated_log),
             intercalated_log=intercalated_log,
+            window_start=window_start_iso,
+            window_end=window_end_iso,
         )
     except Exception:
         logger.exception("Failed to render journal template")
         return None
+    journal_content = journal_content.replace("../media/", "/media/")
 
     try:
         doc = Document(
             content=journal_content,
             type=DocumentType.JOURNAL,
-            metadata={"window_label": window_label, "date": now_utc.strftime("%Y-%m-%d")},
+            metadata={
+                "window_label": window_label,
+                "window_start": window_start_iso,
+                "window_end": window_end_iso,
+                "date": now_utc.isoformat(),
+                "created_at": now_utc.isoformat(),
+                "slug": journal_slug,
+                "nav_exclude": True,
+                "hide": ["navigation"],
+            },
             source_window=window_label,
         )
         output_format.serve(doc)
@@ -703,7 +725,15 @@ def write_posts_with_pydantic_agent(
                     datetime.now(tz=UTC),
                 )
             ]
-    _save_journal_to_file(intercalated_log, context.window_label, context.output_format)
+    _save_journal_to_file(
+        intercalated_log,
+        context.window_label,
+        context.output_format,
+        len(saved_posts),
+        len(saved_profiles),
+        context.window_start,
+        context.window_end,
+    )
 
     logger.info(
         "Writer agent completed: period=%s posts=%d profiles=%d tokens=%d",
@@ -724,9 +754,13 @@ def _render_writer_prompt(
     """Render the final writer prompt text."""
     format_instructions = ctx.output_format.get_format_instructions() if ctx.output_format else ""
     custom_instructions = ctx.config.writer.custom_instructions or ""
+    adapter_instructions = _adapter_generation_instructions(ctx)
+    if adapter_instructions:
+        custom_instructions = "\n\n".join(filter(None, [custom_instructions, adapter_instructions]))
+    source_context = _adapter_content_summary(ctx)
 
     return render_prompt(
-        "system/writer.jinja",
+        "writer.jinja",
         prompts_dir=deps.prompts_dir,
         date=deps.window_label,
         markdown_table=prompt_context.conversation_md,
@@ -736,8 +770,46 @@ def _render_writer_prompt(
         profiles_context=prompt_context.profiles_context,
         rag_context=prompt_context.rag_context,
         journal_memory=prompt_context.journal_memory,
+        source_context=source_context,
         enable_memes=False,
     )
+
+
+def _adapter_content_summary(ctx: PipelineContext) -> str:
+    adapter = getattr(ctx, "adapter", None)
+    if adapter is None:
+        return ""
+
+    summary: str | None = ""
+    try:
+        summary = getattr(adapter, "content_summary", "")
+    except Exception:
+        logger.debug("Adapter %s lacks content_summary", adapter)
+        summary = ""
+
+    if callable(summary):
+        try:
+            summary = summary()
+        except Exception:
+            logger.exception("Failed to evaluate adapter content summary")
+            summary = ""
+
+    return (summary or "").strip()
+
+
+def _adapter_generation_instructions(ctx: PipelineContext) -> str:
+    adapter = getattr(ctx, "adapter", None)
+    if adapter is None:
+        return ""
+
+    instructions = getattr(adapter, "generation_instructions", "")
+    if callable(instructions):
+        try:
+            instructions = instructions()
+        except Exception:
+            logger.exception("Failed to evaluate adapter generation instructions")
+            instructions = ""
+    return (instructions or "").strip()
 
 
 def _cast_uuid_columns_to_str(table: Table) -> Table:

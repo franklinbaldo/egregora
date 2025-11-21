@@ -53,7 +53,7 @@ def test_init_directory_structure(tmp_path: Path):
         "docs/media/videos",
         "docs/media/audio",
         "docs/media/documents",
-        "docs/posts/journal",
+        "docs/journal",
     ]
 
     for dir_path in expected_dirs:
@@ -64,6 +64,9 @@ def test_init_directory_structure(tmp_path: Path):
     for subdir in ["images", "videos", "audio", "documents"]:
         gitkeep = tmp_path / "docs" / "media" / subdir / ".gitkeep"
         assert gitkeep.exists(), f".gitkeep missing in media/{subdir}"
+
+    journal_gitkeep = tmp_path / "docs" / "journal" / ".gitkeep"
+    assert journal_gitkeep.exists(), ".gitkeep missing in journal directory"
 
 
 def test_egregora_directory_created(tmp_path: Path):
@@ -141,9 +144,9 @@ def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
 
     # Should NOT have extra.egregora
     extra_section = mkdocs_dict.get("extra", {})
-    assert "egregora" not in extra_section, (
-        "mkdocs.yml should NOT contain extra.egregora (config moved to .egregora/config.yml)"
-    )
+    assert (
+        "egregora" not in extra_section
+    ), "mkdocs.yml should NOT contain extra.egregora (config moved to .egregora/config.yml)"
 
 
 def test_prompts_readme_created(tmp_path: Path):
@@ -161,13 +164,13 @@ def test_prompts_readme_created(tmp_path: Path):
 
     # Verify it has useful content
     content = readme.read_text()
-    assert "Custom Prompt" in content or "prompt" in content.lower(), (
-        "README should contain information about prompts"
-    )
+    assert (
+        "Custom Prompt" in content or "prompt" in content.lower()
+    ), "README should contain information about prompts"
 
 
-def test_prompts_subdirectories_created(tmp_path: Path):
-    """Test that .egregora/prompts/ subdirectories are created."""
+def test_prompts_directory_populated(tmp_path: Path):
+    """Test that .egregora/prompts/ contains the flattened prompt templates."""
     # Create and scaffold MkDocs site using OutputAdapter
     output_format = create_output_format(tmp_path, format_type="mkdocs")
     _mkdocs_path, created = output_format.scaffold_site(tmp_path, site_name="Test Site")
@@ -175,13 +178,15 @@ def test_prompts_subdirectories_created(tmp_path: Path):
     # Verify site was created
     assert created
 
-    # Verify subdirectories exist
+    # Verify prompt files exist
     prompts_dir = tmp_path / ".egregora" / "prompts"
 
-    system_dir = prompts_dir / "system"
-    assert system_dir.exists(), ".egregora/prompts/system should be created"
-    assert system_dir.is_dir(), ".egregora/prompts/system should be a directory"
-
-    enrichment_dir = prompts_dir / "enrichment"
-    assert enrichment_dir.exists(), ".egregora/prompts/enrichment should be created"
-    assert enrichment_dir.is_dir(), ".egregora/prompts/enrichment should be a directory"
+    expected_files = [
+        "README.md",
+        "writer.jinja",
+        "media_detailed.jinja",
+        "url_detailed.jinja",
+    ]
+    for filename in expected_files:
+        file_path = prompts_dir / filename
+        assert file_path.exists(), f".egregora/prompts/{filename} should be created"

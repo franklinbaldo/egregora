@@ -98,9 +98,19 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
 
         return (docs_dir / path_obj).resolve()
 
+    def normalize_path_str(path_value: str) -> str:
+        return path_value.replace("\\", "/").strip("./")
+
     posts_dir = resolve_content_path(paths_settings.posts_dir)
     profiles_dir = resolve_content_path(paths_settings.profiles_dir)
     media_dir = resolve_content_path(paths_settings.media_dir)
+    journal_setting = paths_settings.journal_dir
+    posts_norm = normalize_path_str(paths_settings.posts_dir)
+    journal_norm = normalize_path_str(journal_setting)
+    legacy_norm = f"{posts_norm}/journal".strip("./")
+    if journal_norm == legacy_norm:
+        journal_setting = "journal"
+    journal_dir = resolve_content_path(journal_setting)
 
     try:
         blog_relative = posts_dir.relative_to(docs_dir).as_posix()
@@ -125,6 +135,7 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
         "posts_dir": posts_dir,
         "profiles_dir": profiles_dir,
         "media_dir": media_dir,
+        "journal_dir": journal_dir,
         "rankings_dir": egregora_dir / "rankings",
         "enriched_dir": egregora_dir / "enriched",
     }

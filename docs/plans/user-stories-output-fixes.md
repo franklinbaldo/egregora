@@ -24,3 +24,28 @@
 - **As** a contributor refactoring the enrichment pipeline
 - **I want** the agents to operate purely on `Document` metadata instead of raw filesystem paths
 - **So that** adapters handle all IO concerns and we can eventually share enrichment logic across output formats.
+
+## 6. LLMs Provide Human-Friendly Slugs
+- **As** a reviewer linking to generated assets
+- **I want** the writer and enrichment agents to emit descriptive slugs (not UUID fragments)
+- **So that** canonical URLs communicate the subject of posts, media, and enrichments and can be referenced verbally.
+
+## 7. Blog Landing Page Explains Itself
+- **As** a first-time visitor to the generated site
+- **I want** the home page to highlight what the project does and how to navigate it
+- **So that** I don’t have to guess which tab contains posts, profiles, media, or operational logs.
+
+## 8. Posts Index with Filters and Tags
+- **As** a reader skimming dozens of AI-generated essays
+- **I want** the `/posts/` index to expose search, tag, and contributor filters plus a real listing
+- **So that** I can quickly home in on the topics or voices I care about without scrolling 1,000 links.
+
+## 9. Media Library as Documentation, Not a Dump
+- **As** a curator auditing safety/privacy issues
+- **I want** the media section to explain how files and enrichments are organized and link back to posts
+- **So that** I can validate assets without spelunking raw directories.
+
+## 10. Journals Carry Accurate Metadata
+- **As** someone ingesting the RSS feed or reviewing past runs
+- **I want** journal pages to include ISO timestamps and nav hints
+- **So that** time-based tooling (RSS, mkdocs-rss-plugin) can parse entries and keep them out of the sidebar clutter.

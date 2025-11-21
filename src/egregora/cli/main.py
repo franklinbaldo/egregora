@@ -118,7 +118,10 @@ def init(
 def write(  # noqa: C901, PLR0913, PLR0915
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
-    source: Annotated[str, typer.Option(help="Source type: 'whatsapp' or 'slack'")] = "whatsapp",
+    source: Annotated[
+        str,
+        typer.Option(help="Source type (e.g., 'whatsapp', 'iperon-tjro', 'self')"),
+    ] = "whatsapp",
     output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path("output"),
     step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
     step_unit: Annotated[

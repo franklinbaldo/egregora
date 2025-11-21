@@ -6,12 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from egregora.data_primitives.document import DocumentType
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlConvention
 from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:
-    from egregora.data_primitives.document import Document
     from egregora.data_primitives.protocols import UrlContext
 
 
@@ -80,10 +79,8 @@ class StandardUrlConvention(UrlConvention):
 
         # 3. Journals (Agent Memory)
         if document.type == DocumentType.JOURNAL:
-            window_label = document.metadata.get("window_label", document.source_window or "unlabeled")
-            safe_label = slugify(window_label)
-            # Often journals are kept under posts, or a separate section
-            return self._join(ctx, self.routes.posts_prefix, self.routes.journal_prefix, safe_label)
+            safe_label = document.slug or slugify(document.metadata.get("window_label", "journal"))
+            return self._join(ctx, self.routes.journal_prefix, safe_label)
 
         if document.type == DocumentType.MEDIA:
             return self._format_media_url(ctx, document)
@@ -93,10 +90,14 @@ class StandardUrlConvention(UrlConvention):
 
         if document.type == DocumentType.ENRICHMENT_URL:
             if document.suggested_path:
-                clean_path = document.suggested_path.strip("/")
-                return self._join(ctx, clean_path, trailing_slash=False)
+                clean_path = Path(document.suggested_path.strip("/")).with_suffix("").as_posix()
+                return self._join(ctx, clean_path, trailing_slash=True)
+            url_slug = self._slug_with_identifier(document)
             return self._join(
-                ctx, self.routes.media_prefix, "urls", document.document_id, trailing_slash=False
+                ctx,
+                self.routes.media_prefix,
+                "urls",
+                url_slug,
             )
 
         # Fallback
@@ -136,12 +137,20 @@ class StandardUrlConvention(UrlConvention):
             parent_path = document.metadata["parent_path"]
 
         if parent_path:
-            enrichment_path = Path(parent_path).with_suffix(".md").as_posix()
-            return self._join(ctx, enrichment_path.strip("/"), trailing_slash=False)
+            enrichment_path = Path(parent_path).with_suffix("").as_posix()
+            return self._join(ctx, enrichment_path.strip("/"), trailing_slash=True)
 
         if document.suggested_path:
-            clean_path = document.suggested_path.strip("/")
-            return self._join(ctx, clean_path, trailing_slash=False)
+            clean_path = Path(document.suggested_path.strip("/")).with_suffix("").as_posix()
+            return self._join(ctx, clean_path, trailing_slash=True)
 
-        fallback = f"{document.document_id}.md"
-        return self._join(ctx, self.routes.media_prefix, fallback, trailing_slash=False)
+        fallback = f"{self._slug_with_identifier(document)}"
+        return self._join(ctx, self.routes.media_prefix, fallback, trailing_slash=True)
+
+    def _slug_with_identifier(self, document: Document) -> str:
+        """Return slug augmented with a deterministic identifier."""
+        slug_value = document.slug
+        suffix = document.document_id[:8]
+        if slug_value.endswith(suffix):
+            return slug_value
+        return f"{slug_value}-{suffix}"

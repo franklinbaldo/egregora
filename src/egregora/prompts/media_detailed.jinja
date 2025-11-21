@@ -1,8 +1,45 @@
+{% macro media_type_instructions(media_type) -%}
+{% if media_type == "image" %}
+- Treat this like a high-value archival photograph. Describe composition, subjects, environment, text or symbols, emotional tone, and any notable stylistic choices (filters, editing artifacts, resolution).
+- If it resembles a meme, explain its format, template lineage, and likely cultural references.
+{% elif media_type == "video" %}
+- Summarize the key scenes chronologically. Mention camera style, pacing, soundtrack, and any onscreen text or cuts.
+- Highlight actions, gestures, or reactions frame-by-frame where relevant.
+{% elif media_type == "audio" %}
+- Transcribe intelligible speech. If language differs from English, translate essential phrases.
+- Describe tone, emotion, background sounds, music, and recording quality.
+- Note if it feels like a meme-able sound bite (reaction audio, catchphrase, chant, etc.).
+{% else %}
+- Describe the file as precisely as possible (charts, infographics, documents, mixed media). Capture layout, key data, and any annotations.
+{% endif %}
+{%- endmacro %}
+
+{% macro media_embed_block(media_type, media_path, media_filename) -%}
+{% if media_type == "image" %}
+![{{ media_filename }}](../../{{ media_path }})
+{% elif media_type == "video" %}
+<video controls width="100%">
+  <source src="../../{{ media_path }}" type="video/mp4">
+</video>
+{% elif media_type == "audio" %}
+<audio controls>
+  <source src="../../{{ media_path }}">
+</audio>
+{% else %}
+[Download/view file](../../{{ media_path }})
+{% endif %}
+{%- endmacro %}
+
 Generate a complete markdown enrichment file for this media shared in a group conversation.
 
 This enrichment will be indexed for future retrieval, so be thorough and specific in your analysis.
 If the media is a meme, provide detailed context about what situations it would be useful for - this helps
 the writer agent find relevant memes when creating blog posts.
+
+Your structured response must include two fields:
+
+1. `slug` — a descriptive, kebab-case identifier (≤ 60 characters) that captures what the media depicts. Use the same slug for both the binary asset and this enrichment markdown.
+2. `markdown` — the document described below.
 
 ## Media File
 **Type:** {{ media_type }}
@@ -84,17 +121,7 @@ Generate a complete markdown document following this structure:
 ## Content
 
 ### Media File
-{% if media_type == "image" %}
-![{{ media_filename }}](../../{{ media_path }})
-{% elif media_type == "video" %}
-<video controls width="100%">
-  <source src="../../{{ media_path }}" type="video/mp4">
-</video>
-{% elif media_type == "audio" %}
-<audio controls>
-  <source src="../../{{ media_path }}">
-</audio>
-{% endif %}
+{{ media_embed_block(media_type, media_path, media_filename) }}
 
 [Download](../../{{ media_path }})
 
@@ -103,7 +130,9 @@ Generate a complete markdown document following this structure:
 ---
 
 ## Description
-[2-3 paragraph detailed description of what you see/hear. Be specific.]
+[2-3 paragraph detailed description of what you see/hear. Be specific. Use the following hints:]
+
+{{ media_type_instructions(media_type) }}
 
 ---
 

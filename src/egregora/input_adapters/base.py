@@ -223,6 +223,16 @@ class InputAdapter(ABC):
 
         """
 
+    @property
+    def content_summary(self) -> str:
+        """Describe the type of content this adapter ingests."""
+        return f"This adapter processes data exported from {self.source_name}."
+
+    @property
+    def generation_instructions(self) -> str:
+        """Optional writer guidance injected into prompts."""
+        return ""
+
     def extract_media(self, _input_path: Path, _output_dir: Path, **_kwargs: Any) -> MediaMapping:
         """Extract media files from the export (OPTIONAL).
 

@@ -293,7 +293,7 @@ class PathsSettings(BaseModel):
         description="Media files (images, videos) directory",
     )
     journal_dir: str = Field(
-        default="posts/journal",
+        default="journal",
         description="Agent execution journals directory",
     )
 

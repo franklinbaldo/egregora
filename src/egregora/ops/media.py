@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Annotated
 from egregora.data_primitives.document import Document, DocumentType, MediaAsset
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.input_adapters.base import InputAdapter, MediaMapping
+from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -323,8 +324,16 @@ def _prepare_media_document(document: Document, media_ref: str) -> MediaAsset:
     media_subdir = get_media_subfolder(extension or Path(media_ref).suffix)
 
     filename = metadata.get("filename")
+    slug_hint = metadata.get("slug")
+    if not slug_hint and original_filename:
+        slug_hint = slugify(Path(original_filename).stem)
     if not filename:
-        filename = f"{document.document_id}{extension}" if extension else document.document_id
+        safe_slug = slugify(slug_hint) if slug_hint else metadata.get("filename", "")
+        slug_base = safe_slug or Path(extension_source or "").stem or document.document_id[:8]
+        unique_suffix = document.document_id[:8]
+        if unique_suffix not in slug_base:
+            slug_base = f"{slug_base}-{unique_suffix}"
+        filename = f"{slug_base}{extension}"
 
     suggested_path = metadata.get("suggested_path") or f"media/{media_subdir}/{filename}"
 
@@ -335,6 +344,16 @@ def _prepare_media_document(document: Document, media_ref: str) -> MediaAsset:
             "filename": filename,
         }
     )
+    if "slug" not in metadata and original_filename:
+        metadata["slug"] = slugify(Path(original_filename).stem)
+    metadata.setdefault("nav_exclude", True)
+    metadata["media_subdir"] = media_subdir
+    hide_flags = metadata.get("hide", [])
+    if isinstance(hide_flags, str):
+        hide_flags = [hide_flags]
+    if "navigation" not in hide_flags:
+        hide_flags.append("navigation")
+    metadata["hide"] = hide_flags
 
     return MediaAsset(
         content=payload,

@@ -37,6 +37,7 @@ from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.privacy.uuid_namespaces import deterministic_author_uuid
+from egregora.utils.paths import slugify
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 if TYPE_CHECKING:
@@ -679,6 +680,13 @@ class WhatsAppAdapter(InputAdapter):
     def source_identifier(self) -> str:
         return "whatsapp"
 
+    @property
+    def content_summary(self) -> str:
+        return (
+            "This dataset contains anonymized WhatsApp group conversations exported "
+            "directly from the mobile chat history."
+        )
+
     def get_adapter_metadata(self) -> AdapterMeta:
         return AdapterMeta(
             name="WhatsApp",
@@ -765,6 +773,7 @@ class WhatsAppAdapter(InputAdapter):
                 from egregora.ops.media import detect_media_type
 
                 media_type = detect_media_type(Path(media_reference))
+                media_slug = slugify(Path(media_reference).stem) if media_reference else None
 
                 return Document(
                     content=file_content,
@@ -772,6 +781,9 @@ class WhatsAppAdapter(InputAdapter):
                     metadata={
                         "original_filename": media_reference,
                         "media_type": media_type,
+                        "slug": media_slug or None,
+                        "nav_exclude": True,
+                        "hide": ["navigation"],
                     },
                 )
         except zipfile.BadZipFile:
