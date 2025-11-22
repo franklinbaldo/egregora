@@ -23,6 +23,7 @@ from egregora.data_primitives.protocols import UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.output_adapters.base import OutputAdapter
 from egregora.utils.cache import EnrichmentCache
+from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
 from egregora.utils.rate_limit import AsyncRateLimit
 
@@ -116,6 +117,7 @@ class PipelineState:
     # Output & Adapters (Initialized lazily or updated)
     output_format: OutputAdapter | None = None
     adapter: Any = None  # InputAdapter protocol
+    usage_tracker: UsageTracker | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,6 +209,10 @@ class PipelineContext:
     @property
     def rate_limit(self) -> AsyncRateLimit | None:
         return self.state.rate_limit
+
+    @property
+    def usage_tracker(self) -> UsageTracker | None:
+        return self.state.usage_tracker
 
     @property
     def quota_tracker(self) -> QuotaTracker | None:
