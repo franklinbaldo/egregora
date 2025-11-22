@@ -44,7 +44,7 @@ if TYPE_CHECKING:
     from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
-__all__ = ["WhatsAppAdapter", "discover_chat_file"]
+__all__ = ["WhatsAppAdapter", "discover_chat_file", "filter_system_messages"]
 
 
 # ============================================================================
@@ -470,6 +470,69 @@ def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
     return (filtered_messages, removed_count)
 
 
+# System message patterns (WhatsApp administrative messages)
+SYSTEM_MESSAGE_PATTERNS = [
+    "messages and calls are end-to-end encrypted",
+    "messages to this group are now secured with end-to-end encryption",
+    "left",
+    "added",
+    "removed",
+    "joined using this group's invite link",
+    "you were added",
+    "you added",
+    "you removed",
+    "you left",
+    "changed the group name",
+    "changed the subject to",
+    "changed this group's icon",
+    "changed their phone number",
+    "this message was deleted",
+    "missed voice call",
+    "missed video call",
+    "group created",
+]
+
+
+def filter_system_messages(messages: Table) -> tuple[Table, int]:
+    """Remove WhatsApp system/administrative messages from Table.
+
+    System messages include encryption notices, join/leave notifications,
+    group setting changes, and other WhatsApp-generated content that adds
+    noise to LLM inputs.
+
+    Args:
+        messages: Ibis table with 'text' column
+
+    Returns:
+        Tuple of (filtered_table, removed_count)
+
+    """
+    # Build combined filter mask for all patterns
+    text_lower = messages.text.lower()
+    mask = ibis.literal(value=False)
+
+    for pattern in SYSTEM_MESSAGE_PATTERNS:
+        mask = mask | text_lower.contains(pattern)
+
+    # Calculate counts before filtering
+    counts = messages.aggregate(
+        original_count=messages.count(),
+        removed_count=mask.sum(),
+    ).execute()
+
+    original_count = int(counts["original_count"][0] or 0)
+    if original_count == 0:
+        return (messages, 0)
+
+    removed_count = int(counts["removed_count"][0] or 0)
+    filtered_messages = messages.filter(~mask)
+
+    if removed_count > 0:
+        logger.info("Removed %s system/administrative messages from table", removed_count)
+
+    return (filtered_messages, removed_count)
+
+
 def parse_source(
     export: WhatsAppExport,
     timezone: str | ZoneInfo | None = None,
@@ -727,7 +790,14 @@ class WhatsAppAdapter(InputAdapter):
         # IR v1: use 'text' column instead of 'message'
         messages_table = messages_table.mutate(text=convert_media_to_markdown(messages_table.text))
 
-        logger.debug("Parsed WhatsApp export with %s messages", messages_table.count().execute())
+        # Filter out system/administrative messages to reduce noise
+        messages_table, system_removed = filter_system_messages(messages_table)
+
+        logger.debug(
+            "Parsed WhatsApp export with %s messages (%s system messages filtered)",
+            messages_table.count().execute(),
+            system_removed,
+        )
         return messages_table
 
     def deliver_media(self, media_reference: str, **kwargs: Unpack[DeliverMediaKwargs]) -> Document | None:
