@@ -131,26 +131,6 @@ class OutputSink(Protocol):
 
         """
 
-    def read_document_by_url(self, url_path: str) -> Document | None:
-        """Retrieve a document by its relative URL path.
-
-        Complementary to read_document() - allows retrieval by URL path instead of
-        (doc_type, identifier) tuple. Useful for following document references,
-        URL-based navigation, and processing links between documents.
-
-        Args:
-            url_path: Relative URL path (e.g., "posts/2025-01-10-my-post/")
-
-        Returns:
-            Document if found at that URL path, None otherwise
-
-        Examples:
-            >>> doc = sink.read_document_by_url("posts/2025-01-10-my-post/")
-            >>> if doc:
-            ...     print(f"Found: {doc.metadata['title']}")
-
-        """
-
     def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
         """Iterate through available documents, optionally filtering by ``doc_type``.
 
