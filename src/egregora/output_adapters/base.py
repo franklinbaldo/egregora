@@ -12,7 +12,6 @@ import ibis
 import ibis.expr.datatypes as dt
 
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import UrlConvention
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -166,15 +165,26 @@ class OutputAdapter(OutputSink, ABC):
     def get_format_instructions(self) -> str:
         """Generate format-specific instructions for the writer agent."""
 
-    def list_documents(self) -> "Table":
+    def list_documents(self, doc_type: DocumentType | None = None) -> "Table":
         """List all documents managed by this output format as an Ibis table.
 
         The default implementation materializes the documents returned by
         :meth:`documents` and exposes their storage identifiers and mtimes.
         Override only if you need to source the table from another store.
+
+        Args:
+            doc_type: Optional filter by document type
+
+        Returns:
+            Ibis Table with storage_identifier and mtime_ns columns
+
         """
         rows: list[dict[str, Any]] = []
         for document in self.documents():
+            # Filter by doc_type if specified
+            if doc_type is not None and document.type != doc_type:
+                continue
+
             identifier = document.metadata.get("storage_identifier")
             if not identifier:
                 identifier = document.suggested_path
@@ -200,6 +210,10 @@ class OutputAdapter(OutputSink, ABC):
         Note: This assumes filesystem backing. Non-filesystem adapters
         might raise NotImplementedError or return a temp path.
         """
+
+    @abstractmethod
+    def documents(self) -> Iterator[Document]:
+        """Return all managed documents as Document objects (lazy iterator)."""
 
     @abstractmethod
     def initialize(self, site_root: Path) -> None:
