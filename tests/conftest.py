@@ -11,13 +11,6 @@ from zoneinfo import ZoneInfo
 import duckdb
 import pytest
 
-from egregora.config.settings import create_default_config
-from egregora.data_primitives import GroupSlug
-from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file
-from egregora.utils.zip import validate_zip_contents
-from tests.utils.mock_batch_client import MockGeminiClient
-from tests.utils.pydantic_test_models import MockEmbeddingModel, install_writer_test_model
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STUBS_PATH = Path(__file__).resolve().parent / "_stubs"
 SRC_PATH = PROJECT_ROOT / "src"
@@ -30,6 +23,13 @@ if str(PROJECT_ROOT) not in sys.path:
 
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
+
+from egregora.config.settings import create_default_config
+from egregora.data_primitives import GroupSlug
+from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file
+from egregora.utils.zip import validate_zip_contents
+from tests.utils.mock_batch_client import MockGeminiClient
+from tests.utils.pydantic_test_models import MockEmbeddingModel, install_writer_test_model
 
 try:
     import ibis
