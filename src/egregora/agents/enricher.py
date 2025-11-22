@@ -40,8 +40,8 @@ from egregora.ops.media import (
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.paths import slugify
-from egregora.utils.rate_limit import AsyncRateLimit
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
+from egregora.utils.rate_limit import AsyncRateLimit
 
 if TYPE_CHECKING:
     import pandas as pd  # noqa: TID251

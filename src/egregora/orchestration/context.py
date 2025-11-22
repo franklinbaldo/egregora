@@ -25,7 +25,6 @@ from egregora.output_adapters.base import OutputAdapter
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.quota import QuotaTracker
 from egregora.utils.rate_limit import AsyncRateLimit
-from egregora.utils.quota import QuotaTracker
 
 
 @dataclass(frozen=True, slots=True)

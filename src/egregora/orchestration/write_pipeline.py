@@ -50,8 +50,8 @@ from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.utils.cache import EnrichmentCache
-from egregora.utils.rate_limit import AsyncRateLimit
 from egregora.utils.quota import QuotaTracker
+from egregora.utils.rate_limit import AsyncRateLimit
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
