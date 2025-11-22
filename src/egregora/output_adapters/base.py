@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 
+from egregora.data_primitives.document import Document
+
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
@@ -44,7 +46,7 @@ class OutputAdapter(ABC):
     Monolithic adapter contract:
         Egregora no longer expects adapters to vend bespoke ``PostStorage`` or
         ``ProfileStorage`` implementations.  All responsibilities flow through
-        this adapter via ``serve()``, ``write_post()``, ``write_profile()``, and
+        this adapter via ``persist()``, ``write_post()``, ``write_profile()``, and
         the document inventory helpers.  This keeps the public surface small and
         ensures adapters cannot fall out of sync with the document-oriented
         pipeline.  Subclasses should therefore *not* expose storage-specific
@@ -117,6 +119,10 @@ class OutputAdapter(ABC):
 
         """
         return f"posts/{post_slug}/"
+
+    @abstractmethod
+    def persist(self, document: Document) -> None:
+        """Persist a document so it becomes available at its canonical path."""
 
     @abstractmethod
     def scaffold_site(self, site_root: Path, site_name: str, **kwargs: object) -> tuple[Path, bool]:

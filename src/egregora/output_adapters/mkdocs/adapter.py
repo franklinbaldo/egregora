@@ -92,7 +92,7 @@ class MkDocsAdapter(OutputAdapter):
     def url_convention(self) -> UrlConvention:
         return self._url_convention
 
-    def serve(self, document: Document) -> None:
+    def persist(self, document: Document) -> None:
         doc_id = document.document_id
         url = self._url_convention.canonical_url(document, self._ctx)
         path = self._url_to_path(url, document)
