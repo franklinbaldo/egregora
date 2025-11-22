@@ -1047,24 +1047,44 @@ def _index_media_into_rag(
 def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) -> None:
     """Generate statistics page from conversation data.
 
+    Creates a POST-type document with daily activity statistics and serves it
+    via the output adapter. Skips generation if messages table is empty.
+
     Args:
-        messages_table: Complete messages table (before windowing)
-        ctx: Pipeline context with output adapter
+        messages_table: Complete messages table (before windowing). Must conform
+            to IR_MESSAGE_SCHEMA.
+        ctx: Pipeline context with output adapter for persistence.
+
+    Side Effects:
+        - Writes statistics document to ctx.output_format.serve()
+        - Logs info/warning/error messages
+
+    Raises:
+        Does not raise exceptions - errors are caught and logged.
 
     """
     logger.info("[bold cyan]📊 Generating statistics page...[/]")
 
-    # Compute daily aggregates
+    # Compute daily aggregates (stays as Ibis Table)
     stats_table = daily_aggregates_view(messages_table)
-    stats_data = stats_table.execute()
 
-    if stats_data.empty:
+    # Check if empty using Ibis
+    row_count = stats_table.count().to_pyarrow().as_py()
+    if row_count == 0:
         logger.warning("No statistics data available - skipping statistics page")
         return
 
-    # Calculate totals
-    total_messages = int(messages_table.count().execute())
-    total_authors = int(messages_table.author_uuid.nunique().execute())
+    # Calculate totals using Ibis
+    total_messages = messages_table.count().to_pyarrow().as_py()
+    total_authors = messages_table.author_uuid.nunique().to_pyarrow().as_py()
+
+    # Get date range using Ibis aggregation
+    date_range = stats_table.aggregate(
+        [stats_table.day.min().name("min_day"), stats_table.day.max().name("max_day")]
+    ).to_pyarrow()
+
+    min_date = date_range["min_day"][0].as_py()
+    max_date = date_range["max_day"][0].as_py()
 
     # Build Markdown content
     content_lines = [
@@ -1076,7 +1096,7 @@ def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) ->
         "",
         f"- **Total Messages**: {total_messages:,}",
         f"- **Unique Authors**: {total_authors}",
-        f"- **Date Range**: {stats_data['day'].min():%Y-%m-%d} to {stats_data['day'].max():%Y-%m-%d}",
+        f"- **Date Range**: {min_date:%Y-%m-%d} to {max_date:%Y-%m-%d}",
         "",
         "## Daily Activity",
         "",
@@ -1084,35 +1104,42 @@ def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) ->
         "|------|----------|----------------|---------------|--------------|",
     ]
 
-    for _, row in stats_data.iterrows():
+    # Convert to PyArrow (not pandas) for iteration
+    stats_arrow = stats_table.to_pyarrow()
+    for row in stats_arrow.to_pylist():
         date_str = row["day"].strftime("%Y-%m-%d")
-        msg_count = f"{int(row['message_count']):,}"
-        author_count = int(row["unique_authors"])
+        msg_count = f"{row['message_count']:,}"
+        author_count = row["unique_authors"]
         first_time = row["first_message"].strftime("%H:%M")
         last_time = row["last_message"].strftime("%H:%M")
-        content_lines.append(f"| {date_str} | {msg_count} | {author_count} | {first_time} | {last_time} |")
+        content_lines.append(
+            f"| {date_str} | {msg_count} | {author_count} | {first_time} | {last_time} |"
+        )
 
     content = "\n".join(content_lines)
 
-    # Create Document
+    # Create Document with data-derived date (not current timestamp)
     doc = Document(
         content=content,
         type=DocumentType.POST,
         metadata={
             "title": "Conversation Statistics",
-            "date": datetime.now(UTC).isoformat(),
+            "date": max_date.isoformat(),  # Use last conversation date
             "slug": "statistics",
             "tags": ["meta", "statistics"],
             "summary": "Overview of conversation activity and daily message volume",
         },
     )
 
-    # Serve document
-    if ctx.output_format:
-        ctx.output_format.serve(doc)
-        logger.info("[green]✓ Statistics page generated[/]")
-    else:
-        logger.warning("Output format not initialized - cannot save statistics page")
+    # Serve document with error handling
+    try:
+        if ctx.output_format:
+            ctx.output_format.serve(doc)
+            logger.info("[green]✓ Statistics page generated[/]")
+        else:
+            logger.warning("Output format not initialized - cannot save statistics page")
+    except Exception:
+        logger.exception("[red]Failed to generate statistics page[/]")
 
 
 def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, checkpoint_path: Path) -> None:
@@ -1286,9 +1313,14 @@ def run(  # noqa: PLR0913
                 dataset.context,
                 dataset.embedding_model,
             )
-            # Generate statistics page from complete messages table
-            _generate_statistics_page(dataset.messages_table, dataset.context)
+            # Save checkpoint first (critical path)
             _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
+
+            # Generate statistics page (non-critical, isolated)
+            try:
+                _generate_statistics_page(dataset.messages_table, dataset.context)
+            except Exception:
+                logger.exception("[red]Failed to generate statistics page (non-critical)[/]")
 
             # Calculate metrics
             finished_at = datetime.now(UTC)
