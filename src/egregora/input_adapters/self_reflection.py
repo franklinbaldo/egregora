@@ -72,9 +72,7 @@ class SelfInputAdapter(InputAdapter):
         **_: Any,
     ) -> ibis.Table:
         docs_dir, site_root = self._resolve_docs_dir(input_path)
-        markdown_paths = self._gather_markdown_paths(
-            docs_dir, output_adapter=output_adapter
-        )
+        markdown_paths = self._gather_markdown_paths(docs_dir, output_adapter=output_adapter)
         if not markdown_paths:
             msg = f"No markdown posts found under {docs_dir}"
             raise RuntimeError(msg)
@@ -144,11 +142,7 @@ class SelfInputAdapter(InputAdapter):
         if not posts_dir.is_dir():
             raise FileNotFoundError(f"Docs directory {docs_dir} does not contain a posts/ directory")
 
-        return [
-            path
-            for path in posts_dir.rglob("*.md")
-            if path.name not in {"index.md", "tags.md"}
-        ]
+        return [path for path in posts_dir.rglob("*.md") if path.name not in {"index.md", "tags.md"}]
 
     def _collect_from_output_adapter(self, output_adapter: OutputAdapter) -> list[Path]:
         """Collect markdown paths via the output adapter rather than crawling directories."""

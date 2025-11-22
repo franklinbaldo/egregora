@@ -971,9 +971,7 @@ def _prepare_pipeline_data(
     output_format = create_output_format(output_dir, format_type=config.output.format)
     ctx = ctx.with_output_format(output_format)
 
-    messages_table = _parse_and_validate_source(
-        adapter, input_path, timezone, output_adapter=output_format
-    )
+    messages_table = _parse_and_validate_source(adapter, input_path, timezone, output_adapter=output_format)
     _setup_content_directories(ctx)
     messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
 
