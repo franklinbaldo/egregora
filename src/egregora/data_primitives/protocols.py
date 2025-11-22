@@ -4,8 +4,12 @@ ISP-COMPLIANT PROTOCOLS (2025-11-22):
 - OutputSink: Runtime data operations (persist, read, list)
 - SiteScaffolder: Project lifecycle operations (init, scaffold)
 
+HYBRID IMPLEMENTATION:
+- Best of PR #869 (shorter names, DocumentMetadata, type alias)
+- Best of claude/refactor (comprehensive docstrings, resolve_document_path, full SiteScaffolder)
+
 LEGACY:
-- OutputAdapter: Monolithic protocol (deprecated, use OutputSink)
+- OutputAdapter: Type alias to OutputSink (backward compatibility)
 """
 
 from __future__ import annotations
@@ -29,6 +33,19 @@ class UrlContext:
     site_prefix: str = ""
     base_path: Path | None = None
     locale: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentMetadata:
+    """Lightweight description of a document available in an output sink.
+
+    Used for efficient document enumeration without loading full content.
+    Returned by OutputSink.list() for memory-efficient iteration.
+    """
+
+    identifier: str
+    doc_type: DocumentType | None
+    metadata: dict[str, object]
 
 
 class UrlConvention(Protocol):
@@ -102,10 +119,29 @@ class OutputSink(Protocol):
 
         """
 
+    def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
+        """Iterate through available documents, optionally filtering by ``doc_type``.
+
+        Returns lightweight DocumentMetadata objects for memory-efficient enumeration.
+        For full document content, use documents() or read_document().
+
+        Args:
+            doc_type: Optional filter by document type
+
+        Returns:
+            Iterator of DocumentMetadata (identifier, doc_type, metadata)
+
+        Examples:
+            >>> for meta in sink.list(DocumentType.POST):
+            ...     print(f"Post: {meta.identifier}")
+
+        """
+
     def list_documents(self, doc_type: DocumentType | None = None) -> Table:
         """Return all known documents as an Ibis table, optionally filtered by ``doc_type``.
 
-        Used by RAG indexing for incremental updates.
+        Used by RAG indexing for incremental updates. Returns Ibis Table for
+        efficient querying and filtering.
 
         Args:
             doc_type: Optional filter by document type
@@ -114,6 +150,10 @@ class OutputSink(Protocol):
             Ibis Table with columns:
                 - storage_identifier: string (format-specific identifier)
                 - mtime_ns: int64 (modification time in nanoseconds)
+
+        Note:
+            This method is kept for RAG compatibility. For general enumeration,
+            prefer the lighter-weight list() method.
 
         """
 
@@ -242,37 +282,8 @@ class SiteScaffolder(Protocol):
 
 
 # ============================================================================
-# LEGACY PROTOCOL (Backward Compatibility)
+# BACKWARD COMPATIBILITY
 # ============================================================================
 
-
-class OutputAdapter(Protocol):
-    """Unified protocol for persisting and retrieving documents.
-
-    DEPRECATED: This monolithic protocol violates the Interface Segregation
-    Principle by combining runtime data operations with project lifecycle
-    management. New code should use:
-        - OutputSink: For runtime data operations
-        - SiteScaffolder: For project initialization
-
-    This protocol is maintained for backward compatibility only.
-    """
-
-    @property
-    def url_convention(self) -> UrlConvention:
-        """Return the URL convention adopted by this adapter."""
-
-    def persist(self, document: Document) -> None:
-        """Persist ``document`` so that it becomes available at its canonical URL."""
-
-    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
-        """Retrieve a single document by its ``doc_type`` primary identifier."""
-
-    def list_documents(self, doc_type: DocumentType | None = None) -> Table:
-        """Return all known documents as an Ibis table, optionally filtered by ``doc_type``."""
-
-    def documents(self) -> Iterator[Document]:
-        """Return all managed documents as Document objects (lazy iterator for memory efficiency)."""
-
-    def resolve_document_path(self, identifier: str) -> Path:
-        """Resolve the given storage identifier (from ``list_documents``) to an actual filesystem path."""
+# Type alias for backward compatibility while callers migrate to OutputSink
+OutputAdapter = OutputSink
