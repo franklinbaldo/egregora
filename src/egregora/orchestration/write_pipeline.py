@@ -1062,112 +1062,10 @@ def _index_media_into_rag(
         logger.exception("[red]Failed to index media into RAG[/]")
 
 
-def _estimate_costs_dry_run(windows_iterator: any, model_name: str) -> None:
-    """Estimate token usage and costs for all windows without making API calls.
-
-    Args:
-        windows_iterator: Iterator of windows to estimate
-        model_name: Model name for pricing
-
-    """
-    from rich.table import Table
-
-    from egregora.agents.model_limits import estimate_tokens
-
-    logger.info("[bold cyan]💰 Dry Run: Estimating costs (no API calls will be made)...[/]")
-
-    # Gemini pricing (per 1M tokens, as of 2025)
-    PRICING = {
-        "flash": {"input": 0.075, "output": 0.30},  # Gemini 1.5 Flash / 2.0 Flash
-        "pro": {"input": 1.25, "output": 5.00},  # Gemini 1.5 Pro
-    }
-
-    # Determine pricing tier
-    pricing_tier = "flash" if "flash" in model_name.lower() else "pro"
-    input_price_per_m = PRICING[pricing_tier]["input"]
-    output_price_per_m = PRICING[pricing_tier]["output"]
-
-    # Estimate for each window
-    window_estimates = []
-    total_input_tokens = 0
-    total_output_tokens = 0
-
-    for window in windows_iterator:
-        # Get window messages
-        window_messages = window.messages.execute()
-        message_count = len(window_messages)
-
-        if message_count == 0:
-            continue
-
-        # Estimate input tokens (all messages + context)
-        window_text = " ".join(str(row.get("text", "")) for _, row in window_messages.iterrows())
-        input_tokens = estimate_tokens(window_text)
-
-        # Estimate output tokens (assume ~500 tokens per post, 1-3 posts per window)
-        estimated_posts = min(3, max(1, message_count // 50))  # Heuristic
-        output_tokens = estimated_posts * 500
-
-        total_input_tokens += input_tokens
-        total_output_tokens += output_tokens
-
-        window_estimates.append(
-            {
-                "window": f"{window.start_time:%Y-%m-%d} → {window.end_time:%Y-%m-%d}",
-                "messages": message_count,
-                "input_tokens": input_tokens,
-                "output_tokens": output_tokens,
-                "est_posts": estimated_posts,
-            }
-        )
-
-    # Calculate costs
-    total_input_cost = (total_input_tokens / 1_000_000) * input_price_per_m
-    total_output_cost = (total_output_tokens / 1_000_000) * output_price_per_m
-    total_cost = total_input_cost + total_output_cost
-
-    # Display Rich table
-    table = Table(
-        title=f"💰 Cost Estimation (Model: {model_name})",
-        show_header=True,
-        header_style="bold magenta",
-    )
-    table.add_column("Window", style="cyan")
-    table.add_column("Messages", justify="right", style="yellow")
-    table.add_column("Input Tokens", justify="right", style="green")
-    table.add_column("Output Tokens", justify="right", style="blue")
-    table.add_column("Est. Posts", justify="right", style="magenta")
-
-    for estimate in window_estimates[:10]:  # Show first 10 windows
-        table.add_row(
-            estimate["window"],
-            str(estimate["messages"]),
-            f"{estimate['input_tokens']:,}",
-            f"{estimate['output_tokens']:,}",
-            str(estimate["est_posts"]),
-        )
-
-    if len(window_estimates) > 10:
-        table.add_row("...", "...", "...", "...", "...", style="dim")
-
-    console.print(table)
-
-    # Summary
-    console.print("\n[bold]Summary:[/bold]")
-    console.print(f"  Total Windows: [cyan]{len(window_estimates)}[/cyan]")
-    console.print(f"  Total Input Tokens: [green]{total_input_tokens:,}[/green]")
-    console.print(f"  Total Output Tokens: [blue]{total_output_tokens:,}[/blue]")
-    console.print("\n[bold]Estimated Cost:[/bold]")
-    console.print(f"  Input: [green]${total_input_cost:.4f}[/green] ({input_price_per_m}/1M tokens)")
-    console.print(f"  Output: [blue]${total_output_cost:.4f}[/blue] ({output_price_per_m}/1M tokens)")
-    console.print(f"  [bold]Total: [yellow]${total_cost:.4f}[/yellow][/bold]")
-    console.print("\n[dim]Note: Estimates are approximate. Actual costs may vary.[/dim]")
-
-
 def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) -> None:
     """Generate statistics page from conversation data.
 
-    Creates a POST-type document with daily activity statistics and serves it
+    Creates a POST-type document with daily activity statistics and persists it
     via the output adapter. Skips generation if messages table is empty.
 
     Args:
@@ -1176,7 +1074,7 @@ def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) ->
         ctx: Pipeline context with output adapter for persistence.
 
     Side Effects:
-        - Writes statistics document to ctx.output_format.serve()
+        - Writes statistics document to ctx.output_format.persist()
         - Logs info/warning/error messages
 
     Raises:
@@ -1253,10 +1151,10 @@ def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) ->
         },
     )
 
-    # Serve document with error handling
+    # Persist document with error handling
     try:
         if ctx.output_format:
-            ctx.output_format.serve(doc)
+            ctx.output_format.persist(doc)
             logger.info("[green]✓ Statistics page generated[/]")
         else:
             logger.warning("Output format not initialized - cannot save statistics page")
@@ -1383,7 +1281,6 @@ def run(  # noqa: PLR0913
     *,
     api_key: str | None = None,
     client: genai.Client | None = None,
-    dry_run: bool = False,
 ) -> dict[str, dict[str, list[str]]]:
     """Run the complete write pipeline workflow.
 
@@ -1394,7 +1291,6 @@ def run(  # noqa: PLR0913
         config: Egregora configuration
         api_key: Optional Google API key
         client: Optional existing Gemini client
-        dry_run: If True, estimate costs without making API calls
 
     Returns:
         Dict mapping window labels to {'posts': [...], 'profiles': [...]}
@@ -1430,13 +1326,6 @@ def run(  # noqa: PLR0913
 
         try:
             dataset = _prepare_pipeline_data(adapter, input_path, config, ctx, output_dir)
-
-            # Dry-run mode: estimate costs without API calls
-            if dry_run:
-                _estimate_costs_dry_run(dataset.windows_iterator, config.models.writer)
-                logger.info("[bold green]✅ Dry run complete - no API calls were made[/]")
-                return {}  # Return empty results
-
             results, max_processed_timestamp = _process_all_windows(dataset.windows_iterator, dataset.context)
             _index_media_into_rag(
                 dataset.enable_enrichment,
