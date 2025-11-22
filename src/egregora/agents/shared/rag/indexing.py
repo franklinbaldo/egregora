@@ -253,6 +253,7 @@ def index_documents_for_rag(  # noqa: C901
             )
 
         docs_table = ibis.memtable(rows)
+        doc_count = len(rows)
 
         docs_table = docs_table[docs_table["source_path"] != ""]
 
