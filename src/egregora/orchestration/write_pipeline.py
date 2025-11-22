@@ -1112,9 +1112,7 @@ def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) ->
         author_count = row["unique_authors"]
         first_time = row["first_message"].strftime("%H:%M")
         last_time = row["last_message"].strftime("%H:%M")
-        content_lines.append(
-            f"| {date_str} | {msg_count} | {author_count} | {first_time} | {last_time} |"
-        )
+        content_lines.append(f"| {date_str} | {msg_count} | {author_count} | {first_time} | {last_time} |")
 
     content = "\n".join(content_lines)
 
