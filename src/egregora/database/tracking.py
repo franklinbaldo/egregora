@@ -51,7 +51,7 @@ def get_git_commit_sha() -> str | None:
 
     """
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603
             ["git", "rev-parse", "HEAD"],  # noqa: S607
             capture_output=True,
             text=True,

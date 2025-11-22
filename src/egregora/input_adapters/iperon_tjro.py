@@ -244,7 +244,7 @@ class IperonTJROAdapter(InputAdapter):
 
                 tz = ZoneInfo(tz_name)
                 ts = ts.astimezone(tz).astimezone(UTC)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 logger.warning("Invalid timezone %s, defaulting to UTC", tz_name)
                 ts = ts.astimezone(UTC)
         else:

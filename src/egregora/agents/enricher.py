@@ -436,7 +436,7 @@ async def _process_url_task(  # noqa: PLR0913
         return _create_enrichment_row(metadata, "URL", url, doc.document_id)
 
 
-async def _process_media_task(  # noqa: PLR0913
+async def _process_media_task(  # noqa: PLR0913, C901
     ref: str,
     media_doc: Document,
     metadata: dict[str, Any],

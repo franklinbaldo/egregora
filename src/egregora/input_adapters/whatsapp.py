@@ -414,7 +414,7 @@ def extract_commands(messages: Table) -> list[dict]:
         ),
     )
 
-    commands_table = command_cases.filter(command_cases.command_name.notnull()).select(
+    commands_table = command_cases.filter(command_cases.command_name.notna()).select(
         command_cases.author_uuid,
         command_cases.ts,
         command_cases.text,
@@ -657,7 +657,7 @@ def build_message_attrs(
             "message_date": message_date,
         }
     )
-    has_metadata = ibis.coalesce(original_line, tagged_line, message_date).notnull()
+    has_metadata = ibis.coalesce(original_line, tagged_line, message_date).notna()
     attrs_json = attrs_struct.cast(dt.json).cast(dt.string)
     empty_json = ibis.literal(None, type=dt.string)
     return ibis.cases(

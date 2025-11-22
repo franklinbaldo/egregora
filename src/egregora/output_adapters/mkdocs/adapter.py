@@ -361,7 +361,6 @@ class MkDocsAdapter(OutputAdapter):
         profiles_dir = site_paths["profiles_dir"]
         media_dir = site_paths["media_dir"]
         posts_dir = site_paths["posts_dir"]
-        egregora_dir = site_paths["egregora_dir"]
 
         # Define templates to render
         templates_to_render = [
@@ -940,7 +939,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             metadata.setdefault("mtime_ns", 0)
         return Document(content=body.strip(), type=doc_type, metadata=metadata)
 
-    def _url_to_path(self, url: str, document: Document) -> Path:
+    def _url_to_path(self, url: str, document: Document) -> Path:  # noqa: PLR0911, C901
         base = self._ctx.base_url.rstrip("/")
         if url.startswith(base):
             url_path = url[len(base) :]
@@ -957,7 +956,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             return self.journal_dir / f"{url_path.split('/')[-1]}.md"
         if document.type == DocumentType.ENRICHMENT_URL:
             # url_path might be 'media/urls/slug' -> we want 'slug.md' inside urls_dir
-            slug = url_path.split('/')[-1]
+            slug = url_path.split("/")[-1]
             return self.urls_dir / f"{slug}.md"
         if document.type == DocumentType.ENRICHMENT_MEDIA:
             # url_path might be 'media/images/slug' -> we want 'slug.md' inside media/images
@@ -965,25 +964,25 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             # url_path is like 'media/images/foo'
             # self.media_dir is 'docs/media'
             # We want 'docs/media/images/foo.md'
-            
+
             # Strip the prefix (media/) from url_path if present
             rel_path = url_path
             media_prefix = self._ctx.site_prefix + "/media" if self._ctx.site_prefix else "media"
             if rel_path.startswith(media_prefix):
-                 rel_path = rel_path[len(media_prefix):].strip("/")
+                rel_path = rel_path[len(media_prefix) :].strip("/")
             elif rel_path.startswith("media/"):
-                 rel_path = rel_path[6:]
-            
+                rel_path = rel_path[6:]
+
             return self.media_dir / f"{rel_path}.md"
 
         if document.type == DocumentType.MEDIA:
-             # Similar logic for media files
+            # Similar logic for media files
             rel_path = url_path
             media_prefix = self._ctx.site_prefix + "/media" if self._ctx.site_prefix else "media"
             if rel_path.startswith(media_prefix):
-                 rel_path = rel_path[len(media_prefix):].strip("/")
+                rel_path = rel_path[len(media_prefix) :].strip("/")
             elif rel_path.startswith("media/"):
-                 rel_path = rel_path[6:]
+                rel_path = rel_path[6:]
             return self.media_dir / rel_path
 
         return self.site_root / f"{url_path}.md"

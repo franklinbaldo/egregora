@@ -5,10 +5,18 @@ import zipfile
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import duckdb
 import pytest
+
+from egregora.config.settings import create_default_config
+from egregora.data_primitives import GroupSlug
+from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file
+from egregora.utils.zip import validate_zip_contents
+from tests.utils.mock_batch_client import MockGeminiClient
+from tests.utils.pydantic_test_models import MockEmbeddingModel, install_writer_test_model
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STUBS_PATH = Path(__file__).resolve().parent / "_stubs"
@@ -30,14 +38,6 @@ except ImportError:  # pragma: no cover - depends on test env
         "ibis is required for the test suite; install project dependencies to run tests",
         allow_module_level=True,
     )
-
-
-# Imports below require sys.path setup above
-from egregora.data_primitives import GroupSlug
-from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file
-from egregora.utils.zip import validate_zip_contents
-from tests.utils.mock_batch_client import MockGeminiClient
-from tests.utils.pydantic_test_models import MockEmbeddingModel, install_writer_test_model
 
 
 @pytest.fixture(autouse=True)
@@ -153,8 +153,6 @@ def stub_enrichment_agents(monkeypatch):
         raising=False,
     )
 
-    from types import SimpleNamespace
-
     def _avatar_agent(_model):
         class _StubAvatar:
             def run_sync(self, *args, **kwargs):
@@ -237,16 +235,14 @@ def test_config(tmp_path: Path):
     Returns:
         EgregoraConfig configured for test environment
     """
-    from egregora.config.settings import create_default_config
 
     # Create site root in tmp_path for test isolation
     site_root = tmp_path / "site"
     site_root.mkdir(parents=True, exist_ok=True)
 
     # Create default config with test site_root
-    config = create_default_config(site_root=site_root)
-
-    return config
+    # Create default config with test site_root
+    return create_default_config(site_root=site_root)
 
 
 @pytest.fixture
@@ -282,9 +278,8 @@ def enrichment_test_config(test_config):
     Returns:
         EgregoraConfig with enrichment enabled
     """
-    config = test_config.model_copy(deep=True)
     # Enrichment settings will be added here when needed
-    return config
+    return test_config.model_copy(deep=True)
 
 
 @pytest.fixture

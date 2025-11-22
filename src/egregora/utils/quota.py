@@ -70,9 +70,10 @@ class QuotaTracker:
         if self._record.date != today:
             self._record = QuotaUsageRecord(date=today, used=0)
         if self._record.used + count > self.daily_limit:
-            raise QuotaExceededError(
+            msg = (
                 f"Daily LLM quota exceeded ({self.daily_limit} requests/day). "
                 f"Used {self._record.used}, requested {count}."
             )
+            raise QuotaExceededError(msg)
         self._record.used += count
         self._save()

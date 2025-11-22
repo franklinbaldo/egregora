@@ -318,13 +318,13 @@ def _build_conversation_markdown_verbose(table: Table) -> str:
         order_columns.append(table["msg_id"])
 
     ordered_table = table.order_by(order_columns)
-    df = ordered_table.select(time_col, author_col, message_col).execute()
+    dataframe = ordered_table.select(time_col, author_col, message_col).execute()
 
-    if df.empty:
+    if dataframe.empty:
         return ""
 
     lines = []
-    for idx, row in enumerate(df.itertuples(), start=1):
+    for idx, row in enumerate(dataframe.itertuples(), start=1):
         lines.append(f"## Message {idx}")
         # Use column position (1, 2, 3) instead of names since select() order is deterministic
         timestamp_val = getattr(row, time_col)
@@ -340,7 +340,7 @@ def _build_conversation_markdown_verbose(table: Table) -> str:
     markdown = "\n".join(lines).strip()
     logger.debug(
         "Consolidated %d messages to markdown (%d chars) using schema: %s/%s/%s",
-        len(df),
+        len(dataframe),
         len(markdown),
         time_col,
         author_col,
