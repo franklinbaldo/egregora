@@ -1,96 +1,62 @@
-# Egregora 🤖 → 📝
+# Egregora
 
-**Emergent Group Reflection Engine Generating Organized Relevant Articles**
+**Turn group chats into a knowledge base.**
 
-> **Turn your group chat into a magazine.**
+Transform WhatsApp conversations into thoughtful blog posts using AI. Privacy-first architecture ensures names never reach the LLM—only anonymized UUIDs do.
 
-Transform messy WhatsApp conversations into beautifully written blog posts. An AI-powered publishing system that synthesizes your group's collective intelligence into coherent, insightful articles—while keeping everyone's privacy intact.
-
-[![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Powered by uv](https://img.shields.io/badge/uv-powered-FF6C37.svg)](https://github.com/astral-sh/uv)
-[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![uv](https://img.shields.io/badge/uv-powered-FF6C37.svg)](https://github.com/astral-sh/uv)
 
 ---
 
-## 💡 What Does It Do?
+## What It Does
 
-Egregora transforms informal group conversations into polished blog posts. Here's what happens:
+**Input:** WhatsApp export (ZIP file)
+**Output:** Static blog with AI-generated posts
 
-**Input:** Your WhatsApp group discussing AI, philosophy, or that article someone shared
-**Output:** A thoughtful blog post like ["The License to Exist: What Happens When the System Says 'Write Anything You Want'?"](tests/fixtures/golden/expected_output/posts/2025-10-28-the-license-to-exist-emergent-agency-in-a-test-environment.md) with proper formatting, citations, and metadata
-
-### ✨ Key Features
-
-<table>
-<tr>
-<td width="50%">
-
-**🧠 Emergent Intelligence**
-AI synthesizes scattered messages into coherent narratives, finding patterns and themes you didn't know existed
-
-**🛡️ Privacy-First Architecture**
-Real names → deterministic UUIDs before any AI processing. No PII ever reaches the LLM.
-
-**📊 Context-Aware Writing**
-RAG retrieval ensures posts reference past discussions, creating a coherent knowledge base over time
-
-</td>
-<td width="50%">
-
-**⚙️ Zero Configuration**
-Run directly with `uvx` - no installation, no setup, just works
-
-**🎯 Quality Ranking**
-Built-in Elo system helps identify your best content
-
-**✏️ AI Editor**
-Interactive refinement of generated posts with conversational AI
-
-</td>
-</tr>
-</table>
-
-### 🎯 Perfect For
-
-- **Research groups** turning discussions into publication drafts
-- **Reading clubs** synthesizing book conversations into essays
-- **Remote teams** creating knowledge bases from Slack/WhatsApp
-- **Personal archiving** preserving meaningful conversations as structured content
-- **Content creators** finding story angles in community discussions
-
----
-
-## 🚀 Quick Start
-
-Get your AI-powered blog running in under 5 minutes:
-
-### Step 1: Get a Gemini API Key (Free)
-
-1. Visit [Google AI Studio](https://ai.google.dev/gemini-api/docs/api-key)
-2. Click "Get API key" → Create API key
-3. Copy the key
-
-```bash
-# Set the API key
-export GOOGLE_API_KEY="your-api-key-here"
+```
+Chat messages → Privacy layer → LLM synthesis → Blog posts
 ```
 
-### Step 2: Export Your WhatsApp Chat
+### Example
 
-On WhatsApp:
-1. Open the group chat
-2. Tap **⋮** (menu) → **More** → **Export chat**
-3. Choose **"Without media"** (recommended for privacy)
-4. Save the `.zip` file
+**Chat messages:**
+```
+[2025-10-28 14:10] Alice: Did you see that article about AI agents?
+[2025-10-28 14:12] Bob: Yeah, the license to exist concept is wild
+[2025-10-28 14:15] Alice: Makes you think about emergent behavior...
+```
 
-### Step 3: Run Egregora
+**Generated post:** [The License to Exist](tests/fixtures/golden/expected_output/posts/2025-10-28-the-license-to-exist-emergent-agency-in-a-test-environment.md)
+- Synthesizes scattered thoughts into coherent narrative
+- Adds citations and context from past discussions (RAG)
+- Assigns metadata (title, slug, tags, summary)
+- Maintains anonymity (Alice → uuid-a1b2c3...)
+
+---
+
+## Quick Start
+
+### 1. Get Gemini API Key (Free)
+
+Visit [Google AI Studio](https://ai.google.dev/gemini-api/docs/api-key) → Create API key
 
 ```bash
-# Install uv (one-time, ~30 seconds)
+export GOOGLE_API_KEY="your-key-here"
+```
+
+### 2. Export WhatsApp Chat
+
+WhatsApp → Chat → ⋮ Menu → More → Export chat → **Without media** → Save ZIP
+
+### 3. Run Pipeline
+
+```bash
+# Install uv (one-time)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Process your chat (creates a blog in ./my-blog)
+# Process chat → generates blog in ./my-blog
 uvx --from git+https://github.com/franklinbaldo/egregora \
     egregora write whatsapp-export.zip --output=./my-blog
 
@@ -99,331 +65,269 @@ cd my-blog
 uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
 ```
 
-**That's it!** Open [http://localhost:8000](http://localhost:8000) to see your blog. Generated posts are grouped by time windows (filenames such as `2025-10-28 14:10 to 14:15.md`) and all runtime state lives under `.egregora/` (config, RAG data, optional checkpoints). By default, the pipeline always rebuilds from scratch for simplicity. Use `--resume` flag to enable incremental processing.
-
-**Output layout**
-- `docs/posts/<date>-<slug>.md` — post filenames come from the LLM-provided slug plus the publication date (e.g. `2025-10-28-the-license-to-exist.md`)
-- `docs/profiles/` — anonymized author profiles
-- `docs/journal/<timestamp>.md` — continuity journals keyed by creation time (`YYYY-MM-DD-HH-MM-SS.md`)
-- `.egregora/` — runtime state (config, RAG index, checkpoints when `--resume` is used)
+Open http://localhost:8000 🎉
 
 ---
 
-## 📥 Supported Sources
+## Features
 
-Egregora ships with a registry of input adapters. Select the source with `--source=<name>`:
-
-| Source | Flag | Expected Input | When to Use |
-| --- | --- | --- | --- |
-| WhatsApp (default) | `whatsapp` | Native `.zip` export from the mobile app | Turn group chats into essays |
-| TJRO Comunica API | `iperon-tjro` | JSON/txt file describing API URLs or query params (see `tests/fixtures/input/iperon_tjro/sample.json`) | Monitor Brazilian judicial communications mentioning IPERON |
-| Self-Reflection | `self` | Path to an existing MkDocs blog generated by Egregora | Feed past posts back into the pipeline so the writer only publishes if it can add new insight today |
-
-Example (self-reflection run):
-
-```bash
-uv run egregora write blog --source=self --output blog-self --timezone=UTC
-```
-
-Example (TJRO API run):
-
-```bash
-uv run egregora write configs/iperon.json --source=iperon-tjro --output blog-legal
-```
-
-Every adapter exposes a `content_summary` and optional `generation_instructions` property so the writer prompt understands the dataset context (e.g., “Judicial communications published via the Brazilian TJRO Comunica API…”).
+| Feature | Description |
+|---------|-------------|
+| **Privacy-First** | Names → UUIDs before LLM sees anything |
+| **RAG Context** | Posts reference past discussions automatically |
+| **Smart Windowing** | Group by time, message count, or custom rules |
+| **Quality Ranking** | Built-in Elo system scores post quality |
+| **AI Editor** | Refine posts interactively with conversational AI |
+| **Statistics** | Auto-generated activity metrics |
+| **Zero Config** | Works out of the box, customize later |
 
 ---
 
-## 🏗️ Architecture
-
-Egregora uses a **modern, staged pipeline** architecture built for clarity and extensibility:
-
-```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│  Ingestion  │ -> │   Privacy   │ -> │ Enrichment  │
-└─────────────┘    └─────────────┘    └─────────────┘
-      ↓                   ↓                   ↓
-  Parse msgs        Anonymize UUIDs     Enrich context
-  (pyparsing)       Detect PII          (LLM + cache)
-
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│  Knowledge  │ <- │ Generation  │ -> │ Publication │
-└─────────────┘    └─────────────┘    └─────────────┘
-      ↑                   ↓                   ↓
-   RAG Index        Pydantic-AI          MkDocs Site
-   Annotations      Agent w/ Tools       + Templates
-```
-
-### Modern Design Principles
-
-**✅ Configuration Objects** (Phase 2)
-- Reduced function signatures from 12-16 parameters → 3-6 parameters
-- Uses Pydantic V2 `EgregoraConfig` + frozen `RuntimeContext` dataclasses
-
-**✅ Simple Resume Logic** (Opt-In)
-- Checkpoint-based incremental processing disabled by default
-- Enable with `--resume` flag for large datasets
-- Default: Always rebuild from scratch (predictable, simple)
-
-**✅ Source-Based Organization** (Phase 6)
-- Source-specific code in `sources/{whatsapp,slack}/`
-- Generic interfaces in `ingestion/base.py`
-- Easy to add new sources (Discord, Telegram, etc.)
-
-**✅ Privacy-First**
-- **Critical invariant**: Anonymization happens BEFORE any LLM sees data
-- Real names never leave your machine
-- Deterministic UUIDs ensure consistency across runs
-
-### Tech Stack
-
-- **Language**: Python 3.12+ with type hints
-- **Package Manager**: [uv](https://github.com/astral-sh/uv) (Rust-powered, fast)
-- **DataFrame API**: [Ibis](https://ibis-project.org/) (type-safe, lazy)
-- **Database**: DuckDB with VSS extension (vector search)
-- **LLM Framework**: [Pydantic-AI](https://ai.pydantic.dev/) (type-safe agents)
-- **LLM Provider**: Google Gemini (switchable via env var)
-- **Static Site**: MkDocs Material (beautiful, fast)
-- **Parsing**: pyparsing (declarative, composable)
-- **Linting**: ruff (Rust-powered, comprehensive)
-
----
-
-## 📚 Usage Examples
+## Usage
 
 ### Basic Processing
 
 ```bash
-# Process with default settings (1 day per window, full rebuild)
+# Default: 1 day per window, full rebuild
 egregora write export.zip --output=./blog
 
-# Group by week (7 days per window)
-egregora write export.zip --step-size=7 --step-unit=days
+# Custom windowing
+egregora write export.zip --step-size=7 --step-unit=days     # Weekly
+egregora write export.zip --step-size=100 --step-unit=messages  # By count
 
-# Group by message count (100 messages per window)
-egregora write export.zip --step-size=100 --step-unit=messages
+# Date filtering
+egregora write export.zip --from-date=2025-01-01 --to-date=2025-01-31
 
-# Filter date range
-egregora write export.zip \
-    --from-date=2025-01-01 \
-    --to-date=2025-01-31
-
-# Custom timezone (important for accurate timestamps)
-egregora write export.zip --timezone="America/Sao_Paulo"
-
-# Resume from checkpoint (opt-in incremental processing)
+# Resume from checkpoint (incremental)
 egregora write export.zip --output=./blog --resume
 ```
 
-### Privacy Controls
+### Privacy Commands
 
-Users can control their participation via in-chat commands:
+Users control their participation via in-chat commands:
 
 ```
-/egregora set alias "Dr. Smith"       # Set display name
-/egregora set bio "AI researcher"     # Add bio
-/egregora opt-out                     # Exclude from posts
-/egregora opt-in                      # Re-include
-/egregora set avatar <URL>            # Set avatar
-/egregora remove avatar               # Remove avatar
+/egregora set alias "Dr. Smith"    # Set display name
+/egregora opt-out                  # Exclude from posts
+/egregora opt-in                   # Re-include
+```
+
+### Multiple Sources
+
+```bash
+# WhatsApp (default)
+egregora write export.zip --output=./blog
+
+# Self-reflection (feed past posts back into pipeline)
+egregora write ./blog --source=self --output=./blog-meta
+
+# Brazilian judicial API (TJRO)
+egregora write config.json --source=iperon-tjro --output=./blog-legal
 ```
 
 ---
 
-## 🛠️ Development
+## Architecture
+
+```
+┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│  Ingestion  │ → │   Privacy   │ → │ Enrichment  │
+│  (Parse)    │   │  (UUIDs)    │   │  (LLM+Cache)│
+└─────────────┘   └─────────────┘   └─────────────┘
+                         ↓
+┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│ Publication │ ← │ Generation  │ ← │  Knowledge  │
+│  (MkDocs)   │   │ (Pydantic-AI│   │  (RAG+Elo)  │
+└─────────────┘   └─────────────┘   └─────────────┘
+```
+
+### Design Principles
+
+✅ **Privacy-First:** Anonymization BEFORE any LLM processing
+✅ **Functional:** Pure `Table → Table` transformations
+✅ **Type-Safe:** Pydantic V2 configs, Ibis for DataFrames
+✅ **Simple Default:** Full rebuild (use `--resume` for incremental)
+✅ **Alpha Mindset:** Clean breaks over backward compatibility
+
+### Tech Stack
+
+- **Language:** Python 3.12+ (type hints everywhere)
+- **Package Manager:** [uv](https://github.com/astral-sh/uv) (Rust-powered, fast)
+- **DataFrame:** [Ibis](https://ibis-project.org/) (lazy, type-safe)
+- **Database:** DuckDB + VSS extension (vector search)
+- **LLM Framework:** [Pydantic-AI](https://ai.pydantic.dev/) (type-safe agents)
+- **LLM:** Google Gemini (configurable)
+- **Site Generator:** MkDocs Material
+- **Linter:** ruff (Rust-powered)
+
+---
+
+## Development
 
 ### Setup
 
 ```bash
-# Clone the repository
 git clone https://github.com/franklinbaldo/egregora.git
 cd egregora
 
-# Install with all extras (dev, test, docs)
+# Install with dev dependencies
 uv sync --all-extras
 
-# Install pre-commit hooks (auto-format, lint, type-check)
+# Install pre-commit hooks (mandatory)
 python dev_tools/setup_hooks.py
 ```
 
 ### Testing
 
 ```bash
-# Run all tests
+# All tests
 uv run pytest tests/
 
-# Run specific test categories
-uv run pytest tests/unit/              # Unit tests (fast)
-uv run pytest tests/integration/       # Integration tests (requires API key)
-uv run pytest tests/agents/            # Agent-specific tests
-uv run pytest tests/e2e/               # End-to-end tests
+# Specific categories
+uv run pytest tests/unit/         # Fast, no API calls
+uv run pytest tests/integration/  # Uses VCR cassettes
+uv run pytest tests/e2e/           # Full pipeline
 
 # With coverage
 uv run pytest --cov=egregora --cov-report=html tests/
-
-# VCR cassette replay (no API key needed for most tests)
-uv run pytest tests/e2e/
 ```
 
-**Note**: Integration tests use [pytest-vcr](https://pytest-vcr.readthedocs.io/) to record/replay Gemini API calls. First runs need `GOOGLE_API_KEY`, subsequent runs use cassettes from `tests/cassettes/`.
+**Note:** Integration tests use [pytest-vcr](https://pytest-vcr.readthedocs.io/). First run needs `GOOGLE_API_KEY`, subsequent runs replay from `tests/cassettes/`.
 
 ### Code Quality
 
 ```bash
-# Run all checks (recommended before commit)
+# All checks (run before commit)
 uv run pre-commit run --all-files
 
 # Individual tools
-uv run ruff check src/              # Lint
-uv run ruff format src/             # Format
-uv run ruff check --fix src/        # Auto-fix
-uv run mypy src/                    # Type check
+uv run ruff check --fix src/   # Lint + auto-fix
+uv run ruff format src/        # Format
+uv run mypy src/               # Type check
 ```
 
-**Line length**: 110 characters (see `pyproject.toml`)
+**Line length:** 110 chars (see `pyproject.toml`)
 
-### Project Structure
+---
+
+## Project Structure
 
 ```
 src/egregora/
-├── cli/                      # CLI commands and interface
-│   ├── main.py              # Main Typer app (write, init, top, doctor)
-│   ├── runs.py              # Run tracking commands
-│   └── read.py              # Reader agent commands
-├── orchestration/            # High-level workflows
-│   ├── write_pipeline.py    # Write workflow coordination
-│   └── context.py           # Runtime context
-├── config/                   # Pydantic V2 configuration
-│   ├── settings.py          # EgregoraConfig (root config)
-│   └── config_validation.py # Config validation utilities
-├── input_adapters/          # Bring data INTO the system
-│   ├── base.py             # InputAdapter protocol
-│   ├── whatsapp.py         # WhatsApp adapter
-│   ├── iperon_tjro.py      # Brazilian judicial API adapter
-│   ├── self_reflection.py  # Self-reflection adapter
-│   └── registry.py         # Adapter registry
-├── output_adapters/         # Take data OUT to publication
-│   ├── base.py             # OutputAdapter protocol
-│   └── mkdocs/             # MkDocs implementation
-│       └── adapter.py      # MkDocs adapter
-├── transformations/         # Pure functional data transforms
-│   └── windowing.py        # Window creation and checkpointing
-├── data_primitives/         # Foundation data models
-│   ├── document.py         # Document, DocumentType, DocumentCollection
-│   ├── base_types.py       # GroupSlug, PostSlug
-│   └── protocols.py        # Core protocols
-├── privacy/                 # Anonymization + PII detection
-│   ├── anonymizer.py       # UUID-based anonymization
-│   └── detector.py         # PII detection
-├── agents/                  # Pydantic-AI agents
-│   ├── writer.py           # Post generation agent
-│   ├── reader.py           # Reader/ranking agent
-│   ├── enricher.py         # URL/media enrichment agent
-│   ├── shared/             # Shared agent utilities
-│   │   └── rag/            # RAG implementation
-│   └── tools/              # Agent skills & tool injection
-├── database/                # DuckDB storage and schemas
-│   ├── duckdb_manager.py   # DuckDB connection management
-│   ├── ir_schema.py        # IR schema definitions
-│   ├── validation.py       # Schema validation
-│   ├── tracking.py         # Run tracking
-│   └── views.py            # View registry
-├── knowledge/               # Knowledge management
-│   └── profiles.py         # Author profiling
-└── utils/                   # Shared utilities
-    ├── cache.py            # DiskCache
-    ├── batch.py            # Batch processing
-    ├── quota.py            # Rate limiting
-    └── filesystem.py       # File utilities
+├── cli/                  # Commands (write, init, runs)
+├── orchestration/        # Pipeline workflows
+├── input_adapters/       # WhatsApp, Slack, self-reflection
+├── output_adapters/      # MkDocs, Hugo (future)
+├── transformations/      # Pure functional data transforms
+├── agents/               # Writer, enricher, reader (Pydantic-AI)
+├── privacy/              # Anonymization + PII detection
+├── database/             # DuckDB + schemas + views
+├── config/               # Pydantic V2 settings
+└── data_primitives/      # Core data models (Document, etc.)
+```
+
+See [CLAUDE.md](CLAUDE.md) for detailed architecture and conventions.
+
+---
+
+## Configuration
+
+Default config at `.egregora/config.yml`:
+
+```yaml
+models:
+  writer: google-gla:gemini-flash-latest
+  enricher: google-gla:gemini-flash-latest
+  embedding: google-gla:gemini-embedding-001
+
+rag:
+  enabled: true
+  top_k: 5
+  mode: ann  # "ann" or "exact"
+
+pipeline:
+  step_size: 1
+  step_unit: days  # "days", "hours", "messages"
+```
+
+Custom prompts: `.egregora/prompts/` (overrides `src/egregora/prompts/`)
+
+---
+
+## Output Structure
+
+```
+my-blog/
+├── docs/
+│   ├── posts/              # Generated posts (YYYY-MM-DD-slug.md)
+│   ├── profiles/           # Anonymized author profiles
+│   ├── media/              # Enriched media descriptions
+│   ├── journal/            # Continuity journals (YYYY-MM-DD-HH-MM-SS.md)
+│   └── index.md            # Home page
+├── .egregora/
+│   ├── config.yml          # Local config
+│   ├── runs.duckdb         # Run tracking
+│   ├── rag.duckdb          # Vector embeddings
+│   └── checkpoint.json     # Resume state (if --resume used)
+└── mkdocs.yml              # Site config
 ```
 
 ---
 
-## 📖 Documentation
+## Contributing
 
-- **[CLAUDE.md](CLAUDE.md)** - Complete developer guide with architecture, modern patterns, and conventions
-- **[SECURITY.md](SECURITY.md)** - Security policy and reporting
-- **[docs/](docs/)** - Comprehensive guides, architecture docs, and API reference
+Contributions welcome! Alpha mindset applies:
 
-The **TENET-BREAK Philosophy** (documented in CLAUDE.md) guides intentional, temporary violations of core principles for pragmatic reasons during alpha development.
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! We use an **alpha mindset**:
 - ✅ Clean breaks for better architecture
 - ❌ No backward compatibility required
-- ✅ Modern patterns (Pydantic V2, frozen dataclasses, type hints)
-- ❌ No functions with >5 parameters (use config objects)
+- ✅ Modern patterns (Pydantic V2, frozen dataclasses)
+- ❌ No functions with >5 params (use config objects)
 
-### Before Contributing
-
-1. Review [CLAUDE.md](CLAUDE.md) for architecture, patterns, and conventions
-2. Check [docs/](docs/) for recent changes and plans
-3. Install pre-commit hooks **before creating a branch**: run `python dev_tools/setup_hooks.py` (or `uv run pre-commit install`)
-   so the same formatting, linting, and security checks run locally on every commit.
-
-### Common Tasks
-
-```bash
-# Fix linting issues automatically
-uv run ruff check --fix src/
-
-# Format code
-uv run ruff format src/
-
-# Run type checker
-uv run mypy src/
-
-# Run tests with coverage
-uv run pytest --cov=egregora tests/
-```
+**Before contributing:**
+1. Read [CLAUDE.md](CLAUDE.md) for architecture and conventions
+2. Install pre-commit hooks: `python dev_tools/setup_hooks.py`
+3. Ensure tests pass: `uv run pytest tests/`
 
 ---
 
-## 📋 Roadmap
+## Documentation
 
-- [x] WhatsApp source support with privacy-first anonymization
-- [x] MkDocs Material output format
-- [x] Pydantic-AI agent with tool calling
-- [x] RAG retrieval for context-aware posts
-- [x] Elo-based post ranking system
-- [x] Interactive AI editor for post refinement
-- [x] Modern architecture (Phases 0-6 complete)
-- [ ] Slack source support
-- [ ] Discord source support
+- [CLAUDE.md](CLAUDE.md) - Developer guide (architecture, patterns, conventions)
+- [SECURITY.md](SECURITY.md) - Security policy
+- [docs/](docs/) - Guides, architecture docs, API reference
+
+---
+
+## Roadmap
+
+- [x] WhatsApp source with privacy-first anonymization
+- [x] MkDocs Material output
+- [x] Pydantic-AI agents with tools
+- [x] RAG retrieval for context
+- [x] Elo-based ranking
+- [x] Interactive AI editor
+- [x] Statistics auto-generation
+- [ ] Slack/Discord sources
 - [ ] Hugo output format
 - [ ] Multi-language support
-- [ ] Automated testing improvements
-- [ ] Performance optimizations
 
 ---
 
-## ⚖️ License
+## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-## 🙏 Acknowledgments
-
-- **[Pydantic-AI](https://ai.pydantic.dev/)** for type-safe LLM agents
-- **[Ibis](https://ibis-project.org/)** for the elegant DataFrame API
-- **[DuckDB](https://duckdb.org/)** for the amazing analytics database
-- **[MkDocs Material](https://squidfunk.github.io/mkdocs-material/)** for the beautiful theme
-- **[uv](https://github.com/astral-sh/uv)** for the blazing-fast package manager
-- **[ruff](https://github.com/astral-sh/ruff)** for the comprehensive linter/formatter
+MIT License - see [LICENSE](LICENSE)
 
 ---
 
-## 📧 Contact
+## Acknowledgments
 
-- **Repository**: [github.com/franklinbaldo/egregora](https://github.com/franklinbaldo/egregora)
-- **Issues**: [github.com/franklinbaldo/egregora/issues](https://github.com/franklinbaldo/egregora/issues)
+- [Pydantic-AI](https://ai.pydantic.dev/) - Type-safe LLM agents
+- [Ibis](https://ibis-project.org/) - Elegant DataFrame API
+- [DuckDB](https://duckdb.org/) - Analytics database
+- [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) - Beautiful theme
+- [uv](https://github.com/astral-sh/uv) - Fast package manager
+- [ruff](https://github.com/astral-sh/ruff) - Comprehensive linter
 
 ---
 
-**Egregora** - Because your group chat deserves to be preserved as more than just scrollback.
-- **LLM quotas & rate-limits:** the pipeline enforces both the daily budget (`quota.daily_llm_requests`) and per-second rate limit (`quota.per_second_limit`) via a shared `AsyncRateLimit`, matching Pydantic-AI’s recommended rate-limiting pattern. This keeps enrichment requests within Gemini’s advised limits while letting the guard skip any extra calls once the budget is exhausted.
+**Egregora** - Preserve your group chat as structured knowledge, not just scrollback.
