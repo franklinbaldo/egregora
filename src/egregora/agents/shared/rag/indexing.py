@@ -19,7 +19,6 @@ from egregora.agents.shared.rag.chunker import chunk_document, chunk_from_docume
 from egregora.agents.shared.rag.embedder import embed_chunks
 from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA, VectorStore
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import OutputSink
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.utils.frontmatter_utils import parse_frontmatter
 
