@@ -44,6 +44,30 @@ Guidance for Claude Code when working with this repository.
 - Rationale: Alpha mindset - simplicity over premature optimization
 - See commit history and `docs/SIMPLIFICATION_PLAN.md` for details
 
+## Recent Changes (2025-11-22)
+
+**Quality-of-Life Improvements** (PR #855):
+
+1. **Statistics Page Auto-generation**
+   - Generates `posts/{date}-statistics.md` automatically after pipeline runs
+   - Shows total messages, unique authors, date range, and daily activity table
+   - Uses existing `daily_aggregates_view` (View Registry)
+   - Non-critical path: errors don't block pipeline completion
+
+2. **Interactive Site Initialization**
+   - `egregora init` now prompts for site name (improves UX)
+   - Auto-detects non-TTY environments (CI/CD) and disables prompts
+   - Use `--no-interactive` flag to explicitly disable
+
+3. **OutputAdapter Memory Optimization** (BREAKING)
+   - `documents()` method changed from `list[Document]` to `Iterator[Document]`
+   - Enables processing sites with thousands of documents without memory issues
+   - **Migration**: Materialize with `list(adapter.documents())` if you need random access
+
+4. **GitHub Actions Template**
+   - Fixed Jinja escaping in `.github/workflows/publish.yml.jinja`
+   - Proper handling of GitHub Actions variables
+
 ## Quick Commands
 
 ```bash
@@ -67,6 +91,10 @@ uv run egregora write export.zip --step-size=100 --step-unit=messages
 
 # Opt-in incremental processing (resume from checkpoint)
 uv run egregora write export.zip --output=./output --resume
+
+# Site initialization
+uv run egregora init ./output            # Interactive (prompts for site name)
+uv run egregora init ./output --no-interactive  # Non-interactive (for CI/CD)
 
 # Observability
 uv run egregora runs tail               # Recent runs
@@ -207,12 +235,12 @@ These stages are coordinated by the **orchestration layer** (`orchestration/`), 
 
 ### Key Stages
 
-1. **Ingestion** (`sources/`, `input_adapters/`): `InputAdapter` → `parse()` → `CONVERSATION_SCHEMA`
+1. **Ingestion** (`input_adapters/`): `InputAdapter` → `parse()` → `IR_MESSAGE_SCHEMA`
 2. **Privacy** (`privacy/`): Names → UUIDs, PII detection BEFORE LLM
-3. **Augmentation** (`enrichment/`): LLM URL/media descriptions, profiles
-4. **Knowledge** (`agents/tools/`): RAG (DuckDB VSS), annotations, Elo rankings
-5. **Generation** (`agents/writer/`): Pydantic-AI agent with tools (write_post, profiles, RAG)
-6. **Publication** (`output_adapters/`): `OutputAdapter` → `serve()` → MkDocs/Hugo/etc.
+3. **Augmentation** (agents): LLM URL/media descriptions, profiles
+4. **Knowledge** (`agents/shared/rag/`): RAG (DuckDB VSS), annotations, Elo rankings
+5. **Generation** (`agents/`): Pydantic-AI agents with tools (writer, reader, enricher)
+6. **Publication** (`output_adapters/`): `OutputAdapter` → `persist()` → MkDocs/Hugo/etc.
 
 ### Design Principles
 
@@ -315,56 +343,70 @@ def filter_messages(data: Table, min_length: int = 0) -> Table:
 
 ```
 src/egregora/
-├── cli.py                    # Entry point → delegates to orchestration/
+├── cli/                      # CLI commands and interface
+│   ├── main.py              # Main Typer app (write, init, top, doctor)
+│   ├── runs.py              # Run tracking commands
+│   └── read.py              # Reader agent commands
 ├── orchestration/            # BUSINESS WORKFLOWS (Layer 3)
 │   ├── write_pipeline.py    # Write workflow: ingest → process → generate → publish
-│   ├── read_pipeline.py     # (Future) Read agent workflow
-│   └── edit_pipeline.py     # (Future) Edit agent workflow
+│   └── context.py           # Runtime context
 ├── data_primitives/          # FOUNDATION (Layer 1)
 │   ├── document.py          # Document, DocumentType, DocumentCollection
-│   └── base_types.py        # GroupSlug, PostSlug
+│   ├── base_types.py        # GroupSlug, PostSlug
+│   └── protocols.py         # Core protocols (OutputAdapter, UrlConvention)
 ├── transformations/          # PURE FUNCTIONAL TRANSFORMATIONS (Layer 2)
-│   ├── windowing.py         # create_windows, Window, checkpointing
-│   └── media.py             # Media reference processing
+│   └── windowing.py         # create_windows, Window, checkpointing
+├── ops/                      # Operational transformations
+│   └── media.py             # Media operations
 ├── database/                 # INFRASTRUCTURE & STATE (Layer 2)
-│   ├── ir_schema.py         # IR schema definitions (runs table)
+│   ├── ir_schema.py         # IR schema definitions (IR_MESSAGE_SCHEMA, runs table)
 │   ├── duckdb_manager.py    # DuckDB connection management (C.2)
-│   ├── validation.py        # Schema validation (IR_MESSAGE_SCHEMA canonical)
+│   ├── validation.py        # Schema validation
 │   ├── views.py             # View registry (C.1)
 │   └── tracking.py          # Run tracking (INSERT+UPDATE pattern)
 ├── config/
-│   ├── settings.py          # Pydantic settings models
-│   └── ...                  # Other config files
-├── sources/                  # InputAdapter base protocol
+│   ├── settings.py          # EgregoraConfig (Pydantic settings models)
+│   └── config_validation.py # Config validation utilities
 ├── input_adapters/           # INPUT ADAPTERS (Layer 2)
+│   ├── base.py              # InputAdapter protocol
 │   ├── whatsapp.py          # WhatsAppAdapter
-│   └── slack.py             # SlackAdapter
+│   ├── iperon_tjro.py       # Brazilian judicial API adapter
+│   ├── self_reflection.py   # Self-reflection adapter
+│   └── registry.py          # Adapter registry
 ├── privacy/                  # Anonymization, PII detection
-├── enrichment/               # LLM-powered enrichment
-├── agents/
-│   ├── writer/
-│   │   ├── writer_runner.py # Agent coordination
-│   │   ├── context_builder.py # Prompt building
-│   │   └── agent.py         # Pydantic-AI writer agent
-│   ├── banner/
-│   │   └── image_generator.py # Banner/hero image generation
-│   ├── shared/
-│   │   ├── llm_tools.py     # Shared LLM utilities
-│   │   ├── author_profiles.py # Author profiling
+│   ├── anonymizer.py        # UUID-based anonymization
+│   └── detector.py          # PII detection
+├── agents/                   # Pydantic-AI agents
+│   ├── writer.py            # Post generation agent
+│   ├── reader.py            # Reader/ranking agent
+│   ├── enricher.py          # URL/media enrichment agent
+│   ├── shared/              # Shared agent utilities
 │   │   └── rag/             # RAG implementation
-│   ├── editor/              # Post refinement
-│   ├── ranking/             # Elo ranking
+│   │       ├── indexing.py  # Document indexing
+│   │       ├── retriever.py # Vector search
+│   │       └── store.py     # Vector store
 │   └── tools/               # Agent skills & tool injection
 ├── output_adapters/          # OUTPUT ADAPTERS (Layer 2)
-│   ├── base.py              # OutputAdapter protocol
-│   ├── mkdocs_output_adapter.py  # MkDocs implementation
-│   └── mkdocs_site.py       # MkDocs site structure
-├── storage/                  # Output adapter base implementations
-│   └── output_adapter.py    # Shared adapter logic
-└── utils/
-    ├── file_system.py       # File utilities
-    ├── time_utils.py        # Date/time utilities
-    └── cache.py             # DiskCache
+│   ├── base.py              # OutputAdapter base implementations
+│   ├── conventions.py       # URL conventions
+│   └── mkdocs/              # MkDocs implementation
+│       ├── adapter.py       # MkDocsAdapter
+│       └── paths.py         # Path resolution
+├── knowledge/                # Knowledge management
+│   └── profiles.py          # Author profiling
+├── init/                     # Site initialization
+├── prompts/                  # LLM prompt templates
+├── rendering/                # Rendering logic
+├── resources/                # Package resources (prompts, templates)
+├── templates/                # Jinja2 templates
+└── utils/                    # Shared utilities
+    ├── cache.py             # DiskCache
+    ├── batch.py             # Batch processing
+    ├── quota.py             # Rate limiting
+    ├── filesystem.py        # File utilities
+    ├── frontmatter_utils.py # YAML frontmatter parsing
+    ├── paths.py             # Path utilities (slugify, etc)
+    └── zip.py               # ZIP file operations
 ```
 
 ## Database Schemas
@@ -481,9 +523,84 @@ logging.basicConfig(level=logging.DEBUG)
 conn.execute("SELECT * FROM duckdb_extensions() WHERE extension_name = 'vss'")
 ```
 
-## Slug Collision Behavior (OutputFormat)
+## OutputAdapter Protocol (Updated 2025-11-22)
 
-**P1 Badge Response**: The `serve()` method has **intentional overwriting behavior** for slug-based paths.
+The `OutputAdapter` Protocol defines the contract for persisting and retrieving documents. Located in `data_primitives/protocols.py`, it provides bidirectional document access for both publishing and re-ingestion (self-reflection).
+
+### Core Methods
+
+**Persistence:**
+```python
+def persist(self, document: Document) -> None:
+    """Persist document so it becomes available at its canonical URL."""
+```
+- Renamed from `serve()` for clarity (breaking change)
+- Idempotent: Overwrites existing files for same slug/identifier
+- See "Slug Collision Behavior" below for collision handling
+
+**Document Retrieval:**
+```python
+def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
+    """Retrieve a single document by its doc_type primary identifier."""
+```
+
+**Document Listing (Table-based):**
+```python
+def list_documents(self, doc_type: DocumentType | None = None) -> Table:
+    """Return all known documents as an Ibis table, optionally filtered by doc_type."""
+```
+- Returns Ibis Table for efficient filtering/querying
+- Used by RAG indexing for incremental updates
+
+**Document Listing (Object-based):**
+```python
+def documents(self) -> Iterator[Document]:
+    """Return all managed documents as Document objects (lazy iterator)."""
+```
+- Added in PR #861, changed to Iterator in PR #855 reconciliation (2025-11-22)
+- Returns lazy iterator for memory efficiency (can iterate sites with 1000s of documents)
+- Used by self-reflection adapter to re-ingest published posts
+- Filters documents by type and scans filesystem for all content
+- Materialize with `list()` if you need len() or random access
+
+**Path Resolution:**
+```python
+def resolve_document_path(self, identifier: str) -> Path:
+    """Resolve storage identifier (from list_documents) to actual filesystem path."""
+```
+- Added in PR #861 (2025-11-22)
+- Enables format-agnostic document reingestion
+- MkDocs: identifier is relative path from site_root
+
+### Usage Patterns
+
+**Publishing (Generation → Publication):**
+```python
+adapter = MkDocsAdapter()
+adapter.initialize(site_root, url_context)
+adapter.persist(document)  # Writes to disk at canonical URL
+```
+
+**Re-ingestion (Self-Reflection):**
+```python
+adapter = MkDocsAdapter()
+adapter.initialize(site_root)
+# documents() returns Iterator - consumed by list comprehension
+posts = [doc for doc in adapter.documents() if doc.type == DocumentType.POST]
+# Feed back into pipeline for meta-analysis
+```
+
+**RAG Indexing (Incremental Updates):**
+```python
+# Lazy iteration - processes documents one at a time (memory efficient)
+for document in adapter.documents():
+    path = adapter.resolve_document_path(document.metadata["storage_identifier"])
+    # Index document for vector search without loading all documents into memory
+```
+
+## Slug Collision Behavior (OutputAdapter)
+
+**P1 Badge Response**: The `persist()` method has **intentional overwriting behavior** for slug-based paths.
 
 ### Design Rationale
 
@@ -504,17 +621,17 @@ conn.execute("SELECT * FROM duckdb_extensions() WHERE extension_name = 'vss'")
 
 ### Error Reporting (Future Enhancement)
 
-Currently `serve()` returns `None` (fire-and-forget). If collision reporting is needed:
+Currently `persist()` returns `None` (fire-and-forget). If collision reporting is needed:
 
 **Option 1**: Add optional return type (backward compatible)
 ```python
-def serve(self, document: Document) -> ServeResult | None:
+def persist(self, document: Document) -> ServeResult | None:
     """Returns ServeResult if error, None if success."""
 ```
 
 **Option 2**: Use exceptions for errors
 ```python
-def serve(self, document: Document) -> None:
+def persist(self, document: Document) -> None:
     """Raises ServeError on collision (if strict mode enabled)."""
     if strict and path.exists():
         raise SlugCollisionError(...)
@@ -534,8 +651,6 @@ Intentional principle violations:
 # tenet=<code>; why=<constraint>; exit=<condition> (#issue)
 ```
 
-See `CONTRIBUTING.md` for details.
-
 ## Privacy & Security
 
 **Flow**: Parse → UUIDs (deterministic) → PII scan → LLM (anonymized only)
@@ -551,7 +666,7 @@ See `CONTRIBUTING.md` for details.
 
 1. Never bypass privacy stage
 2. Use Ibis, not pandas (convert only at boundaries)
-3. Respect schemas in `database/schema.py`
+3. Respect schemas in `database/ir_schema.py`
 4. Commit VCR cassettes to repo
 5. Use `--retrieval-mode=exact` without VSS extension
 
@@ -571,6 +686,5 @@ mkdocs gh-deploy
 ## Related Docs
 
 - `README.md`: User docs, quick start
-- `CONTRIBUTING.md`: TENET-BREAK philosophy
 - `docs/`: Architecture, privacy, API reference
 - `tests/fixtures/golden/`: Example outputs
