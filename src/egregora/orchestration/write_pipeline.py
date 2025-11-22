@@ -36,10 +36,12 @@ from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.tracking import record_run
 from egregora.database.validation import validate_ir_schema
+from egregora.database.views import daily_aggregates_view
 from egregora.input_adapters import get_adapter
 from egregora.input_adapters.base import MediaMapping
 from egregora.input_adapters.whatsapp import extract_commands, filter_egregora_messages
@@ -1042,6 +1044,77 @@ def _index_media_into_rag(
         logger.exception("[red]Failed to index media into RAG[/]")
 
 
+def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) -> None:
+    """Generate statistics page from conversation data.
+
+    Args:
+        messages_table: Complete messages table (before windowing)
+        ctx: Pipeline context with output adapter
+
+    """
+    logger.info("[bold cyan]📊 Generating statistics page...[/]")
+
+    # Compute daily aggregates
+    stats_table = daily_aggregates_view(messages_table)
+    stats_data = stats_table.execute()
+
+    if stats_data.empty:
+        logger.warning("No statistics data available - skipping statistics page")
+        return
+
+    # Calculate totals
+    total_messages = int(messages_table.count().execute())
+    total_authors = int(messages_table.author_uuid.nunique().execute())
+
+    # Build Markdown content
+    content_lines = [
+        "# Conversation Statistics",
+        "",
+        "This page provides an overview of activity in this conversation archive.",
+        "",
+        "## Summary",
+        "",
+        f"- **Total Messages**: {total_messages:,}",
+        f"- **Unique Authors**: {total_authors}",
+        f"- **Date Range**: {stats_data['day'].min():%Y-%m-%d} to {stats_data['day'].max():%Y-%m-%d}",
+        "",
+        "## Daily Activity",
+        "",
+        "| Date | Messages | Active Authors | First Message | Last Message |",
+        "|------|----------|----------------|---------------|--------------|",
+    ]
+
+    for _, row in stats_data.iterrows():
+        date_str = row["day"].strftime("%Y-%m-%d")
+        msg_count = f"{int(row['message_count']):,}"
+        author_count = int(row["unique_authors"])
+        first_time = row["first_message"].strftime("%H:%M")
+        last_time = row["last_message"].strftime("%H:%M")
+        content_lines.append(f"| {date_str} | {msg_count} | {author_count} | {first_time} | {last_time} |")
+
+    content = "\n".join(content_lines)
+
+    # Create Document
+    doc = Document(
+        content=content,
+        type=DocumentType.POST,
+        metadata={
+            "title": "Conversation Statistics",
+            "date": datetime.now(UTC).isoformat(),
+            "slug": "statistics",
+            "tags": ["meta", "statistics"],
+            "summary": "Overview of conversation activity and daily message volume",
+        },
+    )
+
+    # Serve document
+    if ctx.output_format:
+        ctx.output_format.serve(doc)
+        logger.info("[green]✓ Statistics page generated[/]")
+    else:
+        logger.warning("Output format not initialized - cannot save statistics page")
+
+
 def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, checkpoint_path: Path) -> None:
     """Save checkpoint after successful window processing.
 
@@ -1213,6 +1286,8 @@ def run(  # noqa: PLR0913
                 dataset.context,
                 dataset.embedding_model,
             )
+            # Generate statistics page from complete messages table
+            _generate_statistics_page(dataset.messages_table, dataset.context)
             _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
 
             # Calculate metrics
