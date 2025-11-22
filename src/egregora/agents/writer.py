@@ -512,6 +512,7 @@ def _save_journal_to_file(
     profiles_updated: int,
     window_start: datetime,
     window_end: datetime,
+    total_tokens: int = 0,
 ) -> str | None:
     """Save journal entry to markdown file."""
     if not intercalated_log:
@@ -542,6 +543,7 @@ def _save_journal_to_file(
             intercalated_log=intercalated_log,
             window_start=window_start_iso,
             window_end=window_end_iso,
+            total_tokens=total_tokens,
         )
     except Exception:
         logger.exception("Failed to render journal template")
@@ -750,6 +752,7 @@ def write_posts_with_pydantic_agent(
         len(saved_profiles),
         context.window_start,
         context.window_end,
+        total_tokens=result.usage().total_tokens if result.usage() else 0,
     )
 
     logger.info(
