@@ -8,8 +8,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from ibis.expr.types import Table
-
     from egregora.data_primitives.document import Document, DocumentType
 
 
@@ -28,7 +26,7 @@ class DocumentMetadata:
     """Lightweight description of a document available in an output sink."""
 
     identifier: str
-    doc_type: "DocumentType | None"
+    doc_type: DocumentType | None
     metadata: dict[str, object]
 
 

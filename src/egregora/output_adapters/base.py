@@ -3,9 +3,10 @@
 import datetime
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import TYPE_CHECKING, Any
 
 import ibis
 import ibis.expr.datatypes as dt
@@ -143,7 +144,11 @@ class OutputAdapter(OutputSink, ABC):
             mtime_ns = meta.metadata.get("mtime_ns") if isinstance(meta.metadata, dict) else None
             if mtime_ns is None:
                 try:
-                    path = Path(meta.metadata.get("source_path", meta.identifier)) if isinstance(meta.metadata, dict) else None
+                    path = (
+                        Path(meta.metadata.get("source_path", meta.identifier))
+                        if isinstance(meta.metadata, dict)
+                        else None
+                    )
                     if path and path.exists():
                         mtime_ns = path.stat().st_mtime_ns
                 except OSError:
@@ -461,7 +466,7 @@ class OutputAdapter(OutputSink, ABC):
         # Base implementation does nothing - subclasses override for specific tasks
         return None
 
-    def finalize_window(  # noqa: B027
+    def finalize_window(
         self,
         window_label: str,
         posts_created: list[str],

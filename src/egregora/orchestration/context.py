@@ -19,9 +19,8 @@ if TYPE_CHECKING:
     from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore
 from egregora.config.settings import EgregoraConfig
-from egregora.data_primitives.protocols import UrlContext
+from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.data_primitives.protocols import OutputSink
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
