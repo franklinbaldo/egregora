@@ -152,7 +152,7 @@ class WriterDeps:
     rate_limit: AsyncRateLimit | None
 
     @property
-    def output_format(self) -> OutputAdapter:
+    def output_format(self) -> OutputSink:
         if self.ctx.output_format is None:
             message = "Output format not initialized in context"
             raise RuntimeError(message)
@@ -624,7 +624,7 @@ def _prepare_deps(
     """Prepare writer dependencies from pipeline context."""
     window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
 
-    # Ensure OutputAdapter is initialized
+    # Ensure output sink is initialized
     if not ctx.output_format:
         storage_root = ctx.site_root if ctx.site_root else ctx.output_dir
         format_type = ctx.config.output.format

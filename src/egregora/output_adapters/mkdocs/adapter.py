@@ -144,21 +144,7 @@ class MkDocsAdapter(OutputAdapter):
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
 
-    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
-        """Retrieve a document. Alias for read_document."""
-        return self.read_document(doc_type, identifier)
-
-    def list(self, doc_type: DocumentType | None = None) -> Iterator[Document]:
-        """List available content. Alias for documents() with filtering."""
-        docs = self.documents()
-        if doc_type:
-            for doc in docs:
-                if doc.type == doc_type:
-                    yield doc
-        else:
-            yield from docs
-
-    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:  # noqa: C901
+    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:  # noqa: C901
         if isinstance(doc_type, str):
             doc_type = DocumentType(doc_type)
         path: Path | None = None
@@ -321,6 +307,17 @@ class MkDocsAdapter(OutputAdapter):
         else:
             logger.info("MkDocs site scaffold created at %s", site_root)
             return (new_mkdocs_path, True)
+
+    # SiteScaffolder protocol -------------------------------------------------
+
+    def scaffold(self, path: Path, config: dict) -> None:
+        site_name = config.get("site_name") if isinstance(config, dict) else None
+        mkdocs_path, created = self.scaffold_site(path, site_name or path.name)
+        if not created:
+            logger.info("MkDocs site already exists at %s (config: %s)", path, mkdocs_path)
+
+    def validate_structure(self, path: Path) -> bool:
+        return self.supports_site(path)
 
     def _create_site_structure(
         self, site_paths: dict[str, Any], env: Environment, context: dict[str, Any]

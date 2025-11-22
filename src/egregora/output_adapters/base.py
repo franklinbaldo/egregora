@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 import ibis
 import ibis.expr.datatypes as dt
 
+from egregora.data_primitives import DocumentMetadata, OutputSink, UrlConvention
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import UrlConvention
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -43,120 +43,34 @@ class SiteConfiguration:
     additional_paths: dict[str, Path] | None = None
 
 
-@runtime_checkable
-class OutputSink(Protocol):
-    """Pure data interface.
-    Compatible with Filesystems, SQL Databases, Notion API, S3, etc.
-    """
-
-    @property
-    def url_convention(self) -> UrlConvention:
-        """The URL convention used by this sink."""
-        ...
-
-    def persist(self, document: Document) -> None:
-        """Save a document (create or update)."""
-        ...
-
-    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
-        """Retrieve a document."""
-        ...
-
-    def list(self, doc_type: DocumentType | None = None) -> Iterator[Document]:
-        """List available content (for RAG/History)."""
-        ...
-
-    def documents(self) -> Iterator[Document]:
-        """Return all managed documents as Document objects.
-
-        This is an alias for list() to maintain backward compatibility during refactoring.
-        """
-        ...
-
-
-@runtime_checkable
-class SiteScaffolder(Protocol):
-    """Lifecycle interface.
-    Only implemented by adapters that need local filesystem setup.
-    """
-
-    def scaffold(self, path: Path, config: dict) -> None:
-        """Initialize directory structure, config files, assets."""
-        ...
-
-    def validate_structure(self, path: Path) -> bool:
-        """Check if the target directory is valid for this adapter."""
-        ...
-
-
 class OutputAdapter(OutputSink, ABC):
-    """Abstract base class for output formats.
+    """Abstract base class for output formats focused on document IO.
 
-    Refactored to align with OutputSink protocol.
-    Legacy methods removed to enforce Interface Segregation Principle.
+    Output formats are responsible for persisting ``Document`` instances and
+    returning them to the pipeline. Implements the OutputSink protocol.
     """
 
-    @property
-    def docs_dir_name(self) -> str:
-        """Default name for the documentation directory."""
-        return "docs"
-
-    @property
-    def blog_dir_name(self) -> str:
-        """Default name for the blog directory (relative to docs_dir)."""
-        return "."
-
-    @property
-    def profiles_dir_name(self) -> str:
-        """Name for the author profiles directory."""
-        return "profiles"
-
-    @property
-    def media_dir_name(self) -> str:
-        """Name for the media/assets directory."""
-        return "media"
-
-    def get_media_url_path(self, media_file: Path, site_root: Path) -> str:
-        """Get the relative URL path for a media file in the generated site.
-
-        Args:
-            media_file: Absolute path to the media file
-            site_root: Root directory of the site
-
-        Returns:
-            Relative path string for use in HTML/markdown links
-            Example: "media/images/abc123.jpg"
-
-        """
-        # This relies on resolve_paths which is no longer in the base interface.
-        # Subclasses (like MkDocsAdapter) should override if they need this logic,
-        # or it should be moved to the specific adapter.
-        # For now, we leave it but it might fail if resolve_paths is called on self
-        # and self doesn't implement it (OutputAdapter doesn't enforce it anymore).
-        # Assuming subclasses will implement what they need.
-        # Ideally, this method should be abstract or removed if it depends on removed methods.
-        raise NotImplementedError("Subclasses must implement get_media_url_path")
-
-    def get_profile_url_path(self, profile_slug: str) -> str:
-        """Get the relative URL path for a profile page."""
-        return f"{self.profiles_dir_name}/{profile_slug}/"
-
-    def get_post_url_path(self, post_slug: str) -> str:
-        """Get the relative URL path for a blog post."""
-        return f"posts/{post_slug}/"
+    @abstractmethod
+    def persist(self, document: Document) -> None:
+        """Persist a document so it becomes available at its canonical path."""
 
     @abstractmethod
-    def load_config(self, site_root: Path) -> dict[str, Any]:
-        """Load site configuration."""
+    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
+        """Retrieve a single document by its ``doc_type`` primary identifier."""
 
+    @property
     @abstractmethod
-    def supports_site(self, site_root: Path) -> bool:
-        """Check if this output format can handle the given site."""
+    def url_convention(self) -> UrlConvention:
+        """Return the URL convention adopted by this adapter."""
 
     @property
     @abstractmethod
     def format_type(self) -> str:
         """Return the type identifier for this format (e.g., 'mkdocs', 'hugo')."""
+
+    @abstractmethod
+    def supports_site(self, site_root: Path) -> bool:
+        """Return True if this adapter can manage the given site root."""
 
     @abstractmethod
     def get_markdown_extensions(self) -> list[str]:
@@ -166,15 +80,8 @@ class OutputAdapter(OutputSink, ABC):
     def get_format_instructions(self) -> str:
         """Generate format-specific instructions for the writer agent."""
 
-    def list_documents(self, doc_type: DocumentType | None = None) -> "Table":
-        """List all documents managed by this output format as an Ibis table.
-
-        The default implementation materializes the documents returned by
-        :meth:`documents` and exposes their storage identifiers and mtimes.
-        Override only if you need to source the table from another store.
-        """
-        rows: list[dict[str, Any]] = []
-
+    def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
+        """Iterate through available documents, optionally filtering by ``doc_type``."""
         docs_iter = self.documents()
         if doc_type:
             # Filter documents by type if requested
@@ -187,25 +94,32 @@ class OutputAdapter(OutputSink, ABC):
             if not identifier:
                 continue
 
-            mtime_ns = document.metadata.get("mtime_ns")
+            yield DocumentMetadata(identifier=identifier, doc_type=document.type, metadata=document.metadata)
+
+    def list_documents(self, doc_type: DocumentType | None = None) -> "Table":
+        """Compatibility shim returning an Ibis table of document metadata."""
+        rows: list[dict[str, Any]] = []
+        for meta in self.list(doc_type):
+            mtime_ns = meta.metadata.get("mtime_ns") if isinstance(meta.metadata, dict) else None
             if mtime_ns is None:
                 try:
-                    path = Path(document.metadata.get("source_path", identifier))
-                    if path.exists():
+                    path = (
+                        Path(meta.metadata.get("source_path", meta.identifier))
+                        if isinstance(meta.metadata, dict)
+                        else None
+                    )
+                    if path and path.exists():
                         mtime_ns = path.stat().st_mtime_ns
                 except OSError:
                     mtime_ns = None
 
-            rows.append({"storage_identifier": identifier, "mtime_ns": mtime_ns})
+            rows.append({"storage_identifier": meta.identifier, "mtime_ns": mtime_ns})
+
         return ibis.memtable(rows, schema=DOCUMENT_INVENTORY_SCHEMA)
 
-    @abstractmethod
-    def resolve_document_path(self, identifier: str) -> Path:
-        """Resolve storage identifier to absolute filesystem path.
-
-        Note: This assumes filesystem backing. Non-filesystem adapters
-        might raise NotImplementedError or return a temp path.
-        """
+    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
+        """Backward-compatible alias for :meth:`get`."""
+        return self.get(doc_type, identifier)
 
     @abstractmethod
     def initialize(self, site_root: Path) -> None:

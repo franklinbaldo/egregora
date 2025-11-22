@@ -38,7 +38,7 @@ from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import UrlContext
+from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.tracking import record_run
 from egregora.database.validation import validate_ir_schema
@@ -818,7 +818,7 @@ def _parse_and_validate_source(
     input_path: Path,
     timezone: str,
     *,
-    output_adapter: OutputAdapter | None = None,
+    output_adapter: OutputSink | None = None,
 ) -> ir.Table:
     """Parse source and validate schema.
 
