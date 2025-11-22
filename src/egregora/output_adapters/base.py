@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING, Any
 import ibis
 import ibis.expr.datatypes as dt
 
-from egregora.data_primitives.protocols import DocumentMetadata, OutputSink, UrlConvention
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import DocumentMetadata, OutputSink, UrlConvention
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -122,7 +122,6 @@ class OutputAdapter(OutputSink, ABC):
 
     def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
         """Iterate through available documents, optionally filtering by ``doc_type``."""
-
         for document in self.documents():
             if doc_type is not None and document.type != doc_type:
                 continue
@@ -137,7 +136,6 @@ class OutputAdapter(OutputSink, ABC):
 
     def list_documents(self, doc_type: DocumentType | None = None) -> "Table":
         """Compatibility shim returning an Ibis table of document metadata."""
-
         rows: list[dict[str, Any]] = []
         for meta in self.list(doc_type):
             mtime_ns = meta.metadata.get("mtime_ns") if isinstance(meta.metadata, dict) else None
