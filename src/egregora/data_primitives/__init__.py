@@ -36,6 +36,8 @@ __all__ = [
     "SiteScaffolder",
     # Protocols (legacy/backward compatibility)
     "OutputAdapter",
+    "OutputSink",
+    "SiteScaffolder",
     "PostSlug",
     "UrlContext",
     "UrlConvention",

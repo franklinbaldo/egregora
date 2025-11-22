@@ -1,9 +1,9 @@
 """Site scaffolding utilities for Egregora sites.
 
-ISP-COMPLIANT (2025-11-22): Uses SiteScaffolder protocol for initialization.
-- MkDocs-specific logic in MkDocsAdapter.scaffold_site()
-- This module provides thin compatibility wrappers
-- New code should use SiteScaffolder directly via create_output_format()
+MODERN (Phase N): Refactored to use OutputAdapter abstraction.
+- MkDocs-specific logic moved to MkDocsOutputAdapter.scaffold_site()
+- This module now provides thin compatibility wrappers
+- New code should use OutputAdapter directly via create_output_format()
 """
 
 import logging
@@ -20,11 +20,9 @@ logger = logging.getLogger(__name__)
 def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tuple[Path, bool]:
     """Ensure site_root contains an MkDocs configuration.
 
-    ISP-COMPLIANT: Uses SiteScaffolder protocol for initialization.
-
-    New code should use:
-        scaffolder: SiteScaffolder = create_output_format(site_root, format_type="mkdocs")
-        mkdocs_path, created = scaffolder.scaffold_site(site_root, site_name)
+    MODERN: This is a compatibility wrapper. New code should use:
+        output_format = create_output_format(site_root, format_type="mkdocs")
+        mkdocs_path, created = output_format.scaffold_site(site_root, site_name)
 
     Args:
         site_root: Root directory for the site
@@ -36,16 +34,37 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
         - was_created: True if new site was created, False if existed
 
     """
-    # Use SiteScaffolder abstraction (MkDocsAdapter implements both OutputSink and SiteScaffolder)
+    # Use OutputAdapter abstraction
     site_root = site_root.expanduser().resolve()
     if site_name is None:
         site_name = site_root.name or "Egregora Archive"
 
-    # Create MkDocs adapter (implements SiteScaffolder protocol)
-    scaffolder = cast("SiteScaffolder", create_output_format(site_root, format_type="mkdocs"))
+    # Create and initialize MkDocs output format
+    output_format = create_output_format(site_root, format_type="mkdocs")
 
-    # Scaffold the site (idempotent - returns False if already exists)
-    _mkdocs_path, created = scaffolder.scaffold_site(site_root, site_name)
+    if not isinstance(output_format, SiteScaffolder):
+        logger.info("Output format %s does not support scaffolding", output_format)
+        # Fallback for non-scaffolding adapters
+        try:
+            site_paths = derive_mkdocs_paths(site_root)
+            return (site_paths["docs_dir"], False)
+        except Exception:
+            return (site_root / "docs", False)
+
+    # Cast to SiteScaffolder for type checking
+    scaffolder = cast("SiteScaffolder", output_format)
+
+    try:
+        # Prefer specific implementation if available to get accurate 'created' status
+        if hasattr(output_format, "scaffold_site"):
+            _, created = output_format.scaffold_site(site_root, site_name)
+        else:
+            scaffolder.scaffold(site_root, {"site_name": site_name})
+            # Generic scaffold doesn't return created status, assume True if no error
+            created = True
+    except Exception as e:
+        logger.error("Failed to scaffold site: %s", e)
+        raise
 
     # Return docs_dir for backward compatibility
     site_paths = derive_mkdocs_paths(site_root)
