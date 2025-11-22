@@ -14,9 +14,9 @@ import ibis
 import yaml
 
 from egregora.data_primitives.document import DocumentType
+from egregora.data_primitives.protocols import OutputSink
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
-from egregora.output_adapters.base import OutputAdapter
 from egregora.utils.paths import slugify
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ class SelfInputAdapter(InputAdapter):
         self,
         input_path: Path,
         *,
-        output_adapter: OutputAdapter | None = None,
+        output_adapter: OutputSink | None = None,
         timezone: str | None = None,
         **_: Any,
     ) -> ibis.Table:

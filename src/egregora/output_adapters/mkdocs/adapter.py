@@ -104,6 +104,21 @@ class MkDocsAdapter(OutputAdapter):
     def url_convention(self) -> UrlConvention:
         return self._url_convention
 
+    def get_media_url_path(self, media_file: Path, site_root: Path) -> str:
+        """Get the relative URL path for a media file in the generated site.
+
+        Args:
+            media_file: Absolute path to the media file
+            site_root: Root directory of the site
+
+        Returns:
+            Relative path string for use in HTML/markdown links
+            Example: "media/images/abc123.jpg"
+
+        """
+        site_config = self.resolve_paths(site_root)
+        return str(media_file.relative_to(site_config.docs_dir))
+
     def persist(self, document: Document) -> None:
         doc_id = document.document_id
         url = self._url_convention.canonical_url(document, self._ctx)
@@ -129,7 +144,7 @@ class MkDocsAdapter(OutputAdapter):
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
 
-    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:  # noqa: C901
+    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:  # noqa: C901
         if isinstance(doc_type, str):
             doc_type = DocumentType(doc_type)
         path: Path | None = None
@@ -171,6 +186,13 @@ class MkDocsAdapter(OutputAdapter):
 
         return Document(content=actual_content, type=doc_type, metadata=metadata)
 
+    def validate_structure(self, site_root: Path) -> bool:
+        """Check if the site root contains a mkdocs.yml file.
+
+        Implements SiteScaffolder.validate_structure.
+        """
+        return self.supports_site(site_root)
+
     def supports_site(self, site_root: Path) -> bool:
         """Check if the site root contains a mkdocs.yml file.
 
@@ -194,6 +216,14 @@ class MkDocsAdapter(OutputAdapter):
         # Check root mkdocs.yml (legacy location)
         legacy_path = site_root / "mkdocs.yml"
         return legacy_path.exists()
+
+    def scaffold(self, path: Path, config: dict) -> None:
+        """Initialize directory structure, config files, assets.
+
+        Implements SiteScaffolder.scaffold.
+        """
+        site_name = config.get("site_name", "Egregora Archive")
+        self.scaffold_site(path, site_name)
 
     def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure.
@@ -277,6 +307,17 @@ class MkDocsAdapter(OutputAdapter):
         else:
             logger.info("MkDocs site scaffold created at %s", site_root)
             return (new_mkdocs_path, True)
+
+    # SiteScaffolder protocol -------------------------------------------------
+
+    def scaffold(self, path: Path, config: dict) -> None:
+        site_name = config.get("site_name") if isinstance(config, dict) else None
+        mkdocs_path, created = self.scaffold_site(path, site_name or path.name)
+        if not created:
+            logger.info("MkDocs site already exists at %s (config: %s)", path, mkdocs_path)
+
+    def validate_structure(self, path: Path) -> bool:
+        return self.supports_site(path)
 
     def _create_site_structure(
         self, site_paths: dict[str, Any], env: Environment, context: dict[str, Any]
