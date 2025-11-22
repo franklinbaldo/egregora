@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
