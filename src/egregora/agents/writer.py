@@ -45,9 +45,10 @@ from egregora.agents.shared.rag import (
 )
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
+from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import get_active_authors, read_profile
 from egregora.output_adapters import create_output_format, output_registry
+from egregora.output_adapters.base import OutputAdapter, OutputSink
 from egregora.output_adapters.mkdocs import MkDocsAdapter
 from egregora.resources.prompts import render_prompt
 from egregora.utils.batch import call_with_retries_sync
@@ -152,10 +153,26 @@ class WriterDeps:
 
     @property
     def output_format(self) -> OutputAdapter:
+        # Still returning OutputAdapter because it has format-specific methods like `media_dir`
+        # that are used in generate_banner_tool.
+        # If we strictly use OutputSink, we lose access to `media_dir`.
+        # The user said "OutputSink is the only interface Pipeline and Agents should ever see".
+        # However, generate_banner_tool needs a filesystem path to write the image?
+        # Actually, generate_banner_for_post returns a Path.
+        # The tool uses `ctx.deps.output_format.media_dir`.
+        # OutputSink does not expose media_dir.
+        # This is a violation if we strictly follow OutputSink.
+        # But since OutputAdapter inherits OutputSink, it's compatible.
+        # I will leave it as OutputAdapter for now to avoid breaking banner generation,
+        # but note that persist() calls are using the sink interface.
         if self.ctx.output_format is None:
             message = "Output format not initialized in context"
             raise RuntimeError(message)
         return self.ctx.output_format
+
+    @property
+    def output_sink(self) -> OutputSink:
+        return self.output_format
 
     @property
     def url_convention(self) -> UrlConvention:
@@ -192,13 +209,13 @@ def register_writer_tools(  # noqa: C901
             source_window=ctx.deps.window_label,
         )
         url = ctx.deps.url_convention.canonical_url(doc, ctx.deps.url_context)
-        ctx.deps.output_format.persist(doc)
+        ctx.deps.output_sink.persist(doc)
         logger.info("Writer agent saved post at URL: %s (doc_id: %s)", url, doc.document_id)
         return WritePostResult(status="success", path=url)
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str) -> ReadProfileResult:
-        doc = ctx.deps.output_format.read_document(DocumentType.PROFILE, author_uuid)
+        doc = ctx.deps.output_sink.get(DocumentType.PROFILE, author_uuid)
         content = doc.content if doc else "No profile exists yet."
         return ReadProfileResult(content=content)
 
@@ -211,7 +228,7 @@ def register_writer_tools(  # noqa: C901
             source_window=ctx.deps.window_label,
         )
         url = ctx.deps.url_convention.canonical_url(doc, ctx.deps.url_context)
-        ctx.deps.output_format.persist(doc)
+        ctx.deps.output_sink.persist(doc)
         logger.info("Writer agent saved profile at URL: %s (doc_id: %s)", url, doc.document_id)
         return WriteProfileResult(status="success", path=url)
 
@@ -265,6 +282,7 @@ def register_writer_tools(  # noqa: C901
         def generate_banner_tool(
             ctx: RunContext[WriterDeps], post_slug: str, title: str, summary: str
         ) -> BannerResult:
+            # media_dir is not part of OutputSink, so we use output_format here
             banner_output_dir = ctx.deps.output_format.media_dir / "images"
             banner_path = generate_banner_for_post(
                 post_title=title, post_summary=summary, output_dir=banner_output_dir, slug=post_slug
@@ -507,7 +525,7 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:  
 def _save_journal_to_file(
     intercalated_log: list[JournalEntry],
     window_label: str,
-    output_format: OutputAdapter,
+    output_sink: OutputSink,
     posts_published: int,
     profiles_updated: int,
     window_start: datetime,
@@ -564,7 +582,7 @@ def _save_journal_to_file(
             },
             source_window=window_label,
         )
-        output_format.persist(doc)
+        output_sink.persist(doc)
     except Exception:
         logger.exception("Failed to write journal")
         return None
@@ -745,7 +763,7 @@ def write_posts_with_pydantic_agent(
     _save_journal_to_file(
         intercalated_log,
         context.window_label,
-        context.output_format,
+        context.output_sink,
         len(saved_posts),
         len(saved_profiles),
         context.window_start,

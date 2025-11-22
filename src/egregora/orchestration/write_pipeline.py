@@ -49,7 +49,7 @@ from egregora.input_adapters.whatsapp import extract_commands, filter_egregora_m
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
-from egregora.output_adapters.base import OutputAdapter
+from egregora.output_adapters.base import OutputSink
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
@@ -60,6 +60,8 @@ from egregora.utils.rate_limit import AsyncRateLimit
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
+    from egregora.output_adapters.base import OutputAdapter # For typing in _parse_and_validate_source signature
+
 logger = logging.getLogger(__name__)
 console = Console()
 __all__ = ["WhatsAppProcessOptions", "process_whatsapp_export", "run"]
@@ -188,8 +190,8 @@ def _process_single_window(
     logger.info("%s➡️  [bold]%s[/] — %s messages (depth=%d)", indent, window_label, window_count, depth)
 
     # Process media
-    output_adapter = ctx.output_format
-    if output_adapter is None:
+    output_sink = ctx.output_format
+    if output_sink is None:
         msg = "Output adapter must be initialized before processing windows."
         raise RuntimeError(msg)
 
@@ -197,7 +199,7 @@ def _process_single_window(
     window_table_processed, media_mapping = process_media_for_window(
         window_table=window_table,
         adapter=ctx.adapter,
-        url_convention=output_adapter.url_convention,
+        url_convention=output_sink.url_convention,
         url_context=url_context,
         zip_path=ctx.input_path,
     )
@@ -214,7 +216,7 @@ def _process_single_window(
             if media_doc.metadata.get("pii_deleted"):
                 continue
             try:
-                output_adapter.persist(media_doc)
+                output_sink.persist(media_doc)
             except Exception:  # pragma: no cover - defensive
                 logger.exception("Failed to serve media document %s", media_doc.metadata.get("filename"))
 

@@ -116,6 +116,20 @@ class MkDocsAdapter(OutputAdapter):
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
 
+    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
+        """Retrieve a document. Alias for read_document."""
+        return self.read_document(doc_type, identifier)
+
+    def list(self, doc_type: DocumentType | None = None) -> Iterator[Document]:
+        """List available content. Alias for documents() with filtering."""
+        docs = self.documents()
+        if doc_type:
+            for doc in docs:
+                if doc.type == doc_type:
+                    yield doc
+        else:
+            yield from docs
+
     def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:  # noqa: C901
         if isinstance(doc_type, str):
             doc_type = DocumentType(doc_type)
@@ -158,6 +172,13 @@ class MkDocsAdapter(OutputAdapter):
 
         return Document(content=actual_content, type=doc_type, metadata=metadata)
 
+    def validate_structure(self, site_root: Path) -> bool:
+        """Check if the site root contains a mkdocs.yml file.
+
+        Implements SiteScaffolder.validate_structure.
+        """
+        return self.supports_site(site_root)
+
     def supports_site(self, site_root: Path) -> bool:
         """Check if the site root contains a mkdocs.yml file.
 
@@ -181,6 +202,14 @@ class MkDocsAdapter(OutputAdapter):
         # Check root mkdocs.yml (legacy location)
         legacy_path = site_root / "mkdocs.yml"
         return legacy_path.exists()
+
+    def scaffold(self, path: Path, config: dict) -> None:
+        """Initialize directory structure, config files, assets.
+
+        Implements SiteScaffolder.scaffold.
+        """
+        site_name = config.get("site_name", "Egregora Archive")
+        self.scaffold_site(path, site_name)
 
     def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure.
