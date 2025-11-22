@@ -44,6 +44,30 @@ Guidance for Claude Code when working with this repository.
 - Rationale: Alpha mindset - simplicity over premature optimization
 - See commit history and `docs/SIMPLIFICATION_PLAN.md` for details
 
+## Recent Changes (2025-11-22)
+
+**Quality-of-Life Improvements** (PR #855):
+
+1. **Statistics Page Auto-generation**
+   - Generates `posts/{date}-statistics.md` automatically after pipeline runs
+   - Shows total messages, unique authors, date range, and daily activity table
+   - Uses existing `daily_aggregates_view` (View Registry)
+   - Non-critical path: errors don't block pipeline completion
+
+2. **Interactive Site Initialization**
+   - `egregora init` now prompts for site name (improves UX)
+   - Auto-detects non-TTY environments (CI/CD) and disables prompts
+   - Use `--no-interactive` flag to explicitly disable
+
+3. **OutputAdapter Memory Optimization** (BREAKING)
+   - `documents()` method changed from `list[Document]` to `Iterator[Document]`
+   - Enables processing sites with thousands of documents without memory issues
+   - **Migration**: Materialize with `list(adapter.documents())` if you need random access
+
+4. **GitHub Actions Template**
+   - Fixed Jinja escaping in `.github/workflows/publish.yml.jinja`
+   - Proper handling of GitHub Actions variables
+
 ## Quick Commands
 
 ```bash
@@ -67,6 +91,10 @@ uv run egregora write export.zip --step-size=100 --step-unit=messages
 
 # Opt-in incremental processing (resume from checkpoint)
 uv run egregora write export.zip --output=./output --resume
+
+# Site initialization
+uv run egregora init ./output            # Interactive (prompts for site name)
+uv run egregora init ./output --no-interactive  # Non-interactive (for CI/CD)
 
 # Observability
 uv run egregora runs tail               # Recent runs
