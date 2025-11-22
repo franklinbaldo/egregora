@@ -11,6 +11,7 @@ from uuid import UUID, uuid5
 
 import ibis
 import yaml
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from egregora.data_primitives.document import DocumentType
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
@@ -72,9 +73,10 @@ class SelfInputAdapter(InputAdapter):
         **_: Any,
     ) -> ibis.Table:
         if output_adapter is None:
-            raise ValueError("output_adapter must be provided when parsing an existing site")
+            msg = "output_adapter must be provided when parsing an existing site"
+            raise ValueError(msg)
 
-        docs_dir, site_root = self._resolve_docs_dir(input_path)
+        _docs_dir, site_root = self._resolve_docs_dir(input_path)
         documents = [
             doc
             for doc in output_adapter.documents()
@@ -176,7 +178,7 @@ class SelfInputAdapter(InputAdapter):
             ts = datetime.combine(value, datetime.min.time())
         elif isinstance(value, str) and value.strip():
             try:
-                ts = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                ts = datetime.fromisoformat(value)
             except ValueError:
                 ts = datetime.strptime(value, "%Y-%m-%d")
         elif path:
@@ -187,10 +189,8 @@ class SelfInputAdapter(InputAdapter):
         if ts.tzinfo is None:
             if timezone:
                 try:
-                    from zoneinfo import ZoneInfo
-
                     ts = ts.replace(tzinfo=ZoneInfo(timezone))
-                except Exception:  # pragma: no cover - defensive
+                except ZoneInfoNotFoundError:
                     ts = ts.replace(tzinfo=UTC)
             else:
                 ts = ts.replace(tzinfo=UTC)
