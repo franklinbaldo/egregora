@@ -432,7 +432,7 @@ async def _process_url_task(  # noqa: PLR0913
                 "hide": ["navigation"],
             },
         )
-        context.output_format.serve(doc)
+        context.output_format.persist(doc)
         return _create_enrichment_row(metadata, "URL", url, doc.document_id)
 
 
@@ -528,7 +528,7 @@ async def _process_media_task(  # noqa: PLR0913
             type=DocumentType.ENRICHMENT_MEDIA,
             metadata=enrichment_metadata,
         ).with_parent(updated_media_doc)
-        context.output_format.serve(doc)
+        context.output_format.persist(doc)
         row = _create_enrichment_row(metadata, "Media", filename or ref, doc.document_id)
         return row, pii_detected, ref, updated_media_doc
 

@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
+    from ibis.expr.types import Table
+
     from egregora.data_primitives.document import Document, DocumentType
 
 
@@ -36,17 +38,20 @@ class UrlConvention(Protocol):
 
 
 class OutputAdapter(Protocol):
-    """Unified protocol for publishing and retrieving documents."""
+    """Unified protocol for persisting and retrieving documents."""
 
     @property
     def url_convention(self) -> UrlConvention:
         """Return the URL convention adopted by this adapter."""
 
-    def serve(self, document: Document) -> None:
-        """Publish ``document`` so that it becomes available at its canonical URL."""
+    def persist(self, document: Document) -> None:
+        """Persist ``document`` so that it becomes available at its canonical URL."""
 
     def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
         """Retrieve a single document by its ``doc_type`` primary identifier."""
 
-    def list_documents(self, doc_type: DocumentType | None = None) -> list[Document]:
-        """Return all known documents, optionally filtered by ``doc_type``."""
+    def list_documents(self, doc_type: DocumentType | None = None) -> Table:
+        """Return all known documents as an Ibis table, optionally filtered by ``doc_type``."""
+
+    def resolve_document_path(self, identifier: str) -> Path:
+        """Resolve the given storage identifier (from ``list_documents``) to an actual filesystem path."""
