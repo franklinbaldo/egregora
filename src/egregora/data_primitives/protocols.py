@@ -48,8 +48,8 @@ class OutputAdapter(Protocol):
     def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
         """Retrieve a single document by its ``doc_type`` primary identifier."""
 
-    def list_documents(self, doc_type: DocumentType | None = None) -> list[Document]:
-        """Return all known documents, optionally filtered by ``doc_type``."""
+    def list_documents(self, doc_type: DocumentType | None = None) -> "Table":
+        """Return all known documents as an Ibis table, optionally filtered by ``doc_type``."""
 
     def resolve_document_path(self, identifier: str) -> Path:
         """Resolve the given storage identifier (from ``list_documents``) to an actual filesystem path."""
