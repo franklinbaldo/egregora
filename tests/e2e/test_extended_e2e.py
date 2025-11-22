@@ -22,9 +22,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from egregora.agents.reader.reader_runner import run_reader_evaluation
 
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
+from egregora.agents.reader.reader_runner import run_reader_evaluation
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
 
@@ -73,8 +73,8 @@ async def test_reader_agent_evaluates_posts_and_persists_elo_rankings(
         def deterministic_comparison(request, **kwargs):
             """Simulate AI judgment: post in position 'a' always wins."""
             return PostComparison(
-                post_a_slug=request.post_a_slug,
-                post_b_slug=request.post_b_slug,
+                post_a=request.post_a,
+                post_b=request.post_b,
                 winner="a",
                 reasoning="Post A has more detailed content.",
                 feedback_a=ReaderFeedback(

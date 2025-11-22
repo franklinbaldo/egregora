@@ -12,6 +12,7 @@ Scope: Ingestion + Privacy only (no enrichment, no generation)
 Target: <5 min execution time
 """
 
+import re
 import time
 import uuid
 from datetime import UTC, datetime
@@ -20,13 +21,14 @@ from pathlib import Path
 import duckdb
 import ibis
 import pytest
-from egregora.input_adapters.whatsapp.parser import parse_source
 from ibis.expr import datatypes as dt
 
-from egregora.database.ir_schema import CONVERSATION_SCHEMA
+from egregora.data_primitives import GroupSlug
+from egregora.database.ir_schema import CONVERSATION_SCHEMA, IR_MESSAGE_SCHEMA, RUNS_TABLE_SCHEMA
 from egregora.database.tracking import record_run
-from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file
+from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file, parse_source
 from egregora.privacy.anonymizer import anonymize_table
+from egregora.privacy.uuid_namespaces import NAMESPACE_AUTHOR, NAMESPACE_EVENT, NAMESPACE_THREAD
 
 
 @pytest.fixture
@@ -104,7 +106,6 @@ def test_week1_golden_whatsapp_pipeline(  # noqa: PLR0915
 
     # Discover chat file in ZIP
     group_name, chat_file = discover_chat_file(whatsapp_fixture)
-    from egregora.data_primitives import GroupSlug
 
     export = WhatsAppExport(
         zip_path=whatsapp_fixture,
@@ -121,18 +122,7 @@ def test_week1_golden_whatsapp_pipeline(  # noqa: PLR0915
 
     # Validate IR v1 schema conformance
     # Parser returns: ts, date, author, author_raw, author_uuid, text, original_line, tagged_line, message_id
-    expected_ir_v1_columns = {
-        "ts",
-        "date",
-        "author",
-        "author_raw",
-        "author_uuid",
-        "text",
-        "original_line",
-        "tagged_line",
-        "message_id",
-        "event_id",
-    }
+    expected_ir_v1_columns = set(IR_MESSAGE_SCHEMA.names)
     assert set(table.columns) == expected_ir_v1_columns, (
         f"Schema mismatch\n"
         f"  Expected: {expected_ir_v1_columns}\n"
@@ -148,7 +138,7 @@ def test_week1_golden_whatsapp_pipeline(  # noqa: PLR0915
     # Validate required fields are populated (using IR v1 column names)
     table_df = table.execute()
     assert table_df["ts"].notna().all(), "Missing timestamps"
-    assert table_df["author"].notna().all(), "Missing authors"
+    assert table_df["author_uuid"].notna().all(), "Missing authors"
     assert table_df["text"].notna().all(), "Missing messages"
 
     # Record ingestion run
@@ -200,8 +190,6 @@ def test_week1_golden_whatsapp_pipeline(  # noqa: PLR0915
     unique_authors_raw = ir_df["author_raw"].unique()
 
     # Verify authors are anonymized (should be UUID format)
-    import re
-
     uuid_pattern = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
     for author_raw in unique_authors_raw:
         assert uuid_pattern.match(author_raw), f"Author not anonymized to UUID format: {author_raw}"
@@ -323,12 +311,6 @@ def test_week1_schema_lockfile_validation():
 
 def test_week1_uuid5_namespaces_immutable():
     """Validate UUID5 namespaces are immutable (locked on 2025-01-08)."""
-    from egregora.privacy.uuid_namespaces import (
-        NAMESPACE_AUTHOR,
-        NAMESPACE_EVENT,
-        NAMESPACE_THREAD,
-    )
-
     # These UUIDs MUST NOT change (locked in Week 1)
     # Generated on 2025-01-08 and frozen for deterministic identity mapping
     assert str(NAMESPACE_AUTHOR) == str(uuid.NAMESPACE_URL)
@@ -338,8 +320,6 @@ def test_week1_uuid5_namespaces_immutable():
 
 def test_week1_runs_schema_validation(runs_db: duckdb.DuckDBPyConnection):
     """Validate runs table schema matches the canonical IR schema."""
-    from egregora.database.ir_schema import RUNS_TABLE_SCHEMA
-
     # Query runs table columns
     columns = runs_db.execute("""
         SELECT column_name
