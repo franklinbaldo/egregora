@@ -817,30 +817,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
 
-    def documents(self) -> list[Document]:
-        if not hasattr(self, "_site_root") or self._site_root is None:
-            return []
-
-        documents: list[Document] = []
-        documents.extend(self._documents_from_dir(self.posts_dir, DocumentType.POST))
-        documents.extend(self._documents_from_dir(self.profiles_dir, DocumentType.PROFILE))
-        documents.extend(
-            self._documents_from_dir(
-                self._site_root / "docs" / "media",
-                DocumentType.ENRICHMENT_MEDIA,
-                recursive=True,
-                exclude_names={"index.md"},
-            )
-        )
-        documents.extend(
-            self._documents_from_dir(
-                self.media_dir / "urls",
-                DocumentType.ENRICHMENT_URL,
-                recursive=True,
-            )
-        )
-        return documents
-
     def _documents_from_dir(
         self,
         directory: Path,
