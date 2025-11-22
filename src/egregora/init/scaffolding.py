@@ -10,8 +10,8 @@ import logging
 from pathlib import Path
 from typing import cast
 
-from egregora.output_adapters import create_output_format
 from egregora.data_primitives.protocols import SiteScaffolder
+from egregora.output_adapters import create_output_format
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 
 logger = logging.getLogger(__name__)
