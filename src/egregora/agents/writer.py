@@ -53,6 +53,7 @@ from egregora.resources.prompts import render_prompt
 from egregora.utils.batch import call_with_retries_sync
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
+from egregora.utils.rate_limit import AsyncRateLimit
 from egregora.utils.retry import RetryPolicy, retry_sync
 
 if TYPE_CHECKING:
@@ -147,6 +148,7 @@ class WriterDeps:
 
     quota: QuotaTracker | None
     usage_tracker: UsageTracker | None
+    rate_limit: AsyncRateLimit | None
 
     @property
     def output_format(self) -> OutputAdapter:
@@ -639,6 +641,7 @@ def _prepare_deps(
         prompts_dir=prompts_dir,
         quota=ctx.quota_tracker,
         usage_tracker=ctx.usage_tracker,
+        rate_limit=ctx.rate_limit,
     )
 
 

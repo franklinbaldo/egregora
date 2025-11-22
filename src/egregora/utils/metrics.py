@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pydantic_ai.usage import RunUsage
 
@@ -10,8 +10,8 @@ from pydantic_ai.usage import RunUsage
 class UsageTracker:
     """Track aggregated LLM usage metrics."""
 
-    usage: RunUsage = RunUsage()
-    history: deque[RunUsage] = deque()
+    usage: RunUsage = field(default_factory=RunUsage)
+    history: deque[RunUsage] = field(default_factory=deque)
 
     def record(self, run_usage: RunUsage) -> None:
         """Add usage and keep history for debugging."""
