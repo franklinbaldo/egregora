@@ -367,14 +367,6 @@ class MkDocsAdapter(OutputAdapter):
                 content = template.render(**context)
                 target_path.write_text(content, encoding="utf-8")
 
-        templates_dir = egregora_dir / "templates"
-        templates_dir.mkdir(parents=True, exist_ok=True)
-        blog_template = templates_dir / "egregora_blog.html"
-        if not blog_template.exists():
-            templates_source = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
-            blog_source = templates_source / ".egregora" / "templates" / "egregora_blog.html.jinja"
-            blog_template.write_text(blog_source.read_text(encoding="utf-8"), encoding="utf-8")
-
     def _create_egregora_config(self, site_paths: dict[str, Any], env: Environment) -> None:
         """Create .egregora/config.yml from template.
 

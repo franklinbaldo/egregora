@@ -689,7 +689,9 @@ def _create_pipeline_context(  # noqa: PLR0913
     client_instance = client or _create_gemini_client(api_key)
     cache_dir = Path(".egregora-cache") / site_paths["site_root"].name
     enrichment_cache = EnrichmentCache(cache_dir)
-    storage = DuckDBStorageManager(db_path=site_paths["site_root"] / ".egregora.db")
+    site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
+    db_file = site_paths["egregora_dir"] / f"{site_paths['site_root'].name}.duckdb"
+    storage = DuckDBStorageManager(db_path=db_file)
 
     rag_store = None
     if config.rag.enabled:
