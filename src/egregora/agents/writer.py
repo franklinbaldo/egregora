@@ -192,7 +192,7 @@ def register_writer_tools(  # noqa: C901
             source_window=ctx.deps.window_label,
         )
         url = ctx.deps.url_convention.canonical_url(doc, ctx.deps.url_context)
-        ctx.deps.output_format.serve(doc)
+        ctx.deps.output_format.persist(doc)
         logger.info("Writer agent saved post at URL: %s (doc_id: %s)", url, doc.document_id)
         return WritePostResult(status="success", path=url)
 
@@ -211,7 +211,7 @@ def register_writer_tools(  # noqa: C901
             source_window=ctx.deps.window_label,
         )
         url = ctx.deps.url_convention.canonical_url(doc, ctx.deps.url_context)
-        ctx.deps.output_format.serve(doc)
+        ctx.deps.output_format.persist(doc)
         logger.info("Writer agent saved profile at URL: %s (doc_id: %s)", url, doc.document_id)
         return WriteProfileResult(status="success", path=url)
 
@@ -564,7 +564,7 @@ def _save_journal_to_file(
             },
             source_window=window_label,
         )
-        output_format.serve(doc)
+        output_format.persist(doc)
     except Exception:
         logger.exception("Failed to write journal")
         return None
