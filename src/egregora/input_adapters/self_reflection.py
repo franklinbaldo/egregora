@@ -12,11 +12,10 @@ from uuid import UUID, uuid5
 import ibis
 import yaml
 
+from egregora.data_primitives.document import DocumentType
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
-from egregora.data_primitives.document import DocumentType
 from egregora.output_adapters.base import OutputAdapter
-from egregora.utils.frontmatter_utils import parse_frontmatter_file
 from egregora.utils.paths import slugify
 
 logger = logging.getLogger(__name__)
@@ -180,11 +179,10 @@ class SelfInputAdapter(InputAdapter):
                 ts = datetime.fromisoformat(value.replace("Z", "+00:00"))
             except ValueError:
                 ts = datetime.strptime(value, "%Y-%m-%d")
+        elif path:
+            ts = datetime.fromtimestamp(path.stat().st_mtime)
         else:
-            if path:
-                ts = datetime.fromtimestamp(path.stat().st_mtime)
-            else:
-                ts = datetime.now(UTC)
+            ts = datetime.now(UTC)
 
         if ts.tzinfo is None:
             if timezone:
@@ -198,7 +196,9 @@ class SelfInputAdapter(InputAdapter):
                 ts = ts.replace(tzinfo=UTC)
         return ts.astimezone(UTC)
 
-    def _sanitize_metadata(self, metadata: dict[str, Any], markdown_path: Path | None = None) -> dict[str, Any]:
+    def _sanitize_metadata(
+        self, metadata: dict[str, Any], markdown_path: Path | None = None
+    ) -> dict[str, Any]:
         sanitized: dict[str, Any] = {key: self._serialize_value(value) for key, value in metadata.items()}
         if markdown_path:
             sanitized.setdefault("source_path", str(markdown_path))

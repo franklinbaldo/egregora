@@ -17,7 +17,7 @@ import logging
 import os
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
@@ -38,10 +38,6 @@ from egregora.utils.filesystem import (
 )
 from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import slugify
-
-if TYPE_CHECKING:
-    from ibis.expr.types import Table
-
 
 logger = logging.getLogger(__name__)
 
