@@ -15,7 +15,7 @@ from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 logger = logging.getLogger(__name__)
 
 
-def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]:
+def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tuple[Path, bool]:
     """Ensure site_root contains an MkDocs configuration.
 
     MODERN: This is a compatibility wrapper. New code should use:
@@ -24,6 +24,7 @@ def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]:
 
     Args:
         site_root: Root directory for the site
+        site_name: Name for the site (defaults to directory name)
 
     Returns:
         tuple of (docs_dir, was_created)
@@ -33,7 +34,8 @@ def ensure_mkdocs_project(site_root: Path) -> tuple[Path, bool]:
     """
     # Use OutputAdapter abstraction
     site_root = site_root.expanduser().resolve()
-    site_name = site_root.name or "Egregora Archive"
+    if site_name is None:
+        site_name = site_root.name or "Egregora Archive"
 
     # Create and initialize MkDocs output format
     output_format = create_output_format(site_root, format_type="mkdocs")
