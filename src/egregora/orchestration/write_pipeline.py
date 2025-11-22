@@ -528,6 +528,7 @@ def _perform_enrichment(
         site_root=ctx.site_root,
         quota=ctx.quota_tracker,
         rate_limit=ctx.rate_limit,
+        usage_tracker=ctx.usage_tracker,
     )
     return enrich_table(
         window_table,
