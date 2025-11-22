@@ -3,11 +3,10 @@ from __future__ import annotations
 import asyncio
 import random
 import time
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Callable, Iterable, Type
 
 from pydantic_ai.exceptions import UnexpectedModelBehavior
-
 
 RetryableException = UnexpectedModelBehavior
 
@@ -19,7 +18,7 @@ class RetryPolicy:
     max_delay: float = 10.0
     multiplier: float = 1.5
     jitter: float = 0.3
-    retry_on: Iterable[Type[BaseException]] = (RetryableException,)
+    retry_on: Iterable[type[BaseException]] = (RetryableException,)
 
     def should_retry(self, attempt: int, exc: BaseException) -> bool:
         if attempt >= self.max_attempts - 1:
@@ -27,7 +26,7 @@ class RetryPolicy:
         return any(isinstance(exc, exc_type) for exc_type in self.retry_on)
 
     def next_delay(self, attempt: int) -> float:
-        delay = min(self.max_delay, self.initial_delay * (self.multiplier ** attempt))
+        delay = min(self.max_delay, self.initial_delay * (self.multiplier**attempt))
         jitter = random.uniform(-self.jitter, self.jitter)
         return max(0.0, delay + jitter)
 
