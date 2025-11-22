@@ -122,10 +122,13 @@ class SelfInputAdapter(InputAdapter):
 
     def _resolve_docs_dir(self, input_path: Path) -> tuple[Path, Path]:
         resolved = input_path.expanduser().resolve()
-        if resolved.is_dir() and (resolved / "docs").is_dir():
-            return resolved / "docs", resolved
+        docs_dir = resolved / "docs"
+        if resolved.is_dir() and docs_dir.is_dir():
+            return docs_dir, resolved
         if resolved.is_dir() and resolved.name == "docs":
             return resolved, resolved.parent
+        if resolved.is_dir() and (resolved / ".egregora").is_dir():
+            return resolved, resolved
         msg = f"Input path {input_path} must be a site root or docs directory"
         raise FileNotFoundError(msg)
 
