@@ -26,7 +26,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import SiteScaffolder, UrlContext, UrlConvention
+from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import write_profile as write_profile_content
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 from egregora.output_adapters.conventions import StandardUrlConvention
