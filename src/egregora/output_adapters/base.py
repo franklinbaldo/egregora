@@ -12,7 +12,6 @@ import ibis
 import ibis.expr.datatypes as dt
 
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import DocumentMetadata, OutputSink, UrlConvention
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -120,15 +119,28 @@ class OutputAdapter(OutputSink, ABC):
 
         """
 
-    def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
-        """Iterate through available documents.
+    def list_documents(self, doc_type: DocumentType | None = None) -> "Table":
+        """List all documents managed by this output format as an Ibis table.
 
         The default implementation materializes the documents returned by
-        :meth:`documents` and yields :class:`DocumentMetadata` describing each
-        one. Override to source the metadata from an external store.
+        :meth:`documents` and exposes their storage identifiers and mtimes.
+        Override only if you need to source the table from another store.
+
+        Args:
+            doc_type: Optional filter by document type
+
+        Returns:
+            Ibis Table with storage_identifier and mtime_ns columns
+
         """
         for document in self.documents():
-            identifier = document.metadata.get("storage_identifier") or document.suggested_path
+            # Filter by doc_type if specified
+            if doc_type is not None and document.type != doc_type:
+                continue
+
+            identifier = document.metadata.get("storage_identifier")
+            if not identifier:
+                identifier = document.suggested_path
             if not identifier:
                 continue
 
@@ -163,7 +175,7 @@ class OutputAdapter(OutputSink, ABC):
 
     @abstractmethod
     def documents(self) -> Iterator[Document]:
-        """Return all managed documents as Document objects."""
+        """Return all managed documents as Document objects (lazy iterator)."""
 
     @abstractmethod
     def initialize(self, site_root: Path) -> None:

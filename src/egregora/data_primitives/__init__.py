@@ -26,12 +26,15 @@ __all__ = [
     # Document types
     "Document",
     "DocumentCollection",
+    "DocumentMetadata",
     "DocumentType",
     # Type aliases
     "GroupSlug",
     "MediaAsset",
-    # Protocols
-    "DocumentMetadata",
+    # Protocols (ISP-compliant)
+    "OutputSink",
+    "SiteScaffolder",
+    # Protocols (legacy/backward compatibility)
     "OutputAdapter",
     "OutputSink",
     "SiteScaffolder",

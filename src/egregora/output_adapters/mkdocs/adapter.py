@@ -24,6 +24,7 @@ import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
 from egregora.config.settings import EgregoraConfig, create_default_config
+from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import SiteScaffolder, UrlContext, UrlConvention
 from egregora.knowledge.profiles import write_profile as write_profile_content
@@ -51,8 +52,20 @@ class _ConfigLoader(yaml.SafeLoader):
 _ConfigLoader.add_constructor(None, lambda loader, node: None)
 
 
-class MkDocsAdapter(OutputAdapter, SiteScaffolder):
-    """Unified MkDocs output adapter."""
+class MkDocsAdapter(OutputAdapter):
+    """Unified MkDocs output adapter.
+
+    **ISP-COMPLIANT** (2025-11-22): This adapter implements both:
+    - OutputSink: Runtime data operations (persist, read, list documents)
+    - SiteScaffolder: Project lifecycle operations (scaffold_site, supports_site, resolve_paths)
+
+    This dual implementation makes MkDocsAdapter suitable for:
+    1. Pipeline execution (via OutputSink interface)
+    2. Site initialization (via SiteScaffolder interface)
+
+    For adapters that only need data persistence (e.g., PostgresAdapter, S3Adapter),
+    implement only OutputSink. For pure initialization tools, implement only SiteScaffolder.
+    """
 
     def __init__(self) -> None:
         """Initializes the adapter."""
@@ -805,6 +818,36 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             self.media_dir / "urls", DocumentType.ENRICHMENT_URL, recursive=True
         )
 
+    def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
+        """Iterate through available documents as lightweight DocumentMetadata.
+
+        Returns DocumentMetadata (identifier, doc_type, metadata) for efficient
+        enumeration without loading full document content.
+
+        Args:
+            doc_type: Optional filter by document type
+
+        Returns:
+            Iterator of DocumentMetadata instances
+
+        """
+        if not hasattr(self, "_site_root") or self._site_root is None:
+            return
+
+        # Scan directories and yield DocumentMetadata
+        yield from self._list_from_dir(self.posts_dir, DocumentType.POST, doc_type)
+        yield from self._list_from_dir(self.profiles_dir, DocumentType.PROFILE, doc_type)
+        yield from self._list_from_dir(
+            self._site_root / "docs" / "media",
+            DocumentType.ENRICHMENT_MEDIA,
+            doc_type,
+            recursive=True,
+            exclude_names={"index.md"},
+        )
+        yield from self._list_from_dir(
+            self.media_dir / "urls", DocumentType.ENRICHMENT_URL, doc_type, recursive=True
+        )
+
     def resolve_document_path(self, identifier: str) -> Path:
         """Resolve MkDocs storage identifier (relative path) to absolute filesystem path.
 
@@ -852,6 +895,40 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 documents.append(doc)
         return documents
 
+    def _list_from_dir(
+        self,
+        directory: Path,
+        dtype: DocumentType,
+        filter_type: DocumentType | None = None,
+        *,
+        recursive: bool = False,
+        exclude_names: set[str] | None = None,
+    ) -> Iterator[DocumentMetadata]:
+        """Helper to yield DocumentMetadata from a directory."""
+        if filter_type is not None and filter_type != dtype:
+            return
+
+        if not directory or not directory.exists():
+            return
+
+        exclude_set = exclude_names or set()
+        glob_func = directory.rglob if recursive else directory.glob
+
+        for path in glob_func("*.md"):
+            if not path.is_file() or path.name in exclude_set:
+                continue
+
+            try:
+                identifier = str(path.relative_to(self._site_root))
+                mtime_ns = path.stat().st_mtime_ns
+                yield DocumentMetadata(
+                    identifier=identifier,
+                    doc_type=dtype,
+                    metadata={"mtime_ns": mtime_ns, "path": str(path)},
+                )
+            except (OSError, ValueError):
+                continue
+
     def _document_from_path(self, path: Path, doc_type: DocumentType) -> Document | None:
         try:
             raw = path.read_text(encoding="utf-8")
@@ -884,17 +961,42 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         url_path = url_path.strip("/")
 
         if document.type == DocumentType.POST:
-            return self.site_root / f"{url_path}.md"
+            return self.posts_dir / f"{url_path.split('/')[-1]}.md"
         if document.type == DocumentType.PROFILE:
-            return self.site_root / f"{url_path}.md"
+            return self.profiles_dir / f"{url_path.split('/')[-1]}.md"
         if document.type == DocumentType.JOURNAL:
-            return self.site_root / f"{url_path}.md"
+            return self.journal_dir / f"{url_path.split('/')[-1]}.md"
         if document.type == DocumentType.ENRICHMENT_URL:
-            return self.site_root / f"{url_path}.md"
+            # url_path might be 'media/urls/slug' -> we want 'slug.md' inside urls_dir
+            slug = url_path.split("/")[-1]
+            return self.urls_dir / f"{slug}.md"
         if document.type == DocumentType.ENRICHMENT_MEDIA:
-            return self.site_root / f"{url_path}.md"
+            # url_path might be 'media/images/slug' -> we want 'slug.md' inside media/images
+            # We need to preserve the subdirectory (images/videos/etc)
+            # url_path is like 'media/images/foo'
+            # self.media_dir is 'docs/media'
+            # We want 'docs/media/images/foo.md'
+
+            # Strip the prefix (media/) from url_path if present
+            rel_path = url_path
+            media_prefix = self._ctx.site_prefix + "/media" if self._ctx.site_prefix else "media"
+            if rel_path.startswith(media_prefix):
+                rel_path = rel_path[len(media_prefix) :].strip("/")
+            elif rel_path.startswith("media/"):
+                rel_path = rel_path[6:]
+
+            return self.media_dir / f"{rel_path}.md"
+
         if document.type == DocumentType.MEDIA:
-            return self.site_root / url_path
+            # Similar logic for media files
+            rel_path = url_path
+            media_prefix = self._ctx.site_prefix + "/media" if self._ctx.site_prefix else "media"
+            if rel_path.startswith(media_prefix):
+                rel_path = rel_path[len(media_prefix) :].strip("/")
+            elif rel_path.startswith("media/"):
+                rel_path = rel_path[6:]
+            return self.media_dir / rel_path
+
         return self.site_root / f"{url_path}.md"
 
     def _write_document(self, document: Document, path: Path) -> None:  # noqa: C901
