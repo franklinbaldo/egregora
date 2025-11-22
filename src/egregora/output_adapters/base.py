@@ -3,6 +3,7 @@
 import datetime
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -10,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 import ibis
 import ibis.expr.datatypes as dt
 
-from egregora.data_primitives.document import Document
+from egregora.data_primitives.document import Document, DocumentType
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -289,15 +290,26 @@ class OutputAdapter(ABC):
 
         """
 
-    def list_documents(self) -> "Table":
+    def list_documents(self, doc_type: DocumentType | None = None) -> "Table":
         """List all documents managed by this output format as an Ibis table.
 
         The default implementation materializes the documents returned by
         :meth:`documents` and exposes their storage identifiers and mtimes.
         Override only if you need to source the table from another store.
+
+        Args:
+            doc_type: Optional filter by document type
+
+        Returns:
+            Ibis Table with storage_identifier and mtime_ns columns
+
         """
         rows: list[dict[str, Any]] = []
         for document in self.documents():
+            # Filter by doc_type if specified
+            if doc_type is not None and document.type != doc_type:
+                continue
+
             identifier = document.metadata.get("storage_identifier")
             if not identifier:
                 identifier = document.suggested_path
@@ -351,8 +363,8 @@ class OutputAdapter(ABC):
         """
 
     @abstractmethod
-    def documents(self) -> list[Document]:
-        """Return all managed documents as Document objects."""
+    def documents(self) -> Iterator[Document]:
+        """Return all managed documents as Document objects (lazy iterator)."""
 
     @abstractmethod
     def initialize(self, site_root: Path) -> None:
