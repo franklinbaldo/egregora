@@ -52,7 +52,19 @@ _ConfigLoader.add_constructor(None, lambda loader, node: None)
 
 
 class MkDocsAdapter(OutputAdapter):
-    """Unified MkDocs output adapter."""
+    """Unified MkDocs output adapter.
+
+    **ISP-COMPLIANT** (2025-11-22): This adapter implements both:
+    - OutputSink: Runtime data operations (persist, read, list documents)
+    - SiteScaffolder: Project lifecycle operations (scaffold_site, supports_site, resolve_paths)
+
+    This dual implementation makes MkDocsAdapter suitable for:
+    1. Pipeline execution (via OutputSink interface)
+    2. Site initialization (via SiteScaffolder interface)
+
+    For adapters that only need data persistence (e.g., PostgresAdapter, S3Adapter),
+    implement only OutputSink. For pure initialization tools, implement only SiteScaffolder.
+    """
 
     def __init__(self) -> None:
         """Initializes the adapter."""

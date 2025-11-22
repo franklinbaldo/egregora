@@ -13,7 +13,13 @@ consume and publish it).
 
 from egregora.data_primitives.base_types import GroupSlug, PostSlug
 from egregora.data_primitives.document import Document, DocumentCollection, DocumentType, MediaAsset
-from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
+from egregora.data_primitives.protocols import (
+    OutputAdapter,
+    OutputSink,
+    SiteScaffolder,
+    UrlContext,
+    UrlConvention,
+)
 
 __all__ = [
     # Document types
@@ -23,7 +29,10 @@ __all__ = [
     # Type aliases
     "GroupSlug",
     "MediaAsset",
-    # Protocols
+    # Protocols (ISP-compliant)
+    "OutputSink",
+    "SiteScaffolder",
+    # Protocols (legacy)
     "OutputAdapter",
     "PostSlug",
     "UrlContext",
