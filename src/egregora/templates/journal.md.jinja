@@ -9,29 +9,30 @@
 - **Posts published:** {{ posts_published }}
 - **Profiles updated:** {{ profiles_updated }}
 - **Reasoning segments captured:** {{ entry_count }}
+- **Total tokens used:** {{ total_tokens }}
 
 ---
 
 {% for entry in intercalated_log %}
 {% if entry.entry_type == "thinking" %}
-### Thinking
-
-{{ entry.content }}
+!!! quote "Thinking"
+    {{ entry.content | indent(4) }}
 
 {% elif entry.entry_type == "journal" %}
-### Freeform
-
-{{ entry.content }}
+!!! note "Journal"
+    {{ entry.content | indent(4) }}
 
 {% elif entry.entry_type == "tool_call" %}
-<tool-call{% if entry.tool_name %} name="{{ entry.tool_name }}"{% endif %}>
-{{ entry.content }}
-</tool-call>
+!!! example "Tool Call: `{{ entry.tool_name }}`"
+    ```json
+    {{ entry.content | indent(4) }}
+    ```
 
 {% elif entry.entry_type == "tool_return" %}
-<tool-return{% if entry.tool_name %} name="{{ entry.tool_name }}"{% endif %}>
-{{ entry.content }}
-</tool-return>
+!!! success "Tool Return: `{{ entry.tool_name }}`"
+    ```text
+    {{ entry.content | indent(4) }}
+    ```
 
 {% endif %}
 {% endfor %}

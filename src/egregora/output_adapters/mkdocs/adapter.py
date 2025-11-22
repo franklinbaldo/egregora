@@ -950,17 +950,42 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         url_path = url_path.strip("/")
 
         if document.type == DocumentType.POST:
-            return self.site_root / f"{url_path}.md"
+            return self.posts_dir / f"{url_path.split('/')[-1]}.md"
         if document.type == DocumentType.PROFILE:
-            return self.site_root / f"{url_path}.md"
+            return self.profiles_dir / f"{url_path.split('/')[-1]}.md"
         if document.type == DocumentType.JOURNAL:
-            return self.site_root / f"{url_path}.md"
+            return self.journal_dir / f"{url_path.split('/')[-1]}.md"
         if document.type == DocumentType.ENRICHMENT_URL:
-            return self.site_root / f"{url_path}.md"
+            # url_path might be 'media/urls/slug' -> we want 'slug.md' inside urls_dir
+            slug = url_path.split('/')[-1]
+            return self.urls_dir / f"{slug}.md"
         if document.type == DocumentType.ENRICHMENT_MEDIA:
-            return self.site_root / f"{url_path}.md"
+            # url_path might be 'media/images/slug' -> we want 'slug.md' inside media/images
+            # We need to preserve the subdirectory (images/videos/etc)
+            # url_path is like 'media/images/foo'
+            # self.media_dir is 'docs/media'
+            # We want 'docs/media/images/foo.md'
+            
+            # Strip the prefix (media/) from url_path if present
+            rel_path = url_path
+            media_prefix = self._ctx.site_prefix + "/media" if self._ctx.site_prefix else "media"
+            if rel_path.startswith(media_prefix):
+                 rel_path = rel_path[len(media_prefix):].strip("/")
+            elif rel_path.startswith("media/"):
+                 rel_path = rel_path[6:]
+            
+            return self.media_dir / f"{rel_path}.md"
+
         if document.type == DocumentType.MEDIA:
-            return self.site_root / url_path
+             # Similar logic for media files
+            rel_path = url_path
+            media_prefix = self._ctx.site_prefix + "/media" if self._ctx.site_prefix else "media"
+            if rel_path.startswith(media_prefix):
+                 rel_path = rel_path[len(media_prefix):].strip("/")
+            elif rel_path.startswith("media/"):
+                 rel_path = rel_path[6:]
+            return self.media_dir / rel_path
+
         return self.site_root / f"{url_path}.md"
 
     def _write_document(self, document: Document, path: Path) -> None:  # noqa: C901

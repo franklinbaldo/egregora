@@ -694,7 +694,7 @@ def _create_pipeline_context(  # noqa: PLR0913
     cache_dir = Path(".egregora-cache") / site_paths["site_root"].name
     enrichment_cache = EnrichmentCache(cache_dir)
     site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
-    db_file = site_paths["egregora_dir"] / f"{site_paths['site_root'].name}.duckdb"
+    db_file = site_paths["egregora_dir"] / "app.duckdb"
     storage = DuckDBStorageManager(db_path=db_file)
 
     rag_store = None
