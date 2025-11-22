@@ -48,12 +48,12 @@ def chunks_sql(ir: Table) -> Table:
 
 def messages_with_media_view(ir: Table) -> Table:
     """Filter to messages containing media."""
-    return ir.filter(ir.media_url.notna())
+    return ir.filter(ir.media_url.notnull())  # noqa: PD004 - media_url column has no `.notna()`
 
 
 def messages_with_text_view(ir: Table) -> Table:
     """Filter to messages containing non-empty text."""
-    return ir.filter(ir.text.notna() & (ir.text != ""))
+    return ir.filter(ir.text.notnull() & (ir.text != ""))  # noqa: PD004 - `notna` unsupported on this schema
 
 
 def hourly_aggregates_view(ir: Table) -> Table:

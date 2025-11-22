@@ -39,6 +39,7 @@ from egregora.ops.media import (
 )
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
+from egregora.utils.metrics import UsageTracker
 from egregora.utils.paths import slugify
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
 from egregora.utils.rate_limit import AsyncRateLimit
@@ -159,6 +160,7 @@ class EnrichmentRuntimeContext:
     target_table: str | None = None
     rate_limit: AsyncRateLimit | None = None
     quota: QuotaTracker | None = None
+    usage_tracker: UsageTracker | None = None
 
 
 # ---------------------------------------------------------------------------

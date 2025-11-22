@@ -280,7 +280,7 @@ def index_documents_for_rag(  # noqa: C901, PLR0915, PLR0912
         joined = docs_table.left_join(indexed_renamed, docs_table.source_path == indexed_renamed.indexed_path)
 
         new_or_changed = joined.filter(
-            (joined.indexed_mtime.isna()) | (joined.mtime_ns > joined.indexed_mtime)
+            (joined.indexed_mtime.isnull()) | (joined.mtime_ns > joined.indexed_mtime)  # noqa: PD003 - `.isna()` missing on this Ibis column
         ).select(
             storage_identifier=joined.storage_identifier,
             source_path=joined.source_path,
