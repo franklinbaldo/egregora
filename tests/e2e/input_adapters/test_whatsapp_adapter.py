@@ -14,17 +14,17 @@ Tests in this file validate:
 
 from __future__ import annotations
 
+import json
 import zipfile
-from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import ibis
 import pytest
 
-# from egregora.ops.media import extract_and_replace_media
 from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
 from egregora.config.settings import create_default_config
+from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp import WhatsAppAdapter, filter_egregora_messages, parse_source
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
@@ -35,6 +35,15 @@ if TYPE_CHECKING:
 
 def create_export_from_fixture(fixture: WhatsAppFixture):
     return fixture.create_export()
+
+
+# Legacy helper placeholder ----------------------------------------------------
+
+
+def extract_and_replace_media(*_args, **_kwargs):  # pragma: no cover - legacy placeholder
+    """Placeholder until legacy media tests are updated to the Document pipeline."""
+    message = "Media extraction tests rely on the legacy pipeline"
+    raise NotImplementedError(message)
 
 
 # =============================================================================
@@ -76,8 +85,7 @@ def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    # IR schema uses: ts, author, text (not timestamp, author, message)
-    assert {"ts", "author", "text"}.issubset(table.columns)
+    assert set(table.columns) == set(IR_MESSAGE_SCHEMA.names)
     assert table.count().execute() == 10
     messages = table["text"].execute().tolist()
     assert all(message is not None and message.strip() for message in messages)
@@ -90,9 +98,11 @@ def test_parser_handles_portuguese_dates(whatsapp_fixture: WhatsAppFixture):
     """Test that parser correctly handles Portuguese date formats."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
-    dates = [value.date() for value in table["date"].execute().tolist()]
+    raw_attrs = table["attrs"].execute().tolist()
+    attrs = [json.loads(value) if isinstance(value, str) and value else (value or {}) for value in raw_attrs]
+    dates = {value.get("message_date") for value in attrs if value}
 
-    assert date(2025, 10, 28) in dates
+    assert "2025-10-28" in dates
 
 
 def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture):
@@ -100,8 +110,7 @@ def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    participant_rows = table.filter(~table.author.isin(["system", "egregora"]))
-    assert participant_rows.count().execute() == 10
+    assert table.count().execute() == 10
 
 
 def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture):
@@ -119,24 +128,8 @@ def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    # Verify table has IR schema columns (ts, text, author_uuid, not timestamp, message, author)
-    expected_columns = {
-        "ts",
-        "date",
-        "author",
-        "author_raw",
-        "author_uuid",
-        "text",
-        "original_line",
-        "tagged_line",
-        "message_id",
-    }
+    expected_columns = set(IR_MESSAGE_SCHEMA.names)
     assert set(table.columns) == expected_columns
-
-    # Verify no extra columns
-    assert "time" not in table.columns
-    assert "group_slug" not in table.columns
-    assert "group_name" not in table.columns
 
 
 # =============================================================================
@@ -149,7 +142,7 @@ def test_anonymization_removes_real_author_names(whatsapp_fixture: WhatsAppFixtu
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    authors = table["author"].execute().tolist()
+    authors = table["author_raw"].execute().tolist()
     for forbidden in ("Franklin", "Iuri Brasil", "Você", "Eurico Max"):
         assert forbidden not in authors
 
@@ -166,7 +159,7 @@ def test_parse_source_exposes_raw_authors_when_requested(whatsapp_fixture: Whats
         expose_raw_author=True,
     )
 
-    authors = table.select("author").distinct().execute()["author"].tolist()
+    authors = table.select("author_raw").distinct().execute()["author_raw"].tolist()
     # Only authors who sent actual messages appear (not system message participants)
     # Franklin sent multiple messages, Eurico Max sent one message
     # "Iuri Brasil" and "Você" only appear in system messages, not as message authors
@@ -183,8 +176,8 @@ def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture):
     table_one = parse_source(export, timezone=whatsapp_fixture.timezone)
     table_two = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    authors_one = sorted(table_one.select("author").distinct().execute()["author"].tolist())
-    authors_two = sorted(table_two.select("author").distinct().execute()["author"].tolist())
+    authors_one = sorted(table_one.select("author_uuid").distinct().execute()["author_uuid"].tolist())
+    authors_two = sorted(table_two.select("author_uuid").distinct().execute()["author_uuid"].tolist())
 
     assert authors_one == authors_two
 
@@ -196,7 +189,7 @@ def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture):
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
-    distinct_authors = table.select("author").distinct().execute()["author"].tolist()
+    distinct_authors = table.select("author_uuid").distinct().execute()["author_uuid"].tolist()
     authors = [value for value in distinct_authors if value not in {"system", "egregora"}]
 
     # Validate each author ID is a valid UUID (36 characters with hyphens)
@@ -232,8 +225,10 @@ def test_media_extraction_creates_expected_files(whatsapp_fixture: WhatsAppFixtu
     )
 
     assert len(media_mapping) == 4
-    for extracted_path in media_mapping.values():
-        assert extracted_path.exists()
+    for media_doc in media_mapping.values():
+        public_url = media_doc.metadata.get("public_url")
+        assert public_url is not None
+        assert public_url.endswith((".jpg", ".jpeg", ".png", ".gif"))
 
 
 @pytest.mark.xfail(reason="Media extraction not returning files - needs investigation")
@@ -261,7 +256,7 @@ def test_media_references_replaced_in_messages(whatsapp_fixture: WhatsAppFixture
 def test_media_files_have_deterministic_names(whatsapp_fixture: WhatsAppFixture, tmp_path: Path):
     """Test that media files get deterministic names across multiple extractions."""
     export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_source(export, timezone=whatsapp_fixture.timezone)
+    _ = parse_source(export, timezone=whatsapp_fixture.timezone)
 
     docs_dir_one = tmp_path / "docs1"
     docs_dir_two = tmp_path / "docs2"
@@ -326,6 +321,11 @@ def test_egregora_commands_are_filtered_out(whatsapp_fixture: WhatsAppFixture):
 
     original_records = table.execute().to_dict("records")
     sample_record = original_records[0]
+    # ibis.memtable requires JSON columns to be strings rather than dict instances
+    for json_key in ("attrs", "pii_flags"):
+        value = sample_record.get(json_key)
+        if isinstance(value, dict):
+            sample_record[json_key] = json.dumps(value)
     synthetic = {
         **sample_record,
         "text": "/egregora opt-out",
@@ -378,8 +378,6 @@ def test_enrichment_adds_egregora_messages(
 
     enrichment_context = EnrichmentRuntimeContext(
         cache=cache,
-        docs_dir=docs_dir,
-        posts_dir=posts_dir,
         output_format=None,  # Not needed for test
     )
 
@@ -438,8 +436,6 @@ def test_enrichment_handles_schema_mismatch(
 
     enrichment_context = EnrichmentRuntimeContext(
         cache=cache,
-        docs_dir=docs_dir,
-        posts_dir=posts_dir,
         output_format=None,  # Not needed for test
     )
 

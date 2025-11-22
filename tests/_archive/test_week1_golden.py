@@ -79,7 +79,7 @@ def runs_db(tmp_path: Path) -> duckdb.DuckDBPyConnection:
     conn.close()
 
 
-def test_week1_golden_whatsapp_pipeline(
+def test_week1_golden_whatsapp_pipeline(  # noqa: PLR0915
     whatsapp_fixture: Path,
     runs_db: duckdb.DuckDBPyConnection,
     tmp_path: Path,
@@ -146,10 +146,10 @@ def test_week1_golden_whatsapp_pipeline(
     assert row_count > 0, "No messages parsed"
 
     # Validate required fields are populated (using IR v1 column names)
-    df = table.execute()
-    assert df["ts"].notna().all(), "Missing timestamps"
-    assert df["author"].notna().all(), "Missing authors"
-    assert df["text"].notna().all(), "Missing messages"
+    table_df = table.execute()
+    assert table_df["ts"].notna().all(), "Missing timestamps"
+    assert table_df["author"].notna().all(), "Missing authors"
+    assert table_df["text"].notna().all(), "Missing messages"
 
     # Record ingestion run
     ingestion_end_time = datetime.now(UTC)
@@ -238,11 +238,11 @@ def test_week1_golden_whatsapp_pipeline(
 
     # Re-parse same export (parse_source already anonymizes)
     table2 = parse_source(export)
-    df2 = table2.execute()
+    second_df = table2.execute()
 
     # Validate identical anonymized values on re-ingest
     # Both parses should produce the same anonymized UUIDs
-    unique_authors_raw2 = df2["author_raw"].unique()
+    unique_authors_raw2 = second_df["author_raw"].unique()
 
     # Same number of unique authors
     assert len(unique_authors_raw) == len(unique_authors_raw2), (

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import io
 import logging
+import math
 import re
 import unicodedata
 import uuid
@@ -26,15 +27,17 @@ from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 from zoneinfo import ZoneInfo
 
 import ibis
+import ibis.expr.datatypes as dt
 from dateutil import parser as date_parser
 from pydantic import BaseModel
 
 from egregora.data_primitives import GroupSlug
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.database.ir_schema import MESSAGE_SCHEMA
+from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.privacy.uuid_namespaces import deterministic_author_uuid
+from egregora.utils.paths import slugify
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 if TYPE_CHECKING:
@@ -203,25 +206,6 @@ def _parse_messages_duckdb(
     # Filter out lines before the first valid message
     valid_messages = grouped.filter(grouped.msg_group_id > 0)
 
-    # Aggregate messages within groups
-    # For header lines, we use extracted parts.
-    # For continuation lines, we use the full line.
-    # The first line of a group is the header.
-    aggregated = valid_messages.group_by("msg_group_id").aggregate(
-        # Take header info from the first line of the group
-        date_str=valid_messages.date_str.first(),
-        time_str=valid_messages.time_str.first(),
-        author_raw=valid_messages.author_raw.first(),
-        # Combine text: header's message_part + subsequent full lines
-        # We can't easily use string_agg with complex condition in one go in standard Ibis without window functions
-        # But since we grouped, we can try list_agg or similar if supported, or do a window operation before aggregate.
-        # Strategy:
-        # 1. Identify content for each line:
-        #    - Header line: message_part
-        #    - Continuation line: line
-        # 2. String agg them ordered by line_id
-    )
-
     # Let's refine the aggregation strategy using window functions before group_by if possible,
     # or just collect and process. DuckDB's string_agg preserves order if order_by is used.
 
@@ -278,19 +262,8 @@ def _parse_messages_duckdb(
         if msg_time is None:
             continue
 
-        timestamp = datetime.combine(msg_date, msg_time, tzinfo=tz)
+        timestamp = datetime.combine(msg_date, msg_time, tzinfo=tz).astimezone(UTC)
         author_raw = row["author_raw"].strip()
-
-        # Use existing finalizer logic
-        msg_dict = {
-            "timestamp": timestamp,
-            "date": msg_date,
-            "author_raw": author_raw,
-            "_continuation_lines": [
-                text
-            ],  # Already joined, but finalize expects list structure or we adapt finalize
-            "_original_lines": [],  # We skip original lines tracking for speed in this path
-        }
 
         # Adapted finalizer for pre-joined text
         author_uuid = deterministic_author_uuid(tenant_id, source_identifier, author_raw)
@@ -298,6 +271,7 @@ def _parse_messages_duckdb(
         finalized = {
             "ts": timestamp,
             "date": msg_date,
+            "message_date": msg_date.isoformat(),
             "author": author_raw,
             "author_raw": author_raw,
             "author_uuid": str(author_uuid),
@@ -360,12 +334,17 @@ def _parse_remove_command(args: str) -> dict:
 
 COMMAND_REGISTRY = {"set": _parse_set_command, "remove": _parse_remove_command}
 
+
+def _is_nan(value: Any) -> bool:
+    return isinstance(value, float) and math.isnan(value)
+
+
 SMART_QUOTES_TRANSLATION = str.maketrans(
     {
-        "“": '"',
-        "”": '"',
-        "‘": "'",
-        "’": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u2018": "'",
+        "\u2019": "'",
     }
 )
 
@@ -408,7 +387,7 @@ def extract_commands(messages: Table) -> list[dict]:
         set_has_value=ibis.coalesce(
             enriched.args_trimmed.length()
             > ibis.coalesce(enriched.target_candidate.length(), ibis.literal(0)),
-            ibis.literal(False),
+            ibis.literal(value=False),
         ),
     )
 
@@ -453,11 +432,11 @@ def extract_commands(messages: Table) -> list[dict]:
         command_payload = {"command": row["command_name"]}
 
         target = row.get("command_target")
-        if target is not None and target == target:
+        if target is not None and not _is_nan(target):
             command_payload["target"] = target
 
         value = row.get("command_value")
-        if value is not None and value == value:
+        if value is not None and not _is_nan(value):
             command_payload["value"] = value
 
         commands.append(
@@ -496,6 +475,7 @@ def parse_source(
     timezone: str | ZoneInfo | None = None,
     *,
     expose_raw_author: bool = False,
+    source_identifier: str = "whatsapp",
 ) -> Table:
     """Parse WhatsApp export using pure Ibis/DuckDB operations."""
     with zipfile.ZipFile(export.zip_path) as zf:
@@ -511,12 +491,12 @@ def parse_source(
 
     if not lines:
         logger.warning("No messages found in %s", export.zip_path)
-        return ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
+        return ibis.memtable([], schema=IR_MESSAGE_SCHEMA)
 
     rows = _parse_messages_duckdb(lines, export, timezone)
 
     if not rows:
-        return ibis.memtable([], schema=ibis.schema(MESSAGE_SCHEMA))
+        return ibis.memtable([], schema=IR_MESSAGE_SCHEMA)
 
     messages = ibis.memtable(rows)
     if _IMPORT_ORDER_COLUMN in messages.columns:
@@ -537,7 +517,33 @@ def parse_source(
     if columns_to_drop:
         messages = messages.drop(*columns_to_drop)
 
-    return messages
+    tenant_literal = ibis.literal(str(export.group_slug))
+    thread_literal = tenant_literal
+    source_literal = ibis.literal(source_identifier)
+    created_by_literal = ibis.literal("adapter:whatsapp")
+    string_null = ibis.literal(None, type=dt.string)
+    json_null = ibis.literal(None, type=dt.json)
+
+    attrs_column = build_message_attrs(
+        messages.original_line, messages.tagged_line, messages.message_date
+    ).cast(dt.json)
+
+    ir_messages = messages.mutate(
+        event_id=messages.message_id,
+        tenant_id=tenant_literal,
+        source=source_literal,
+        thread_id=thread_literal,
+        msg_id=messages.message_id,
+        ts=messages.ts.cast("timestamp('UTC')"),
+        media_url=string_null,
+        media_type=string_null,
+        attrs=attrs_column,
+        pii_flags=json_null,
+        created_at=messages.ts.cast("timestamp('UTC')"),
+        created_by_run=created_by_literal,
+    )
+
+    return ir_messages.select(*IR_MESSAGE_SCHEMA.names)
 
 
 # ============================================================================
@@ -638,6 +644,28 @@ def _convert_whatsapp_media_to_markdown(message: str) -> str:
     return result
 
 
+def build_message_attrs(
+    original_line: ibis.Expr,
+    tagged_line: ibis.Expr,
+    message_date: ibis.Expr,
+) -> ibis.Expr:
+    """Return message metadata serialized as JSON when any field is present."""
+    attrs_struct = ibis.struct(
+        {
+            "original_line": original_line,
+            "tagged_line": tagged_line,
+            "message_date": message_date,
+        }
+    )
+    has_metadata = ibis.coalesce(original_line, tagged_line, message_date).notnull()
+    attrs_json = attrs_struct.cast(dt.json).cast(dt.string)
+    empty_json = ibis.literal(None, type=dt.string)
+    return ibis.cases(
+        (has_metadata, attrs_json),
+        else_=empty_json,
+    )
+
+
 class WhatsAppAdapter(InputAdapter):
     """Source adapter for WhatsApp ZIP exports."""
 
@@ -651,6 +679,13 @@ class WhatsAppAdapter(InputAdapter):
     @property
     def source_identifier(self) -> str:
         return "whatsapp"
+
+    @property
+    def content_summary(self) -> str:
+        return (
+            "This dataset contains anonymized WhatsApp group conversations exported "
+            "directly from the mobile chat history."
+        )
 
     def get_adapter_metadata(self) -> AdapterMeta:
         return AdapterMeta(
@@ -735,10 +770,10 @@ class WhatsAppAdapter(InputAdapter):
                 logger.debug("Delivered media: %s", media_reference)
 
                 # Determine media type from extension to set metadata
-                ext = Path(media_reference).suffix
                 from egregora.ops.media import detect_media_type
 
                 media_type = detect_media_type(Path(media_reference))
+                media_slug = slugify(Path(media_reference).stem) if media_reference else None
 
                 return Document(
                     content=file_content,
@@ -746,6 +781,9 @@ class WhatsAppAdapter(InputAdapter):
                     metadata={
                         "original_filename": media_reference,
                         "media_type": media_type,
+                        "slug": media_slug or None,
+                        "nav_exclude": True,
+                        "hide": ["navigation"],
                     },
                 )
         except zipfile.BadZipFile:

@@ -5,25 +5,50 @@ description: Diaries of collective consciousness
 
 # {{ site_name }}
 
-Welcome to **Egregora's diaries** — the collective consciousness of the group.
+> A living notebook that turns WhatsApp chatter into thoughtful essays, voice notes into annotations, and daily logs into curated memory.
 
-## What is this?
+## Explore the latest output
 
-Each post is an analytical synthesis of group conversations, written in [Scott Alexander](https://slatestarcodex.com/) / [LessWrong](https://lesswrong.com) style. Egregora captures the **narrative threads** that emerge from discussions, organizing them into structured analyses that preserve the complexity and divergences of collective thought.
+<div class="grid cards" markdown>
 
-## Navigation
+-   :material-post-outline:{ .lg } **Conversation Posts**
 
-- **[📖 Blog]({{ blog_dir }}/index.md)** - Chronological conversation diaries
-- **[👥 Profiles](profiles/index.md)** - Group participants
-- **[ℹ️ About](about.md)** - How the project works
+    Discover fully polished essays generated from chat windows. Each article preserves the emotional texture and references of the original conversation.
 
-## Style
+    [:octicons-arrow-right-24: Read posts]({{ blog_dir }}/index.md)
 
-Inspired by:
-- **Rigorous analysis** from LessWrong
-- **Conversational tone** of Scott Alexander
-- **Thought experiments** for divergences
-- **Concrete hooks** with links and media
+-   :material-account-group:{ .lg } **Participant Profiles**
+
+    Anonymized dossiers summarizing each contributor's style, recurring themes, and intellectual habits. Useful when attributing ideas without breaking privacy.
+
+    [:octicons-arrow-right-24: View profiles](profiles/index.md)
+
+-   :material-image-multiple:{ .lg } **Media Library**
+
+    Every photo, video, or audio clip pulled from the chat with enrichment Markdown that explains what’s inside—ideal for quickly referencing context.
+
+    [:octicons-arrow-right-24: Browse media](media/index.md)
+
+-   :material-notebook-edit:{ .lg } **Operational Journal**
+
+    Daily run reports showing how the pipeline reasoned, which tools it invoked, and where enrichment succeeded or failed.
+
+    [:octicons-arrow-right-24: Read journals](journal/index.md)
+
+</div>
+
+## How it works
+
+1. **Parse & anonymize** – Exports are parsed with deterministic UUIDs so no real names reach the LLMs.
+2. **Enrich everything** – URLs and media go through Pydantic-AI agents that summarize, caption, and tag assets (with human-readable slugs for URLs).
+3. **Write with intent** – The writer agent produces first-person essays with clear slugs, summaries, and author metadata.
+4. **Publish via MkDocs** – Every document (posts, profiles, enrichments, journals) becomes a `Document` that adapters store and link consistently.
+
+### House style
+
+- Conversational voice inspired by [Scott Alexander](https://slatestarcodex.com/) and [LessWrong](https://www.lesswrong.com/)
+- Transparent reasoning: hooks + tension + resolution
+- Privacy-first: no real names, no private timestamps
 
 ---
 

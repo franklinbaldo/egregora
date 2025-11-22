@@ -20,6 +20,7 @@ from ibis.expr.types import Table
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -50,6 +51,7 @@ from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.mkdocs import MkDocsAdapter
 from egregora.resources.prompts import render_prompt
 from egregora.utils.batch import call_with_retries_sync
+from egregora.utils.quota import QuotaExceededError, QuotaTracker
 
 if TYPE_CHECKING:
     from google import genai
@@ -57,6 +59,7 @@ if TYPE_CHECKING:
     from egregora.orchestration.context import PipelineContext
 
 logger = logging.getLogger(__name__)
+MAX_RAG_QUERY_BYTES = 30000
 
 # Type aliases for improved type safety
 MessageHistory = Sequence[ModelRequest | ModelResponse]
@@ -140,10 +143,13 @@ class WriterDeps:
     window_label: str
     prompts_dir: Path | None
 
+    quota: QuotaTracker | None
+
     @property
     def output_format(self) -> OutputAdapter:
         if self.ctx.output_format is None:
-            raise RuntimeError("Output format not initialized in context")
+            message = "Output format not initialized in context"
+            raise RuntimeError(message)
         return self.ctx.output_format
 
     @property
@@ -164,7 +170,7 @@ class WriterDeps:
 # ============================================================================
 
 
-def register_writer_tools(
+def register_writer_tools(  # noqa: C901
     agent: Agent[WriterDeps, WriterAgentReturn],
     *,
     enable_banner: bool = False,
@@ -227,8 +233,8 @@ def register_writer_tools(
                 retrieval_nprobe=ctx.deps.ctx.retrieval_nprobe,
                 retrieval_overfetch=ctx.deps.ctx.retrieval_overfetch,
             )
-            df = results.execute()
-            items = [MediaItem(**row) for row in df.to_dict("records")]
+            media_df = results.execute()
+            items = [MediaItem(**row) for row in media_df.to_dict("records")]
             return SearchMediaResult(results=items)
 
     @agent.tool
@@ -276,7 +282,7 @@ class RagContext:
     records: list[dict[str, Any]]
 
 
-def build_rag_context_for_prompt(
+def build_rag_context_for_prompt(  # noqa: PLR0913
     table_markdown: str,
     store: VectorStore,
     client: genai.Client,
@@ -292,7 +298,8 @@ def build_rag_context_for_prompt(
         return ""
 
     # Simple query strategy for prompt context
-    query_vector = embed_query_text(table_markdown, model=embedding_model)
+    query_text = _truncate_for_embedding(table_markdown)
+    query_vector = embed_query_text(query_text, model=embedding_model)
     search_results = store.search(
         query_vec=query_vector,
         top_k=top_k,
@@ -301,11 +308,11 @@ def build_rag_context_for_prompt(
         nprobe=retrieval_nprobe,
         overfetch=retrieval_overfetch,
     )
-    df = search_results.execute()
-    if getattr(df, "empty", False):
+    results_df = search_results.execute()
+    if getattr(results_df, "empty", False):
         logger.info("Writer RAG: no similar posts found for query")
         return ""
-    records = df.to_dict("records")
+    records = results_df.to_dict("records")
     if not records:
         return ""
     lines = [
@@ -356,6 +363,21 @@ class WriterPromptContext:
     profiles_context: str
     journal_memory: str
     active_authors: list[str]
+
+
+def _truncate_for_embedding(text: str, byte_limit: int = MAX_RAG_QUERY_BYTES) -> str:
+    """Clamp markdown payloads before embedding to respect API limits."""
+    encoded = text.encode("utf-8")
+    if len(encoded) <= byte_limit:
+        return text
+    truncated = encoded[:byte_limit]
+    truncated_text = truncated.decode("utf-8", errors="ignore").rstrip()
+    logger.info(
+        "Truncated RAG query markdown from %s bytes to %s bytes to fit embedding limits",
+        len(encoded),
+        byte_limit,
+    )
+    return truncated_text + "\n\n<!-- truncated for RAG query -->"
 
 
 def _build_writer_prompt_context(
@@ -425,7 +447,7 @@ class JournalEntry:
     tool_name: str | None = None
 
 
-def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
+def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:  # noqa: C901
     """Extract intercalated journal log preserving actual execution order."""
     entries: list[JournalEntry] = []
 
@@ -481,12 +503,16 @@ def _save_journal_to_file(
     intercalated_log: list[JournalEntry],
     window_label: str,
     output_format: OutputAdapter,
+    posts_published: int,
+    profiles_updated: int,
+    window_start: datetime,
+    window_end: datetime,
 ) -> str | None:
     """Save journal entry to markdown file."""
     if not intercalated_log:
         return None
 
-    templates_dir = Path(__file__).parent.parent.parent / "templates"
+    templates_dir = Path(__file__).resolve().parents[1] / "templates"
     try:
         env = Environment(
             loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape(enabled_extensions=())
@@ -497,33 +523,51 @@ def _save_journal_to_file(
         return None
 
     now_utc = datetime.now(tz=UTC)
+    window_start_iso = window_start.astimezone(UTC).isoformat()
+    window_end_iso = window_end.astimezone(UTC).isoformat()
+    journal_slug = now_utc.strftime("%Y-%m-%d-%H-%M-%S")
     try:
         journal_content = template.render(
             window_label=window_label,
             date=now_utc.strftime("%Y-%m-%d"),
             created=now_utc.isoformat(),
+            posts_published=posts_published,
+            profiles_updated=profiles_updated,
+            entry_count=len(intercalated_log),
             intercalated_log=intercalated_log,
+            window_start=window_start_iso,
+            window_end=window_end_iso,
         )
     except Exception:
         logger.exception("Failed to render journal template")
         return None
+    journal_content = journal_content.replace("../media/", "/media/")
 
     try:
         doc = Document(
             content=journal_content,
             type=DocumentType.JOURNAL,
-            metadata={"window_label": window_label, "date": now_utc.strftime("%Y-%m-%d")},
+            metadata={
+                "window_label": window_label,
+                "window_start": window_start_iso,
+                "window_end": window_end_iso,
+                "date": now_utc.isoformat(),
+                "created_at": now_utc.isoformat(),
+                "slug": journal_slug,
+                "nav_exclude": True,
+                "hide": ["navigation"],
+            },
             source_window=window_label,
         )
         output_format.serve(doc)
-        logger.info("Saved journal entry: %s", doc.document_id)
-        return doc.document_id
     except Exception:
         logger.exception("Failed to write journal")
         return None
+    logger.info("Saved journal entry: %s", doc.document_id)
+    return doc.document_id
 
 
-def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str]]:
+def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str]]:  # noqa: C901
     """Extract saved post and profile document IDs from agent message history."""
     saved_posts: list[str] = []
     saved_profiles: list[str] = []
@@ -532,7 +576,7 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
         if isinstance(content, str):
             try:
                 data = json.loads(content)
-            except:
+            except (ValueError, json.JSONDecodeError):
                 return
         elif hasattr(content, "model_dump"):
             data = content.model_dump()
@@ -590,6 +634,7 @@ def _prepare_deps(
         window_end=window_end,
         window_label=window_label,
         prompts_dir=prompts_dir,
+        quota=ctx.quota_tracker,
     )
 
 
@@ -654,11 +699,56 @@ def write_posts_with_pydantic_agent(
 
     _validate_prompt_fits(prompt, model_name, config, context.window_label)
 
-    result = call_with_retries_sync(agent.run_sync, prompt, deps=context)
+    last_error: UnexpectedModelBehavior | None = None
+    try:
+        if context.quota:
+            context.quota.reserve(1)
+    except QuotaExceededError as exc:
+        msg = (
+            "LLM quota exceeded for this day. No additional posts can be generated "
+            "until the usage window resets."
+        )
+        logger.error(msg)
+        raise RuntimeError(msg) from exc
+
+    for attempt in range(3):
+        try:
+            result = call_with_retries_sync(agent.run_sync, prompt, deps=context)
+            break
+        except UnexpectedModelBehavior as exc:
+            last_error = exc
+            if "MALFORMED_FUNCTION_CALL" not in str(exc):
+                raise
+            logger.warning(
+                "Writer model returned malformed function call (attempt %s/3). Retrying...",
+                attempt + 1,
+            )
+    else:
+        raise last_error  # pragma: no cover
 
     saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
     intercalated_log = _extract_intercalated_log(result.all_messages())
-    _save_journal_to_file(intercalated_log, context.window_label, context.output_format)
+    if not intercalated_log:
+        fallback_content = _extract_journal_content(result.all_messages())
+        if fallback_content:
+            intercalated_log = [JournalEntry("journal", fallback_content, datetime.now(tz=UTC))]
+        else:
+            intercalated_log = [
+                JournalEntry(
+                    "journal",
+                    "Writer agent completed without emitting a detailed reasoning trace.",
+                    datetime.now(tz=UTC),
+                )
+            ]
+    _save_journal_to_file(
+        intercalated_log,
+        context.window_label,
+        context.output_format,
+        len(saved_posts),
+        len(saved_profiles),
+        context.window_start,
+        context.window_end,
+    )
 
     logger.info(
         "Writer agent completed: period=%s posts=%d profiles=%d tokens=%d",
@@ -679,9 +769,13 @@ def _render_writer_prompt(
     """Render the final writer prompt text."""
     format_instructions = ctx.output_format.get_format_instructions() if ctx.output_format else ""
     custom_instructions = ctx.config.writer.custom_instructions or ""
+    adapter_instructions = _adapter_generation_instructions(ctx)
+    if adapter_instructions:
+        custom_instructions = "\n\n".join(filter(None, [custom_instructions, adapter_instructions]))
+    source_context = _adapter_content_summary(ctx)
 
     return render_prompt(
-        "system/writer.jinja",
+        "writer.jinja",
         prompts_dir=deps.prompts_dir,
         date=deps.window_label,
         markdown_table=prompt_context.conversation_md,
@@ -691,8 +785,46 @@ def _render_writer_prompt(
         profiles_context=prompt_context.profiles_context,
         rag_context=prompt_context.rag_context,
         journal_memory=prompt_context.journal_memory,
+        source_context=source_context,
         enable_memes=False,
     )
+
+
+def _adapter_content_summary(ctx: PipelineContext) -> str:
+    adapter = getattr(ctx, "adapter", None)
+    if adapter is None:
+        return ""
+
+    summary: str | None = ""
+    try:
+        summary = getattr(adapter, "content_summary", "")
+    except Exception:
+        logger.debug("Adapter %s lacks content_summary", adapter)
+        summary = ""
+
+    if callable(summary):
+        try:
+            summary = summary()
+        except Exception:
+            logger.exception("Failed to evaluate adapter content summary")
+            summary = ""
+
+    return (summary or "").strip()
+
+
+def _adapter_generation_instructions(ctx: PipelineContext) -> str:
+    adapter = getattr(ctx, "adapter", None)
+    if adapter is None:
+        return ""
+
+    instructions = getattr(adapter, "generation_instructions", "")
+    if callable(instructions):
+        try:
+            instructions = instructions()
+        except Exception:
+            logger.exception("Failed to evaluate adapter generation instructions")
+            instructions = ""
+    return (instructions or "").strip()
 
 
 def _cast_uuid_columns_to_str(table: Table) -> Table:
@@ -764,7 +896,7 @@ def write_posts_for_window(
             )
             if indexed_count > 0:
                 logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning("Failed to update RAG index after writing: %s", e)
 
     return {"posts": saved_posts, "profiles": saved_profiles}
@@ -788,7 +920,7 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     """Get top N active authors by message count."""
     author_counts = (
         table.filter(~table.author_uuid.cast("string").isin(["system", "egregora"]))
-        .filter(table.author_uuid.notnull())
+        .filter(table.author_uuid.notna())
         .filter(table.author_uuid.cast("string") != "")
         .group_by("author_uuid")
         .aggregate(count=ibis._.count())

@@ -54,7 +54,7 @@ class InputAdapterRegistry:
     def _load_builtin(self) -> None:
         """Load built-in adapters (WhatsApp)."""
         try:
-            from egregora.input_adapters.whatsapp import WhatsAppAdapter  # noqa: PLC0415
+            from egregora.input_adapters.whatsapp import WhatsAppAdapter
 
             adapter = WhatsAppAdapter()
             meta = adapter.get_adapter_metadata()
@@ -62,6 +62,26 @@ class InputAdapterRegistry:
             logger.debug("Loaded built-in adapter: %s v%s", meta["name"], meta["version"])
         except Exception:
             logger.exception("Failed to load WhatsAppAdapter")
+
+        try:
+            from egregora.input_adapters.iperon_tjro import IperonTJROAdapter
+
+            adapter = IperonTJROAdapter()
+            meta = adapter.get_adapter_metadata()
+            self._adapters[meta["source"]] = adapter
+            logger.debug("Loaded built-in adapter: %s v%s", meta["name"], meta["version"])
+        except Exception:
+            logger.exception("Failed to load IperonTJROAdapter")
+
+        try:
+            from egregora.input_adapters.self_reflection import SelfInputAdapter
+
+            adapter = SelfInputAdapter()
+            meta = adapter.get_adapter_metadata()
+            self._adapters[meta["source"]] = adapter
+            logger.debug("Loaded built-in adapter: %s v%s", meta["name"], meta["version"])
+        except Exception:
+            logger.exception("Failed to load SelfInputAdapter")
 
     def _load_plugins(self) -> None:
         """Load third-party adapters from entry points.

@@ -12,7 +12,7 @@ from typing import Annotated, Any
 import diskcache
 
 logger = logging.getLogger(__name__)
-ENRICHMENT_CACHE_VERSION = "v1"
+ENRICHMENT_CACHE_VERSION = "v2"
 
 
 def make_enrichment_cache_key(

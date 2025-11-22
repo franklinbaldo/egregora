@@ -1,8 +1,8 @@
 # ADR-002: Deterministic UUID5 Identity Generation
 
-**Status**: Accepted  
-**Date**: 2025-01-08  
-**Deciders**: Architecture Team  
+**Status**: Accepted
+**Date**: 2025-01-08
+**Deciders**: Architecture Team
 
 ## Context
 
@@ -61,7 +61,7 @@ author_uuid = deterministic_author_uuid("acme-corp", "whatsapp", "Alice")
 All base namespaces are **frozen constants** in `src/egregora/privacy/uuid_namespaces.py`:
 - `EGREGORA_NAMESPACE`: Root namespace for all Egregora UUIDs
 - `NAMESPACE_AUTHOR`: Base namespace for author identities
-- `NAMESPACE_EVENT`: Base namespace for event identities  
+- `NAMESPACE_EVENT`: Base namespace for event identities
 - `NAMESPACE_THREAD`: Base namespace for thread identities
 
 **⚠️ CRITICAL**: These UUIDs MUST NEVER change. Modifying them breaks deterministic identity mapping across all historical data.
@@ -72,20 +72,20 @@ All base namespaces are **frozen constants** in `src/egregora/privacy/uuid_names
 
 ✅ **Tenant isolation**: `acme-corp/Alice` ≠ `default/Alice` when adapters choose different namespaces
 ✅ **Source separation**: Encode the source in the namespace key to separate `whatsapp/Alice` from `slack/Alice`
-✅ **Determinism**: Re-ingest → identical UUIDs  
-✅ **Privacy**: No PII in UUIDs (one-way hash)  
-✅ **Auditability**: Can verify UUID generation from source data  
+✅ **Determinism**: Re-ingest → identical UUIDs
+✅ **Privacy**: No PII in UUIDs (one-way hash)
+✅ **Auditability**: Can verify UUID generation from source data
 
 ### Negative
 
-⚠️ **Breaking change**: Existing anonymized data uses old namespace  
-⚠️ **Migration needed**: Must re-anonymize to use new namespaces  
-⚠️ **Namespace frozen**: Cannot change UUIDs without breaking existing data  
+⚠️ **Breaking change**: Existing anonymized data uses old namespace
+⚠️ **Migration needed**: Must re-anonymize to use new namespaces
+⚠️ **Namespace frozen**: Cannot change UUIDs without breaking existing data
 
 ### Neutral
 
 ℹ️ **Complexity**: Requires adapters to manage namespaces when isolation is required
-ℹ️ **Testing**: Property-based tests required to verify determinism  
+ℹ️ **Testing**: Property-based tests required to verify determinism
 
 ## Migration Path
 

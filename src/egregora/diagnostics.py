@@ -55,7 +55,7 @@ class DiagnosticResult:
 
 def check_python_version() -> DiagnosticResult:
     """Check if Python version meets minimum requirement (3.12+)."""
-    import sys  # noqa: PLC0415
+    import sys
 
     version = sys.version_info
     if version >= (3, 12):
@@ -333,7 +333,7 @@ def check_egregora_config() -> DiagnosticResult:
 
     try:
         # Try loading config
-        from egregora.config import load_egregora_config  # noqa: PLC0415
+        from egregora.config import load_egregora_config
 
         config = load_egregora_config(config_file.parent.parent)  # Pass site root
 
@@ -359,7 +359,7 @@ def check_egregora_config() -> DiagnosticResult:
 def check_adapters() -> DiagnosticResult:
     """Check available source adapters."""
     try:
-        from egregora.input_adapters import list_adapters  # noqa: PLC0415
+        from egregora.input_adapters import list_adapters
 
         sources = list_adapters()
 

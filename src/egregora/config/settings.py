@@ -185,6 +185,12 @@ class EnrichmentSettings(BaseModel):
         le=200,
         description="Maximum number of enrichments per run",
     )
+    max_concurrent_enrichments: int = Field(
+        default=4,
+        ge=1,
+        le=20,
+        description="Number of concurrent LLM enrichment calls to run in parallel",
+    )
 
 
 from egregora.constants import WindowUnit  # noqa: E402
@@ -293,7 +299,7 @@ class PathsSettings(BaseModel):
         description="Media files (images, videos) directory",
     )
     journal_dir: str = Field(
-        default="posts/journal",
+        default="journal",
         description="Agent execution journals directory",
     )
 
@@ -377,6 +383,16 @@ class FeaturesSettings(BaseModel):
     )
 
 
+class QuotaSettings(BaseModel):
+    """Configuration for LLM usage budgets."""
+
+    daily_llm_requests: int = Field(
+        default=220,
+        ge=1,
+        description="Soft limit for daily LLM calls (writer + enrichment).",
+    )
+
+
 class EgregoraConfig(BaseModel):
     """Root configuration for Egregora.
 
@@ -457,6 +473,10 @@ class EgregoraConfig(BaseModel):
     features: FeaturesSettings = Field(
         default_factory=FeaturesSettings,
         description="Feature flags",
+    )
+    quota: QuotaSettings = Field(
+        default_factory=QuotaSettings,
+        description="LLM usage quota tracking",
     )
 
     model_config = ConfigDict(

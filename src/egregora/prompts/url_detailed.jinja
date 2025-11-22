@@ -6,6 +6,11 @@ Generate a complete markdown enrichment file for this URL shared in a group conv
 ## Context
 This link was shared in a private group conversation. The sharer's identity, original wording, and share timestamp must remain confidential.
 
+Return JSON with `{ "slug": string, "markdown": string }`:
+
+- `slug`: kebab-case identifier (≤ 60 characters) capturing the topic/source (e.g., `alignment-forum-mesa-optimizers`).
+- `markdown`: the document described below.
+
 ## Output Format
 
 Generate a complete markdown document following this structure:

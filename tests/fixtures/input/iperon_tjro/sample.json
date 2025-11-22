@@ -1,0 +1,44 @@
+{
+  "mock_items": [
+    {
+      "id": 111,
+      "data_disponibilizacao": "2025-11-20",
+      "siglaTribunal": "TJRO",
+      "tipoComunicacao": "Intimação",
+      "nomeOrgao": "Gabinete Des. Miguel",
+      "texto": "Processo: 7000000-00.2025.8.22.0001 exemplo de texto",
+      "numero_processo": "7000000-00.2025.8.22.0001",
+      "numeroComunicacao": 10,
+      "link": "https://example.org/doc/10",
+      "nomeClasse": "APELAÇÃO",
+      "codigoClasse": "198",
+      "meiocompleto": "Diário de Justiça Eletrônico",
+      "destinatarios": [
+        {"nome": "ESTADO DE RONDÔNIA", "polo": "P"}
+      ],
+      "destinatarioadvogados": [
+        {
+          "id": 1,
+          "advogado": {
+            "id": 2,
+            "nome": "João Silva",
+            "numero_oab": "1234",
+            "uf_oab": "RO"
+          }
+        }
+      ]
+    },
+    {
+      "id": 222,
+      "datadisponibilizacao": "21/11/2025",
+      "siglaTribunal": "TJRO",
+      "tipoComunicacao": "Notificação",
+      "nomeOrgao": "Secretaria",
+      "texto": "IPERON citado para manifestação",
+      "numeroComunicacao": 20,
+      "link": null,
+      "nomeClasse": "DECISÃO",
+      "codigoClasse": "150"
+    }
+  ]
+}

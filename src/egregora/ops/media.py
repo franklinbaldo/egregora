@@ -15,17 +15,19 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 import re
 import uuid
 import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
+from egregora.data_primitives.document import Document, DocumentType, MediaAsset
+from egregora.data_primitives.protocols import UrlContext, UrlConvention
+from egregora.input_adapters.base import InputAdapter, MediaMapping
+from egregora.utils.paths import slugify
+
 if TYPE_CHECKING:
     from ibis.expr.types import Table
-
-    from egregora.input_adapters.base import InputAdapter
 
 
 logger = logging.getLogger(__name__)
@@ -201,80 +203,64 @@ def extract_media_from_zip(
 # ----------------------------------------------------------------------------
 
 
+def _normalize_public_url(value: str | None) -> str | None:
+    if not value:
+        return None
+    if value.startswith(("http://", "https://", "/")):
+        return value
+    return "/" + value.lstrip("/")
+
+
+def _media_public_url(media_doc: Document) -> str | None:
+    url = media_doc.metadata.get("public_url")
+    if url:
+        return _normalize_public_url(url)
+    if media_doc.suggested_path:
+        return _normalize_public_url(media_doc.suggested_path.strip("/"))
+    return None
+
+
 def replace_media_mentions(
     text: str,
-    media_mapping: dict[str, Path],
-    docs_dir: Path,
-    posts_dir: Path,
+    media_mapping: MediaMapping,
 ) -> str:
-    """Replace raw media filenames with new UUID5 paths in text.
-
-    "Check this IMG-2025.jpg (file attached)"
-    → "Check this ![Image](media/images/abc123def.jpg)"
-    """
+    """Replace raw media filenames with canonical URLs in plain text."""
     if not text or not media_mapping:
         return text
 
     result = text
-    for original_filename, new_path in media_mapping.items():
-        # Calculate relative path for markdown link
-        try:
-            relative_link = Path(os.path.relpath(new_path, posts_dir)).as_posix()
-        except ValueError:
-            try:
-                relative_link = "/" + new_path.relative_to(docs_dir).as_posix()
-            except ValueError:
-                relative_link = new_path.as_posix()
-
-        if not new_path.exists():
-            # Handle missing/removed media
-            replacement = "[Media removed: privacy protection]"
-            for marker in ATTACHMENT_MARKERS:
-                pattern = re.escape(original_filename) + r"\s*" + re.escape(marker)
-                result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
-
-            result = re.sub(r"\b" + re.escape(original_filename) + r"\b", replacement, result)
-
-            # Fix markdown links if they exist
-            result = result.replace(f"]({relative_link})", f"]({replacement})")
+    for original_filename, media_doc in media_mapping.items():
+        public_url = _media_public_url(media_doc)
+        if not public_url:
             continue
 
-        # Format replacement based on type
-        ext = new_path.suffix.lower()
-        is_image = ext in [".jpg", ".jpeg", ".png", ".gif", ".webp"]
-        replacement = f"![Image]({relative_link})" if is_image else f"[{new_path.name}]({relative_link})"
+        media_type = media_doc.metadata.get("media_type")
+        display_name = media_doc.metadata.get("filename") or original_filename
+        replacement = (
+            f"![Image]({public_url})" if media_type == "image" else f"[{display_name}]({public_url})"
+        )
 
-        # Replace attachments markers + filename
         for marker in ATTACHMENT_MARKERS:
             pattern = re.escape(original_filename) + r"\s*" + re.escape(marker)
             result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
 
-        # Replace bare filename occurrences
         result = re.sub(r"\b" + re.escape(original_filename) + r"\b", replacement, result)
 
     return result
 
 
-def replace_markdown_media_refs(
-    table: Table, media_mapping: dict[str, Path], docs_dir: Path, posts_dir: Path
-) -> Table:
-    """Replace markdown media references with standardized paths in Ibis table."""
+def replace_markdown_media_refs(table: Table, media_mapping: MediaMapping) -> Table:
+    """Replace markdown media references with canonical URLs in Ibis table."""
     if not media_mapping:
         return table
 
     updated_table = table
-    for original_ref, absolute_path in media_mapping.items():
-        try:
-            relative_link = Path(os.path.relpath(absolute_path, posts_dir)).as_posix()
-        except ValueError:
-            try:
-                relative_link = "/" + absolute_path.relative_to(docs_dir).as_posix()
-            except ValueError:
-                relative_link = absolute_path.as_posix()
-
-        # Replace in text column
+    for original_ref, media_doc in media_mapping.items():
+        public_url = _media_public_url(media_doc)
+        if not public_url:
+            continue
         updated_table = updated_table.mutate(
-            text=updated_table.text.replace(f"]({original_ref})", f"]({relative_link})")
+            text=updated_table.text.replace(f"]({original_ref})", f"]({public_url})")
         )
 
     return updated_table
@@ -283,53 +269,99 @@ def replace_markdown_media_refs(
 def process_media_for_window(
     window_table: Table,
     adapter: InputAdapter,
-    media_dir: Path,
-    temp_dir: Path,
-    docs_dir: Path,
-    posts_dir: Path,
+    url_convention: UrlConvention,
+    url_context: UrlContext,
     **adapter_kwargs: object,
-) -> tuple[Table, dict[str, Path]]:
+) -> tuple[Table, MediaMapping]:
     """High-level pipeline to process media for a window."""
-    media_dir.mkdir(parents=True, exist_ok=True)
-    temp_dir.mkdir(parents=True, exist_ok=True)
-
     media_refs = extract_markdown_media_refs(window_table)
     if not media_refs:
         return (window_table, {})
 
     logger.info("Found %s media references to process", len(media_refs))
-    media_mapping: dict[str, Path] = {}
+    media_mapping: MediaMapping = {}
 
     for media_ref in media_refs:
         try:
-            # Adapter delivers a Document containing the media content
             document = adapter.deliver_media(media_reference=media_ref, **adapter_kwargs)
-            if not document:
-                continue
-
-            # Write to temp file to reuse existing standardization logic
-            # (standardize_media_file expects a Path currently)
-            # TODO: Refactor standardize_media_file to accept content/bytes directly
-            temp_file = temp_dir / media_ref
-            if isinstance(document.content, bytes):
-                temp_file.write_bytes(document.content)
-            else:
-                temp_file.write_text(document.content, encoding="utf-8")
-
-            standardized_path = adapter.standardize_media_file(
-                source_file=temp_file, media_dir=media_dir, get_subfolder=get_media_subfolder
-            )
-            media_mapping[media_ref] = standardized_path
-
-        except OSError as e:
-            logger.warning("Failed to process media '%s': %s", media_ref, e)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to deliver media '%s': %s", media_ref, exc)
             continue
 
-    if media_mapping:
-        updated_table = replace_markdown_media_refs(
-            window_table, media_mapping, docs_dir=docs_dir, posts_dir=posts_dir
-        )
-    else:
-        updated_table = window_table
+        if not document:
+            continue
+
+        try:
+            media_doc = _prepare_media_document(document, media_ref)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to normalize media '%s': %s", media_ref, exc)
+            continue
+
+        public_url = url_convention.canonical_url(media_doc, url_context)
+        media_doc = media_doc.with_metadata(public_url=_normalize_public_url(public_url))
+        media_mapping[media_ref] = media_doc
+
+    updated_table = (
+        replace_markdown_media_refs(window_table, media_mapping) if media_mapping else window_table
+    )
 
     return (updated_table, media_mapping)
+
+
+def _prepare_media_document(document: Document, media_ref: str) -> MediaAsset:
+    """Return a MediaAsset with deterministic naming and metadata."""
+    raw_content = document.content
+    if isinstance(raw_content, bytes):
+        payload = raw_content
+    else:
+        payload = str(raw_content).encode("utf-8")
+
+    metadata = document.metadata.copy()
+    original_filename = metadata.get("original_filename") or media_ref
+    extension_source = metadata.get("filename") or media_ref
+    extension = Path(extension_source).suffix
+    media_type = metadata.get("media_type") or detect_media_type(Path(extension_source))
+    media_subdir = get_media_subfolder(extension or Path(media_ref).suffix)
+
+    filename = metadata.get("filename")
+    slug_hint = metadata.get("slug")
+    if not slug_hint and original_filename:
+        slug_hint = slugify(Path(original_filename).stem)
+    if not filename:
+        safe_slug = slugify(slug_hint) if slug_hint else metadata.get("filename", "")
+        slug_base = safe_slug or Path(extension_source or "").stem or document.document_id[:8]
+        unique_suffix = document.document_id[:8]
+        if unique_suffix not in slug_base:
+            slug_base = f"{slug_base}-{unique_suffix}"
+        filename = f"{slug_base}{extension}"
+
+    suggested_path = metadata.get("suggested_path") or f"media/{media_subdir}/{filename}"
+
+    metadata.update(
+        {
+            "original_filename": original_filename,
+            "media_type": media_type,
+            "filename": filename,
+        }
+    )
+    if "slug" not in metadata and original_filename:
+        metadata["slug"] = slugify(Path(original_filename).stem)
+    metadata.setdefault("nav_exclude", True)
+    metadata["media_subdir"] = media_subdir
+    hide_flags = metadata.get("hide", [])
+    if isinstance(hide_flags, str):
+        hide_flags = [hide_flags]
+    if "navigation" not in hide_flags:
+        hide_flags.append("navigation")
+    metadata["hide"] = hide_flags
+
+    return MediaAsset(
+        content=payload,
+        type=DocumentType.MEDIA,
+        metadata=metadata,
+        parent_id=document.parent_id,
+        parent=document.parent,
+        created_at=document.created_at,
+        source_window=document.source_window,
+        suggested_path=suggested_path,
+    )

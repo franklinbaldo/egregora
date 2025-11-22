@@ -137,16 +137,11 @@ features:
 site-root/
 ├── .egregora/
 │   ├── config.yml
-│   └── prompts/              # Custom prompt overrides
+│   └── prompts/              # Custom prompt overrides (flat directory)
 │       ├── README.md         # Auto-generated usage guide
-│       ├── system/
-│       │   ├── writer.jinja  # Override writer agent prompt
-│       │   └── editor.jinja  # Override editor agent prompt
-│       └── enrichment/
-│           ├── url_simple.jinja
-│           ├── url_detailed.jinja
-│           ├── media_simple.jinja
-│           └── media_detailed.jinja
+│       ├── writer.jinja      # Override writer agent prompt
+│       ├── url_detailed.jinja
+│       └── media_detailed.jinja
 ```
 
 **Priority**: Custom prompts (`.egregora/prompts/`) override package defaults (`src/egregora/prompts/`).
@@ -155,11 +150,11 @@ site-root/
 
 ```bash
 # Copy default template
-mkdir -p .egregora/prompts/system
-cp src/egregora/prompts/system/writer.jinja .egregora/prompts/system/writer.jinja
+mkdir -p .egregora/prompts
+cp src/egregora/prompts/writer.jinja .egregora/prompts/writer.jinja
 
 # Edit to customize
-vim .egregora/prompts/system/writer.jinja
+vim .egregora/prompts/writer.jinja
 ```
 
 Agents automatically detect and use custom prompts. Check logs for:

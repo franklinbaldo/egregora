@@ -151,7 +151,7 @@ def create_prompt_template(
 
 # Usage
 UrlEnrichmentPromptTemplate = create_prompt_template(
-    "enrichment/url_simple.jinja",
+    "url_detailed.jinja",
     {"url": (str, ...)}
 )
 ```

@@ -115,10 +115,13 @@ def init(
 
 
 @app.command()
-def write(  # noqa: C901, PLR0913
+def write(  # noqa: C901, PLR0913, PLR0915
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
-    source: Annotated[str, typer.Option(help="Source type: 'whatsapp' or 'slack'")] = "whatsapp",
+    source: Annotated[
+        str,
+        typer.Option(help="Source type (e.g., 'whatsapp', 'iperon-tjro', 'self')"),
+    ] = "whatsapp",
     output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path("output"),
     step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
     step_unit: Annotated[
@@ -240,6 +243,15 @@ def write(  # noqa: C901, PLR0913
 
     # Load base config and merge CLI overrides
     base_config = load_egregora_config(output_dir)
+    models_update: dict[str, str] = {}
+    if model:
+        models_update = {
+            "writer": model,
+            "enricher": model,
+            "enricher_vision": model,
+            "ranking": model,
+            "editor": model,
+        }
     egregora_config = base_config.model_copy(
         deep=True,
         update={
@@ -267,6 +279,7 @@ def write(  # noqa: C901, PLR0913
                     else base_config.rag.overfetch,
                 }
             ),
+            **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
         },
     )
 
@@ -294,7 +307,6 @@ def write(  # noqa: C901, PLR0913
             output_dir=runtime.output_dir,
             config=egregora_config,
             api_key=runtime.api_key,
-            model_override=runtime.model_override,
         )
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:
@@ -328,7 +340,7 @@ def top(
         egregora top my-blog/ --limit 20
 
     """
-    from rich.table import Table  # noqa: PLC0415
+    from rich.table import Table
 
     site_root = site_root.expanduser().resolve()
 
@@ -411,7 +423,7 @@ def show_reader_history(
         egregora show reader-history my-blog/ --limit 50
 
     """
-    from rich.table import Table  # noqa: PLC0415
+    from rich.table import Table
 
     site_root = site_root.expanduser().resolve()
 
@@ -476,7 +488,7 @@ def doctor(
     ] = False,
 ) -> None:
     """Run diagnostic checks to verify Egregora setup."""
-    from egregora.diagnostics import HealthStatus, run_diagnostics  # noqa: PLC0415
+    from egregora.diagnostics import HealthStatus, run_diagnostics
 
     console.print("[bold cyan]Running diagnostics...[/bold cyan]")
     console.print()

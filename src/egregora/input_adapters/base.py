@@ -87,7 +87,7 @@ class AdapterMeta(TypedDict):
     ir_version: str
 
 
-MediaMapping = dict[str, Path]
+MediaMapping = dict[str, Document]
 MEDIA_UUID_NAMESPACE = UUID("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
 
 
@@ -222,6 +222,16 @@ class InputAdapter(ABC):
             >>> assert is_valid, f"Schema validation failed: {errors}"
 
         """
+
+    @property
+    def content_summary(self) -> str:
+        """Describe the type of content this adapter ingests."""
+        return f"This adapter processes data exported from {self.source_name}."
+
+    @property
+    def generation_instructions(self) -> str:
+        """Optional writer guidance injected into prompts."""
+        return ""
 
     def extract_media(self, _input_path: Path, _output_dir: Path, **_kwargs: Any) -> MediaMapping:
         """Extract media files from the export (OPTIONAL).

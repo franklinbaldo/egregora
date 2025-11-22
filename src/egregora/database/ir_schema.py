@@ -392,7 +392,7 @@ def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:  # noq
         DuckDB SQL type string
 
     """
-    import ibis.expr.datatypes as dt  # noqa: PLC0415
+    import ibis.expr.datatypes as dt
 
     if isinstance(ibis_type, dt.Timestamp):
         return "TIMESTAMP WITH TIME ZONE"

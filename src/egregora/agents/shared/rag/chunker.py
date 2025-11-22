@@ -17,12 +17,13 @@ if TYPE_CHECKING:
     from egregora.data_primitives import Document
 
 logger = logging.getLogger(__name__)
+MAX_CHUNK_BYTES = 32000  # Stay below 36 KB embedContent limit
 
 
 def estimate_tokens(text: str) -> int:
     """Estimate token count (rough approximation: ~4 chars per token)."""
     # Centralized implementation
-    from egregora.agents.model_limits import estimate_tokens as _estimate  # noqa: PLC0415
+    from egregora.agents.model_limits import estimate_tokens as _estimate
 
     return _estimate(text)
 
@@ -47,19 +48,29 @@ def chunk_markdown(content: str, max_tokens: int = 1800, overlap_tokens: int = 1
         True
 
     """
-    paragraphs = content.split("\n\n")
-    chunks = []
-    current_chunk: list[str] = []
-    current_tokens = 0
-
-    for paragraph in paragraphs:
+    paragraphs = []
+    for paragraph in content.split("\n\n"):
         para = paragraph.strip()
         if not para:
             continue
+        # Split extremely long paragraphs to respect token/byte limits
+        paragraphs.extend(_split_large_paragraph(para, max_tokens))
 
+    chunks = []
+    current_chunk: list[str] = []
+    current_tokens = 0
+    current_bytes = 0
+
+    for paragraph in paragraphs:
+        para = paragraph
         para_tokens = estimate_tokens(para)
+        para_bytes = len(para.encode("utf-8"))
+        separator_bytes = 2 if current_chunk else 0
 
-        if current_tokens + para_tokens > max_tokens and current_chunk:
+        exceeds_tokens = current_tokens + para_tokens > max_tokens
+        exceeds_bytes = current_bytes + separator_bytes + para_bytes > MAX_CHUNK_BYTES
+
+        if current_chunk and (exceeds_tokens or exceeds_bytes):
             # Emit current chunk
             chunk_text = "\n\n".join(current_chunk)
             chunks.append(chunk_text)
@@ -77,9 +88,11 @@ def chunk_markdown(content: str, max_tokens: int = 1800, overlap_tokens: int = 1
 
             current_chunk = overlap_paras
             current_tokens = overlap_tokens_count
+            current_bytes = _paragraphs_byte_length(overlap_paras)
 
         current_chunk.append(para)
         current_tokens += para_tokens
+        current_bytes += separator_bytes + para_bytes
 
     # Emit final chunk
     if current_chunk:
@@ -87,6 +100,94 @@ def chunk_markdown(content: str, max_tokens: int = 1800, overlap_tokens: int = 1
         chunks.append(chunk_text)
 
     return chunks
+
+
+def _paragraphs_byte_length(paragraphs: list[str]) -> int:
+    """Return byte length (UTF-8) for a list of paragraphs with blank lines."""
+    if not paragraphs:
+        return 0
+    total = 0
+    for idx, para in enumerate(paragraphs):
+        if idx:
+            total += 2  # account for the \n\n separator
+        total += len(para.encode("utf-8"))
+    return total
+
+
+def _split_text_by_bytes(text: str, limit: int) -> list[str]:
+    """Split a unicode string into chunks that each fit within the byte limit."""
+    if len(text.encode("utf-8")) <= limit:
+        return [text]
+
+    chunks: list[str] = []
+    current: list[str] = []
+    current_bytes = 0
+
+    for char in text:
+        char_bytes = len(char.encode("utf-8"))
+        if current_bytes + char_bytes > limit and current:
+            chunks.append("".join(current))
+            current = [char]
+            current_bytes = char_bytes
+        else:
+            current.append(char)
+            current_bytes += char_bytes
+
+    if current:
+        chunks.append("".join(current))
+    return chunks
+
+
+def _split_large_paragraph(paragraph: str, max_tokens: int) -> list[str]:
+    """Split oversized paragraphs so each chunk fits token/byte limits."""
+    para_tokens = estimate_tokens(paragraph)
+    para_bytes = len(paragraph.encode("utf-8"))
+    if para_tokens <= max_tokens and para_bytes <= MAX_CHUNK_BYTES:
+        return [paragraph]
+
+    segments: list[str] = []
+    current: list[str] = []
+    current_tokens = 0
+    current_bytes = 0
+
+    parts = re.split(r"(\s+)", paragraph)
+    for part in parts:
+        if not part:
+            continue
+        part_tokens = estimate_tokens(part) if not part.isspace() else 0
+        part_bytes = len(part.encode("utf-8"))
+
+        # Words that individually exceed the byte limit need slicing
+        if part_bytes > MAX_CHUNK_BYTES and not part.isspace():
+            leftover = part
+            slices = _split_text_by_bytes(leftover, MAX_CHUNK_BYTES)
+            segments.extend(piece.strip() for piece in slices[:-1] if piece)
+            last_piece = slices[-1]
+            current = [last_piece]
+            current_tokens = estimate_tokens(last_piece)
+            current_bytes = len(last_piece.encode("utf-8"))
+            continue
+
+        if current and (
+            current_tokens + part_tokens > max_tokens or current_bytes + part_bytes > MAX_CHUNK_BYTES
+        ):
+            segment = "".join(current).strip()
+            if segment:
+                segments.append(segment)
+            current = [part]
+            current_tokens = part_tokens
+            current_bytes = part_bytes
+        else:
+            current.append(part)
+            current_tokens += part_tokens
+            current_bytes += part_bytes
+
+    if current:
+        segment = "".join(current).strip()
+        if segment:
+            segments.append(segment)
+
+    return segments or [paragraph[:MAX_CHUNK_BYTES]]
 
 
 def parse_post(post_path: Path) -> tuple[dict[str, Any], str]:

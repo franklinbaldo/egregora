@@ -16,13 +16,15 @@ from typing import TYPE_CHECKING
 import ibis
 from ibis import _
 
-from egregora.agents.reader.elo import DEFAULT_ELO
 from egregora.database.duckdb_manager import DuckDBStorageManager
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
+
+# Default rating assigned to posts without prior comparisons
+DEFAULT_ELO = 1500.0
 
 # Schema for ELO ratings table
 ELO_RATINGS_SCHEMA = ibis.schema(

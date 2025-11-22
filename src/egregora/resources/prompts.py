@@ -74,7 +74,7 @@ class PromptManager:
         """Render a prompt template.
 
         Args:
-            template_name: Name of the template (e.g., "system/writer.jinja")
+            template_name: Name of the template (e.g., "writer.jinja")
             **context: Variables to pass to the template
 
         Returns:

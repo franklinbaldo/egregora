@@ -93,15 +93,11 @@ site-root/
 ├── mkdocs.yml              # MkDocs-only config (theme, plugins, nav)
 ├── .egregora/              # Egregora configuration directory
 │   ├── config.yml          # 🆕 Main configuration file
-│   ├── prompts/            # 🆕 Optional custom prompt overrides
-│   │   ├── system/
-│   │   │   ├── writer.jinja
-│   │   │   └── editor.jinja
-│   │   └── enrichment/
-│   │       ├── url_simple.jinja
-│   │       ├── url_detailed.jinja
-│   │       ├── media_simple.jinja
-│   │       └── media_detailed.jinja
+│   ├── prompts/            # 🆕 Optional custom prompt overrides (flat directory)
+│   │   ├── README.md
+│   │   ├── writer.jinja
+│   │   ├── url_detailed.jinja
+│   │   └── media_detailed.jinja
 │   ├── agents/             # ✅ Agent configs (already exists)
 │   │   ├── writer.jinja
 │   │   ├── editor.jinja
@@ -197,8 +193,8 @@ features:
 ### Prompt Override Mechanism
 
 **Priority**:
-1. `.egregora/prompts/system/writer.jinja` (user override)
-2. `src/egregora/prompts/system/writer.jinja` (package default)
+1. `.egregora/prompts/writer.jinja` (user override)
+2. `src/egregora/prompts/writer.jinja` (package default)
 
 **Implementation**:
 ```python
@@ -393,7 +389,7 @@ class WriterPromptTemplate(PromptTemplate):
     enable_memes: bool = False
     site_root: Path | None = None  # 🆕 Add site_root
     env: Environment | None = None
-    template_name: ClassVar[str] = "system/writer.jinja"
+    template_name: ClassVar[str] = "writer.jinja"
 
     def render(self) -> str:
         return self._render(
@@ -493,15 +489,9 @@ This directory allows you to customize Egregora's LLM prompts without modifying 
 
 ## Available Prompts
 
-### System Prompts
-- `system/writer.jinja` - Main writer agent prompt
-- `system/editor.jinja` - Interactive post editor prompt
-
-### Enrichment Prompts
-- `enrichment/url_simple.jinja` - Lightweight URL descriptions
-- `enrichment/url_detailed.jinja` - Detailed URL enrichment with context
-- `enrichment/media_simple.jinja` - Lightweight media descriptions
-- `enrichment/media_detailed.jinja` - Detailed media enrichment with context
+- `writer.jinja` – Main writer agent prompt
+- `url_detailed.jinja` – URL enrichment prompt (used for linked articles)
+- `media_detailed.jinja` – Media enrichment prompt (used for images, video, audio, docs)
 
 ## Example
 
@@ -509,10 +499,10 @@ To customize the writer prompt:
 
 ```bash
 # Copy default template
-cp /path/to/src/egregora/prompts/system/writer.jinja .egregora/prompts/system/writer.jinja
+cp /path/to/src/egregora/prompts/writer.jinja .egregora/prompts/writer.jinja
 
 # Edit the template
-vim .egregora/prompts/system/writer.jinja
+vim .egregora/prompts/writer.jinja
 ```
 
 Changes take effect immediately on the next run.
@@ -812,10 +802,10 @@ Example:
 
 \```bash
 # Copy writer prompt
-cp src/egregora/prompts/system/writer.jinja .egregora/prompts/system/writer.jinja
+cp src/egregora/prompts/writer.jinja .egregora/prompts/writer.jinja
 
 # Edit
-vim .egregora/prompts/system/writer.jinja
+vim .egregora/prompts/writer.jinja
 \```
 
 Changes take effect immediately on the next run.
@@ -977,7 +967,7 @@ def test_custom_prompt_override(tmp_path):
 
     # Create environment with custom prompts
     env = create_prompt_environment(tmp_path)
-    template = env.get_template("system/writer.jinja")
+    template = env.get_template("writer.jinja")
 
     # Should render custom template
     result = template.render(date="2025-01-01")

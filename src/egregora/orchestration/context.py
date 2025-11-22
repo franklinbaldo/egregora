@@ -17,12 +17,13 @@ if TYPE_CHECKING:
     from google import genai
 
     from egregora.agents.shared.annotations import AnnotationStore
-    from egregora.agents.shared.rag import VectorStore
-    from egregora.config.settings import EgregoraConfig
-    from egregora.data_primitives.protocols import UrlContext
-    from egregora.database.duckdb_manager import DuckDBStorageManager
-    from egregora.output_adapters.base import OutputAdapter
-    from egregora.utils.cache import EnrichmentCache
+from egregora.agents.shared.rag import VectorStore
+from egregora.config.settings import EgregoraConfig
+from egregora.data_primitives.protocols import UrlContext
+from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.output_adapters.base import OutputAdapter
+from egregora.utils.cache import EnrichmentCache
+from egregora.utils.quota import QuotaTracker
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +107,9 @@ class PipelineState:
     # Stores (Optional)
     rag_store: VectorStore | None = None
     annotations_store: AnnotationStore | None = None
+
+    # Quota tracking
+    quota_tracker: QuotaTracker | None = None
 
     # Output & Adapters (Initialized lazily or updated)
     output_format: OutputAdapter | None = None
@@ -197,6 +201,10 @@ class PipelineContext:
     @property
     def adapter(self) -> Any:
         return self.state.adapter
+
+    @property
+    def quota_tracker(self) -> QuotaTracker | None:
+        return self.state.quota_tracker
 
     # Forward config properties
     @property

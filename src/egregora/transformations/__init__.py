@@ -41,7 +41,10 @@ Windowing by message count:
 Media processing:
     >>> from egregora.transformations import process_media_for_window
     >>> updated_table, mapping = process_media_for_window(
-    ...     table, adapter, output_dir
+    ...     table,
+    ...     adapter,
+    ...     url_convention,
+    ...     url_context,
     ... )
 
 """
