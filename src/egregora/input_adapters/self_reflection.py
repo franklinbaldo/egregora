@@ -14,6 +14,7 @@ import yaml
 
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
+from egregora.data_primitives.document import DocumentType
 from egregora.output_adapters.base import OutputAdapter
 from egregora.utils.frontmatter_utils import parse_frontmatter_file
 from egregora.utils.paths import slugify
@@ -75,21 +76,22 @@ class SelfInputAdapter(InputAdapter):
             raise ValueError("output_adapter must be provided when parsing an existing site")
 
         docs_dir, site_root = self._resolve_docs_dir(input_path)
-        markdown_paths = self._gather_markdown_paths(docs_dir, output_adapter=output_adapter)
-        if not markdown_paths:
-            msg = f"No markdown posts found under {docs_dir}"
-            raise RuntimeError(msg)
+        documents = [
+            doc
+            for doc in output_adapter.documents()
+            if doc.type == DocumentType.POST and doc.metadata.get("slug") not in {"index", "tags"}
+        ]
+        if not documents:
+            raise RuntimeError(f"No posts published by {output_adapter.__class__.__name__}")
 
         site_name = self._load_site_name(site_root)
         records: list[dict[str, Any]] = []
-        for markdown_path in markdown_paths:
-            try:
-                metadata, body = parse_frontmatter_file(markdown_path)
-            except (OSError, ValueError, yaml.YAMLError) as exc:
-                logger.debug("Skipping %s due to parsing error: %s", markdown_path, exc)
-                continue
-            slug = self._resolve_slug(metadata, markdown_path)
-            timestamp = self._resolve_timestamp(metadata.get("date"), markdown_path, timezone)
+        for document in documents:
+            metadata = document.metadata.copy()
+            source_path = metadata.get("source_path")
+            path_obj = Path(source_path) if source_path else None
+            slug = self._resolve_slug(metadata, path_obj)
+            timestamp = self._resolve_timestamp(metadata.get("date"), path_obj, timezone)
             authors = metadata.get("authors") or []
             if isinstance(authors, str):
                 author_label = authors
@@ -98,14 +100,15 @@ class SelfInputAdapter(InputAdapter):
             else:
                 author_label = site_name
             author_uuid = str(uuid5(AUTHOR_NAMESPACE, author_label.lower()))
-            attrs = self._sanitize_metadata(metadata, markdown_path)
+            attrs = self._sanitize_metadata(metadata, path_obj or Path("self"))
             attrs_json = json.dumps(attrs)
-            text = body.strip() or attrs.get("summary") or f"Existing post: {metadata.get('title', slug)}"
-            try:
-                relative_path = str(markdown_path.relative_to(docs_dir))
-            except ValueError:
-                relative_path = str(markdown_path.name)
-            event_id = str(uuid5(EVENT_NAMESPACE, relative_path))
+            text = ""
+            if isinstance(document.content, str):
+                text = document.content.strip()
+            if not text:
+                text = attrs.get("summary") or f"Existing post: {metadata.get('title', slug)}"
+            storage_identifier = metadata.get("storage_identifier") or slug
+            event_id = str(uuid5(EVENT_NAMESPACE, storage_identifier))
 
             records.append(
                 {
@@ -128,49 +131,6 @@ class SelfInputAdapter(InputAdapter):
             )
 
         return ibis.memtable(records, schema=IR_MESSAGE_SCHEMA)
-
-    def _gather_markdown_paths(
-        self,
-        docs_dir: Path,
-        *,
-        output_adapter: OutputAdapter | None = None,
-    ) -> list[Path]:
-        """Return candidate markdown files for self-reflection ingestion."""
-        candidate_paths = self._collect_from_output_adapter(output_adapter)
-        if not candidate_paths:
-            raise RuntimeError(
-                f"No markdown posts found for output adapter {output_adapter.__class__.__name__}"
-            )
-        return candidate_paths
-
-    def _collect_from_output_adapter(self, output_adapter: OutputAdapter) -> list[Path]:
-        """Collect markdown paths via the output adapter rather than crawling directories."""
-        table = output_adapter.list_documents()
-        try:
-            records = table.execute().to_dict("records")
-        except Exception:
-            return []
-
-        seen: set[Path] = set()
-        markdown_paths: list[Path] = []
-        for record in records:
-            identifier = record.get("storage_identifier")
-            if not identifier:
-                continue
-            try:
-                resolved = output_adapter.resolve_document_path(identifier)
-            except Exception:
-                continue
-            path = Path(resolved)
-            if path.suffix.lower() != ".md":
-                continue
-            if path.name in {"index.md", "tags.md"}:
-                continue
-            if path in seen:
-                continue
-            seen.add(path)
-            markdown_paths.append(path)
-        return markdown_paths
 
     def get_metadata(self, input_path: Path, **_: Any) -> dict[str, Any]:
         _, site_root = self._resolve_docs_dir(input_path)
@@ -203,13 +163,14 @@ class SelfInputAdapter(InputAdapter):
                 return str(name)
         return site_root.name
 
-    def _resolve_slug(self, metadata: dict[str, Any], path: Path) -> str:
+    def _resolve_slug(self, metadata: dict[str, Any], path: Path | None) -> str:
         slug_value = metadata.get("slug")
         if isinstance(slug_value, str) and slug_value.strip():
             return slugify(slug_value)
-        return slugify(path.stem)
+        base = path.stem if path else metadata.get("storage_identifier", "self")
+        return slugify(base)
 
-    def _resolve_timestamp(self, value: Any, path: Path, timezone: str | None) -> datetime:
+    def _resolve_timestamp(self, value: Any, path: Path | None, timezone: str | None) -> datetime:
         if isinstance(value, datetime):
             ts = value
         elif isinstance(value, date):
@@ -220,7 +181,10 @@ class SelfInputAdapter(InputAdapter):
             except ValueError:
                 ts = datetime.strptime(value, "%Y-%m-%d")
         else:
-            ts = datetime.fromtimestamp(path.stat().st_mtime)
+            if path:
+                ts = datetime.fromtimestamp(path.stat().st_mtime)
+            else:
+                ts = datetime.now(UTC)
 
         if ts.tzinfo is None:
             if timezone:
@@ -234,9 +198,10 @@ class SelfInputAdapter(InputAdapter):
                 ts = ts.replace(tzinfo=UTC)
         return ts.astimezone(UTC)
 
-    def _sanitize_metadata(self, metadata: dict[str, Any], markdown_path: Path) -> dict[str, Any]:
+    def _sanitize_metadata(self, metadata: dict[str, Any], markdown_path: Path | None = None) -> dict[str, Any]:
         sanitized: dict[str, Any] = {key: self._serialize_value(value) for key, value in metadata.items()}
-        sanitized.setdefault("source_path", str(markdown_path))
+        if markdown_path:
+            sanitized.setdefault("source_path", str(markdown_path))
         return sanitized
 
     def _serialize_value(self, value: Any) -> Any:

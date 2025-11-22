@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ibis
+import ibis.expr.datatypes as dt
 
 from egregora.data_primitives.document import Document
 
@@ -17,6 +18,13 @@ if TYPE_CHECKING:
 # Constants
 ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
 FILENAME_PARTS_WITH_EXTENSION = 2  # Parts when splitting filename by "." (name, extension)
+
+DOCUMENT_INVENTORY_SCHEMA = ibis.schema(
+    {
+        "storage_identifier": dt.string,
+        "mtime_ns": dt.Int64(nullable=True),
+    }
+)
 
 
 @dataclass
@@ -281,44 +289,32 @@ class OutputAdapter(ABC):
 
         """
 
-    @abstractmethod
     def list_documents(self) -> "Table":
         """List all documents managed by this output format as an Ibis table.
 
-        Returns an Ibis table with storage identifiers and modification times.
-        This enables efficient delta detection using Ibis joins/filters.
-
-        Storage identifiers are format-specific and opaque to callers:
-        - MkDocs: relative paths like "posts/2025-01-10-post.md"
-        - Hugo: content paths like "content/blog/my-post.md"
-        - Database: record IDs like "post:123", "media:456"
-        - S3: object keys like "s3://bucket/posts/my-post.md"
-
-        To resolve identifiers to filesystem paths, use resolve_document_path().
-
-        Returns:
-            Ibis table with schema:
-                - storage_identifier: string (format-specific document ID)
-                - mtime_ns: int64 (modification time in nanoseconds)
-                Empty table if no documents exist
-
-        Example:
-            >>> format = MkDocsOutputAdapter()
-            >>> format.initialize(site_root)
-            >>> docs = format.list_documents()
-            >>> docs.head(3).execute()
-               storage_identifier                mtime_ns
-            0  posts/2025-01-10-post.md         1704067200000000000
-            1  profiles/user-123.md             1704070800000000000
-            2  docs/media/video.mp4.md          1704074400000000000
-
-        Note:
-            - Returns Ibis table for efficient joins/filtering
-            - Storage identifiers are format-specific (not necessarily filesystem paths)
-            - mtime_ns is nanosecond timestamp for consistency with stat()
-            - Subclasses must implement based on their document structure
-
+        The default implementation materializes the documents returned by
+        :meth:`documents` and exposes their storage identifiers and mtimes.
+        Override only if you need to source the table from another store.
         """
+        rows: list[dict[str, Any]] = []
+        for document in self.documents():
+            identifier = document.metadata.get("storage_identifier")
+            if not identifier:
+                identifier = document.suggested_path
+            if not identifier:
+                continue
+
+            mtime_ns = document.metadata.get("mtime_ns")
+            if mtime_ns is None:
+                try:
+                    path = Path(document.metadata.get("source_path", identifier))
+                    if path.exists():
+                        mtime_ns = path.stat().st_mtime_ns
+                except OSError:
+                    mtime_ns = None
+
+            rows.append({"storage_identifier": identifier, "mtime_ns": mtime_ns})
+        return ibis.memtable(rows, schema=DOCUMENT_INVENTORY_SCHEMA)
 
     @abstractmethod
     def resolve_document_path(self, identifier: str) -> Path:
@@ -353,6 +349,10 @@ class OutputAdapter(ABC):
             - Caller is responsible for reading the returned path
 
         """
+
+    @abstractmethod
+    def documents(self) -> list[Document]:
+        """Return all managed documents as Document objects."""
 
     @abstractmethod
     def initialize(self, site_root: Path) -> None:

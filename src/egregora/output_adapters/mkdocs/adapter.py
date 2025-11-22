@@ -37,6 +37,7 @@ from egregora.utils.filesystem import (
     write_markdown_post as _write_mkdocs_post,
 )
 from egregora.utils.frontmatter_utils import parse_frontmatter
+from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -783,58 +784,26 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
 Use consistent, meaningful tags across posts to build a useful taxonomy.
 """
 
-    def list_documents(self) -> Table:
-        """List all MkDocs documents (posts, profiles, media enrichments) as Ibis table.
-
-        Returns Ibis table with storage identifiers (relative paths) and modification times.
-        This enables efficient delta detection using Ibis joins/filters.
-
-        REFACTORED (2025-11-19): Now uses base class helper _scan_directory_for_documents()
-        to reduce code duplication with other output adapters.
-
-        Returns:
-            Ibis table with schema:
-                - storage_identifier: string (relative path from site_root)
-                - mtime_ns: int64 (modification time in nanoseconds)
-
-        Example identifiers:
-            - Posts: "posts/2025-01-10-my-post.md"
-            - Profiles: "profiles/user-123.md"
-            - Media enrichments: "docs/media/images/uuid.png.md"
-            - URL enrichments: "media/urls/uuid.md"
-
-        """
+    def documents(self) -> list[Document]:
+        """Return all MkDocs documents as Document instances."""
         if not hasattr(self, "_site_root") or self._site_root is None:
-            return self._empty_document_table()
+            return []
 
-        site_root = self._site_root
-        documents: list[dict] = []
-
-        posts_dir = getattr(self, "posts_dir", None)
-        if posts_dir:
-            documents.extend(self._scan_directory_for_documents(posts_dir, site_root, "*.md"))
-
-        profiles_dir = getattr(self, "profiles_dir", None)
-        if profiles_dir:
-            documents.extend(self._scan_directory_for_documents(profiles_dir, site_root, "*.md"))
-
-        # Scan media enrichments (docs/media/**/*.md, excluding index.md)
+        documents: list[Document] = []
+        documents.extend(self._documents_from_dir(self.posts_dir, DocumentType.POST))
+        documents.extend(self._documents_from_dir(self.profiles_dir, DocumentType.PROFILE))
         documents.extend(
-            self._scan_directory_for_documents(
-                site_root / "docs" / "media",
-                site_root,
-                "*.md",
+            self._documents_from_dir(
+                self._site_root / "docs" / "media",
+                DocumentType.ENRICHMENT_MEDIA,
                 recursive=True,
                 exclude_names={"index.md"},
             )
         )
-
-        # Scan URL enrichments (media/urls/**/*.md)
         documents.extend(
-            self._scan_directory_for_documents(site_root / "media", site_root, "*.md", recursive=True)
+            self._documents_from_dir(self.media_dir / "urls", DocumentType.ENRICHMENT_URL, recursive=True)
         )
-
-        return self._documents_to_table(documents)
+        return documents
 
     def resolve_document_path(self, identifier: str) -> Path:
         """Resolve MkDocs storage identifier (relative path) to absolute filesystem path.
@@ -859,6 +828,75 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
+
+    def documents(self) -> list[Document]:
+        if not hasattr(self, "_site_root") or self._site_root is None:
+            return []
+
+        documents: list[Document] = []
+        documents.extend(self._documents_from_dir(self.posts_dir, DocumentType.POST))
+        documents.extend(self._documents_from_dir(self.profiles_dir, DocumentType.PROFILE))
+        documents.extend(
+            self._documents_from_dir(
+                self._site_root / "docs" / "media",
+                DocumentType.ENRICHMENT_MEDIA,
+                recursive=True,
+                exclude_names={"index.md"},
+            )
+        )
+        documents.extend(
+            self._documents_from_dir(
+                self.media_dir / "urls",
+                DocumentType.ENRICHMENT_URL,
+                recursive=True,
+            )
+        )
+        return documents
+
+    def _documents_from_dir(
+        self,
+        directory: Path,
+        doc_type: DocumentType,
+        *,
+        recursive: bool = False,
+        exclude_names: set[str] | None = None,
+    ) -> list[Document]:
+        if not directory or not directory.exists():
+            return []
+
+        documents: list[Document] = []
+        glob_func = directory.rglob if recursive else directory.glob
+        for path in glob_func("*.md"):
+            if not path.is_file():
+                continue
+            if exclude_names and path.name in exclude_names:
+                continue
+            doc = self._document_from_path(path, doc_type)
+            if doc:
+                documents.append(doc)
+        return documents
+
+    def _document_from_path(self, path: Path, doc_type: DocumentType) -> Document | None:
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except OSError:
+            return None
+        metadata, body = parse_frontmatter(raw)
+        metadata = metadata or {}
+        slug_value = metadata.get("slug")
+        if isinstance(slug_value, str) and slug_value.strip():
+            slug = slugify(slug_value)
+        else:
+            slug = slugify(path.stem)
+        metadata["slug"] = slug
+        storage_identifier = str(path.relative_to(self._site_root))
+        metadata.setdefault("storage_identifier", storage_identifier)
+        metadata.setdefault("source_path", str(path))
+        try:
+            metadata.setdefault("mtime_ns", path.stat().st_mtime_ns)
+        except OSError:
+            metadata.setdefault("mtime_ns", 0)
+        return Document(content=body.strip(), type=doc_type, metadata=metadata)
 
     def _url_to_path(self, url: str, document: Document) -> Path:
         base = self._ctx.base_url.rstrip("/")
