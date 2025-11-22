@@ -54,22 +54,17 @@ Guidance for Claude Code when working with this repository.
    - Uses existing `daily_aggregates_view` (View Registry)
    - Non-critical path: errors don't block pipeline completion
 
-2. **WhatsApp System Message Filtering**
-   - Automatically removes 18+ system message patterns (encryption notices, join/leave, calls, etc.)
-   - Reduces noise in LLM inputs for cleaner post generation
-   - Logged count of removed messages for transparency
-
-3. **Interactive Site Initialization**
+2. **Interactive Site Initialization**
    - `egregora init` now prompts for site name (improves UX)
    - Auto-detects non-TTY environments (CI/CD) and disables prompts
    - Use `--no-interactive` flag to explicitly disable
 
-4. **OutputAdapter Memory Optimization** (BREAKING)
+3. **OutputAdapter Memory Optimization** (BREAKING)
    - `documents()` method changed from `list[Document]` to `Iterator[Document]`
    - Enables processing sites with thousands of documents without memory issues
    - **Migration**: Materialize with `list(adapter.documents())` if you need random access
 
-5. **GitHub Actions Template**
+4. **GitHub Actions Template**
    - Fixed Jinja escaping in `.github/workflows/publish.yml.jinja`
    - Proper handling of GitHub Actions variables
 
