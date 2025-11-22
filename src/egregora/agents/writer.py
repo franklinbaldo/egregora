@@ -203,7 +203,7 @@ def register_writer_tools(  # noqa: C901
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str) -> ReadProfileResult:
-        doc = ctx.deps.output_sink.get(DocumentType.PROFILE, author_uuid)
+        doc = ctx.deps.output_sink.read_document(DocumentType.PROFILE, author_uuid)
         content = doc.content if doc else "No profile exists yet."
         return ReadProfileResult(content=content)
 
