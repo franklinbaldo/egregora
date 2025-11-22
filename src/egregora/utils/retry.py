@@ -27,7 +27,7 @@ class RetryPolicy:
 
     def next_delay(self, attempt: int) -> float:
         delay = min(self.max_delay, self.initial_delay * (self.multiplier**attempt))
-        jitter = random.uniform(-self.jitter, self.jitter)
+        jitter = random.uniform(-self.jitter, self.jitter)  # noqa: S311
         return max(0.0, delay + jitter)
 
 
@@ -43,6 +43,7 @@ async def retry_async(func: Callable[[], asyncio.Future], policy: RetryPolicy) -
             await asyncio.sleep(policy.next_delay(attempt))
     if last_error:
         raise last_error
+    return None
 
 
 def retry_sync(func: Callable[[], any], policy: RetryPolicy) -> any:
@@ -58,3 +59,4 @@ def retry_sync(func: Callable[[], any], policy: RetryPolicy) -> any:
             time.sleep(time_to_wait)
     if last_error:
         raise last_error
+    return None

@@ -116,7 +116,7 @@ def populated_runs_db(temp_runs_db: Path) -> Path:
     ]
 
     # Insert runs directly into runs table (simplified model)
-    for i, run_data in enumerate(runs):
+    for _i, run_data in enumerate(runs):
         duration_seconds = None
         if run_data.get("finished_at"):
             duration_seconds = (run_data["finished_at"] - run_data["started_at"]).total_seconds()

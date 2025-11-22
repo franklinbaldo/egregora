@@ -92,7 +92,7 @@ def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
 @app.command()
 def init(
     output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
-    interactive: Annotated[
+    interactive: Annotated[  # noqa: FBT002
         bool,
         typer.Option(
             "--interactive/--no-interactive",

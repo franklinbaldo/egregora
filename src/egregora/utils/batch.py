@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from google.genai import types as genai_types
 
@@ -15,7 +16,7 @@ from egregora.config import EMBEDDING_DIM
 # Assuming simple sleep/retry are acceptable replacements here, or they should be in utils
 
 
-def call_with_retries_sync(func, *args, **kwargs):
+def call_with_retries_sync(func: Callable, *args: Any, **kwargs: Any) -> Any:
     # Simple retry logic as placeholder since genai.py is gone
     # TODO: Use tenacity or similar if available globally
     max_retries = 3
@@ -26,9 +27,10 @@ def call_with_retries_sync(func, *args, **kwargs):
             if attempt == max_retries - 1:
                 raise
             time.sleep(2**attempt)
+    return None
 
 
-def sleep_with_progress_sync(duration, message="Sleeping"):
+def sleep_with_progress_sync(duration: float, message: str = "Sleeping") -> None:
     time.sleep(duration)
 
 
