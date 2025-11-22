@@ -166,15 +166,19 @@ class OutputAdapter(OutputSink, ABC):
     def get_format_instructions(self) -> str:
         """Generate format-specific instructions for the writer agent."""
 
-    def list_documents(self) -> "Table":
-        """List all documents managed by this output format as an Ibis table.
+    def list_documents(self, doc_type: DocumentType | None = None) -> "Table":
+        """List documents managed by this output format as an Ibis table.
+
+        Args:
+            doc_type: Optional document type to filter the listing. If ``None``,
+                all documents are returned.
 
         The default implementation materializes the documents returned by
-        :meth:`documents` and exposes their storage identifiers and mtimes.
-        Override only if you need to source the table from another store.
+        :meth:`list` and exposes their storage identifiers and mtimes. Override
+        only if you need to source the table from another store.
         """
         rows: list[dict[str, Any]] = []
-        for document in self.documents():
+        for document in self.list(doc_type):
             identifier = document.metadata.get("storage_identifier")
             if not identifier:
                 identifier = document.suggested_path
