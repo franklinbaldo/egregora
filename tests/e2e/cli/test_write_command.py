@@ -81,9 +81,9 @@ class TestWriteCommandBasic:
         )
 
         assert result.exit_code == 1, "Should fail with missing file"
-        assert "not found" in result.stdout.lower() or "error" in result.stdout.lower(), (
-            "Should report file not found error"
-        )
+        assert (
+            "not found" in result.stdout.lower() or "error" in result.stdout.lower()
+        ), "Should report file not found error"
 
     def test_write_command_invalid_source(self, test_zip_file, test_output_dir):
         """Test write command with invalid source type."""
@@ -107,9 +107,9 @@ class TestWriteCommandBasic:
         result = runner.invoke(app, ["write", "--help"])
 
         assert result.exit_code == 0, "Help should display without error"
-        assert "Output directory" in result.stdout or "output" in result.stdout.lower(), (
-            "Help should mention output directory"
-        )
+        assert (
+            "Output directory" in result.stdout or "output" in result.stdout.lower()
+        ), "Help should mention output directory"
         assert "step" in result.stdout.lower(), "Help should mention windowing parameters"
 
 
@@ -291,9 +291,9 @@ class TestWriteCommandDateFiltering:
         )
 
         assert result.exit_code == 1, "Should fail with invalid date format"
-        assert "invalid" in result.stdout.lower() or "format" in result.stdout.lower(), (
-            "Should report invalid format error"
-        )
+        assert (
+            "invalid" in result.stdout.lower() or "format" in result.stdout.lower()
+        ), "Should report invalid format error"
 
     def test_write_command_invalid_to_date_format(self, test_zip_file, test_output_dir):
         """Test write command with invalid --to-date format."""
