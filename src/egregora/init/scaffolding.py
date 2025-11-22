@@ -51,17 +51,17 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
             site_paths = derive_mkdocs_paths(site_root)
             return (site_paths["docs_dir"], False)
         except Exception:
-             # Fallback
-             return (site_root / "docs", False)
+            # Fallback
+            return (site_root / "docs", False)
 
     # Cast to SiteScaffolder for type checking
-    scaffolder = cast(SiteScaffolder, output_format)
+    scaffolder = cast("SiteScaffolder", output_format)
 
     # We use scaffold() which is part of the protocol
     # MkDocsAdapter.scaffold calls scaffold_site internally
     try:
         scaffolder.scaffold(site_root, {"site_name": site_name})
-        created = True # scaffold() returns None, so we assume success/creation if no error
+        created = True  # scaffold() returns None, so we assume success/creation if no error
         # Wait, MkDocsAdapter.scaffold_site returns (path, created)
         # But SiteScaffolder.scaffold returns None.
         # MkDocsAdapter.scaffold implementation I wrote calls self.scaffold_site(path, site_name)
@@ -80,10 +80,10 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
 
         # Let's use `scaffold_site` if available (legacy/specific) or `scaffold` (protocol).
         if hasattr(output_format, "scaffold_site"):
-             _, created = output_format.scaffold_site(site_root, site_name)
+            _, created = output_format.scaffold_site(site_root, site_name)
         else:
-             scaffolder.scaffold(site_root, {"site_name": site_name})
-             created = True # Assumption
+            scaffolder.scaffold(site_root, {"site_name": site_name})
+            created = True  # Assumption
 
     except Exception as e:
         logger.error("Failed to scaffold site: %s", e)
