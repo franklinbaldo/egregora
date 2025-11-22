@@ -9,7 +9,7 @@ import logging
 import re
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, TypedDict, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 import ibis
 

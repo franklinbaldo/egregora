@@ -7,8 +7,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from egregora.data_primitives.document import Document, DocumentType
     from ibis.expr.types import Table
+
+    from egregora.data_primitives.document import Document, DocumentType
 
 
 @dataclass(frozen=True, slots=True)

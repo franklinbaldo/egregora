@@ -8,10 +8,10 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid5
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import ibis
 import yaml
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from egregora.data_primitives.document import DocumentType
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
