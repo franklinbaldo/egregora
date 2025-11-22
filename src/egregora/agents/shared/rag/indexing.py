@@ -222,16 +222,11 @@ def index_documents_for_rag(  # noqa: C901
 ) -> int:
     """Index new/changed documents using incremental indexing via OutputAdapter."""
     try:
-        documents = output_format.documents()
-
-        if not documents:
-            logger.debug("No documents found by output format")
-            return 0
-
-        logger.debug("OutputAdapter reported %d documents", len(documents))
-
         rows: list[dict[str, Any]] = []
-        for document in documents:
+        doc_count = 0
+
+        for document in output_format.documents():
+            doc_count += 1
             identifier = document.metadata.get("storage_identifier") or document.suggested_path
             if not identifier:
                 continue
@@ -252,8 +247,13 @@ def index_documents_for_rag(  # noqa: C901
                 }
             )
 
+        if doc_count == 0:
+            logger.debug("No documents found by output format")
+            return 0
+
+        logger.debug("OutputAdapter reported %d documents", doc_count)
+
         docs_table = ibis.memtable(rows)
-        doc_count = len(rows)
 
         docs_table = docs_table.filter(docs_table["source_path"] != "")
 

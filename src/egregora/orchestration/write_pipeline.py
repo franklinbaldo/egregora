@@ -28,6 +28,7 @@ from zoneinfo import ZoneInfo
 
 import ibis
 from google import genai
+from rich.console import Console
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
@@ -36,10 +37,12 @@ from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.tracking import record_run
 from egregora.database.validation import validate_ir_schema
+from egregora.database.views import daily_aggregates_view
 from egregora.input_adapters import get_adapter
 from egregora.input_adapters.base import MediaMapping
 from egregora.input_adapters.whatsapp import extract_commands, filter_egregora_messages
@@ -58,6 +61,7 @@ from egregora.utils.rate_limit import AsyncRateLimit
 if TYPE_CHECKING:
     import ibis.expr.types as ir
 logger = logging.getLogger(__name__)
+console = Console()
 __all__ = ["WhatsAppProcessOptions", "process_whatsapp_export", "run"]
 
 
@@ -1058,6 +1062,106 @@ def _index_media_into_rag(
         logger.exception("[red]Failed to index media into RAG[/]")
 
 
+def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) -> None:
+    """Generate statistics page from conversation data.
+
+    Creates a POST-type document with daily activity statistics and persists it
+    via the output adapter. Skips generation if messages table is empty.
+
+    Args:
+        messages_table: Complete messages table (before windowing). Must conform
+            to IR_MESSAGE_SCHEMA.
+        ctx: Pipeline context with output adapter for persistence.
+
+    Side Effects:
+        - Writes statistics document to ctx.output_format.persist()
+        - Logs info/warning/error messages
+
+    Raises:
+        Does not raise exceptions - errors are caught and logged.
+
+    """
+    logger.info("[bold cyan]📊 Generating statistics page...[/]")
+
+    # Compute daily aggregates (stays as Ibis Table)
+    stats_table = daily_aggregates_view(messages_table)
+
+    # Check if empty using Ibis
+    row_count = stats_table.count().to_pyarrow().as_py()
+    if row_count == 0:
+        logger.warning("No statistics data available - skipping statistics page")
+        return
+
+    # Calculate totals using Ibis
+    total_messages = messages_table.count().to_pyarrow().as_py()
+    total_authors = messages_table.author_uuid.nunique().to_pyarrow().as_py()
+
+    # Get date range using Ibis aggregation
+    date_range = stats_table.aggregate(
+        [stats_table.day.min().name("min_day"), stats_table.day.max().name("max_day")]
+    ).to_pyarrow()
+
+    min_date = date_range["min_day"][0].as_py()
+    max_date = date_range["max_day"][0].as_py()
+
+    # Extract date-only strings for clean slugs (avoid timestamp in URL)
+    min_date_str = min_date.date().isoformat() if hasattr(min_date, "date") else str(min_date)[:10]
+    max_date_str = max_date.date().isoformat() if hasattr(max_date, "date") else str(max_date)[:10]
+
+    # Build Markdown content
+    content_lines = [
+        "# Conversation Statistics",
+        "",
+        "This page provides an overview of activity in this conversation archive.",
+        "",
+        "## Summary",
+        "",
+        f"- **Total Messages**: {total_messages:,}",
+        f"- **Unique Authors**: {total_authors}",
+        f"- **Date Range**: {min_date_str} to {max_date_str}",
+        "",
+        "## Daily Activity",
+        "",
+        "| Date | Messages | Active Authors | First Message | Last Message |",
+        "|------|----------|----------------|---------------|--------------|",
+    ]
+
+    # Convert to PyArrow (not pandas) for iteration
+    stats_arrow = stats_table.to_pyarrow()
+    for row in stats_arrow.to_pylist():
+        date_str = row["day"].strftime("%Y-%m-%d")
+        msg_count = f"{row['message_count']:,}"
+        author_count = row["unique_authors"]
+        first_time = row["first_message"].strftime("%H:%M")
+        last_time = row["last_message"].strftime("%H:%M")
+        content_lines.append(f"| {date_str} | {msg_count} | {author_count} | {first_time} | {last_time} |")
+
+    content = "\n".join(content_lines)
+
+    # Create Document with data-derived date (not current timestamp)
+    doc = Document(
+        content=content,
+        type=DocumentType.POST,
+        metadata={
+            "title": "Conversation Statistics",
+            "date": max_date_str,  # Use YYYY-MM-DD format for clean URLs
+            "slug": "statistics",
+            "tags": ["meta", "statistics"],
+            "summary": "Overview of conversation activity and daily message volume",
+        },
+    )
+
+    # Persist document with error handling
+    try:
+        if ctx.output_format:
+            ctx.output_format.persist(doc)
+            logger.info("[green]✓ Statistics page generated[/]")
+        else:
+            logger.warning("Output format not initialized - cannot save statistics page")
+    except Exception:
+        logger.exception("[red]Failed to generate statistics page[/]")
+
+
 def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, checkpoint_path: Path) -> None:
     """Save checkpoint after successful window processing.
 
@@ -1229,7 +1333,14 @@ def run(  # noqa: PLR0913
                 dataset.context,
                 dataset.embedding_model,
             )
+            # Save checkpoint first (critical path)
             _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
+
+            # Generate statistics page (non-critical, isolated)
+            try:
+                _generate_statistics_page(dataset.messages_table, dataset.context)
+            except Exception:
+                logger.exception("[red]Failed to generate statistics page (non-critical)[/]")
 
             # Calculate metrics
             finished_at = datetime.now(UTC)

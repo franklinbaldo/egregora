@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
@@ -53,8 +54,8 @@ class OutputAdapter(Protocol):
     def list_documents(self, doc_type: DocumentType | None = None) -> Table:
         """Return all known documents as an Ibis table, optionally filtered by ``doc_type``."""
 
-    def documents(self) -> list[Document]:
-        """Return all managed documents as Document objects."""
+    def documents(self) -> Iterator[Document]:
+        """Return all managed documents as Document objects (lazy iterator for memory efficiency)."""
 
     def resolve_document_path(self, identifier: str) -> Path:
         """Resolve the given storage identifier (from ``list_documents``) to an actual filesystem path."""

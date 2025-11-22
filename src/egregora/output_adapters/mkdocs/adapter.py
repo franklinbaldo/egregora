@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -188,6 +189,7 @@ class MkDocsAdapter(OutputAdapter):
         - .egregora/mkdocs.yml configuration
         - .egregora/config.yml (Egregora configuration)
         - .egregora/prompts/ (custom prompt overrides)
+        - .github/workflows/publish.yml (GitHub Actions deployment)
         - posts/, profiles/, media/ directories
         - index.md, about.md, and other starter pages
         - .gitignore files
@@ -238,6 +240,7 @@ class MkDocsAdapter(OutputAdapter):
 
             context = {
                 "site_name": site_name or site_root.name or "Egregora Archive",
+                "site_root": site_root,
                 "blog_dir": blog_relative,
                 "docs_dir": docs_relative,
                 "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
@@ -351,6 +354,7 @@ class MkDocsAdapter(OutputAdapter):
         templates_to_render = [
             (site_root / "README.md", "README.md.jinja"),
             (site_root / ".gitignore", ".gitignore.jinja"),
+            (site_root / ".github" / "workflows" / "publish.yml", ".github/workflows/publish.yml.jinja"),
             (docs_dir / "index.md", "docs/index.md.jinja"),
             (docs_dir / "about.md", "docs/about.md.jinja"),
             (docs_dir / "journal" / "index.md", "docs/journal/index.md.jinja"),
@@ -363,6 +367,7 @@ class MkDocsAdapter(OutputAdapter):
         # Render each template
         for target_path, template_name in templates_to_render:
             if not target_path.exists():
+                target_path.parent.mkdir(parents=True, exist_ok=True)
                 template = env.get_template(template_name)
                 content = template.render(**context)
                 target_path.write_text(content, encoding="utf-8")
@@ -772,26 +777,22 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
 Use consistent, meaningful tags across posts to build a useful taxonomy.
 """
 
-    def documents(self) -> list[Document]:
-        """Return all MkDocs documents as Document instances."""
+    def documents(self) -> Iterator[Document]:
+        """Return all MkDocs documents as Document instances (lazy iterator)."""
         if not hasattr(self, "_site_root") or self._site_root is None:
-            return []
+            return
 
-        documents: list[Document] = []
-        documents.extend(self._documents_from_dir(self.posts_dir, DocumentType.POST))
-        documents.extend(self._documents_from_dir(self.profiles_dir, DocumentType.PROFILE))
-        documents.extend(
-            self._documents_from_dir(
-                self._site_root / "docs" / "media",
-                DocumentType.ENRICHMENT_MEDIA,
-                recursive=True,
-                exclude_names={"index.md"},
-            )
+        yield from self._documents_from_dir(self.posts_dir, DocumentType.POST)
+        yield from self._documents_from_dir(self.profiles_dir, DocumentType.PROFILE)
+        yield from self._documents_from_dir(
+            self._site_root / "docs" / "media",
+            DocumentType.ENRICHMENT_MEDIA,
+            recursive=True,
+            exclude_names={"index.md"},
         )
-        documents.extend(
-            self._documents_from_dir(self.media_dir / "urls", DocumentType.ENRICHMENT_URL, recursive=True)
+        yield from self._documents_from_dir(
+            self.media_dir / "urls", DocumentType.ENRICHMENT_URL, recursive=True
         )
-        return documents
 
     def resolve_document_path(self, identifier: str) -> Path:
         """Resolve MkDocs storage identifier (relative path) to absolute filesystem path.

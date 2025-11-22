@@ -92,10 +92,34 @@ def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
 @app.command()
 def init(
     output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
+    interactive: Annotated[
+        bool,
+        typer.Option(
+            "--interactive/--no-interactive",
+            "-i",
+            help="Prompt for site settings (auto-disabled in non-TTY environments)",
+        ),
+    ] = True,
 ) -> None:
     """Initialize a new MkDocs site scaffold for serving Egregora posts."""
+    import sys
+
     site_root = output_dir.resolve()
-    docs_dir, mkdocs_created = ensure_mkdocs_project(site_root)
+
+    # Auto-disable interactive mode if not in a TTY (e.g., CI/CD)
+    is_tty = sys.stdin.isatty() and sys.stdout.isatty()
+    interactive = interactive and is_tty
+
+    # Interactive prompts for better UX
+    site_name = None
+    if interactive:
+        console.print("\n[bold cyan]🛠️  Egregora Site Initialization[/bold cyan]\n")
+        site_name = typer.prompt(
+            "Site name",
+            default=site_root.name or "Egregora Archive",
+        )
+
+    docs_dir, mkdocs_created = ensure_mkdocs_project(site_root, site_name=site_name)
     if mkdocs_created:
         console.print(
             Panel(
