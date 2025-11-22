@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 import ibis
 import ibis.expr.datatypes as dt
 
+from egregora.data_primitives import DocumentMetadata, OutputSink, UrlConvention
 from egregora.data_primitives.document import Document, DocumentType
 
 if TYPE_CHECKING:
