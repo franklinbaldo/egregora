@@ -4,16 +4,16 @@ ISP-COMPLIANT PROTOCOLS (2025-11-22):
 - OutputSink: Runtime data operations (persist, read, list)
 - SiteScaffolder: Project lifecycle operations (init, scaffold)
 
-ULTIMATE HYBRID IMPLEMENTATION (combining PR #869, PR #870, claude/refactor):
-- From PR #869: DocumentMetadata, type alias, shorter method names
-- From PR #870: @runtime_checkable, get() method, validate_structure()
+CLEAN HYBRID IMPLEMENTATION (combining PR #869, PR #870, claude/refactor):
+- From PR #869: DocumentMetadata, type alias
+- From PR #870: @runtime_checkable decorator
 - From claude/refactor: Comprehensive docs, full SiteScaffolder, resolve_paths()
 
-BEST OF ALL THREE WORLDS:
+KEY FEATURES:
 - Memory efficient (DocumentMetadata for lightweight listing)
 - Runtime checkable (@runtime_checkable for isinstance() support)
-- Flexible naming (both get/read_document, scaffold/scaffold_site, etc.)
-- Complete lifecycle (scaffold + validate + resolve)
+- Focused API (one obvious way per operation)
+- Complete lifecycle (scaffold_site + supports_site + resolve_paths)
 - RAG compatible (list_documents returns Table)
 - Self-reflection compatible (documents returns full Documents)
 
@@ -131,26 +131,6 @@ class OutputSink(Protocol):
 
         """
 
-    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
-        """Retrieve a single document by its ``doc_type`` primary identifier.
-
-        Alias for read_document() with shorter name (from PR #870).
-        Use whichever name you prefer - both are supported.
-
-        Args:
-            doc_type: Type of document to retrieve
-            identifier: Primary identifier (e.g., UUID for profiles, slug for posts)
-
-        Returns:
-            Document if found, None otherwise
-
-        Examples:
-            >>> # Both work:
-            >>> doc = sink.get(DocumentType.POST, "my-post-slug")
-            >>> doc = sink.read_document(DocumentType.POST, "my-post-slug")
-
-        """
-
     def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
         """Iterate through available documents, optionally filtering by ``doc_type``.
 
@@ -253,26 +233,6 @@ class SiteScaffolder(Protocol):
     **Runtime Checkable**: Use isinstance(obj, SiteScaffolder) for type checking
     """
 
-    def scaffold(self, path: Path, config: dict) -> None:
-        """Initialize directory structure, config files, and assets.
-
-        Shorter method name from PR #869/#870. Use this or scaffold_site().
-
-        Args:
-            path: Root directory for the site
-            config: Configuration dictionary (site_name, format options, etc.)
-
-        Raises:
-            RuntimeError: If scaffolding fails
-
-        Examples:
-            >>> scaffolder.scaffold(
-            ...     Path("./my-blog"),
-            ...     {"site_name": "My Blog", "theme": "material"}
-            ... )
-
-        """
-
     def scaffold_site(self, site_root: Path, site_name: str, **kwargs: object) -> tuple[Path, bool]:
         """Initialize directory structure, config files, and assets.
 
@@ -301,27 +261,10 @@ class SiteScaffolder(Protocol):
 
         """
 
-    def validate_structure(self, path: Path) -> bool:
-        """Check if the target directory is valid for this adapter.
-
-        From PR #869/#870. More specific name than supports_site().
-
-        Args:
-            path: Path to check
-
-        Returns:
-            True when path appears valid for this adapter
-
-        Examples:
-            >>> MkDocsAdapter().validate_structure(Path("./my-blog"))
-            True  # if mkdocs.yml exists and is valid
-
-        """
-
     def supports_site(self, site_root: Path) -> bool:
         """Check if this scaffolder can handle the given site.
 
-        Used for auto-detection of site format. Alias for validate_structure().
+        Used for auto-detection of site format.
 
         Args:
             site_root: Path to check
