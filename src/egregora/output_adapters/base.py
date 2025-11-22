@@ -1,5 +1,7 @@
 """Abstract base class for output formats (MkDocs, Hugo, Jekyll, etc.)."""
 
+from __future__ import annotations
+
 import datetime
 import re
 from abc import ABC, abstractmethod
@@ -11,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 import ibis
 import ibis.expr.datatypes as dt
 
-from egregora.data_primitives import DocumentMetadata, OutputSink, UrlConvention
+from egregora.data_primitives import DocumentMetadata, OutputSink, SiteScaffolder, UrlConvention
 from egregora.data_primitives.document import Document, DocumentType
 
 if TYPE_CHECKING:

@@ -8,6 +8,7 @@ MODERN: Updated to use OutputAdapter abstraction instead of direct scaffolding i
 
 from pathlib import Path
 
+from egregora.output_adapters import create_output_format
 from egregora.output_adapters.mkdocs import MkDocsAdapter
 
 
