@@ -60,9 +60,6 @@ from egregora.utils.rate_limit import AsyncRateLimit
 if TYPE_CHECKING:
     import ibis.expr.types as ir
 
-    from egregora.output_adapters.base import (
-        OutputAdapter,  # For typing in _parse_and_validate_source signature
-    )
 
 logger = logging.getLogger(__name__)
 console = Console()

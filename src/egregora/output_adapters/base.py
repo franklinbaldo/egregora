@@ -8,12 +8,12 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any
 
 import ibis
 import ibis.expr.datatypes as dt
 
-from egregora.data_primitives import DocumentMetadata, OutputSink, SiteScaffolder, UrlConvention
+from egregora.data_primitives import DocumentMetadata, OutputSink, UrlConvention
 from egregora.data_primitives.document import Document, DocumentType
 
 if TYPE_CHECKING:
@@ -98,7 +98,7 @@ class OutputAdapter(OutputSink, ABC):
 
             yield DocumentMetadata(identifier=identifier, doc_type=document.type, metadata=document.metadata)
 
-    def list_documents(self, doc_type: DocumentType | None = None) -> "Table":
+    def list_documents(self, doc_type: DocumentType | None = None) -> Table:
         """Compatibility shim returning an Ibis table of document metadata."""
         rows: list[dict[str, Any]] = []
         for meta in self.list(doc_type):
@@ -161,11 +161,11 @@ class OutputAdapter(OutputSink, ABC):
 
         return documents
 
-    def _empty_document_table(self) -> "Table":
+    def _empty_document_table(self) -> Table:
         """Return an empty Ibis table with the document listing schema."""
         return ibis.memtable([], schema=ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"}))
 
-    def _documents_to_table(self, documents: list[dict[str, Any]]) -> "Table":
+    def _documents_to_table(self, documents: list[dict[str, Any]]) -> Table:
         """Convert list of document dicts to Ibis table."""
         schema = ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"})
         return ibis.memtable(documents, schema=schema)

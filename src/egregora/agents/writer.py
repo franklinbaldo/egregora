@@ -48,7 +48,7 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import get_active_authors, read_profile
 from egregora.output_adapters import create_output_format, output_registry
-from egregora.output_adapters.base import OutputAdapter, OutputSink
+from egregora.output_adapters.base import OutputSink
 from egregora.output_adapters.mkdocs import MkDocsAdapter
 from egregora.resources.prompts import render_prompt
 from egregora.utils.batch import call_with_retries_sync
