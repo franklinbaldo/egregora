@@ -49,11 +49,14 @@ from egregora.input_adapters.whatsapp import extract_commands, filter_egregora_m
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
+from egregora.output_adapters.base import OutputAdapter
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.utils.cache import EnrichmentCache
+from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
+from egregora.utils.rate_limit import AsyncRateLimit
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
@@ -211,7 +214,7 @@ def _process_single_window(
             if media_doc.metadata.get("pii_deleted"):
                 continue
             try:
-                output_adapter.serve(media_doc)
+                output_adapter.persist(media_doc)
             except Exception:  # pragma: no cover - defensive
                 logger.exception("Failed to serve media document %s", media_doc.metadata.get("filename"))
 
@@ -523,6 +526,7 @@ def _perform_enrichment(
         output_format=ctx.output_format,
         site_root=ctx.site_root,
         quota=ctx.quota_tracker,
+        rate_limit=ctx.rate_limit,
     )
     return enrich_table(
         window_table,
@@ -689,7 +693,9 @@ def _create_pipeline_context(  # noqa: PLR0913
     client_instance = client or _create_gemini_client(api_key)
     cache_dir = Path(".egregora-cache") / site_paths["site_root"].name
     enrichment_cache = EnrichmentCache(cache_dir)
-    storage = DuckDBStorageManager(db_path=site_paths["site_root"] / ".egregora.db")
+    site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
+    db_file = site_paths["egregora_dir"] / f"{site_paths['site_root'].name}.duckdb"
+    storage = DuckDBStorageManager(db_path=db_file)
 
     rag_store = None
     if config.rag.enabled:
@@ -702,6 +708,7 @@ def _create_pipeline_context(  # noqa: PLR0913
     from egregora.orchestration.context import PipelineConfig, PipelineState
 
     quota_tracker = QuotaTracker(site_paths["egregora_dir"], config.quota.daily_llm_requests)
+    rate_limit = AsyncRateLimit(config.quota.per_second_limit)
 
     url_ctx = UrlContext(
         base_url="",
@@ -731,6 +738,8 @@ def _create_pipeline_context(  # noqa: PLR0913
         rag_store=rag_store,
         annotations_store=annotations_store,
         quota_tracker=quota_tracker,
+        rate_limit=rate_limit,
+        usage_tracker=UsageTracker(),
     )
 
     ctx = PipelineContext(config_obj, state)
@@ -800,13 +809,20 @@ def _pipeline_environment(  # noqa: PLR0913
                         pipeline_backend.con.close()
 
 
-def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) -> ir.Table:
+def _parse_and_validate_source(
+    adapter: any,
+    input_path: Path,
+    timezone: str,
+    *,
+    output_adapter: OutputAdapter | None = None,
+) -> ir.Table:
     """Parse source and validate schema.
 
     Args:
         adapter: Source adapter instance
         input_path: Path to input file
         timezone: Timezone string
+        output_adapter: Optional output adapter (used by adapters that reprocess existing sites)
 
     Returns:
         messages_table: Validated messages table
@@ -821,7 +837,7 @@ def _parse_and_validate_source(adapter: any, input_path: Path, timezone: str) ->
 
     """
     logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
-    messages_table = adapter.parse(input_path, timezone=timezone)
+    messages_table = adapter.parse(input_path, timezone=timezone, output_adapter=output_adapter)
 
     # Validate IR schema (raises SchemaError if invalid)
     validate_ir_schema(messages_table)
@@ -956,7 +972,12 @@ def _prepare_pipeline_data(
     vision_model = config.models.enricher_vision
     embedding_model = config.models.embedding
 
-    messages_table = _parse_and_validate_source(adapter, input_path, timezone)
+    from egregora.output_adapters import create_output_format
+
+    output_format = create_output_format(output_dir, format_type=config.output.format)
+    ctx = ctx.with_output_format(output_format)
+
+    messages_table = _parse_and_validate_source(adapter, input_path, timezone, output_adapter=output_format)
     _setup_content_directories(ctx)
     messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
 
@@ -979,13 +1000,8 @@ def _prepare_pipeline_data(
         max_window_time=max_window_time,
     )
 
-    from egregora.output_adapters import create_output_format
-
-    output_format = create_output_format(output_dir, format_type=config.output.format)
-
-    # Update context with adapter and output format
+    # Update context with adapter
     ctx = ctx.with_adapter(adapter)
-    ctx = ctx.with_output_format(output_format)
 
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")

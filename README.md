@@ -287,52 +287,66 @@ uv run mypy src/                    # Type check
 
 ```
 src/egregora/
-├── cli.py                    # Typer CLI (entry point)
-├── pipeline.py               # Pipeline utilities (group_by_period)
+├── cli/                      # CLI commands and interface
+│   ├── main.py              # Main Typer app (write, init, top, doctor)
+│   ├── runs.py              # Run tracking commands
+│   └── read.py              # Reader agent commands
+├── orchestration/            # High-level workflows
+│   ├── write_pipeline.py    # Write workflow coordination
+│   └── context.py           # Runtime context
 ├── config/                   # Pydantic V2 configuration
-│   ├── schema.py            # EgregoraConfig (root config)
-│   ├── types.py             # Runtime context dataclasses
-│   └── loader.py            # Config loading utilities
-├── sources/                  # Source-specific implementations
-│   └── whatsapp/            # WhatsApp source
-│       ├── grammar.py       # pyparsing grammar
-│       ├── parser.py        # parse_source() function
-│       ├── input.py         # WhatsAppInputSource
-│       └── models.py        # WhatsAppExport dataclass
-├── ingestion/               # Generic source interfaces
-│   ├── base.py             # InputSource abstraction
-│   └── __init__.py         # Re-exports for convenience
+│   ├── settings.py          # EgregoraConfig (root config)
+│   └── config_validation.py # Config validation utilities
+├── input_adapters/          # Bring data INTO the system
+│   ├── base.py             # InputAdapter protocol
+│   ├── whatsapp.py         # WhatsApp adapter
+│   ├── iperon_tjro.py      # Brazilian judicial API adapter
+│   ├── self_reflection.py  # Self-reflection adapter
+│   └── registry.py         # Adapter registry
+├── output_adapters/         # Take data OUT to publication
+│   ├── base.py             # OutputAdapter protocol
+│   └── mkdocs/             # MkDocs implementation
+│       └── adapter.py      # MkDocs adapter
+├── transformations/         # Pure functional data transforms
+│   └── windowing.py        # Window creation and checkpointing
+├── data_primitives/         # Foundation data models
+│   ├── document.py         # Document, DocumentType, DocumentCollection
+│   ├── base_types.py       # GroupSlug, PostSlug
+│   └── protocols.py        # Core protocols
 ├── privacy/                 # Anonymization + PII detection
-├── enrichment/              # LLM-powered context enrichment
+│   ├── anonymizer.py       # UUID-based anonymization
+│   └── detector.py         # PII detection
 ├── agents/                  # Pydantic-AI agents
-│   ├── writer/             # Post generation agent
-│   ├── editor/             # Interactive editing agent
-│   ├── ranking/            # Elo ranking agent
-│   └── tools/              # Agent tools (RAG, annotations, profiler)
-├── database/                # DuckDB + schemas
-├── rendering/               # MkDocs output format
-└── utils/                   # Utilities (cache, batch, logging)
+│   ├── writer.py           # Post generation agent
+│   ├── reader.py           # Reader/ranking agent
+│   ├── enricher.py         # URL/media enrichment agent
+│   ├── shared/             # Shared agent utilities
+│   │   └── rag/            # RAG implementation
+│   └── tools/              # Agent skills & tool injection
+├── database/                # DuckDB storage and schemas
+│   ├── duckdb_manager.py   # DuckDB connection management
+│   ├── ir_schema.py        # IR schema definitions
+│   ├── validation.py       # Schema validation
+│   ├── tracking.py         # Run tracking
+│   └── views.py            # View registry
+├── knowledge/               # Knowledge management
+│   └── profiles.py         # Author profiling
+└── utils/                   # Shared utilities
+    ├── cache.py            # DiskCache
+    ├── batch.py            # Batch processing
+    ├── quota.py            # Rate limiting
+    └── filesystem.py       # File utilities
 ```
 
 ---
 
 ## 📖 Documentation
 
-- **[CLAUDE.md](CLAUDE.md)** - Complete developer guide with modern patterns
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contribution guidelines + TENET-BREAK philosophy
-- **[BREAKING_CHANGES.md](BREAKING_CHANGES.md)** - Migration guide for Phases 2-6 modernization
-- **[SECURITY.md](SECURITY.md)** - Security policy
-- **[docs/](docs/)** - Comprehensive guides and API reference
+- **[CLAUDE.md](CLAUDE.md)** - Complete developer guide with architecture, modern patterns, and conventions
+- **[SECURITY.md](SECURITY.md)** - Security policy and reporting
+- **[docs/](docs/)** - Comprehensive guides, architecture docs, and API reference
 
-### Key Concepts
-
-**TENET-BREAK Philosophy**: Intentional violations of core principles for pragmatic reasons. Format:
-```python
-# TENET-BREAK(scope)[@owner][P0|P1|P2][due:YYYY-MM-DD]:
-# tenet=<code>; why=<constraint>; exit=<condition> (#issue)
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+The **TENET-BREAK Philosophy** (documented in CLAUDE.md) guides intentional, temporary violations of core principles for pragmatic reasons during alpha development.
 
 ---
 
@@ -346,10 +360,9 @@ Contributions are welcome! We use an **alpha mindset**:
 
 ### Before Contributing
 
-1. Read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
-2. Review [CLAUDE.md](CLAUDE.md) for modern patterns
-3. Check [BREAKING_CHANGES.md](BREAKING_CHANGES.md) for recent changes
-4. Install pre-commit hooks **before creating a branch**: run `python dev_tools/setup_hooks.py` (or `uv run pre-commit install`)
+1. Review [CLAUDE.md](CLAUDE.md) for architecture, patterns, and conventions
+2. Check [docs/](docs/) for recent changes and plans
+3. Install pre-commit hooks **before creating a branch**: run `python dev_tools/setup_hooks.py` (or `uv run pre-commit install`)
    so the same formatting, linting, and security checks run locally on every commit.
 
 ### Common Tasks
@@ -413,4 +426,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 ---
 
 **Egregora** - Because your group chat deserves to be preserved as more than just scrollback.
-- **LLM quota guard:** the daily limit (`quota.daily_llm_requests`, default 220) is enforced by the pipeline so you can keep producing runs without accidentally burning through your Gemini quota.
+- **LLM quotas & rate-limits:** the pipeline enforces both the daily budget (`quota.daily_llm_requests`) and per-second rate limit (`quota.per_second_limit`) via a shared `AsyncRateLimit`, matching Pydantic-AI’s recommended rate-limiting pattern. This keeps enrichment requests within Gemini’s advised limits while letting the guard skip any extra calls once the budget is exhausted.

@@ -41,6 +41,8 @@ from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.paths import slugify
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
+from egregora.utils.rate_limit import AsyncRateLimit
+from egregora.utils.retry import RetryPolicy, retry_async
 
 if TYPE_CHECKING:
     import pandas as pd  # noqa: TID251
@@ -155,6 +157,7 @@ class EnrichmentRuntimeContext:
     site_root: Path | None = None
     duckdb_connection: DuckDBBackend | None = None
     target_table: str | None = None
+    rate_limit: AsyncRateLimit | None = None
     quota: QuotaTracker | None = None
 
 
@@ -248,10 +251,13 @@ async def _run_url_enrichment_async(
     )
     prompt = prompt.format(sanitized_url=sanitized_url)
 
-    result: AgentRunResult[EnrichmentOutput] = await agent.run(prompt, deps=deps)
+    async def call() -> AgentRunResult[EnrichmentOutput]:
+        return await agent.run(prompt, deps=deps)
+
+    result = await retry_async(call, RetryPolicy())
     output = getattr(result, "data", getattr(result, "output", result))
     output.markdown = output.markdown.strip()
-    return output
+    return output, result.usage()
 
 
 async def _run_media_enrichment_async(  # noqa: PLR0913
@@ -278,10 +284,13 @@ async def _run_media_enrichment_async(  # noqa: PLR0913
     payload = binary_content or load_file_as_binary_content(file_path)
     message_content = [prompt, payload]
 
-    result: AgentRunResult[EnrichmentOutput] = await agent.run(message_content, deps=deps)
+    async def call() -> AgentRunResult[EnrichmentOutput]:
+        return await agent.run(message_content, deps=deps)
+
+    result = await retry_async(call, RetryPolicy())
     output = getattr(result, "data", getattr(result, "output", result))
     output.markdown = output.markdown.strip()
-    return output
+    return output, result.usage()
 
 
 def _uuid_to_str(value: uuid.UUID | str | None) -> str | None:
@@ -395,9 +404,13 @@ async def _process_url_task(  # noqa: PLR0913
             cached_slug = cache_entry.get("slug")
         else:
             try:
+                if context.rate_limit:
+                    await context.rate_limit.acquire()
                 if context.quota:
                     context.quota.reserve(1)
-                output_data = await _run_url_enrichment_async(agent, url, prompts_dir)
+                output_data, usage = await _run_url_enrichment_async(agent, url, prompts_dir)
+                if context.usage_tracker:
+                    context.usage_tracker.record(usage)
                 markdown = output_data.markdown
                 cached_slug = output_data.slug
                 cache.store(cache_key, {"markdown": markdown, "slug": cached_slug, "type": "url"})
@@ -419,7 +432,7 @@ async def _process_url_task(  # noqa: PLR0913
                 "hide": ["navigation"],
             },
         )
-        context.output_format.serve(doc)
+        context.output_format.persist(doc)
         return _create_enrichment_row(metadata, "URL", url, doc.document_id)
 
 
@@ -463,15 +476,19 @@ async def _process_media_task(  # noqa: PLR0913
             cached_slug = cache_entry.get("slug")
         else:
             try:
+                if context.rate_limit:
+                    await context.rate_limit.acquire()
                 if context.quota:
                     context.quota.reserve(1)
-                output_data = await _run_media_enrichment_async(
+                output_data, usage = await _run_media_enrichment_async(
                     agent,
                     filename=filename or ref,
                     mime_hint=media_type,
                     prompts_dir=prompts_dir,
                     binary_content=binary,
                 )
+                if context.usage_tracker:
+                    context.usage_tracker.record(usage)
                 markdown = output_data.markdown
                 cached_slug = output_data.slug
                 cache.store(cache_key, {"markdown": markdown, "slug": cached_slug, "type": "media"})
@@ -511,7 +528,7 @@ async def _process_media_task(  # noqa: PLR0913
             type=DocumentType.ENRICHMENT_MEDIA,
             metadata=enrichment_metadata,
         ).with_parent(updated_media_doc)
-        context.output_format.serve(doc)
+        context.output_format.persist(doc)
         row = _create_enrichment_row(metadata, "Media", filename or ref, doc.document_id)
         return row, pii_detected, ref, updated_media_doc
 
@@ -552,7 +569,7 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
     pii_media_deleted = False
 
     # Concurrency limit (configurable)
-    concurrency = max(1, config.enrichment.max_concurrent_enrichments)
+    concurrency = max(1, config.pipeline.enrichment_concurrency)
     semaphore = asyncio.Semaphore(concurrency)
 
     tasks = []

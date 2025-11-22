@@ -10,6 +10,7 @@ from egregora.output_adapters import create_output_format
 
 
 def _write_markdown(path: Path, title: str, slug: str, body: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         f"""---
 title: {title}
@@ -38,7 +39,7 @@ def test_self_adapter_parses_existing_site(tmp_path: Path):
     _write_markdown(post_one, "Sample", "sample-post", "Body text 1")
     _write_markdown(post_two, "Second", "second-post", "Body text 2")
 
-    table = adapter.parse(tmp_path)
+    table = adapter.parse(tmp_path, output_adapter=output_format)
     df = table.execute()
 
     assert set(df.columns) == set(table.schema().names)

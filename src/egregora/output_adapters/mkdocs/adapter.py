@@ -15,9 +15,10 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
@@ -37,10 +38,7 @@ from egregora.utils.filesystem import (
     write_markdown_post as _write_mkdocs_post,
 )
 from egregora.utils.frontmatter_utils import parse_frontmatter
-
-if TYPE_CHECKING:
-    from ibis.expr.types import Table
-
+from egregora.utils.paths import slugify
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +66,7 @@ class MkDocsAdapter(OutputAdapter):
         """Initializes the adapter with all necessary paths and dependencies."""
         site_paths = derive_mkdocs_paths(site_root)
         self.site_root = site_paths["site_root"]
+        self._site_root = self.site_root
         prefix = compute_site_prefix(self.site_root, site_paths["docs_dir"])
         self._ctx = url_context or UrlContext(base_url="", site_prefix=prefix, base_path=self.site_root)
         self.posts_dir = site_paths["posts_dir"]
@@ -92,7 +91,7 @@ class MkDocsAdapter(OutputAdapter):
     def url_convention(self) -> UrlConvention:
         return self._url_convention
 
-    def serve(self, document: Document) -> None:
+    def persist(self, document: Document) -> None:
         doc_id = document.document_id
         url = self._url_convention.canonical_url(document, self._ctx)
         path = self._url_to_path(url, document)
@@ -372,14 +371,6 @@ class MkDocsAdapter(OutputAdapter):
                 template = env.get_template(template_name)
                 content = template.render(**context)
                 target_path.write_text(content, encoding="utf-8")
-
-        templates_dir = egregora_dir / "templates"
-        templates_dir.mkdir(parents=True, exist_ok=True)
-        blog_template = templates_dir / "egregora_blog.html"
-        if not blog_template.exists():
-            templates_source = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
-            blog_source = templates_source / ".egregora" / "templates" / "egregora_blog.html.jinja"
-            blog_template.write_text(blog_source.read_text(encoding="utf-8"), encoding="utf-8")
 
     def _create_egregora_config(self, site_paths: dict[str, Any], env: Environment) -> None:
         """Create .egregora/config.yml from template.
@@ -786,56 +777,22 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
 Use consistent, meaningful tags across posts to build a useful taxonomy.
 """
 
-    def list_documents(self) -> Table:
-        """List all MkDocs documents (posts, profiles, media enrichments) as Ibis table.
-
-        Returns Ibis table with storage identifiers (relative paths) and modification times.
-        This enables efficient delta detection using Ibis joins/filters.
-
-        REFACTORED (2025-11-19): Now uses base class helper _scan_directory_for_documents()
-        to reduce code duplication with other output adapters.
-
-        Returns:
-            Ibis table with schema:
-                - storage_identifier: string (relative path from site_root)
-                - mtime_ns: int64 (modification time in nanoseconds)
-
-        Example identifiers:
-            - Posts: "posts/2025-01-10-my-post.md"
-            - Profiles: "profiles/user-123.md"
-            - Media enrichments: "docs/media/images/uuid.png.md"
-            - URL enrichments: "media/urls/uuid.md"
-
-        """
+    def documents(self) -> Iterator[Document]:
+        """Return all MkDocs documents as Document instances (lazy iterator)."""
         if not hasattr(self, "_site_root") or self._site_root is None:
-            return self._empty_document_table()
+            return
 
-        site_root = self._site_root
-        documents: list[dict] = []
-
-        # Scan posts directory
-        documents.extend(self._scan_directory_for_documents(site_root / "posts", site_root, "*.md"))
-
-        # Scan profiles directory
-        documents.extend(self._scan_directory_for_documents(site_root / "profiles", site_root, "*.md"))
-
-        # Scan media enrichments (docs/media/**/*.md, excluding index.md)
-        documents.extend(
-            self._scan_directory_for_documents(
-                site_root / "docs" / "media",
-                site_root,
-                "*.md",
-                recursive=True,
-                exclude_names={"index.md"},
-            )
+        yield from self._documents_from_dir(self.posts_dir, DocumentType.POST)
+        yield from self._documents_from_dir(self.profiles_dir, DocumentType.PROFILE)
+        yield from self._documents_from_dir(
+            self._site_root / "docs" / "media",
+            DocumentType.ENRICHMENT_MEDIA,
+            recursive=True,
+            exclude_names={"index.md"},
         )
-
-        # Scan URL enrichments (media/urls/**/*.md)
-        documents.extend(
-            self._scan_directory_for_documents(site_root / "media", site_root, "*.md", recursive=True)
+        yield from self._documents_from_dir(
+            self.media_dir / "urls", DocumentType.ENRICHMENT_URL, recursive=True
         )
-
-        return self._documents_to_table(documents)
 
     def resolve_document_path(self, identifier: str) -> Path:
         """Resolve MkDocs storage identifier (relative path) to absolute filesystem path.
@@ -860,6 +817,51 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
+
+    def _documents_from_dir(
+        self,
+        directory: Path,
+        doc_type: DocumentType,
+        *,
+        recursive: bool = False,
+        exclude_names: set[str] | None = None,
+    ) -> list[Document]:
+        if not directory or not directory.exists():
+            return []
+
+        documents: list[Document] = []
+        glob_func = directory.rglob if recursive else directory.glob
+        for path in glob_func("*.md"):
+            if not path.is_file():
+                continue
+            if exclude_names and path.name in exclude_names:
+                continue
+            doc = self._document_from_path(path, doc_type)
+            if doc:
+                documents.append(doc)
+        return documents
+
+    def _document_from_path(self, path: Path, doc_type: DocumentType) -> Document | None:
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except OSError:
+            return None
+        metadata, body = parse_frontmatter(raw)
+        metadata = metadata or {}
+        slug_value = metadata.get("slug")
+        if isinstance(slug_value, str) and slug_value.strip():
+            slug = slugify(slug_value)
+        else:
+            slug = slugify(path.stem)
+        metadata["slug"] = slug
+        storage_identifier = str(path.relative_to(self._site_root))
+        metadata.setdefault("storage_identifier", storage_identifier)
+        metadata.setdefault("source_path", str(path))
+        try:
+            metadata.setdefault("mtime_ns", path.stat().st_mtime_ns)
+        except OSError:
+            metadata.setdefault("mtime_ns", 0)
+        return Document(content=body.strip(), type=doc_type, metadata=metadata)
 
     def _url_to_path(self, url: str, document: Document) -> Path:
         base = self._ctx.base_url.rstrip("/")

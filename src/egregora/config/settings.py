@@ -185,12 +185,6 @@ class EnrichmentSettings(BaseModel):
         le=200,
         description="Maximum number of enrichments per run",
     )
-    max_concurrent_enrichments: int = Field(
-        default=4,
-        ge=1,
-        le=20,
-        description="Number of concurrent LLM enrichment calls to run in parallel",
-    )
 
 
 from egregora.constants import WindowUnit  # noqa: E402
@@ -244,6 +238,12 @@ class PipelineSettings(BaseModel):
     use_full_context_window: bool = Field(
         default=False,
         description="Use full model context window (overrides max_prompt_tokens cap)",
+    )
+    enrichment_concurrency: int = Field(
+        default=4,
+        ge=1,
+        le=20,
+        description="Maximum number of simultaneous enrichment tasks.",
     )
     max_windows: int | None = Field(
         default=1,
@@ -390,6 +390,11 @@ class QuotaSettings(BaseModel):
         default=220,
         ge=1,
         description="Soft limit for daily LLM calls (writer + enrichment).",
+    )
+    per_second_limit: int = Field(
+        default=10,
+        ge=1,
+        description="Maximum number of LLM calls allowed per second (for async guard).",
     )
 
 

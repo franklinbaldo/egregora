@@ -9,7 +9,7 @@ import logging
 import re
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 import ibis
 
@@ -222,32 +222,50 @@ def index_documents_for_rag(  # noqa: C901
 ) -> int:
     """Index new/changed documents using incremental indexing via OutputAdapter."""
     try:
-        format_documents = output_format.list_documents()
+        rows: list[dict[str, Any]] = []
+        doc_count = 0
 
-        doc_count = format_documents.count().execute()
+        for document in output_format.documents():
+            doc_count += 1
+            identifier = document.metadata.get("storage_identifier") or document.suggested_path
+            if not identifier:
+                continue
+
+            source_path = document.metadata.get("source_path")
+            if not source_path:
+                try:
+                    source_path = str(output_format.resolve_document_path(identifier))
+                except (ValueError, RuntimeError, OSError) as e:
+                    logger.warning("Failed to resolve identifier %s: %s", identifier, e)
+                    source_path = ""
+
+            rows.append(
+                {
+                    "storage_identifier": identifier,
+                    "source_path": source_path or "",
+                    "mtime_ns": document.metadata.get("mtime_ns") or 0,
+                }
+            )
+
         if doc_count == 0:
             logger.debug("No documents found by output format")
             return 0
 
         logger.debug("OutputAdapter reported %d documents", doc_count)
 
-        def resolve_identifier(identifier: str) -> str:
-            try:
-                return str(output_format.resolve_document_path(identifier))
-            except (ValueError, RuntimeError, OSError) as e:
-                logger.warning("Failed to resolve identifier %s: %s", identifier, e)
-                return ""
+        docs_table = ibis.memtable(rows)
 
-        docs_df = format_documents.execute()
-        docs_df["source_path"] = docs_df["storage_identifier"].apply(resolve_identifier)
+        docs_table = docs_table.filter(docs_table["source_path"] != "")
 
-        docs_df = docs_df[docs_df["source_path"] != ""]
+        remaining = docs_table.count().execute()
+        if hasattr(remaining, "iloc"):
+            remaining_count = int(remaining.iloc[0, 0])
+        else:
+            remaining_count = int(remaining)
 
-        if docs_df.empty:
+        if remaining_count == 0:
             logger.warning("All document identifiers failed to resolve to paths")
             return 0
-
-        docs_table = ibis.memtable(docs_df)
 
         store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
         indexed_table = store.get_indexed_sources_table()

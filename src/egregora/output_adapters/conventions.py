@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -110,10 +111,7 @@ class StandardUrlConvention(UrlConvention):
         if self.routes.date_in_url:
             date_val = document.metadata.get("date", "")
             if date_val:
-                if hasattr(date_val, "strftime"):
-                    date_str = date_val.strftime("%Y-%m-%d")
-                else:
-                    date_str = str(date_val).split(" ")[0]  # Safety chop
+                date_str = _date_to_iso_date(date_val)
                 return self._join(ctx, self.routes.posts_prefix, f"{date_str}-{normalized_slug}")
 
         return self._join(ctx, self.routes.posts_prefix, normalized_slug)
@@ -154,3 +152,15 @@ class StandardUrlConvention(UrlConvention):
         if slug_value.endswith(suffix):
             return slug_value
         return f"{slug_value}-{suffix}"
+
+
+def _date_to_iso_date(value: datetime | str) -> str:
+    """Return ISO date (YYYY-MM-DD) from datetime/string."""
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    text = str(value)
+    if "T" in text:
+        return text.split("T", 1)[0]
+    if " " in text:
+        return text.split(" ", 1)[0]
+    return text
