@@ -12,6 +12,7 @@ import ibis
 import ibis.expr.datatypes as dt
 
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import DocumentMetadata, OutputSink, UrlConvention
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -119,22 +120,9 @@ class OutputAdapter(OutputSink, ABC):
 
         """
 
-    def list_documents(self, doc_type: DocumentType | None = None) -> "Table":
-        """List all documents managed by this output format as an Ibis table.
-
-        The default implementation materializes the documents returned by
-        :meth:`documents` and exposes their storage identifiers and mtimes.
-        Override only if you need to source the table from another store.
-
-        Args:
-            doc_type: Optional filter by document type
-
-        Returns:
-            Ibis Table with storage_identifier and mtime_ns columns
-
-        """
+    def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
+        """Iterate through available documents, optionally filtering by ``doc_type``."""
         for document in self.documents():
-            # Filter by doc_type if specified
             if doc_type is not None and document.type != doc_type:
                 continue
 
@@ -144,15 +132,12 @@ class OutputAdapter(OutputSink, ABC):
             if not identifier:
                 continue
 
-            if doc_type is not None and document.type != doc_type:
-                continue
-
             yield DocumentMetadata(identifier=identifier, doc_type=document.type, metadata=document.metadata)
 
-    def list_documents(self) -> "Table":
+    def list_documents(self, doc_type: DocumentType | None = None) -> "Table":
         """Compatibility shim returning an Ibis table of document metadata."""
         rows: list[dict[str, Any]] = []
-        for meta in self.list():
+        for meta in self.list(doc_type):
             mtime_ns = meta.metadata.get("mtime_ns") if isinstance(meta.metadata, dict) else None
             if mtime_ns is None:
                 try:
@@ -167,6 +152,7 @@ class OutputAdapter(OutputSink, ABC):
                     mtime_ns = None
 
             rows.append({"storage_identifier": meta.identifier, "mtime_ns": mtime_ns})
+
         return ibis.memtable(rows, schema=DOCUMENT_INVENTORY_SCHEMA)
 
     def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
