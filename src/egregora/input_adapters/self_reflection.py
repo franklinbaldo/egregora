@@ -12,9 +12,10 @@ from uuid import UUID, uuid5
 import ibis
 import yaml
 
+from egregora.data_primitives.document import DocumentType
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
-from egregora.utils.frontmatter_utils import parse_frontmatter_file
+from egregora.output_adapters.base import OutputAdapter
 from egregora.utils.paths import slugify
 
 logger = logging.getLogger(__name__)
@@ -62,21 +63,34 @@ class SelfInputAdapter(InputAdapter):
             ir_version="v1",
         )
 
-    def parse(self, input_path: Path, *, timezone: str | None = None, **_: Any) -> ibis.Table:
+    def parse(
+        self,
+        input_path: Path,
+        *,
+        output_adapter: OutputAdapter | None = None,
+        timezone: str | None = None,
+        **_: Any,
+    ) -> ibis.Table:
+        if output_adapter is None:
+            raise ValueError("output_adapter must be provided when parsing an existing site")
+
         docs_dir, site_root = self._resolve_docs_dir(input_path)
-        posts_dir = docs_dir / "posts"
-        if not posts_dir.is_dir():
-            msg = f"Docs directory {docs_dir} does not contain a posts/ directory"
-            raise FileNotFoundError(msg)
+        documents = [
+            doc
+            for doc in output_adapter.documents()
+            if doc.type == DocumentType.POST and doc.metadata.get("slug") not in {"index", "tags"}
+        ]
+        if not documents:
+            raise RuntimeError(f"No posts published by {output_adapter.__class__.__name__}")
 
         site_name = self._load_site_name(site_root)
         records: list[dict[str, Any]] = []
-        for markdown_path in posts_dir.rglob("*.md"):
-            if markdown_path.name in {"index.md", "tags.md"}:
-                continue
-            metadata, body = parse_frontmatter_file(markdown_path)
-            slug = self._resolve_slug(metadata, markdown_path)
-            timestamp = self._resolve_timestamp(metadata.get("date"), markdown_path, timezone)
+        for document in documents:
+            metadata = document.metadata.copy()
+            source_path = metadata.get("source_path")
+            path_obj = Path(source_path) if source_path else None
+            slug = self._resolve_slug(metadata, path_obj)
+            timestamp = self._resolve_timestamp(metadata.get("date"), path_obj, timezone)
             authors = metadata.get("authors") or []
             if isinstance(authors, str):
                 author_label = authors
@@ -85,10 +99,15 @@ class SelfInputAdapter(InputAdapter):
             else:
                 author_label = site_name
             author_uuid = str(uuid5(AUTHOR_NAMESPACE, author_label.lower()))
-            attrs = self._sanitize_metadata(metadata, markdown_path)
+            attrs = self._sanitize_metadata(metadata, path_obj or Path("self"))
             attrs_json = json.dumps(attrs)
-            text = body.strip() or attrs.get("summary") or f"Existing post: {metadata.get('title', slug)}"
-            event_id = str(uuid5(EVENT_NAMESPACE, str(markdown_path.relative_to(docs_dir))))
+            text = ""
+            if isinstance(document.content, str):
+                text = document.content.strip()
+            if not text:
+                text = attrs.get("summary") or f"Existing post: {metadata.get('title', slug)}"
+            storage_identifier = metadata.get("storage_identifier") or slug
+            event_id = str(uuid5(EVENT_NAMESPACE, storage_identifier))
 
             records.append(
                 {
@@ -110,10 +129,6 @@ class SelfInputAdapter(InputAdapter):
                 }
             )
 
-        if not records:
-            msg = f"No markdown posts found under {posts_dir}"
-            raise RuntimeError(msg)
-
         return ibis.memtable(records, schema=IR_MESSAGE_SCHEMA)
 
     def get_metadata(self, input_path: Path, **_: Any) -> dict[str, Any]:
@@ -122,10 +137,13 @@ class SelfInputAdapter(InputAdapter):
 
     def _resolve_docs_dir(self, input_path: Path) -> tuple[Path, Path]:
         resolved = input_path.expanduser().resolve()
-        if resolved.is_dir() and (resolved / "docs").is_dir():
-            return resolved / "docs", resolved
+        docs_dir = resolved / "docs"
+        if resolved.is_dir() and docs_dir.is_dir():
+            return docs_dir, resolved
         if resolved.is_dir() and resolved.name == "docs":
             return resolved, resolved.parent
+        if resolved.is_dir() and (resolved / ".egregora").is_dir():
+            return resolved, resolved
         msg = f"Input path {input_path} must be a site root or docs directory"
         raise FileNotFoundError(msg)
 
@@ -144,13 +162,14 @@ class SelfInputAdapter(InputAdapter):
                 return str(name)
         return site_root.name
 
-    def _resolve_slug(self, metadata: dict[str, Any], path: Path) -> str:
+    def _resolve_slug(self, metadata: dict[str, Any], path: Path | None) -> str:
         slug_value = metadata.get("slug")
         if isinstance(slug_value, str) and slug_value.strip():
             return slugify(slug_value)
-        return slugify(path.stem)
+        base = path.stem if path else metadata.get("storage_identifier", "self")
+        return slugify(base)
 
-    def _resolve_timestamp(self, value: Any, path: Path, timezone: str | None) -> datetime:
+    def _resolve_timestamp(self, value: Any, path: Path | None, timezone: str | None) -> datetime:
         if isinstance(value, datetime):
             ts = value
         elif isinstance(value, date):
@@ -160,8 +179,10 @@ class SelfInputAdapter(InputAdapter):
                 ts = datetime.fromisoformat(value.replace("Z", "+00:00"))
             except ValueError:
                 ts = datetime.strptime(value, "%Y-%m-%d")
-        else:
+        elif path:
             ts = datetime.fromtimestamp(path.stat().st_mtime)
+        else:
+            ts = datetime.now(UTC)
 
         if ts.tzinfo is None:
             if timezone:
@@ -175,9 +196,12 @@ class SelfInputAdapter(InputAdapter):
                 ts = ts.replace(tzinfo=UTC)
         return ts.astimezone(UTC)
 
-    def _sanitize_metadata(self, metadata: dict[str, Any], markdown_path: Path) -> dict[str, Any]:
+    def _sanitize_metadata(
+        self, metadata: dict[str, Any], markdown_path: Path | None = None
+    ) -> dict[str, Any]:
         sanitized: dict[str, Any] = {key: self._serialize_value(value) for key, value in metadata.items()}
-        sanitized.setdefault("source_path", str(markdown_path))
+        if markdown_path:
+            sanitized.setdefault("source_path", str(markdown_path))
         return sanitized
 
     def _serialize_value(self, value: Any) -> Any:
