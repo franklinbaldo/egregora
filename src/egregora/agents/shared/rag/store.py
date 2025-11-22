@@ -812,7 +812,7 @@ class VectorStore:
             self._ensure_dataset_loaded()
             table = self._client.table(TABLE_NAME)
             return (
-                table.filter(table.source_path.notnull()).select("source_path", "source_mtime_ns").distinct()  # noqa: PD004 - backend lacks .notna()
+                table.filter(table.source_path.notnull()).select("source_path", "source_mtime_ns").distinct()
             )
         except (duckdb.Error, IbisError) as e:
             logger.warning("Failed to get indexed sources table: %s", e)
