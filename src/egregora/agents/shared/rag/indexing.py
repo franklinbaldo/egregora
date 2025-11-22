@@ -19,11 +19,9 @@ from egregora.agents.shared.rag.chunker import chunk_document, chunk_from_docume
 from egregora.agents.shared.rag.embedder import embed_chunks
 from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA, VectorStore
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import OutputSink
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.utils.frontmatter_utils import parse_frontmatter
-
-if TYPE_CHECKING:
-    from egregora.output_adapters.base import OutputAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -214,13 +212,13 @@ def index_document(
 
 
 def index_documents_for_rag(  # noqa: C901
-    output_format: OutputAdapter,
+    output_format: OutputSink,
     rag_dir: Path,
     storage: DuckDBStorageManager,
     *,
     embedding_model: str,
 ) -> int:
-    """Index new/changed documents using incremental indexing via OutputAdapter."""
+    """Index new/changed documents using incremental indexing via OutputSink."""
     try:
         rows: list[dict[str, Any]] = []
         doc_count = 0
@@ -251,7 +249,7 @@ def index_documents_for_rag(  # noqa: C901
             logger.debug("No documents found by output format")
             return 0
 
-        logger.debug("OutputAdapter reported %d documents", doc_count)
+        logger.debug("Output sink reported %d documents", doc_count)
 
         docs_table = ibis.memtable(rows)
 

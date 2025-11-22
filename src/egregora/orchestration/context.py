@@ -21,7 +21,7 @@ from egregora.agents.shared.rag import VectorStore
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.output_adapters.base import OutputAdapter
+from egregora.data_primitives.protocols import OutputSink
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
@@ -115,7 +115,7 @@ class PipelineState:
     rate_limit: AsyncRateLimit | None = None
 
     # Output & Adapters (Initialized lazily or updated)
-    output_format: OutputAdapter | None = None
+    output_format: OutputSink | None = None
     adapter: Any = None  # InputAdapter protocol
     usage_tracker: UsageTracker | None = None
 
@@ -195,7 +195,7 @@ class PipelineContext:
         return self.state.annotations_store
 
     @property
-    def output_format(self) -> OutputAdapter | None:
+    def output_format(self) -> OutputSink | None:
         return self.state.output_format
 
     @property
@@ -258,7 +258,7 @@ class PipelineContext:
 
     def with_output_format(
         self,
-        output_format: OutputAdapter,
+        output_format: OutputSink,
         url_context: UrlContext | None = None,
     ) -> PipelineContext:
         """Update output format in state and url context in config."""

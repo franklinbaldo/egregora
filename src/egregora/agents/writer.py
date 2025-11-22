@@ -45,7 +45,7 @@ from egregora.agents.shared.rag import (
 )
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import OutputAdapter, UrlContext, UrlConvention
+from egregora.data_primitives.protocols import OutputSink, UrlContext, UrlConvention
 from egregora.knowledge.profiles import get_active_authors, read_profile
 from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.mkdocs import MkDocsAdapter
@@ -151,7 +151,7 @@ class WriterDeps:
     rate_limit: AsyncRateLimit | None
 
     @property
-    def output_format(self) -> OutputAdapter:
+    def output_format(self) -> OutputSink:
         if self.ctx.output_format is None:
             message = "Output format not initialized in context"
             raise RuntimeError(message)
@@ -198,7 +198,7 @@ def register_writer_tools(  # noqa: C901
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str) -> ReadProfileResult:
-        doc = ctx.deps.output_format.read_document(DocumentType.PROFILE, author_uuid)
+        doc = ctx.deps.output_format.get(DocumentType.PROFILE, author_uuid)
         content = doc.content if doc else "No profile exists yet."
         return ReadProfileResult(content=content)
 
@@ -507,7 +507,7 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:  
 def _save_journal_to_file(
     intercalated_log: list[JournalEntry],
     window_label: str,
-    output_format: OutputAdapter,
+    output_format: OutputSink,
     posts_published: int,
     profiles_updated: int,
     window_start: datetime,
@@ -616,7 +616,7 @@ def _prepare_deps(
     """Prepare writer dependencies from pipeline context."""
     window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
 
-    # Ensure OutputAdapter is initialized
+    # Ensure output sink is initialized
     if not ctx.output_format:
         storage_root = ctx.site_root if ctx.site_root else ctx.output_dir
         format_type = ctx.config.output.format

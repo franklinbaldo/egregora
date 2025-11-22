@@ -49,7 +49,7 @@ from egregora.input_adapters.whatsapp import extract_commands, filter_egregora_m
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
-from egregora.output_adapters.base import OutputAdapter
+from egregora.data_primitives.protocols import OutputSink
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
@@ -814,7 +814,7 @@ def _parse_and_validate_source(
     input_path: Path,
     timezone: str,
     *,
-    output_adapter: OutputAdapter | None = None,
+    output_adapter: OutputSink | None = None,
 ) -> ir.Table:
     """Parse source and validate schema.
 

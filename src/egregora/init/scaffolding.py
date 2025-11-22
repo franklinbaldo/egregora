@@ -1,16 +1,15 @@
 """Site scaffolding utilities for Egregora sites.
 
-MODERN (Phase N): Refactored to use OutputAdapter abstraction.
-- MkDocs-specific logic moved to MkDocsOutputAdapter.scaffold_site()
-- This module now provides thin compatibility wrappers
-- New code should use OutputAdapter directly via create_output_format()
+Modernized to use the ``SiteScaffolder`` interface instead of the broader
+output sink abstraction. Scaffolding is handled by adapters that explicitly
+support lifecycle management (currently MkDocs).
 """
 
 import logging
 from pathlib import Path
 
-from egregora.output_adapters import create_output_format
-from egregora.output_adapters.mkdocs import derive_mkdocs_paths
+from egregora.data_primitives.protocols import SiteScaffolder
+from egregora.output_adapters.mkdocs import MkDocsAdapter, derive_mkdocs_paths
 
 logger = logging.getLogger(__name__)
 
@@ -32,16 +31,15 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
         - was_created: True if new site was created, False if existed
 
     """
-    # Use OutputAdapter abstraction
+    # Use adapter that supports scaffolding explicitly
     site_root = site_root.expanduser().resolve()
     if site_name is None:
         site_name = site_root.name or "Egregora Archive"
 
-    # Create and initialize MkDocs output format
-    output_format = create_output_format(site_root, format_type="mkdocs")
-
-    # Scaffold the site (idempotent - returns False if already exists)
-    _mkdocs_path, created = output_format.scaffold_site(site_root, site_name)
+    scaffolder: SiteScaffolder = MkDocsAdapter()
+    existed_before = scaffolder.validate_structure(site_root)
+    scaffolder.scaffold(site_root, {"site_name": site_name})
+    created = not existed_before
 
     # Return docs_dir for backward compatibility
     site_paths = derive_mkdocs_paths(site_root)

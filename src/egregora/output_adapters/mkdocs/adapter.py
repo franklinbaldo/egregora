@@ -25,7 +25,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 
 from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import UrlContext, UrlConvention
+from egregora.data_primitives.protocols import SiteScaffolder, UrlContext, UrlConvention
 from egregora.knowledge.profiles import write_profile as write_profile_content
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 from egregora.output_adapters.conventions import StandardUrlConvention
@@ -51,7 +51,7 @@ class _ConfigLoader(yaml.SafeLoader):
 _ConfigLoader.add_constructor(None, lambda loader, node: None)
 
 
-class MkDocsAdapter(OutputAdapter):
+class MkDocsAdapter(OutputAdapter, SiteScaffolder):
     """Unified MkDocs output adapter."""
 
     def __init__(self) -> None:
@@ -116,7 +116,7 @@ class MkDocsAdapter(OutputAdapter):
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
 
-    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:  # noqa: C901
+    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:  # noqa: C901
         if isinstance(doc_type, str):
             doc_type = DocumentType(doc_type)
         path: Path | None = None
@@ -264,6 +264,17 @@ class MkDocsAdapter(OutputAdapter):
         else:
             logger.info("MkDocs site scaffold created at %s", site_root)
             return (new_mkdocs_path, True)
+
+    # SiteScaffolder protocol -------------------------------------------------
+
+    def scaffold(self, path: Path, config: dict) -> None:
+        site_name = config.get("site_name") if isinstance(config, dict) else None
+        mkdocs_path, created = self.scaffold_site(path, site_name or path.name)
+        if not created:
+            logger.info("MkDocs site already exists at %s (config: %s)", path, mkdocs_path)
+
+    def validate_structure(self, path: Path) -> bool:
+        return self.supports_site(path)
 
     def _create_site_structure(
         self, site_paths: dict[str, Any], env: Environment, context: dict[str, Any]

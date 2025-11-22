@@ -5,12 +5,13 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Iterator
 
 import ibis
 import ibis.expr.datatypes as dt
 
-from egregora.data_primitives.document import Document
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import DocumentMetadata, OutputSink, UrlConvention
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -41,206 +42,35 @@ class SiteConfiguration:
     additional_paths: dict[str, Path] | None = None
 
 
-class OutputAdapter(ABC):
-    """Abstract base class for output formats.
+class OutputAdapter(OutputSink, ABC):
+    """Abstract base class for output formats focused on document IO.
 
-    Output formats are responsible for:
-    1. Scaffolding new sites with proper directory structure
-    2. Writing blog posts in the appropriate format
-    3. Managing author profiles
-    4. Resolving site paths and configuration
-    5. Generating any format-specific files (config, templates, etc.)
-
-    Monolithic adapter contract:
-        Egregora no longer expects adapters to vend bespoke ``PostStorage`` or
-        ``ProfileStorage`` implementations.  All responsibilities flow through
-        this adapter via ``persist()``, ``write_post()``, ``write_profile()``, and
-        the document inventory helpers.  This keeps the public surface small and
-        ensures adapters cannot fall out of sync with the document-oriented
-        pipeline.  Subclasses should therefore *not* expose storage-specific
-        helper attributes.  If a format needs internal helper classes, keep them
-        private and route all operations through the adapter itself.
-
-    Directory Structure Properties:
-        These properties define the conventional directory names for this format.
-        Subclasses should override these to match their format's conventions.
-        For example, Hugo might use "static" instead of "media", "authors" instead of "profiles".
+    Output formats are responsible for persisting ``Document`` instances and
+    returning them to the pipeline.  Environment management (e.g., scaffolding
+    MkDocs projects) is handled separately via :class:`SiteScaffolder`.
     """
-
-    @property
-    def docs_dir_name(self) -> str:
-        """Default name for the documentation directory."""
-        return "docs"
-
-    @property
-    def blog_dir_name(self) -> str:
-        """Default name for the blog directory (relative to docs_dir)."""
-        return "."
-
-    @property
-    def profiles_dir_name(self) -> str:
-        """Name for the author profiles directory."""
-        return "profiles"
-
-    @property
-    def media_dir_name(self) -> str:
-        """Name for the media/assets directory."""
-        return "media"
-
-    def get_media_url_path(self, media_file: Path, site_root: Path) -> str:
-        """Get the relative URL path for a media file in the generated site.
-
-        Args:
-            media_file: Absolute path to the media file
-            site_root: Root directory of the site
-
-        Returns:
-            Relative path string for use in HTML/markdown links
-            Example: "media/images/abc123.jpg"
-
-        """
-        site_config = self.resolve_paths(site_root)
-        return str(media_file.relative_to(site_config.docs_dir))
-
-    def get_profile_url_path(self, profile_slug: str) -> str:
-        """Get the relative URL path for a profile page.
-
-        Args:
-            profile_slug: Slug/identifier for the profile
-
-        Returns:
-            Relative path string for use in HTML/markdown links
-            Example: "profiles/author-name/"
-
-        """
-        return f"{self.profiles_dir_name}/{profile_slug}/"
-
-    def get_post_url_path(self, post_slug: str) -> str:
-        """Get the relative URL path for a blog post.
-
-        Args:
-            post_slug: Slug/identifier for the post
-
-        Returns:
-            Relative path string for use in HTML/markdown links
-            Example: "posts/my-post/"
-
-        """
-        return f"posts/{post_slug}/"
 
     @abstractmethod
     def persist(self, document: Document) -> None:
         """Persist a document so it becomes available at its canonical path."""
 
     @abstractmethod
-    def scaffold_site(self, site_root: Path, site_name: str, **kwargs: object) -> tuple[Path, bool]:
-        """Create the initial site structure.
+    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
+        """Retrieve a single document by its ``doc_type`` primary identifier."""
 
-        Args:
-            site_root: Root directory for the site
-            site_name: Display name for the site
-            **kwargs: Format-specific options
-
-        Returns:
-            tuple of (config_file_path, was_created)
-            - config_file_path: Path to the main config file
-            - was_created: True if new site was created, False if existed
-
-        Raises:
-            RuntimeError: If scaffolding fails
-
-        """
-
+    @property
     @abstractmethod
-    def resolve_paths(self, site_root: Path) -> SiteConfiguration:
-        """Resolve all paths for an existing site.
-
-        Args:
-            site_root: Root directory of the site
-
-        Returns:
-            SiteConfiguration with all resolved paths
-
-        Raises:
-            ValueError: If site_root is not a valid site
-            FileNotFoundError: If required directories don't exist
-
-        """
-
-    @abstractmethod
-    def write_post(self, content: str, metadata: dict[str, Any], output_dir: Path, **kwargs: object) -> str:
-        """Write a blog post in the appropriate format.
-
-        Args:
-            content: Markdown content of the post
-            metadata: Post metadata (title, date, tags, authors, etc.)
-                Required keys: title, date, slug
-                Optional keys: tags, authors, summary, etc.
-            output_dir: Directory to write the post to
-            **kwargs: Format-specific options
-
-        Returns:
-            Path to the written file (as string)
-
-        Raises:
-            ValueError: If required metadata is missing
-            RuntimeError: If writing fails
-
-        """
-
-    @abstractmethod
-    def write_profile(
-        self, author_id: str, profile_data: dict[str, Any], profiles_dir: Path, **kwargs: object
-    ) -> str:
-        """Write an author profile page.
-
-        Args:
-            author_id: Unique identifier for the author
-            profile_data: Profile information (name, bio, avatar, etc.)
-            profiles_dir: Directory to write the profile to
-            **kwargs: Format-specific options
-
-        Returns:
-            Path to the written file (as string)
-
-        Raises:
-            ValueError: If author_id is invalid
-            RuntimeError: If writing fails
-
-        """
-
-    @abstractmethod
-    def load_config(self, site_root: Path) -> dict[str, Any]:
-        """Load site configuration.
-
-        Args:
-            site_root: Root directory of the site
-
-        Returns:
-            Dictionary of configuration values
-
-        Raises:
-            FileNotFoundError: If config file doesn't exist
-            ValueError: If config is invalid
-
-        """
-
-    @abstractmethod
-    def supports_site(self, site_root: Path) -> bool:
-        """Check if this output format can handle the given site.
-
-        Args:
-            site_root: Path to check
-
-        Returns:
-            True if this format can handle the site, False otherwise
-
-        """
+    def url_convention(self) -> UrlConvention:
+        """Return the URL convention adopted by this adapter."""
 
     @property
     @abstractmethod
     def format_type(self) -> str:
         """Return the type identifier for this format (e.g., 'mkdocs', 'hugo')."""
+
+    @abstractmethod
+    def supports_site(self, site_root: Path) -> bool:
+        """Return True if this adapter can manage the given site root."""
 
     @abstractmethod
     def get_markdown_extensions(self) -> list[str]:
@@ -289,69 +119,45 @@ class OutputAdapter(ABC):
 
         """
 
-    def list_documents(self) -> "Table":
-        """List all documents managed by this output format as an Ibis table.
+    def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
+        """Iterate through available documents.
 
         The default implementation materializes the documents returned by
-        :meth:`documents` and exposes their storage identifiers and mtimes.
-        Override only if you need to source the table from another store.
+        :meth:`documents` and yields :class:`DocumentMetadata` describing each
+        one. Override to source the metadata from an external store.
         """
-        rows: list[dict[str, Any]] = []
         for document in self.documents():
-            identifier = document.metadata.get("storage_identifier")
-            if not identifier:
-                identifier = document.suggested_path
+            identifier = document.metadata.get("storage_identifier") or document.suggested_path
             if not identifier:
                 continue
 
-            mtime_ns = document.metadata.get("mtime_ns")
+            if doc_type is not None and document.type != doc_type:
+                continue
+
+            yield DocumentMetadata(identifier=identifier, doc_type=document.type, metadata=document.metadata)
+
+    def list_documents(self) -> "Table":
+        """Compatibility shim returning an Ibis table of document metadata."""
+        rows: list[dict[str, Any]] = []
+        for meta in self.list():
+            mtime_ns = meta.metadata.get("mtime_ns") if isinstance(meta.metadata, dict) else None
             if mtime_ns is None:
                 try:
-                    path = Path(document.metadata.get("source_path", identifier))
-                    if path.exists():
+                    path = Path(meta.metadata.get("source_path", meta.identifier)) if isinstance(meta.metadata, dict) else None
+                    if path and path.exists():
                         mtime_ns = path.stat().st_mtime_ns
                 except OSError:
                     mtime_ns = None
 
-            rows.append({"storage_identifier": identifier, "mtime_ns": mtime_ns})
+            rows.append({"storage_identifier": meta.identifier, "mtime_ns": mtime_ns})
         return ibis.memtable(rows, schema=DOCUMENT_INVENTORY_SCHEMA)
 
-    @abstractmethod
-    def resolve_document_path(self, identifier: str) -> Path:
-        """Resolve storage identifier to absolute filesystem path.
-
-        Takes a storage identifier from list_documents() and returns the absolute
-        filesystem path where the document can be read. This abstraction allows
-        different storage backends (filesystem, database, S3) to work uniformly.
-
-        Args:
-            identifier: Storage identifier from list_documents()
-
-        Returns:
-            Path: Absolute filesystem path to the document
-
-        Examples:
-            >>> # MkDocs (relative path identifier)
-            >>> format.resolve_document_path("posts/2025-01-10-post.md")
-            Path("/path/to/site/posts/2025-01-10-post.md")
-
-            >>> # Database (record ID identifier)
-            >>> format.resolve_document_path("post:123")
-            Path("/tmp/egregora-cache/post-123.md")  # Exported to temp file
-
-            >>> # S3 (object key identifier)
-            >>> format.resolve_document_path("s3://bucket/posts/my-post.md")
-            Path("/tmp/egregora-cache/my-post.md")  # Downloaded to temp file
-
-        Note:
-            - Always returns absolute paths (no CWD assumptions)
-            - For non-filesystem backends, may export to temporary files
-            - Caller is responsible for reading the returned path
-
-        """
+    def read_document(self, doc_type: DocumentType, identifier: str) -> Document | None:
+        """Backward-compatible alias for :meth:`get`."""
+        return self.get(doc_type, identifier)
 
     @abstractmethod
-    def documents(self) -> list[Document]:
+    def documents(self) -> Iterator[Document]:
         """Return all managed documents as Document objects."""
 
     @abstractmethod

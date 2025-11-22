@@ -8,13 +8,13 @@ MODERN: Updated to use OutputAdapter abstraction instead of direct scaffolding i
 
 from pathlib import Path
 
-from egregora.output_adapters import create_output_format
+from egregora.output_adapters.mkdocs import MkDocsAdapter
 
 
 def test_init_creates_all_template_files(tmp_path: Path):
     """Verify that init creates all files defined in the templates directory."""
     # Create and scaffold MkDocs site using OutputAdapter
-    output_format = create_output_format(tmp_path, format_type="mkdocs")
+    output_format = MkDocsAdapter()
     _mkdocs_path, created = output_format.scaffold_site(tmp_path, site_name="Test Site")
 
     # Verify site was created
@@ -38,7 +38,7 @@ def test_init_creates_all_template_files(tmp_path: Path):
 def test_init_directory_structure(tmp_path: Path):
     """Verify that init creates the correct directory structure."""
     # Create and scaffold MkDocs site using OutputAdapter
-    output_format = create_output_format(tmp_path, format_type="mkdocs")
+    output_format = MkDocsAdapter()
     _mkdocs_path, created = output_format.scaffold_site(tmp_path, site_name="Test Site")
 
     # Verify site was created
@@ -72,7 +72,7 @@ def test_init_directory_structure(tmp_path: Path):
 def test_egregora_directory_created(tmp_path: Path):
     """Test that .egregora/ directory is created on init."""
     # Create and scaffold MkDocs site using OutputAdapter
-    output_format = create_output_format(tmp_path, format_type="mkdocs")
+    output_format = MkDocsAdapter()
     _mkdocs_path, created = output_format.scaffold_site(tmp_path, site_name="Test Site")
 
     # Verify site was created
@@ -102,7 +102,7 @@ def test_config_yml_structure(tmp_path: Path):
     from egregora.config.settings import load_egregora_config
 
     # Create and scaffold MkDocs site using OutputAdapter
-    output_format = create_output_format(tmp_path, format_type="mkdocs")
+    output_format = MkDocsAdapter()
     _mkdocs_path, created = output_format.scaffold_site(tmp_path, site_name="Test Site")
 
     # Verify site was created
