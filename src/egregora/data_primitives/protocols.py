@@ -4,9 +4,18 @@ ISP-COMPLIANT PROTOCOLS (2025-11-22):
 - OutputSink: Runtime data operations (persist, read, list)
 - SiteScaffolder: Project lifecycle operations (init, scaffold)
 
-HYBRID IMPLEMENTATION:
-- Best of PR #869 (shorter names, DocumentMetadata, type alias)
-- Best of claude/refactor (comprehensive docstrings, resolve_document_path, full SiteScaffolder)
+ULTIMATE HYBRID IMPLEMENTATION (combining PR #869, PR #870, claude/refactor):
+- From PR #869: DocumentMetadata, type alias, shorter method names
+- From PR #870: @runtime_checkable, get() method, validate_structure()
+- From claude/refactor: Comprehensive docs, full SiteScaffolder, resolve_paths()
+
+BEST OF ALL THREE WORLDS:
+- Memory efficient (DocumentMetadata for lightweight listing)
+- Runtime checkable (@runtime_checkable for isinstance() support)
+- Flexible naming (both get/read_document, scaffold/scaffold_site, etc.)
+- Complete lifecycle (scaffold + validate + resolve)
+- RAG compatible (list_documents returns Table)
+- Self-reflection compatible (documents returns full Documents)
 
 LEGACY:
 - OutputAdapter: Type alias to OutputSink (backward compatibility)
@@ -17,7 +26,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -68,6 +77,7 @@ class UrlConvention(Protocol):
 # ============================================================================
 
 
+@runtime_checkable
 class OutputSink(Protocol):
     """Runtime data plane for document persistence and retrieval.
 
@@ -85,6 +95,8 @@ class OutputSink(Protocol):
     - PostgresAdapter: Persists to database tables
     - S3Adapter: Persists to object storage
     - NotionAdapter: Persists to Notion blocks via API
+
+    **Runtime Checkable**: Use isinstance(obj, OutputSink) for type checking
     """
 
     @property
@@ -119,6 +131,26 @@ class OutputSink(Protocol):
 
         """
 
+    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
+        """Retrieve a single document by its ``doc_type`` primary identifier.
+
+        Alias for read_document() with shorter name (from PR #870).
+        Use whichever name you prefer - both are supported.
+
+        Args:
+            doc_type: Type of document to retrieve
+            identifier: Primary identifier (e.g., UUID for profiles, slug for posts)
+
+        Returns:
+            Document if found, None otherwise
+
+        Examples:
+            >>> # Both work:
+            >>> doc = sink.get(DocumentType.POST, "my-post-slug")
+            >>> doc = sink.read_document(DocumentType.POST, "my-post-slug")
+
+        """
+
     def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
         """Iterate through available documents, optionally filtering by ``doc_type``.
 
@@ -133,7 +165,7 @@ class OutputSink(Protocol):
 
         Examples:
             >>> for meta in sink.list(DocumentType.POST):
-            ...     print(f"Post: {meta.identifier}")
+            ...     print(f"Post: {meta.identifier}, Modified: {meta.metadata['mtime_ns']}")
 
         """
 
@@ -195,6 +227,7 @@ class OutputSink(Protocol):
         """
 
 
+@runtime_checkable
 class SiteScaffolder(Protocol):
     """Project lifecycle management for local site initialization.
 
@@ -216,13 +249,36 @@ class SiteScaffolder(Protocol):
     - PostgresAdapter: No filesystem scaffolding needed
     - S3Adapter: No local directory structure
     - NotionAdapter: No filesystem scaffolding (API-based)
+
+    **Runtime Checkable**: Use isinstance(obj, SiteScaffolder) for type checking
     """
+
+    def scaffold(self, path: Path, config: dict) -> None:
+        """Initialize directory structure, config files, and assets.
+
+        Shorter method name from PR #869/#870. Use this or scaffold_site().
+
+        Args:
+            path: Root directory for the site
+            config: Configuration dictionary (site_name, format options, etc.)
+
+        Raises:
+            RuntimeError: If scaffolding fails
+
+        Examples:
+            >>> scaffolder.scaffold(
+            ...     Path("./my-blog"),
+            ...     {"site_name": "My Blog", "theme": "material"}
+            ... )
+
+        """
 
     def scaffold_site(self, site_root: Path, site_name: str, **kwargs: object) -> tuple[Path, bool]:
         """Initialize directory structure, config files, and assets.
 
-        Creates all necessary files and directories for a new site. Idempotent:
-        returns (config_path, False) if site already exists.
+        Full-featured method with explicit return values. Creates all necessary
+        files and directories for a new site. Idempotent: returns (config_path, False)
+        if site already exists.
 
         Args:
             site_root: Root directory for the site
@@ -238,7 +294,6 @@ class SiteScaffolder(Protocol):
             RuntimeError: If scaffolding fails
 
         Examples:
-            >>> scaffolder = MkDocsAdapter()
             >>> config_path, created = scaffolder.scaffold_site(
             ...     Path("./my-blog"), "My Blog"
             ... )
@@ -246,10 +301,27 @@ class SiteScaffolder(Protocol):
 
         """
 
+    def validate_structure(self, path: Path) -> bool:
+        """Check if the target directory is valid for this adapter.
+
+        From PR #869/#870. More specific name than supports_site().
+
+        Args:
+            path: Path to check
+
+        Returns:
+            True when path appears valid for this adapter
+
+        Examples:
+            >>> MkDocsAdapter().validate_structure(Path("./my-blog"))
+            True  # if mkdocs.yml exists and is valid
+
+        """
+
     def supports_site(self, site_root: Path) -> bool:
         """Check if this scaffolder can handle the given site.
 
-        Used for auto-detection of site format.
+        Used for auto-detection of site format. Alias for validate_structure().
 
         Args:
             site_root: Path to check
@@ -277,6 +349,11 @@ class SiteScaffolder(Protocol):
         Raises:
             ValueError: If site_root is not a valid site
             FileNotFoundError: If required directories don't exist
+
+        Examples:
+            >>> paths = scaffolder.resolve_paths(Path("./my-blog"))
+            >>> paths["posts_dir"]
+            Path("/abs/path/to/my-blog/docs/posts")
 
         """
 

@@ -171,6 +171,21 @@ class MkDocsAdapter(OutputAdapter):
 
         return Document(content=actual_content, type=doc_type, metadata=metadata)
 
+    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
+        """Retrieve a single document by its doc_type primary identifier.
+
+        Alias for read_document() with shorter name (from PR #870).
+
+        Args:
+            doc_type: Type of document to retrieve
+            identifier: Primary identifier
+
+        Returns:
+            Document if found, None otherwise
+
+        """
+        return self.read_document(doc_type, identifier)
+
     def supports_site(self, site_root: Path) -> bool:
         """Check if the site root contains a mkdocs.yml file.
 
@@ -194,6 +209,20 @@ class MkDocsAdapter(OutputAdapter):
         # Check root mkdocs.yml (legacy location)
         legacy_path = site_root / "mkdocs.yml"
         return legacy_path.exists()
+
+    def validate_structure(self, path: Path) -> bool:
+        """Check if the target directory is valid for this adapter.
+
+        Alias for supports_site() (from PR #869/#870).
+
+        Args:
+            path: Path to check
+
+        Returns:
+            True when path appears valid for MkDocs
+
+        """
+        return self.supports_site(path)
 
     def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure.
@@ -277,6 +306,23 @@ class MkDocsAdapter(OutputAdapter):
         else:
             logger.info("MkDocs site scaffold created at %s", site_root)
             return (new_mkdocs_path, True)
+
+    def scaffold(self, path: Path, config: dict) -> None:
+        """Initialize directory structure, config files, and assets.
+
+        Shorter method name from PR #869/#870. Wraps scaffold_site().
+
+        Args:
+            path: Root directory for the site
+            config: Configuration dictionary (must contain 'site_name')
+
+        Raises:
+            RuntimeError: If scaffolding fails
+            KeyError: If 'site_name' not in config
+
+        """
+        site_name = config.get("site_name", path.name or "Egregora Archive")
+        self.scaffold_site(path, site_name, **config)
 
     def _create_site_structure(
         self, site_paths: dict[str, Any], env: Environment, context: dict[str, Any]
