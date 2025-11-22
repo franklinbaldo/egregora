@@ -1086,6 +1086,10 @@ def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) ->
     min_date = date_range["min_day"][0].as_py()
     max_date = date_range["max_day"][0].as_py()
 
+    # Extract date-only strings for clean slugs (avoid timestamp in URL)
+    min_date_str = min_date.date().isoformat() if hasattr(min_date, "date") else str(min_date)[:10]
+    max_date_str = max_date.date().isoformat() if hasattr(max_date, "date") else str(max_date)[:10]
+
     # Build Markdown content
     content_lines = [
         "# Conversation Statistics",
@@ -1096,7 +1100,7 @@ def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) ->
         "",
         f"- **Total Messages**: {total_messages:,}",
         f"- **Unique Authors**: {total_authors}",
-        f"- **Date Range**: {min_date:%Y-%m-%d} to {max_date:%Y-%m-%d}",
+        f"- **Date Range**: {min_date_str} to {max_date_str}",
         "",
         "## Daily Activity",
         "",
@@ -1122,7 +1126,7 @@ def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) ->
         type=DocumentType.POST,
         metadata={
             "title": "Conversation Statistics",
-            "date": max_date.isoformat(),  # Use last conversation date
+            "date": max_date_str,  # Use YYYY-MM-DD format for clean URLs
             "slug": "statistics",
             "tags": ["meta", "statistics"],
             "summary": "Overview of conversation activity and daily message volume",
