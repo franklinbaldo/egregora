@@ -418,9 +418,9 @@ class TestWritePostsCommand:
             post_files = list(posts_target_dir.glob("*.md"))
             # If there are posts, ensure they are in the right place
             if post_files:
-                assert all(
-                    p.parent == posts_target_dir for p in post_files
-                ), "Posts should be in the '.posts' subdirectory."
+                assert all(p.parent == posts_target_dir for p in post_files), (
+                    "Posts should be in the '.posts' subdirectory."
+                )
         else:
             # If the directory doesn't exist, it means no posts were written, which is a valid outcome.
             # We can also check that no posts were written to the *wrong* directory.

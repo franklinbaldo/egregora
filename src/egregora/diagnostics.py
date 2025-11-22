@@ -252,7 +252,7 @@ def check_duckdb_zipfs() -> DiagnosticResult:
 def check_git() -> DiagnosticResult:
     """Check if git is available for code_ref tracking."""
     try:
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             ["git", "--version"],  # noqa: S607
             capture_output=True,
             text=True,
