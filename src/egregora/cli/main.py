@@ -92,10 +92,21 @@ def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
 @app.command()
 def init(
     output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
+    interactive: Annotated[bool, typer.Option("--interactive", "-i", help="Prompt for site settings")] = True,
 ) -> None:
     """Initialize a new MkDocs site scaffold for serving Egregora posts."""
     site_root = output_dir.resolve()
-    docs_dir, mkdocs_created = ensure_mkdocs_project(site_root)
+
+    # Interactive prompts for better UX
+    site_name = None
+    if interactive:
+        console.print("\n[bold cyan]🛠️  Egregora Site Initialization[/bold cyan]\n")
+        site_name = typer.prompt(
+            "Site name",
+            default=site_root.name or "Egregora Archive",
+        )
+
+    docs_dir, mkdocs_created = ensure_mkdocs_project(site_root, site_name=site_name)
     if mkdocs_created:
         console.print(
             Panel(
@@ -170,6 +181,13 @@ def write(  # noqa: C901, PLR0913, PLR0915
         bool,
         typer.Option(
             help="Enable incremental processing (resume from checkpoint). Default: always rebuild from scratch."
+        ),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Estimate costs without making API calls. Shows token usage and pricing for each window.",
         ),
     ] = False,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
@@ -307,6 +325,7 @@ def write(  # noqa: C901, PLR0913, PLR0915
             output_dir=runtime.output_dir,
             config=egregora_config,
             api_key=runtime.api_key,
+            dry_run=dry_run,
         )
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:

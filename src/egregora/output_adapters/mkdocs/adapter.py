@@ -188,6 +188,7 @@ class MkDocsAdapter(OutputAdapter):
         - .egregora/mkdocs.yml configuration
         - .egregora/config.yml (Egregora configuration)
         - .egregora/prompts/ (custom prompt overrides)
+        - .github/workflows/publish.yml (GitHub Actions deployment)
         - posts/, profiles/, media/ directories
         - index.md, about.md, and other starter pages
         - .gitignore files
@@ -238,6 +239,7 @@ class MkDocsAdapter(OutputAdapter):
 
             context = {
                 "site_name": site_name or site_root.name or "Egregora Archive",
+                "site_root": site_root,
                 "blog_dir": blog_relative,
                 "docs_dir": docs_relative,
                 "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
@@ -351,6 +353,7 @@ class MkDocsAdapter(OutputAdapter):
         templates_to_render = [
             (site_root / "README.md", "README.md.jinja"),
             (site_root / ".gitignore", ".gitignore.jinja"),
+            (site_root / ".github" / "workflows" / "publish.yml", ".github/workflows/publish.yml.jinja"),
             (docs_dir / "index.md", "docs/index.md.jinja"),
             (docs_dir / "about.md", "docs/about.md.jinja"),
             (docs_dir / "journal" / "index.md", "docs/journal/index.md.jinja"),
@@ -363,6 +366,7 @@ class MkDocsAdapter(OutputAdapter):
         # Render each template
         for target_path, template_name in templates_to_render:
             if not target_path.exists():
+                target_path.parent.mkdir(parents=True, exist_ok=True)
                 template = env.get_template(template_name)
                 content = template.render(**context)
                 target_path.write_text(content, encoding="utf-8")
