@@ -71,3 +71,4 @@ features:
 # Quota guardrails
 quota:
   daily_llm_requests: 220      # Soft daily limit for LLM calls (writer + enrichments)
+  per_second_limit: 10         # Max LLM calls per second (async guard)

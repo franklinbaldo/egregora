@@ -413,4 +413,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 ---
 
 **Egregora** - Because your group chat deserves to be preserved as more than just scrollback.
-- **LLM quota guard:** the daily limit (`quota.daily_llm_requests`, default 220) is enforced by the pipeline so you can keep producing runs without accidentally burning through your Gemini quota.
+- **LLM quotas & rate-limits:** the pipeline enforces both the daily budget (`quota.daily_llm_requests`) and per-second rate limit (`quota.per_second_limit`) via a shared `AsyncRateLimit`, matching Pydantic-AI’s recommended rate-limiting pattern. This keeps enrichment requests within Gemini’s advised limits while letting the guard skip any extra calls once the budget is exhausted.

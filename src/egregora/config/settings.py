@@ -391,6 +391,11 @@ class QuotaSettings(BaseModel):
         ge=1,
         description="Soft limit for daily LLM calls (writer + enrichment).",
     )
+    per_second_limit: int = Field(
+        default=10,
+        ge=1,
+        description="Maximum number of LLM calls allowed per second (for async guard).",
+    )
 
 
 class EgregoraConfig(BaseModel):

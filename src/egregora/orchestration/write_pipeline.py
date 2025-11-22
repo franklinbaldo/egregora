@@ -50,6 +50,7 @@ from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.utils.cache import EnrichmentCache
+from egregora.utils.rate_limit import AsyncRateLimit
 from egregora.utils.quota import QuotaTracker
 
 if TYPE_CHECKING:
@@ -519,6 +520,7 @@ def _perform_enrichment(
         output_format=ctx.output_format,
         site_root=ctx.site_root,
         quota=ctx.quota_tracker,
+        rate_limit=ctx.rate_limit,
     )
     return enrich_table(
         window_table,
@@ -698,6 +700,7 @@ def _create_pipeline_context(  # noqa: PLR0913
     from egregora.orchestration.context import PipelineConfig, PipelineState
 
     quota_tracker = QuotaTracker(site_paths["egregora_dir"], config.quota.daily_llm_requests)
+    rate_limit = AsyncRateLimit(config.quota.per_second_limit)
 
     url_ctx = UrlContext(
         base_url="",
@@ -727,6 +730,7 @@ def _create_pipeline_context(  # noqa: PLR0913
         rag_store=rag_store,
         annotations_store=annotations_store,
         quota_tracker=quota_tracker,
+        rate_limit=rate_limit,
     )
 
     ctx = PipelineContext(config_obj, state)

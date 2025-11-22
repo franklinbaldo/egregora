@@ -40,6 +40,7 @@ from egregora.ops.media import (
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.paths import slugify
+from egregora.utils.rate_limit import AsyncRateLimit
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
 
 if TYPE_CHECKING:
@@ -155,6 +156,7 @@ class EnrichmentRuntimeContext:
     site_root: Path | None = None
     duckdb_connection: DuckDBBackend | None = None
     target_table: str | None = None
+    rate_limit: AsyncRateLimit | None = None
     quota: QuotaTracker | None = None
 
 
@@ -395,6 +397,8 @@ async def _process_url_task(  # noqa: PLR0913
             cached_slug = cache_entry.get("slug")
         else:
             try:
+                if context.rate_limit:
+                    await context.rate_limit.acquire()
                 if context.quota:
                     context.quota.reserve(1)
                 output_data = await _run_url_enrichment_async(agent, url, prompts_dir)
@@ -463,6 +467,8 @@ async def _process_media_task(  # noqa: PLR0913
             cached_slug = cache_entry.get("slug")
         else:
             try:
+                if context.rate_limit:
+                    await context.rate_limit.acquire()
                 if context.quota:
                     context.quota.reserve(1)
                 output_data = await _run_media_enrichment_async(
