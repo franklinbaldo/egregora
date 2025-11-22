@@ -43,7 +43,6 @@ enrichment:
   enable_url: true              # Enrich URLs with LLM-generated descriptions
   enable_media: true            # Enrich images/videos with LLM-generated descriptions
   max_enrichments: 50           # Maximum number of enrichments per run
-  max_concurrent_enrichments: 4 # Number of enrichment calls to run in parallel
 
 # Pipeline windowing settings
 pipeline:
@@ -56,6 +55,7 @@ pipeline:
   # timezone: "America/New_York" # Timezone for timestamps
   max_prompt_tokens: 100000     # Maximum tokens per prompt (cost control)
   use_full_context_window: false # Use full model context (overrides cap)
+  enrichment_concurrency: 4      # Maximum number of simultaneous enrichment tasks
 
 # Output configuration
 output:
@@ -71,3 +71,4 @@ features:
 # Quota guardrails
 quota:
   daily_llm_requests: 220      # Soft daily limit for LLM calls (writer + enrichments)
+  per_second_limit: 10         # Max LLM calls per second (async guard)

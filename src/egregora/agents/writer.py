@@ -7,6 +7,7 @@ It exposes ``write_posts_for_window`` which routes the LLM conversation through 
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import Sequence
@@ -20,7 +21,6 @@ from ibis.expr.types import Table
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
-from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -51,7 +51,9 @@ from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.mkdocs import MkDocsAdapter
 from egregora.resources.prompts import render_prompt
 from egregora.utils.batch import call_with_retries_sync
+from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
+from egregora.utils.retry import RetryPolicy, retry_sync
 
 if TYPE_CHECKING:
     from google import genai
@@ -144,6 +146,7 @@ class WriterDeps:
     prompts_dir: Path | None
 
     quota: QuotaTracker | None
+    usage_tracker: UsageTracker | None
 
     @property
     def output_format(self) -> OutputAdapter:
@@ -635,6 +638,7 @@ def _prepare_deps(
         window_label=window_label,
         prompts_dir=prompts_dir,
         quota=ctx.quota_tracker,
+        usage_tracker=ctx.usage_tracker,
     )
 
 
@@ -699,10 +703,17 @@ def write_posts_with_pydantic_agent(
 
     _validate_prompt_fits(prompt, model_name, config, context.window_label)
 
-    last_error: UnexpectedModelBehavior | None = None
-    try:
+    retry_policy = RetryPolicy()
+
+    def _invoke_agent() -> AgentRunResult:
+        if context.rate_limit:
+            asyncio.run(context.rate_limit.acquire())
         if context.quota:
             context.quota.reserve(1)
+        return call_with_retries_sync(agent.run_sync, prompt, deps=context)
+
+    try:
+        result = retry_sync(_invoke_agent, retry_policy)
     except QuotaExceededError as exc:
         msg = (
             "LLM quota exceeded for this day. No additional posts can be generated "
@@ -711,21 +722,9 @@ def write_posts_with_pydantic_agent(
         logger.error(msg)
         raise RuntimeError(msg) from exc
 
-    for attempt in range(3):
-        try:
-            result = call_with_retries_sync(agent.run_sync, prompt, deps=context)
-            break
-        except UnexpectedModelBehavior as exc:
-            last_error = exc
-            if "MALFORMED_FUNCTION_CALL" not in str(exc):
-                raise
-            logger.warning(
-                "Writer model returned malformed function call (attempt %s/3). Retrying...",
-                attempt + 1,
-            )
-    else:
-        raise last_error  # pragma: no cover
-
+    usage = result.usage()
+    if context.usage_tracker:
+        context.usage_tracker.record(usage)
     saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
     intercalated_log = _extract_intercalated_log(result.all_messages())
     if not intercalated_log:
