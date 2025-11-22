@@ -531,7 +531,7 @@ class TestDoctorAndCacheOutputFormat:
         # Output should not be empty
         assert len(result.stdout) > 0
         # Should contain some check results
-        output_lines = [l for l in result.stdout.split("\n") if l.strip()]
+        output_lines = [line for line in result.stdout.split("\n") if line.strip()]
         assert len(output_lines) > 0
 
     def test_cache_stats_output_is_readable(self, tmp_path):

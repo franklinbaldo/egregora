@@ -7,7 +7,7 @@ This module defines:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -19,9 +19,8 @@ if TYPE_CHECKING:
     from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore
 from egregora.config.settings import EgregoraConfig
-from egregora.data_primitives.protocols import UrlContext
+from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.output_adapters.base import OutputAdapter
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
@@ -115,7 +114,7 @@ class PipelineState:
     rate_limit: AsyncRateLimit | None = None
 
     # Output & Adapters (Initialized lazily or updated)
-    output_format: OutputAdapter | None = None
+    output_format: OutputSink | None = None  # ISP-compliant: Runtime data operations only
     adapter: Any = None  # InputAdapter protocol
     usage_tracker: UsageTracker | None = None
 
@@ -195,7 +194,8 @@ class PipelineContext:
         return self.state.annotations_store
 
     @property
-    def output_format(self) -> OutputAdapter | None:
+    def output_format(self) -> OutputSink | None:
+        """Return the output sink for runtime document persistence."""
         return self.state.output_format
 
     @property
@@ -258,15 +258,19 @@ class PipelineContext:
 
     def with_output_format(
         self,
-        output_format: OutputAdapter,
+        output_format: OutputSink,
         url_context: UrlContext | None = None,
     ) -> PipelineContext:
-        """Update output format in state and url context in config."""
+        """Update output format in state and url context in config.
+
+        Args:
+            output_format: OutputSink implementation for document persistence
+            url_context: Optional URL context for canonical URL generation
+
+        """
         self.state.output_format = output_format
         if url_context:
             # Create new config object since it's immutable
-            from dataclasses import replace
-
             new_config = replace(self.config_obj, url_context=url_context)
             return PipelineContext(new_config, self.state)
         return self

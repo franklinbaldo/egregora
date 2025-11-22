@@ -3,10 +3,9 @@
 import datetime
 import re
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Iterator, Protocol, runtime_checkable
 
 import ibis
 import ibis.expr.datatypes as dt
@@ -45,7 +44,8 @@ class SiteConfiguration:
 
 @runtime_checkable
 class OutputSink(Protocol):
-    """Pure data interface.
+    """
+    Pure data interface.
     Compatible with Filesystems, SQL Databases, Notion API, S3, etc.
     """
 
@@ -76,7 +76,8 @@ class OutputSink(Protocol):
 
 @runtime_checkable
 class SiteScaffolder(Protocol):
-    """Lifecycle interface.
+    """
+    Lifecycle interface.
     Only implemented by adapters that need local filesystem setup.
     """
 
@@ -167,19 +168,20 @@ class OutputAdapter(OutputSink, ABC):
         """Generate format-specific instructions for the writer agent."""
 
     def list_documents(self, doc_type: DocumentType | None = None) -> "Table":
-        """List documents managed by this output format as an Ibis table.
-
-        Args:
-            doc_type: Optional document type to filter the listing. If ``None``,
-                all documents are returned.
+        """List all documents managed by this output format as an Ibis table.
 
         The default implementation materializes the documents returned by
-        :meth:`list` and exposes their storage identifiers and mtimes. Override
-        only if you need to source the table from another store.
-
+        :meth:`documents` and exposes their storage identifiers and mtimes.
+        Override only if you need to source the table from another store.
         """
         rows: list[dict[str, Any]] = []
-        for document in self.list(doc_type):
+
+        docs_iter = self.documents()
+        if doc_type:
+            # Filter documents by type if requested
+            docs_iter = (d for d in docs_iter if d.type == doc_type)
+
+        for document in docs_iter:
             identifier = document.metadata.get("storage_identifier")
             if not identifier:
                 identifier = document.suggested_path
@@ -354,7 +356,7 @@ class OutputAdapter(OutputSink, ABC):
         # Base implementation does nothing - subclasses override for specific tasks
         return None
 
-    def finalize_window(
+    def finalize_window(  # noqa: B027
         self,
         window_label: str,
         posts_created: list[str],

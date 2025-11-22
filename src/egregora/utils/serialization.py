@@ -36,9 +36,9 @@ def save_table_to_csv(
     """
     output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    df = table.execute()
-    df.to_csv(output_path, index=index)
-    row_count = len(df)
+    dataframe = table.execute()
+    dataframe.to_csv(output_path, index=index)
+    row_count = len(dataframe)
     logger.info("Saved %s rows to %s", row_count, output_path)
 
 
@@ -115,9 +115,9 @@ def save_table_to_parquet(
     """
     output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    df = table.execute()
-    df.to_parquet(output_path, engine="pyarrow", index=False)
-    row_count = len(df)
+    dataframe = table.execute()
+    dataframe.to_parquet(output_path, engine="pyarrow", index=False)
+    row_count = len(dataframe)
     logger.info("Saved %s rows to %s (Parquet)", row_count, output_path)
 
 

@@ -52,7 +52,7 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
             return (site_root / "docs", False)
 
     # Cast to SiteScaffolder for type checking
-    scaffolder = cast("SiteScaffolder", output_format)
+    scaffolder = cast(SiteScaffolder, output_format)
 
     try:
         # Prefer specific implementation if available to get accurate 'created' status

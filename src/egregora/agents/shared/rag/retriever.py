@@ -138,11 +138,11 @@ async def find_relevant_docs(  # noqa: PLR0913
             nprobe=retrieval_nprobe,
             overfetch=retrieval_overfetch,
         )
-        df = results.execute()
-        if getattr(df, "empty", False):
+        dataframe = results.execute()
+        if getattr(dataframe, "empty", False):
             logger.info("No relevant docs found for query: %s", query[:50])
             return []
-        records = df.to_dict("records")
+        records = dataframe.to_dict("records")
         logger.info("Found %d relevant docs for query: %s", len(records), query[:50])
         return [
             {

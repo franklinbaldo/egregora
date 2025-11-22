@@ -40,16 +40,16 @@ def test_self_adapter_parses_existing_site(tmp_path: Path):
     _write_markdown(post_two, "Second", "second-post", "Body text 2")
 
     table = adapter.parse(tmp_path, output_adapter=output_format)
-    df = table.execute()
+    dataframe = table.execute()
 
-    assert set(df.columns) == set(table.schema().names)
-    assert df.shape[0] == 2
+    assert set(dataframe.columns) == set(table.schema().names)
+    assert dataframe.shape[0] == 2
 
-    recorded_slugs = set(df["thread_id"].tolist())
+    recorded_slugs = set(dataframe["thread_id"].tolist())
     assert {"sample-post", "second-post"} == recorded_slugs
-    assert all(text.strip() for text in df["text"].tolist())
+    assert all(text.strip() for text in dataframe["text"].tolist())
 
-    attrs_value = df.iloc[0]["attrs"]
+    attrs_value = dataframe.iloc[0]["attrs"]
     if isinstance(attrs_value, str):
         attrs_value = json.loads(attrs_value)
     assert "source_path" in attrs_value
