@@ -1,8 +1,10 @@
 # Egregora
 
-**Turn group chats into a knowledge base.**
+**Privacy-first AI pipeline that extracts structured knowledge from unstructured communication.**
 
-Transform WhatsApp conversations into thoughtful blog posts using AI. Privacy-first architecture ensures names never reach the LLM—only anonymized UUIDs do.
+Egregora synthesizes emergent intelligence from group conversations—transforming scattered chat messages, legal notices, or archived discussions into coherent articles, documentation, and knowledge bases. Named after the concept of collective consciousness, it finds patterns and insights that emerge from group interaction.
+
+**Core Principle:** Privacy before intelligence. Real names never reach the LLM—only deterministic UUIDs do.
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -12,27 +14,44 @@ Transform WhatsApp conversations into thoughtful blog posts using AI. Privacy-fi
 
 ## What It Does
 
-**Input:** WhatsApp export (ZIP file)
-**Output:** Static blog with AI-generated posts
+**Transforms unstructured communication into structured knowledge:**
+
+| Input Source | Output Format | Use Case |
+|-------------|---------------|----------|
+| WhatsApp group chats | Static blog (MkDocs) | Turn discussions into essays |
+| Slack/Discord archives | Documentation site | Preserve team knowledge |
+| Legal API feeds | Searchable archive | Monitor judicial communications |
+| Self-reflection (past posts) | Meta-analysis | Identify gaps, avoid repetition |
 
 ```
-Chat messages → Privacy layer → LLM synthesis → Blog posts
+Unstructured → Privacy Layer → AI Synthesis → Structured
+(messages)    (UUIDs only)     (patterns)      (articles)
 ```
 
-### Example
+### Example: WhatsApp → Blog Post
 
-**Chat messages:**
+**Input (chat messages):**
 ```
 [2025-10-28 14:10] Alice: Did you see that article about AI agents?
 [2025-10-28 14:12] Bob: Yeah, the license to exist concept is wild
 [2025-10-28 14:15] Alice: Makes you think about emergent behavior...
 ```
 
-**Generated post:** [The License to Exist](tests/fixtures/golden/expected_output/posts/2025-10-28-the-license-to-exist-emergent-agency-in-a-test-environment.md)
-- Synthesizes scattered thoughts into coherent narrative
-- Adds citations and context from past discussions (RAG)
-- Assigns metadata (title, slug, tags, summary)
-- Maintains anonymity (Alice → uuid-a1b2c3...)
+**Output (generated article):** [The License to Exist](tests/fixtures/golden/expected_output/posts/2025-10-28-the-license-to-exist-emergent-agency-in-a-test-environment.md)
+
+**What happened:**
+1. **Synthesis:** Scattered thoughts → coherent narrative
+2. **Context:** RAG retrieval adds citations from past discussions
+3. **Metadata:** AI generates title, slug, tags, summary
+4. **Privacy:** Alice/Bob → deterministic UUIDs (e.g., `author-a1b2c3d4`)
+
+### More Use Cases
+
+- **Research groups:** Turn journal club discussions into literature reviews
+- **Legal monitoring:** Track Brazilian judicial communications (TJRO API → searchable archive)
+- **Team documentation:** Convert Slack threads into structured knowledge base
+- **Self-reflection:** Feed past posts back to identify gaps and avoid repetition
+- **Content creators:** Extract story angles from community discussions
 
 ---
 
@@ -73,13 +92,15 @@ Open http://localhost:8000 🎉
 
 | Feature | Description |
 |---------|-------------|
-| **Privacy-First** | Names → UUIDs before LLM sees anything |
-| **RAG Context** | Posts reference past discussions automatically |
-| **Smart Windowing** | Group by time, message count, or custom rules |
-| **Quality Ranking** | Built-in Elo system scores post quality |
-| **AI Editor** | Refine posts interactively with conversational AI |
-| **Statistics** | Auto-generated activity metrics |
-| **Zero Config** | Works out of the box, customize later |
+| **Privacy-First Architecture** | Deterministic anonymization (names → UUIDs) before any LLM processing |
+| **Multiple Input Sources** | WhatsApp, Slack, legal APIs, self-reflection (extensible adapter system) |
+| **Multiple Output Formats** | MkDocs blogs, Hugo sites (future), custom templates |
+| **RAG Context Engine** | Posts reference past discussions via vector search |
+| **Smart Windowing** | Group by time (hours/days), message count, or custom rules |
+| **Quality Ranking** | Built-in Elo system identifies best content |
+| **AI Editor** | Interactively refine posts with conversational AI |
+| **Statistics Dashboard** | Auto-generated activity metrics |
+| **Zero Config** | Works out of the box, customize everything later |
 
 ---
 

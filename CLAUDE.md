@@ -4,10 +4,11 @@ Developer guidance for Claude Code when working with this repository.
 
 ## Overview
 
-**Egregora** transforms WhatsApp conversations into blog posts via LLM with privacy-first architecture.
+**Egregora** is a privacy-first AI pipeline that extracts structured knowledge from unstructured communication (chats, legal feeds, archives). It synthesizes emergent intelligence from group conversations into coherent articles and documentation.
 
 - **Repository:** https://github.com/franklinbaldo/egregora
 - **Stack:** Python 3.12+ | uv | Ibis | DuckDB | Pydantic-AI | Google Gemini
+- **Core Principle:** Privacy before intelligence (names → UUIDs before LLM)
 - **Philosophy:** Alpha mindset—clean breaks over backward compatibility
 
 ## Quick Reference
