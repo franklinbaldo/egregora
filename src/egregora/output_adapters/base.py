@@ -176,6 +176,7 @@ class OutputAdapter(OutputSink, ABC):
         The default implementation materializes the documents returned by
         :meth:`list` and exposes their storage identifiers and mtimes. Override
         only if you need to source the table from another store.
+
         """
         rows: list[dict[str, Any]] = []
         for document in self.list(doc_type):
