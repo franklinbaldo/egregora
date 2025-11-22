@@ -255,9 +255,15 @@ def index_documents_for_rag(  # noqa: C901
         docs_table = ibis.memtable(rows)
         doc_count = len(rows)
 
-        docs_table = docs_table[docs_table["source_path"] != ""]
+        docs_table = docs_table.filter(docs_table["source_path"] != "")
 
-        if docs_table.count().execute().iloc[0, 0] == 0:
+        remaining = docs_table.count().execute()
+        if hasattr(remaining, "iloc"):
+            remaining_count = int(remaining.iloc[0, 0])
+        else:
+            remaining_count = int(remaining)
+
+        if remaining_count == 0:
             logger.warning("All document identifiers failed to resolve to paths")
             return 0
 
