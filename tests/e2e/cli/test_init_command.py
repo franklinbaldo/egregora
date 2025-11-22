@@ -145,9 +145,9 @@ def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
 
     # Should NOT have extra.egregora
     extra_section = mkdocs_dict.get("extra", {})
-    assert (
-        "egregora" not in extra_section
-    ), "mkdocs.yml should NOT contain extra.egregora (config moved to .egregora/config.yml)"
+    assert "egregora" not in extra_section, (
+        "mkdocs.yml should NOT contain extra.egregora (config moved to .egregora/config.yml)"
+    )
 
 
 def test_prompts_readme_created(tmp_path: Path):
@@ -165,9 +165,9 @@ def test_prompts_readme_created(tmp_path: Path):
 
     # Verify it has useful content
     content = readme.read_text()
-    assert (
-        "Custom Prompt" in content or "prompt" in content.lower()
-    ), "README should contain information about prompts"
+    assert "Custom Prompt" in content or "prompt" in content.lower(), (
+        "README should contain information about prompts"
+    )
 
 
 def test_prompts_directory_populated(tmp_path: Path):
