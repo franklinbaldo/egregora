@@ -211,8 +211,8 @@ def index_document(
     return len(chunks)
 
 
-def index_documents_for_rag(  # noqa: C901
-    output_format: OutputSink,
+def index_documents_for_rag(  # noqa: C901, PLR0915, PLR0912
+    output_format: OutputAdapter,
     rag_dir: Path,
     storage: DuckDBStorageManager,
     *,
@@ -278,7 +278,7 @@ def index_documents_for_rag(  # noqa: C901
         joined = docs_table.left_join(indexed_renamed, docs_table.source_path == indexed_renamed.indexed_path)
 
         new_or_changed = joined.filter(
-            (joined.indexed_mtime.isnull()) | (joined.mtime_ns > joined.indexed_mtime)
+            (joined.indexed_mtime.isna()) | (joined.mtime_ns > joined.indexed_mtime)
         ).select(
             storage_identifier=joined.storage_identifier,
             source_path=joined.source_path,

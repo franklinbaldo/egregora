@@ -372,7 +372,6 @@ class MkDocsAdapter(OutputAdapter):
         profiles_dir = site_paths["profiles_dir"]
         media_dir = site_paths["media_dir"]
         posts_dir = site_paths["posts_dir"]
-        egregora_dir = site_paths["egregora_dir"]
 
         # Define templates to render
         templates_to_render = [
@@ -951,7 +950,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             metadata.setdefault("mtime_ns", 0)
         return Document(content=body.strip(), type=doc_type, metadata=metadata)
 
-    def _url_to_path(self, url: str, document: Document) -> Path:
+    def _url_to_path(self, url: str, document: Document) -> Path:  # noqa: PLR0911, C901
         base = self._ctx.base_url.rstrip("/")
         if url.startswith(base):
             url_path = url[len(base) :]

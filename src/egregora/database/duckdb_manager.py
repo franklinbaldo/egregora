@@ -285,8 +285,8 @@ class DuckDBStorageManager:
         elif mode == "replace":
             # Use Ibis to_sql for direct write
             # Note: This requires executing the table first
-            df = table.execute()
-            self._conn.register(name, df)
+            dataframe = table.execute()
+            self._conn.register(name, dataframe)
             logger.info("Table '%s' written without checkpoint (%s)", name, mode)
         else:
             msg = "Append mode requires checkpoint=True"
@@ -326,10 +326,8 @@ class DuckDBStorageManager:
                 self._conn.execute("ROLLBACK")
                 raise
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 self._conn.unregister(temp_view)
-            except Exception:
-                pass
 
     def invalidate_table_cache(self, table_name: str | None = None) -> None:
         """Clear cached PRAGMA table_info results.

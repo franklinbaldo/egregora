@@ -504,7 +504,7 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:  
     return entries
 
 
-def _save_journal_to_file(
+def _save_journal_to_file(  # noqa: PLR0913
     intercalated_log: list[JournalEntry],
     window_label: str,
     output_format: OutputSink,
@@ -710,7 +710,7 @@ def write_posts_with_pydantic_agent(
 
     retry_policy = RetryPolicy()
 
-    def _invoke_agent() -> AgentRunResult:
+    def _invoke_agent() -> Any:
         if context.rate_limit:
             asyncio.run(context.rate_limit.acquire())
         if context.quota:
@@ -724,7 +724,7 @@ def write_posts_with_pydantic_agent(
             "LLM quota exceeded for this day. No additional posts can be generated "
             "until the usage window resets."
         )
-        logger.error(msg)
+        logger.exception(msg)
         raise RuntimeError(msg) from exc
 
     usage = result.usage()
@@ -803,7 +803,7 @@ def _adapter_content_summary(ctx: PipelineContext) -> str:
     summary: str | None = ""
     try:
         summary = getattr(adapter, "content_summary", "")
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.debug("Adapter %s lacks content_summary", adapter)
         summary = ""
 

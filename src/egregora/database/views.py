@@ -48,12 +48,12 @@ def chunks_sql(ir: Table) -> Table:
 
 def messages_with_media_view(ir: Table) -> Table:
     """Filter to messages containing media."""
-    return ir.filter(ir.media_url.notnull())
+    return ir.filter(ir.media_url.notna())
 
 
 def messages_with_text_view(ir: Table) -> Table:
     """Filter to messages containing non-empty text."""
-    return ir.filter(ir.text.notnull() & (ir.text != ""))
+    return ir.filter(ir.text.notna() & (ir.text != ""))
 
 
 def hourly_aggregates_view(ir: Table) -> Table:

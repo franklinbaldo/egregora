@@ -24,7 +24,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -490,7 +490,7 @@ class EgregoraConfig(BaseModel):
     )
 
     @classmethod
-    def from_cli_overrides(cls, base_config: EgregoraConfig, **cli_args: Any) -> EgregoraConfig:
+    def from_cli_overrides(cls, base_config: EgregoraConfig, **cli_args: Any) -> EgregoraConfig:  # noqa: C901, PLR0912
         """Create a new config instance with CLI overrides applied.
 
         Handles nested updates for pipeline, enrichment, rag, etc.

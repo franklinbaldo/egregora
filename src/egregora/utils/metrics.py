@@ -17,7 +17,7 @@ class UsageTracker:
         """Add usage and keep history for debugging."""
         self.usage.incr(run_usage)
         self.history.append(run_usage)
-        if len(self.history) > 50:
+        if len(self.history) > 50:  # noqa: PLR2004
             self.history.popleft()
 
     def snapshot(self) -> RunUsage:

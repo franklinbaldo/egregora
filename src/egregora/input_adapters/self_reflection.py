@@ -83,7 +83,8 @@ class SelfInputAdapter(InputAdapter):
             if doc.type == DocumentType.POST and doc.metadata.get("slug") not in {"index", "tags"}
         ]
         if not documents:
-            raise RuntimeError(f"No posts published by {output_adapter.__class__.__name__}")
+            msg = f"No posts published by {output_adapter.__class__.__name__}"
+            raise RuntimeError(msg)
 
         site_name = self._load_site_name(site_root)
         records: list[dict[str, Any]] = []
