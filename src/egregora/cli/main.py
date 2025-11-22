@@ -183,6 +183,13 @@ def write(  # noqa: C901, PLR0913, PLR0915
             help="Enable incremental processing (resume from checkpoint). Default: always rebuild from scratch."
         ),
     ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run",
+            help="Estimate costs without making API calls. Shows token usage and pricing for each window.",
+        ),
+    ] = False,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> None:
     """Write blog posts from chat exports using LLM-powered synthesis.
@@ -318,6 +325,7 @@ def write(  # noqa: C901, PLR0913, PLR0915
             output_dir=runtime.output_dir,
             config=egregora_config,
             api_key=runtime.api_key,
+            dry_run=dry_run,
         )
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:
