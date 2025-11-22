@@ -790,7 +790,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             recursive=True,
             exclude_names={"index.md"},
         )
-        yield from self._documents_from_dir(self.media_dir / "urls", DocumentType.ENRICHMENT_URL, recursive=True)
+        yield from self._documents_from_dir(
+            self.media_dir / "urls", DocumentType.ENRICHMENT_URL, recursive=True
+        )
 
     def resolve_document_path(self, identifier: str) -> Path:
         """Resolve MkDocs storage identifier (relative path) to absolute filesystem path.
