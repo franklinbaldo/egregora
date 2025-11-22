@@ -68,6 +68,7 @@ class MkDocsAdapter(OutputAdapter):
         """Initializes the adapter with all necessary paths and dependencies."""
         site_paths = derive_mkdocs_paths(site_root)
         self.site_root = site_paths["site_root"]
+        self._site_root = self.site_root
         prefix = compute_site_prefix(self.site_root, site_paths["docs_dir"])
         self._ctx = url_context or UrlContext(base_url="", site_prefix=prefix, base_path=self.site_root)
         self.posts_dir = site_paths["posts_dir"]
@@ -809,11 +810,13 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         site_root = self._site_root
         documents: list[dict] = []
 
-        # Scan posts directory
-        documents.extend(self._scan_directory_for_documents(site_root / "posts", site_root, "*.md"))
+        posts_dir = getattr(self, "posts_dir", None)
+        if posts_dir:
+            documents.extend(self._scan_directory_for_documents(posts_dir, site_root, "*.md"))
 
-        # Scan profiles directory
-        documents.extend(self._scan_directory_for_documents(site_root / "profiles", site_root, "*.md"))
+        profiles_dir = getattr(self, "profiles_dir", None)
+        if profiles_dir:
+            documents.extend(self._scan_directory_for_documents(profiles_dir, site_root, "*.md"))
 
         # Scan media enrichments (docs/media/**/*.md, excluding index.md)
         documents.extend(

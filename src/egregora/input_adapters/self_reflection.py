@@ -71,6 +71,9 @@ class SelfInputAdapter(InputAdapter):
         timezone: str | None = None,
         **_: Any,
     ) -> ibis.Table:
+        if output_adapter is None:
+            raise ValueError("output_adapter must be provided when parsing an existing site")
+
         docs_dir, site_root = self._resolve_docs_dir(input_path)
         markdown_paths = self._gather_markdown_paths(docs_dir, output_adapter=output_adapter)
         if not markdown_paths:
@@ -133,16 +136,12 @@ class SelfInputAdapter(InputAdapter):
         output_adapter: OutputAdapter | None = None,
     ) -> list[Path]:
         """Return candidate markdown files for self-reflection ingestion."""
-        if output_adapter:
-            candidate_paths = self._collect_from_output_adapter(output_adapter)
-            if candidate_paths:
-                return candidate_paths
-
-        posts_dir = docs_dir / "posts"
-        if not posts_dir.is_dir():
-            raise FileNotFoundError(f"Docs directory {docs_dir} does not contain a posts/ directory")
-
-        return [path for path in posts_dir.rglob("*.md") if path.name not in {"index.md", "tags.md"}]
+        candidate_paths = self._collect_from_output_adapter(output_adapter)
+        if not candidate_paths:
+            raise RuntimeError(
+                f"No markdown posts found for output adapter {output_adapter.__class__.__name__}"
+            )
+        return candidate_paths
 
     def _collect_from_output_adapter(self, output_adapter: OutputAdapter) -> list[Path]:
         """Collect markdown paths via the output adapter rather than crawling directories."""
