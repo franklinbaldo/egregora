@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -776,26 +777,20 @@ Tags automatically create taxonomy pages where readers can browse posts by topic
 Use consistent, meaningful tags across posts to build a useful taxonomy.
 """
 
-    def documents(self) -> list[Document]:
-        """Return all MkDocs documents as Document instances."""
+    def documents(self) -> Iterator[Document]:
+        """Return all MkDocs documents as Document instances (lazy iterator)."""
         if not hasattr(self, "_site_root") or self._site_root is None:
-            return []
+            return
 
-        documents: list[Document] = []
-        documents.extend(self._documents_from_dir(self.posts_dir, DocumentType.POST))
-        documents.extend(self._documents_from_dir(self.profiles_dir, DocumentType.PROFILE))
-        documents.extend(
-            self._documents_from_dir(
-                self._site_root / "docs" / "media",
-                DocumentType.ENRICHMENT_MEDIA,
-                recursive=True,
-                exclude_names={"index.md"},
-            )
+        yield from self._documents_from_dir(self.posts_dir, DocumentType.POST)
+        yield from self._documents_from_dir(self.profiles_dir, DocumentType.PROFILE)
+        yield from self._documents_from_dir(
+            self._site_root / "docs" / "media",
+            DocumentType.ENRICHMENT_MEDIA,
+            recursive=True,
+            exclude_names={"index.md"},
         )
-        documents.extend(
-            self._documents_from_dir(self.media_dir / "urls", DocumentType.ENRICHMENT_URL, recursive=True)
-        )
-        return documents
+        yield from self._documents_from_dir(self.media_dir / "urls", DocumentType.ENRICHMENT_URL, recursive=True)
 
     def resolve_document_path(self, identifier: str) -> Path:
         """Resolve MkDocs storage identifier (relative path) to absolute filesystem path.

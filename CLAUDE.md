@@ -526,13 +526,14 @@ def list_documents(self, doc_type: DocumentType | None = None) -> Table:
 
 **Document Listing (Object-based):**
 ```python
-def documents(self) -> list[Document]:
-    """Return all managed documents as Document objects."""
+def documents(self) -> Iterator[Document]:
+    """Return all managed documents as Document objects (lazy iterator)."""
 ```
-- Added in PR #861 (2025-11-22)
-- Returns materialized list (not generator) for len() and truthiness checks
+- Added in PR #861, changed to Iterator in PR #855 reconciliation (2025-11-22)
+- Returns lazy iterator for memory efficiency (can iterate sites with 1000s of documents)
 - Used by self-reflection adapter to re-ingest published posts
 - Filters documents by type and scans filesystem for all content
+- Materialize with `list()` if you need len() or random access
 
 **Path Resolution:**
 ```python
@@ -556,17 +557,17 @@ adapter.persist(document)  # Writes to disk at canonical URL
 ```python
 adapter = MkDocsAdapter()
 adapter.initialize(site_root)
-documents = adapter.documents()  # Scan all published content
-posts = [doc for doc in documents if doc.type == DocumentType.POST]
+# documents() returns Iterator - consumed by list comprehension
+posts = [doc for doc in adapter.documents() if doc.type == DocumentType.POST]
 # Feed back into pipeline for meta-analysis
 ```
 
 **RAG Indexing (Incremental Updates):**
 ```python
-docs_table = adapter.list_documents()  # Ibis Table
-for row in docs_table.execute().itertuples():
-    path = adapter.resolve_document_path(row.storage_identifier)
-    # Index document for vector search
+# Lazy iteration - processes documents one at a time (memory efficient)
+for document in adapter.documents():
+    path = adapter.resolve_document_path(document.metadata["storage_identifier"])
+    # Index document for vector search without loading all documents into memory
 ```
 
 ## Slug Collision Behavior (OutputAdapter)
