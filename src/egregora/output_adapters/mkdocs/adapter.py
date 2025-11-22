@@ -24,7 +24,6 @@ import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
 from egregora.config.settings import EgregoraConfig, create_default_config
-from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import write_profile as write_profile_content
@@ -53,19 +52,7 @@ _ConfigLoader.add_constructor(None, lambda loader, node: None)
 
 
 class MkDocsAdapter(OutputAdapter):
-    """Unified MkDocs output adapter.
-
-    **ISP-COMPLIANT** (2025-11-22): This adapter implements both:
-    - OutputSink: Runtime data operations (persist, read, list documents)
-    - SiteScaffolder: Project lifecycle operations (scaffold_site, supports_site, resolve_paths)
-
-    This dual implementation makes MkDocsAdapter suitable for:
-    1. Pipeline execution (via OutputSink interface)
-    2. Site initialization (via SiteScaffolder interface)
-
-    For adapters that only need data persistence (e.g., PostgresAdapter, S3Adapter),
-    implement only OutputSink. For pure initialization tools, implement only SiteScaffolder.
-    """
+    """Unified MkDocs output adapter."""
 
     def __init__(self) -> None:
         """Initializes the adapter."""
@@ -103,6 +90,21 @@ class MkDocsAdapter(OutputAdapter):
     @property
     def url_convention(self) -> UrlConvention:
         return self._url_convention
+
+    def get_media_url_path(self, media_file: Path, site_root: Path) -> str:
+        """Get the relative URL path for a media file in the generated site.
+
+        Args:
+            media_file: Absolute path to the media file
+            site_root: Root directory of the site
+
+        Returns:
+            Relative path string for use in HTML/markdown links
+            Example: "media/images/abc123.jpg"
+
+        """
+        site_config = self.resolve_paths(site_root)
+        return str(media_file.relative_to(site_config.docs_dir))
 
     def persist(self, document: Document) -> None:
         doc_id = document.document_id
@@ -836,36 +838,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             self.media_dir / "urls", DocumentType.ENRICHMENT_URL, recursive=True
         )
 
-    def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
-        """Iterate through available documents as lightweight DocumentMetadata.
-
-        Returns DocumentMetadata (identifier, doc_type, metadata) for efficient
-        enumeration without loading full document content.
-
-        Args:
-            doc_type: Optional filter by document type
-
-        Returns:
-            Iterator of DocumentMetadata instances
-
-        """
-        if not hasattr(self, "_site_root") or self._site_root is None:
-            return
-
-        # Scan directories and yield DocumentMetadata
-        yield from self._list_from_dir(self.posts_dir, DocumentType.POST, doc_type)
-        yield from self._list_from_dir(self.profiles_dir, DocumentType.PROFILE, doc_type)
-        yield from self._list_from_dir(
-            self._site_root / "docs" / "media",
-            DocumentType.ENRICHMENT_MEDIA,
-            doc_type,
-            recursive=True,
-            exclude_names={"index.md"},
-        )
-        yield from self._list_from_dir(
-            self.media_dir / "urls", DocumentType.ENRICHMENT_URL, doc_type, recursive=True
-        )
-
     def resolve_document_path(self, identifier: str) -> Path:
         """Resolve MkDocs storage identifier (relative path) to absolute filesystem path.
 
@@ -912,40 +884,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             if doc:
                 documents.append(doc)
         return documents
-
-    def _list_from_dir(
-        self,
-        directory: Path,
-        dtype: DocumentType,
-        filter_type: DocumentType | None = None,
-        *,
-        recursive: bool = False,
-        exclude_names: set[str] | None = None,
-    ) -> Iterator[DocumentMetadata]:
-        """Helper to yield DocumentMetadata from a directory."""
-        if filter_type is not None and filter_type != dtype:
-            return
-
-        if not directory or not directory.exists():
-            return
-
-        exclude_set = exclude_names or set()
-        glob_func = directory.rglob if recursive else directory.glob
-
-        for path in glob_func("*.md"):
-            if not path.is_file() or path.name in exclude_set:
-                continue
-
-            try:
-                identifier = str(path.relative_to(self._site_root))
-                mtime_ns = path.stat().st_mtime_ns
-                yield DocumentMetadata(
-                    identifier=identifier,
-                    doc_type=dtype,
-                    metadata={"mtime_ns": mtime_ns, "path": str(path)},
-                )
-            except (OSError, ValueError):
-                continue
 
     def _document_from_path(self, path: Path, doc_type: DocumentType) -> Document | None:
         try:

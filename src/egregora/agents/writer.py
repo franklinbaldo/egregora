@@ -153,18 +153,6 @@ class WriterDeps:
 
     @property
     def output_format(self) -> OutputAdapter:
-        # Still returning OutputAdapter because it has format-specific methods like `media_dir`
-        # that are used in generate_banner_tool.
-        # If we strictly use OutputSink, we lose access to `media_dir`.
-        # The user said "OutputSink is the only interface Pipeline and Agents should ever see".
-        # However, generate_banner_tool needs a filesystem path to write the image?
-        # Actually, generate_banner_for_post returns a Path.
-        # The tool uses `ctx.deps.output_format.media_dir`.
-        # OutputSink does not expose media_dir.
-        # This is a violation if we strictly follow OutputSink.
-        # But since OutputAdapter inherits OutputSink, it's compatible.
-        # I will leave it as OutputAdapter for now to avoid breaking banner generation,
-        # but note that persist() calls are using the sink interface.
         if self.ctx.output_format is None:
             message = "Output format not initialized in context"
             raise RuntimeError(message)
