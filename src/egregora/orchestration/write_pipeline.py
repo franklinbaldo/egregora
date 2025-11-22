@@ -210,7 +210,7 @@ def _process_single_window(
             if media_doc.metadata.get("pii_deleted"):
                 continue
             try:
-            output_adapter.persist(media_doc)
+                output_adapter.persist(media_doc)
             except Exception:  # pragma: no cover - defensive
                 logger.exception("Failed to serve media document %s", media_doc.metadata.get("filename"))
 
