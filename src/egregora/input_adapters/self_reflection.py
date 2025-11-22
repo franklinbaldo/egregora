@@ -14,6 +14,7 @@ import yaml
 
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
+from egregora.output_adapters.base import OutputAdapter
 from egregora.utils.frontmatter_utils import parse_frontmatter_file
 from egregora.utils.paths import slugify
 
@@ -62,19 +63,30 @@ class SelfInputAdapter(InputAdapter):
             ir_version="v1",
         )
 
-    def parse(self, input_path: Path, *, timezone: str | None = None, **_: Any) -> ibis.Table:
+    def parse(
+        self,
+        input_path: Path,
+        *,
+        output_adapter: OutputAdapter | None = None,
+        timezone: str | None = None,
+        **_: Any,
+    ) -> ibis.Table:
         docs_dir, site_root = self._resolve_docs_dir(input_path)
-        posts_dir = docs_dir / "posts"
-        if not posts_dir.is_dir():
-            msg = f"Docs directory {docs_dir} does not contain a posts/ directory"
-            raise FileNotFoundError(msg)
+        markdown_paths = self._gather_markdown_paths(
+            docs_dir, output_adapter=output_adapter
+        )
+        if not markdown_paths:
+            msg = f"No markdown posts found under {docs_dir}"
+            raise RuntimeError(msg)
 
         site_name = self._load_site_name(site_root)
         records: list[dict[str, Any]] = []
-        for markdown_path in posts_dir.rglob("*.md"):
-            if markdown_path.name in {"index.md", "tags.md"}:
+        for markdown_path in markdown_paths:
+            try:
+                metadata, body = parse_frontmatter_file(markdown_path)
+            except (OSError, ValueError, yaml.YAMLError) as exc:
+                logger.debug("Skipping %s due to parsing error: %s", markdown_path, exc)
                 continue
-            metadata, body = parse_frontmatter_file(markdown_path)
             slug = self._resolve_slug(metadata, markdown_path)
             timestamp = self._resolve_timestamp(metadata.get("date"), markdown_path, timezone)
             authors = metadata.get("authors") or []
@@ -88,7 +100,11 @@ class SelfInputAdapter(InputAdapter):
             attrs = self._sanitize_metadata(metadata, markdown_path)
             attrs_json = json.dumps(attrs)
             text = body.strip() or attrs.get("summary") or f"Existing post: {metadata.get('title', slug)}"
-            event_id = str(uuid5(EVENT_NAMESPACE, str(markdown_path.relative_to(docs_dir))))
+            try:
+                relative_path = str(markdown_path.relative_to(docs_dir))
+            except ValueError:
+                relative_path = str(markdown_path.name)
+            event_id = str(uuid5(EVENT_NAMESPACE, relative_path))
 
             records.append(
                 {
@@ -110,11 +126,58 @@ class SelfInputAdapter(InputAdapter):
                 }
             )
 
-        if not records:
-            msg = f"No markdown posts found under {posts_dir}"
-            raise RuntimeError(msg)
-
         return ibis.memtable(records, schema=IR_MESSAGE_SCHEMA)
+
+    def _gather_markdown_paths(
+        self,
+        docs_dir: Path,
+        *,
+        output_adapter: OutputAdapter | None = None,
+    ) -> list[Path]:
+        """Return candidate markdown files for self-reflection ingestion."""
+        if output_adapter:
+            candidate_paths = self._collect_from_output_adapter(output_adapter)
+            if candidate_paths:
+                return candidate_paths
+
+        posts_dir = docs_dir / "posts"
+        if not posts_dir.is_dir():
+            raise FileNotFoundError(f"Docs directory {docs_dir} does not contain a posts/ directory")
+
+        return [
+            path
+            for path in posts_dir.rglob("*.md")
+            if path.name not in {"index.md", "tags.md"}
+        ]
+
+    def _collect_from_output_adapter(self, output_adapter: OutputAdapter) -> list[Path]:
+        """Collect markdown paths via the output adapter rather than crawling directories."""
+        table = output_adapter.list_documents()
+        try:
+            records = table.execute().to_dict("records")
+        except Exception:
+            return []
+
+        seen: set[Path] = set()
+        markdown_paths: list[Path] = []
+        for record in records:
+            identifier = record.get("storage_identifier")
+            if not identifier:
+                continue
+            try:
+                resolved = output_adapter.resolve_document_path(identifier)
+            except Exception:
+                continue
+            path = Path(resolved)
+            if path.suffix.lower() != ".md":
+                continue
+            if path.name in {"index.md", "tags.md"}:
+                continue
+            if path in seen:
+                continue
+            seen.add(path)
+            markdown_paths.append(path)
+        return markdown_paths
 
     def get_metadata(self, input_path: Path, **_: Any) -> dict[str, Any]:
         _, site_root = self._resolve_docs_dir(input_path)

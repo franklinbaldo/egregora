@@ -39,7 +39,7 @@ def test_self_adapter_parses_existing_site(tmp_path: Path):
     _write_markdown(post_one, "Sample", "sample-post", "Body text 1")
     _write_markdown(post_two, "Second", "second-post", "Body text 2")
 
-    table = adapter.parse(tmp_path)
+    table = adapter.parse(tmp_path, output_adapter=output_format)
     df = table.execute()
 
     assert set(df.columns) == set(table.schema().names)
