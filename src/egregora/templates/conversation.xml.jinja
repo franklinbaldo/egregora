@@ -1,14 +1,6 @@
-{% for row in rows %}
-<message id="{{ row.msg_id }}" timestamp="{{ row.timestamp }}" author="{{ row.author }}">
-  <text>{{ row.text | escape }}</text>
-  {% if row.annotations %}
-  <annotations>
-    {% for annotation in row.annotations %}
-    <annotation id="{{ annotation.id }}" timestamp="{{ annotation.timestamp }}" author="{{ annotation.author }}">
-      {{ annotation.commentary | escape }}
-    </annotation>
-    {% endfor %}
-  </annotations>
-  {% endif %}
-</message>
+<chat>
+{% for msg in messages %}
+<m id="{{ msg.id }}" author="{{ msg.author }}" ts="{{ msg.ts }}">{{ msg.content }}{% for note in msg.notes %}
+  <note id="{{ note.id }}">{{ note.content }}</note>{% endfor %}</m>
 {% endfor %}
+</chat>

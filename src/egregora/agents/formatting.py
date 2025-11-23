@@ -152,6 +152,55 @@ def _merge_message_and_annotations(message_value: object, annotations: list[Anno
     return annotations_block
 
 
+def _build_conversation_xml(
+    data: pa.Table | Iterable[Mapping[str, object]] | Sequence[Mapping[str, object]],
+    annotations_store: AnnotationStore | None,
+) -> str:
+    """Render conversation rows into token-efficient XML."""
+    records, _ = _table_to_records(data)
+    if not records:
+        return "<chat></chat>"
+
+    rows = [dict(record) for record in records]
+    # Ensure msg_id exists (reuses existing logic)
+    _ensure_msg_id_column(rows, ["msg_id", "timestamp", "author", "text"])
+
+    annotations_map: dict[str, list[Annotation]] = {}
+    if annotations_store is not None:
+        for row in rows:
+            msg_id_value = row.get("msg_id")
+            if msg_id_value:
+                annotations_map[msg_id_value] = annotations_store.list_annotations_for_message(msg_id_value)
+
+    messages = []
+    for row in rows:
+        msg_id = str(row.get("msg_id", ""))
+        author = str(row.get("author", "unknown"))
+        ts = str(row.get("timestamp", ""))
+        text = str(row.get("text", ""))
+
+        msg_data = {
+            "id": msg_id,
+            "author": author,
+            "ts": ts,
+            "content": text,
+            "notes": [],
+        }
+
+        if msg_id in annotations_map:
+            for ann in annotations_map[msg_id]:
+                msg_data["notes"].append({"id": ann.id, "content": ann.commentary})
+        messages.append(msg_data)
+
+    templates_dir = Path(__file__).resolve().parents[1] / "templates"
+    env = Environment(
+        loader=FileSystemLoader(str(templates_dir)),
+        autoescape=select_autoescape(["xml", "html", "jinja"]),
+    )
+    template = env.get_template("conversation.xml.jinja")
+    return template.render(messages=messages)
+
+
 def _table_to_records(
     data: pa.Table | Iterable[Mapping[str, object]] | Sequence[Mapping[str, object]],
 ) -> tuple[list[dict[str, object]], list[str]]:

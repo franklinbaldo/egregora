@@ -32,7 +32,6 @@ from pydantic_ai.messages import (
 
 from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
 from egregora.agents.formatting import (
-    _build_conversation_markdown_table,
     _build_conversation_xml,
     _load_journal_memory,
 )
@@ -416,12 +415,11 @@ def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
 class WriterPromptContext:
     """Values used to populate the writer prompt template."""
 
-    conversation_md: str
+    conversation_xml: str
     rag_context: str
     profiles_context: str
     journal_memory: str
     active_authors: list[str]
-    conversation_xml: str
 
 
 def _truncate_for_embedding(text: str, byte_limit: int = MAX_RAG_QUERY_BYTES) -> str:
@@ -445,12 +443,11 @@ def _build_writer_prompt_context(
 ) -> WriterPromptContext:
     """Collect contextual inputs used when rendering the writer prompt."""
     messages_table = table_with_str_uuids.to_pyarrow()
-    conversation_md = _build_conversation_markdown_table(messages_table, ctx.annotations_store)
     conversation_xml = _build_conversation_xml(messages_table, ctx.annotations_store)
 
     if ctx.enable_rag and ctx.rag_store:
         rag_context = build_rag_context_for_prompt(
-            conversation_md,  # RAG still queries using markdown summary for now
+            conversation_xml,
             ctx.rag_store,
             ctx.client,
             embedding_model=ctx.embedding_model,
@@ -467,12 +464,11 @@ def _build_writer_prompt_context(
     active_authors = get_active_authors(table_with_str_uuids)
 
     return WriterPromptContext(
-        conversation_md=conversation_md,
+        conversation_xml=conversation_xml,
         rag_context=rag_context,
         profiles_context=profiles_context,
         journal_memory=journal_memory,
         active_authors=active_authors,
-        conversation_xml=conversation_xml,
     )
 
 
@@ -824,7 +820,6 @@ def _render_writer_prompt(
         "writer.jinja",
         prompts_dir=deps.prompts_dir,
         date=deps.window_label,
-        markdown_table=prompt_context.conversation_md,
         conversation_xml=prompt_context.conversation_xml,
         active_authors=", ".join(prompt_context.active_authors),
         custom_instructions=custom_instructions,

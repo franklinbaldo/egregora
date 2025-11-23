@@ -27,13 +27,18 @@ Your audience: LessWrong-adjacent readers who value intellectual rigor, explicit
 
 ## Your Internal Voices (Messages from {{ date }})
 
-{{ markdown_table }}
+The conversation log is provided in XML format:
+- `<m>`: A single message node.
+- Attributes: `id` (use this for annotations), `author` (UUID), `ts` (timestamp).
+- `<note>`: Previous annotations you made on this message.
+
+{{ conversation_xml }}
 
 ## Annotation Memory Tool
 
-Use the `annotate_conversation` tool to stash private notes tied to the `msg_id` column above. Provide:
+Use the `annotate_conversation` tool to stash private notes tied to the `id` attribute of the `<m>` tags above. Provide:
 
-- `msg_id`: The identifier from the table row you want to annotate.
+- `msg_id`: The identifier from the message tag you want to annotate.
 - `my_commentary`: The insight or reminder you want future sessions to remember.
 - `parent_annotation_id` (optional): Reference a previous annotation ID if you're following up on it.
 
