@@ -3,9 +3,9 @@
 This module consolidates the WhatsApp adapter, parser, and models into a single file.
 
 Performance Notes:
-    The parser uses a hybrid Python+DuckDB approach for optimal performance:
+    The parser uses a pure Python approach for optimal performance and safety:
     - ZIP reading: Python zipfile (streaming, no disk extraction)
-    - Message parsing: DuckDB vectorized operations (regex, window functions)
+    - Message parsing: Python regex and stateful iteration (faster than DuckDB/Ibis hybrid due to less serialization)
 
     Future: When DuckDB zipfs extension is available (DuckDB 1.4.2+), will automatically
     use fully vectorized parsing with `zip://` URIs. Use `egregora doctor` to check
@@ -155,6 +155,7 @@ def _finalize_message(msg: dict, tenant_id: str, source: str) -> dict:
     return {
         "ts": msg["timestamp"],
         "date": msg["date"],
+        "message_date": msg["date"].isoformat(),
         "author": author_raw,
         "author_raw": author_raw,
         "author_uuid": str(author_uuid),
@@ -162,126 +163,84 @@ def _finalize_message(msg: dict, tenant_id: str, source: str) -> dict:
         "text": message_text,
         "original_line": original_text or None,
         "tagged_line": None,
+        _IMPORT_ORDER_COLUMN: msg.get("_import_order", 0),
     }
 
 
-def _parse_messages_duckdb(
-    lines: list[str], export: WhatsAppExport, timezone: str | ZoneInfo | None
-) -> list[dict]:
-    """Parse messages using Ibis/DuckDB vectorized operations.
+def _parse_whatsapp_lines(
+    lines: list[str],
+    export: WhatsAppExport,
+    timezone: str | ZoneInfo | None,
+) -> list[dict[str, Any]]:
+    """Pure Python parser for WhatsApp logs.
 
-    This implementation leverages DuckDB's vectorized string functions for high performance.
-    It creates an in-memory table from the lines, applies regex extraction,
-    and uses window functions to group multi-line messages.
+    Replaces the hybrid DuckDB/Python approach. Iterates lines once,
+    accumulates multi-line messages, and handles parsing immediately.
     """
-    if not lines:
-        return []
+    rows: list[dict[str, Any]] = []
 
-    # Normalize text (NFKC) in Python first as it's robust
-    # TODO: Investigate if DuckDB has built-in unicode normalization
-    normalized_lines = [_normalize_text(line) for line in lines]
-
-    # Create an Ibis table from lines
-    raw_table = ibis.memtable({"line": normalized_lines, "line_id": range(len(normalized_lines))})
-
-    # Regex patterns adapted for DuckDB's regexp_extract
-    # Pattern: (date), (time) - (author): (message)
-    # Note: DuckDB regex syntax is POSIX extended or RE2
-    # We need to capture groups 1, 2, 3, 4
-    regex_pattern = r"^(\d{1,2}[/\.\-]\d{1,2}[/\.\-]\d{2,4})(?:,\s*|\s+)(\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)\s*[—\-]\s*([^:]+):\s*(.*)$"
-
-    parsed = raw_table.mutate(
-        is_header=raw_table.line.re_search(regex_pattern),
-        date_str=raw_table.line.re_extract(regex_pattern, 1),
-        time_str=raw_table.line.re_extract(regex_pattern, 2),
-        author_raw=raw_table.line.re_extract(regex_pattern, 3),
-        message_part=raw_table.line.re_extract(regex_pattern, 4),
-    )
-
-    # Identify message groups
-    # A new group starts where is_header is True
-    # We use cumulative sum (scan) to assign group IDs
-    grouped = parsed.mutate(msg_group_id=parsed.is_header.cast("int").cumsum())
-
-    # Filter out lines before the first valid message
-    valid_messages = grouped.filter(grouped.msg_group_id > 0)
-
-    # Let's refine the aggregation strategy using window functions before group_by if possible,
-    # or just collect and process. DuckDB's string_agg preserves order if order_by is used.
-
-    # Helper expression for content content
-    content_expr = ibis.cases(
-        (valid_messages.is_header, valid_messages.message_part),
-        else_=valid_messages.line,
-    )
-
-    final_table = (
-        valid_messages.group_by("msg_group_id")
-        .aggregate(
-            date_str=valid_messages.date_str.first(),
-            time_str=valid_messages.time_str.first(),
-            author_raw=valid_messages.author_raw.first(),
-            # Use standard aggregation if group_concat isn't available on older ibis versions
-            # DuckDB supports list_agg or string_agg
-            # Ibis usually exposes group_concat, but let's try a more backend-agnostic approach or direct SQL if needed.
-            # Since we are using ibis.memtable (DuckDB backend), we can use .agg(ibis.literal("\n").join(content_expr))? No.
-            # Let's try ibis.string_agg if group_concat fails. But Ibis standardizes.
-            # The error says 'ibis' module has no attribute 'group_concat'. It might be an expression method.
-            # Try content_expr.group_concat("\n")
-            full_text=content_expr.group_concat(sep="\n"),
-        )
-        .order_by("msg_group_id")
-    )
-
-    # Execute to get Python objects for final date parsing (since date formats vary wildly)
-    # We could do date parsing in SQL if formats were standard, but WhatsApp dates are messy.
-    result_df = final_table.execute()
-
-    rows: list[dict] = []
+    # Context Setup
     tz = _resolve_timezone(timezone)
     tenant_id = str(export.group_slug)
     source_identifier = "whatsapp"
     current_date = export.export_date
 
-    # Iterate and finalize using Python for date logic and UUID generation
-    # This is much faster than iterating raw lines because rows are already aggregated (10x-100x reduction)
-    for row in result_df.to_dict(orient="records"):
-        text = row["full_text"]
-        if not text or not text.strip():
-            continue
+    # State
+    current_entry: dict[str, Any] | None = None
+    message_count = 0
 
-        # Date parsing (reuse helper)
-        msg_date = _parse_message_date(row["date_str"])
-        if msg_date:
-            current_date = msg_date
-        else:
-            msg_date = current_date
+    for line in lines:
+        # 1. Normalize
+        line = _normalize_text(line)
 
-        # Time parsing
-        msg_time = _parse_message_time(row["time_str"])
-        if msg_time is None:
-            continue
+        # 2. Match Header
+        match = WHATSAPP_LINE_PATTERN.match(line)
 
-        timestamp = datetime.combine(msg_date, msg_time, tzinfo=tz).astimezone(UTC)
-        author_raw = row["author_raw"].strip()
+        if match:
+            # Finalize previous entry
+            if current_entry:
+                finalized = _finalize_message(current_entry, tenant_id, source_identifier)
+                if finalized["text"]:
+                    rows.append(finalized)
 
-        # Adapted finalizer for pre-joined text
-        author_uuid = deterministic_author_uuid(tenant_id, source_identifier, author_raw)
+            # Start new entry
+            date_str, time_str, author_raw, message_part = match.groups()
 
-        finalized = {
-            "ts": timestamp,
-            "date": msg_date,
-            "message_date": msg_date.isoformat(),
-            "author": author_raw,
-            "author_raw": author_raw,
-            "author_uuid": str(author_uuid),
-            _AUTHOR_UUID_HEX_COLUMN: author_uuid.hex,
-            "text": text.strip(),
-            "original_line": None,
-            "tagged_line": None,
-            _IMPORT_ORDER_COLUMN: row["msg_group_id"],
-        }
-        rows.append(finalized)
+            # 3. Parse Date/Time immediately (update context)
+            msg_date = _parse_message_date(date_str)
+            if msg_date:
+                current_date = msg_date
+
+            msg_time = _parse_message_time(time_str)
+
+            # Skip invalid times, but keep the date update
+            if not msg_time:
+                current_entry = None
+                continue
+
+            timestamp = datetime.combine(current_date, msg_time, tzinfo=tz).astimezone(UTC)
+            message_count += 1
+
+            current_entry = {
+                "timestamp": timestamp,
+                "date": current_date,
+                "author_raw": author_raw.strip(),
+                "_original_lines": [line],
+                "_continuation_lines": [message_part],  # Just the text part
+                "_import_order": message_count,
+            }
+
+        elif current_entry:
+            # 4. Handle Continuation (Strict Parity)
+            # If no header match, append to previous message
+            current_entry["_original_lines"].append(line)
+            current_entry["_continuation_lines"].append(line)
+
+    # Flush last entry
+    if current_entry:
+        finalized = _finalize_message(current_entry, tenant_id, source_identifier)
+        if finalized["text"]:
+            rows.append(finalized)
 
     return rows
 
@@ -493,7 +452,7 @@ def parse_source(
         logger.warning("No messages found in %s", export.zip_path)
         return ibis.memtable([], schema=IR_MESSAGE_SCHEMA)
 
-    rows = _parse_messages_duckdb(lines, export, timezone)
+    rows = _parse_whatsapp_lines(lines, export, timezone)
 
     if not rows:
         return ibis.memtable([], schema=IR_MESSAGE_SCHEMA)
