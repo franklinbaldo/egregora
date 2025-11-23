@@ -35,7 +35,7 @@ from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
 from egregora.agents.model_limits import get_model_context_limit
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore, index_all_media
-from egregora.agents.writer import write_posts_for_window
+from egregora.agents.writer import WriterResources, write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputSink, UrlContext
@@ -49,7 +49,7 @@ from egregora.input_adapters.whatsapp import extract_commands, filter_egregora_m
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
-from egregora.output_adapters.mkdocs import derive_mkdocs_paths
+from egregora.output_adapters.mkdocs import MkDocsAdapter, derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.utils.cache import PipelineCache
@@ -169,6 +169,74 @@ class PreparedPipelineData:
     embedding_model: str
 
 
+def _create_writer_resources(ctx: PipelineContext) -> WriterResources:
+    """Create writer resources from pipeline context."""
+    from egregora.output_adapters import create_output_format
+
+    # Ensure output sink is initialized
+    output_format = ctx.output_format
+    if not output_format:
+        storage_root = ctx.site_root if ctx.site_root else ctx.output_dir
+        format_type = ctx.config.output.format
+
+        if format_type == "mkdocs":
+            output_format = MkDocsAdapter()
+            url_context = ctx.url_context or UrlContext(base_url="", site_prefix="", base_path=storage_root)
+            output_format.initialize(site_root=storage_root, url_context=url_context)
+        else:
+            output_format = create_output_format(storage_root, format_type=format_type)
+
+    prompts_dir = ctx.site_root / ".egregora" / "prompts" if ctx.site_root else None
+    # Assuming journal_dir is standard relative path if not specified elsewhere.
+    # ctx.config.paths.journal_dir is relative to site_root.
+    journal_dir = (
+        ctx.site_root / ctx.config.paths.journal_dir if ctx.site_root else ctx.output_dir / "journal"
+    )
+
+    return WriterResources(
+        output=output_format,
+        rag_store=ctx.rag_store,
+        annotations_store=ctx.annotations_store,
+        storage=ctx.storage,  # Added storage for RAG indexing
+        embedding_model=ctx.embedding_model,
+        retrieval_config=ctx.config.rag,
+        profiles_dir=ctx.profiles_dir,
+        journal_dir=journal_dir,
+        prompts_dir=prompts_dir,
+        client=ctx.client,
+        quota=ctx.quota_tracker,
+        usage=ctx.usage_tracker,
+        rate_limit=ctx.rate_limit,
+    )
+
+
+def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
+    """Extract content summary and generation instructions from adapter."""
+    adapter = getattr(ctx, "adapter", None)
+    if adapter is None:
+        return "", ""
+
+    summary: str | None = ""
+    try:
+        summary = getattr(adapter, "content_summary", "")
+        if callable(summary):
+            summary = summary()
+    except Exception:  # noqa: BLE001
+        logger.debug("Adapter %s failed to provide content_summary", adapter)
+        summary = ""
+
+    instructions: str | None = ""
+    try:
+        instructions = getattr(adapter, "generation_instructions", "")
+        if callable(instructions):
+            instructions = instructions()
+    except Exception:
+        logger.exception("Failed to evaluate adapter generation instructions")
+        instructions = ""
+
+    return (summary or "").strip(), (instructions or "").strip()
+
+
 def _process_single_window(
     window: any, ctx: PipelineContext, *, depth: int = 0
 ) -> dict[str, dict[str, list[str]]]:
@@ -222,11 +290,17 @@ def _process_single_window(
                 logger.exception("Failed to serve media document %s", media_doc.metadata.get("filename"))
 
     # Write posts
+    resources = _create_writer_resources(ctx)
+    adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
+
     result = write_posts_for_window(
-        enriched_table,
-        window.start_time,
-        window.end_time,
-        ctx,
+        table=enriched_table,
+        window_start=window.start_time,
+        window_end=window.end_time,
+        resources=resources,
+        config=ctx.config,
+        adapter_content_summary=adapter_summary,
+        adapter_generation_instructions=adapter_instructions,
     )
     post_count = len(result.get("posts", []))
     profile_count = len(result.get("profiles", []))
