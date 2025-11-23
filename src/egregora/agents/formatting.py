@@ -176,7 +176,7 @@ def _build_conversation_xml(
     for row in rows:
         msg_id = str(row.get("msg_id", ""))
         author = str(row.get("author", "unknown"))
-        ts = str(row.get("timestamp", ""))
+        ts = str(row.get("ts", row.get("timestamp", "")))
         text = str(row.get("text", ""))
 
         msg_data = {
