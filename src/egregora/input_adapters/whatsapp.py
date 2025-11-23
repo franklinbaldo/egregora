@@ -31,7 +31,6 @@ import ibis.expr.datatypes as dt
 from dateutil import parser as date_parser
 from pydantic import BaseModel
 
-from egregora.data_primitives import GroupSlug
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
@@ -57,7 +56,7 @@ class WhatsAppExport(BaseModel):
 
     zip_path: Path
     group_name: str
-    group_slug: GroupSlug
+    group_slug: str
     export_date: date
     chat_file: str
     media_files: list[str]
@@ -142,27 +141,6 @@ def _resolve_timezone(timezone: str | ZoneInfo | None) -> ZoneInfo:
     if isinstance(timezone, ZoneInfo):
         return timezone
     return ZoneInfo(timezone)
-
-
-def _finalize_message(msg: dict, tenant_id: str, source: str) -> dict:
-    """Finalize a message by joining continuation lines - returns IR schema format."""
-    message_text = "\n".join(msg["_continuation_lines"]).strip()
-    original_text = "\n".join(msg["_original_lines"]).strip()
-
-    author_raw = msg["author_raw"]
-    author_uuid = deterministic_author_uuid(tenant_id, source, author_raw)
-
-    return {
-        "ts": msg["timestamp"],
-        "date": msg["date"],
-        "author": author_raw,
-        "author_raw": author_raw,
-        "author_uuid": str(author_uuid),
-        _AUTHOR_UUID_HEX_COLUMN: author_uuid.hex,
-        "text": message_text,
-        "original_line": original_text or None,
-        "tagged_line": None,
-    }
 
 
 def _parse_messages_duckdb(
@@ -414,7 +392,7 @@ def extract_commands(messages: Table) -> list[dict]:
         ),
     )
 
-    commands_table = command_cases.filter(command_cases.command_name.notnull()).select(
+    commands_table = command_cases.filter(command_cases.command_name.notna()).select(
         command_cases.author_uuid,
         command_cases.ts,
         command_cases.text,
@@ -657,7 +635,7 @@ def build_message_attrs(
             "message_date": message_date,
         }
     )
-    has_metadata = ibis.coalesce(original_line, tagged_line, message_date).notnull()
+    has_metadata = ibis.coalesce(original_line, tagged_line, message_date).notna()
     attrs_json = attrs_struct.cast(dt.json).cast(dt.string)
     empty_json = ibis.literal(None, type=dt.string)
     return ibis.cases(
@@ -707,7 +685,7 @@ class WhatsAppAdapter(InputAdapter):
         export = WhatsAppExport(
             zip_path=input_path,
             group_name=group_name,
-            group_slug=GroupSlug(group_name.lower().replace(" ", "-")),
+            group_slug=group_name.lower().replace(" ", "-"),
             export_date=datetime.now(tz=UTC).date(),
             chat_file=chat_file,
             media_files=[],
@@ -806,10 +784,10 @@ class WhatsAppAdapter(InputAdapter):
             msg = f"Input path does not exist: {input_path}"
             raise FileNotFoundError(msg)
         group_name, chat_file = discover_chat_file(input_path)
-        group_slug = GroupSlug(group_name.lower().replace(" ", "-"))
+        group_slug = group_name.lower().replace(" ", "-")
         return {
             "group_name": group_name,
-            "group_slug": str(group_slug),
+            "group_slug": group_slug,
             "chat_file": chat_file,
             "export_date": datetime.now(tz=UTC).date().isoformat(),
         }

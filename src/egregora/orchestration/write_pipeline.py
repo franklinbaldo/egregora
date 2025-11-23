@@ -538,16 +538,6 @@ def _perform_enrichment(
     )
 
 
-def _is_connection_uri(value: str) -> bool:
-    """Return True if the provided value looks like a DB connection URI."""
-    if not value:
-        return False
-
-    parsed = urlparse(value)
-    # Handle Windows drive letters (e.g. C:/path or C:\path)
-    return bool(parsed.scheme) and not (len(parsed.scheme) == 1 and value[1:3] in {":/", ":\\"})
-
-
 def _create_database_backends(
     site_root: Path,
     config: EgregoraConfig,

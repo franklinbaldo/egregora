@@ -13,11 +13,8 @@ It provides a single place for:
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import re
-import uuid
-import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -150,52 +147,6 @@ def extract_markdown_media_refs(table: Table) -> set[str]:
 # ----------------------------------------------------------------------------
 # Extraction & Deduplication (Enrichment Stage)
 # ----------------------------------------------------------------------------
-
-
-def extract_media_from_zip(
-    zip_path: Path,
-    filenames: set[str],
-    media_dir: Path,
-) -> dict[str, Path]:
-    """Extract media files from ZIP and save to media_dir/.
-
-    UUID generation is based on content only - enables global deduplication.
-    Returns dict mapping original filename to saved path.
-    """
-    if not filenames:
-        return {}
-
-    media_dir.mkdir(parents=True, exist_ok=True)
-    namespace = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
-    extracted = {}
-
-    with zipfile.ZipFile(zip_path, "r") as zf:
-        for info in zf.infolist():
-            if info.is_dir():
-                continue
-
-            filename = Path(info.filename).name
-            if filename not in filenames:
-                continue
-
-            file_content = zf.read(info)
-            content_hash = hashlib.sha256(file_content).hexdigest()
-            file_uuid = uuid.uuid5(namespace, content_hash)
-            file_ext = Path(filename).suffix
-
-            subfolder = get_media_subfolder(file_ext)
-            subfolder_path = media_dir / subfolder
-            subfolder_path.mkdir(parents=True, exist_ok=True)
-
-            new_filename = f"{file_uuid}{file_ext}"
-            dest_path = subfolder_path / new_filename
-
-            if not dest_path.exists():
-                dest_path.write_bytes(file_content)
-
-            extracted[filename] = dest_path.resolve()
-
-    return extracted
 
 
 # ----------------------------------------------------------------------------
