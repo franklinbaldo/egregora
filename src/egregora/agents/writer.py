@@ -40,6 +40,7 @@ from egregora.agents.model_limits import (
     get_model_context_limit,
     validate_prompt_fits,
 )
+from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import (
     VectorStore,
     embed_query_text,
@@ -49,10 +50,10 @@ from egregora.agents.shared.rag import (
 )
 from egregora.config.settings import EgregoraConfig, RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import OutputAdapter
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.knowledge.profiles import get_active_authors, read_profile
 from egregora.output_adapters import output_registry
-from egregora.output_adapters.base import OutputSink
 from egregora.resources.prompts import render_prompt
 from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.batch import call_with_retries_sync
@@ -151,6 +152,7 @@ class WriterResources:
     # Configuration required for tools
     embedding_model: str
     retrieval_config: RAGSettings
+    config: EgregoraConfig
 
     # Paths for prompt context loading
     profiles_dir: Path
@@ -162,6 +164,9 @@ class WriterResources:
     quota: QuotaTracker | None
     usage: UsageTracker | None
     rate_limit: AsyncRateLimit | None
+
+    # Caching
+    cache: Any  # PipelineCache
 
 
 @dataclass(frozen=True)
@@ -444,18 +449,18 @@ def _build_writer_prompt_context(
 ) -> WriterPromptContext:
     """Collect contextual inputs used when rendering the writer prompt."""
     messages_table = table_with_str_uuids.to_pyarrow()
-    conversation_xml = _build_conversation_xml(messages_table, ctx.annotations_store)
+    conversation_xml = _build_conversation_xml(messages_table, resources.annotations_store)
 
     if resources.rag_store and resources.client:
         rag_context = build_rag_context_for_prompt(
             conversation_xml,
-            ctx.rag_store,
-            ctx.client,
-            embedding_model=ctx.embedding_model,
-            retrieval_mode=ctx.retrieval_mode,
-            retrieval_nprobe=ctx.retrieval_nprobe,
-            retrieval_overfetch=ctx.retrieval_overfetch,
-            cache=ctx.cache,
+            resources.rag_store,
+            resources.client,
+            embedding_model=resources.embedding_model,
+            retrieval_mode=resources.retrieval_config.mode,
+            retrieval_nprobe=resources.retrieval_config.nprobe,
+            retrieval_overfetch=resources.retrieval_config.overfetch,
+            cache=resources.cache,
         )
     else:
         rag_context = ""
@@ -665,29 +670,18 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
 
 
 def _prepare_deps(
-    ctx: PipelineContext,
+    resources: WriterResources,
     window_start: datetime,
     window_end: datetime,
 ) -> WriterDeps:
-    """Prepare writer dependencies from pipeline context."""
+    """Prepare writer dependencies from writer resources."""
     window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
 
-    # Ensure output sink is initialized
-    if not ctx.output_format:
-        msg = "Output format not initialized in context"
-        raise ValueError(msg)
-
-    prompts_dir = ctx.site_root / ".egregora" / "prompts" if ctx.site_root else None
-
     return WriterDeps(
-        ctx=ctx,
+        resources=resources,
         window_start=window_start,
         window_end=window_end,
         window_label=window_label,
-        prompts_dir=prompts_dir,
-        quota=ctx.quota_tracker,
-        usage_tracker=ctx.usage_tracker,
-        rate_limit=ctx.rate_limit,
     )
 
 
@@ -865,14 +859,14 @@ def write_posts_for_window(
         return {"posts": [], "profiles": []}
 
     # 1. Prepare Dependencies
-    deps = _prepare_deps(ctx, window_start, window_end)
+    deps = _prepare_deps(resources, window_start, window_end)
 
     # 2. Build Context & Calculate Signature (L3 Cache Check)
     table_with_str_uuids = _cast_uuid_columns_to_str(table)
 
     # Generate XML content early for both prompt and signature
     # This matches what the LLM will actually see
-    prompt_context = _build_writer_prompt_context(table_with_str_uuids, ctx)
+    prompt_context = _build_writer_prompt_context(table_with_str_uuids, resources)
 
     # Calculate signature using data (XML) + logic (template + instructions) + engine
     # We need the raw template content, but for now we use the rendered prompt as a proxy
@@ -896,8 +890,8 @@ def write_posts_for_window(
 
     try:
         # Try to find the template file to hash its content
-        if deps.prompts_dir:
-            tpl_path = deps.prompts_dir / template_name
+        if resources.prompts_dir:
+            tpl_path = resources.prompts_dir / template_name
             if tpl_path.exists():
                 template_content = tpl_path.read_text()
         else:
@@ -911,12 +905,12 @@ def write_posts_for_window(
         logger.debug("Could not load writer template for hashing, using default signature")
 
     signature = generate_window_signature(
-        table_with_str_uuids, ctx.config, template_content, xml_content=prompt_context.conversation_xml
+        table_with_str_uuids, resources.config, template_content, xml_content=prompt_context.conversation_xml
     )
 
     # CHECK L3 CACHE
-    if not ctx.cache.should_refresh(CacheTier.WRITER):
-        cached_result = ctx.cache.writer.get(signature)
+    if not resources.cache.should_refresh(CacheTier.WRITER):
+        cached_result = resources.cache.writer.get(signature)
         if cached_result:
             logger.info("⚡ [L3 Cache Hit] Skipping Writer LLM for window %s", deps.window_label)
 
@@ -984,7 +978,7 @@ def write_posts_for_window(
 
     # UPDATE L3 CACHE
     result_payload = {"posts": saved_posts, "profiles": saved_profiles}
-    ctx.cache.writer.set(signature, result_payload)
+    resources.cache.writer.set(signature, result_payload)
 
     return result_payload
 

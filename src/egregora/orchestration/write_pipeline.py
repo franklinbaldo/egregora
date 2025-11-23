@@ -200,6 +200,7 @@ def _create_writer_resources(ctx: PipelineContext) -> WriterResources:
         storage=ctx.storage,  # Added storage for RAG indexing
         embedding_model=ctx.embedding_model,
         retrieval_config=ctx.config.rag,
+        config=ctx.config,
         profiles_dir=ctx.profiles_dir,
         journal_dir=journal_dir,
         prompts_dir=prompts_dir,
@@ -207,6 +208,7 @@ def _create_writer_resources(ctx: PipelineContext) -> WriterResources:
         quota=ctx.quota_tracker,
         usage=ctx.usage_tracker,
         rate_limit=ctx.rate_limit,
+        cache=ctx.cache,
     )
 
 
