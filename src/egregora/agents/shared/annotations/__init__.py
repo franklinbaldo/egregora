@@ -8,7 +8,6 @@ Architecture:
     - DuckDB storage with Ibis query interface for type-safe operations
     - Auto-incrementing sequences for annotation IDs
     - Parent-child relationships via parent_id/parent_type foreign keys
-    - Privacy validation: all commentary is checked for PII before persistence
     - Supports annotation threading: annotations can reference messages or other annotations
 
 Key Components:
@@ -59,11 +58,6 @@ Example:
     >>> joined = store.join_with_messages(messages)
     >>> annotated = joined.filter(joined.commentary.notnull())
 
-Privacy & Security:
-    All commentary is validated against PII patterns before persistence using
-    validate_text_privacy() to ensure no personal information leaks into
-    the annotation storage.
-
 Note:
     This module does NOT use the centralized schemas from database.schema.ANNOTATIONS_SCHEMA.
     The schema is defined inline via CREATE TABLE statements for tighter control over
@@ -82,7 +76,6 @@ import ibis
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database import ir_schema as database_schema
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.privacy.detector import PrivacyViolationError, validate_text_privacy
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -178,7 +171,6 @@ class AnnotationStore:
 
     The store handles:
     - Auto-incrementing sequence management for annotation IDs
-    - Privacy validation via PII detection before persistence
     - Parent-child relationship validation (annotations can only reference existing parents)
     - Efficient joins with message tables for vectorized operations
 
@@ -258,10 +250,6 @@ class AnnotationStore:
         if not sanitized_commentary:
             msg = "commentary must not be empty"
             raise ValueError(msg)
-        try:
-            validate_text_privacy(sanitized_commentary)
-        except PrivacyViolationError as exc:
-            raise ValueError(str(exc)) from exc
         created_at = datetime.now(UTC)
         if sanitized_parent_type == "annotation":
             annotations_table = self._backend.table(ANNOTATIONS_TABLE)
