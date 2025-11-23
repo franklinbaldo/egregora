@@ -131,7 +131,7 @@ def _generate_fallback_avatar_url(author_uuid: str) -> str:
 
     # Deterministically select options based on UUID hash
     # We use different slices of the hash to pick different attributes
-    h = hashlib.md5(author_uuid.encode()).hexdigest()  # noqa: S324
+    h = hashlib.sha256(author_uuid.encode()).hexdigest()
 
     # Helper to pick from options
     def pick(options: list[str], offset: int) -> str:
