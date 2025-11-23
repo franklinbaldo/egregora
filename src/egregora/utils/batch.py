@@ -10,7 +10,13 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from google.api_core import exceptions as google_exceptions
 from google.genai import types as genai_types
-from tenacity import RetryCallState, retry, stop_after_attempt, wait_random_exponential, retry_if_exception_type
+from tenacity import (
+    RetryCallState,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_random_exponential,
+)
 from tqdm import tqdm
 
 from egregora.config import EMBEDDING_DIM
@@ -35,7 +41,7 @@ _INITIAL_WAIT_SECONDS = 2.0
 _MAX_WAIT_SECONDS = 60.0
 
 
-def _log_before_retry(retry_state: "RetryCallState") -> None:
+def _log_before_retry(retry_state: RetryCallState) -> None:
     """Log before retrying a call."""
     logger.warning(
         "Retrying %s (attempt %d, waiting %.1fs)...",
@@ -43,6 +49,7 @@ def _log_before_retry(retry_state: "RetryCallState") -> None:
         retry_state.attempt_number,
         retry_state.next_action.sleep,
     )
+
 
 @retry(
     stop=stop_after_attempt(_MAX_RETRIES),
@@ -52,23 +59,29 @@ def _log_before_retry(retry_state: "RetryCallState") -> None:
 )
 def call_with_retries_sync(func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
     """Execute a synchronous function with exponential backoff and jitter.
+
     Args:
         func: The function to execute.
         *args: Positional arguments for the function.
         **kwargs: Keyword arguments for the function.
+
     Returns:
         The result of the function.
+
     Raises:
         Exception: If the function fails after all retry attempts.
+
     """
     return func(*args, **kwargs)
 
 
 def sleep_with_progress_sync(duration: float, message: str = "Sleeping") -> None:
     """Sleep for a given duration with a progress bar.
+
     Args:
         duration: The number of seconds to sleep.
         message: The message to display in the progress bar.
+
     """
     if duration <= 0:
         return
@@ -88,8 +101,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
     from google import genai
-
-
 
 
 @dataclass(slots=True)
@@ -133,20 +144,20 @@ class EmbeddingBatchResult:
     error: genai_types.JobError | None = None
 
 
-
-
 class GeminiBatchClient:
     """Minimal synchronous wrapper around ``client.batches``.
+
     Args:
         client: The Google GenAI client.
         default_model: The default model to use for batch jobs.
         poll_interval: The default polling interval in seconds.
         timeout: The default timeout in seconds.
+
     """
 
     def __init__(
         self,
-        client: "genai.Client",
+        client: genai.Client,
         default_model: str,
         poll_interval: float = 5.0,
         timeout: float | None = 900.0,
@@ -202,13 +213,16 @@ class GeminiBatchClient:
         timeout: float | None = None,
     ) -> list[BatchPromptResult]:
         """Execute a batch generate job and return responses in order.
+
         Args:
             requests: A sequence of batch prompt requests.
             _display_name: A display name for the batch job.
             poll_interval: The polling interval in seconds.
             timeout: The timeout in seconds.
+
         Returns:
             A list of batch prompt results.
+
         """
         if not requests:
             return []
@@ -278,13 +292,16 @@ class GeminiBatchClient:
         timeout: float | None = None,
     ) -> list[EmbeddingBatchResult]:
         """Execute a batch embedding job.
+
         Args:
             requests: A sequence of embedding batch requests.
             _display_name: A display name for the batch job.
             poll_interval: The polling interval in seconds.
             timeout: The timeout in seconds.
+
         Returns:
             A list of embedding batch results.
+
         """
         if not requests:
             return []
