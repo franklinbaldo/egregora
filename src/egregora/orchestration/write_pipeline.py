@@ -187,7 +187,9 @@ def _create_writer_resources(ctx: PipelineContext) -> WriterResources:
     prompts_dir = ctx.site_root / ".egregora" / "prompts" if ctx.site_root else None
     # Assuming journal_dir is standard relative path if not specified elsewhere.
     # ctx.config.paths.journal_dir is relative to site_root.
-    journal_dir = ctx.site_root / ctx.config.paths.journal_dir if ctx.site_root else ctx.output_dir / "journal"
+    journal_dir = (
+        ctx.site_root / ctx.config.paths.journal_dir if ctx.site_root else ctx.output_dir / "journal"
+    )
 
     return WriterResources(
         output=output_format,
@@ -226,7 +228,7 @@ def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
         instructions = getattr(adapter, "generation_instructions", "")
         if callable(instructions):
             instructions = instructions()
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("Failed to evaluate adapter generation instructions")
         instructions = ""
 

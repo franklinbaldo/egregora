@@ -46,7 +46,6 @@ from egregora.agents.shared.rag import (
 )
 from egregora.config.settings import EgregoraConfig, RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.knowledge.profiles import get_active_authors, read_profile
 from egregora.output_adapters import output_registry
@@ -748,7 +747,9 @@ def _render_writer_prompt(
     format_instructions = deps.resources.output.get_format_instructions()
     custom_instructions = config.writer.custom_instructions or ""
     if adapter_generation_instructions:
-        custom_instructions = "\n\n".join(filter(None, [custom_instructions, adapter_generation_instructions]))
+        custom_instructions = "\n\n".join(
+            filter(None, [custom_instructions, adapter_generation_instructions])
+        )
     source_context = adapter_content_summary
 
     return render_prompt(
@@ -842,7 +843,12 @@ def write_posts_for_window(
     )
 
     # Index newly created content
-    if resources.retrieval_config.enabled and resources.rag_store and resources.storage and (saved_posts or saved_profiles):
+    if (
+        resources.retrieval_config.enabled
+        and resources.rag_store
+        and resources.storage
+        and (saved_posts or saved_profiles)
+    ):
         try:
             indexed_count = index_documents_for_rag(
                 resources.output,
