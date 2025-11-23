@@ -94,7 +94,7 @@ class BannerGenerator:
             contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
             generate_content_config = types.GenerateContentConfig(
                 response_modalities=["IMAGE", "TEXT"],
-                image_config=types.ImageConfig(aspect_ratio="1:1"),
+                image_config=types.ImageConfig(aspect_ratio="16:9"),  # Widescreen for blog banners
                 system_instruction=[
                     types.Part.from_text(
                         text="You are a senior editorial illustrator for a modern blog. Your job is to translate an article into a striking, concept-driven cover/banner image that is legible at small sizes, brand-consistent, and accessible. Create minimalist, abstract representations that capture the essence of the article without literal depictions. Use bold colors, clear composition, and modern design principles."
@@ -143,7 +143,29 @@ class BannerGenerator:
             Prompt string for image generation
 
         """
-        return f"Create a cover image for this blog post:\n\nTitle: {title}\n\nSummary: {summary}\n\nRequirements:\n- Modern, minimalist design\n- Abstract/conceptual (not literal)\n- Bold, striking visual\n- Suitable for blog banner/header\n- Legible when scaled down\n- Professional and engaging\n\nThe image should capture the essence and mood of the article while being visually\ndistinct and memorable."
+        return f"""Create a striking cover image for this blog post:
+
+Title: {title}
+
+Summary: {summary}
+
+Design Requirements:
+- Aspect ratio: 16:9 (widescreen banner/header)
+- Composition: IMPORTANT - Keep the UPPER 30% relatively clean and simple to allow for text overlay
+- Style: Abstract, conceptual, minimalist modern editorial
+- Color palette: Bold but harmonious (2-4 colors maximum)
+- Visual focus: Place the main visual interest in the LOWER 2/3 of the frame
+- Avoid: Literal illustrations, complex text, photorealism, excessive detail
+
+Technical Requirements:
+- Do NOT include any text or typography in the image itself
+- Create clear focal point in lower portion
+- Use high contrast for good legibility
+- Design should scale well from thumbnail to full-width display
+
+The image should evoke the article's essence through abstract visual metaphor.
+Use geometric forms, gradients, or symbolic elements rather than literal depictions.
+Think editorial illustration, not stock photography."""
 
 
 def generate_banner_for_post(
