@@ -1,30 +1,89 @@
 ---
 title: Participant Profiles
-description: Group participants
+description: Meet the voices behind our collective consciousness
 ---
 
 # Participant Profiles
 
-> Every contributor is represented by a deterministic UUID (e.g. `23e57074`) to keep privacy intact while still letting the writer agent reference recurring voices.
+> Every contributor is represented by a **deterministic UUID** to preserve privacy while enabling the AI to track recurring voices and writing styles.
 
-## Reading profiles
-
-- **Style overview** – High-level notes about cadence, tone, and argumentative habits
-- **Topic orbit** – Subjects the participant consistently gravitates toward
-- **Recent contributions** – Links to posts where that UUID made a visible impact
-
-All of this text is generated automatically after each pipeline run, so expect it to evolve as new behavior emerges.
-
-## Choosing an alias
-
-Want something more memorable than a UUID?
-
-1. In your chat, send `/egregora set alias "Your Chosen Name"`
-2. Optionally add `/egregora set bio "One-line description"`
-3. Regenerate the blog; your profile will now reflect the alias while still keeping the real identity private.
-
-Need to disappear entirely? Use `/egregora opt-out` before the next run.
+{% if profiles and profiles|length > 0 %}
 
 ---
 
-*Profiles refresh with every ingestion window. No manual edits are needed.*
+<div class="profile-grid" markdown>
+
+{% for profile in profiles %}
+<div class="profile-card">
+
+![Avatar]({{ profile.avatar|default('https://via.placeholder.com/100') }}){ .profile-card-avatar }
+
+### {{ profile.name|default(profile.uuid[:8]) }}
+
+{{ profile.bio|default('Profile pending – first contributions detected') }}
+
+{% if profile.topics and profile.topics|length > 0 %}
+<div class="profile-card-topics">
+{% for topic in profile.topics[:5] %}
+<span class="profile-card-topic">{{ topic }}</span>
+{% endfor %}
+</div>
+{% endif %}
+
+[View full profile →]({{ profile.uuid }}.md){ .md-button .md-button--primary }
+
+</div>
+{% endfor %}
+
+</div>
+
+{% else %}
+
+<div class="post-card" markdown>
+
+**No profiles generated yet.**
+Profiles are created automatically during the first pipeline run when contributors participate in conversations.
+
+</div>
+
+{% endif %}
+
+---
+
+## How Profiles Work
+
+### What's In a Profile?
+
+- **Style overview** – Cadence, tone, and argumentative habits
+- **Topic orbit** – Subjects the participant consistently gravitates toward
+- **Recent contributions** – Links to posts where this UUID had visible impact
+
+All profile text is **generated automatically** after each pipeline run, so it evolves as new behavior emerges.
+
+### Choosing an Alias
+
+Want something more memorable than a UUID?
+
+```bash
+# In your chat, send:
+/egregora set alias "Your Chosen Name"
+
+# Optionally add a bio:
+/egregora set bio "One-line description"
+```
+
+After the next pipeline run, your profile will reflect the alias while keeping your real identity private.
+
+### Privacy Controls
+
+Need to disappear entirely?
+
+```bash
+/egregora opt-out
+```
+
+Run this command **before** the next ingestion. All your messages will be excluded from processing.
+
+---
+
+*Profiles refresh with every ingestion window. No manual edits needed.*

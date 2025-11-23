@@ -28,8 +28,6 @@ import ibis
 import ibis.expr.datatypes as dt
 from ibis import udf
 
-from egregora.data_primitives import GroupSlug
-
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
@@ -722,46 +720,9 @@ def ensure_lineage_table_exists(conn: duckdb.DuckDBPyConnection) -> None:
         create_lineage_table(conn)
 
 
-def drop_lineage_table(conn: duckdb.DuckDBPyConnection) -> None:
-    """Drop lineage table (for testing/cleanup).
-
-    Args:
-        conn: DuckDB connection
-
-    Warning:
-        This permanently deletes all lineage history!
-
-    Example:
-        >>> import duckdb
-        >>> conn = duckdb.connect(":memory:")
-        >>> create_lineage_table(conn)
-        >>> drop_lineage_table(conn)
-
-    """
-    try:
-        conn.execute("DROP TABLE IF EXISTS lineage")
-        logger.info("Dropped lineage table")
-    except Exception:
-        logger.exception("Failed to drop lineage table")
-        raise
-
-
 # ----------------------------------------------------------------------------
 # Message Schema Utilities
 # ----------------------------------------------------------------------------
-
-
-def group_slug(group_name: str) -> GroupSlug:
-    """Create a URL-safe slug from a group name.
-
-    Args:
-        group_name: The display name of the group
-
-    Returns:
-        A URL-safe slug suitable for use in file paths and URLs
-
-    """
-    return GroupSlug(group_name.lower().replace(" ", "-"))
 
 
 @udf.scalar.builtin(
@@ -884,6 +845,5 @@ __all__ = [
     # Message schema utilities
     "ensure_message_schema",
     "ensure_runs_table_exists",
-    "group_slug",
     "quote_identifier",
 ]

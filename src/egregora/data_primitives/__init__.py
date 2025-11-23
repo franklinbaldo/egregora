@@ -11,7 +11,6 @@ input adapters (to produce standardized data) and output adapters (to
 consume and publish it).
 """
 
-from egregora.data_primitives.base_types import GroupSlug, PostSlug
 from egregora.data_primitives.document import Document, DocumentCollection, DocumentType, MediaAsset
 from egregora.data_primitives.protocols import (
     DocumentMetadata,
@@ -29,15 +28,11 @@ __all__ = [
     "DocumentMetadata",
     "DocumentType",
     # Type aliases
-    "GroupSlug",
     "MediaAsset",
     # Protocols (legacy/backward compatibility)
     "OutputAdapter",
     # Protocols (ISP-compliant)
     "OutputSink",
-    "OutputSink",
-    "PostSlug",
-    "SiteScaffolder",
     "SiteScaffolder",
     "UrlContext",
     "UrlConvention",

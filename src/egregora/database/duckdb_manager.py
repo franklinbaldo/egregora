@@ -50,7 +50,6 @@ from ibis.expr.types import Table
 
 from egregora.database import schemas
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
-from egregora.database.views import ViewBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -334,20 +333,6 @@ class DuckDBStorageManager:
             with contextlib.suppress(Exception):
                 self._conn.unregister(temp_view)
 
-    def invalidate_table_cache(self, table_name: str | None = None) -> None:
-        """Clear cached PRAGMA table_info results.
-
-        Args:
-            table_name: Specific table name to clear. If ``None`` the entire
-                cache is invalidated.
-
-        """
-        if table_name is None:
-            self._table_info_cache.clear()
-            return
-
-        self._table_info_cache.pop(table_name.lower(), None)
-
     def get_table_columns(self, table_name: str, *, refresh: bool = False) -> set[str]:
         """Return cached column names for ``table_name``.
 
@@ -566,48 +551,6 @@ class DuckDBStorageManager:
 
         cursor = self.conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
         return [int(row[0]) for row in cursor.fetchall()]
-
-    def execute_view(
-        self,
-        view_name: str,
-        builder: ViewBuilder,
-        input_table: str,
-        *,
-        checkpoint: bool = True,
-    ) -> Table:
-        """Execute view builder and optionally materialize result.
-
-        Args:
-            view_name: Name for output table
-            builder: Callable that transforms an Ibis table
-            input_table: Name of input table
-            checkpoint: If True, save result to table
-
-        Returns:
-            Result of view transformation
-
-        Example:
-            >>> from egregora.database.views import COMMON_VIEWS
-            >>> chunks_builder = COMMON_VIEWS["chunks"]
-            >>> result = storage.execute_view(
-            ...     "chunks_materialized",
-            ...     chunks_builder,
-            ...     "conversations"
-            ... )
-
-        """
-        # Read input table
-        input_ir = self.read_table(input_table)
-
-        # Execute view transformation
-        result = builder(input_ir)
-
-        # Optionally materialize
-        if checkpoint:
-            self.write_table(result, view_name)
-            logger.info("View '%s' materialized from '%s'", view_name, input_table)
-
-        return result
 
     def table_exists(self, name: str) -> bool:
         """Check if table exists in database.

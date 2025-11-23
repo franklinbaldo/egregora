@@ -1,0 +1,23 @@
+{# Author cards for blog posts #}
+{% if authors and authors|length > 0 %}
+
+---
+
+## About the Authors
+
+{% for author in authors[:3] %}
+<div class="author-card">
+  <img src="{{ author.avatar }}" alt="{{ author.name }}" class="author-avatar">
+  <div class="author-info">
+    <div class="author-name">{{ author.name }}</div>
+    <div class="author-bio"><a href="../profiles/{{ author.uuid }}.md">View profile →</a></div>
+  </div>
+</div>
+
+{% endfor %}
+
+{% if authors|length > 3 %}
+*+ {{ authors|length - 3 }} more contributor(s)*
+{% endif %}
+
+{% endif %}

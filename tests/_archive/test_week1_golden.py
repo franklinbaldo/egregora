@@ -23,7 +23,6 @@ import ibis
 import pytest
 from ibis.expr import datatypes as dt
 
-from egregora.data_primitives import GroupSlug
 from egregora.database.ir_schema import CONVERSATION_SCHEMA, IR_MESSAGE_SCHEMA, RUNS_TABLE_SCHEMA
 from egregora.database.tracking import record_run
 from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file, parse_source
@@ -111,7 +110,7 @@ def test_week1_golden_whatsapp_pipeline(  # noqa: PLR0915
         zip_path=whatsapp_fixture,
         chat_file=chat_file,
         group_name=group_name,
-        group_slug=GroupSlug(group_name.lower().replace(" ", "-")),
+        group_slug=group_name.lower().replace(" ", "-"),
         export_date=datetime.now(UTC).date(),
         media_files=[],  # We don't need media for this test
     )

@@ -24,12 +24,11 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from egregora.config.settings import create_default_config
-from egregora.data_primitives import GroupSlug
-from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file
-from egregora.utils.zip import validate_zip_contents
-from tests.utils.mock_batch_client import MockGeminiClient
-from tests.utils.pydantic_test_models import MockEmbeddingModel, install_writer_test_model
+from egregora.config.settings import create_default_config  # noqa: E402
+from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file  # noqa: E402
+from egregora.utils.zip import validate_zip_contents  # noqa: E402
+from tests.utils.mock_batch_client import MockGeminiClient  # noqa: E402
+from tests.utils.pydantic_test_models import MockEmbeddingModel, install_writer_test_model  # noqa: E402
 
 try:
     import ibis
@@ -63,7 +62,7 @@ class WhatsAppFixture:
 
     zip_path: Path
     group_name: str
-    group_slug: GroupSlug
+    group_slug: str
     chat_file: str
     export_date: date
 
@@ -89,7 +88,7 @@ def whatsapp_fixture() -> WhatsAppFixture:
     with zipfile.ZipFile(zip_path) as archive:
         validate_zip_contents(archive)
     group_name, chat_file = discover_chat_file(zip_path)
-    group_slug = GroupSlug(group_name.lower().replace(" ", "-"))
+    group_slug = group_name.lower().replace(" ", "-")
     return WhatsAppFixture(
         zip_path=zip_path,
         group_name=group_name,

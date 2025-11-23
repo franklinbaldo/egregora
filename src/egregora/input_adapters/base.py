@@ -21,22 +21,19 @@ Note: This is the only adapter interface. The legacy InputSource has been remove
 
 from __future__ import annotations
 
-import hashlib
 import logging
-import shutil
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
-from uuid import UUID, uuid5
+from uuid import UUID
 
 from egregora.data_primitives.document import Document
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
-    from egregora.data_primitives import GroupSlug
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +103,7 @@ class Export:
 
     zip_path: Path
     group_name: str
-    group_slug: GroupSlug
+    group_slug: str
     export_date: date
     chat_file: str
     media_files: list[str]
@@ -233,35 +230,6 @@ class InputAdapter(ABC):
         """Optional writer guidance injected into prompts."""
         return ""
 
-    def extract_media(self, _input_path: Path, _output_dir: Path, **_kwargs: Any) -> MediaMapping:
-        """Extract media files from the export (OPTIONAL).
-
-        Some sources bundle media with the export (e.g., WhatsApp ZIP).
-        This method extracts media files to the output directory and returns
-        a mapping that the core pipeline can use to rewrite message references.
-
-        **This method is optional.** The default implementation returns an empty
-        dictionary, indicating no media extraction. Override this method only if
-        your source includes bundled media files.
-
-        Args:
-            input_path: Path to the raw export
-            output_dir: Directory where media should be extracted
-            **kwargs: Source-specific parameters
-
-        Returns:
-            Dictionary mapping message references to extracted file paths.
-            Default: empty dict (no media)
-            Example: {"image.jpg": Path("media/2024-01-15-image.jpg")}
-
-        Note:
-            For sources where media is handled elsewhere (e.g., via URLs or
-            period-specific extraction), returning an empty dict is appropriate.
-            The pipeline will handle media extraction at the appropriate stage.
-
-        """
-        return {}
-
     def deliver_media(self, _media_reference: str, **_kwargs: Any) -> Document | None:
         """Deliver media file as a Document (OPTIONAL).
 
@@ -328,104 +296,6 @@ class InputAdapter(ABC):
 
         """
         return {}
-
-    @staticmethod
-    def generate_media_uuid(file_path: Path) -> str:
-        """Generate content-hash based UUID for media file (HELPER METHOD).
-
-        This is a concrete helper method provided by the base class for
-        standardizing media filenames. Adapters and runners can use this
-        to ensure consistent UUID generation across all sources.
-
-        Creates a deterministic UUIDv5 from the file's SHA-256 hash, enabling:
-        - Deduplication: Same content = same UUID
-        - Source-agnostic: Works for any file from any source
-        - Clean naming: No date prefixes, just {uuid}.{ext}
-
-        Args:
-            file_path: Path to the media file
-
-        Returns:
-            UUID string (e.g., "a1b2c3d4-e5f6-5789-a1b2-c3d4e5f67890")
-
-        Example:
-            >>> uuid1 = InputAdapter.generate_media_uuid(Path("photo1.jpg"))
-            >>> uuid2 = InputAdapter.generate_media_uuid(Path("photo1_copy.jpg"))
-            >>> uuid1 == uuid2  # True if content is identical
-
-        """
-        sha256 = hashlib.sha256()
-        with file_path.open("rb") as f:
-            # Read in chunks to handle large files efficiently
-            for chunk in iter(lambda: f.read(8192), b""):
-                sha256.update(chunk)
-        content_hash = sha256.hexdigest()
-        media_uuid = uuid5(MEDIA_UUID_NAMESPACE, content_hash)
-        return str(media_uuid)
-
-    def standardize_media_file(
-        self, source_file: Path, media_dir: Path, *, get_subfolder: callable | None = None
-    ) -> Path:
-        """Standardize a media file with content-hash UUID (HELPER METHOD).
-
-        This is a concrete helper method provided by the base class for
-        standardizing media files. It:
-        1. Generates content-hash based UUID
-        2. Determines subfolder (images/, videos/, etc.)
-        3. Moves file to standardized location
-        4. Handles deduplication (same content = don't copy)
-
-        Args:
-            source_file: Path to the source media file
-            media_dir: Base media directory (e.g., docs/media)
-            get_subfolder: Optional function to determine subfolder from extension
-                          If None, files go directly in media_dir
-
-        Returns:
-            Absolute path to standardized file
-
-        Example:
-            >>> from egregora.ops.media import get_media_subfolder
-            >>> adapter = WhatsAppAdapter()
-            >>> standardized = adapter.standardize_media_file(
-            ...     Path("/tmp/IMG-001.jpg"),
-            ...     Path("docs/media"),
-            ...     get_subfolder=get_media_subfolder
-            ... )
-            >>> print(standardized)
-            /abs/path/docs/media/images/abc123-uuid.jpg
-
-        """
-        media_uuid = self.generate_media_uuid(source_file)
-        file_extension = source_file.suffix
-        if get_subfolder:
-            subfolder = get_subfolder(file_extension)
-            target_dir = media_dir / subfolder
-        else:
-            target_dir = media_dir
-        target_dir.mkdir(parents=True, exist_ok=True)
-        standardized_name = f"{media_uuid}{file_extension}"
-        standardized_path = target_dir / standardized_name
-        try:
-            source_file.rename(standardized_path)
-            logger.debug("Standardized media: %s → %s", source_file.name, standardized_name)
-        except FileExistsError:
-            logger.debug("Media file already exists (duplicate): %s", standardized_name)
-            source_file.unlink()
-        except OSError as e:
-            cross_link_error = 18
-            if e.errno == cross_link_error:
-                logger.debug("Cross-filesystem move detected, using shutil.move()")
-                try:
-                    shutil.move(str(source_file), str(standardized_path))
-                    logger.debug("Standardized media: %s → %s", source_file.name, standardized_name)
-                except FileExistsError:
-                    logger.debug("Media file already exists (duplicate): %s", standardized_name)
-                    if source_file.exists():
-                        source_file.unlink()
-            else:
-                raise
-        return standardized_path.resolve()
 
     def __repr__(self) -> str:
         """String representation of the adapter."""
