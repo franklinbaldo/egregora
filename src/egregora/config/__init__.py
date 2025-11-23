@@ -4,7 +4,7 @@ This module serves as the single entry point for all configuration-related impor
 Instead of navigating deep module paths, consumers can import everything configuration-related
 from this facade:
 
-    from egregora.config import EgregoraConfig, WriterAgentContext
+    from egregora.config import EgregoraConfig, WriterAgentSettings
 
 **Facade Pattern Benefits:**
 
