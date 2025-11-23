@@ -36,6 +36,7 @@ from egregora.agents.formatting import (
     _load_journal_memory,
 )
 from egregora.agents.model_limits import PromptTooLargeError
+from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import (
     VectorStore,
     embed_query_text,
@@ -43,13 +44,13 @@ from egregora.agents.shared.rag import (
     is_rag_available,
     query_media,
 )
-from egregora.config.settings import EgregoraConfig
+from egregora.config.settings import EgregoraConfig, RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import UrlContext, UrlConvention
+from egregora.data_primitives.protocols import UrlContext
+from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.knowledge.profiles import get_active_authors, read_profile
-from egregora.output_adapters import create_output_format, output_registry
-from egregora.output_adapters.base import OutputSink
-from egregora.output_adapters.mkdocs import MkDocsAdapter
+from egregora.output_adapters import output_registry
+from egregora.output_adapters.base import OutputAdapter
 from egregora.resources.prompts import render_prompt
 from egregora.utils.batch import call_with_retries_sync
 from egregora.utils.metrics import UsageTracker
@@ -59,8 +60,6 @@ from egregora.utils.retry import RetryPolicy, retry_sync
 
 if TYPE_CHECKING:
     from google import genai
-
-    from egregora.orchestration.context import PipelineContext
 
 logger = logging.getLogger(__name__)
 MAX_RAG_QUERY_BYTES = 30000
@@ -134,45 +133,49 @@ class WriterAgentReturn(BaseModel):
 
 
 @dataclass(frozen=True)
+class WriterResources:
+    """Explicit resources required by the writer agent."""
+
+    # The Sink/Source for posts and profiles
+    output: OutputAdapter
+
+    # Knowledge Stores
+    rag_store: VectorStore | None
+    annotations_store: AnnotationStore | None
+    storage: DuckDBStorageManager | None  # Required for RAG indexing
+
+    # Configuration required for tools
+    embedding_model: str
+    retrieval_config: RAGSettings
+
+    # Paths for prompt context loading
+    profiles_dir: Path
+    journal_dir: Path
+    prompts_dir: Path | None
+
+    # Runtime trackers
+    client: genai.Client | None
+    quota: QuotaTracker | None
+    usage: UsageTracker | None
+    rate_limit: AsyncRateLimit | None
+
+
+@dataclass(frozen=True)
 class WriterDeps:
     """Immutable dependencies passed to agent tools.
 
     Replaces WriterAgentContext and WriterAgentState with a single,
-    simplified structure wrapping the PipelineContext.
+    simplified structure wrapping WriterResources.
     """
 
-    ctx: PipelineContext
+    resources: WriterResources
     window_start: datetime
     window_end: datetime
     window_label: str
-    prompts_dir: Path | None
-
-    quota: QuotaTracker | None
-    usage_tracker: UsageTracker | None
-    rate_limit: AsyncRateLimit | None
 
     @property
-    def output_format(self) -> OutputSink:
-        if self.ctx.output_format is None:
-            message = "Output format not initialized in context"
-            raise RuntimeError(message)
-        return self.ctx.output_format
-
-    @property
-    def output_sink(self) -> OutputSink:
-        return self.output_format
-
-    @property
-    def url_convention(self) -> UrlConvention:
-        return self.output_format.url_convention
-
-    @property
-    def url_context(self) -> UrlContext:
-        if self.ctx.url_context is None:
-            # Fallback if not set, though it should be
-            storage_root = self.ctx.site_root if self.ctx.site_root else self.ctx.output_dir
-            return UrlContext(base_url="", site_prefix="", base_path=storage_root)
-        return self.ctx.url_context
+    def output_sink(self) -> OutputAdapter:
+        return self.resources.output
 
 
 # ============================================================================
@@ -196,14 +199,14 @@ def register_writer_tools(  # noqa: C901
             metadata=metadata.model_dump(exclude_none=True),
             source_window=ctx.deps.window_label,
         )
-        url = ctx.deps.url_convention.canonical_url(doc, ctx.deps.url_context)
-        ctx.deps.output_sink.persist(doc)
-        logger.info("Writer agent saved post at URL: %s (doc_id: %s)", url, doc.document_id)
-        return WritePostResult(status="success", path=url)
+
+        ctx.deps.resources.output.persist(doc)
+        logger.info("Writer agent saved post (doc_id: %s)", doc.document_id)
+        return WritePostResult(status="success", path=doc.document_id)
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str) -> ReadProfileResult:
-        doc = ctx.deps.output_sink.read_document(DocumentType.PROFILE, author_uuid)
+        doc = ctx.deps.resources.output.read_document(DocumentType.PROFILE, author_uuid)
         content = doc.content if doc else "No profile exists yet."
         return ReadProfileResult(content=content)
 
@@ -215,10 +218,9 @@ def register_writer_tools(  # noqa: C901
             metadata={"uuid": author_uuid},
             source_window=ctx.deps.window_label,
         )
-        url = ctx.deps.url_convention.canonical_url(doc, ctx.deps.url_context)
-        ctx.deps.output_sink.persist(doc)
-        logger.info("Writer agent saved profile at URL: %s (doc_id: %s)", url, doc.document_id)
-        return WriteProfileResult(status="success", path=url)
+        ctx.deps.resources.output.persist(doc)
+        logger.info("Writer agent saved profile (doc_id: %s)", doc.document_id)
+        return WriteProfileResult(status="success", path=doc.document_id)
 
     if enable_rag:
 
@@ -229,19 +231,19 @@ def register_writer_tools(  # noqa: C901
             media_types: list[str] | None = None,
             limit: int = 5,
         ) -> SearchMediaResult:
-            if not ctx.deps.ctx.rag_store:
+            if not ctx.deps.resources.rag_store:
                 return SearchMediaResult(results=[])
 
             results = query_media(
                 query=query,
-                store=ctx.deps.ctx.rag_store,
+                store=ctx.deps.resources.rag_store,
                 media_types=media_types,
                 top_k=limit,
                 min_similarity_threshold=0.7,
-                embedding_model=ctx.deps.ctx.embedding_model,
-                retrieval_mode=ctx.deps.ctx.retrieval_mode,
-                retrieval_nprobe=ctx.deps.ctx.retrieval_nprobe,
-                retrieval_overfetch=ctx.deps.ctx.retrieval_overfetch,
+                embedding_model=ctx.deps.resources.embedding_model,
+                retrieval_mode=ctx.deps.resources.retrieval_config.mode,
+                retrieval_nprobe=ctx.deps.resources.retrieval_config.nprobe,
+                retrieval_overfetch=ctx.deps.resources.retrieval_config.overfetch,
             )
             media_df = results.execute()
             items = [MediaItem(**row) for row in media_df.to_dict("records")]
@@ -251,10 +253,10 @@ def register_writer_tools(  # noqa: C901
     def annotate_conversation_tool(
         ctx: RunContext[WriterDeps], parent_id: str, parent_type: str, commentary: str
     ) -> AnnotationResult:
-        if ctx.deps.ctx.annotations_store is None:
+        if ctx.deps.resources.annotations_store is None:
             msg = "Annotation store is not configured"
             raise RuntimeError(msg)
-        annotation = ctx.deps.ctx.annotations_store.save_annotation(
+        annotation = ctx.deps.resources.annotations_store.save_annotation(
             parent_id=parent_id, parent_type=parent_type, commentary=commentary
         )
         return AnnotationResult(
@@ -271,7 +273,7 @@ def register_writer_tools(  # noqa: C901
             ctx: RunContext[WriterDeps], post_slug: str, title: str, summary: str
         ) -> BannerResult:
             # media_dir is not part of OutputSink, so we use output_format here
-            banner_output_dir = ctx.deps.output_format.media_dir / "images"
+            banner_output_dir = ctx.deps.resources.output.media_dir / "images"
             banner_path = generate_banner_for_post(
                 post_title=title, post_summary=summary, output_dir=banner_output_dir, slug=post_slug
             )
@@ -393,27 +395,27 @@ def _truncate_for_embedding(text: str, byte_limit: int = MAX_RAG_QUERY_BYTES) ->
 
 def _build_writer_prompt_context(
     table_with_str_uuids: Table,
-    ctx: PipelineContext,
+    resources: WriterResources,
 ) -> WriterPromptContext:
     """Collect contextual inputs used when rendering the writer prompt."""
     messages_table = table_with_str_uuids.to_pyarrow()
-    conversation_md = _build_conversation_markdown_table(messages_table, ctx.annotations_store)
+    conversation_md = _build_conversation_markdown_table(messages_table, resources.annotations_store)
 
-    if ctx.enable_rag and ctx.rag_store:
+    if resources.rag_store and resources.client:
         rag_context = build_rag_context_for_prompt(
             conversation_md,
-            ctx.rag_store,
-            ctx.client,
-            embedding_model=ctx.embedding_model,
-            retrieval_mode=ctx.retrieval_mode,
-            retrieval_nprobe=ctx.retrieval_nprobe,
-            retrieval_overfetch=ctx.retrieval_overfetch,
+            resources.rag_store,
+            resources.client,
+            embedding_model=resources.embedding_model,
+            retrieval_mode=resources.retrieval_config.mode,
+            retrieval_nprobe=resources.retrieval_config.nprobe,
+            retrieval_overfetch=resources.retrieval_config.overfetch,
         )
     else:
         rag_context = ""
 
-    profiles_context = _load_profiles_context(table_with_str_uuids, ctx.profiles_dir)
-    journal_memory = _load_journal_memory(ctx.output_dir)
+    profiles_context = _load_profiles_context(table_with_str_uuids, resources.profiles_dir)
+    journal_memory = _load_journal_memory(resources.journal_dir)
     active_authors = get_active_authors(table_with_str_uuids)
 
     return WriterPromptContext(
@@ -513,7 +515,7 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:  
 def _save_journal_to_file(  # noqa: PLR0913
     intercalated_log: list[JournalEntry],
     window_label: str,
-    output_sink: OutputSink,
+    output_format: OutputAdapter,
     posts_published: int,
     profiles_updated: int,
     window_start: datetime,
@@ -572,7 +574,7 @@ def _save_journal_to_file(  # noqa: PLR0913
             },
             source_window=window_label,
         )
-        output_sink.persist(doc)
+        output_format.persist(doc)
     except Exception:
         logger.exception("Failed to write journal")
         return None
@@ -614,43 +616,6 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
             _process_result(message.content, getattr(message, "tool_name", None))
 
     return saved_posts, saved_profiles
-
-
-def _prepare_deps(
-    ctx: PipelineContext,
-    window_start: datetime,
-    window_end: datetime,
-) -> WriterDeps:
-    """Prepare writer dependencies from pipeline context."""
-    window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
-
-    # Ensure output sink is initialized
-    if not ctx.output_format:
-        storage_root = ctx.site_root if ctx.site_root else ctx.output_dir
-        format_type = ctx.config.output.format
-
-        if format_type == "mkdocs":
-            output_format = MkDocsAdapter()
-            url_context = ctx.url_context or UrlContext(base_url="", site_prefix="", base_path=storage_root)
-            output_format.initialize(site_root=storage_root, url_context=url_context)
-        else:
-            output_format = create_output_format(storage_root, format_type=format_type)
-
-        # We need a new context with this format
-        ctx = ctx.with_output_format(output_format)
-
-    prompts_dir = ctx.site_root / ".egregora" / "prompts" if ctx.site_root else None
-
-    return WriterDeps(
-        ctx=ctx,
-        window_start=window_start,
-        window_end=window_end,
-        window_label=window_label,
-        prompts_dir=prompts_dir,
-        quota=ctx.quota_tracker,
-        usage_tracker=ctx.usage_tracker,
-        rate_limit=ctx.rate_limit,
-    )
 
 
 def _validate_prompt_fits(
@@ -717,10 +682,10 @@ def write_posts_with_pydantic_agent(
     retry_policy = RetryPolicy()
 
     def _invoke_agent() -> Any:
-        if context.rate_limit:
-            asyncio.run(context.rate_limit.acquire())
-        if context.quota:
-            context.quota.reserve(1)
+        if context.resources.rate_limit:
+            asyncio.run(context.resources.rate_limit.acquire())
+        if context.resources.quota:
+            context.resources.quota.reserve(1)
         return call_with_retries_sync(agent.run_sync, prompt, deps=context)
 
     try:
@@ -734,8 +699,8 @@ def write_posts_with_pydantic_agent(
         raise RuntimeError(msg) from exc
 
     usage = result.usage()
-    if context.usage_tracker:
-        context.usage_tracker.record(usage)
+    if context.resources.usage:
+        context.resources.usage.record(usage)
     saved_posts, saved_profiles = _extract_tool_results(result.all_messages())
     intercalated_log = _extract_intercalated_log(result.all_messages())
     if not intercalated_log:
@@ -753,7 +718,7 @@ def write_posts_with_pydantic_agent(
     _save_journal_to_file(
         intercalated_log,
         context.window_label,
-        context.output_sink,
+        context.resources.output,
         len(saved_posts),
         len(saved_profiles),
         context.window_start,
@@ -774,20 +739,21 @@ def write_posts_with_pydantic_agent(
 
 def _render_writer_prompt(
     prompt_context: WriterPromptContext,
-    ctx: PipelineContext,
     deps: WriterDeps,
+    config: EgregoraConfig,
+    adapter_content_summary: str,
+    adapter_generation_instructions: str,
 ) -> str:
     """Render the final writer prompt text."""
-    format_instructions = ctx.output_format.get_format_instructions() if ctx.output_format else ""
-    custom_instructions = ctx.config.writer.custom_instructions or ""
-    adapter_instructions = _adapter_generation_instructions(ctx)
-    if adapter_instructions:
-        custom_instructions = "\n\n".join(filter(None, [custom_instructions, adapter_instructions]))
-    source_context = _adapter_content_summary(ctx)
+    format_instructions = deps.resources.output.get_format_instructions()
+    custom_instructions = config.writer.custom_instructions or ""
+    if adapter_generation_instructions:
+        custom_instructions = "\n\n".join(filter(None, [custom_instructions, adapter_generation_instructions]))
+    source_context = adapter_content_summary
 
     return render_prompt(
         "writer.jinja",
-        prompts_dir=deps.prompts_dir,
+        prompts_dir=deps.resources.prompts_dir,
         date=deps.window_label,
         markdown_table=prompt_context.conversation_md,
         active_authors=", ".join(prompt_context.active_authors),
@@ -799,43 +765,6 @@ def _render_writer_prompt(
         source_context=source_context,
         enable_memes=False,
     )
-
-
-def _adapter_content_summary(ctx: PipelineContext) -> str:
-    adapter = getattr(ctx, "adapter", None)
-    if adapter is None:
-        return ""
-
-    summary: str | None = ""
-    try:
-        summary = getattr(adapter, "content_summary", "")
-    except Exception:  # noqa: BLE001
-        logger.debug("Adapter %s lacks content_summary", adapter)
-        summary = ""
-
-    if callable(summary):
-        try:
-            summary = summary()
-        except Exception:
-            logger.exception("Failed to evaluate adapter content summary")
-            summary = ""
-
-    return (summary or "").strip()
-
-
-def _adapter_generation_instructions(ctx: PipelineContext) -> str:
-    adapter = getattr(ctx, "adapter", None)
-    if adapter is None:
-        return ""
-
-    instructions = getattr(adapter, "generation_instructions", "")
-    if callable(instructions):
-        try:
-            instructions = instructions()
-        except Exception:
-            logger.exception("Failed to evaluate adapter generation instructions")
-            instructions = ""
-    return (instructions or "").strip()
 
 
 def _cast_uuid_columns_to_str(table: Table) -> Table:
@@ -852,7 +781,11 @@ def write_posts_for_window(
     table: Table,
     window_start: datetime,
     window_end: datetime,
-    ctx: PipelineContext,
+    resources: WriterResources,
+    config: EgregoraConfig,
+    # These are extracted from pipeline context earlier and passed explicitly now
+    adapter_content_summary: str = "",
+    adapter_generation_instructions: str = "",
 ) -> dict[str, list[str]]:
     """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
 
@@ -864,20 +797,33 @@ def write_posts_for_window(
 
     logger.info("Using Pydantic AI backend for writer")
 
+    window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
+
     # Prepare dependencies
-    deps = _prepare_deps(ctx, window_start, window_end)
+    deps = WriterDeps(
+        resources=resources,
+        window_start=window_start,
+        window_end=window_end,
+        window_label=window_label,
+    )
 
     # Prepare prompt context
     table_with_str_uuids = _cast_uuid_columns_to_str(table)
-    prompt_context = _build_writer_prompt_context(table_with_str_uuids, ctx)
+    prompt_context = _build_writer_prompt_context(table_with_str_uuids, resources)
 
     # Render prompt
-    prompt = _render_writer_prompt(prompt_context, ctx, deps)
+    prompt = _render_writer_prompt(
+        prompt_context,
+        deps,
+        config,
+        adapter_content_summary,
+        adapter_generation_instructions,
+    )
 
     try:
         saved_posts, saved_profiles = write_posts_with_pydantic_agent(
             prompt=prompt,
-            config=ctx.config,
+            config=config,
             context=deps,
         )
     except PromptTooLargeError:
@@ -888,22 +834,21 @@ def write_posts_for_window(
         raise RuntimeError(msg) from exc
 
     # Finalize
-    if ctx.output_format:
-        ctx.output_format.finalize_window(
-            window_label=deps.window_label,
-            posts_created=saved_posts,
-            profiles_updated=saved_profiles,
-            metadata=None,
-        )
+    resources.output.finalize_window(
+        window_label=deps.window_label,
+        posts_created=saved_posts,
+        profiles_updated=saved_profiles,
+        metadata=None,
+    )
 
     # Index newly created content
-    if ctx.enable_rag and ctx.rag_store and ctx.output_format and (saved_posts or saved_profiles):
+    if resources.retrieval_config.enabled and resources.rag_store and resources.storage and (saved_posts or saved_profiles):
         try:
             indexed_count = index_documents_for_rag(
-                ctx.output_format,
-                ctx.rag_store.parquet_path.parent,  # Use parent dir
-                ctx.storage,
-                embedding_model=ctx.embedding_model,
+                resources.output,
+                resources.rag_store.parquet_path.parent,  # Use parent dir
+                resources.storage,
+                embedding_model=resources.embedding_model,
             )
             if indexed_count > 0:
                 logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
