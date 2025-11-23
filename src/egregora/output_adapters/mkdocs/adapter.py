@@ -252,14 +252,15 @@ class MkDocsAdapter(OutputAdapter):
         site_paths = derive_mkdocs_paths(site_root)
 
         mkdocs_path = site_paths.get("mkdocs_path")
+        site_exists = False
         if mkdocs_path and mkdocs_path.exists():
             logger.info("MkDocs site already exists at %s (config: %s)", site_root, mkdocs_path)
-            return (mkdocs_path, False)
+            site_exists = True
 
         legacy_mkdocs = site_root / "mkdocs.yml"
         if legacy_mkdocs.exists() and legacy_mkdocs != mkdocs_path:
             logger.info("MkDocs site already exists at %s (config: %s)", site_root, legacy_mkdocs)
-            return (legacy_mkdocs, False)
+            site_exists = True
 
         # Site doesn't exist - create it
         try:
@@ -283,22 +284,26 @@ class MkDocsAdapter(OutputAdapter):
                 "default_writer_model": EgregoraConfig().models.writer,
             }
 
-            # Create mkdocs.yml in .egregora/ (default location)
-            mkdocs_template = env.get_template("mkdocs.yml.jinja")
-            mkdocs_content = mkdocs_template.render(**context)
+            # Create mkdocs.yml in .egregora/ (default location) ONLY if it doesn't exist
             new_mkdocs_path = site_paths["mkdocs_config_path"]  # Default: .egregora/mkdocs.yml
-            new_mkdocs_path.parent.mkdir(parents=True, exist_ok=True)
-            new_mkdocs_path.write_text(mkdocs_content, encoding="utf-8")
-            logger.info("Created .egregora/mkdocs.yml")
+            if not site_exists:
+                mkdocs_template = env.get_template("mkdocs.yml.jinja")
+                mkdocs_content = mkdocs_template.render(**context)
+                new_mkdocs_path.parent.mkdir(parents=True, exist_ok=True)
+                new_mkdocs_path.write_text(mkdocs_content, encoding="utf-8")
+                logger.info("Created .egregora/mkdocs.yml")
+            else:
+                # Use existing path for return value
+                new_mkdocs_path = mkdocs_path or legacy_mkdocs
 
-            # Create site structure
+            # Create site structure (will only create missing files)
             self._create_site_structure(site_paths, env, context)
         except Exception as e:
             msg = f"Failed to scaffold MkDocs site: {e}"
             raise RuntimeError(msg) from e
         else:
-            logger.info("MkDocs site scaffold created at %s", site_root)
-            return (new_mkdocs_path, True)
+            logger.info("MkDocs site scaffold checked/updated at %s", site_root)
+            return (new_mkdocs_path, not site_exists)
 
     # SiteScaffolder protocol -------------------------------------------------
 

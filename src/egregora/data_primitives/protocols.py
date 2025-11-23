@@ -29,6 +29,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
+    from ibis.expr.types import Table
+
     from egregora.data_primitives.document import Document, DocumentType
 
 

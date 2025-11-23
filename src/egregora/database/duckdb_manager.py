@@ -176,6 +176,8 @@ class DuckDBStorageManager:
         self._conn = duckdb.connect(db_str)
 
         # Enable HNSW index persistence for vector search
+        # Requires 'vss' extension to be loaded first
+        self._conn.execute("INSTALL vss; LOAD vss;")
         self._conn.execute("SET hnsw_enable_experimental_persistence=true")
 
         # Initialize Ibis backend
