@@ -8,30 +8,72 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from google.api_core import exceptions as google_exceptions
 from google.genai import types as genai_types
+from tenacity import RetryCallState, retry, stop_after_attempt, wait_random_exponential, retry_if_exception_type
+from tqdm import tqdm
 
 from egregora.config import EMBEDDING_DIM
 
 # utils/genai.py was removed; logic should be migrated or referenced from correct location
 # Assuming simple sleep/retry are acceptable replacements here, or they should be in utils
 
+T = TypeVar("T")
 
-def call_with_retries_sync(func: Callable, *args: Any, **kwargs: Any) -> Any:
-    # Simple retry logic as placeholder since genai.py is gone
-    # TODO: Use tenacity or similar if available globally
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            return func(*args, **kwargs)
-        except Exception:
-            if attempt == max_retries - 1:
-                raise
-            time.sleep(2**attempt)
-    return None
+logger = logging.getLogger(__name__)
+
+
+# New retry implementation using tenacity
+_RETRYABLE_ERRORS = (
+    google_exceptions.ResourceExhausted,
+    google_exceptions.ServiceUnavailable,
+    google_exceptions.InternalServerError,
+    google_exceptions.GatewayTimeout,
+)
+_MAX_RETRIES = 5
+_INITIAL_WAIT_SECONDS = 2.0
+_MAX_WAIT_SECONDS = 60.0
+
+
+def _log_before_retry(retry_state: "RetryCallState") -> None:
+    """Log before retrying a call."""
+    logger.warning(
+        "Retrying %s (attempt %d, waiting %.1fs)...",
+        retry_state.fn.__name__,
+        retry_state.attempt_number,
+        retry_state.next_action.sleep,
+    )
+
+@retry(
+    stop=stop_after_attempt(_MAX_RETRIES),
+    wait=wait_random_exponential(min=_INITIAL_WAIT_SECONDS, max=_MAX_WAIT_SECONDS),
+    before_sleep=_log_before_retry,
+    retry=retry_if_exception_type(_RETRYABLE_ERRORS),
+)
+def call_with_retries_sync(func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
+    """Execute a synchronous function with exponential backoff and jitter.
+    Args:
+        func: The function to execute.
+        *args: Positional arguments for the function.
+        **kwargs: Keyword arguments for the function.
+    Returns:
+        The result of the function.
+    Raises:
+        Exception: If the function fails after all retry attempts.
+    """
+    return func(*args, **kwargs)
 
 
 def sleep_with_progress_sync(duration: float, message: str = "Sleeping") -> None:
-    time.sleep(duration)
+    """Sleep for a given duration with a progress bar.
+    Args:
+        duration: The number of seconds to sleep.
+        message: The message to display in the progress bar.
+    """
+    with tqdm(total=int(duration), desc=message, unit="s") as pbar:
+        for _ in range(int(duration)):
+            time.sleep(1)
+            pbar.update(1)
 
 
 if TYPE_CHECKING:
@@ -40,7 +82,6 @@ if TYPE_CHECKING:
     from google import genai
 
 
-logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -84,15 +125,20 @@ class EmbeddingBatchResult:
     error: genai_types.JobError | None = None
 
 
-T = TypeVar("T")
 
 
 class GeminiBatchClient:
-    """Minimal synchronous wrapper around ``client.batches``."""
+    """Minimal synchronous wrapper around ``client.batches``.
+    Args:
+        client: The Google GenAI client.
+        default_model: The default model to use for batch jobs.
+        poll_interval: The default polling interval in seconds.
+        timeout: The default timeout in seconds.
+    """
 
     def __init__(
         self,
-        client: genai.Client,
+        client: "genai.Client",
         default_model: str,
         poll_interval: float = 5.0,
         timeout: float | None = 900.0,
@@ -147,7 +193,15 @@ class GeminiBatchClient:
         poll_interval: float | None = None,
         timeout: float | None = None,
     ) -> list[BatchPromptResult]:
-        """Execute a batch generate job and return responses in order."""
+        """Execute a batch generate job and return responses in order.
+        Args:
+            requests: A sequence of batch prompt requests.
+            _display_name: A display name for the batch job.
+            poll_interval: The polling interval in seconds.
+            timeout: The timeout in seconds.
+        Returns:
+            A list of batch prompt results.
+        """
         if not requests:
             return []
 
@@ -215,7 +269,15 @@ class GeminiBatchClient:
         poll_interval: float | None = None,
         timeout: float | None = None,
     ) -> list[EmbeddingBatchResult]:
-        """Execute a batch embedding job."""
+        """Execute a batch embedding job.
+        Args:
+            requests: A sequence of embedding batch requests.
+            _display_name: A display name for the batch job.
+            poll_interval: The polling interval in seconds.
+            timeout: The timeout in seconds.
+        Returns:
+            A list of embedding batch results.
+        """
         if not requests:
             return []
 
