@@ -1151,6 +1151,194 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 msg = f"Failed to resolve collision for {path} after {max_attempts} attempts"
                 raise RuntimeError(msg)
 
+    # ============================================================================
+    # Phase 2: Dynamic Data Population for UX Templates
+    # ============================================================================
+
+    def _get_site_stats(self) -> dict[str, int]:
+        """Calculate site statistics for homepage.
+
+        Returns:
+            Dictionary with post_count, profile_count, media_count, journal_count
+
+        """
+        stats = {
+            "post_count": 0,
+            "profile_count": 0,
+            "media_count": 0,
+            "journal_count": 0,
+        }
+
+        if not hasattr(self, "posts_dir") or not self.posts_dir:
+            return stats
+
+        # Count posts (exclude index.md and tags.md)
+        if self.posts_dir.exists():
+            stats["post_count"] = len(
+                [p for p in self.posts_dir.glob("*.md") if p.name not in {"index.md", "tags.md"}]
+            )
+
+        # Count profiles (exclude index.md)
+        if self.profiles_dir.exists():
+            stats["profile_count"] = len([p for p in self.profiles_dir.glob("*.md") if p.name != "index.md"])
+
+        # Count media (URLs + images + videos + audio - exclude indexes)
+        if self.media_dir.exists():
+            all_media = list(self.media_dir.rglob("*.md"))
+            stats["media_count"] = len([p for p in all_media if p.name != "index.md"])
+
+        # Count journal entries (exclude index.md)
+        if self.journal_dir.exists():
+            stats["journal_count"] = len([p for p in self.journal_dir.glob("*.md") if p.name != "index.md"])
+
+        return stats
+
+    def _get_profiles_data(self) -> list[dict[str, Any]]:
+        """Extract profile metadata for profiles index.
+
+        Returns:
+            List of profile dictionaries with uuid, name, avatar, bio, topics
+
+        """
+        profiles = []
+
+        if not hasattr(self, "profiles_dir") or not self.profiles_dir.exists():
+            return profiles
+
+        for profile_path in sorted(self.profiles_dir.glob("[!index]*.md")):
+            try:
+                content = profile_path.read_text(encoding="utf-8")
+                metadata, _ = parse_frontmatter(content)
+
+                # Use avatar from frontmatter or generate fallback
+                avatar = metadata.get("avatar", "")
+                if not avatar:
+                    from egregora.knowledge.profiles import _generate_fallback_avatar_url
+
+                    avatar = _generate_fallback_avatar_url(profile_path.stem)
+
+                profiles.append(
+                    {
+                        "uuid": profile_path.stem,
+                        "name": metadata.get("name", profile_path.stem[:8]),
+                        "avatar": avatar,
+                        "bio": metadata.get("bio", "Profile pending - first contributions detected"),
+                        "topics": metadata.get("topics", []),
+                    }
+                )
+            except (OSError, yaml.YAMLError) as e:
+                logger.warning("Failed to parse profile %s: %s", profile_path, e)
+                continue
+
+        return profiles
+
+    def _get_recent_media(self, limit: int = 5) -> list[dict[str, Any]]:
+        """Get recent media items for media index.
+
+        Args:
+            limit: Maximum number of items to return
+
+        Returns:
+            List of media dictionaries with title, url, slug, summary
+
+        """
+        media_items = []
+
+        urls_dir = self.media_dir / "urls" if hasattr(self, "media_dir") else None
+        if not urls_dir or not urls_dir.exists():
+            return media_items
+
+        # Get all URL enrichments, sorted by modification time (newest first)
+        url_files = sorted(urls_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
+
+        for media_path in url_files:
+            try:
+                content = media_path.read_text(encoding="utf-8")
+                metadata, body = parse_frontmatter(content)
+
+                # Extract summary from content
+                summary = ""
+                if "## Summary" in body:
+                    summary_part = body.split("## Summary", 1)[1].split("##", 1)[0]
+                    summary = summary_part.strip()[:200]
+
+                media_items.append(
+                    {
+                        "title": metadata.get("title", media_path.stem),
+                        "url": metadata.get("url", ""),
+                        "slug": metadata.get("slug", media_path.stem),
+                        "summary": summary or metadata.get("description", ""),
+                    }
+                )
+            except (OSError, yaml.YAMLError) as e:
+                logger.warning("Failed to parse media %s: %s", media_path, e)
+                continue
+
+        return media_items
+
+    def _append_author_cards(self, content: str, author_ids: list[str]) -> str:
+        """Append author cards to post content using Jinja template.
+
+        Args:
+            content: Post markdown content
+            author_ids: List of author UUIDs
+
+        Returns:
+            Content with author cards appended
+
+        """
+        if not author_ids:
+            return content
+
+        # Load .authors.yml
+        authors_file = None
+        if hasattr(self, "site_root") and self.site_root:
+            for potential_path in [self.site_root / "docs" / ".authors.yml", self.site_root / ".authors.yml"]:
+                if potential_path.exists():
+                    authors_file = potential_path
+                    break
+
+        if not authors_file:
+            return content
+
+        try:
+            with authors_file.open("r", encoding="utf-8") as f:
+                authors_db = yaml.safe_load(f) or {}
+        except (OSError, yaml.YAMLError) as e:
+            logger.warning("Failed to load .authors.yml: %s", e)
+            return content
+
+        # Build author data for template
+        authors_data = []
+        for author_id in author_ids:
+            author = authors_db.get(author_id, {})
+            name = author.get("name", author_id[:8])
+            avatar = author.get("avatar", "")
+
+            if not avatar:
+                from egregora.knowledge.profiles import _generate_fallback_avatar_url
+
+                avatar = _generate_fallback_avatar_url(author_id)
+
+            authors_data.append(
+                {
+                    "uuid": author_id,
+                    "name": name,
+                    "avatar": avatar,
+                }
+            )
+
+        # Render using Jinja template
+        try:
+            templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
+            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
+            template = env.get_template("partials/author_cards.jinja")
+            author_cards_html = template.render(authors=authors_data)
+            return content.rstrip() + "\n" + author_cards_html
+        except (OSError, TemplateError) as e:
+            logger.warning("Failed to render author cards template: %s", e)
+            return content
+
 
 # ============================================================================
 # MkDocs filesystem storage helpers
