@@ -63,7 +63,7 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
             # Generic scaffold doesn't return created status, assume True if no error
             created = True
     except Exception as e:
-        logger.error("Failed to scaffold site: %s", e)
+        logger.exception("Failed to scaffold site: %s", e)
         raise
 
     # Return docs_dir for backward compatibility

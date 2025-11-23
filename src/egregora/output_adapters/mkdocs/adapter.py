@@ -217,14 +217,6 @@ class MkDocsAdapter(OutputAdapter):
         legacy_path = site_root / "mkdocs.yml"
         return legacy_path.exists()
 
-    def scaffold(self, path: Path, config: dict) -> None:
-        """Initialize directory structure, config files, assets.
-
-        Implements SiteScaffolder.scaffold.
-        """
-        site_name = config.get("site_name", "Egregora Archive")
-        self.scaffold_site(path, site_name)
-
     def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure.
 
@@ -315,9 +307,6 @@ class MkDocsAdapter(OutputAdapter):
         mkdocs_path, created = self.scaffold_site(path, site_name or path.name)
         if not created:
             logger.info("MkDocs site already exists at %s (config: %s)", path, mkdocs_path)
-
-    def validate_structure(self, path: Path) -> bool:
-        return self.supports_site(path)
 
     def _create_site_structure(
         self, site_paths: dict[str, Any], env: Environment, context: dict[str, Any]

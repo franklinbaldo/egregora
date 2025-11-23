@@ -9,7 +9,7 @@ import logging
 import re
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 import ibis
 
@@ -21,6 +21,9 @@ from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA, VectorStore
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.utils.frontmatter_utils import parse_frontmatter
+
+if TYPE_CHECKING:
+    from egregora.data_primitives.protocols import OutputAdapter
 
 logger = logging.getLogger(__name__)
 

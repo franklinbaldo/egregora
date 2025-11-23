@@ -669,7 +669,7 @@ def _validate_prompt_fits(
     max_prompt_tokens = getattr(config.pipeline, "max_prompt_tokens", 100_000)
     use_full_context_window = getattr(config.pipeline, "use_full_context_window", False)
 
-    fits, estimated_tokens, effective_limit = validate_prompt_fits(
+    fits, estimated_tokens, _effective_limit = validate_prompt_fits(
         prompt,
         model_name,
         max_prompt_tokens=max_prompt_tokens,
