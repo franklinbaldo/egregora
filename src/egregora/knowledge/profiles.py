@@ -84,15 +84,180 @@ def write_profile(
     import yaml
 
     yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
-    full_profile = f"---\n{yaml_front}---\n\n{content}"
+
+    # Prepend avatar if available OR use fallback
+    profile_body = content
+    avatar_url = front_matter.get("avatar")
+
+    if not avatar_url:
+        avatar_url = _generate_fallback_avatar_url(author_uuid)
+        # Note: We don't save the fallback URL to front_matter to allow
+        # the user to set a custom one later without overwriting "None".
+        # But we DO render it in the profile body.
+
+    if avatar_url:
+        # Use MkDocs attribute syntax for alignment and size
+        profile_body = f"![Avatar]({avatar_url}){{ align=left width=150 }}\n\n{profile_body}"
+
+    full_profile = f"---\n{yaml_front}---\n\n{profile_body}"
     profile_path.write_text(full_profile, encoding="utf-8")
 
     logger.info("Saved profile for %s to %s", author_uuid, profile_path)
 
     # Update .authors.yml for MkDocs blog plugin
-    _update_authors_yml(profiles_dir.parent, author_uuid, front_matter)
+    # Also use fallback for authors.yml if needed
+    if "avatar" not in front_matter and avatar_url:
+        # Create a copy for authors.yml that includes the fallback
+        front_matter_for_authors = front_matter.copy()
+        front_matter_for_authors["avatar"] = avatar_url
+        _update_authors_yml(profiles_dir.parent, author_uuid, front_matter_for_authors)
+    else:
+        _update_authors_yml(profiles_dir.parent, author_uuid, front_matter)
 
     return str(profile_path)
+
+
+def _generate_fallback_avatar_url(author_uuid: str) -> str:
+    """Generate a deterministic fallback avatar URL using getavataaars.com.
+
+    Args:
+        author_uuid: The author's UUID
+
+    Returns:
+        A URL to a generated avatar image
+
+    """
+    import hashlib
+
+    # Deterministically select options based on UUID hash
+    # We use different slices of the hash to pick different attributes
+    h = hashlib.md5(author_uuid.encode()).hexdigest()  # noqa: S324
+
+    # Helper to pick from options
+    def pick(options: list[str], offset: int) -> str:
+        idx = int(h[offset : offset + 2], 16) % len(options)
+        return options[idx]
+
+    # Options from getavataaars.com
+    accessories = ["Blank", "Kurt", "Prescription01", "Prescription02", "Round", "Sunglasses", "Wayfarers"]
+    clothe_type = [
+        "BlazerShirt",
+        "BlazerSweater",
+        "CollarSweater",
+        "GraphicShirt",
+        "Hoodie",
+        "Overall",
+        "ShirtCrewNeck",
+        "ShirtScoopNeck",
+        "ShirtVNeck",
+    ]
+    eye_type = [
+        "Close",
+        "Cry",
+        "Default",
+        "Dizzy",
+        "EyeRoll",
+        "Happy",
+        "Hearts",
+        "Side",
+        "Squint",
+        "Surprised",
+        "Wink",
+        "WinkWacky",
+    ]
+    eyebrow_type = [
+        "Angry",
+        "AngryNatural",
+        "Default",
+        "DefaultNatural",
+        "FlatNatural",
+        "RaisedExcited",
+        "RaisedExcitedNatural",
+        "SadConcerned",
+        "SadConcernedNatural",
+        "UnibrowNatural",
+        "UpDown",
+        "UpDownNatural",
+    ]
+    mouth_type = [
+        "Concerned",
+        "Default",
+        "Disbelief",
+        "Eating",
+        "Grimace",
+        "Sad",
+        "ScreamOpen",
+        "Serious",
+        "Smile",
+        "Tongue",
+        "Twinkle",
+        "Vomit",
+    ]
+    skin_color = ["Tanned", "Yellow", "Pale", "Light", "Brown", "DarkBrown", "Black"]
+    top_type = [
+        "NoHair",
+        "Eyepatch",
+        "Hat",
+        "Hijab",
+        "Turban",
+        "WinterHat1",
+        "WinterHat2",
+        "WinterHat3",
+        "WinterHat4",
+        "LongHairBigHair",
+        "LongHairBob",
+        "LongHairBun",
+        "LongHairCurly",
+        "LongHairCurvy",
+        "LongHairDreads",
+        "LongHairFrida",
+        "LongHairFro",
+        "LongHairFroBand",
+        "LongHairNotTooLong",
+        "LongHairShavedSides",
+        "LongHairMiaWallace",
+        "LongHairStraight",
+        "LongHairStraight2",
+        "LongHairStraightStrand",
+        "ShortHairDreads01",
+        "ShortHairDreads02",
+        "ShortHairFrizzle",
+        "ShortHairShaggyMullet",
+        "ShortHairShortCurly",
+        "ShortHairShortFlat",
+        "ShortHairShortRound",
+        "ShortHairShortWaved",
+        "ShortHairSides",
+        "ShortHairTheCaesar",
+        "ShortHairTheCaesarSidePart",
+    ]
+    hair_color = [
+        "Auburn",
+        "Black",
+        "Blonde",
+        "BlondeGolden",
+        "Brown",
+        "BrownDark",
+        "PastelPink",
+        "Platinum",
+        "Red",
+        "SilverGray",
+    ]
+
+    params = [
+        f"accessoriesType={pick(accessories, 0)}",
+        "avatarStyle=Circle",
+        f"clotheType={pick(clothe_type, 2)}",
+        f"eyeType={pick(eye_type, 4)}",
+        f"eyebrowType={pick(eyebrow_type, 6)}",
+        "facialHairType=Blank",
+        f"hairColor={pick(hair_color, 8)}",
+        f"mouthType={pick(mouth_type, 10)}",
+        f"skinColor={pick(skin_color, 12)}",
+        f"topType={pick(top_type, 14)}",
+    ]
+
+    return f"https://getavataaars.com/?{'&'.join(params)}"
 
 
 def get_active_authors(

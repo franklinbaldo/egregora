@@ -276,7 +276,15 @@ def register_writer_tools(  # noqa: C901
                 post_title=title, post_summary=summary, output_dir=banner_output_dir, slug=post_slug
             )
             if banner_path:
-                return BannerResult(status="success", path=str(banner_path))
+                # Convert absolute path to web-friendly path
+                # If using MkDocsAdapter, use its helper
+                if hasattr(ctx.deps.output_format, "get_media_url_path") and ctx.deps.ctx.site_root:
+                    web_path = ctx.deps.output_format.get_media_url_path(banner_path, ctx.deps.ctx.site_root)
+                else:
+                    # Fallback: assume standard structure /media/images/filename
+                    web_path = f"/media/images/{banner_path.name}"
+
+                return BannerResult(status="success", path=web_path)
             return BannerResult(status="failed", path=None)
 
 
@@ -931,7 +939,7 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     """Get top N active authors by message count."""
     author_counts = (
         table.filter(~table.author_uuid.cast("string").isin(["system", "egregora"]))
-        .filter(table.author_uuid.notnull())
+        .filter(table.author_uuid.notna())
         .filter(table.author_uuid.cast("string") != "")
         .group_by("author_uuid")
         .aggregate(count=ibis._.count())
