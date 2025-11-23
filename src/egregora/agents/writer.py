@@ -1018,7 +1018,7 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     """Get top N active authors by message count."""
     author_counts = (
         table.filter(~table.author_uuid.cast("string").isin(["system", "egregora"]))
-        .filter(table.author_uuid.notnull())  # noqa: PD004 - Ibis uses notnull(), not notna()
+        .filter(table.author_uuid.notnull())
         .filter(table.author_uuid.cast("string") != "")
         .group_by("author_uuid")
         .aggregate(count=ibis._.count())

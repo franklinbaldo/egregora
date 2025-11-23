@@ -1,19 +1,19 @@
 """Unit tests for batch processing utilities."""
+
 from __future__ import annotations
 
-import unittest.mock as mock
-import time
+from unittest import mock
 
 import pytest
-from google.genai import types as genai_types
 from google.api_core import exceptions as google_exceptions
+from google.genai import types as genai_types
 
 from egregora.utils.batch import (
     BatchPromptRequest,
     EmbeddingBatchRequest,
     GeminiBatchClient,
-    chunk_requests,
     call_with_retries_sync,
+    chunk_requests,
 )
 
 
@@ -42,16 +42,12 @@ def test_gemini_batch_client_generate_content(mock_genai_client):
     mock_part.text = "response"
     mock_response.parts = [mock_part]
 
-    mock_job.dest.inlined_responses = [
-        mock.MagicMock(response=mock_response, error=None)
-    ]
+    mock_job.dest.inlined_responses = [mock.MagicMock(response=mock_response, error=None)]
     mock_genai_client.batches.create.return_value = mock_job
     mock_genai_client.batches.get.return_value = mock_job
 
     client = GeminiBatchClient(mock_genai_client, "gemini-1.5-pro")
-    requests = [
-        BatchPromptRequest(contents=[genai_types.Content(parts=[genai_types.Part(text="prompt")])])
-    ]
+    requests = [BatchPromptRequest(contents=[genai_types.Content(parts=[genai_types.Part(text="prompt")])])]
     results = client.generate_content(requests)
 
     assert len(results) == 1
@@ -72,10 +68,7 @@ def test_gemini_batch_client_embed_content(mock_genai_client):
     mock_response = mock.MagicMock()
     mock_response.embedding = mock_embedding
 
-
-    mock_job.dest.inlined_embed_content_responses = [
-        mock.MagicMock(response=mock_response, error=None)
-    ]
+    mock_job.dest.inlined_embed_content_responses = [mock.MagicMock(response=mock_response, error=None)]
     mock_genai_client.batches.create_embeddings.return_value = mock_job
     mock_genai_client.batches.get.return_value = mock_job
 
@@ -100,12 +93,13 @@ def test_gemini_batch_client_generate_content_failed_job(mock_genai_client):
     mock_genai_client.batches.get.return_value = mock_job
 
     client = GeminiBatchClient(mock_genai_client, "gemini-1.5-pro")
-    requests = [
-        BatchPromptRequest(contents=[genai_types.Content(parts=[genai_types.Part(text="prompt")])])
-    ]
+    requests = [BatchPromptRequest(contents=[genai_types.Content(parts=[genai_types.Part(text="prompt")])])]
 
-    with pytest.raises(RuntimeError, match="Batch job test-job finished with state JOB_STATE_FAILED: Job failed"):
+    with pytest.raises(
+        RuntimeError, match="Batch job test-job finished with state JOB_STATE_FAILED: Job failed"
+    ):
         client.generate_content(requests)
+
 
 def test_gemini_batch_client_poll_timeout(mock_genai_client):
     """Test batch polling timeout."""
@@ -117,9 +111,7 @@ def test_gemini_batch_client_poll_timeout(mock_genai_client):
     mock_genai_client.batches.get.return_value = mock_job
 
     client = GeminiBatchClient(mock_genai_client, "gemini-1.5-pro", poll_interval=0.1)
-    requests = [
-        BatchPromptRequest(contents=[genai_types.Content(parts=[genai_types.Part(text="prompt")])])
-    ]
+    requests = [BatchPromptRequest(contents=[genai_types.Content(parts=[genai_types.Part(text="prompt")])])]
 
     with pytest.raises(TimeoutError, match="Batch job test-job exceeded timeout"):
         client.generate_content(requests, timeout=0.2)
