@@ -455,35 +455,6 @@ def _update_profile_metadata(content: str, section_name: str, _key: str, new_val
     return content
 
 
-def get_author_display_name(
-    author_uuid: Annotated[str, "The anonymized author UUID"],
-    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
-) -> Annotated[str, "The author's alias if set and public, otherwise their UUID"]:
-    """Get display name for an author.
-
-    Returns alias if set and public, otherwise returns UUID.
-
-    NOTE: This is for RENDERING only. Post content should ALWAYS use UUIDs.
-    The alias is already HTML-escaped during storage (_validate_alias),
-    so it's safe to use in HTML templates.
-
-    Args:
-        author_uuid: The anonymized author UUID
-        profiles_dir: Where profiles are stored
-
-    Returns:
-        Alias (if set, pre-escaped) or UUID
-
-    """
-    profile = read_profile(author_uuid, profiles_dir)
-    if not profile:
-        return author_uuid
-    alias_match = re.search('Alias: "([^"]+)".*Public: true', profile, re.DOTALL)
-    if alias_match:
-        return alias_match.group(1)
-    return author_uuid
-
-
 def process_commands(
     commands: Annotated[list[dict[str, Any]], "A list of command dictionaries from extract_commands()"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
@@ -658,51 +629,6 @@ def remove_profile_avatar(
     profile_path.write_text(content, encoding="utf-8")
     logger.info("Removed avatar for %s", author_uuid)
     return str(profile_path)
-
-
-def get_avatar_info(
-    author_uuid: Annotated[str, "The anonymized author UUID"],
-    profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),
-) -> Annotated[dict | None, "Avatar info dict or None if no avatar"]:
-    """Get avatar information from an author's profile - simplified.
-
-    Args:
-        author_uuid: The anonymized author UUID
-        profiles_dir: Where profiles are stored
-
-    Returns:
-        Dict with avatar URL or None if no avatar:
-        {
-            'url': 'https://...',
-            'set_on': '...',
-        }
-
-    """
-    profiles_dir.mkdir(parents=True, exist_ok=True)
-    profile_path = profiles_dir / f"{author_uuid}.md"
-    if not profile_path.exists():
-        return None
-    content = profile_path.read_text(encoding="utf-8")
-    avatar_section_match = re.search("## Avatar\\s*\\n(.*?)(?=\\n## |\\Z)", content, re.DOTALL)
-    if not avatar_section_match:
-        return None
-    avatar_section = avatar_section_match.group(1)
-
-    # Check if avatar was removed
-    if "None" in avatar_section and "removed" in avatar_section:
-        return None
-
-    # Extract URL
-    url_match = re.search("- URL:\\s*(.+)", avatar_section)
-    if not url_match:
-        return None
-
-    set_on_match = re.search("- Set on:\\s*(.+)", avatar_section)
-
-    return {
-        "url": url_match.group(1).strip(),
-        "set_on": set_on_match.group(1).strip() if set_on_match else None,
-    }
 
 
 def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:  # noqa: C901

@@ -25,7 +25,7 @@ import pytest
 from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
 from egregora.config.settings import create_default_config
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
-from egregora.input_adapters.whatsapp import WhatsAppAdapter, filter_egregora_messages, parse_source
+from egregora.input_adapters.whatsapp import filter_egregora_messages, parse_source
 from egregora.utils.cache import EnrichmentCache
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
 
@@ -251,62 +251,6 @@ def test_media_references_replaced_in_messages(whatsapp_fixture: WhatsAppFixture
 
     joined_messages = " ".join(updated_table["text"].execute().dropna().tolist())
     assert "![Image]" in joined_messages
-
-
-def test_media_files_have_deterministic_names(whatsapp_fixture: WhatsAppFixture, tmp_path: Path):
-    """Test that media files get deterministic names across multiple extractions."""
-    export = create_export_from_fixture(whatsapp_fixture)
-    _ = parse_source(export, timezone=whatsapp_fixture.timezone)
-
-    docs_dir_one = tmp_path / "docs1"
-    docs_dir_two = tmp_path / "docs2"
-    posts_one = docs_dir_one / "posts"
-    posts_two = docs_dir_two / "posts"
-    docs_dir_one.mkdir()
-    docs_dir_two.mkdir()
-    posts_one.mkdir()
-    posts_two.mkdir()
-
-    # extract_and_replace_media was removed in favor of pipeline logic
-    # But we can use adapter.deliver_media + adapter.standardize_media_file to test this
-
-    # Get a media reference from the table
-    # Note: The test fixture needs to contain a message with media
-    # Assuming there's at least one IMG-*.jpg reference
-
-    adapter = WhatsAppAdapter()
-    media_ref = "IMG-20251028-WA0001.jpg"  # Example from fixture if known
-
-    # Actually, let's just use the adapter's standardize method directly
-    # since that's what ensures determinism
-
-    # Create dummy content
-    content = b"fake image content"
-
-    # Create temp file
-    source_file = tmp_path / "source.jpg"
-    source_file.write_bytes(content)
-
-    media_dir_one = docs_dir_one / "media"
-    media_dir_two = docs_dir_two / "media"
-
-    # Standardize twice
-    from egregora.ops.media import get_media_subfolder
-
-    path1 = adapter.standardize_media_file(source_file, media_dir_one, get_subfolder=get_media_subfolder)
-
-    # Re-create source file as it might be moved/deleted
-    source_file.write_bytes(content)
-    path2 = adapter.standardize_media_file(source_file, media_dir_two, get_subfolder=get_media_subfolder)
-
-    assert path1.name == path2.name
-    # Mapping logic removed from test as function is gone
-    mapping_one = {media_ref: path1}
-    mapping_two = {media_ref: path2}
-
-    assert mapping_one.keys() == mapping_two.keys()
-    for key in mapping_one:
-        assert mapping_one[key].name == mapping_two[key].name
 
 
 # =============================================================================

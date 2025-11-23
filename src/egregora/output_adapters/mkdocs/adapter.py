@@ -411,6 +411,16 @@ class MkDocsAdapter(OutputAdapter):
             (posts_dir / "tags.md", "docs/posts/tags.md.jinja"),
         ]
 
+        # Add custom CSS (not a Jinja template, just copy)
+        stylesheets_dir = docs_dir / "stylesheets"
+        stylesheets_dir.mkdir(parents=True, exist_ok=True)
+        custom_css_src = Path(env.loader.searchpath[0]) / "docs" / "stylesheets" / "custom.css"
+        custom_css_dest = stylesheets_dir / "custom.css"
+        if custom_css_src.exists() and not custom_css_dest.exists():
+            import shutil
+
+            shutil.copy(custom_css_src, custom_css_dest)
+
         # Render each template
         for target_path, template_name in templates_to_render:
             if not target_path.exists():
