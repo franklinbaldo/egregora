@@ -152,7 +152,7 @@ class PipelineCache:
         # Initialize tiers
         # L1: Assets - Uses JSONDisk for safety, mirroring old EnrichmentCache behavior
         enrichment_dir = self.base_dir / "enrichment"
-        self.enrichment = diskcache.Cache(str(enrichment_dir), disk=diskcache.JSONDisk)
+        self.enrichment = EnrichmentCache(directory=enrichment_dir)
 
         # L2: Retrieval - Standard pickle disk is fine for internal artifacts
         rag_dir = self.base_dir / "rag"
