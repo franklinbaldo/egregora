@@ -2,7 +2,9 @@
 
 This module provides a DuckDB-backed annotation storage layer that enables the writer
 agent to attach metadata and commentary to messages and other annotations, creating
-threaded conversation structures.
+threaded conversation structures. Privacy filtering is expected to occur upstream
+before LLM invocation; the annotation store does not run PII detection when saving
+records.
 
 Architecture:
     - DuckDB storage with Ibis query interface for type-safe operations
@@ -22,7 +24,7 @@ Schema:
     - parent_id: VARCHAR (message_id or annotation_id)
     - parent_type: VARCHAR ("message" or "annotation")
     - author: VARCHAR (typically "egregora")
-    - commentary: VARCHAR (the annotation content, PII-checked)
+    - commentary: VARCHAR (the annotation content; PII masking occurs upstream)
     - created_at: TIMESTAMP (UTC)
 
 Use Cases:
@@ -110,7 +112,7 @@ class Annotation:
         parent_id: ID of the parent entity (message_id or annotation_id)
         parent_type: Type of parent entity ("message" or "annotation")
         author: Author identifier (typically "egregora")
-        commentary: The annotation content (validated for PII)
+        commentary: The annotation content (not privacy-validated here)
         created_at: UTC timestamp of annotation creation
 
     """
