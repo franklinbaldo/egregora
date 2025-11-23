@@ -321,7 +321,6 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
 
     if cache and not cache.should_refresh(CacheTier.RAG):
         import hashlib
-
         # Key components: Query + Vector Store State (mtime) + Model
         query_hash = hashlib.sha256(query_text.encode()).hexdigest()
 
@@ -934,26 +933,28 @@ def write_posts_for_window(
     # but let's try to be correct.
 
     template_name = "writer.jinja"
-    template_content = "standard_writer_v1"  # Fallback
+    template_content = "standard_writer_v1" # Fallback
 
     try:
         # Try to find the template file to hash its content
         if deps.prompts_dir:
-            tpl_path = deps.prompts_dir / template_name
-            if tpl_path.exists():
-                template_content = tpl_path.read_text()
+             tpl_path = deps.prompts_dir / template_name
+             if tpl_path.exists():
+                 template_content = tpl_path.read_text()
         else:
-            # Use internal resource
-            from egregora.resources.prompts import _get_prompts_dir
-
-            tpl_path = _get_prompts_dir() / "templates" / template_name
-            if tpl_path.exists():
-                template_content = tpl_path.read_text()
+             # Use internal resource
+             from egregora.resources.prompts import PACKAGE_PROMPTS_DIR
+             tpl_path = PACKAGE_PROMPTS_DIR / template_name
+             if tpl_path.exists():
+                 template_content = tpl_path.read_text()
     except Exception:
         logger.debug("Could not load writer template for hashing, using default signature")
 
     signature = generate_window_signature(
-        table_with_str_uuids, ctx.config, template_content, xml_content=prompt_context.conversation_xml
+        table_with_str_uuids,
+        ctx.config,
+        template_content,
+        xml_content=prompt_context.conversation_xml
     )
 
     # CHECK L3 CACHE
