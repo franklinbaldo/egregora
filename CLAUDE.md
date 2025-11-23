@@ -31,6 +31,7 @@ uv run ruff check --fix src/            # Auto-fix linting issues
 export GOOGLE_API_KEY="your-key"
 uv run egregora write export.zip --output=./output
 uv run egregora write export.zip --resume  # Incremental (opt-in)
+uv run egregora write export.zip --refresh=writer  # Invalidate writer cache
 uv run egregora init ./output --no-interactive  # For CI/CD
 
 # Serve
@@ -38,6 +39,48 @@ cd output && uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs ser
 ```
 
 ## Breaking Changes
+
+### 2025-11-23 (Multi-PR Merge)
+
+**Tiered Caching Architecture (PR #890)**
+- **New Feature:** Three-tier cache system (L1: Enrichment, L2: RAG, L3: Writer)
+- **CLI Addition:** `--refresh` flag to invalidate cache tiers
+- **Cache Tiers:**
+  - L1: Asset enrichment results (URLs, media)
+  - L2: Vector search results with index metadata invalidation
+  - L3: Writer output with semantic hashing (zero-cost re-runs)
+- **Usage:** `egregora write export.zip --refresh=writer` or `--refresh=all`
+- **Rationale:** Massive cost reduction for unchanged windows
+
+**Writer Input Format: Markdown → XML (PR #889)**
+- **Before:** Conversation passed as Markdown table
+- **After:** Compact XML format via `_build_conversation_xml()`
+- **Breaking:** Custom prompt templates must use `conversation_xml` (not `markdown_table`)
+- **Template:** Uses `src/egregora/templates/conversation.xml.jinja`
+- **Rationale:** ~40% token reduction, better structure preservation
+
+**VSS Extension & Avatar Fallbacks (PR #893)**
+- VSS extension now loaded explicitly before HNSW operations
+- Fallback avatar generation using getavataaars.com (deterministic from UUID hash)
+- Banner path conversion to web-friendly relative URLs
+- Idempotent scaffold (detects existing mkdocs.yml)
+
+**WhatsApp Parser Refactor (PR #894)**
+- **Removed:** Hybrid DuckDB+Python `_parse_messages_duckdb()`
+- **Added:** Pure Python `_parse_whatsapp_lines()` generator
+- **Migration:** No API changes, internal refactor only
+- **Rationale:** Eliminates serialization overhead, single-pass processing
+
+**Privacy Validation Moved to Input Adapters (PR #892)**
+- **Removed:** Mandatory `validate_text_privacy()` from `AnnotationStore.save_annotation()`
+- **Rationale:** Allow public datasets (judicial records) with legitimate PII
+- **Impact:** Privacy validation is now optional, use at input adapter level (e.g., WhatsApp)
+
+**Circular Import Cleanup (PR #891)**
+- **Removed:** Lazy `__getattr__` shim in `agents/__init__.py`
+- **Changed:** Writer agent expects `output_format` in execution context (not direct import)
+- **Migration:** Ensure `PipelineContext.output_format` is set before writer execution
+- **Rationale:** Cleaner architecture, no import-time side effects
 
 ### 2025-11-22 (PR #855)
 
