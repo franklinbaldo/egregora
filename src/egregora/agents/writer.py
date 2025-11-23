@@ -46,7 +46,7 @@ from egregora.agents.shared.rag import (
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
-from egregora.knowledge.profiles import get_active_authors, read_profile
+from egregora.knowledge.profiles import get_active_authors
 from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.base import OutputSink
 from egregora.output_adapters.mkdocs import MkDocsAdapter
@@ -353,7 +353,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
     return "\n".join(lines).strip()
 
 
-def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
+def _load_profiles_context(table: Table, output_sink: OutputSink) -> str:
     """Load profiles for top active authors."""
     top_authors = get_active_authors(table, limit=20)
     if not top_authors:
@@ -362,10 +362,10 @@ def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
     profiles_context = "\n\n## Active Participants (Profiles):\n"
     profiles_context += "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n"
     for author_uuid in top_authors:
-        profile_content = read_profile(author_uuid, profiles_dir)
-        if profile_content:
+        doc = output_sink.read_document(DocumentType.PROFILE, author_uuid)
+        if doc and doc.content:
             profiles_context += f"### Author: {author_uuid}\n"
-            profiles_context += f"{profile_content}\n\n"
+            profiles_context += f"{doc.content}\n\n"
         else:
             profiles_context += f"### Author: {author_uuid}\n"
             profiles_context += "(No profile yet - first appearance)\n\n"
@@ -420,7 +420,7 @@ def _build_writer_prompt_context(
     else:
         rag_context = ""
 
-    profiles_context = _load_profiles_context(table_with_str_uuids, ctx.profiles_dir)
+    profiles_context = _load_profiles_context(table_with_str_uuids, ctx.output_format)
     journal_memory = _load_journal_memory(ctx.output_dir)
     active_authors = get_active_authors(table_with_str_uuids)
 
@@ -877,7 +877,7 @@ def write_posts_for_window(
 
     # Prepare prompt context
     table_with_str_uuids = _cast_uuid_columns_to_str(table)
-    prompt_context = _build_writer_prompt_context(table_with_str_uuids, ctx)
+    prompt_context = _build_writer_prompt_context(table_with_str_uuids, deps.ctx)
 
     # Render prompt
     prompt = _render_writer_prompt(prompt_context, ctx, deps)
