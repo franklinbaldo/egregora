@@ -52,7 +52,6 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.knowledge.profiles import get_active_authors, read_profile
 from egregora.output_adapters import output_registry
-from egregora.output_adapters.base import OutputSink
 from egregora.resources.prompts import render_prompt
 from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.batch import call_with_retries_sync
