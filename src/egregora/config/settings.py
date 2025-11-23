@@ -239,12 +239,6 @@ class PipelineSettings(BaseModel):
         default=False,
         description="Use full model context window (overrides max_prompt_tokens cap)",
     )
-    enrichment_concurrency: int = Field(
-        default=4,
-        ge=1,
-        le=20,
-        description="Maximum number of simultaneous enrichment tasks.",
-    )
     max_windows: int | None = Field(
         default=1,
         ge=0,
@@ -384,7 +378,7 @@ class FeaturesSettings(BaseModel):
 
 
 class QuotaSettings(BaseModel):
-    """Configuration for LLM usage budgets."""
+    """Configuration for LLM usage budgets and concurrency."""
 
     daily_llm_requests: int = Field(
         default=220,
@@ -395,6 +389,12 @@ class QuotaSettings(BaseModel):
         default=10,
         ge=1,
         description="Maximum number of LLM calls allowed per second (for async guard).",
+    )
+    concurrency: int = Field(
+        default=4,
+        ge=1,
+        le=20,
+        description="Maximum number of simultaneous LLM tasks (enrichment, writing, etc).",
     )
 
 
