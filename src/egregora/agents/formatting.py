@@ -9,6 +9,7 @@ import math
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC
 from typing import TYPE_CHECKING
+from xml.sax.saxutils import escape, quoteattr
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -151,6 +152,56 @@ def _merge_message_and_annotations(message_value: object, annotations: list[Anno
     if message_text:
         return f"{message_text}\n\n{annotations_block}"
     return annotations_block
+
+
+def _build_conversation_xml(
+    data: pa.Table | Iterable[Mapping[str, object]] | Sequence[Mapping[str, object]],
+    annotations_store: AnnotationStore | None,
+) -> str:
+    """Render conversation rows into token-efficient XML."""
+    records, _ = _table_to_records(data)
+    if not records:
+        return "<chat></chat>"
+
+    rows = [dict(record) for record in records]
+    # Ensure msg_id exists (reuses existing logic)
+    _ensure_msg_id_column(rows, ["timestamp", "author", "text"])
+
+    annotations_map: dict[str, list[Annotation]] = {}
+    if annotations_store is not None:
+        for row in rows:
+            msg_id_value = row.get("msg_id")
+            if msg_id_value:
+                annotations_map[msg_id_value] = annotations_store.list_annotations_for_message(msg_id_value)
+
+    xml_parts = ["<chat>"]
+
+    for row in rows:
+        msg_id = str(row.get("msg_id", ""))
+        author = str(row.get("author", "unknown"))
+        ts = str(row.get("timestamp", ""))
+        text = str(row.get("text", ""))
+
+        # Basic XML attributes
+        # quoteattr adds its own quotes and escapes content safely (including quotes)
+        attrs = f"id={quoteattr(msg_id)} author={quoteattr(author)} ts={quoteattr(ts)}"
+
+        # Content body
+        content = escape(text)
+
+        # Append annotations if present
+        notes = ""
+        if msg_id in annotations_map:
+            for ann in annotations_map[msg_id]:
+                note_content = escape(ann.commentary)
+                notes += f'\n  <note id="{ann.id}">{note_content}</note>'
+
+        # Construct the message tag
+        # Using <m> for "message" to save tokens
+        xml_parts.append(f"<m {attrs}>{content}{notes}</m>")
+
+    xml_parts.append("</chat>")
+    return "\n".join(xml_parts)
 
 
 def _table_to_records(
