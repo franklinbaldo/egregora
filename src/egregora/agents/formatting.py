@@ -165,7 +165,7 @@ def _build_conversation_xml(
 
     rows = [dict(record) for record in records]
     # Ensure msg_id exists (reuses existing logic)
-    _ensure_msg_id_column(rows, ["timestamp", "author", "text"])
+    _ensure_msg_id_column(rows, ["msg_id", "timestamp", "author", "text"])
 
     annotations_map: dict[str, list[Annotation]] = {}
     if annotations_store is not None:
