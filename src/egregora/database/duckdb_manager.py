@@ -175,6 +175,9 @@ class DuckDBStorageManager:
         db_str = str(db_path) if db_path else ":memory:"
         self._conn = duckdb.connect(db_str)
 
+        # Enable HNSW index persistence for vector search
+        self._conn.execute("SET hnsw_enable_experimental_persistence=true")
+
         # Initialize Ibis backend
         self.ibis_conn = ibis.duckdb.from_connection(self._conn)
 
