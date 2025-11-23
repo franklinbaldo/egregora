@@ -23,6 +23,7 @@ DESIGN PHILOSOPHY: Calculate, Don't Iterate
   cannot enforce time limits without knowing message density beforehand
 """
 
+import hashlib
 import json
 import logging
 import math
@@ -34,6 +35,9 @@ from zoneinfo import ZoneInfo
 
 import ibis
 from ibis.expr.types import Table
+
+from egregora.agents.formatting import _build_conversation_xml
+from egregora.config.settings import EgregoraConfig
 
 logger = logging.getLogger(__name__)
 
@@ -559,3 +563,44 @@ def split_window_into_n_parts(window: Window, n: int) -> list[Window]:
             windows.append(part_window)
 
     return windows
+
+
+def generate_window_signature(
+    window_table: Table,
+    config: EgregoraConfig,
+    prompt_template: str,
+    xml_content: str | None = None,
+) -> str:
+    """Generate a deterministic signature for a processing window.
+
+    Components:
+    1. DATA: Hash of message IDs in the window (derived from XML if provided, else computed).
+    2. LOGIC: Hash of the prompt template + custom instructions.
+    3. ENGINE: Model ID.
+
+    Args:
+        window_table: The window's data table.
+        config: Pipeline configuration.
+        prompt_template: Raw template string for the writer prompt.
+        xml_content: Optional pre-computed XML content to hash (avoid re-generating).
+
+    """
+    # 1. Data Hash
+    if xml_content:
+        data_hash = hashlib.sha256(xml_content.encode()).hexdigest()
+    else:
+        # Fallback to generating XML for hash consistency
+        # (We use XML because that's what the LLM sees)
+        xml_content = _build_conversation_xml(window_table.to_pyarrow(), None)
+        data_hash = hashlib.sha256(xml_content.encode()).hexdigest()
+
+    # 2. Logic Hash
+    # Combine template and user instructions
+    custom_instructions = config.writer.custom_instructions or ""
+    logic_input = f"{prompt_template}:{custom_instructions}"
+    logic_hash = hashlib.sha256(logic_input.encode()).hexdigest()
+
+    # 3. Engine Hash
+    model_hash = config.models.writer
+
+    return f"{data_hash}:{logic_hash}:{model_hash}"

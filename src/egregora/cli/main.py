@@ -196,6 +196,12 @@ def write(  # noqa: C901, PLR0913, PLR0915
             help="Enable incremental processing (resume from checkpoint). Default: always rebuild from scratch."
         ),
     ] = False,
+    refresh: Annotated[
+        str | None,
+        typer.Option(
+            help="Comma-separated cache tiers to invalidate (e.g., 'writer', 'rag', 'enrichment', 'all').",
+        ),
+    ] = None,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> None:
     """Write blog posts from chat exports using LLM-powered synthesis.
@@ -331,6 +337,7 @@ def write(  # noqa: C901, PLR0913, PLR0915
             output_dir=runtime.output_dir,
             config=egregora_config,
             api_key=runtime.api_key,
+            refresh=refresh,
         )
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:

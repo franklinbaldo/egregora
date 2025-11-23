@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 import pyarrow as pa  # noqa: TID251
 from ibis.expr.types import Table
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.agents.shared.annotations import (
     ANNOTATION_AUTHOR,
@@ -347,3 +348,60 @@ def _build_conversation_markdown_verbose(table: Table) -> str:
         message_col,
     )
     return markdown
+
+
+def _build_conversation_xml(
+    data: pa.Table | Iterable[Mapping[str, object]] | Sequence[Mapping[str, object]],
+    annotations_store: AnnotationStore | None,
+) -> str:
+    """Render conversation rows into XML using Jinja2."""
+    records, column_order = _table_to_records(data)
+    if not records:
+        return ""
+
+    rows = [dict(record) for record in records]
+    column_order = _ensure_msg_id_column(rows, column_order)
+
+    # Prepare rows for template
+    template_rows = []
+
+    # Pre-fetch annotations if store is available
+    annotations_map: dict[str, list[Annotation]] = {}
+    if annotations_store is not None:
+        for row in rows:
+            msg_id = row.get("msg_id")
+            if msg_id:
+                annotations_map[msg_id] = annotations_store.list_annotations_for_message(msg_id)
+
+    for row in rows:
+        msg_id = row.get("msg_id", "")
+        timestamp_val = row.get("timestamp") or row.get("ts") or ""
+        author_val = row.get("author") or row.get("author_uuid") or ""
+        text_val = row.get("text") or row.get("message") or ""
+
+        row_data = {
+            "msg_id": msg_id,
+            "timestamp": _stringify_value(timestamp_val),
+            "author": _stringify_value(author_val),
+            "text": _stringify_value(text_val),
+            "annotations": []
+        }
+
+        if msg_id in annotations_map:
+            for ann in annotations_map[msg_id]:
+                row_data["annotations"].append({
+                    "id": ann.id,
+                    "timestamp": ann.created_at.isoformat(),
+                    "author": ANNOTATION_AUTHOR,
+                    "commentary": ann.commentary
+                })
+
+        template_rows.append(row_data)
+
+    templates_dir = Path(__file__).resolve().parents[1] / "templates"
+    env = Environment(
+        loader=FileSystemLoader(str(templates_dir)),
+        autoescape=select_autoescape(enabled_extensions=("xml",), default_for_string=True)
+    )
+    template = env.get_template("conversation.xml.jinja")
+    return template.render(rows=template_rows)
