@@ -742,7 +742,6 @@ def _create_pipeline_context(  # noqa: PLR0913
         input_path=input_path,
         client=client_instance,
         storage=storage,
-        enrichment_cache=cache.enrichment,
         cache=cache,
         rag_store=rag_store,
         annotations_store=annotations_store,
