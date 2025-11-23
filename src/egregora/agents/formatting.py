@@ -9,7 +9,6 @@ import math
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import pyarrow as pa  # noqa: TID251
 from ibis.expr.types import Table
@@ -383,24 +382,26 @@ def _build_conversation_xml(
             "timestamp": _stringify_value(timestamp_val),
             "author": _stringify_value(author_val),
             "text": _stringify_value(text_val),
-            "annotations": []
+            "annotations": [],
         }
 
         if msg_id in annotations_map:
             for ann in annotations_map[msg_id]:
-                row_data["annotations"].append({
-                    "id": ann.id,
-                    "timestamp": ann.created_at.isoformat(),
-                    "author": ANNOTATION_AUTHOR,
-                    "commentary": ann.commentary
-                })
+                row_data["annotations"].append(
+                    {
+                        "id": ann.id,
+                        "timestamp": ann.created_at.isoformat(),
+                        "author": ANNOTATION_AUTHOR,
+                        "commentary": ann.commentary,
+                    }
+                )
 
         template_rows.append(row_data)
 
     templates_dir = Path(__file__).resolve().parents[1] / "templates"
     env = Environment(
         loader=FileSystemLoader(str(templates_dir)),
-        autoescape=select_autoescape(enabled_extensions=("xml",), default_for_string=True)
+        autoescape=select_autoescape(enabled_extensions=("xml",), default_for_string=True),
     )
     template = env.get_template("conversation.xml.jinja")
     return template.render(rows=template_rows)
