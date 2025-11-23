@@ -428,6 +428,16 @@ class MkDocsAdapter(OutputAdapter):
 
             shutil.copy(custom_css_src, custom_css_dest)
 
+        # Add media carousel JS
+        javascripts_dir = docs_dir / "javascripts"
+        javascripts_dir.mkdir(parents=True, exist_ok=True)
+        carousel_js_src = Path(env.loader.searchpath[0]) / "docs" / "javascripts" / "media_carousel.js"
+        carousel_js_dest = javascripts_dir / "media_carousel.js"
+        if carousel_js_src.exists() and not carousel_js_dest.exists():
+            import shutil
+
+            shutil.copy(carousel_js_src, carousel_js_dest)
+
         # Render each template
         for target_path, template_name in templates_to_render:
             if not target_path.exists():
