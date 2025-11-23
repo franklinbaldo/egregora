@@ -52,7 +52,7 @@ from egregora.orchestration.context import PipelineContext
 from egregora.output_adapters.mkdocs import MkDocsAdapter, derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
-from egregora.utils.cache import EnrichmentCache
+from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
 from egregora.utils.rate_limit import AsyncRateLimit
@@ -87,6 +87,7 @@ class WhatsAppProcessOptions:
     max_prompt_tokens: int = 100_000
     use_full_context_window: bool = False
     client: genai.Client | None = None
+    refresh: str | None = None
 
 
 def process_whatsapp_export(
@@ -152,6 +153,7 @@ def process_whatsapp_export(
         config=egregora_config,
         api_key=opts.gemini_api_key,
         client=opts.client,
+        refresh=opts.refresh,
     )
 
 
@@ -737,6 +739,7 @@ def _create_pipeline_context(  # noqa: PLR0913
     start_time: datetime,
     source_type: str,
     input_path: Path,
+    refresh: str | None = None,
 ) -> tuple[PipelineContext, any, any]:
     """Create pipeline context with all resources and configuration.
 
@@ -749,6 +752,7 @@ def _create_pipeline_context(  # noqa: PLR0913
         start_time: Run start timestamp
         source_type: Source type (e.g., "whatsapp", "slack")
         input_path: Path to input file
+        refresh: Optional comma-separated list of cache tiers to refresh
 
     Returns:
         Tuple of (PipelineContext, pipeline_backend, runs_backend)
@@ -756,6 +760,8 @@ def _create_pipeline_context(  # noqa: PLR0913
 
     """
     resolved_output = output_dir.expanduser().resolve()
+
+    refresh_tiers = {r.strip().lower() for r in (refresh or "").split(",") if r.strip()}
     site_paths = _resolve_site_paths_or_raise(resolved_output, config)
     _runtime_db_uri, pipeline_backend, runs_backend = _create_database_backends(
         site_paths["site_root"], config
@@ -768,7 +774,7 @@ def _create_pipeline_context(  # noqa: PLR0913
 
     client_instance = client or _create_gemini_client(api_key)
     cache_dir = Path(".egregora-cache") / site_paths["site_root"].name
-    enrichment_cache = EnrichmentCache(cache_dir)
+    cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
     site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
     db_file = site_paths["egregora_dir"] / "app.duckdb"
     storage = DuckDBStorageManager(db_path=db_file)
@@ -810,7 +816,7 @@ def _create_pipeline_context(  # noqa: PLR0913
         input_path=input_path,
         client=client_instance,
         storage=storage,
-        enrichment_cache=enrichment_cache,
+        cache=cache,
         rag_store=rag_store,
         annotations_store=annotations_store,
         quota_tracker=quota_tracker,
@@ -833,6 +839,7 @@ def _pipeline_environment(  # noqa: PLR0913
     start_time: datetime,
     source_type: str,
     input_path: Path,
+    refresh: str | None = None,
 ) -> any:
     """Context manager that provisions and tears down pipeline resources.
 
@@ -845,6 +852,7 @@ def _pipeline_environment(  # noqa: PLR0913
         start_time: Run start timestamp
         source_type: Source type (e.g., "whatsapp", "slack")
         input_path: Path to input file
+        refresh: Optional comma-separated list of cache tiers to refresh
 
     Yields:
         Tuple of (PipelineContext, runs_backend) for use in the pipeline
@@ -853,7 +861,7 @@ def _pipeline_environment(  # noqa: PLR0913
     options = getattr(ibis, "options", None)
     old_backend = getattr(options, "default_backend", None) if options else None
     ctx, pipeline_backend, runs_backend = _create_pipeline_context(
-        output_dir, config, api_key, client, run_id, start_time, source_type, input_path
+        output_dir, config, api_key, client, run_id, start_time, source_type, input_path, refresh
     )
 
     if options is not None:
@@ -863,7 +871,7 @@ def _pipeline_environment(  # noqa: PLR0913
         yield ctx, runs_backend
     finally:
         try:
-            ctx.enrichment_cache.close()
+            ctx.cache.close()
         finally:
             try:
                 close_method = getattr(runs_backend, "close", None)
@@ -1357,6 +1365,7 @@ def run(  # noqa: PLR0913
     *,
     api_key: str | None = None,
     client: genai.Client | None = None,
+    refresh: str | None = None,
 ) -> dict[str, dict[str, list[str]]]:
     """Run the complete write pipeline workflow.
 
@@ -1367,6 +1376,7 @@ def run(  # noqa: PLR0913
         config: Egregora configuration
         api_key: Optional Google API key
         client: Optional existing Gemini client
+        refresh: Optional comma-separated list of cache tiers to refresh
 
     Returns:
         Dict mapping window labels to {'posts': [...], 'profiles': [...]}
@@ -1380,7 +1390,7 @@ def run(  # noqa: PLR0913
     started_at = datetime.now(UTC)
 
     with _pipeline_environment(
-        output_dir, config, api_key, client, run_id, started_at, source, input_path
+        output_dir, config, api_key, client, run_id, started_at, source, input_path, refresh
     ) as (ctx, runs_backend):
         # Get DuckDB connection from Ibis backend for run tracking
         runs_conn = getattr(runs_backend, "con", None)

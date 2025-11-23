@@ -1,0 +1,6 @@
+<chat>
+{% for msg in messages %}
+<m id="{{ msg.id }}" author="{{ msg.author }}" ts="{{ msg.ts }}">{{ msg.content }}{% for note in msg.notes %}
+  <note id="{{ note.id }}">{{ note.content }}</note>{% endfor %}</m>
+{% endfor %}
+</chat>

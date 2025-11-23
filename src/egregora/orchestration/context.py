@@ -21,7 +21,7 @@ from egregora.agents.shared.rag import VectorStore
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.utils.cache import EnrichmentCache
+from egregora.utils.cache import EnrichmentCache, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
 from egregora.utils.rate_limit import AsyncRateLimit
@@ -103,7 +103,7 @@ class PipelineState:
     # Resources & Clients
     client: genai.Client
     storage: DuckDBStorageManager
-    enrichment_cache: EnrichmentCache
+    cache: PipelineCache
 
     # Stores (Optional)
     rag_store: VectorStore | None = None
@@ -182,8 +182,13 @@ class PipelineContext:
         return self.state.storage
 
     @property
+    def cache(self) -> PipelineCache:
+        return self.state.cache
+
+    @property
     def enrichment_cache(self) -> EnrichmentCache:
-        return self.state.enrichment_cache
+        """Backward compatibility shim for enrichment cache."""
+        return self.state.cache.enrichment
 
     @property
     def rag_store(self) -> VectorStore | None:
