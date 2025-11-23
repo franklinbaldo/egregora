@@ -31,14 +31,14 @@ __all__ = [
     # Type aliases
     "GroupSlug",
     "MediaAsset",
-    # Protocols (ISP-compliant)
-    "OutputSink",
-    "SiteScaffolder",
     # Protocols (legacy/backward compatibility)
     "OutputAdapter",
+    # Protocols (ISP-compliant)
     "OutputSink",
-    "SiteScaffolder",
+    "OutputSink",
     "PostSlug",
+    "SiteScaffolder",
+    "SiteScaffolder",
     "UrlContext",
     "UrlConvention",
 ]

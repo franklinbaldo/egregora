@@ -64,12 +64,12 @@ __all__ = [
     "WHATSAPP_CONVERSATION_SCHEMA",
     # Storage
     "DuckDBStorageManager",
-    "combine_with_enrichment_rows",
     # Tracking & Observability
     "RunContext",
     "ViewBuilder",
     "chunks_sql",
     "chunks_view",
+    "combine_with_enrichment_rows",
     # Streaming
     "copy_expr_to_ndjson",
     "copy_expr_to_parquet",
