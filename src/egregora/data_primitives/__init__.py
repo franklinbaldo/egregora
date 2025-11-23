@@ -4,7 +4,7 @@ This module consolidates all essential, universal data structures that define
 the core objects flowing through the system:
 
 - **Document types**: Document, DocumentType, DocumentCollection
-- **Type aliases**: GroupSlug, PostSlug
+- **Type aliases**: PostSlug
 
 These primitives form the foundation of the data model, used by both
 input adapters (to produce standardized data) and output adapters (to

@@ -31,8 +31,7 @@ import ibis.expr.datatypes as dt
 from dateutil import parser as date_parser
 from pydantic import BaseModel
 
-from egregora.data_primitives import GroupSlug
-from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives import Document, DocumentType
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.privacy.anonymizer import anonymize_table
@@ -57,7 +56,7 @@ class WhatsAppExport(BaseModel):
 
     zip_path: Path
     group_name: str
-    group_slug: GroupSlug
+    group_slug: str
     export_date: date
     chat_file: str
     media_files: list[str]
@@ -373,7 +372,7 @@ def extract_commands(messages: Table) -> list[dict]:
         ),
     )
 
-    commands_table = command_cases.filter(command_cases.command_name.notna()).select(
+    commands_table = command_cases.filter(command_cases.command_name.notnull()).select(  # noqa: PD004
         command_cases.author_uuid,
         command_cases.ts,
         command_cases.text,
@@ -616,7 +615,7 @@ def build_message_attrs(
             "message_date": message_date,
         }
     )
-    has_metadata = ibis.coalesce(original_line, tagged_line, message_date).notna()
+    has_metadata = ibis.coalesce(original_line, tagged_line, message_date).notnull()  # noqa: PD004
     attrs_json = attrs_struct.cast(dt.json).cast(dt.string)
     empty_json = ibis.literal(None, type=dt.string)
     return ibis.cases(
@@ -666,7 +665,7 @@ class WhatsAppAdapter(InputAdapter):
         export = WhatsAppExport(
             zip_path=input_path,
             group_name=group_name,
-            group_slug=GroupSlug(group_name.lower().replace(" ", "-")),
+            group_slug=group_name.lower().replace(" ", "-"),
             export_date=datetime.now(tz=UTC).date(),
             chat_file=chat_file,
             media_files=[],
@@ -765,7 +764,7 @@ class WhatsAppAdapter(InputAdapter):
             msg = f"Input path does not exist: {input_path}"
             raise FileNotFoundError(msg)
         group_name, chat_file = discover_chat_file(input_path)
-        group_slug = GroupSlug(group_name.lower().replace(" ", "-"))
+        group_slug = group_name.lower().replace(" ", "-")
         return {
             "group_name": group_name,
             "group_slug": str(group_slug),

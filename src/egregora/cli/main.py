@@ -136,14 +136,25 @@ def init(
 
 
 @app.command()
-def write(  # noqa: C901, PLR0913, PLR0915
+def write(  # noqa: C901, PLR0913, PLR0915, PLR0912
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     source: Annotated[
         str,
-        typer.Option(help="Source type (e.g., 'whatsapp', 'iperon-tjro', 'self')"),
+        typer.Option(
+            "--source-type",
+            "-s",
+            help="Source type (e.g., 'whatsapp', 'iperon-tjro', 'self')",
+        ),
     ] = "whatsapp",
-    output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path("output"),
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            "-o",
+            help="Output directory for generated site",
+        ),
+    ] = Path("output"),
     step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
     step_unit: Annotated[
         WindowUnit,
@@ -261,8 +272,17 @@ def write(  # noqa: C901, PLR0913, PLR0915
 
     api_key = _resolve_gemini_key()
     if not api_key:
+        # Try loading from .env
+        from dotenv import load_dotenv
+
+        load_dotenv(output_dir / ".env")
+        load_dotenv()  # Check CWD as well
+        api_key = _resolve_gemini_key()
+
+    if not api_key:
         console.print("[red]Error: GOOGLE_API_KEY environment variable not set[/red]")
         console.print("Set GOOGLE_API_KEY environment variable with your Google Gemini API key")
+        console.print("You can also create a .env file in the output directory or current directory.")
         raise typer.Exit(1)
 
     # Load base config and merge CLI overrides
