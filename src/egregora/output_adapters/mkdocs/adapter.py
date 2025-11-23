@@ -140,6 +140,13 @@ class MkDocsAdapter(OutputAdapter):
                 path = self._resolve_collision(path, doc_id)
                 logger.warning("Hash collision for %s, using %s", doc_id[:8], path)
 
+        # Phase 2: Add author cards to POST documents
+        if document.type == DocumentType.POST and document.metadata:
+            authors = document.metadata.get("authors", [])
+            if authors and isinstance(authors, list):
+                # Append author cards using Jinja template
+                document.content = self._append_author_cards(document.content, authors)
+
         self._write_document(document, path)
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
