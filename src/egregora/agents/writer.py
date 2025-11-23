@@ -421,7 +421,7 @@ def _build_writer_prompt_context(
         rag_context = ""
 
     profiles_context = _load_profiles_context(table_with_str_uuids, ctx.output_format)
-    journal_memory = _load_journal_memory(ctx.output_dir)
+    journal_memory = _load_journal_memory(ctx.output_format)
     active_authors = get_active_authors(table_with_str_uuids)
 
     return WriterPromptContext(

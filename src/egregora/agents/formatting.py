@@ -8,10 +8,7 @@ import logging
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from pathlib import Path
 import pyarrow as pa  # noqa: TID251
 from ibis.expr.types import Table
 
@@ -20,41 +17,24 @@ from egregora.agents.shared.annotations import (
     Annotation,
     AnnotationStore,
 )
+from egregora.data_primitives.document import DocumentType
+from egregora.output_adapters.base import OutputSink
 
 logger = logging.getLogger(__name__)
 
 
-def _write_journal_markdown(content: str, date: str, output_dir: Path) -> Path:
-    """Persist journal LLM responses that skipped tool calls."""
-    journal_dir = output_dir / "journal"
-    journal_dir.mkdir(parents=True, exist_ok=True)
-    base_name = f"{date}-freeform"
-    candidate_path = journal_dir / f"{base_name}.md"
-    suffix = 1
-    while candidate_path.exists():
-        suffix += 1
-        candidate_path = journal_dir / f"{base_name}-{suffix}.md"
-    normalized_content = content.strip()
-    front_matter = "\n".join(
-        ["---", f"title: Journal Response ({date})", f"date: {date}", "---", "", normalized_content, ""]
-    )
-    candidate_path.write_text(front_matter, encoding="utf-8")
-    return candidate_path
-
-
-def _load_journal_memory(output_dir: Path) -> str:
+def _load_journal_memory(output_sink: OutputSink) -> str:
     """Return the latest journal memo content (if any)."""
-    journal_dir = output_dir / "journal"
-    if not journal_dir.exists():
+    journals = list(output_sink.list(DocumentType.JOURNAL))
+    if not journals:
         return ""
-    files = sorted(journal_dir.glob("*.md"))
-    if not files:
-        return ""
-    latest = max(files, key=lambda path: path.stat().st_mtime)
-    try:
-        return latest.read_text(encoding="utf-8")
-    except OSError:
-        return ""
+
+    # Sort by identifier (which contains timestamp YYYY-MM-DD-HH-MM-SS)
+    # This is equivalent to sorting by creation time for these files
+    latest = max(journals, key=lambda d: d.identifier)
+
+    doc = output_sink.read_document(DocumentType.JOURNAL, latest.identifier)
+    return doc.content if doc else ""
 
 
 def _stringify_value(value: object) -> str:
