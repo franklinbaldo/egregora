@@ -35,7 +35,11 @@ from egregora.agents.formatting import (
     _build_conversation_markdown_table,
     _load_journal_memory,
 )
-from egregora.agents.model_limits import PromptTooLargeError
+from egregora.agents.model_limits import (
+    PromptTooLargeError,
+    get_model_context_limit,
+    validate_prompt_fits,
+)
 from egregora.agents.shared.rag import (
     VectorStore,
     embed_query_text,
@@ -47,9 +51,8 @@ from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import get_active_authors, read_profile
-from egregora.output_adapters import create_output_format, output_registry
+from egregora.output_adapters import output_registry
 from egregora.output_adapters.base import OutputSink
-from egregora.output_adapters.mkdocs import MkDocsAdapter
 from egregora.resources.prompts import render_prompt
 from egregora.utils.batch import call_with_retries_sync
 from egregora.utils.metrics import UsageTracker
@@ -634,18 +637,8 @@ def _prepare_deps(
 
     # Ensure output sink is initialized
     if not ctx.output_format:
-        storage_root = ctx.site_root if ctx.site_root else ctx.output_dir
-        format_type = ctx.config.output.format
-
-        if format_type == "mkdocs":
-            output_format = MkDocsAdapter()
-            url_context = ctx.url_context or UrlContext(base_url="", site_prefix="", base_path=storage_root)
-            output_format.initialize(site_root=storage_root, url_context=url_context)
-        else:
-            output_format = create_output_format(storage_root, format_type=format_type)
-
-        # We need a new context with this format
-        ctx = ctx.with_output_format(output_format)
+        msg = "Output format not initialized in context"
+        raise ValueError(msg)
 
     prompts_dir = ctx.site_root / ".egregora" / "prompts" if ctx.site_root else None
 
@@ -668,12 +661,6 @@ def _validate_prompt_fits(
     window_label: str,
 ) -> None:
     """Validate prompt fits within model context window limits."""
-    from egregora.agents.model_limits import (
-        PromptTooLargeError,
-        get_model_context_limit,
-        validate_prompt_fits,
-    )
-
     max_prompt_tokens = getattr(config.pipeline, "max_prompt_tokens", 100_000)
     use_full_context_window = getattr(config.pipeline, "use_full_context_window", False)
 
