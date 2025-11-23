@@ -197,7 +197,7 @@ def _build_conversation_xml(
     templates_dir = Path(__file__).resolve().parents[1] / "templates"
     env = Environment(
         loader=FileSystemLoader(str(templates_dir)),
-        autoescape=select_autoescape(["xml", "html"]),
+        autoescape=select_autoescape(["xml", "html", "jinja"]),
     )
     template = env.get_template("conversation.xml.jinja")
     return template.render(messages=messages)
