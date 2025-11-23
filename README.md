@@ -1,6 +1,6 @@
 # Egregora
 
-**A privacy-first AI loom that weaves collective consciousness into structured knowledge.**
+**An AI loom that weaves collective consciousness into structured knowledge.**
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -15,17 +15,17 @@
 
 Your group chats contain **emergent intelligence**: breakthrough ideas scattered across 100 messages, collective wisdom buried in 6-month-old threads, philosophical insights lost to the scroll. But extracting this knowledge means:
 
-❌ Exposing private conversations to AI services
 ❌ Manually synthesizing scattered thoughts
 ❌ Losing context from past discussions
 ❌ Watching insights fade into chat history
+❌ Missing connections between related conversations
 
-**Egregora solves this by inverting the paradigm:**
+**Egregora solves this through collective intelligence synthesis:**
 
-✅ **Privacy BEFORE intelligence** - real names become UUIDs before LLMs ever see them
-✅ **Automatic synthesis** - scattered thoughts → coherent narratives
+✅ **Automatic pattern recognition** - AI identifies themes across scattered messages
+✅ **Narrative synthesis** - scattered thoughts → coherent articles
 ✅ **Memory across time** - RAG retrieval connects past and present
-✅ **Living knowledge bases** - self-generating documentation from your team's conversations
+✅ **Living knowledge bases** - self-generating documentation from your conversations
 
 ---
 
@@ -50,8 +50,8 @@ title: "The License to Exist: Emergent Agency in a Test Environment"
 slug: the-license-to-exist-emergent-agency-in-a-test-environment
 date: 2025-10-28
 authors:
-  - author-a1b2c3d4  # Alice (anonymized)
-  - author-e5f6g7h8  # Bob (anonymized)
+  - Alice
+  - Bob
 tags:
   - artificial-intelligence
   - emergent-behavior
@@ -75,9 +75,9 @@ a fascinating paradox...
 
 **What happened:**
 
-1. **Privacy Shield**: `Alice` → `author-a1b2c3d4` (deterministic UUID)
+1. **Pattern Recognition**: AI identifies coherent themes across scattered messages
 2. **Context Retrieval**: RAG finds related past discussions, adds citations
-3. **Synthesis**: LLM distills scattered thoughts into coherent narrative
+3. **Synthesis**: LLM distills thoughts into coherent narrative
 4. **Metadata Generation**: AI creates title, slug, tags, summary
 5. **Publication**: MkDocs-ready markdown with profile pages, media enrichment
 
@@ -106,45 +106,32 @@ Open http://localhost:8000 🎉
 ## How It Works
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                      THE PRIVACY FIREWALL                        │
-│                   (Names → UUIDs BEFORE LLMs)                    │
-└──────────────────────────────────────────────────────────────────┘
-                                 ↓
     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-    │  INGESTION  │  →  │   PRIVACY   │  →  │ ENRICHMENT  │
+    │  INGESTION  │  →  │  ANALYSIS   │  →  │ ENRICHMENT  │
     │             │     │             │     │             │
-    │ Parse ZIP   │     │ Anonymize   │     │ LLM Context │
-    │ Normalize   │     │ PII Scan    │     │ L1 Cache    │
+    │ Parse ZIP   │     │ Normalize   │     │ LLM Context │
+    │ Structure   │     │ Anonymize   │     │ L1 Cache    │
     └─────────────┘     └─────────────┘     └─────────────┘
                                                     ↓
     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-    │ PUBLICATION │  ←  │ GENERATION  │  ←  │  KNOWLEDGE  │
+    │ PUBLICATION │  ←  │ SYNTHESIS   │  ←  │  KNOWLEDGE  │
     │             │     │             │     │             │
     │ MkDocs Site │     │ Writer LLM  │     │ RAG + VSS   │
     │ Profiles    │     │ L3 Cache    │     │ L2 Cache    │
     └─────────────┘     └─────────────┘     └─────────────┘
 ```
 
-**Critical Invariant:** Privacy layer runs BEFORE any LLM sees your data.
+**The pipeline transforms conversations into knowledge through intelligence synthesis.**
 
 ---
 
 ## Features by Category
 
-### 🔒 Privacy-First Architecture
-
-| Feature | Description |
-|---------|-------------|
-| **Deterministic Anonymization** | Names → UUIDs (same name = same UUID across runs) |
-| **PII Detection** | Scans for phone numbers, emails, personal identifiers |
-| **User Control** | In-chat commands: `/egregora opt-out`, `/egregora set alias` |
-| **No Name Leakage** | LLMs NEVER see real names—only see anonymized UUIDs |
-
 ### 🧠 Intelligence Engine
 
 | Feature | Description |
 |---------|-------------|
+| **Pattern Recognition** | AI identifies coherent themes across scattered conversations |
 | **RAG Context** | Vector search retrieves relevant past discussions |
 | **Smart Windowing** | Group by time (days/hours), message count, or custom rules |
 | **Quality Ranking** | Elo system identifies best conversations for synthesis |
@@ -196,8 +183,8 @@ egregora write export.zip --refresh=all     # Full rebuild
 
 ```xml
 <conversation window="2025-10-28 14:00-15:00">
-  <msg id="1" author="a1b2c3d4" ts="14:10">Did you see that article?</msg>
-  <msg id="2" author="e5f6g7h8" ts="14:12">Yeah, wild concept</msg>
+  <msg id="1" author="Alice" ts="14:10">Did you see that article?</msg>
+  <msg id="2" author="Bob" ts="14:12">Yeah, wild concept</msg>
 </conversation>
 ```
 
@@ -206,7 +193,7 @@ egregora write export.zip --refresh=all     # Full rebuild
 ### 🔍 VSS Extension & Fallbacks
 
 - VSS extension now loaded explicitly before HNSW operations
-- Fallback avatar generation using getavataaars.com (deterministic from UUID hash)
+- Fallback avatar generation using getavataaars.com (deterministic from author hash)
 - Idempotent scaffold (detects existing `mkdocs.yml`)
 
 ### ⚡ WhatsApp Parser Refactor
@@ -237,16 +224,6 @@ egregora write export.zip --from-date=2025-01-01 --to-date=2025-01-31
 
 # Incremental (resume from last checkpoint)
 egregora write export.zip --resume
-```
-
-### Privacy Commands (In-Chat)
-
-Users control their data via commands in the chat export:
-
-```
-/egregora set alias "Dr. Smith"    # Set display name
-/egregora opt-out                  # Exclude messages from all posts
-/egregora opt-in                   # Re-include (default state)
 ```
 
 ### Multiple Input Sources
@@ -281,7 +258,7 @@ egregora write export.zip --refresh=all
 
 ### Design Principles
 
-✅ **Privacy-First** - Anonymization BEFORE any LLM processing (critical invariant)
+✅ **Intelligence-First** - Pattern recognition and synthesis from collective conversations
 ✅ **Functional Purity** - All transforms are `Table → Table` (no hidden state)
 ✅ **Type-Safe** - Pydantic V2 configs, Ibis DataFrames, full type hints
 ✅ **Simple Default** - Full rebuild by default (`--resume` for incremental)
@@ -437,7 +414,7 @@ pipeline:
 my-blog/
 ├── docs/
 │   ├── posts/              # Generated posts (YYYY-MM-DD-slug.md)
-│   ├── profiles/           # Anonymized author profiles with avatars
+│   ├── profiles/           # Author profiles with avatars
 │   ├── media/              # Enriched media descriptions
 │   ├── journal/            # Continuity journals (YYYY-MM-DD-HH-MM-SS.md)
 │   └── index.md            # Home page
@@ -507,7 +484,7 @@ Contributions welcome! **Alpha mindset applies:**
 
 ## Roadmap
 
-- [x] WhatsApp source with privacy-first anonymization
+- [x] WhatsApp source with intelligent pattern recognition
 - [x] MkDocs Material output with blogging plugin
 - [x] Pydantic-AI agents with tool calling
 - [x] RAG retrieval with vector search (DuckDB VSS)
@@ -549,7 +526,7 @@ MIT License - see [LICENSE](LICENSE)
 
 **The Loom of Logos weaves your collective wisdom into living documentation.**
 
-Egregora turns your group chats into **structured memory**, your team discussions into **institutional knowledge**, and your scattered insights into **coherent narratives**—all while keeping your privacy sacred.
+Egregora turns your group chats into **structured memory**, your team discussions into **institutional knowledge**, and your scattered insights into **coherent narratives**.
 
 ---
 
