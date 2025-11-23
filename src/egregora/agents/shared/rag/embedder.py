@@ -270,6 +270,8 @@ def embed_query_text(
 
     All embeddings use fixed 768-dimension output for consistency and HNSW optimization.
 
+    Uses batch API even for single queries to benefit from better rate limiting.
+
     Args:
         query_text: Query text to embed
         model: Embedding model name
@@ -278,7 +280,9 @@ def embed_query_text(
         768-dimensional embedding vector
 
     """
-    return embed_text(query_text, model=model, task_type="RETRIEVAL_QUERY")
+    # Use batch API with single item for better rate limits
+    results = embed_texts_in_batch([query_text], model=model, task_type="RETRIEVAL_QUERY")
+    return results[0]
 
 
 def is_rag_available() -> bool:

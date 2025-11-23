@@ -52,11 +52,8 @@ def main() -> None:
     """Initialize CLI (placeholder for future setup)."""
 
 
-def _resolve_gemini_key(cli_override: str | None) -> str | None:
-    """Return the Gemini API key honoring CLI override precedence."""
-    if cli_override:
-        os.environ["GOOGLE_API_KEY"] = cli_override
-        return cli_override
+def _resolve_gemini_key() -> str | None:
+    """Return the Gemini API key from environment variable."""
     return os.getenv("GOOGLE_API_KEY")
 
 
@@ -165,9 +162,6 @@ def write(  # noqa: C901, PLR0913, PLR0915
     timezone: Annotated[
         str | None, typer.Option(help="Timezone for date parsing (e.g., 'America/New_York')")
     ] = None,
-    gemini_key: Annotated[
-        str | None, typer.Option(help="Google Gemini API key (flag overrides GOOGLE_API_KEY env var)")
-    ] = None,
     model: Annotated[
         str | None, typer.Option(help="Gemini model to use (or configure in mkdocs.yml)")
     ] = None,
@@ -265,10 +259,10 @@ def write(  # noqa: C901, PLR0913, PLR0915
     output_dir = output.expanduser().resolve()
     _ensure_mkdocs_scaffold(output_dir)
 
-    api_key = _resolve_gemini_key(gemini_key)
+    api_key = _resolve_gemini_key()
     if not api_key:
-        console.print("[red]Error: GOOGLE_API_KEY not set[/red]")
-        console.print("Provide via --gemini-key or set GOOGLE_API_KEY environment variable")
+        console.print("[red]Error: GOOGLE_API_KEY environment variable not set[/red]")
+        console.print("Set GOOGLE_API_KEY environment variable with your Google Gemini API key")
         raise typer.Exit(1)
 
     # Load base config and merge CLI overrides

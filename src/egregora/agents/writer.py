@@ -52,11 +52,10 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.knowledge.profiles import get_active_authors, read_profile
 from egregora.output_adapters import output_registry
-from egregora.output_adapters.base import OutputSink
 from egregora.resources.prompts import render_prompt
 from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.batch import call_with_retries_sync
-from egregora.utils.cache import CacheTier
+from egregora.utils.cache import CacheTier, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
 from egregora.utils.rate_limit import AsyncRateLimit
@@ -64,6 +63,10 @@ from egregora.utils.retry import RetryPolicy, retry_sync
 
 if TYPE_CHECKING:
     from google import genai
+
+    from egregora.agents.shared.annotations import AnnotationStore
+    from egregora.data_primitives.protocols import OutputAdapter
+    from egregora.orchestration.context import PipelineContext
 
 logger = logging.getLogger(__name__)
 MAX_RAG_QUERY_BYTES = 30000
@@ -441,21 +444,22 @@ def _truncate_for_embedding(text: str, byte_limit: int = MAX_RAG_QUERY_BYTES) ->
 def _build_writer_prompt_context(
     table_with_str_uuids: Table,
     resources: WriterResources,
+    cache: PipelineCache,
 ) -> WriterPromptContext:
     """Collect contextual inputs used when rendering the writer prompt."""
     messages_table = table_with_str_uuids.to_pyarrow()
-    conversation_xml = _build_conversation_xml(messages_table, ctx.annotations_store)
+    conversation_xml = _build_conversation_xml(messages_table, resources.annotations_store)
 
     if resources.rag_store and resources.client:
         rag_context = build_rag_context_for_prompt(
             conversation_xml,
-            ctx.rag_store,
-            ctx.client,
-            embedding_model=ctx.embedding_model,
-            retrieval_mode=ctx.retrieval_mode,
-            retrieval_nprobe=ctx.retrieval_nprobe,
-            retrieval_overfetch=ctx.retrieval_overfetch,
-            cache=ctx.cache,
+            resources.rag_store,
+            resources.client,
+            embedding_model=resources.embedding_model,
+            retrieval_mode=resources.retrieval_config.mode,
+            retrieval_nprobe=resources.retrieval_config.nprobe,
+            retrieval_overfetch=resources.retrieval_config.overfetch,
+            cache=cache.rag,  # Use RAG cache tier from pipeline cache
         )
     else:
         rag_context = ""
@@ -846,12 +850,13 @@ def _cast_uuid_columns_to_str(table: Table) -> Table:
     )
 
 
-def write_posts_for_window(
+def write_posts_for_window(  # noqa: C901, PLR0913, PLR0912 - Complex orchestration function
     table: Table,
     window_start: datetime,
     window_end: datetime,
     resources: WriterResources,
     config: EgregoraConfig,
+    cache: PipelineCache,
     # These are extracted from pipeline context earlier and passed explicitly now
     adapter_content_summary: str = "",
     adapter_generation_instructions: str = "",
@@ -864,15 +869,21 @@ def write_posts_for_window(
     if table.count().execute() == 0:
         return {"posts": [], "profiles": []}
 
-    # 1. Prepare Dependencies
-    deps = _prepare_deps(ctx, window_start, window_end)
+    # 1. Prepare Dependencies from resources
+    window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
+    deps = WriterDeps(
+        resources=resources,
+        window_start=window_start,
+        window_end=window_end,
+        window_label=window_label,
+    )
 
     # 2. Build Context & Calculate Signature (L3 Cache Check)
     table_with_str_uuids = _cast_uuid_columns_to_str(table)
 
     # Generate XML content early for both prompt and signature
     # This matches what the LLM will actually see
-    prompt_context = _build_writer_prompt_context(table_with_str_uuids, ctx)
+    prompt_context = _build_writer_prompt_context(table_with_str_uuids, resources, cache)
 
     # Calculate signature using data (XML) + logic (template + instructions) + engine
     # We need the raw template content, but for now we use the rendered prompt as a proxy
@@ -907,16 +918,16 @@ def write_posts_for_window(
             tpl_path = _get_prompts_dir() / "templates" / template_name
             if tpl_path.exists():
                 template_content = tpl_path.read_text()
-    except Exception:
+    except Exception:  # noqa: BLE001 - Fallback to default, non-critical
         logger.debug("Could not load writer template for hashing, using default signature")
 
     signature = generate_window_signature(
-        table_with_str_uuids, ctx.config, template_content, xml_content=prompt_context.conversation_xml
+        table_with_str_uuids, config, template_content, xml_content=prompt_context.conversation_xml
     )
 
     # CHECK L3 CACHE
-    if not ctx.cache.should_refresh(CacheTier.WRITER):
-        cached_result = ctx.cache.writer.get(signature)
+    if not cache.should_refresh(CacheTier.WRITER):
+        cached_result = cache.writer.get(signature)
         if cached_result:
             logger.info("⚡ [L3 Cache Hit] Skipping Writer LLM for window %s", deps.window_label)
 
@@ -984,7 +995,7 @@ def write_posts_for_window(
 
     # UPDATE L3 CACHE
     result_payload = {"posts": saved_posts, "profiles": saved_profiles}
-    ctx.cache.writer.set(signature, result_payload)
+    cache.writer.set(signature, result_payload)
 
     return result_payload
 
@@ -1007,7 +1018,7 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     """Get top N active authors by message count."""
     author_counts = (
         table.filter(~table.author_uuid.cast("string").isin(["system", "egregora"]))
-        .filter(table.author_uuid.notna())
+        .filter(table.author_uuid.notnull())  # noqa: PD004 - Ibis uses notnull(), not notna()
         .filter(table.author_uuid.cast("string") != "")
         .group_by("author_uuid")
         .aggregate(count=ibis._.count())

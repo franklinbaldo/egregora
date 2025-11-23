@@ -299,6 +299,7 @@ def _process_single_window(
         window_end=window.end_time,
         resources=resources,
         config=ctx.config,
+        cache=ctx.cache,
         adapter_content_summary=adapter_summary,
         adapter_generation_instructions=adapter_instructions,
     )
