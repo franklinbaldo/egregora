@@ -17,7 +17,12 @@ if TYPE_CHECKING:
     from egregora.data_primitives import Document
 
 logger = logging.getLogger(__name__)
+
+# Chunking constants
 MAX_CHUNK_BYTES = 32000  # Stay below 36 KB embedContent limit
+DEFAULT_MAX_TOKENS = 1800  # Default maximum tokens per chunk
+DEFAULT_OVERLAP_TOKENS = 150  # Default overlap between chunks for context
+PARAGRAPH_SEPARATOR_BYTES = 2  # Byte length of "\n\n" separator
 
 
 def estimate_tokens(text: str) -> int:
@@ -28,7 +33,104 @@ def estimate_tokens(text: str) -> int:
     return _estimate(text)
 
 
-def chunk_markdown(content: str, max_tokens: int = 1800, overlap_tokens: int = 150) -> list[str]:
+class _ChunkBuilder:
+    """State manager for building text chunks with overlap.
+
+    Encapsulates the stateful logic of accumulating paragraphs into chunks
+    while respecting token and byte limits.
+    """
+
+    def __init__(self, max_tokens: int, overlap_tokens: int) -> None:
+        """Initialize chunk builder with limits.
+
+        Args:
+            max_tokens: Maximum tokens per chunk
+            overlap_tokens: Tokens of overlap between chunks
+
+        """
+        self.max_tokens = max_tokens
+        self.overlap_tokens = overlap_tokens
+        self.current_chunk: list[str] = []
+        self.current_tokens = 0
+        self.current_bytes = 0
+        self.chunks: list[str] = []
+
+    def would_exceed_limits(self, para_tokens: int, para_bytes: int) -> bool:
+        """Check if adding a paragraph would exceed limits.
+
+        Args:
+            para_tokens: Token count of paragraph to add
+            para_bytes: Byte length of paragraph to add
+
+        Returns:
+            True if adding would exceed token or byte limits
+
+        """
+        if not self.current_chunk:
+            return False
+
+        separator_bytes = PARAGRAPH_SEPARATOR_BYTES
+        exceeds_tokens = self.current_tokens + para_tokens > self.max_tokens
+        exceeds_bytes = self.current_bytes + separator_bytes + para_bytes > MAX_CHUNK_BYTES
+
+        return exceeds_tokens or exceeds_bytes
+
+    def add_paragraph(self, paragraph: str, para_tokens: int, para_bytes: int) -> None:
+        """Add a paragraph to the current chunk.
+
+        Args:
+            paragraph: Paragraph text to add
+            para_tokens: Token count of paragraph
+            para_bytes: Byte length of paragraph
+
+        """
+        separator_bytes = PARAGRAPH_SEPARATOR_BYTES if self.current_chunk else 0
+        self.current_chunk.append(paragraph)
+        self.current_tokens += para_tokens
+        self.current_bytes += separator_bytes + para_bytes
+
+    def emit_chunk(self) -> None:
+        """Emit current chunk and create overlap for next chunk."""
+        if not self.current_chunk:
+            return
+
+        # Emit current chunk
+        chunk_text = "\n\n".join(self.current_chunk)
+        self.chunks.append(chunk_text)
+
+        # Create overlap from end of previous chunk
+        overlap_paras: list[str] = []
+        overlap_tokens_count = 0
+        for prev_para in reversed(self.current_chunk):
+            prev_tokens = estimate_tokens(prev_para)
+            if overlap_tokens_count + prev_tokens <= self.overlap_tokens:
+                overlap_paras.insert(0, prev_para)
+                overlap_tokens_count += prev_tokens
+            else:
+                break
+
+        # Reset state with overlap
+        self.current_chunk = overlap_paras
+        self.current_tokens = overlap_tokens_count
+        self.current_bytes = _paragraphs_byte_length(overlap_paras)
+
+    def finalize(self) -> list[str]:
+        """Emit final chunk and return all chunks.
+
+        Returns:
+            List of all emitted chunks
+
+        """
+        if self.current_chunk:
+            chunk_text = "\n\n".join(self.current_chunk)
+            self.chunks.append(chunk_text)
+
+        return self.chunks
+
+
+def chunk_markdown(
+    content: str, max_tokens: int = DEFAULT_MAX_TOKENS, overlap_tokens: int = DEFAULT_OVERLAP_TOKENS
+) -> list[str]:
     r"""Chunk markdown content respecting token limits.
 
     Splits content into paragraphs and groups them into chunks that fit within
@@ -48,6 +150,7 @@ def chunk_markdown(content: str, max_tokens: int = 1800, overlap_tokens: int = 1
         True
 
     """
+    # Split content into paragraphs and handle large ones
     paragraphs = []
     for paragraph in content.split("\n\n"):
         para = paragraph.strip()
@@ -56,50 +159,20 @@ def chunk_markdown(content: str, max_tokens: int = 1800, overlap_tokens: int = 1
         # Split extremely long paragraphs to respect token/byte limits
         paragraphs.extend(_split_large_paragraph(para, max_tokens))
 
-    chunks = []
-    current_chunk: list[str] = []
-    current_tokens = 0
-    current_bytes = 0
+    # Build chunks using the ChunkBuilder state manager
+    builder = _ChunkBuilder(max_tokens, overlap_tokens)
 
     for paragraph in paragraphs:
-        para = paragraph
-        para_tokens = estimate_tokens(para)
-        para_bytes = len(para.encode("utf-8"))
-        separator_bytes = 2 if current_chunk else 0
+        para_tokens = estimate_tokens(paragraph)
+        para_bytes = len(paragraph.encode("utf-8"))
 
-        exceeds_tokens = current_tokens + para_tokens > max_tokens
-        exceeds_bytes = current_bytes + separator_bytes + para_bytes > MAX_CHUNK_BYTES
+        # Emit current chunk if adding this paragraph would exceed limits
+        if builder.would_exceed_limits(para_tokens, para_bytes):
+            builder.emit_chunk()
 
-        if current_chunk and (exceeds_tokens or exceeds_bytes):
-            # Emit current chunk
-            chunk_text = "\n\n".join(current_chunk)
-            chunks.append(chunk_text)
+        builder.add_paragraph(paragraph, para_tokens, para_bytes)
 
-            # Create overlap from end of previous chunk
-            overlap_paras: list[str] = []
-            overlap_tokens_count = 0
-            for prev_para in reversed(current_chunk):
-                prev_tokens = estimate_tokens(prev_para)
-                if overlap_tokens_count + prev_tokens <= overlap_tokens:
-                    overlap_paras.insert(0, prev_para)
-                    overlap_tokens_count += prev_tokens
-                else:
-                    break
-
-            current_chunk = overlap_paras
-            current_tokens = overlap_tokens_count
-            current_bytes = _paragraphs_byte_length(overlap_paras)
-
-        current_chunk.append(para)
-        current_tokens += para_tokens
-        current_bytes += separator_bytes + para_bytes
-
-    # Emit final chunk
-    if current_chunk:
-        chunk_text = "\n\n".join(current_chunk)
-        chunks.append(chunk_text)
-
-    return chunks
+    return builder.finalize()
 
 
 def _paragraphs_byte_length(paragraphs: list[str]) -> int:
@@ -109,7 +182,7 @@ def _paragraphs_byte_length(paragraphs: list[str]) -> int:
     total = 0
     for idx, para in enumerate(paragraphs):
         if idx:
-            total += 2  # account for the \n\n separator
+            total += PARAGRAPH_SEPARATOR_BYTES  # account for the \n\n separator
         total += len(para.encode("utf-8"))
     return total
 
@@ -228,7 +301,7 @@ def parse_post(post_path: Path) -> tuple[dict[str, Any], str]:
     return (metadata, body)
 
 
-def chunk_document(post_path: Path, max_tokens: int = 1800) -> list[dict[str, Any]]:
+def chunk_document(post_path: Path, max_tokens: int = DEFAULT_MAX_TOKENS) -> list[dict[str, Any]]:
     """Chunk a blog post file into indexable chunks.
 
     Args:
@@ -258,7 +331,7 @@ def chunk_document(post_path: Path, max_tokens: int = 1800) -> list[dict[str, An
     return chunks
 
 
-def chunk_from_document(document: Document, max_tokens: int = 1800) -> list[dict[str, Any]]:
+def chunk_from_document(document: Document, max_tokens: int = DEFAULT_MAX_TOKENS) -> list[dict[str, Any]]:
     r"""Chunk a Document object into indexable chunks.
 
     This is the primary chunking function for Document-based RAG indexing.

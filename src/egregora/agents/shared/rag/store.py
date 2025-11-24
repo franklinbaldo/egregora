@@ -83,7 +83,7 @@ class VectorStore:
         """Initialize vector store."""
         self.parquet_path = parquet_path
         self.index_path = parquet_path.with_suffix(".duckdb")
-        self.conn = _ConnectionProxy(storage.conn)
+        self.conn = _ConnectionProxy(storage._conn)
         self.backend = storage  # Use storage directly as backend
         self._vss_available = False
         self._vss_function = "vss_search"
@@ -149,28 +149,7 @@ class VectorStore:
         database_schema.create_table_if_not_exists(
             self._client, INDEX_META_TABLE, database_schema.RAG_INDEX_META_SCHEMA
         )
-        self._migrate_index_meta_table()
         database_schema.add_primary_key(self.conn, INDEX_META_TABLE, "index_name")
-
-    def _migrate_index_meta_table(self) -> None:
-        """Ensure legacy index metadata tables gain any newly introduced columns."""
-        existing_columns = {
-            row[1].lower() for row in self.conn.execute(f"PRAGMA table_info('{INDEX_META_TABLE}')").fetchall()
-        }
-        schema = database_schema.RAG_INDEX_META_SCHEMA
-        for column in schema.names:
-            if column.lower() in existing_columns:
-                continue
-            column_type = self._duckdb_type_from_ibis(schema[column])
-            if column_type is None:
-                logger.warning(
-                    "Skipping migration for %s.%s due to unsupported type %s",
-                    INDEX_META_TABLE,
-                    column,
-                    schema[column],
-                )
-                continue
-            self.conn.execute(f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN {column} {column_type}")
 
     @staticmethod
     def _duckdb_type_from_ibis(dtype: dt.DataType) -> str | None:
@@ -309,7 +288,6 @@ class VectorStore:
             embedding_dim = None
         if self.parquet_path.exists():
             existing_table = self._client.read_parquet(self.parquet_path)
-            existing_table = self._migrate_legacy_schema(existing_table)
             self._validate_table_schema(existing_table, context="existing vector store")
             existing_table, chunks_table = self._align_schemas(existing_table, chunks_table)
             combined_table = existing_table.union(chunks_table, distinct=False)
@@ -344,39 +322,6 @@ class VectorStore:
         existing_table = self._cast_to_vector_store_schema(existing_table)
         new_table = self._cast_to_vector_store_schema(new_table)
         return (existing_table, new_table)
-
-    def _migrate_legacy_schema(self, table: Table) -> Table:
-        """Migrate legacy RAG schemas by adding missing columns with default values."""
-        expected_columns = set(VECTOR_STORE_SCHEMA.names)
-        table_columns = set(table.columns)
-        missing = sorted(expected_columns - table_columns)
-
-        if not missing:
-            return table  # No migration needed
-
-        logger.info(
-            "Migrating legacy RAG schema: adding %d missing columns with NULL defaults: %s",
-            len(missing),
-            ", ".join(missing),
-        )
-
-        mutations = {}
-        for column_name in missing:
-            column_type = VECTOR_STORE_SCHEMA[column_name]
-
-            if not column_type.nullable:
-                msg = (
-                    f"Cannot migrate legacy schema: column '{column_name}' is NOT nullable. "
-                    f"Migration requires all new columns to be nullable."
-                )
-                raise ValueError(msg)
-
-            mutations[column_name] = ibis.null().cast(column_type)
-
-        migrated_table = table.mutate(**mutations)
-
-        logger.debug("Migration complete - all expected columns present")
-        return migrated_table
 
     def _validate_table_schema(self, table: Table, *, context: str) -> None:
         """Ensure the provided table matches the expected vector store schema."""

@@ -5,7 +5,6 @@ import os
 from datetime import date
 from pathlib import Path
 from typing import Annotated
-from zoneinfo import ZoneInfo
 
 import typer
 from rich.console import Console
@@ -15,8 +14,8 @@ from rich.panel import Panel
 from egregora.cli.read import read_app
 from egregora.cli.runs import get_storage, runs_app
 from egregora.config import RuntimeContext, load_egregora_config
-from egregora.config.config_validation import parse_date_arg, validate_retrieval_config
-from egregora.constants import WindowUnit
+from egregora.config.config_validation import parse_date_arg, validate_retrieval_config, validate_timezone
+from egregora.constants import RetrievalMode, SourceType, WindowUnit
 from egregora.database.elo_store import EloStore
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration import write_pipeline
@@ -140,9 +139,9 @@ def write(  # noqa: C901, PLR0913, PLR0915
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     source: Annotated[
-        str,
-        typer.Option(help="Source type (e.g., 'whatsapp', 'iperon-tjro', 'self')"),
-    ] = "whatsapp",
+        SourceType,
+        typer.Option(help="Source type (whatsapp, iperon-tjro, self)", case_sensitive=False),
+    ] = SourceType.WHATSAPP,
     output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path("output"),
     step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
     step_unit: Annotated[
@@ -166,8 +165,9 @@ def write(  # noqa: C901, PLR0913, PLR0915
         str | None, typer.Option(help="Gemini model to use (or configure in mkdocs.yml)")
     ] = None,
     retrieval_mode: Annotated[
-        str, typer.Option(help="Retrieval strategy: 'ann' (default) or 'exact'", case_sensitive=False)
-    ] = "ann",
+        RetrievalMode,
+        typer.Option(help="Retrieval strategy: ann (default) or exact", case_sensitive=False),
+    ] = RetrievalMode.ANN,
     retrieval_nprobe: Annotated[
         int | None, typer.Option(help="Advanced: override DuckDB VSS nprobe for ANN retrieval")
     ] = None,
@@ -242,15 +242,17 @@ def write(  # noqa: C901, PLR0913, PLR0915
     # Validate timezone
     if timezone:
         try:
-            ZoneInfo(timezone)
+            validate_timezone(timezone)
             console.print(f"[green]Using timezone: {timezone}[/green]")
-        except Exception as e:
-            console.print(f"[red]Invalid timezone '{timezone}': {e}[/red]")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
             raise typer.Exit(1) from e
 
     # Validate retrieval config
     try:
-        retrieval_mode = validate_retrieval_config(retrieval_mode, retrieval_nprobe, retrieval_overfetch)
+        retrieval_mode_str = validate_retrieval_config(
+            retrieval_mode.value, retrieval_nprobe, retrieval_overfetch
+        )
     except ValueError as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1) from e
@@ -296,7 +298,7 @@ def write(  # noqa: C901, PLR0913, PLR0915
             "enrichment": base_config.enrichment.model_copy(update={"enabled": enable_enrichment}),
             "rag": base_config.rag.model_copy(
                 update={
-                    "mode": retrieval_mode,
+                    "mode": retrieval_mode_str,
                     "nprobe": retrieval_nprobe if retrieval_nprobe is not None else base_config.rag.nprobe,
                     "overfetch": retrieval_overfetch
                     if retrieval_overfetch is not None
@@ -320,13 +322,13 @@ def write(  # noqa: C901, PLR0913, PLR0915
     try:
         console.print(
             Panel(
-                f"[cyan]Source:[/cyan] {source}\n[cyan]Input:[/cyan] {input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {step_size} {step_unit}",
+                f"[cyan]Source:[/cyan] {source.value}\n[cyan]Input:[/cyan] {input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {step_size} {step_unit.value}",
                 title="⚙️  Egregora Pipeline",
                 border_style="cyan",
             )
         )
         write_pipeline.run(
-            source=source,
+            source=source.value,
             input_path=runtime.input_file,
             output_dir=runtime.output_dir,
             config=egregora_config,
