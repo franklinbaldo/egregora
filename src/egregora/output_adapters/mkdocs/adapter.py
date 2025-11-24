@@ -188,7 +188,7 @@ class MkDocsAdapter(OutputAdapter):
             DocumentType.PROFILE: lambda: self.profiles_dir / f"{identifier}.md",
             DocumentType.POST: lambda: (
                 max(self.posts_dir.glob(f"*-{identifier}.md"), key=lambda p: p.stat().st_mtime)
-                if (matches := list(self.posts_dir.glob(f"*-{identifier}.md")))
+                if (_matches := list(self.posts_dir.glob(f"*-{identifier}.md")))
                 else None
             ),
             DocumentType.JOURNAL: lambda: self.journal_dir / f"{identifier.replace('/', '-')}.md",

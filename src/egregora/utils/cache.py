@@ -7,6 +7,7 @@ invalidation controls.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from dataclasses import dataclass
@@ -73,10 +74,8 @@ class DiskCacheBackend:
         self._cache.set(key, value, expire=expire)
 
     def delete(self, key: str) -> None:
-        try:
+        with contextlib.suppress(KeyError):
             del self._cache[key]
-        except KeyError:
-            pass
 
     def close(self) -> None:
         self._cache.close()

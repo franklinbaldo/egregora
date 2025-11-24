@@ -315,15 +315,11 @@ def _identify_documents_to_index(docs_table: ibis.Table, store: VectorStore) -> 
 
     joined = docs_table.left_join(indexed_renamed, docs_table.source_path == indexed_renamed.indexed_path)
 
-    new_or_changed = joined.filter(
-        (joined.indexed_mtime.isnull()) | (joined.mtime_ns > joined.indexed_mtime)
-    ).select(
+    return joined.filter((joined.indexed_mtime.isnull()) | (joined.mtime_ns > joined.indexed_mtime)).select(
         storage_identifier=joined.storage_identifier,
         source_path=joined.source_path,
         mtime_ns=joined.mtime_ns,
     )
-
-    return new_or_changed
 
 
 def _index_new_documents(to_index, store: VectorStore, *, embedding_model: str) -> int:
