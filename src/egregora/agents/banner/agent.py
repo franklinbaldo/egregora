@@ -18,8 +18,8 @@ from google import genai
 from google.genai import types
 from pydantic import BaseModel, ConfigDict
 from pydantic_ai import Agent, RunContext
-from pydantic_ai.providers.google import GoogleProvider
 from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.providers.google import GoogleProvider
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.utils.retry import RetryPolicy, retry_sync
@@ -125,16 +125,12 @@ def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> str:
         contents = [types.Content(role="user", parts=[types.Part.from_text(text=visual_prompt)])]
         generate_content_config = types.GenerateContentConfig(
             response_modalities=[_RESPONSE_MODALITIES_IMAGE, _RESPONSE_MODALITIES_TEXT],
-            image_config=types.ImageConfig(
-                aspect_ratio=_BANNER_ASPECT_RATIO
-            ),
+            image_config=types.ImageConfig(aspect_ratio=_BANNER_ASPECT_RATIO),
         )
 
         # Use the client from deps to call the image model
         stream = ctx.deps.client.models.generate_content_stream(
-            model=ctx.deps.image_model,
-            contents=contents,
-            config=generate_content_config
+            model=ctx.deps.image_model, contents=contents, config=generate_content_config
         )
 
         # Extract image from stream
@@ -170,10 +166,7 @@ def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> str:
 
 
 def generate_banner_with_agent(
-    post_title: str,
-    post_summary: str,
-    output_dir: Path,
-    api_key: str | None = None
+    post_title: str, post_summary: str, output_dir: Path, api_key: str | None = None
 ) -> BannerResult:
     """Generate a banner using the Pydantic-AI agent workflow.
 
@@ -189,7 +182,7 @@ def generate_banner_with_agent(
     """
     effective_key = api_key or os.environ.get("GOOGLE_API_KEY")
     if not effective_key:
-         return BannerResult(success=False, error="No API Key provided")
+        return BannerResult(success=False, error="No API Key provided")
 
     # Create dependencies with mutable result field
     client = genai.Client(api_key=effective_key)
@@ -206,24 +199,23 @@ def generate_banner_with_agent(
         deps_type=BannerDeps,
         output_type=str,  # Agent returns a status string (from tool)
         system_prompt=_CREATIVE_DIRECTOR_PROMPT,
-        tools=[generate_image_tool]
+        tools=[generate_image_tool],
     )
 
     # Retry policy for the agent execution
     retry_policy = RetryPolicy()
 
     try:
-        result = retry_sync(
-            lambda: agent.run_sync(prompt, deps=deps),
-            retry_policy
-        )
+        result = retry_sync(lambda: agent.run_sync(prompt, deps=deps), retry_policy)
 
         # Return the result from side-channel if available
         if deps.result:
             return deps.result
 
         # If no result was set but agent succeeded (unlikely with tool usage), return failure
-        return BannerResult(success=False, error=f"Agent completed but produced no image result. Output: {result.data}")
+        return BannerResult(
+            success=False, error=f"Agent completed but produced no image result. Output: {result.data}"
+        )
 
     except Exception as e:
         logger.exception("Banner agent run failed")
