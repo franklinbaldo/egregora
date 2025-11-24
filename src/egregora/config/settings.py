@@ -679,15 +679,14 @@ class RuntimeContext:
 
     This is the minimal set of fields that are truly runtime-specific:
     - Paths resolved at invocation time
-    - API keys from environment
     - Debug flags
 
+    API keys are read directly from environment variables by pydantic-ai/genai.
     All other configuration lives in EgregoraConfig (single source of truth).
     """
 
     output_dir: Annotated[Path, "Directory for the generated site"]
     input_file: Annotated[Path | None, "Path to the chat export file"] = None
-    api_key: Annotated[str | None, "Google API key (from env or CLI)"] = None
     model_override: Annotated[str | None, "Model override from CLI"] = None
     debug: Annotated[bool, "Enable debug logging"] = False
 

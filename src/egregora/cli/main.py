@@ -252,15 +252,9 @@ def write(  # noqa: C901, PLR0913, PLR0915
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1) from e
 
-    # Resolve paths and API key
+    # Resolve paths
     output_dir = output.expanduser().resolve()
     _ensure_mkdocs_scaffold(output_dir)
-
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        console.print("[red]Error: GOOGLE_API_KEY environment variable not set[/red]")
-        console.print("Set GOOGLE_API_KEY environment variable with your Google Gemini API key")
-        raise typer.Exit(1)
 
     # Load base config and merge CLI overrides
     base_config = load_egregora_config(output_dir)
@@ -308,7 +302,6 @@ def write(  # noqa: C901, PLR0913, PLR0915
     runtime = RuntimeContext(
         output_dir=output_dir,
         input_file=input_file,
-        api_key=api_key,
         model_override=model,
         debug=debug,
     )
@@ -327,7 +320,6 @@ def write(  # noqa: C901, PLR0913, PLR0915
             input_path=runtime.input_file,
             output_dir=runtime.output_dir,
             config=egregora_config,
-            api_key=runtime.api_key,
             refresh=refresh,
         )
         console.print("[green]Processing completed successfully.[/green]")

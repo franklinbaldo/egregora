@@ -668,8 +668,11 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> di
     return derive_mkdocs_paths(output_dir, config=config)
 
 
-def _create_gemini_client(api_key: str | None) -> genai.Client:
-    """Create a Gemini client with retry configuration suitable for the pipeline."""
+def _create_gemini_client() -> genai.Client:
+    """Create a Gemini client with retry configuration.
+
+    The client reads the API key from GOOGLE_API_KEY environment variable automatically.
+    """
     http_options = genai.types.HttpOptions(
         retryOptions=genai.types.HttpRetryOptions(
             attempts=5,
@@ -679,13 +682,12 @@ def _create_gemini_client(api_key: str | None) -> genai.Client:
             httpStatusCodes=[429, 503],
         )
     )
-    return genai.Client(api_key=api_key, http_options=http_options)
+    return genai.Client(http_options=http_options)
 
 
 def _create_pipeline_context(  # noqa: PLR0913
     output_dir: Path,
     config: EgregoraConfig,
-    api_key: str | None,
     client: genai.Client | None,
     run_id: uuid.UUID,
     start_time: datetime,
@@ -698,8 +700,7 @@ def _create_pipeline_context(  # noqa: PLR0913
     Args:
         output_dir: Output directory for the pipeline
         config: Egregora configuration
-        api_key: Google API key
-        client: Optional existing Gemini client
+        client: Optional existing Gemini client (reads GOOGLE_API_KEY env if None)
         run_id: Unique run identifier
         start_time: Run start timestamp
         source_type: Source type (e.g., "whatsapp", "slack")
@@ -724,7 +725,7 @@ def _create_pipeline_context(  # noqa: PLR0913
 
     initialize_database(pipeline_backend)
 
-    client_instance = client or _create_gemini_client(api_key)
+    client_instance = client or _create_gemini_client()
     cache_dir = Path(".egregora-cache") / site_paths["site_root"].name
     cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
     site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
@@ -785,7 +786,6 @@ def _create_pipeline_context(  # noqa: PLR0913
 def _pipeline_environment(  # noqa: PLR0913
     output_dir: Path,
     config: EgregoraConfig,
-    api_key: str | None,
     client: genai.Client | None,
     run_id: uuid.UUID,
     start_time: datetime,
@@ -798,8 +798,7 @@ def _pipeline_environment(  # noqa: PLR0913
     Args:
         output_dir: Output directory for the pipeline
         config: Egregora configuration
-        api_key: Google API key
-        client: Optional existing Gemini client
+        client: Optional existing Gemini client (reads GOOGLE_API_KEY env if None)
         run_id: Unique run identifier
         start_time: Run start timestamp
         source_type: Source type (e.g., "whatsapp", "slack")
@@ -813,7 +812,7 @@ def _pipeline_environment(  # noqa: PLR0913
     options = getattr(ibis, "options", None)
     old_backend = getattr(options, "default_backend", None) if options else None
     ctx, pipeline_backend, runs_backend = _create_pipeline_context(
-        output_dir, config, api_key, client, run_id, start_time, source_type, input_path, refresh
+        output_dir, config, client, run_id, start_time, source_type, input_path, refresh
     )
 
     if options is not None:
@@ -1420,7 +1419,6 @@ def run(  # noqa: PLR0913
     output_dir: Path,
     config: EgregoraConfig,
     *,
-    api_key: str | None = None,
     client: genai.Client | None = None,
     refresh: str | None = None,
 ) -> dict[str, dict[str, list[str]]]:
@@ -1431,8 +1429,7 @@ def run(  # noqa: PLR0913
         input_path: Path to input file
         output_dir: Output directory
         config: Egregora configuration
-        api_key: Optional Google API key
-        client: Optional existing Gemini client
+        client: Optional existing Gemini client (if None, creates one with env GOOGLE_API_KEY)
         refresh: Optional comma-separated list of cache tiers to refresh
 
     Returns:
@@ -1447,7 +1444,7 @@ def run(  # noqa: PLR0913
     started_at = datetime.now(UTC)
 
     with _pipeline_environment(
-        output_dir, config, api_key, client, run_id, started_at, source, input_path, refresh
+        output_dir, config, client, run_id, started_at, source, input_path, refresh
     ) as (ctx, runs_backend):
         # Get DuckDB connection from Ibis backend for run tracking
         runs_conn = getattr(runs_backend, "con", None)

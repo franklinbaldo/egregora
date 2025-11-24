@@ -37,7 +37,6 @@ class PipelineFactory:
     def create_context(  # noqa: PLR0913
         output_dir: Path,
         config: EgregoraConfig,
-        api_key: str | None,
         client: genai.Client | None,
         run_id: uuid.UUID,
         start_time: datetime,
@@ -50,8 +49,7 @@ class PipelineFactory:
         Args:
             output_dir: Output directory for the pipeline
             config: Egregora configuration
-            api_key: Google API key
-            client: Optional existing Gemini client
+            client: Optional existing Gemini client (reads GOOGLE_API_KEY env if None)
             run_id: Unique run identifier
             start_time: Run start timestamp
             source_type: Source type (e.g., "whatsapp", "slack")
@@ -77,7 +75,7 @@ class PipelineFactory:
 
         initialize_database(pipeline_backend)
 
-        client_instance = client or PipelineFactory.create_gemini_client(api_key)
+        client_instance = client or PipelineFactory.create_gemini_client()
         cache_dir = Path(".egregora-cache") / site_paths["site_root"].name
         cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
         site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
@@ -221,8 +219,11 @@ class PipelineFactory:
         return site_paths
 
     @staticmethod
-    def create_gemini_client(api_key: str | None) -> genai.Client:
-        """Create a Gemini client with retry configuration suitable for the pipeline."""
+    def create_gemini_client() -> genai.Client:
+        """Create a Gemini client with retry configuration.
+
+        The client reads the API key from GOOGLE_API_KEY environment variable automatically.
+        """
         http_options = genai.types.HttpOptions(
             retryOptions=genai.types.HttpRetryOptions(
                 attempts=5,
@@ -232,4 +233,4 @@ class PipelineFactory:
                 httpStatusCodes=[429, 503],
             )
         )
-        return genai.Client(api_key=api_key, http_options=http_options)
+        return genai.Client(http_options=http_options)
