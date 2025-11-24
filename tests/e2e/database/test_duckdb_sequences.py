@@ -64,10 +64,7 @@ def test_run_tracking_with_sequences(tmp_path: Path):
         )
 
         # Verify the run was recorded
-        result = conn.execute(
-            "SELECT stage, status FROM runs WHERE run_id = ?",
-            [str(run_id)]
-        ).fetchone()
+        result = conn.execute("SELECT stage, status FROM runs WHERE run_id = ?", [str(run_id)]).fetchone()
 
         assert result is not None
         assert result[0] == "write"
