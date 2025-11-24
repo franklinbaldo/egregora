@@ -6,13 +6,8 @@ It decouples the creative direction (LLM) from the image generation (Tool).
 
 from __future__ import annotations
 
-import hashlib
 import logging
-import mimetypes
-import os
-import uuid
 from dataclasses import dataclass
-from pathlib import Path
 
 from google import genai
 from google.genai import types
@@ -29,7 +24,6 @@ _DEFAULT_IMAGE_MODEL = "models/gemini-2.5-flash-image"
 _BANNER_ASPECT_RATIO = "16:9"
 _RESPONSE_MODALITIES_IMAGE = "IMAGE"
 _RESPONSE_MODALITIES_TEXT = "TEXT"
-_DEFAULT_IMAGE_EXTENSION = ".png"
 
 # System prompt for the creative director agent
 _CREATIVE_DIRECTOR_PROMPT = """You are a senior editorial illustrator and creative director for a modern blog.
@@ -55,24 +49,22 @@ Think like an artist, not a photographer.
 """
 
 
-class BannerRequest(BaseModel):
-    """Request parameters for banner generation."""
-
-    post_title: str
-    post_summary: str
-    output_dir: Path
-    slug: str
-
-
 class BannerResult(BaseModel):
-    """Result from banner generation."""
+    """Result from banner generation.
+
+    The agent returns a Document with binary content (type=MEDIA) or an error.
+    Filesystem operations (saving, paths, URLs) are handled by upper layers.
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    success: bool
-    banner_path: Path | None = None
-    error: str | None = None
     document: Document | None = None
+    error: str | None = None
+
+    @property
+    def success(self) -> bool:
+        """True if a document was successfully generated."""
+        return self.document is not None
 
 
 @dataclass(frozen=True)
@@ -80,22 +72,7 @@ class BannerDeps:
     """Dependencies for the banner agent."""
 
     client: genai.Client
-    output_dir: Path
     image_model: str = _DEFAULT_IMAGE_MODEL
-
-
-def _save_image_asset(data_buffer: bytes, mime_type: str, output_dir: Path) -> Path:
-    """Save image data to disk with content-based deterministic naming."""
-    file_extension = mimetypes.guess_extension(mime_type) or _DEFAULT_IMAGE_EXTENSION
-    content_hash = hashlib.sha256(data_buffer).digest()
-    banner_uuid = uuid.UUID(bytes=content_hash[:16], version=5)
-    banner_filename = f"{banner_uuid}{file_extension}"
-    banner_path = output_dir / banner_filename
-
-    with banner_path.open("wb") as f:
-        f.write(data_buffer)
-    logger.info("Banner saved to: %s", banner_path)
-    return banner_path
 
 
 # Define the agent
@@ -118,13 +95,10 @@ def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> Bann
         visual_prompt: The detailed prompt for the image generation model
 
     Returns:
-        BannerResult indicating success/failure and path
+        BannerResult with document (bytes content) or error
 
     """
-    logger.info("Generating image with prompt: %s", visual_prompt[:100] + "...")
-
-    # Ensure output directory exists
-    ctx.deps.output_dir.mkdir(parents=True, exist_ok=True)
+    logger.info("Generating banner image with prompt: %s...", visual_prompt[:100])
 
     try:
         contents = [types.Content(role="user", parts=[types.Part.from_text(text=visual_prompt)])]
@@ -145,9 +119,9 @@ def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> Bann
             part = chunk.candidates[0].content.parts[0]
             if part.inline_data and part.inline_data.data:
                 inline_data = part.inline_data
-                # Return content instead of saving immediately
+
+                # Return Document with binary content (no filesystem operations)
                 return BannerResult(
-                    success=True,
                     document=Document(
                         content=inline_data.data,
                         type=DocumentType.MEDIA,
@@ -159,34 +133,30 @@ def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> Bann
             if hasattr(chunk, "text") and chunk.text:
                 logger.debug("Image gen response text: %s", chunk.text)
 
-        return BannerResult(success=False, error="No image data received from API")
+        return BannerResult(error="No image data received from API")
 
     except Exception as e:
         logger.exception("Image generation failed")
-        return BannerResult(success=False, error=str(e))
+        return BannerResult(error=str(e))
 
 
-def generate_banner_with_agent(
-    post_title: str, post_summary: str, output_dir: Path, api_key: str | None = None
-) -> BannerResult:
+def generate_banner_with_agent(post_title: str, post_summary: str) -> BannerResult:
     """Generate a banner using the Pydantic-AI agent workflow.
+
+    The agent returns a Document with binary image content. Filesystem operations
+    (saving to disk, URL generation) are handled by upper layers (OutputAdapter).
 
     Args:
         post_title: Title of the post
         post_summary: Summary of the post
-        output_dir: Directory to save the banner
-        api_key: Gemini API Key
 
     Returns:
-        BannerResult
+        BannerResult with document (binary content) or error
 
     """
-    effective_key = api_key or os.environ.get("GOOGLE_API_KEY")
-    if not effective_key:
-        return BannerResult(success=False, error="No API Key provided")
-
-    client = genai.Client(api_key=effective_key)
-    deps = BannerDeps(client=client, output_dir=output_dir)
+    # Client reads GOOGLE_API_KEY from environment automatically
+    client = genai.Client()
+    deps = BannerDeps(client=client)
 
     prompt = f"Title: {post_title}\n\nSummary: {post_summary}"
 
@@ -195,7 +165,13 @@ def generate_banner_with_agent(
 
     try:
         result = retry_sync(lambda: banner_agent.run_sync(prompt, deps=deps), retry_policy)
-        return result.data
+        data = result.data
+
+        # Validate that the agent returned the expected type
+        if not isinstance(data, BannerResult):
+            logger.error("Unexpected agent output type: %r", type(data))
+            return BannerResult(error="Agent did not return a BannerResult")
+        return data
     except Exception as e:
         logger.exception("Banner agent run failed")
-        return BannerResult(success=False, error=str(e))
+        return BannerResult(error=str(e))

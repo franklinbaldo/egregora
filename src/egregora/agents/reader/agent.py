@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
@@ -66,108 +66,6 @@ class ComparisonResult(BaseModel):
     feedback_b: ReaderFeedbackResult = Field(description="Feedback for post B")
 
 
-<<<<<<< HEAD
-def _build_gemini_request(prompt: str, system_prompt: str, response_schema: dict[str, Any]) -> dict[str, Any]:
-    """Build Gemini API request payload with structured output."""
-    return {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "systemInstruction": {"parts": [{"text": system_prompt}]},
-        "generationConfig": {
-            "temperature": 0.7,
-            "topP": 0.95,
-            "topK": 40,
-            "maxOutputTokens": 2048,
-            "responseMimeType": "application/json",
-            "responseSchema": response_schema,
-        },
-    }
-
-
-def _get_response_schema() -> dict[str, Any]:
-    """Get JSON schema for structured output from Gemini.
-
-    Uses Pydantic's model_json_schema() to automatically generate
-    the schema from ComparisonResult model, ensuring consistency.
-    """
-    return ComparisonResult.model_json_schema()
-
-
-def _parse_comparison_response(response_data: dict[str, Any]) -> ComparisonResult:
-    """Parse and validate Gemini API response to ComparisonResult.
-
-    Args:
-        response_data: Raw JSON response from Gemini API
-
-    Returns:
-        Validated ComparisonResult instance
-
-    Raises:
-        ValueError: If response structure is invalid or validation fails
-
-    """
-    try:
-        candidates = response_data.get("candidates", [])
-        if not candidates:
-            msg = f"No candidates in response: {response_data}"
-            raise ValueError(msg)
-
-        content = candidates[0].get("content", {})
-        parts = content.get("parts", [])
-        if not parts:
-            msg = f"No parts in response content: {content}"
-            raise ValueError(msg)
-
-        text = parts[0].get("text", "")
-        result_data = json.loads(text)
-
-    except (KeyError, IndexError, json.JSONDecodeError) as e:
-        msg = f"Failed to parse Gemini response: {e}\nResponse: {response_data}"
-        raise ValueError(msg) from e
-
-    # Validate and parse result
-    try:
-        return ComparisonResult(**result_data)
-    except ValidationError as e:
-        msg = f"Invalid comparison result from Gemini: {e}\nData: {result_data}"
-        raise ValueError(msg) from e
-
-
-async def _execute_comparison_request(prompt: str, model_name: str, api_key: str) -> dict[str, Any]:
-    """Execute API request to Gemini with retry logic.
-
-    Args:
-        prompt: Comparison prompt with both posts
-        model_name: Gemini model name to use
-        api_key: Google API key
-
-    Returns:
-        Raw JSON response from API
-
-    Raises:
-        httpx.HTTPStatusError: On persistent API errors after retries
-
-    """
-    payload = _build_gemini_request(prompt, READER_SYSTEM_PROMPT, _get_response_schema())
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
-
-    async def _call_api() -> httpx.Response:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url,
-                json=payload,
-                params={"key": api_key},
-                headers={"Content-Type": "application/json"},
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            return response
-
-    response = await call_with_retries(_call_api)
-    return response.json()
-
-
-=======
->>>>>>> origin/refactor/leaking-abstractions-v2
 async def compare_posts(
     request: EvaluationRequest,
     model: str | None = None,
@@ -189,15 +87,9 @@ async def compare_posts(
         PostComparison with winner, reasoning, feedback, and Document references
 
     """
-<<<<<<< HEAD
-    # Get API key from environment
-    effective_api_key = api_key or os.environ.get("GOOGLE_API_KEY")
-    if not effective_api_key:
-=======
     # Ensure API key availability (PydanticAI will pick it up from env if not explicitly passed,
     # but we check here for early failure if completely missing)
     if not api_key and not os.environ.get("GOOGLE_API_KEY"):
->>>>>>> origin/refactor/leaking-abstractions-v2
         msg = "GOOGLE_API_KEY environment variable not set"
         raise ValueError(msg)
 
@@ -214,17 +106,6 @@ Evaluate both posts and determine which is better quality overall.
 """
 
     # Use default model if not specified
-<<<<<<< HEAD
-    model_name = model or _DEFAULT_MODEL_NAME
-
-    logger.debug("Comparing posts: %s vs %s", request.post_a_slug, request.post_b_slug)
-
-    # Execute API request with retry logic
-    response_data = await _execute_comparison_request(prompt, model_name, effective_api_key)
-
-    # Parse and validate response
-    comparison_result = _parse_comparison_response(response_data)
-=======
     # Note: PydanticAI models are typically "provider:model", e.g. "google-gla:gemini-flash-latest"
     model_name = model or "google-gla:gemini-flash-latest"
 
@@ -238,7 +119,6 @@ Evaluate both posts and determine which is better quality overall.
 
     # Execute with centralized retry policy
     comparison_result = await retry_async(_run_agent, RetryPolicy())
->>>>>>> origin/refactor/leaking-abstractions-v2
 
     # Convert to PostComparison (includes full Document references)
     return PostComparison(

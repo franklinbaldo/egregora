@@ -120,10 +120,6 @@ class VectorStore:
         database_schema.create_table_if_not_exists(
             self._client, INDEX_META_TABLE, database_schema.RAG_INDEX_META_SCHEMA
         )
-<<<<<<< HEAD
-        database_schema.add_primary_key(self.conn, INDEX_META_TABLE, "index_name")
-
-=======
         self._migrate_index_meta_table()
         with self.storage.connection() as conn:
             database_schema.add_primary_key(conn, INDEX_META_TABLE, "index_name")
@@ -147,7 +143,6 @@ class VectorStore:
                 continue
             self.storage.execute_query(f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN {column} {column_type}")
 
->>>>>>> origin/refactor/leaking-abstractions-v2
     @staticmethod
     def _duckdb_type_from_ibis(dtype: dt.DataType) -> str | None:
         """Map a subset of Ibis data types to DuckDB column definitions."""
