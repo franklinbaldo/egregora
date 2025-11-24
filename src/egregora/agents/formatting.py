@@ -11,7 +11,6 @@ from datetime import UTC
 from pathlib import Path
 
 import pyarrow as pa  # noqa: TID251
-from ibis.expr.types import Table
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.agents.shared.annotations import (

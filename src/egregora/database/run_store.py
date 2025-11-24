@@ -142,7 +142,7 @@ class RunStore:
         # No, "Refactor to use Ibis expressions (`table.update(...)`)".
 
         # I will assume Ibis supports it in this environment.
-        pass  # Implementation below
+        # Implementation below
 
         # Since I can't easily verify Ibis version/capability for update here,
         # and `mark_run_completed` is critical, I'll keep SQL but maybe format it better?

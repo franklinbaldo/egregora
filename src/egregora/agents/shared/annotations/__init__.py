@@ -219,7 +219,9 @@ class AnnotationStore:
             self._backend, ANNOTATIONS_TABLE, database_schema.ANNOTATIONS_SCHEMA
         )
         # Manually alter ID to use sequence (ibis create_table doesn't support DEFAULT nextval yet)
-        self._backend.raw_sql(f"ALTER TABLE {ANNOTATIONS_TABLE} ALTER COLUMN id SET DEFAULT nextval('{sequence_name}')")
+        self._backend.raw_sql(
+            f"ALTER TABLE {ANNOTATIONS_TABLE} ALTER COLUMN id SET DEFAULT nextval('{sequence_name}')"
+        )
         database_schema.add_primary_key(self._connection, ANNOTATIONS_TABLE, "id")
         self.storage.ensure_sequence_default(ANNOTATIONS_TABLE, "id", sequence_name)
         self._backend.raw_sql(
@@ -258,8 +260,10 @@ class AnnotationStore:
 
         # Runtime privacy check
         from egregora.privacy.config import PrivacySettings
+
         if PrivacySettings.detect_pii:
             from egregora.privacy.pii import detect_pii
+
             if detect_pii(sanitized_commentary):
                 msg = "Annotation commentary contains PII"
                 raise ValueError(msg)
