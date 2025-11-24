@@ -51,11 +51,6 @@ def main() -> None:
     """Initialize CLI (placeholder for future setup)."""
 
 
-def _resolve_gemini_key() -> str | None:
-    """Return the Gemini API key from environment variable."""
-    return os.getenv("GOOGLE_API_KEY")
-
-
 def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
     """Ensure site is initialized, creating if needed with user confirmation."""
     config_path = output_dir / ".egregora" / "config.yml"
@@ -261,7 +256,7 @@ def write(  # noqa: C901, PLR0913, PLR0915
     output_dir = output.expanduser().resolve()
     _ensure_mkdocs_scaffold(output_dir)
 
-    api_key = _resolve_gemini_key()
+    api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         console.print("[red]Error: GOOGLE_API_KEY environment variable not set[/red]")
         console.print("Set GOOGLE_API_KEY environment variable with your Google Gemini API key")
