@@ -16,7 +16,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from egregora.agents.banner.agent import generate_banner_with_agent
+from egregora.agents.banner.agent import _save_image_asset, generate_banner_with_agent
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +74,6 @@ class BannerGenerator:
             return BannerResult(success=False, error="Banner generation disabled")
 
         # Delegate to the new agent-based implementation
-        # We ignore the result type mismatch because the local BannerResult
-        # is compatible with the agent's BannerResult (duck typing / same fields)
         result = generate_banner_with_agent(
             post_title=request.post_title,
             post_summary=request.post_summary,
@@ -83,8 +81,20 @@ class BannerGenerator:
             api_key=self.api_key,
         )
 
-        # Convert to local BannerResult if needed (though they are identical Pydantic models)
-        return BannerResult(success=result.success, banner_path=result.banner_path, error=result.error)
+        # Legacy compatibility: If content is returned but no path, save it here
+        banner_path = result.banner_path
+        if result.success and result.document and not banner_path:
+            # Persist to maintain legacy behavior
+            request.output_dir.mkdir(parents=True, exist_ok=True)
+            content = result.document.content
+            mime_type = result.document.metadata.get("mime_type", "image/png")
+            banner_path = _save_image_asset(content, mime_type, request.output_dir)
+
+        return BannerResult(
+            success=result.success,
+            banner_path=banner_path,
+            error=result.error,
+        )
 
 
 def generate_banner_for_post(
@@ -114,6 +124,14 @@ def generate_banner_for_post(
             output_dir=output_dir,
             api_key=effective_key,
         )
+
+        # Legacy fallback: Save if not already saved
+        if result.success and result.document and not result.banner_path:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            content = result.document.content
+            mime_type = result.document.metadata.get("mime_type", "image/png")
+            return _save_image_asset(content, mime_type, output_dir)
+
         return result.banner_path if result.success else None
     except Exception:
         logger.exception("Banner generation failed")

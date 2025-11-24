@@ -16,9 +16,10 @@ from pathlib import Path
 
 from google import genai
 from google.genai import types
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pydantic_ai import Agent, RunContext
 
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.utils.retry import RetryPolicy, retry_sync
 
 logger = logging.getLogger(__name__)
@@ -66,9 +67,12 @@ class BannerRequest(BaseModel):
 class BannerResult(BaseModel):
     """Result from banner generation."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     success: bool
     banner_path: Path | None = None
     error: str | None = None
+    document: Document | None = None
 
 
 @dataclass(frozen=True)
@@ -126,12 +130,16 @@ def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> Bann
         contents = [types.Content(role="user", parts=[types.Part.from_text(text=visual_prompt)])]
         generate_content_config = types.GenerateContentConfig(
             response_modalities=[_RESPONSE_MODALITIES_IMAGE, _RESPONSE_MODALITIES_TEXT],
-            image_config=types.ImageConfig(aspect_ratio=_BANNER_ASPECT_RATIO),
+            image_config=types.ImageConfig(
+                aspect_ratio=_BANNER_ASPECT_RATIO
+            ),
         )
 
         # Use the client from deps to call the image model
         stream = ctx.deps.client.models.generate_content_stream(
-            model=ctx.deps.image_model, contents=contents, config=generate_content_config
+            model=ctx.deps.image_model,
+            contents=contents,
+            config=generate_content_config
         )
 
         # Extract image from stream
@@ -141,8 +149,15 @@ def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> Bann
             part = chunk.candidates[0].content.parts[0]
             if part.inline_data and part.inline_data.data:
                 inline_data = part.inline_data
-                banner_path = _save_image_asset(inline_data.data, inline_data.mime_type, ctx.deps.output_dir)
-                return BannerResult(success=True, banner_path=banner_path)
+                # Return content instead of saving immediately
+                return BannerResult(
+                    success=True,
+                    document=Document(
+                        content=inline_data.data,
+                        type=DocumentType.MEDIA,
+                        metadata={"mime_type": inline_data.mime_type},
+                    ),
+                )
 
             # Log text feedback if any (sometimes model explains why it failed)
             if hasattr(chunk, "text") and chunk.text:
@@ -156,7 +171,10 @@ def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> Bann
 
 
 def generate_banner_with_agent(
-    post_title: str, post_summary: str, output_dir: Path, api_key: str | None = None
+    post_title: str,
+    post_summary: str,
+    output_dir: Path,
+    api_key: str | None = None
 ) -> BannerResult:
     """Generate a banner using the Pydantic-AI agent workflow.
 
@@ -172,7 +190,7 @@ def generate_banner_with_agent(
     """
     effective_key = api_key or os.environ.get("GOOGLE_API_KEY")
     if not effective_key:
-        return BannerResult(success=False, error="No API Key provided")
+         return BannerResult(success=False, error="No API Key provided")
 
     client = genai.Client(api_key=effective_key)
     deps = BannerDeps(client=client, output_dir=output_dir)
@@ -183,7 +201,10 @@ def generate_banner_with_agent(
     retry_policy = RetryPolicy()
 
     try:
-        result = retry_sync(lambda: banner_agent.run_sync(prompt, deps=deps), retry_policy)
+        result = retry_sync(
+            lambda: banner_agent.run_sync(prompt, deps=deps),
+            retry_policy
+        )
         return result.data
     except Exception as e:
         logger.exception("Banner agent run failed")
