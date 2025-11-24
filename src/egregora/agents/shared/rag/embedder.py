@@ -9,10 +9,10 @@ from __future__ import annotations
 import logging
 import os
 import re
-import time
 from typing import Annotated, Any
 
 import httpx
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from egregora.config import EMBEDDING_DIM
 
@@ -20,8 +20,12 @@ logger = logging.getLogger(__name__)
 
 # Constants
 GENAI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
-DEFAULT_TIMEOUT = 60.0
-HTTP_TOO_MANY_REQUESTS = 429
+
+
+def _get_timeout() -> float:
+    """Get request timeout from config or default."""
+    # This could be exposed in config if needed, defaulting to 60s
+    return 60.0
 
 
 def _get_api_key() -> str:
@@ -49,55 +53,26 @@ def _parse_retry_delay(error_response: dict[str, Any]) -> float:
     return 10.0
 
 
-def _call_with_retries(func: Any, max_retries: int = 3) -> Any:
-    """Retry wrapper for HTTP calls with rate limit handling."""
-    last_error = None
-    for attempt in range(max_retries):
-        try:
-            return func()
-        except httpx.HTTPStatusError as e:
-            last_error = e
-            if e.response.status_code == HTTP_TOO_MANY_REQUESTS:
-                try:
-                    error_data = e.response.json()
-                    delay = _parse_retry_delay(error_data)
-                    logger.warning(
-                        "Rate limit exceeded (429). Waiting %s seconds before retry %s/%s...",
-                        delay,
-                        attempt + 1,
-                        max_retries,
-                    )
-                    time.sleep(delay)
-                    continue
-                except (ValueError, KeyError, AttributeError):
-                    logger.warning("429 error but could not parse response. Waiting 10s...")
-                    time.sleep(10)
-                    continue
-            else:
-                response = getattr(e, "response", None)
-                if response is not None and getattr(response, "text", None):
-                    logger.exception(
-                        "Embedding request failed with status %s: %s",
-                        getattr(response, "status_code", "unknown"),
-                        response.text,
-                    )
-                else:
-                    logger.exception(
-                        "Embedding request failed with status %s",
-                        getattr(response, "status_code", "unknown"),
-                    )
-            if attempt < max_retries - 1:
-                logger.warning("Attempt %s/%s failed: %s. Retrying...", attempt + 1, max_retries, e)
-                time.sleep(2)
-            continue
-        except httpx.HTTPError as e:
-            last_error = e
-            if attempt < max_retries - 1:
-                logger.warning("Attempt %s/%s failed: %s. Retrying...", attempt + 1, max_retries, e)
-                time.sleep(2)
-            continue
-    msg = f"All {max_retries} attempts failed"
-    raise RuntimeError(msg) from last_error
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=60),
+    retry=retry_if_exception_type(httpx.HTTPError),
+    reraise=True,
+)
+def _call_with_retries(func: Any) -> Any:
+    """Retry wrapper for HTTP calls with tenacity."""
+    try:
+        return func()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 429:
+            # Parse retry-after if available, but tenacity handles backoff
+            logger.warning("Rate limit exceeded (429). Retrying...")
+        elif e.response.status_code >= 500:
+            logger.warning("Server error %s. Retrying...", e.response.status_code)
+        else:
+            # Don't retry client errors (4xx) except 429
+            raise
+        raise
 
 
 def _validate_embedding_response(data: dict[str, Any]) -> dict[str, Any]:
@@ -131,7 +106,7 @@ def embed_text(
     model: Annotated[str, "The embedding model to use (Google format, e.g., 'models/text-embedding-004')"],
     task_type: Annotated[str | None, "The task type for the embedding"] = None,
     api_key: Annotated[str | None, "Optional API key (reads from GOOGLE_API_KEY if not provided)"] = None,
-    timeout: Annotated[float, "Request timeout in seconds"] = DEFAULT_TIMEOUT,
+    timeout: Annotated[float | None, "Request timeout in seconds"] = None,
 ) -> Annotated[list[float], "The embedding vector (768 dimensions)"]:
     """Embed a single text using the Google Generative AI HTTP API.
 
@@ -152,6 +127,7 @@ def embed_text(
 
     """
     effective_api_key = api_key or _get_api_key()
+    effective_timeout = timeout or _get_timeout()
     google_model = model
     payload: dict[str, Any] = {
         "model": google_model,
@@ -163,7 +139,7 @@ def embed_text(
     url = f"{GENAI_API_BASE}/{google_model}:embedContent"
 
     def _make_request() -> list[float]:
-        with httpx.Client(timeout=timeout) as client:
+        with httpx.Client(timeout=effective_timeout) as client:
             response = client.post(url, params={"key": effective_api_key}, json=payload)
             response.raise_for_status()
             data = response.json()
@@ -179,7 +155,7 @@ def embed_texts_in_batch(
     model: Annotated[str, "The embedding model to use (Google format, e.g., 'models/text-embedding-004')"],
     task_type: Annotated[str | None, "The task type for the embedding"] = None,
     api_key: Annotated[str | None, "Optional API key (reads from GOOGLE_API_KEY if not provided)"] = None,
-    timeout: Annotated[float, "Request timeout in seconds"] = DEFAULT_TIMEOUT,
+    timeout: Annotated[float | None, "Request timeout in seconds"] = None,
 ) -> Annotated[list[list[float]], "List of embedding vectors (768 dimensions each)"]:
     """Embed multiple texts using the Google Generative AI batch HTTP API.
 
@@ -204,6 +180,7 @@ def embed_texts_in_batch(
 
     logger.info("Embedding %d text(s) with model %s", len(texts), model)
     effective_api_key = api_key or _get_api_key()
+    effective_timeout = timeout or _get_timeout()
     google_model = model
     requests = []
     for text in texts:
@@ -219,7 +196,7 @@ def embed_texts_in_batch(
     url = f"{GENAI_API_BASE}/{google_model}:batchEmbedContents"
 
     def _make_request() -> list[list[float]]:
-        with httpx.Client(timeout=timeout) as client:
+        with httpx.Client(timeout=effective_timeout) as client:
             response = client.post(url, params={"key": effective_api_key}, json=payload)
             response.raise_for_status()
             data = response.json()

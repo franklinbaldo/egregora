@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from egregora.utils.frontmatter_utils import parse_frontmatter
+from egregora.utils.text import estimate_tokens
 
 if TYPE_CHECKING:
     from egregora.data_primitives import Document
@@ -23,14 +24,6 @@ MAX_CHUNK_BYTES = 32000  # Stay below 36 KB embedContent limit
 DEFAULT_MAX_TOKENS = 1800  # Default maximum tokens per chunk
 DEFAULT_OVERLAP_TOKENS = 150  # Default overlap between chunks for context
 PARAGRAPH_SEPARATOR_BYTES = 2  # Byte length of "\n\n" separator
-
-
-def estimate_tokens(text: str) -> int:
-    """Estimate token count (rough approximation: ~4 chars per token)."""
-    # Centralized implementation
-    from egregora.agents.model_limits import estimate_tokens as _estimate
-
-    return _estimate(text)
 
 
 class _ChunkBuilder:

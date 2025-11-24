@@ -316,3 +316,38 @@ def _prepare_media_document(document: Document, media_ref: str) -> MediaAsset:
         source_window=document.source_window,
         suggested_path=suggested_path,
     )
+
+
+def save_media_asset(document: Document, output_dir: Path) -> Path:
+    """Save media document to disk with content-based deterministic naming.
+
+    Args:
+        document: The document containing media content (Document or MediaAsset)
+        output_dir: Base directory to save the media (files will be saved directly here)
+
+    Returns:
+        Path to the saved file
+
+    """
+    import hashlib
+    import mimetypes
+
+    content = document.content
+    if not isinstance(content, bytes):
+        if isinstance(content, str):
+            content = content.encode("utf-8")
+        else:
+            raise TypeError(f"Media content must be bytes, got {type(content)}")
+
+    mime_type = document.metadata.get("mime_type", "application/octet-stream")
+    file_extension = mimetypes.guess_extension(mime_type) or ".bin"
+    # Use content hash for deterministic, collision-resistant naming
+    content_hash = hashlib.sha256(content).hexdigest()
+    filename = f"media-{content_hash[:32]}{file_extension}"
+    file_path = output_dir / filename
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with file_path.open("wb") as f:
+        f.write(content)
+    logger.info("Media saved: %s (%d bytes)", file_path.name, len(content))
+    return file_path

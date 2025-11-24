@@ -10,18 +10,20 @@ interpretation and generation in a single API call.
 from __future__ import annotations
 
 import logging
+import os
 
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, ConfigDict, Field
 
+from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.resources.prompts import render_prompt
 from egregora.utils.retry import RetryPolicy, retry_sync
 
 logger = logging.getLogger(__name__)
 
 # Constants
-_DEFAULT_IMAGE_MODEL = "models/gemini-2.5-flash-image"
 _BANNER_ASPECT_RATIO = "16:9"
 _RESPONSE_MODALITIES_IMAGE = "IMAGE"
 _RESPONSE_MODALITIES_TEXT = "TEXT"
@@ -60,41 +62,25 @@ class BannerOutput(BaseModel):
 
 
 def _build_image_prompt(input_data: BannerInput) -> str:
-    """Build the image generation prompt from post metadata.
-
-    This prompt combines creative direction with post context in a single
-    instruction for the multimodal image model.
-    """
-    return f"""Generate a striking, minimalist blog banner image for this post:
-
-Title: {input_data.post_title}
-Summary: {input_data.post_summary}
-
-Design Requirements:
-- Style: Abstract, conceptual, minimalist modern editorial
-- Composition: Keep the UPPER 30% relatively clean for potential text overlay
-- Focus: Main visual interest in the LOWER 2/3
-- Colors: Bold but harmonious (2-4 colors maximum)
-- NO text or typography in the image itself
-- NO photorealism or complex details
-- Use geometric forms, gradients, and symbolic elements
-
-Think like an artist creating a visual metaphor, not a photographer capturing a scene.
-The image should capture the essence of the article without literal depictions.
-"""
+    """Build the image generation prompt from post metadata."""
+    return render_prompt(
+        "banner.jinja",
+        post_title=input_data.post_title,
+        post_summary=input_data.post_summary,
+    )
 
 
 def _generate_banner_image(
     client: genai.Client,
     input_data: BannerInput,
-    image_model: str = _DEFAULT_IMAGE_MODEL,
+    image_model: str,
 ) -> BannerOutput:
     """Generate banner image using Gemini multimodal image model.
 
     Args:
         client: Gemini API client
         input_data: Banner generation parameters
-        image_model: Model name (defaults to gemini-2.5-flash-image)
+        image_model: Model name
 
     Returns:
         BannerOutput with Document containing binary image data
@@ -198,6 +184,10 @@ def generate_banner(
     # Client reads GOOGLE_API_KEY from environment automatically
     client = genai.Client()
 
+    # Load configuration
+    config = EgregoraConfig()
+    image_model = config.models.banner
+
     input_data = BannerInput(
         post_title=post_title,
         post_summary=post_summary,
@@ -209,10 +199,20 @@ def generate_banner(
     retry_policy = RetryPolicy()
 
     def _generate() -> BannerOutput:
-        return _generate_banner_image(client, input_data)
+        return _generate_banner_image(client, input_data, image_model)
 
     try:
         return retry_sync(_generate, retry_policy)
     except Exception as e:
         logger.exception("Banner generation failed after retries")
         return BannerOutput(error=str(e), error_code="RETRY_FAILED")
+
+
+def is_banner_generation_available() -> bool:
+    """Check if banner generation is available (GOOGLE_API_KEY is set).
+
+    Returns:
+        True if GOOGLE_API_KEY environment variable is set
+
+    """
+    return os.environ.get("GOOGLE_API_KEY") is not None

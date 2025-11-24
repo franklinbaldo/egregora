@@ -52,32 +52,7 @@ from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 logger = logging.getLogger(__name__)
 
 
-def quote_identifier(name: str) -> str:
-    """Safely quote a SQL identifier to prevent injection.
-
-    Args:
-        name: Table/view/column name
-
-    Returns:
-        Quoted identifier safe for SQL
-
-    Raises:
-        ValueError: If name contains invalid characters
-
-    Example:
-        >>> quote_identifier("my_table")
-        '"my_table"'
-        >>> quote_identifier("users; DROP TABLE users")
-        ValueError: Invalid identifier name
-
-    """
-    # Allow only alphanumeric, underscore, hyphen
-    if not re.match(r"^[a-zA-Z0-9_-]+$", name):
-        msg = f"Invalid identifier name: {name!r}. Only alphanumeric, underscore, and hyphen allowed."
-        raise ValueError(msg)
-
-    # Quote with double quotes (DuckDB identifier quoting)
-    return f'"{name}"'
+from egregora.database.ir_schema import quote_identifier
 
 
 @dataclass(frozen=True)

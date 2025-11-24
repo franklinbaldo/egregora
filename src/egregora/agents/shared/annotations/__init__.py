@@ -214,8 +214,13 @@ class AnnotationStore:
         """
         sequence_name = self._sequence_name
         self.storage.ensure_sequence(sequence_name)
+        # Use centralized schema definition
+        database_schema.create_table_if_not_exists(
+            self._backend, ANNOTATIONS_TABLE, database_schema.ANNOTATIONS_SCHEMA
+        )
+        # Manually alter ID to use sequence (ibis create_table doesn't support DEFAULT nextval yet)
         self._backend.raw_sql(
-            f"\n            CREATE TABLE IF NOT EXISTS {ANNOTATIONS_TABLE} (\n                id INTEGER PRIMARY KEY DEFAULT nextval('{sequence_name}'),\n                parent_id VARCHAR NOT NULL,\n                parent_type VARCHAR NOT NULL,\n                author VARCHAR,\n                commentary VARCHAR,\n                created_at TIMESTAMP\n            )\n            "
+            f"ALTER TABLE {ANNOTATIONS_TABLE} ALTER COLUMN id SET DEFAULT nextval('{sequence_name}')"
         )
         database_schema.add_primary_key(self._connection, ANNOTATIONS_TABLE, "id")
         self.storage.ensure_sequence_default(ANNOTATIONS_TABLE, "id", sequence_name)
@@ -252,6 +257,17 @@ class AnnotationStore:
         if not sanitized_commentary:
             msg = "commentary must not be empty"
             raise ValueError(msg)
+
+        # Runtime privacy check
+        from egregora.privacy.config import PrivacySettings
+
+        if PrivacySettings.detect_pii:
+            from egregora.privacy.pii import detect_pii
+
+            if detect_pii(sanitized_commentary):
+                msg = "Annotation commentary contains PII"
+                raise ValueError(msg)
+
         created_at = datetime.now(UTC)
         if sanitized_parent_type == "annotation":
             annotations_table = self._backend.table(ANNOTATIONS_TABLE)

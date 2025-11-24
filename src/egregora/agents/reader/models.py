@@ -19,24 +19,15 @@ MIN_STAR_RATING = 1
 MAX_STAR_RATING = 5
 
 
-@dataclass(frozen=True, slots=True)
-class ReaderFeedback:
+from pydantic import BaseModel, Field
+
+
+class ReaderFeedback(BaseModel):
     """Structured feedback from a simulated reader."""
 
-    comment: str
-    """Natural language feedback about the post"""
-
-    star_rating: int
-    """Star rating from 1-5"""
-
-    engagement_level: Literal["low", "medium", "high"]
-    """Predicted reader engagement"""
-
-    def __post_init__(self) -> None:
-        """Validate star rating is in valid range."""
-        if not MIN_STAR_RATING <= self.star_rating <= MAX_STAR_RATING:
-            msg = f"Star rating must be {MIN_STAR_RATING}-{MAX_STAR_RATING}, got {self.star_rating}"
-            raise ValueError(msg)
+    comment: str = Field(description="Natural language feedback about the post")
+    star_rating: int = Field(ge=MIN_STAR_RATING, le=MAX_STAR_RATING, description="Star rating from 1-5")
+    engagement_level: Literal["low", "medium", "high"] = Field(description="Predicted reader engagement")
 
 
 @dataclass(frozen=True, slots=True)

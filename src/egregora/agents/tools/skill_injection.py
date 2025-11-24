@@ -108,9 +108,17 @@ async def use_skill(ctx: RunContext[Any], skill_name: str, task: str) -> str:
         return f"ERROR: {error_msg}"
 
     # Create sub-agent with skill context injected
-    skill_system_prompt = _build_skill_system_prompt(
+    from egregora.resources.prompts import render_prompt
+
+    truncate_limit = 500
+    truncated = len(skill_content.content) > truncate_limit
+
+    skill_system_prompt = render_prompt(
+        "skill_injection.jinja",
         parent_prompt=ctx.deps.agent_system_prompt,
         skill_content=skill_content.content,
+        skill_content_truncated=skill_content.content[:truncate_limit],
+        truncated=truncated,
         task=task,
     )
 
@@ -160,46 +168,7 @@ def end_skill_use(summary: str) -> SkillCompletionResult:
     return SkillCompletionResult(summary=summary)
 
 
-def _build_skill_system_prompt(parent_prompt: str, skill_content: str, task: str) -> str:
-    """Build system prompt for sub-agent with skill context.
-
-    Args:
-        parent_prompt: Parent agent's system prompt.
-        skill_content: Skill instructions/content.
-        task: Task description.
-
-    Returns:
-        Combined system prompt for sub-agent.
-
-    """
-    truncate_limit = 500
-    return f"""{parent_prompt}
-
-# SKILL INJECTION MODE
-
-You are currently in SKILL INJECTION MODE. You have been given a special skill
-to help you complete a specific task.
-
-## Injected Skill: {skill_content[:truncate_limit]}...
-
-{"...(skill content truncated)..." if len(skill_content) > truncate_limit else ""}
-
-## Your Task
-
-{task}
-
-## Important Instructions
-
-1. Use the skill content above to complete the task
-2. You have access to all your normal tools PLUS the skill's capabilities
-3. When you're done, call the `end_skill_use(summary)` tool with a summary of what you accomplished
-4. The summary should be concise (1-3 paragraphs) but capture key findings/results
-5. Your parent agent will ONLY see the summary, so make it informative
-
-## Full Skill Content
-
-{skill_content}
-"""
+# _build_skill_system_prompt removed in favor of Jinja template
 
 
 async def _run_sub_agent(agent: Agent[Any, Any], task: str, skill_name: str, parent_deps: Any) -> str:

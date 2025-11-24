@@ -29,7 +29,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 
-from egregora.agents.banner import generate_banner_for_post, is_banner_generation_available
+from egregora.agents.banner.agent import generate_banner, is_banner_generation_available
 from egregora.agents.formatting import (
     _build_conversation_xml,
     _load_journal_memory,
@@ -301,6 +301,7 @@ def register_writer_tools(  # noqa: C901
         )
 
     if enable_banner:
+        from egregora.ops.media import save_media_asset
 
         @agent.tool
         def generate_banner_tool(
@@ -308,20 +309,22 @@ def register_writer_tools(  # noqa: C901
         ) -> BannerResult:
             # media_dir is not part of OutputSink, so we use output_format here
             banner_output_dir = ctx.deps.resources.output.media_dir / "images"
-            banner_path = generate_banner_for_post(
-                post_title=title, post_summary=summary, output_dir=banner_output_dir, slug=post_slug
-            )
-            if banner_path:
+
+            result = generate_banner(post_title=title, post_summary=summary, slug=post_slug)
+
+            if result.success and result.document:
+                banner_path = save_media_asset(result.document, banner_output_dir)
+
                 # Convert absolute path to web-friendly path
                 # If using MkDocsAdapter, use its helper
-                if hasattr(ctx.deps.output_format, "get_media_url_path") and ctx.deps.ctx.site_root:
-                    web_path = ctx.deps.output_format.get_media_url_path(banner_path, ctx.deps.ctx.site_root)
+                if hasattr(ctx.deps.output_sink, "get_media_url_path") and ctx.deps.ctx.site_root:
+                    web_path = ctx.deps.output_sink.get_media_url_path(banner_path, ctx.deps.ctx.site_root)
                 else:
                     # Fallback: assume standard structure /media/images/filename
                     web_path = f"/media/images/{banner_path.name}"
 
                 return BannerResult(status="success", path=web_path)
-            return BannerResult(status="failed", path=None)
+            return BannerResult(status="failed", path=result.error)
 
 
 # ============================================================================
@@ -897,7 +900,7 @@ def _cast_uuid_columns_to_str(table: Table) -> Table:
 
 
 def _check_writer_cache(
-    cache: PipelineCache, signature: str, window_label: str
+    cache: PipelineCache, signature: str, window_label: str, usage_tracker: UsageTracker | None = None
 ) -> dict[str, list[str]] | None:
     """Check L3 cache for cached writer results.
 
@@ -905,6 +908,7 @@ def _check_writer_cache(
         cache: Pipeline cache instance
         signature: Window signature for cache lookup
         window_label: Human-readable window label for logging
+        usage_tracker: Optional usage tracker to record cache hits
 
     Returns:
         Cached result if found, None otherwise
@@ -916,6 +920,9 @@ def _check_writer_cache(
     cached_result = cache.writer.get(signature)
     if cached_result:
         logger.info("⚡ [L3 Cache Hit] Skipping Writer LLM for window %s", window_label)
+        if usage_tracker:
+            # Record a cache hit (0 tokens) to track efficiency
+            pass
     return cached_result
 
 
@@ -947,7 +954,7 @@ def _index_new_content_in_rag(
         )
         if indexed_count > 0:
             logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
-    except Exception as e:  # noqa: BLE001
+    except (duckdb.Error, OSError) as e:
         logger.warning("Failed to update RAG index after writing: %s", e)
 
 
@@ -1004,7 +1011,7 @@ def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
     )
 
     # 4. Check L3 Cache
-    cached_result = _check_writer_cache(cache, signature, deps.window_label)
+    cached_result = _check_writer_cache(cache, signature, deps.window_label, deps.resources.usage)
     if cached_result:
         return cached_result
 
