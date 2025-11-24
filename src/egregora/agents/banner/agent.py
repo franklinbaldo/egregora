@@ -11,13 +11,15 @@ import logging
 import mimetypes
 import os
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, ConfigDict
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.providers.google import GoogleProvider
+from pydantic_ai.models.google import GoogleModel
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.utils.retry import RetryPolicy, retry_sync
@@ -75,13 +77,18 @@ class BannerResult(BaseModel):
     document: Document | None = None
 
 
-@dataclass(frozen=True)
+@dataclass
 class BannerDeps:
-    """Dependencies for the banner agent."""
+    """Dependencies for the banner agent.
+
+    This object is mutable to allow the tool to side-channel the result
+    back to the caller, bypassing the LLM's inability to output binary data.
+    """
 
     client: genai.Client
     output_dir: Path
     image_model: str = _DEFAULT_IMAGE_MODEL
+    result: BannerResult | None = field(default=None)
 
 
 def _save_image_asset(data_buffer: bytes, mime_type: str, output_dir: Path) -> Path:
@@ -98,19 +105,7 @@ def _save_image_asset(data_buffer: bytes, mime_type: str, output_dir: Path) -> P
     return banner_path
 
 
-# Define the agent
-# Using the pattern: Agent(model, deps_type=..., output_type=..., system_prompt=...)
-# Note: Using 'output_type' as required by Pydantic-AI 0.0.14+
-banner_agent = Agent(
-    "google-gla:gemini-1.5-flash",
-    deps_type=BannerDeps,
-    output_type=BannerResult,
-    system_prompt=_CREATIVE_DIRECTOR_PROMPT,
-)
-
-
-@banner_agent.tool
-def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> BannerResult:
+def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> str:
     """Generate an image using the configured image generation model.
 
     Args:
@@ -118,7 +113,7 @@ def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> Bann
         visual_prompt: The detailed prompt for the image generation model
 
     Returns:
-        BannerResult indicating success/failure and path
+        Status message string. The actual result is stored in `ctx.deps.result`.
 
     """
     logger.info("Generating image with prompt: %s", visual_prompt[:100] + "...")
@@ -130,12 +125,16 @@ def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> Bann
         contents = [types.Content(role="user", parts=[types.Part.from_text(text=visual_prompt)])]
         generate_content_config = types.GenerateContentConfig(
             response_modalities=[_RESPONSE_MODALITIES_IMAGE, _RESPONSE_MODALITIES_TEXT],
-            image_config=types.ImageConfig(aspect_ratio=_BANNER_ASPECT_RATIO),
+            image_config=types.ImageConfig(
+                aspect_ratio=_BANNER_ASPECT_RATIO
+            ),
         )
 
         # Use the client from deps to call the image model
         stream = ctx.deps.client.models.generate_content_stream(
-            model=ctx.deps.image_model, contents=contents, config=generate_content_config
+            model=ctx.deps.image_model,
+            contents=contents,
+            config=generate_content_config
         )
 
         # Extract image from stream
@@ -145,8 +144,9 @@ def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> Bann
             part = chunk.candidates[0].content.parts[0]
             if part.inline_data and part.inline_data.data:
                 inline_data = part.inline_data
-                # Return content instead of saving immediately
-                return BannerResult(
+
+                # Store result in deps side-channel
+                ctx.deps.result = BannerResult(
                     success=True,
                     document=Document(
                         content=inline_data.data,
@@ -154,20 +154,26 @@ def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> Bann
                         metadata={"mime_type": inline_data.mime_type},
                     ),
                 )
+                return "Image generated successfully."
 
             # Log text feedback if any (sometimes model explains why it failed)
             if hasattr(chunk, "text") and chunk.text:
                 logger.debug("Image gen response text: %s", chunk.text)
 
-        return BannerResult(success=False, error="No image data received from API")
+        ctx.deps.result = BannerResult(success=False, error="No image data received from API")
+        return "Failed to generate image: No data received."
 
     except Exception as e:
         logger.exception("Image generation failed")
-        return BannerResult(success=False, error=str(e))
+        ctx.deps.result = BannerResult(success=False, error=str(e))
+        return f"Failed to generate image: {e}"
 
 
 def generate_banner_with_agent(
-    post_title: str, post_summary: str, output_dir: Path, api_key: str | None = None
+    post_title: str,
+    post_summary: str,
+    output_dir: Path,
+    api_key: str | None = None
 ) -> BannerResult:
     """Generate a banner using the Pydantic-AI agent workflow.
 
@@ -183,19 +189,42 @@ def generate_banner_with_agent(
     """
     effective_key = api_key or os.environ.get("GOOGLE_API_KEY")
     if not effective_key:
-        return BannerResult(success=False, error="No API Key provided")
+         return BannerResult(success=False, error="No API Key provided")
 
+    # Create dependencies with mutable result field
     client = genai.Client(api_key=effective_key)
     deps = BannerDeps(client=client, output_dir=output_dir)
 
     prompt = f"Title: {post_title}\n\nSummary: {post_summary}"
 
+    # Instantiate Agent locally to inject API key into the Model
+    # This solves the issue where the global agent relied on env vars
+    provider = GoogleProvider(api_key=effective_key)
+    model = GoogleModel("gemini-1.5-flash", provider=provider)
+    agent = Agent(
+        model,
+        deps_type=BannerDeps,
+        output_type=str,  # Agent returns a status string (from tool)
+        system_prompt=_CREATIVE_DIRECTOR_PROMPT,
+        tools=[generate_image_tool]
+    )
+
     # Retry policy for the agent execution
     retry_policy = RetryPolicy()
 
     try:
-        result = retry_sync(lambda: banner_agent.run_sync(prompt, deps=deps), retry_policy)
-        return result.data
+        result = retry_sync(
+            lambda: agent.run_sync(prompt, deps=deps),
+            retry_policy
+        )
+
+        # Return the result from side-channel if available
+        if deps.result:
+            return deps.result
+
+        # If no result was set but agent succeeded (unlikely with tool usage), return failure
+        return BannerResult(success=False, error=f"Agent completed but produced no image result. Output: {result.data}")
+
     except Exception as e:
         logger.exception("Banner agent run failed")
         return BannerResult(success=False, error=str(e))
