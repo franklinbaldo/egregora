@@ -30,7 +30,7 @@ def test_annotation_store_initialization(tmp_path: Path):
 
     with DuckDBStorageManager(db_path=db_path) as storage:
         # This should work without AttributeError
-        store = AnnotationStore(storage)
+        AnnotationStore(storage)
 
         # Verify sequence was created
         sequence_state = storage.get_sequence_state("annotations_seq")

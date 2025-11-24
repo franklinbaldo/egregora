@@ -7,13 +7,14 @@ invalidation controls.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from dataclasses import dataclass
 from enum import Enum
 from hashlib import sha256
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Protocol
 
 import diskcache
 
@@ -42,49 +43,79 @@ def make_enrichment_cache_key(
     return sha256(raw).hexdigest()
 
 
+class CacheBackend(Protocol):
+    """Abstract protocol for cache backends."""
+
+    def get(self, key: str) -> Any: ...
+
+    def set(self, key: str, value: Any, expire: float | None = None) -> None: ...
+
+    def delete(self, key: str) -> None: ...
+
+    def close(self) -> None: ...
+
+    def __getitem__(self, key: str) -> Any: ...
+
+    def __setitem__(self, key: str, value: Any) -> None: ...
+
+    def __delitem__(self, key: str) -> None: ...
+
+
+class DiskCacheBackend:
+    """Adapter for diskcache.Cache to match CacheBackend protocol."""
+
+    def __init__(self, directory: Path, **kwargs: Any) -> None:
+        self._cache = diskcache.Cache(str(directory), **kwargs)
+
+    def get(self, key: str) -> Any:
+        return self._cache.get(key)
+
+    def set(self, key: str, value: Any, expire: float | None = None) -> None:
+        self._cache.set(key, value, expire=expire)
+
+    def delete(self, key: str) -> None:
+        with contextlib.suppress(KeyError):
+            del self._cache[key]
+
+    def close(self) -> None:
+        self._cache.close()
+
+    def __getitem__(self, key: str) -> Any:
+        return self._cache[key]
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        self._cache[key] = value
+
+    def __delitem__(self, key: str) -> None:
+        del self._cache[key]
+
+
 @dataclass(slots=True)
 class EnrichmentCache:
     """Disk-backed cache for enrichment markdown payloads."""
 
-    directory: Path | None = None
-    _cache: diskcache.Cache | None = None
-
-    def __post_init__(self) -> None:
-        base_dir = self.directory or Path(".egregora-cache") / "enrichments"
-        base_dir = base_dir.expanduser().resolve()
-        base_dir.mkdir(parents=True, exist_ok=True)
-        logger.debug("Initializing enrichment cache at %s", base_dir)
-
-        # Use JSONDisk to avoid pickle RCE vulnerability
-        # All enrichment payloads are JSON-serializable dicts
-        self._cache = diskcache.Cache(str(base_dir), disk=diskcache.JSONDisk)
-        self.directory = base_dir
+    backend: CacheBackend
 
     def load(
         self, key: Annotated[str, "The cache key to look up"]
     ) -> Annotated[dict[str, Any] | None, "The cached payload, or None if not found"]:
         """Return cached payload when present."""
-        if self._cache is None:
-            return None
-
         try:
-            value = self._cache.get(key)
+            value = self.backend.get(key)
         except (json.JSONDecodeError, TypeError, ValueError) as e:
-            # Migration: old pickle cache entries can't be deserialized with JSON
             logger.warning(
-                "Failed to deserialize cache entry for key %s (likely old pickle format): %s. "
-                "Clearing entry - will be regenerated.",
+                "Failed to deserialize cache entry for key %s: %s. Clearing entry - will be regenerated.",
                 key,
                 e,
             )
-            self.delete(key)
+            self.backend.delete(key)
             return None
 
         if value is None:
             return None
         if not isinstance(value, dict):
             logger.warning("Unexpected cache payload type for key %s; clearing entry", key)
-            self.delete(key)
+            self.backend.delete(key)
             return None
         return value
 
@@ -94,25 +125,16 @@ class EnrichmentCache:
         payload: Annotated[dict[str, Any], "The payload to store"],
     ) -> None:
         """Persist enrichment payload."""
-        if self._cache is None:
-            msg = "Cache not initialised"
-            raise RuntimeError(msg)
-        self._cache.set(key, payload, expire=None)
+        self.backend.set(key, payload, expire=None)
         logger.debug("Cached enrichment entry for key %s", key)
 
     def delete(self, key: Annotated[str, "The cache key to delete"]) -> None:
         """Remove an entry from the cache if present."""
-        try:
-            if self._cache is not None:
-                del self._cache[key]
-        except KeyError:
-            return
+        self.backend.delete(key)
 
     def close(self) -> None:
         """Release underlying cache resources."""
-        if self._cache is not None:
-            self._cache.close()
-            self._cache = None
+        self.backend.close()
 
 
 class CacheTier(str, Enum):
@@ -152,7 +174,9 @@ class PipelineCache:
         # Initialize tiers
         # L1: Assets - Uses JSONDisk for safety, mirroring old EnrichmentCache behavior
         enrichment_dir = self.base_dir / "enrichment"
-        self.enrichment = EnrichmentCache(directory=enrichment_dir)
+        # Inject backend into EnrichmentCache
+        enrichment_backend = DiskCacheBackend(enrichment_dir, disk=diskcache.JSONDisk)
+        self.enrichment = EnrichmentCache(backend=enrichment_backend)
 
         # L2: Retrieval - Standard pickle disk is fine for internal artifacts
         rag_dir = self.base_dir / "rag"

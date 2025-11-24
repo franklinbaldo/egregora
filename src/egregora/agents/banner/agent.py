@@ -1,25 +1,19 @@
 """Pydantic-AI powered banner generation agent.
 
-This module implements the banner generation workflow using Pydantic-AI.
-It decouples the creative direction (LLM) from the image generation (Tool).
+This module implements banner generation using a single multimodal model
+(gemini-2.5-flash-image) that directly generates images from text prompts.
+
+No separate "creative director" LLM - the image model handles both creative
+interpretation and generation in a single API call.
 """
 
 from __future__ import annotations
 
-import hashlib
 import logging
-import mimetypes
-import os
-import uuid
-from dataclasses import dataclass, field
-from pathlib import Path
 
 from google import genai
 from google.genai import types
-from pydantic import BaseModel, ConfigDict
-from pydantic_ai import Agent, RunContext
-from pydantic_ai.models.google import GoogleModel
-from pydantic_ai.providers.google import GoogleProvider
+from pydantic import BaseModel, ConfigDict, Field
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.utils.retry import RetryPolicy, retry_sync
@@ -31,192 +25,194 @@ _DEFAULT_IMAGE_MODEL = "models/gemini-2.5-flash-image"
 _BANNER_ASPECT_RATIO = "16:9"
 _RESPONSE_MODALITIES_IMAGE = "IMAGE"
 _RESPONSE_MODALITIES_TEXT = "TEXT"
-_DEFAULT_IMAGE_EXTENSION = ".png"
-
-# System prompt for the creative director agent
-_CREATIVE_DIRECTOR_PROMPT = """You are a senior editorial illustrator and creative director for a modern blog.
-Your goal is to design a striking, concept-driven cover/banner image for a blog post.
-
-You will be given the title and summary of a post.
-Your task is to:
-1. Analyze the essence of the article.
-2. Conceive a minimalist, abstract visual metaphor that captures this essence without literal depictions.
-3. Formulate a precise image generation prompt that describes this visual concept.
-4. Call the `generate_image_tool` with this refined prompt.
-
-Design Principles:
-- Style: Abstract, conceptual, minimalist modern editorial.
-- Composition: Keep the UPPER 30% relatively clean for potential text overlay.
-- Focus: Main visual interest in the LOWER 2/3.
-- Colors: Bold but harmonious (2-4 colors max).
-- NO text or typography in the image itself.
-- NO photorealism or complex details.
-- Use geometric forms, gradients, and symbolic elements.
-
-Think like an artist, not a photographer.
-"""
 
 
-class BannerRequest(BaseModel):
-    """Request parameters for banner generation."""
+class BannerInput(BaseModel):
+    """Input parameters for banner generation."""
 
-    post_title: str
-    post_summary: str
-    output_dir: Path
-    slug: str
+    post_title: str = Field(description="Blog post title")
+    post_summary: str = Field(description="Brief summary of the post")
+    slug: str | None = Field(default=None, description="Post slug for metadata")
+    language: str = Field(default="pt-BR", description="Content language")
 
 
-class BannerResult(BaseModel):
-    """Result from banner generation."""
+class BannerOutput(BaseModel):
+    """Output from banner generation.
+
+    Contains a Document with binary image content. Filesystem operations
+    (saving, paths, URLs) are handled by upper layers.
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    success: bool
-    banner_path: Path | None = None
-    error: str | None = None
     document: Document | None = None
+    error: str | None = None
+    error_code: str | None = Field(
+        default=None,
+        description="Optional machine-readable error code for troubleshooting",
+    )
+    debug_text: str | None = Field(default=None, description="Debug text from model response")
+
+    @property
+    def success(self) -> bool:
+        """True if a document was successfully generated."""
+        return self.document is not None
 
 
-@dataclass
-class BannerDeps:
-    """Dependencies for the banner agent.
+def _build_image_prompt(input_data: BannerInput) -> str:
+    """Build the image generation prompt from post metadata.
 
-    This object is mutable to allow the tool to side-channel the result
-    back to the caller, bypassing the LLM's inability to output binary data.
+    This prompt combines creative direction with post context in a single
+    instruction for the multimodal image model.
     """
+    return f"""Generate a striking, minimalist blog banner image for this post:
 
-    client: genai.Client
-    output_dir: Path
-    image_model: str = _DEFAULT_IMAGE_MODEL
-    result: BannerResult | None = field(default=None)
+Title: {input_data.post_title}
+Summary: {input_data.post_summary}
 
+Design Requirements:
+- Style: Abstract, conceptual, minimalist modern editorial
+- Composition: Keep the UPPER 30% relatively clean for potential text overlay
+- Focus: Main visual interest in the LOWER 2/3
+- Colors: Bold but harmonious (2-4 colors maximum)
+- NO text or typography in the image itself
+- NO photorealism or complex details
+- Use geometric forms, gradients, and symbolic elements
 
-def _save_image_asset(data_buffer: bytes, mime_type: str, output_dir: Path) -> Path:
-    """Save image data to disk with content-based deterministic naming."""
-    file_extension = mimetypes.guess_extension(mime_type) or _DEFAULT_IMAGE_EXTENSION
-    content_hash = hashlib.sha256(data_buffer).digest()
-    banner_uuid = uuid.UUID(bytes=content_hash[:16], version=5)
-    banner_filename = f"{banner_uuid}{file_extension}"
-    banner_path = output_dir / banner_filename
-
-    with banner_path.open("wb") as f:
-        f.write(data_buffer)
-    logger.info("Banner saved to: %s", banner_path)
-    return banner_path
+Think like an artist creating a visual metaphor, not a photographer capturing a scene.
+The image should capture the essence of the article without literal depictions.
+"""
 
 
-def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> str:
-    """Generate an image using the configured image generation model.
+def _generate_banner_image(
+    client: genai.Client,
+    input_data: BannerInput,
+    image_model: str = _DEFAULT_IMAGE_MODEL,
+) -> BannerOutput:
+    """Generate banner image using Gemini multimodal image model.
 
     Args:
-        ctx: Agent context containing dependencies
-        visual_prompt: The detailed prompt for the image generation model
+        client: Gemini API client
+        input_data: Banner generation parameters
+        image_model: Model name (defaults to gemini-2.5-flash-image)
 
     Returns:
-        Status message string. The actual result is stored in `ctx.deps.result`.
+        BannerOutput with Document containing binary image data
 
     """
-    logger.info("Generating image with prompt: %s", visual_prompt[:100] + "...")
-
-    # Ensure output directory exists
-    ctx.deps.output_dir.mkdir(parents=True, exist_ok=True)
+    prompt = _build_image_prompt(input_data)
+    logger.info("Generating banner with %s for: %s", image_model, input_data.post_title)
 
     try:
-        contents = [types.Content(role="user", parts=[types.Part.from_text(text=visual_prompt)])]
+        contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
         generate_content_config = types.GenerateContentConfig(
             response_modalities=[_RESPONSE_MODALITIES_IMAGE, _RESPONSE_MODALITIES_TEXT],
             image_config=types.ImageConfig(aspect_ratio=_BANNER_ASPECT_RATIO),
         )
 
-        # Use the client from deps to call the image model
-        stream = ctx.deps.client.models.generate_content_stream(
-            model=ctx.deps.image_model, contents=contents, config=generate_content_config
+        # Call the image model
+        stream = client.models.generate_content_stream(
+            model=image_model, contents=contents, config=generate_content_config
         )
 
-        # Extract image from stream
+        # Extract image and optional debug text
+        image_bytes: bytes | None = None
+        mime_type: str = "image/png"
+        debug_text_parts: list[str] = []
+
         for chunk in stream:
-            if not (chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts):
+            if not chunk.candidates:
                 continue
-            part = chunk.candidates[0].content.parts[0]
-            if part.inline_data and part.inline_data.data:
-                inline_data = part.inline_data
 
-                # Store result in deps side-channel
-                ctx.deps.result = BannerResult(
-                    success=True,
-                    document=Document(
-                        content=inline_data.data,
-                        type=DocumentType.MEDIA,
-                        metadata={"mime_type": inline_data.mime_type},
-                    ),
-                )
-                return "Image generated successfully."
+            for candidate in chunk.candidates:
+                if not (candidate.content and candidate.content.parts):
+                    continue
 
-            # Log text feedback if any (sometimes model explains why it failed)
-            if hasattr(chunk, "text") and chunk.text:
-                logger.debug("Image gen response text: %s", chunk.text)
+                for part in candidate.content.parts:
+                    # Collect any text responses for debugging
+                    text_part = getattr(part, "text", None)
+                    if text_part:
+                        debug_text_parts.append(text_part)
 
-        ctx.deps.result = BannerResult(success=False, error="No image data received from API")
-        return "Failed to generate image: No data received."
+                    # Extract image data (first hit wins)
+                    inline_data = getattr(part, "inline_data", None)
+                    if inline_data and inline_data.data and image_bytes is None:
+                        image_bytes = inline_data.data
+                        mime_type = inline_data.mime_type
+
+        if image_bytes is None:
+            error_msg = "No image data received from API"
+            logger.error("%s for post '%s'", error_msg, input_data.post_title)
+            return BannerOutput(error=error_msg, error_code="NO_IMAGE_DATA")
+
+        # Create Document with binary content
+        document = Document(
+            content=image_bytes,
+            type=DocumentType.MEDIA,
+            metadata={
+                "mime_type": mime_type,
+                "source": image_model,
+                "slug": input_data.slug,
+                "language": input_data.language,
+            },
+        )
+
+        debug_text = "\n".join(debug_text_parts) if debug_text_parts else None
+        if debug_text:
+            logger.debug("Banner generation debug text: %s", debug_text)
+
+        return BannerOutput(document=document, debug_text=debug_text)
 
     except Exception as e:
-        logger.exception("Image generation failed")
-        ctx.deps.result = BannerResult(success=False, error=str(e))
-        return f"Failed to generate image: {e}"
+        logger.exception("Banner image generation failed for post '%s'", input_data.post_title)
+        return BannerOutput(error=str(e), error_code="GENERATION_EXCEPTION")
 
 
-def generate_banner_with_agent(
-    post_title: str, post_summary: str, output_dir: Path, api_key: str | None = None
-) -> BannerResult:
-    """Generate a banner using the Pydantic-AI agent workflow.
+def generate_banner(
+    post_title: str,
+    post_summary: str,
+    slug: str | None = None,
+    language: str = "pt-BR",
+) -> BannerOutput:
+    """Generate a banner image using the Gemini multimodal image model.
+
+    This is a single-model approach: gemini-2.5-flash-image handles both
+    creative interpretation and image generation in one API call.
+
+    The function returns a Document with binary image content. Filesystem
+    operations (saving to disk, URL generation) are handled by upper layers.
 
     Args:
-        post_title: Title of the post
-        post_summary: Summary of the post
-        output_dir: Directory to save the banner
-        api_key: Gemini API Key
+        post_title: Title of the blog post
+        post_summary: Summary of the post content
+        slug: Optional post slug for metadata
+        language: Content language (default: pt-BR)
 
     Returns:
-        BannerResult
+        BannerOutput with Document containing binary image or error message
+
+    Note:
+        Requires GOOGLE_API_KEY environment variable to be set.
 
     """
-    effective_key = api_key or os.environ.get("GOOGLE_API_KEY")
-    if not effective_key:
-        return BannerResult(success=False, error="No API Key provided")
+    # Client reads GOOGLE_API_KEY from environment automatically
+    client = genai.Client()
 
-    # Create dependencies with mutable result field
-    client = genai.Client(api_key=effective_key)
-    deps = BannerDeps(client=client, output_dir=output_dir)
-
-    prompt = f"Title: {post_title}\n\nSummary: {post_summary}"
-
-    # Instantiate Agent locally to inject API key into the Model
-    # This solves the issue where the global agent relied on env vars
-    provider = GoogleProvider(api_key=effective_key)
-    model = GoogleModel("gemini-1.5-flash", provider=provider)
-    agent = Agent(
-        model,
-        deps_type=BannerDeps,
-        output_type=str,  # Agent returns a status string (from tool)
-        system_prompt=_CREATIVE_DIRECTOR_PROMPT,
-        tools=[generate_image_tool],
+    input_data = BannerInput(
+        post_title=post_title,
+        post_summary=post_summary,
+        slug=slug,
+        language=language,
     )
 
-    # Retry policy for the agent execution
+    # Retry policy for API resilience
     retry_policy = RetryPolicy()
 
+    def _generate() -> BannerOutput:
+        return _generate_banner_image(client, input_data)
+
     try:
-        result = retry_sync(lambda: agent.run_sync(prompt, deps=deps), retry_policy)
-
-        # Return the result from side-channel if available
-        if deps.result:
-            return deps.result
-
-        # If no result was set but agent succeeded (unlikely with tool usage), return failure
-        return BannerResult(
-            success=False, error=f"Agent completed but produced no image result. Output: {result.data}"
-        )
-
+        return retry_sync(_generate, retry_policy)
     except Exception as e:
-        logger.exception("Banner agent run failed")
-        return BannerResult(success=False, error=str(e))
+        logger.exception("Banner generation failed after retries")
+        return BannerOutput(error=str(e), error_code="RETRY_FAILED")

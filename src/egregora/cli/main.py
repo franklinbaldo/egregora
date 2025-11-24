@@ -1,7 +1,6 @@
 """Main Typer application for Egregora."""
 
 import logging
-import os
 from datetime import date
 from pathlib import Path
 from typing import Annotated
@@ -49,11 +48,6 @@ logger = logging.getLogger(__name__)
 @app.callback()
 def main() -> None:
     """Initialize CLI (placeholder for future setup)."""
-
-
-def _resolve_gemini_key() -> str | None:
-    """Return the Gemini API key from environment variable."""
-    return os.getenv("GOOGLE_API_KEY")
 
 
 def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
@@ -135,14 +129,26 @@ def init(
 
 
 @app.command()
-def write(  # noqa: C901, PLR0913, PLR0915
+def write(  # noqa: C901, PLR0913
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     source: Annotated[
         SourceType,
-        typer.Option(help="Source type (whatsapp, iperon-tjro, self)", case_sensitive=False),
+        typer.Option(
+            "--source-type",
+            "-s",
+            help="Source type (whatsapp, iperon-tjro, self)",
+            case_sensitive=False,
+        ),
     ] = SourceType.WHATSAPP,
-    output: Annotated[Path, typer.Option(help="Output directory for generated site")] = Path("output"),
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            "-o",
+            help="Output directory for generated site",
+        ),
+    ] = Path("output"),
     step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
     step_unit: Annotated[
         WindowUnit,
@@ -257,14 +263,23 @@ def write(  # noqa: C901, PLR0913, PLR0915
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1) from e
 
-    # Resolve paths and API key
+    # Resolve paths
     output_dir = output.expanduser().resolve()
     _ensure_mkdocs_scaffold(output_dir)
 
     api_key = _resolve_gemini_key()
     if not api_key:
+        # Try loading from .env
+        from dotenv import load_dotenv
+
+        load_dotenv(output_dir / ".env")
+        load_dotenv()  # Check CWD as well
+        api_key = _resolve_gemini_key()
+
+    if not api_key:
         console.print("[red]Error: GOOGLE_API_KEY environment variable not set[/red]")
         console.print("Set GOOGLE_API_KEY environment variable with your Google Gemini API key")
+        console.print("You can also create a .env file in the output directory or current directory.")
         raise typer.Exit(1)
 
     # Load base config and merge CLI overrides
@@ -313,7 +328,6 @@ def write(  # noqa: C901, PLR0913, PLR0915
     runtime = RuntimeContext(
         output_dir=output_dir,
         input_file=input_file,
-        api_key=api_key,
         model_override=model,
         debug=debug,
     )
@@ -332,15 +346,15 @@ def write(  # noqa: C901, PLR0913, PLR0915
             input_path=runtime.input_file,
             output_dir=runtime.output_dir,
             config=egregora_config,
-            api_key=runtime.api_key,
             refresh=refresh,
         )
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:
-        console.print(f"[red]Pipeline failed: {e}[/red]")
-        if debug:
-            raise
-        raise typer.Exit(1) from e
+        import traceback
+
+        traceback.print_exc()
+        console.print(f"[red]Pipeline failed: {e}[/]")
+        raise typer.Exit(code=1) from e
 
 
 @app.command()

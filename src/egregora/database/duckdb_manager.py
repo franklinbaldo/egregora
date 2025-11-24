@@ -39,7 +39,6 @@ import logging
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Literal, Self
 
@@ -173,10 +172,9 @@ class DuckDBStorageManager:
         db_str = str(db_path) if db_path else ":memory:"
         self._conn = duckdb.connect(db_str)
 
-        # Enable HNSW index persistence for vector search
-        # Requires 'vss' extension to be loaded first
-        self._conn.execute("INSTALL vss; LOAD vss;")
-        self._conn.execute("SET hnsw_enable_experimental_persistence=true")
+        # Initialize vector extensions
+        self._vss_function: str | None = None
+        self._init_vector_extensions()
 
         # Initialize Ibis backend
         self.ibis_conn = ibis.duckdb.from_connection(self._conn)
@@ -190,6 +188,18 @@ class DuckDBStorageManager:
             self.checkpoint_dir,
         )
 
+    def _init_vector_extensions(self) -> None:
+        """Install and load DuckDB VSS extension, and detect best search function."""
+        # Enable HNSW index persistence for vector search
+        # Requires 'vss' extension to be loaded first
+        try:
+            self._conn.execute("INSTALL vss; LOAD vss;")
+            self._conn.execute("SET hnsw_enable_experimental_persistence=true")
+            self._vss_function = self.detect_vss_function()
+        except (duckdb.Error, RuntimeError) as exc:
+            logger.warning("VSS extension unavailable: %s", exc)
+            self._vss_function = None
+
     @contextlib.contextmanager
     def connection(self) -> duckdb.DuckDBPyConnection:
         """Yield the managed DuckDB connection.
@@ -199,6 +209,41 @@ class DuckDBStorageManager:
         available and avoid caching the returned handle.
         """
         yield self._conn
+
+    def execute_query(self, sql: str, params: list | None = None) -> list:
+        """Execute a raw SQL query and return all results.
+
+        This is the preferred way to run raw SQL when Ibis is insufficient.
+        It replaces direct access to ``self.conn``.
+
+        Args:
+            sql: SQL query string
+            params: Optional list of parameters for prepared statement
+
+        Returns:
+            List of result tuples
+
+        """
+        params = params or []
+        return self._conn.execute(sql, params).fetchall()
+
+    def execute_query_single(self, sql: str, params: list | None = None) -> tuple | None:
+        """Execute a raw SQL query and return a single result row.
+
+        Args:
+            sql: SQL query string
+            params: Optional list of parameters
+
+        Returns:
+            Single result tuple or None
+
+        """
+        params = params or []
+        return self._conn.execute(sql, params).fetchone()
+
+    def get_vector_function_name(self) -> str | None:
+        """Return the detected VSS search function name (vss_search or vss_match), or None."""
+        return self._vss_function
 
     def read_table(self, name: str) -> Table:
         """Read table as Ibis expression.
@@ -337,116 +382,6 @@ class DuckDBStorageManager:
             self._table_info_cache[cache_key] = {row[0] for row in rows}
 
         return self._table_info_cache[cache_key]
-
-    def _runs_duration_expression(self) -> str:
-        columns = self.get_table_columns("runs")
-        if "duration_seconds" in columns:
-            return "duration_seconds"
-        if "started_at" in columns and "finished_at" in columns:
-            return "CAST(date_diff('second', started_at, finished_at) AS DOUBLE) AS duration_seconds"
-        return "CAST(NULL AS DOUBLE) AS duration_seconds"
-
-    def _column_or_null(self, table_name: str, column: str, duck_type: str) -> str:
-        columns = self.get_table_columns(table_name)
-        if column in columns:
-            return column
-        return f"CAST(NULL AS {duck_type}) AS {column}"
-
-    def fetch_latest_runs(self, limit: int = 10) -> list[tuple]:
-        """Return summaries for the most recent runs."""
-        duration_expr = self._runs_duration_expression()
-        return self._conn.execute(
-            f"""
-            SELECT
-                run_id,
-                stage,
-                status,
-                started_at,
-                rows_in,
-                rows_out,
-                {duration_expr}
-            FROM runs
-            WHERE started_at IS NOT NULL
-            ORDER BY started_at DESC
-            LIMIT ?
-            """,
-            [limit],
-        ).fetchall()
-
-    def fetch_run_by_partial_id(self, run_id: str) -> dict | None:
-        """Return the newest run whose UUID starts with ``run_id``."""
-        parent_run_expr = self._column_or_null("runs", "parent_run_id", "UUID")
-        duration_expr = self._runs_duration_expression()
-        attrs_expr = self._column_or_null("runs", "attrs", "JSON")
-        return self._conn.execute(
-            f"""
-            SELECT
-                run_id,
-                tenant_id,
-                stage,
-                status,
-                error,
-                {parent_run_expr},
-                code_ref,
-                config_hash,
-                started_at,
-                finished_at,
-                {duration_expr},
-                rows_in,
-                rows_out,
-                llm_calls,
-                tokens,
-                {attrs_expr},
-                trace_id
-            FROM runs
-            WHERE CAST(run_id AS VARCHAR) LIKE ?
-            ORDER BY started_at DESC
-            LIMIT 1
-            """,
-            [f"{run_id}%"],
-        ).fetchone()
-
-    def mark_run_completed(
-        self,
-        *,
-        run_id: uuid.UUID,
-        finished_at: datetime,
-        duration_seconds: float,
-        rows_out: int | None,
-    ) -> None:
-        """Update ``runs`` when a stage completes."""
-        self._conn.execute(
-            """
-            UPDATE runs
-            SET status = 'completed',
-                finished_at = ?,
-                duration_seconds = ?,
-                rows_out = ?
-            WHERE run_id = ?
-            """,
-            [finished_at, duration_seconds, rows_out, str(run_id)],
-        )
-
-    def mark_run_failed(
-        self,
-        *,
-        run_id: uuid.UUID,
-        finished_at: datetime,
-        duration_seconds: float,
-        error: str,
-    ) -> None:
-        """Update ``runs`` when a stage fails."""
-        self._conn.execute(
-            """
-            UPDATE runs
-            SET status = 'failed',
-                finished_at = ?,
-                duration_seconds = ?,
-                error = ?
-            WHERE run_id = ?
-            """,
-            [finished_at, duration_seconds, error, str(run_id)],
-        )
 
     # ==================================================================
     # Sequence helpers

@@ -15,6 +15,7 @@ Part of the three-layer architecture:
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from collections import deque
 from contextlib import contextmanager
@@ -28,14 +29,13 @@ from zoneinfo import ZoneInfo
 
 import ibis
 from google import genai
-from rich.console import Console
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
 from egregora.agents.model_limits import get_model_context_limit
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore, index_all_media
-from egregora.agents.writer import WriterResources, write_posts_for_window
+from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputSink, UrlContext
@@ -49,20 +49,20 @@ from egregora.input_adapters.whatsapp import extract_commands, filter_egregora_m
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
-from egregora.output_adapters.mkdocs import MkDocsAdapter, derive_mkdocs_paths
+from egregora.orchestration.factory import PipelineFactory
+from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
 from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
-from egregora.utils.rate_limit import AsyncRateLimit
+from egregora.utils.rate_limit import SyncRateLimit
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
 
 
 logger = logging.getLogger(__name__)
-console = Console()
 __all__ = ["WhatsAppProcessOptions", "process_whatsapp_export", "run"]
 
 
@@ -98,6 +98,9 @@ def process_whatsapp_export(
     """High-level helper for processing WhatsApp ZIP exports using :func:`run`."""
     opts = options or WhatsAppProcessOptions()
     output_dir = opts.output_dir.expanduser().resolve()
+
+    if opts.gemini_api_key:
+        os.environ["GOOGLE_API_KEY"] = opts.gemini_api_key
 
     base_config = load_egregora_config(output_dir)
 
@@ -151,7 +154,6 @@ def process_whatsapp_export(
         input_path=zip_path,
         output_dir=output_dir,
         config=egregora_config,
-        api_key=opts.gemini_api_key,
         client=opts.client,
         refresh=opts.refresh,
     )
@@ -169,45 +171,7 @@ class PreparedPipelineData:
     embedding_model: str
 
 
-def _create_writer_resources(ctx: PipelineContext) -> WriterResources:
-    """Create writer resources from pipeline context."""
-    from egregora.output_adapters import create_output_format
-
-    # Ensure output sink is initialized
-    output_format = ctx.output_format
-    if not output_format:
-        storage_root = ctx.site_root if ctx.site_root else ctx.output_dir
-        format_type = ctx.config.output.format
-
-        if format_type == "mkdocs":
-            output_format = MkDocsAdapter()
-            url_context = ctx.url_context or UrlContext(base_url="", site_prefix="", base_path=storage_root)
-            output_format.initialize(site_root=storage_root, url_context=url_context)
-        else:
-            output_format = create_output_format(storage_root, format_type=format_type)
-
-    prompts_dir = ctx.site_root / ".egregora" / "prompts" if ctx.site_root else None
-    # Assuming journal_dir is standard relative path if not specified elsewhere.
-    # ctx.config.paths.journal_dir is relative to site_root.
-    journal_dir = (
-        ctx.site_root / ctx.config.paths.journal_dir if ctx.site_root else ctx.output_dir / "journal"
-    )
-
-    return WriterResources(
-        output=output_format,
-        rag_store=ctx.rag_store,
-        annotations_store=ctx.annotations_store,
-        storage=ctx.storage,  # Added storage for RAG indexing
-        embedding_model=ctx.embedding_model,
-        retrieval_config=ctx.config.rag,
-        profiles_dir=ctx.profiles_dir,
-        journal_dir=journal_dir,
-        prompts_dir=prompts_dir,
-        client=ctx.client,
-        quota=ctx.quota_tracker,
-        usage=ctx.usage_tracker,
-        rate_limit=ctx.rate_limit,
-    )
+# _create_writer_resources REMOVED - functionality moved to PipelineFactory.create_writer_resources
 
 
 def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
@@ -290,7 +254,7 @@ def _process_single_window(
                 logger.exception("Failed to serve media document %s", media_doc.metadata.get("filename"))
 
     # Write posts
-    resources = _create_writer_resources(ctx)
+    resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
 
     result = write_posts_for_window(
@@ -707,8 +671,11 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> di
     return derive_mkdocs_paths(output_dir, config=config)
 
 
-def _create_gemini_client(api_key: str | None) -> genai.Client:
-    """Create a Gemini client with retry configuration suitable for the pipeline."""
+def _create_gemini_client() -> genai.Client:
+    """Create a Gemini client with retry configuration.
+
+    The client reads the API key from GOOGLE_API_KEY environment variable automatically.
+    """
     http_options = genai.types.HttpOptions(
         retryOptions=genai.types.HttpRetryOptions(
             attempts=5,
@@ -718,13 +685,12 @@ def _create_gemini_client(api_key: str | None) -> genai.Client:
             httpStatusCodes=[429, 503],
         )
     )
-    return genai.Client(api_key=api_key, http_options=http_options)
+    return genai.Client(http_options=http_options)
 
 
 def _create_pipeline_context(  # noqa: PLR0913
     output_dir: Path,
     config: EgregoraConfig,
-    api_key: str | None,
     client: genai.Client | None,
     run_id: uuid.UUID,
     start_time: datetime,
@@ -737,8 +703,7 @@ def _create_pipeline_context(  # noqa: PLR0913
     Args:
         output_dir: Output directory for the pipeline
         config: Egregora configuration
-        api_key: Google API key
-        client: Optional existing Gemini client
+        client: Optional existing Gemini client (reads GOOGLE_API_KEY env if None)
         run_id: Unique run identifier
         start_time: Run start timestamp
         source_type: Source type (e.g., "whatsapp", "slack")
@@ -763,7 +728,7 @@ def _create_pipeline_context(  # noqa: PLR0913
 
     initialize_database(pipeline_backend)
 
-    client_instance = client or _create_gemini_client(api_key)
+    client_instance = client or _create_gemini_client()
     cache_dir = Path(".egregora-cache") / site_paths["site_root"].name
     cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
     site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
@@ -781,7 +746,7 @@ def _create_pipeline_context(  # noqa: PLR0913
     from egregora.orchestration.context import PipelineConfig, PipelineState
 
     quota_tracker = QuotaTracker(site_paths["egregora_dir"], config.quota.daily_llm_requests)
-    rate_limit = AsyncRateLimit(config.quota.per_second_limit)
+    rate_limit = SyncRateLimit(config.quota.per_second_limit)
 
     url_ctx = UrlContext(
         base_url="",
@@ -824,7 +789,6 @@ def _create_pipeline_context(  # noqa: PLR0913
 def _pipeline_environment(  # noqa: PLR0913
     output_dir: Path,
     config: EgregoraConfig,
-    api_key: str | None,
     client: genai.Client | None,
     run_id: uuid.UUID,
     start_time: datetime,
@@ -837,8 +801,7 @@ def _pipeline_environment(  # noqa: PLR0913
     Args:
         output_dir: Output directory for the pipeline
         config: Egregora configuration
-        api_key: Google API key
-        client: Optional existing Gemini client
+        client: Optional existing Gemini client (reads GOOGLE_API_KEY env if None)
         run_id: Unique run identifier
         start_time: Run start timestamp
         source_type: Source type (e.g., "whatsapp", "slack")
@@ -852,7 +815,7 @@ def _pipeline_environment(  # noqa: PLR0913
     options = getattr(ibis, "options", None)
     old_backend = getattr(options, "default_backend", None) if options else None
     ctx, pipeline_backend, runs_backend = _create_pipeline_context(
-        output_dir, config, api_key, client, run_id, start_time, source_type, input_path, refresh
+        output_dir, config, client, run_id, start_time, source_type, input_path, refresh
     )
 
     if options is not None:
@@ -1047,9 +1010,9 @@ def _prepare_pipeline_data(
     vision_model = config.models.enricher_vision
     embedding_model = config.models.embedding
 
-    from egregora.output_adapters import create_output_format
-
-    output_format = create_output_format(output_dir, format_type=config.output.format)
+    output_format = PipelineFactory.create_output_adapter(
+        config, output_dir, site_root=ctx.site_root, url_context=ctx.url_context
+    )
     ctx = ctx.with_output_format(output_format)
 
     messages_table = _parse_and_validate_source(adapter, input_path, timezone, output_adapter=output_format)
@@ -1459,7 +1422,6 @@ def run(  # noqa: PLR0913
     output_dir: Path,
     config: EgregoraConfig,
     *,
-    api_key: str | None = None,
     client: genai.Client | None = None,
     refresh: str | None = None,
 ) -> dict[str, dict[str, list[str]]]:
@@ -1470,8 +1432,7 @@ def run(  # noqa: PLR0913
         input_path: Path to input file
         output_dir: Output directory
         config: Egregora configuration
-        api_key: Optional Google API key
-        client: Optional existing Gemini client
+        client: Optional existing Gemini client (if None, creates one with env GOOGLE_API_KEY)
         refresh: Optional comma-separated list of cache tiers to refresh
 
     Returns:
@@ -1486,7 +1447,7 @@ def run(  # noqa: PLR0913
     started_at = datetime.now(UTC)
 
     with _pipeline_environment(
-        output_dir, config, api_key, client, run_id, started_at, source, input_path, refresh
+        output_dir, config, client, run_id, started_at, source, input_path, refresh
     ) as (ctx, runs_backend):
         # Get DuckDB connection from Ibis backend for run tracking
         runs_conn = getattr(runs_backend, "con", None)
