@@ -48,8 +48,7 @@ class DatasetMetadata:
 
 
 class VectorStore:
-    """
-    Vector store backed by Parquet file.
+    """Vector store backed by Parquet file.
 
     Uses DuckDB VSS extension for similarity search.
     Data lives in Parquet for portability and client-side access.
@@ -183,7 +182,9 @@ class VectorStore:
 
     def _store_metadata(self, metadata: DatasetMetadata | None) -> None:
         """Persist or remove cached metadata for the backing Parquet file."""
-        self.storage.execute_query(f"DELETE FROM {METADATA_TABLE_NAME} WHERE path = ?", [str(self.parquet_path)])
+        self.storage.execute_query(
+            f"DELETE FROM {METADATA_TABLE_NAME} WHERE path = ?", [str(self.parquet_path)]
+        )
         if metadata is None:
             return
         self.storage.execute_query(
@@ -194,7 +195,9 @@ class VectorStore:
     def _read_parquet_metadata(self) -> DatasetMetadata:
         """Inspect the Parquet file for structural metadata."""
         stats = self.parquet_path.stat()
-        row = self.storage.execute_query_single("SELECT COUNT(*) FROM read_parquet(?)", [str(self.parquet_path)])
+        row = self.storage.execute_query_single(
+            "SELECT COUNT(*) FROM read_parquet(?)", [str(self.parquet_path)]
+        )
         row_count = int(row[0]) if row and row[0] is not None else 0
         return DatasetMetadata(
             mtime_ns=int(stats.st_mtime_ns), size=int(stats.st_size), row_count=int(row_count)

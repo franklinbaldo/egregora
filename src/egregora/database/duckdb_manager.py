@@ -38,9 +38,7 @@ import contextlib
 import logging
 import re
 import uuid
-import warnings
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Literal, Self
 
@@ -384,7 +382,6 @@ class DuckDBStorageManager:
             self._table_info_cache[cache_key] = {row[0] for row in rows}
 
         return self._table_info_cache[cache_key]
-
 
     # ==================================================================
     # Sequence helpers

@@ -28,6 +28,7 @@ from zoneinfo import ZoneInfo
 
 import ibis
 from google import genai
+
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
 from egregora.agents.model_limits import get_model_context_limit
@@ -1008,10 +1009,7 @@ def _prepare_pipeline_data(
     embedding_model = config.models.embedding
 
     output_format = PipelineFactory.create_output_adapter(
-        config,
-        output_dir,
-        site_root=ctx.site_root,
-        url_context=ctx.url_context
+        config, output_dir, site_root=ctx.site_root, url_context=ctx.url_context
     )
     ctx = ctx.with_output_format(output_format)
 

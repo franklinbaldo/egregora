@@ -105,8 +105,7 @@ class EnrichmentCache:
             value = self.backend.get(key)
         except (json.JSONDecodeError, TypeError, ValueError) as e:
             logger.warning(
-                "Failed to deserialize cache entry for key %s: %s. "
-                "Clearing entry - will be regenerated.",
+                "Failed to deserialize cache entry for key %s: %s. Clearing entry - will be regenerated.",
                 key,
                 e,
             )

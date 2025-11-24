@@ -865,7 +865,7 @@ def _cast_uuid_columns_to_str(table: Table) -> Table:
     )
 
 
-def write_posts_for_window(  # noqa: C901, PLR0913, PLR0912 - Complex orchestration function
+def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
     table: Table,
     window_start: datetime,
     window_end: datetime,

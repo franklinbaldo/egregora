@@ -3,8 +3,6 @@
 from pathlib import Path
 
 from slugify import slugify as _slugify
-from werkzeug.exceptions import NotFound as _WerkzeugNotFound
-from werkzeug.exceptions import SecurityError as _WerkzeugSecurityError
 from werkzeug.utils import safe_join as _werkzeug_safe_join
 
 

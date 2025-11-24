@@ -7,20 +7,12 @@ providing a single place to wire up components.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.shared.rag import VectorStore
 from egregora.agents.writer import WriterResources
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import OutputSink, UrlContext
-from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.orchestration.context import PipelineContext
 from egregora.output_adapters.mkdocs import MkDocsAdapter
-from egregora.output_adapters.mkdocs.paths import compute_site_prefix
-
-if TYPE_CHECKING:
-    from google import genai
 
 
 class PipelineFactory:
@@ -55,11 +47,7 @@ class PipelineFactory:
                     except Exception:
                         pass
 
-                url_context = UrlContext(
-                    base_url="",
-                    site_prefix=prefix,
-                    base_path=storage_root
-                )
+                url_context = UrlContext(base_url="", site_prefix=prefix, base_path=storage_root)
 
             adapter.initialize(site_root=storage_root, url_context=url_context)
             return adapter
@@ -74,10 +62,7 @@ class PipelineFactory:
         if not output_format:
             # Fallback: try to create it if missing (legacy path)
             output_format = PipelineFactory.create_output_adapter(
-                ctx.config,
-                ctx.output_dir,
-                ctx.site_root,
-                ctx.url_context
+                ctx.config, ctx.output_dir, ctx.site_root, ctx.url_context
             )
 
         prompts_dir = ctx.site_root / ".egregora" / "prompts" if ctx.site_root else None
