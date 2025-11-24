@@ -24,7 +24,7 @@ from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.utils.cache import EnrichmentCache, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
-from egregora.utils.rate_limit import AsyncRateLimit
+from egregora.utils.rate_limit import AsyncRateLimit, SyncRateLimit
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,7 +111,7 @@ class PipelineState:
 
     # Quota tracking
     quota_tracker: QuotaTracker | None = None
-    rate_limit: AsyncRateLimit | None = None
+    rate_limit: AsyncRateLimit | SyncRateLimit | None = None
 
     # Output & Adapters (Initialized lazily or updated)
     output_format: OutputSink | None = None  # ISP-compliant: Runtime data operations only
@@ -212,7 +212,7 @@ class PipelineContext:
         return self.state.adapter
 
     @property
-    def rate_limit(self) -> AsyncRateLimit | None:
+    def rate_limit(self) -> AsyncRateLimit | SyncRateLimit | None:
         return self.state.rate_limit
 
     @property

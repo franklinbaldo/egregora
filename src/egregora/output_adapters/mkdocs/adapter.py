@@ -44,12 +44,16 @@ from egregora.utils.paths import slugify
 logger = logging.getLogger(__name__)
 
 
-# Custom YAML loader that ignores unknown tags
 class _ConfigLoader(yaml.SafeLoader):
-    """YAML loader that ignores unknown tags (like !ENV)."""
+    """YAML loader that ignores unknown tags."""
 
 
 _ConfigLoader.add_constructor(None, lambda loader, node: None)
+
+
+def _safe_yaml_load(content: str) -> dict[str, Any]:
+    """Load YAML safely, ignoring unknown tags like !ENV."""
+    return yaml.load(content, Loader=_ConfigLoader) or {}  # noqa: S506
 
 
 class MkDocsAdapter(OutputAdapter):
@@ -74,6 +78,25 @@ class MkDocsAdapter(OutputAdapter):
         self._url_convention = StandardUrlConvention()
         self._index: dict[str, Path] = {}
         self._ctx: UrlContext | None = None
+
+        # Dispatch tables for strategy pattern
+        self._path_resolvers = {
+            DocumentType.POST: self._resolve_post_path,
+            DocumentType.PROFILE: self._resolve_profile_path,
+            DocumentType.JOURNAL: self._resolve_journal_path,
+            DocumentType.ENRICHMENT_URL: self._resolve_enrichment_url_path,
+            DocumentType.ENRICHMENT_MEDIA: self._resolve_enrichment_media_path,
+            DocumentType.MEDIA: self._resolve_media_path,
+        }
+
+        self._writers = {
+            DocumentType.POST: self._write_post_doc,
+            DocumentType.JOURNAL: self._write_journal_doc,
+            DocumentType.PROFILE: self._write_profile_doc,
+            DocumentType.ENRICHMENT_URL: self._write_enrichment_doc,
+            DocumentType.ENRICHMENT_MEDIA: self._write_enrichment_doc,
+            DocumentType.MEDIA: self._write_media_doc,
+        }
 
     def initialize(self, site_root: Path, url_context: UrlContext | None = None) -> None:
         """Initializes the adapter with all necessary paths and dependencies."""
@@ -145,32 +168,48 @@ class MkDocsAdapter(OutputAdapter):
             authors = document.metadata.get("authors", [])
             if authors and isinstance(authors, list):
                 # Append author cards using Jinja template
-                document.content = self._append_author_cards(document.content, authors)
+                import dataclasses
+
+                new_content = self._append_author_cards(document.content, authors)
+                document = dataclasses.replace(document, content=new_content)
 
         self._write_document(document, path)
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
 
-    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:  # noqa: C901
+    def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path | None:
+        """Resolve filesystem path for a document based on its type.
+
+        Args:
+            doc_type: Type of document
+            identifier: Document identifier
+
+        Returns:
+            Path to document or None if type unsupported
+
+        """
+        # Dispatch table for document type to path resolution
+        path_resolvers = {
+            DocumentType.PROFILE: lambda: self.profiles_dir / f"{identifier}.md",
+            DocumentType.POST: lambda: (
+                max(self.posts_dir.glob(f"*-{identifier}.md"), key=lambda p: p.stat().st_mtime)
+                if (_matches := list(self.posts_dir.glob(f"*-{identifier}.md")))
+                else None
+            ),
+            DocumentType.JOURNAL: lambda: self.journal_dir / f"{identifier.replace('/', '-')}.md",
+            DocumentType.ENRICHMENT_URL: lambda: self.urls_dir / f"{identifier}.md",
+            DocumentType.ENRICHMENT_MEDIA: lambda: self.media_dir / f"{identifier}.md",
+            DocumentType.MEDIA: lambda: self.media_dir / identifier,
+        }
+
+        resolver = path_resolvers.get(doc_type)
+        return resolver() if resolver else None
+
+    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
         if isinstance(doc_type, str):
             doc_type = DocumentType(doc_type)
-        path: Path | None = None
 
-        if doc_type == DocumentType.PROFILE:
-            path = self.profiles_dir / f"{identifier}.md"
-        elif doc_type == DocumentType.POST:
-            matches = list(self.posts_dir.glob(f"*-{identifier}.md"))
-            if matches:
-                path = max(matches, key=lambda p: p.stat().st_mtime)
-        elif doc_type == DocumentType.JOURNAL:
-            safe_identifier = identifier.replace("/", "-")
-            path = self.journal_dir / f"{safe_identifier}.md"
-        elif doc_type == DocumentType.ENRICHMENT_URL:
-            path = self.urls_dir / f"{identifier}.md"
-        elif doc_type == DocumentType.ENRICHMENT_MEDIA:
-            path = self.media_dir / f"{identifier}.md"
-        elif doc_type == DocumentType.MEDIA:
-            path = self.media_dir / identifier
+        path = self._resolve_document_path(doc_type, identifier)
 
         if path is None or not path.exists():
             logger.debug(
@@ -289,6 +328,8 @@ class MkDocsAdapter(OutputAdapter):
                 "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
                 "generated_date": datetime.now(UTC).strftime("%Y-%m-%d"),
                 "default_writer_model": EgregoraConfig().models.writer,
+                "media_counts": {"urls": 0, "images": 0, "videos": 0, "audio": 0},  # Default counts for init
+                "recent_media": [],  # Empty for initial scaffold
             }
 
             # Create mkdocs.yml in .egregora/ (default location) ONLY if it doesn't exist
@@ -566,9 +607,7 @@ class MkDocsAdapter(OutputAdapter):
         mkdocs_path = site_paths.get("mkdocs_path")
         if mkdocs_path:
             try:
-                mkdocs_config = (
-                    yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}  # noqa: S506
-                )
+                mkdocs_config = _safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
             except yaml.YAMLError as exc:
                 logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
                 mkdocs_config = {}
@@ -672,7 +711,7 @@ class MkDocsAdapter(OutputAdapter):
             msg = f"No mkdocs.yml found in {site_root}"
             raise FileNotFoundError(msg)
         try:
-            config = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}  # noqa: S506
+            config = _safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
         except yaml.YAMLError as exc:
             logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
             config = {}
@@ -681,10 +720,30 @@ class MkDocsAdapter(OutputAdapter):
     def get_markdown_extensions(self) -> list[str]:
         """Get list of supported markdown extensions for MkDocs Material theme.
 
+        Reads from configuration if available, otherwise returns standard defaults.
+
         Returns:
             List of markdown extension identifiers
 
         """
+        # Load from mkdocs.yml if possible
+        if self.site_root:
+            try:
+                config = self.load_config(self.site_root)
+                markdown_extensions = config.get("markdown_extensions")
+                if markdown_extensions:
+                    # Handle both list and dict formats (mkdocs supports both)
+                    if isinstance(markdown_extensions, list):
+                        return [
+                            ext if isinstance(ext, str) else next(iter(ext.keys()))
+                            for ext in markdown_extensions
+                        ]
+                    if isinstance(markdown_extensions, dict):
+                        return list(markdown_extensions.keys())
+            except (FileNotFoundError, ValueError):
+                pass
+
+        # Fallback defaults
         return [
             "tables",
             "fenced_code",
@@ -1001,7 +1060,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             metadata.setdefault("mtime_ns", 0)
         return Document(content=body.strip(), type=doc_type, metadata=metadata)
 
-    def _url_to_path(self, url: str, document: Document) -> Path:  # noqa: PLR0911, C901
+    def _url_to_path(self, url: str, document: Document) -> Path:
         base = self._ctx.base_url.rstrip("/")
         if url.startswith(base):
             url_path = url[len(base) :]
@@ -1010,106 +1069,125 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         url_path = url_path.strip("/")
 
-        if document.type == DocumentType.POST:
-            return self.posts_dir / f"{url_path.split('/')[-1]}.md"
-        if document.type == DocumentType.PROFILE:
-            return self.profiles_dir / f"{url_path.split('/')[-1]}.md"
-        if document.type == DocumentType.JOURNAL:
-            return self.journal_dir / f"{url_path.split('/')[-1]}.md"
-        if document.type == DocumentType.ENRICHMENT_URL:
-            # url_path might be 'media/urls/slug' -> we want 'slug.md' inside urls_dir
-            slug = url_path.split("/")[-1]
-            return self.urls_dir / f"{slug}.md"
-        if document.type == DocumentType.ENRICHMENT_MEDIA:
-            # url_path might be 'media/images/slug' -> we want 'slug.md' inside media/images
-            # We need to preserve the subdirectory (images/videos/etc)
-            # url_path is like 'media/images/foo'
-            # self.media_dir is 'docs/media'
-            # We want 'docs/media/images/foo.md'
+        # Use strategy pattern to resolve path based on document type
+        resolver = self._path_resolvers.get(document.type, self._resolve_generic_path)
+        return resolver(url_path)
 
-            # Strip the prefix (media/) from url_path if present
-            rel_path = url_path
-            media_prefix = self._ctx.site_prefix + "/media" if self._ctx.site_prefix else "media"
-            if rel_path.startswith(media_prefix):
-                rel_path = rel_path[len(media_prefix) :].strip("/")
-            elif rel_path.startswith("media/"):
-                rel_path = rel_path[6:]
+    # Path Resolution Strategies ----------------------------------------------
 
-            return self.media_dir / f"{rel_path}.md"
+    def _resolve_post_path(self, url_path: str) -> Path:
+        return self.posts_dir / f"{url_path.split('/')[-1]}.md"
 
-        if document.type == DocumentType.MEDIA:
-            # Similar logic for media files
-            rel_path = url_path
-            media_prefix = self._ctx.site_prefix + "/media" if self._ctx.site_prefix else "media"
-            if rel_path.startswith(media_prefix):
-                rel_path = rel_path[len(media_prefix) :].strip("/")
-            elif rel_path.startswith("media/"):
-                rel_path = rel_path[6:]
-            return self.media_dir / rel_path
+    def _resolve_profile_path(self, url_path: str) -> Path:
+        return self.profiles_dir / f"{url_path.split('/')[-1]}.md"
 
+    def _resolve_journal_path(self, url_path: str) -> Path:
+        return self.journal_dir / f"{url_path.split('/')[-1]}.md"
+
+    def _resolve_enrichment_url_path(self, url_path: str) -> Path:
+        # url_path might be 'media/urls/slug' -> we want 'slug.md' inside urls_dir
+        slug = url_path.split("/")[-1]
+        return self.urls_dir / f"{slug}.md"
+
+    def _resolve_enrichment_media_path(self, url_path: str) -> Path:
+        # url_path is like 'media/images/foo' -> we want 'docs/media/images/foo.md'
+        rel_path = self._strip_media_prefix(url_path)
+        return self.media_dir / f"{rel_path}.md"
+
+    def _resolve_media_path(self, url_path: str) -> Path:
+        rel_path = self._strip_media_prefix(url_path)
+        return self.media_dir / rel_path
+
+    def _resolve_generic_path(self, url_path: str) -> Path:
         return self.site_root / f"{url_path}.md"
 
-    def _write_document(self, document: Document, path: Path) -> None:  # noqa: C901
-        import yaml as _yaml
+    def _strip_media_prefix(self, url_path: str) -> str:
+        """Helper to strip media prefixes from URL path."""
+        rel_path = url_path
+        media_prefix = self._ctx.site_prefix + "/media" if self._ctx.site_prefix else "media"
+        if rel_path.startswith(media_prefix):
+            rel_path = rel_path[len(media_prefix) :].strip("/")
+        elif rel_path.startswith("media/"):
+            rel_path = rel_path[6:]
+        return rel_path
 
+    def _write_document(self, document: Document, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        def _ensure_hidden(metadata: dict[str, Any]) -> dict[str, Any]:
-            hide = metadata.get("hide", [])
-            if isinstance(hide, str):
-                hide = [hide]
-            if "navigation" not in hide:
-                hide.append("navigation")
-            metadata["hide"] = hide
-            metadata["nav_exclude"] = metadata.get("nav_exclude", True)
-            return metadata
+        # Use strategy pattern to write document
+        writer = self._writers.get(document.type, self._write_generic_doc)
+        writer(document, path)
 
-        if document.type == DocumentType.POST:
-            metadata = dict(document.metadata or {})
-            if "date" in metadata:
-                metadata["date"] = _format_frontmatter_datetime(metadata["date"])
-            if "authors" in metadata:
-                _ensure_author_entries(path.parent, metadata.get("authors"))
+    # Document Writing Strategies ---------------------------------------------
 
-            yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
-            full_content = f"---\n{yaml_front}---\n\n{document.content}"
-            path.write_text(full_content, encoding="utf-8")
-        elif document.type == DocumentType.JOURNAL:
-            metadata = _ensure_hidden(dict(document.metadata or {}))
-            yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
-            full_content = f"---\n{yaml_front}---\n\n{document.content}"
-            path.write_text(full_content, encoding="utf-8")
-        elif document.type == DocumentType.PROFILE:
-            from egregora.knowledge.profiles import (
-                write_profile as write_profile_content,
-            )
+    def _write_post_doc(self, document: Document, path: Path) -> None:
+        import yaml as _yaml
 
-            author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
-            if not author_uuid:
-                msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
-                raise ValueError(msg)
-            write_profile_content(author_uuid, document.content, self.profiles_dir)
-        elif document.type in (DocumentType.ENRICHMENT_URL, DocumentType.ENRICHMENT_MEDIA):
-            metadata = _ensure_hidden(document.metadata.copy())
-            metadata.setdefault("document_type", document.type.value)
-            metadata.setdefault("slug", document.slug)
-            if document.parent_id:
-                metadata.setdefault("parent_id", document.parent_id)
-            if document.parent and document.parent.metadata.get("slug"):
-                metadata.setdefault("parent_slug", document.parent.metadata.get("slug"))
+        metadata = dict(document.metadata or {})
+        if "date" in metadata:
+            metadata["date"] = _format_frontmatter_datetime(metadata["date"])
+        if "authors" in metadata:
+            _ensure_author_entries(path.parent, metadata.get("authors"))
 
-            yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
-            full_content = f"---\n{yaml_front}---\n\n{document.content}"
-            path.write_text(full_content, encoding="utf-8")
-        elif document.type == DocumentType.MEDIA:
-            payload = (
-                document.content if isinstance(document.content, bytes) else document.content.encode("utf-8")
-            )
-            path.write_bytes(payload)
-        elif isinstance(document.content, bytes):
+        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        full_content = f"---\n{yaml_front}---\n\n{document.content}"
+        path.write_text(full_content, encoding="utf-8")
+
+    def _write_journal_doc(self, document: Document, path: Path) -> None:
+        import yaml as _yaml
+
+        metadata = self._ensure_hidden(dict(document.metadata or {}))
+        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        full_content = f"---\n{yaml_front}---\n\n{document.content}"
+        path.write_text(full_content, encoding="utf-8")
+
+    def _write_profile_doc(self, document: Document, path: Path) -> None:
+        from egregora.knowledge.profiles import write_profile as write_profile_content
+
+        author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
+        if not author_uuid:
+            msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
+            raise ValueError(msg)
+        write_profile_content(author_uuid, document.content, self.profiles_dir)
+
+    def _write_enrichment_doc(self, document: Document, path: Path) -> None:
+        import yaml as _yaml
+
+        metadata = self._ensure_hidden(document.metadata.copy())
+        metadata.setdefault("document_type", document.type.value)
+        metadata.setdefault("slug", document.slug)
+        if document.parent_id:
+            metadata.setdefault("parent_id", document.parent_id)
+        if document.parent and document.parent.metadata.get("slug"):
+            metadata.setdefault("parent_slug", document.parent.metadata.get("slug"))
+
+        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        full_content = f"---\n{yaml_front}---\n\n{document.content}"
+        path.write_text(full_content, encoding="utf-8")
+
+    def _write_media_doc(self, document: Document, path: Path) -> None:
+        payload = (
+            document.content if isinstance(document.content, bytes) else document.content.encode("utf-8")
+        )
+        path.write_bytes(payload)
+
+    def _write_generic_doc(self, document: Document, path: Path) -> None:
+        if isinstance(document.content, bytes):
             path.write_bytes(document.content)
         else:
             path.write_text(document.content, encoding="utf-8")
+
+    @staticmethod
+    def _ensure_hidden(metadata: dict[str, Any]) -> dict[str, Any]:
+        """Ensure document is hidden from navigation."""
+        hide = metadata.get("hide", [])
+        if isinstance(hide, str):
+            hide = [hide]
+        if "navigation" not in hide:
+            hide.append("navigation")
+        metadata["hide"] = hide
+        metadata["nav_exclude"] = metadata.get("nav_exclude", True)
+        return metadata
 
     def _get_document_id_at_path(self, path: Path) -> str | None:
         if not path.exists():

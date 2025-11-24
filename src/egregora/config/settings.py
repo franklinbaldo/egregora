@@ -40,6 +40,16 @@ DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
 DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash-image"
 EMBEDDING_DIM = 768  # Embedding vector dimensions
 
+# Quota defaults
+DEFAULT_DAILY_LLM_REQUESTS = 220
+DEFAULT_PER_SECOND_LIMIT = 10
+DEFAULT_CONCURRENCY = 4
+
+# Default database connection strings
+# Can be overridden via config.yml or environment variables
+DEFAULT_PIPELINE_DB = "duckdb:///./.egregora/pipeline.duckdb"
+DEFAULT_RUNS_DB = "duckdb:///./.egregora/runs.duckdb"
+
 # Model naming conventions
 PydanticModelName = Annotated[
     str,
@@ -135,8 +145,6 @@ class WriterAgentSettings(BaseModel):
         default=None,
         description="Custom instructions to guide the writer agent",
     )
-    # REMOVED (Phase 3): enable_meme_generation - never accessed
-    # REMOVED (Phase 3): enable_banners - never accessed (controlled by API key availability)
 
 
 class PrivacySettings(BaseModel):
@@ -158,10 +166,6 @@ class PrivacySettings(BaseModel):
        When privacy configuration becomes user-configurable, this class will hold the
        YAML settings which get mapped to runtime PrivacySettings instances.
     """
-
-    # REMOVED (Phase 3): anonymization_enabled - never accessed (always enabled)
-    # REMOVED (Phase 3): pii_detection_enabled - never accessed (always enabled)
-    # REMOVED (Phase 3): opt_out_keywords - never accessed (planned feature)
 
 
 class EnrichmentSettings(BaseModel):
@@ -322,7 +326,7 @@ class DatabaseSettings(BaseModel):
     """
 
     pipeline_db: str = Field(
-        default="duckdb:///./.egregora/pipeline.duckdb",
+        default=DEFAULT_PIPELINE_DB,
         description=(
             "Pipeline database connection URI (e.g. 'duckdb:///absolute/path.duckdb', "
             "'duckdb:///./.egregora/pipeline.duckdb' for a site-relative file, or "
@@ -330,7 +334,7 @@ class DatabaseSettings(BaseModel):
         ),
     )
     runs_db: str = Field(
-        default="duckdb:///./.egregora/runs.duckdb",
+        default=DEFAULT_RUNS_DB,
         description=(
             "Run tracking database connection URI (e.g. 'duckdb:///absolute/runs.duckdb', "
             "'duckdb:///./.egregora/runs.duckdb' for a site-relative file, or "
@@ -381,17 +385,17 @@ class QuotaSettings(BaseModel):
     """Configuration for LLM usage budgets and concurrency."""
 
     daily_llm_requests: int = Field(
-        default=220,
+        default=DEFAULT_DAILY_LLM_REQUESTS,
         ge=1,
         description="Soft limit for daily LLM calls (writer + enrichment).",
     )
     per_second_limit: int = Field(
-        default=10,
+        default=DEFAULT_PER_SECOND_LIMIT,
         ge=1,
         description="Maximum number of LLM calls allowed per second (for async guard).",
     )
     concurrency: int = Field(
-        default=4,
+        default=DEFAULT_CONCURRENCY,
         ge=1,
         le=20,
         description="Maximum number of simultaneous LLM tasks (enrichment, writing, etc).",
@@ -675,15 +679,14 @@ class RuntimeContext:
 
     This is the minimal set of fields that are truly runtime-specific:
     - Paths resolved at invocation time
-    - API keys from environment
     - Debug flags
 
+    API keys are read directly from environment variables by pydantic-ai/genai.
     All other configuration lives in EgregoraConfig (single source of truth).
     """
 
     output_dir: Annotated[Path, "Directory for the generated site"]
     input_file: Annotated[Path | None, "Path to the chat export file"] = None
-    api_key: Annotated[str | None, "Google API key (from env or CLI)"] = None
     model_override: Annotated[str | None, "Model override from CLI"] = None
     debug: Annotated[bool, "Enable debug logging"] = False
 
@@ -770,6 +773,8 @@ __all__ = [
     "DEFAULT_BANNER_MODEL",
     "DEFAULT_EMBEDDING_MODEL",
     "DEFAULT_MODEL",
+    "DEFAULT_PIPELINE_DB",
+    "DEFAULT_RUNS_DB",
     "EMBEDDING_DIM",
     "EgregoraConfig",
     "EnrichmentRuntimeConfig",
