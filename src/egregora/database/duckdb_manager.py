@@ -455,11 +455,11 @@ class DuckDBStorageManager:
     def ensure_sequence(self, name: str, *, start: int = 1) -> None:
         """Create a sequence if it does not exist."""
         quoted_name = quote_identifier(name)
-        self.conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {quoted_name} START {int(start)}")
+        self._conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {quoted_name} START {int(start)}")
 
     def get_sequence_state(self, name: str) -> SequenceState | None:
         """Return metadata describing the current state of ``name``."""
-        row = self.conn.execute(
+        row = self._conn.execute(
             """
             SELECT start_value, increment_by, last_value
             FROM duckdb_sequences()
@@ -481,7 +481,7 @@ class DuckDBStorageManager:
     def ensure_sequence_default(self, table: str, column: str, sequence_name: str) -> None:
         """Ensure ``column`` uses ``sequence_name`` as its default value."""
         desired_default = f"nextval('{sequence_name}')"
-        column_default = self.conn.execute(
+        column_default = self._conn.execute(
             """
             SELECT column_default
             FROM information_schema.columns
@@ -493,7 +493,7 @@ class DuckDBStorageManager:
         if not column_default or column_default[0] != desired_default:
             quoted_table = quote_identifier(table)
             quoted_column = quote_identifier(column)
-            self.conn.execute(
+            self._conn.execute(
                 f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} SET DEFAULT {desired_default}"
             )
 
@@ -504,7 +504,7 @@ class DuckDBStorageManager:
 
         quoted_table = quote_identifier(table)
         quoted_column = quote_identifier(column)
-        max_row = self.conn.execute(f"SELECT MAX({quoted_column}) FROM {quoted_table}").fetchone()
+        max_row = self._conn.execute(f"SELECT MAX({quoted_column}) FROM {quoted_table}").fetchone()
         if not max_row or max_row[0] is None:
             return
 
@@ -531,7 +531,7 @@ class DuckDBStorageManager:
             msg = "count must be positive"
             raise ValueError(msg)
 
-        cursor = self.conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
+        cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
         return [int(row[0]) for row in cursor.fetchall()]
 
     def table_exists(self, name: str) -> bool:
