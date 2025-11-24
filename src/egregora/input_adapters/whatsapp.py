@@ -21,6 +21,7 @@ import re
 import unicodedata
 import uuid
 import zipfile
+from collections.abc import Iterator
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict, Unpack
@@ -72,24 +73,26 @@ _IMPORT_ORDER_COLUMN = "_import_order"
 _IMPORT_SOURCE_COLUMN = "_import_source"
 _AUTHOR_UUID_HEX_COLUMN = "_author_uuid_hex"
 
-# WhatsApp message line pattern
+# Regex patterns
 WHATSAPP_LINE_PATTERN = re.compile(
     r"^(\d{1,2}[/\.\-]\d{1,2}[/\.\-]\d{2,4})(?:,\s*|\s+)(\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)\s*[—\-]\s*([^:]+):\s*(.*)$"
 )
+INVISIBLE_MARKS = re.compile(r"[\u200e\u200f\u202a-\u202e]")
+EGREGORA_COMMAND_PATTERN = re.compile(r"^/egregora\s+(\w+)\s+(.+)$", re.IGNORECASE)
+EGREGORA_ACTION_PATTERN = re.compile(r"^/egregora\s+([^\s]+)")
+EGREGORA_ARGS_PATTERN = re.compile(r"^/egregora\s+[^\s]+\s*(.*)$")
+COMMAND_TARGET_PATTERN = re.compile(r"^([^\s]+)")
+COMMAND_VALUE_PATTERN = re.compile(r"^[^\s]+\s*(.*)$")
 
-# Text normalization
-_INVISIBLE_MARKS = re.compile(r"[\u200e\u200f\u202a-\u202e]")
-
-# Command parsing constants
+# Constants
 SET_COMMAND_PARTS = 2
-EGREGORA_COMMAND_PATTERN = re.compile("^/egregora\\s+(\\w+)\\s+(.+)$", re.IGNORECASE)
 
 
 def _normalize_text(value: str) -> str:
     """Normalize unicode text."""
     normalized = unicodedata.normalize("NFKC", value)
     normalized = normalized.replace("\u202f", " ")
-    return _INVISIBLE_MARKS.sub("", normalized)
+    return INVISIBLE_MARKS.sub("", normalized)
 
 
 def _parse_message_date(token: str) -> date | None:
@@ -167,6 +170,37 @@ def _finalize_message(msg: dict, tenant_id: str, source: str) -> dict:
     }
 
 
+def _process_line_header_match(
+    match: re.Match,
+    line: str,
+    context: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Process a line that matches the message header pattern."""
+    date_str, time_str, author_raw, message_part = match.groups()
+
+    # Update context date
+    msg_date = _parse_message_date(date_str)
+    if msg_date:
+        context["current_date"] = msg_date
+
+    msg_time = _parse_message_time(time_str)
+
+    if not msg_time:
+        return None
+
+    timestamp = datetime.combine(context["current_date"], msg_time, tzinfo=context["tz"]).astimezone(UTC)
+    context["message_count"] += 1
+
+    return {
+        "timestamp": timestamp,
+        "date": context["current_date"],
+        "author_raw": author_raw.strip(),
+        "_original_lines": [line],
+        "_continuation_lines": [message_part],
+        "_import_order": context["message_count"],
+    }
+
+
 def _parse_whatsapp_lines(
     lines: list[str],
     export: WhatsAppExport,
@@ -180,14 +214,16 @@ def _parse_whatsapp_lines(
     rows: list[dict[str, Any]] = []
 
     # Context Setup
-    tz = _resolve_timezone(timezone)
+    context = {
+        "tz": _resolve_timezone(timezone),
+        "current_date": export.export_date,
+        "message_count": 0,
+    }
     tenant_id = str(export.group_slug)
     source_identifier = "whatsapp"
-    current_date = export.export_date
 
     # State
     current_entry: dict[str, Any] | None = None
-    message_count = 0
 
     for raw_line in lines:
         # 1. Normalize
@@ -204,31 +240,7 @@ def _parse_whatsapp_lines(
                     rows.append(finalized)
 
             # Start new entry
-            date_str, time_str, author_raw, message_part = match.groups()
-
-            # 3. Parse Date/Time immediately (update context)
-            msg_date = _parse_message_date(date_str)
-            if msg_date:
-                current_date = msg_date
-
-            msg_time = _parse_message_time(time_str)
-
-            # Skip invalid times, but keep the date update
-            if not msg_time:
-                current_entry = None
-                continue
-
-            timestamp = datetime.combine(current_date, msg_time, tzinfo=tz).astimezone(UTC)
-            message_count += 1
-
-            current_entry = {
-                "timestamp": timestamp,
-                "date": current_date,
-                "author_raw": author_raw.strip(),
-                "_original_lines": [line],
-                "_continuation_lines": [message_part],  # Just the text part
-                "_import_order": message_count,
-            }
+            current_entry = _process_line_header_match(match, line, context)
 
         elif current_entry:
             # 4. Handle Continuation (Strict Parity)
@@ -322,25 +334,38 @@ def strip_wrapping_quotes(value: str | None) -> str | None:
     return value.strip("\"'")
 
 
-def extract_commands(messages: Table) -> list[dict]:
-    """Extract egregora commands from parsed Table."""
+def _normalize_and_filter_commands(messages: Table) -> Table:
+    """Normalize messages and filter for /egregora commands."""
     normalized = messages.mutate(normalized_message=normalize_smart_quotes(messages.text))
     filtered = normalized.filter(normalized.normalized_message.lower().startswith("/egregora"))
-    trimmed = filtered.mutate(trimmed_message=filtered.normalized_message.strip())
+    return filtered.mutate(trimmed_message=filtered.normalized_message.strip())
 
-    parsed = trimmed.mutate(
-        action=trimmed.trimmed_message.re_extract(r"^/egregora\s+([^\s]+)", 1).lower(),
-        args_raw=trimmed.trimmed_message.re_extract(r"^/egregora\s+[^\s]+\s*(.*)$", 1),
+
+def _parse_command_actions(trimmed: Table) -> Table:
+    """Extract action and raw arguments from command messages."""
+    return trimmed.mutate(
+        action=trimmed.trimmed_message.re_extract(EGREGORA_ACTION_PATTERN.pattern, 1).lower(),
+        args_raw=trimmed.trimmed_message.re_extract(EGREGORA_ARGS_PATTERN.pattern, 1),
     )
 
+
+def _enrich_command_args(parsed: Table) -> Table:
+    """Enrich command arguments with target and value candidates."""
     enriched = parsed.mutate(
         args_trimmed=ibis.coalesce(parsed.args_raw, ibis.literal("")).strip(),
     )
-
-    enriched = enriched.mutate(
-        target_candidate=enriched.args_trimmed.re_extract(r"^([^\s]+)", 1),
-        value_candidate=enriched.args_trimmed.re_extract(r"^[^\s]+\s*(.*)$", 1),
+    return enriched.mutate(
+        target_candidate=enriched.args_trimmed.re_extract(COMMAND_TARGET_PATTERN.pattern, 1),
+        value_candidate=enriched.args_trimmed.re_extract(COMMAND_VALUE_PATTERN.pattern, 1),
     )
+
+
+def extract_commands(messages: Table) -> list[dict]:
+    """Extract egregora commands from parsed Table."""
+    # decompose steps
+    trimmed = _normalize_and_filter_commands(messages)
+    parsed = _parse_command_actions(trimmed)
+    enriched = _enrich_command_args(parsed)
 
     enriched = enriched.mutate(
         set_has_value=ibis.coalesce(
@@ -616,7 +641,7 @@ def build_message_attrs(
             "message_date": message_date,
         }
     )
-    has_metadata = ibis.coalesce(original_line, tagged_line, message_date).notna()
+    has_metadata = ibis.coalesce(original_line, tagged_line, message_date).notnull()
     attrs_json = attrs_struct.cast(dt.json).cast(dt.string)
     empty_json = ibis.literal(None, type=dt.string)
     return ibis.cases(

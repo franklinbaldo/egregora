@@ -40,6 +40,10 @@ DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
 DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash-image"
 EMBEDDING_DIM = 768  # Embedding vector dimensions
 
+DEFAULT_DAILY_QUOTA = 220
+DEFAULT_RATE_LIMIT = 10
+DEFAULT_CONCURRENCY = 4
+
 # Model naming conventions
 PydanticModelName = Annotated[
     str,
@@ -135,8 +139,6 @@ class WriterAgentSettings(BaseModel):
         default=None,
         description="Custom instructions to guide the writer agent",
     )
-    # REMOVED (Phase 3): enable_meme_generation - never accessed
-    # REMOVED (Phase 3): enable_banners - never accessed (controlled by API key availability)
 
 
 class PrivacySettings(BaseModel):
@@ -158,10 +160,6 @@ class PrivacySettings(BaseModel):
        When privacy configuration becomes user-configurable, this class will hold the
        YAML settings which get mapped to runtime PrivacySettings instances.
     """
-
-    # REMOVED (Phase 3): anonymization_enabled - never accessed (always enabled)
-    # REMOVED (Phase 3): pii_detection_enabled - never accessed (always enabled)
-    # REMOVED (Phase 3): opt_out_keywords - never accessed (planned feature)
 
 
 class EnrichmentSettings(BaseModel):
@@ -381,17 +379,17 @@ class QuotaSettings(BaseModel):
     """Configuration for LLM usage budgets and concurrency."""
 
     daily_llm_requests: int = Field(
-        default=220,
+        default=DEFAULT_DAILY_QUOTA,
         ge=1,
         description="Soft limit for daily LLM calls (writer + enrichment).",
     )
     per_second_limit: int = Field(
-        default=10,
+        default=DEFAULT_RATE_LIMIT,
         ge=1,
         description="Maximum number of LLM calls allowed per second (for async guard).",
     )
     concurrency: int = Field(
-        default=4,
+        default=DEFAULT_CONCURRENCY,
         ge=1,
         le=20,
         description="Maximum number of simultaneous LLM tasks (enrichment, writing, etc).",
@@ -770,6 +768,9 @@ __all__ = [
     "DEFAULT_BANNER_MODEL",
     "DEFAULT_EMBEDDING_MODEL",
     "DEFAULT_MODEL",
+    "DEFAULT_DAILY_QUOTA",
+    "DEFAULT_RATE_LIMIT",
+    "DEFAULT_CONCURRENCY",
     "EMBEDDING_DIM",
     "EgregoraConfig",
     "EnrichmentRuntimeConfig",
