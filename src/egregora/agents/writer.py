@@ -7,7 +7,6 @@ It exposes ``write_posts_for_window`` which routes the LLM conversation through 
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from collections.abc import Sequence
@@ -58,7 +57,7 @@ from egregora.utils.batch import call_with_retries_sync
 from egregora.utils.cache import CacheTier, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
-from egregora.utils.rate_limit import AsyncRateLimit
+from egregora.utils.rate_limit import AsyncRateLimit, SyncRateLimit
 from egregora.utils.retry import RetryPolicy, retry_sync
 
 if TYPE_CHECKING:
@@ -164,7 +163,7 @@ class WriterResources:
     client: genai.Client | None
     quota: QuotaTracker | None
     usage: UsageTracker | None
-    rate_limit: AsyncRateLimit | None
+    rate_limit: AsyncRateLimit | SyncRateLimit | None
 
 
 @dataclass(frozen=True)
@@ -260,6 +259,14 @@ def register_writer_tools(  # noqa: C901
     def annotate_conversation_tool(
         ctx: RunContext[WriterDeps], parent_id: str, parent_type: str, commentary: str
     ) -> AnnotationResult:
+        """Annotate a message or another annotation with commentary.
+
+        Args:
+            parent_id: The ID of the message or annotation being annotated
+            parent_type: Must be exactly 'message' or 'annotation' (lowercase)
+            commentary: Your commentary about the parent entity
+
+        """
         if ctx.deps.resources.annotations_store is None:
             msg = "Annotation store is not configured"
             raise RuntimeError(msg)
@@ -465,7 +472,7 @@ def _build_writer_prompt_context(
         rag_context = ""
 
     profiles_context = _load_profiles_context(table_with_str_uuids, resources.profiles_dir)
-    journal_memory = _load_journal_memory(resources.journal_dir)
+    journal_memory = _load_journal_memory(resources.output)
     active_authors = get_active_authors(table_with_str_uuids)
 
     return WriterPromptContext(
@@ -754,7 +761,7 @@ def write_posts_with_pydantic_agent(
 
     def _invoke_agent() -> Any:
         if context.resources.rate_limit:
-            asyncio.run(context.resources.rate_limit.acquire())
+            context.resources.rate_limit.acquire()
         if context.resources.quota:
             context.resources.quota.reserve(1)
         return call_with_retries_sync(agent.run_sync, prompt, deps=context)
@@ -1018,7 +1025,7 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
     """Get top N active authors by message count."""
     author_counts = (
         table.filter(~table.author_uuid.cast("string").isin(["system", "egregora"]))
-        .filter(table.author_uuid.notnull())
+        .filter(table.author_uuid.notna())
         .filter(table.author_uuid.cast("string") != "")
         .group_by("author_uuid")
         .aggregate(count=ibis._.count())

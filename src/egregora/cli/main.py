@@ -136,7 +136,7 @@ def init(
 
 
 @app.command()
-def write(  # noqa: C901, PLR0913, PLR0915, PLR0912
+def write(  # noqa: C901, PLR0913, PLR0915
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     source: Annotated[
@@ -355,10 +355,11 @@ def write(  # noqa: C901, PLR0913, PLR0915, PLR0912
         )
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:
-        console.print(f"[red]Pipeline failed: {e}[/red]")
-        if debug:
-            raise
-        raise typer.Exit(1) from e
+        import traceback
+
+        traceback.print_exc()
+        console.print(f"[red]Pipeline failed: {e}[/]")
+        raise typer.Exit(code=1) from e
 
 
 @app.command()

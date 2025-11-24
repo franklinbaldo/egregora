@@ -37,3 +37,39 @@ class AsyncRateLimit:
         period = self._period
         while self._usage and now - self._usage[0] >= period:
             self._usage.popleft()
+
+
+class SyncRateLimit:
+    """Simple synchronous rate limiter (max calls per period in seconds)."""
+
+    def __init__(self, max_calls: int, period: float = 1.0) -> None:
+        if max_calls < 1:
+            msg = "max_calls must be >= 1"
+            raise ValueError(msg)
+        if period <= 0:
+            msg = "period must be > 0"
+            raise ValueError(msg)
+        self._max_calls = max_calls
+        self._period = period
+        self._usage = deque[float]()
+        import threading
+
+        self._lock = threading.Lock()
+
+    def acquire(self) -> None:
+        """Block until the next call is allowed."""
+        with self._lock:
+            now = time.monotonic()
+            self._purge(now)
+            if len(self._usage) >= self._max_calls:
+                wait_time = self._period - (now - self._usage[0])
+                if wait_time > 0:
+                    time.sleep(wait_time)
+                now = time.monotonic()
+                self._purge(now)
+            self._usage.append(now)
+
+    def _purge(self, now: float) -> None:
+        period = self._period
+        while self._usage and now - self._usage[0] >= period:
+            self._usage.popleft()

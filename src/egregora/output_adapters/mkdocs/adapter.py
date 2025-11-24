@@ -145,7 +145,10 @@ class MkDocsAdapter(OutputAdapter):
             authors = document.metadata.get("authors", [])
             if authors and isinstance(authors, list):
                 # Append author cards using Jinja template
-                document.content = self._append_author_cards(document.content, authors)
+                import dataclasses
+
+                new_content = self._append_author_cards(document.content, authors)
+                document = dataclasses.replace(document, content=new_content)
 
         self._write_document(document, path)
         self._index[doc_id] = path
