@@ -130,16 +130,12 @@ def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> Bann
         contents = [types.Content(role="user", parts=[types.Part.from_text(text=visual_prompt)])]
         generate_content_config = types.GenerateContentConfig(
             response_modalities=[_RESPONSE_MODALITIES_IMAGE, _RESPONSE_MODALITIES_TEXT],
-            image_config=types.ImageConfig(
-                aspect_ratio=_BANNER_ASPECT_RATIO
-            ),
+            image_config=types.ImageConfig(aspect_ratio=_BANNER_ASPECT_RATIO),
         )
 
         # Use the client from deps to call the image model
         stream = ctx.deps.client.models.generate_content_stream(
-            model=ctx.deps.image_model,
-            contents=contents,
-            config=generate_content_config
+            model=ctx.deps.image_model, contents=contents, config=generate_content_config
         )
 
         # Extract image from stream
@@ -171,10 +167,7 @@ def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> Bann
 
 
 def generate_banner_with_agent(
-    post_title: str,
-    post_summary: str,
-    output_dir: Path,
-    api_key: str | None = None
+    post_title: str, post_summary: str, output_dir: Path, api_key: str | None = None
 ) -> BannerResult:
     """Generate a banner using the Pydantic-AI agent workflow.
 
@@ -190,7 +183,7 @@ def generate_banner_with_agent(
     """
     effective_key = api_key or os.environ.get("GOOGLE_API_KEY")
     if not effective_key:
-         return BannerResult(success=False, error="No API Key provided")
+        return BannerResult(success=False, error="No API Key provided")
 
     client = genai.Client(api_key=effective_key)
     deps = BannerDeps(client=client, output_dir=output_dir)
@@ -201,10 +194,7 @@ def generate_banner_with_agent(
     retry_policy = RetryPolicy()
 
     try:
-        result = retry_sync(
-            lambda: banner_agent.run_sync(prompt, deps=deps),
-            retry_policy
-        )
+        result = retry_sync(lambda: banner_agent.run_sync(prompt, deps=deps), retry_policy)
         return result.data
     except Exception as e:
         logger.exception("Banner agent run failed")
