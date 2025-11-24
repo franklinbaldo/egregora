@@ -89,6 +89,10 @@ class ModelSettings(BaseModel):
         default=DEFAULT_MODEL,
         description="Model for interactive post editing (pydantic-ai format)",
     )
+    reader: PydanticModelName = Field(
+        default=DEFAULT_MODEL,
+        description="Model for reader agent (pydantic-ai format)",
+    )
 
     # Special models with their own defaults (direct Gemini API usage)
     embedding: GoogleModelName = Field(

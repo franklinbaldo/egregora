@@ -43,6 +43,9 @@ import ibis
 from egregora.database.duckdb_manager import DuckDBStorageManager
 
 
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
 def get_git_commit_sha() -> str | None:
     """Get current git commit SHA for reproducibility tracking.
 

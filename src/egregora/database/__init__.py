@@ -21,7 +21,6 @@ from egregora.database.init import initialize_database
 from egregora.database.ir_schema import (
     CONVERSATION_SCHEMA,
     MESSAGE_SCHEMA,
-    RUNS_TABLE_DDL,
     RUNS_TABLE_SCHEMA,
     WHATSAPP_CONVERSATION_SCHEMA,
     create_runs_table,
@@ -59,7 +58,6 @@ __all__ = [
     # Schemas
     "CONVERSATION_SCHEMA",
     "MESSAGE_SCHEMA",
-    "RUNS_TABLE_DDL",
     "RUNS_TABLE_SCHEMA",
     "WHATSAPP_CONVERSATION_SCHEMA",
     # Storage

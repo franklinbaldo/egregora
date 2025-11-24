@@ -17,33 +17,14 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
+from egregora.config.settings import EgregoraConfig
+from egregora.resources.prompts import render_prompt
 from egregora.utils.retry import RetryPolicy, retry_async
 
 if TYPE_CHECKING:
     from egregora.agents.reader.models import EvaluationRequest
 
 logger = logging.getLogger(__name__)
-
-
-# System prompt for reader agent
-READER_SYSTEM_PROMPT = """You are a discerning reader evaluating blog posts.
-
-Your task is to compare two blog posts and determine which one is better quality.
-Consider these criteria:
-
-1. **Clarity**: Is the writing clear and easy to understand?
-2. **Engagement**: Would this keep a reader's interest?
-3. **Insight**: Does it offer valuable or interesting perspectives?
-4. **Structure**: Is it well-organized and flows logically?
-5. **Authenticity**: Does it feel genuine rather than generic?
-
-For each post, provide:
-- A star rating (1-5 stars)
-- Engagement level (low, medium, high)
-- Constructive feedback
-
-Then decide which post is better overall, or if they're equal quality (tie).
-"""
 
 
 # Pydantic models for agent result
@@ -80,7 +61,7 @@ async def compare_posts(
 
     Args:
         request: Evaluation request with two Document instances
-        model: Optional model override (defaults to google-gla:gemini-flash-latest)
+        model: Optional model override (defaults to configured reader model)
         api_key: Optional API key (defaults to GOOGLE_API_KEY env var)
 
     Returns:
@@ -105,11 +86,12 @@ async def compare_posts(
 Evaluate both posts and determine which is better quality overall.
 """
 
-    # Use default model if not specified
-    # Note: PydanticAI models are typically "provider:model", e.g. "google-gla:gemini-flash-latest"
-    model_name = model or "google-gla:gemini-flash-latest"
+    # Load configuration
+    config = EgregoraConfig()
+    model_name = model or config.models.reader
+    system_prompt = render_prompt("reader_system.jinja")
 
-    agent = Agent(model=model_name, result_type=ComparisonResult, system_prompt=READER_SYSTEM_PROMPT)
+    agent = Agent(model=model_name, result_type=ComparisonResult, system_prompt=system_prompt)
 
     logger.debug("Comparing posts: %s vs %s", request.post_a_slug, request.post_b_slug)
 

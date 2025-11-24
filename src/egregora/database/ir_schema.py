@@ -303,35 +303,6 @@ RUNS_TABLE_SCHEMA = ibis.schema(
 
 # RUN_EVENTS_SCHEMA - REMOVED
 
-RUNS_TABLE_DDL = """
-CREATE TABLE IF NOT EXISTS runs (
-    run_id UUID PRIMARY KEY,
-    tenant_id VARCHAR,
-    stage VARCHAR NOT NULL,
-    status VARCHAR NOT NULL CHECK (status IN ('running', 'completed', 'failed', 'degraded')),
-    error TEXT,
-    parent_run_id UUID,
-    code_ref VARCHAR,
-    config_hash VARCHAR,
-    started_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    finished_at TIMESTAMP WITH TIME ZONE,
-    rows_in BIGINT,
-    rows_out BIGINT,
-    duration_seconds DOUBLE PRECISION,
-    llm_calls BIGINT,
-    tokens BIGINT,
-    attrs JSON,
-    trace_id VARCHAR
-);
-
--- Index for common queries
-CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs(started_at DESC);
-CREATE INDEX IF NOT EXISTS idx_runs_stage ON runs(stage);
-CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
-CREATE INDEX IF NOT EXISTS idx_runs_tenant ON runs(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_runs_parent ON runs(parent_run_id);
-"""
-
 # RUN_EVENTS_TABLE_DDL - REMOVED (2025-11-17)
 
 # ============================================================================
@@ -557,7 +528,19 @@ def create_runs_table(conn: duckdb.DuckDBPyConnection) -> None:
 
     """
     try:
-        conn.execute(RUNS_TABLE_DDL)
+        # Use centralized schema definition
+        create_table_if_not_exists(conn, "runs", RUNS_TABLE_SCHEMA)
+
+        # Add primary key manually (Ibis create table doesn't support PKs well on DuckDB yet)
+        add_primary_key(conn, "runs", "run_id")
+
+        # Create indexes manually
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs(started_at DESC)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_runs_stage ON runs(stage)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_runs_tenant ON runs(tenant_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_runs_parent ON runs(parent_run_id)")
+
         logger.info("Created runs table with indexes")
     except Exception as e:
         msg = f"Failed to create runs table: {e}"

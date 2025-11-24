@@ -25,6 +25,17 @@ CI_MODE=false
 SPECIFIC_CHECK=""
 COVERAGE_THRESHOLD=40
 
+print_help() {
+    echo "Usage: $0 [options]"
+    echo ""
+    echo "Options:"
+    echo "  --quick                 Run only fast checks (ruff)"
+    echo "  --ci                    CI mode (fail fast)"
+    echo "  --check <tool>          Run specific check"
+    echo "  --coverage-threshold <n> Set coverage threshold (default: 40)"
+    echo "  -h, --help              Show this help message"
+}
+
 while [[ $# -gt 0 ]]; do
     case $1 in
         --quick)
@@ -43,9 +54,13 @@ while [[ $# -gt 0 ]]; do
             COVERAGE_THRESHOLD="$2"
             shift 2
             ;;
+        -h|--help)
+            print_help
+            exit 0
+            ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--quick] [--ci] [--check <tool>] [--coverage-threshold <n>]"
+            print_help
             exit 1
             ;;
     esac
