@@ -84,6 +84,18 @@ _INVISIBLE_MARKS = re.compile(r"[\u200e\u200f\u202a-\u202e]")
 SET_COMMAND_PARTS = 2
 EGREGORA_COMMAND_PATTERN = re.compile("^/egregora\\s+(\\w+)\\s+(.+)$", re.IGNORECASE)
 
+# Regex patterns for command extraction
+_COMMAND_ACTION_PATTERN = r"^/egregora\s+([^\s]+)"
+_COMMAND_ARGS_PATTERN = r"^/egregora\s+[^\s]+\s*(.*)$"
+_FIRST_ARG_PATTERN = r"^([^\s]+)"
+_REMAINING_ARGS_PATTERN = r"^[^\s]+\s*(.*)$"
+
+# Time parsing pattern
+_AM_PM_PATTERN = re.compile(r"([AaPp][Mm])$")
+
+# Chat file discovery pattern
+_CHAT_FILE_PATTERN = re.compile(r"WhatsApp(?: Chat with|.*) (.+)\.txt")
+
 
 def _normalize_text(value: str) -> str:
     """Normalize unicode text."""
@@ -93,21 +105,21 @@ def _normalize_text(value: str) -> str:
 
 
 def _parse_message_date(token: str) -> date | None:
-    """Parse date token into a date object."""
+    """Parse date token into a date object using multiple parsing strategies."""
     normalized = token.strip()
     if not normalized:
         return None
 
-    try:
-        parsed = date_parser.isoparse(normalized)
-        parsed = parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
-        return parsed.date()
-    except (TypeError, ValueError, OverflowError):
-        pass
+    # Define parsing strategies in order of preference
+    parsing_strategies = [
+        lambda: date_parser.isoparse(normalized),  # Try ISO format first
+        lambda: date_parser.parse(normalized, dayfirst=True),  # Day-first format (DD/MM/YYYY)
+        lambda: date_parser.parse(normalized, dayfirst=False),  # Month-first format (MM/DD/YYYY)
+    ]
 
-    for dayfirst in (True, False):
+    for strategy in parsing_strategies:
         try:
-            parsed = date_parser.parse(normalized, dayfirst=dayfirst)
+            parsed = strategy()
             parsed = parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
             return parsed.date()
         except (TypeError, ValueError, OverflowError):
@@ -120,7 +132,7 @@ def _parse_message_time(time_token: str) -> datetime.time | None:
     """Parse time token into a time object (naive, for later localization)."""
     time_token = time_token.strip()
 
-    am_pm_match = re.search(r"([AaPp][Mm])$", time_token)
+    am_pm_match = _AM_PM_PATTERN.search(time_token)
     if am_pm_match:
         am_pm = am_pm_match.group(1).upper()
         time_str = time_token[: am_pm_match.start()].strip()
@@ -329,8 +341,8 @@ def extract_commands(messages: Table) -> list[dict]:
     trimmed = filtered.mutate(trimmed_message=filtered.normalized_message.strip())
 
     parsed = trimmed.mutate(
-        action=trimmed.trimmed_message.re_extract(r"^/egregora\s+([^\s]+)", 1).lower(),
-        args_raw=trimmed.trimmed_message.re_extract(r"^/egregora\s+[^\s]+\s*(.*)$", 1),
+        action=trimmed.trimmed_message.re_extract(_COMMAND_ACTION_PATTERN, 1).lower(),
+        args_raw=trimmed.trimmed_message.re_extract(_COMMAND_ARGS_PATTERN, 1),
     )
 
     enriched = parsed.mutate(
@@ -338,8 +350,8 @@ def extract_commands(messages: Table) -> list[dict]:
     )
 
     enriched = enriched.mutate(
-        target_candidate=enriched.args_trimmed.re_extract(r"^([^\s]+)", 1),
-        value_candidate=enriched.args_trimmed.re_extract(r"^[^\s]+\s*(.*)$", 1),
+        target_candidate=enriched.args_trimmed.re_extract(_FIRST_ARG_PATTERN, 1),
+        value_candidate=enriched.args_trimmed.re_extract(_REMAINING_ARGS_PATTERN, 1),
     )
 
     enriched = enriched.mutate(
@@ -518,8 +530,7 @@ def discover_chat_file(zip_path: Path) -> tuple[str, str]:
             if not member.endswith(".txt") or member.startswith("__"):
                 continue
 
-            pattern = r"WhatsApp(?: Chat with|.*) (.+)\\.txt"
-            match = re.match(pattern, Path(member).name)
+            match = _CHAT_FILE_PATTERN.match(Path(member).name)
             file_info = zf.getinfo(member)
             score = file_info.file_size
             if match:
