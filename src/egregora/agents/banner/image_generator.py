@@ -22,6 +22,13 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
+# Constants for image generation
+_DEFAULT_MODEL = "models/gemini-2.5-flash-image"
+_BANNER_ASPECT_RATIO = "16:9"
+_RESPONSE_MODALITIES_IMAGE = "IMAGE"
+_RESPONSE_MODALITIES_TEXT = "TEXT"
+_DEFAULT_IMAGE_EXTENSION = ".png"
+
 
 class BannerRequest(BaseModel):
     """Request parameters for banner generation."""
@@ -72,7 +79,56 @@ class BannerGenerator:
             raise ValueError(msg)
         self.client = genai.Client(api_key=self.api_key)
         # Default model (can be overridden via config or passed in __init__)
-        self.model = "models/gemini-2.5-flash-image"
+        self.model = _DEFAULT_MODEL
+
+    def _extract_image_from_stream(self, stream, output_dir: Path, post_title: str) -> BannerResult:
+        """Extract and save image data from API response stream.
+
+        Args:
+            stream: Generator yielding response chunks from Gemini API
+            output_dir: Directory to save the generated image
+            post_title: Title of the post (for logging)
+
+        Returns:
+            BannerResult with success status and path (if successful)
+
+        """
+        for chunk in stream:
+            if not (chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts):
+                continue
+            part = chunk.candidates[0].content.parts[0]
+            if part.inline_data and part.inline_data.data:
+                inline_data = part.inline_data
+                banner_path = self._save_image_asset(inline_data.data, inline_data.mime_type, output_dir)
+                return BannerResult(success=True, banner_path=banner_path)
+            if hasattr(chunk, "text") and chunk.text:
+                logger.debug("Gemini response: %s", chunk.text)
+        logger.warning("No image generated for post: %s", post_title)
+        return BannerResult(success=False, error="No image data received from API")
+
+    def _save_image_asset(self, data_buffer: bytes, mime_type: str, output_dir: Path) -> Path:
+        """Save image data to disk with content-based deterministic naming.
+
+        Args:
+            data_buffer: Raw image bytes
+            mime_type: MIME type of the image
+            output_dir: Directory to save the image
+
+        Returns:
+            Path to the saved image file
+
+        """
+        file_extension = mimetypes.guess_extension(mime_type) or _DEFAULT_IMAGE_EXTENSION
+        # Use content-based UUID5 for deterministic naming (like other media)
+        content_hash = hashlib.sha256(data_buffer).digest()
+        banner_uuid = uuid.UUID(bytes=content_hash[:16], version=5)
+        banner_filename = f"{banner_uuid}{file_extension}"
+        banner_path = output_dir / banner_filename
+
+        with banner_path.open("wb") as f:
+            f.write(data_buffer)
+        logger.info("Banner saved to: %s", banner_path)
+        return banner_path
 
     def generate_banner(self, request: BannerRequest) -> BannerResult:
         """Generate a banner image for a blog post.
@@ -93,41 +149,18 @@ class BannerGenerator:
             logger.info("Generating banner for post: %s", request.post_title)
             contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
             generate_content_config = types.GenerateContentConfig(
-                response_modalities=["IMAGE", "TEXT"],
-                image_config=types.ImageConfig(aspect_ratio="16:9"),  # Widescreen for blog banners
+                response_modalities=[_RESPONSE_MODALITIES_IMAGE, _RESPONSE_MODALITIES_TEXT],
+                image_config=types.ImageConfig(aspect_ratio=_BANNER_ASPECT_RATIO),  # Widescreen for blog banners
                 system_instruction=[
                     types.Part.from_text(
                         text="You are a senior editorial illustrator for a modern blog. Your job is to translate an article into a striking, concept-driven cover/banner image that is legible at small sizes, brand-consistent, and accessible. Create minimalist, abstract representations that capture the essence of the article without literal depictions. Use bold colors, clear composition, and modern design principles."
                     )
                 ],
             )
-            for chunk in self.client.models.generate_content_stream(
+            stream = self.client.models.generate_content_stream(
                 model=self.model, contents=contents, config=generate_content_config
-            ):
-                if not (
-                    chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts
-                ):
-                    continue
-                part = chunk.candidates[0].content.parts[0]
-                if part.inline_data and part.inline_data.data:
-                    inline_data = part.inline_data
-                    data_buffer = inline_data.data
-                    file_extension = mimetypes.guess_extension(inline_data.mime_type) or ".png"
-
-                    # Use content-based UUID5 for deterministic naming (like other media)
-                    content_hash = hashlib.sha256(data_buffer).digest()
-                    banner_uuid = uuid.UUID(bytes=content_hash[:16], version=5)
-                    banner_filename = f"{banner_uuid}{file_extension}"
-                    banner_path = request.output_dir / banner_filename
-
-                    with banner_path.open("wb") as f:
-                        f.write(data_buffer)
-                    logger.info("Banner saved to: %s", banner_path)
-                    return BannerResult(success=True, banner_path=banner_path)
-                if hasattr(chunk, "text") and chunk.text:
-                    logger.debug("Gemini response: %s", chunk.text)
-            logger.warning("No image generated for post: %s", request.post_title)
-            return BannerResult(success=False, error="No image data received from API")
+            )
+            return self._extract_image_from_stream(stream, request.output_dir, request.post_title)
         except Exception as e:
             logger.error("Failed to generate banner for %s: %s", request.post_title, e, exc_info=True)
             return BannerResult(success=False, error=str(e))

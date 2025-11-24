@@ -10,10 +10,11 @@ separation between the pipeline (produces Documents) and evaluation (consumes Do
 from __future__ import annotations
 
 import asyncio
+import http
 import json
 import logging
 import os
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
 from pydantic import BaseModel, Field, ValidationError
@@ -28,13 +29,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Constants for retry logic
-HTTP_TOO_MANY_REQUESTS = 429
+_DEFAULT_MAX_RETRIES = 5
+_RETRY_WAIT_TIMES = [4, 8, 16, 32, 60]  # Exponential backoff with 60s cap
+_DEFAULT_MODEL_NAME = "gemini-flash-latest"
 
 
 # Retry helper for API calls
 async def call_with_retries(
     func: Callable[[], Awaitable[httpx.Response]],
-    max_retries: int = 5,
+    max_retries: int = _DEFAULT_MAX_RETRIES,
 ) -> httpx.Response:
     """Call async function with exponential backoff retry for rate limits.
 
@@ -51,16 +54,14 @@ async def call_with_retries(
         httpx.HTTPStatusError: On persistent errors after all retries
 
     """
-    wait_times = [4, 8, 16, 32, 60]  # Exponential backoff with 60s cap
-
     for attempt in range(max_retries + 1):
         try:
             return await func()
         except httpx.HTTPStatusError as e:
-            if e.response.status_code != HTTP_TOO_MANY_REQUESTS or attempt == max_retries:
+            if e.response.status_code != http.HTTPStatus.TOO_MANY_REQUESTS or attempt == max_retries:
                 raise
 
-            wait_time = wait_times[min(attempt, len(wait_times) - 1)]
+            wait_time = _RETRY_WAIT_TIMES[min(attempt, len(_RETRY_WAIT_TIMES) - 1)]
             logger.warning(
                 "Rate limit hit (429), retrying in %ds (attempt %d/%d)",
                 wait_time,
@@ -100,13 +101,15 @@ class ReaderFeedbackResult(BaseModel):
 
     comment: str = Field(description="Natural language feedback about the post")
     star_rating: int = Field(ge=1, le=5, description="Star rating from 1-5")
-    engagement_level: str = Field(description="Predicted engagement: low, medium, or high")
+    engagement_level: Literal["low", "medium", "high"] = Field(
+        description="Predicted engagement: low, medium, or high"
+    )
 
 
 class ComparisonResult(BaseModel):
     """Result of comparing two posts."""
 
-    winner: str = Field(description="Which post won: 'a', 'b', or 'tie'")
+    winner: Literal["a", "b", "tie"] = Field(description="Which post won: 'a', 'b', or 'tie'")
     reasoning: str = Field(description="Explanation of the choice")
     feedback_a: ReaderFeedbackResult = Field(description="Feedback for post A")
     feedback_b: ReaderFeedbackResult = Field(description="Feedback for post B")
@@ -129,55 +132,88 @@ def _build_gemini_request(prompt: str, system_prompt: str, response_schema: dict
 
 
 def _get_response_schema() -> dict[str, Any]:
-    """Get JSON schema for structured output from Gemini."""
-    return {
-        "type": "object",
-        "properties": {
-            "winner": {
-                "type": "string",
-                "description": "Which post won: 'a', 'b', or 'tie'",
-                "enum": ["a", "b", "tie"],
-            },
-            "reasoning": {"type": "string", "description": "Explanation of the choice"},
-            "feedback_a": {
-                "type": "object",
-                "properties": {
-                    "comment": {"type": "string", "description": "Natural language feedback about the post"},
-                    "star_rating": {
-                        "type": "integer",
-                        "description": "Star rating from 1-5",
-                        "minimum": 1,
-                        "maximum": 5,
-                    },
-                    "engagement_level": {
-                        "type": "string",
-                        "description": "Predicted engagement: low, medium, or high",
-                        "enum": ["low", "medium", "high"],
-                    },
-                },
-                "required": ["comment", "star_rating", "engagement_level"],
-            },
-            "feedback_b": {
-                "type": "object",
-                "properties": {
-                    "comment": {"type": "string", "description": "Natural language feedback about the post"},
-                    "star_rating": {
-                        "type": "integer",
-                        "description": "Star rating from 1-5",
-                        "minimum": 1,
-                        "maximum": 5,
-                    },
-                    "engagement_level": {
-                        "type": "string",
-                        "description": "Predicted engagement: low, medium, or high",
-                        "enum": ["low", "medium", "high"],
-                    },
-                },
-                "required": ["comment", "star_rating", "engagement_level"],
-            },
-        },
-        "required": ["winner", "reasoning", "feedback_a", "feedback_b"],
-    }
+    """Get JSON schema for structured output from Gemini.
+
+    Uses Pydantic's model_json_schema() to automatically generate
+    the schema from ComparisonResult model, ensuring consistency.
+    """
+    return ComparisonResult.model_json_schema()
+
+
+def _parse_comparison_response(response_data: dict[str, Any]) -> ComparisonResult:
+    """Parse and validate Gemini API response to ComparisonResult.
+
+    Args:
+        response_data: Raw JSON response from Gemini API
+
+    Returns:
+        Validated ComparisonResult instance
+
+    Raises:
+        ValueError: If response structure is invalid or validation fails
+
+    """
+    try:
+        candidates = response_data.get("candidates", [])
+        if not candidates:
+            msg = f"No candidates in response: {response_data}"
+            raise ValueError(msg)
+
+        content = candidates[0].get("content", {})
+        parts = content.get("parts", [])
+        if not parts:
+            msg = f"No parts in response content: {content}"
+            raise ValueError(msg)
+
+        text = parts[0].get("text", "")
+        result_data = json.loads(text)
+
+    except (KeyError, IndexError, json.JSONDecodeError) as e:
+        msg = f"Failed to parse Gemini response: {e}\nResponse: {response_data}"
+        raise ValueError(msg) from e
+
+    # Validate and parse result
+    try:
+        return ComparisonResult(**result_data)
+    except ValidationError as e:
+        msg = f"Invalid comparison result from Gemini: {e}\nData: {result_data}"
+        raise ValueError(msg) from e
+
+
+async def _execute_comparison_request(
+    prompt: str, model_name: str, api_key: str
+) -> dict[str, Any]:
+    """Execute API request to Gemini with retry logic.
+
+    Args:
+        prompt: Comparison prompt with both posts
+        model_name: Gemini model name to use
+        api_key: Google API key
+
+    Returns:
+        Raw JSON response from API
+
+    Raises:
+        httpx.HTTPStatusError: On persistent API errors after retries
+
+    """
+    payload = _build_gemini_request(prompt, READER_SYSTEM_PROMPT, _get_response_schema())
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+
+    async def _call_api() -> httpx.Response:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                url,
+                json=payload,
+                params={"key": api_key},
+                headers={"Content-Type": "application/json"},
+                timeout=30.0,
+            )
+            response.raise_for_status()
+            return response
+
+    response = await call_with_retries(_call_api)
+    return response.json()
 
 
 async def compare_posts(
@@ -223,8 +259,8 @@ async def compare_posts(
 
     """
     # Get API key from environment
-    api_key = api_key or os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
+    effective_api_key = api_key or os.environ.get("GOOGLE_API_KEY")
+    if not effective_api_key:
         msg = "GOOGLE_API_KEY environment variable not set"
         raise ValueError(msg)
 
@@ -241,59 +277,15 @@ Evaluate both posts and determine which is better quality overall.
 """
 
     # Use default model if not specified
-    model_name = model or "gemini-flash-latest"
-
-    # Build request payload
-    payload = _build_gemini_request(prompt, READER_SYSTEM_PROMPT, _get_response_schema())
-
-    # Make API request with httpx (VCR-compatible)
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+    model_name = model or _DEFAULT_MODEL_NAME
 
     logger.debug("Comparing posts: %s vs %s", request.post_a_slug, request.post_b_slug)
 
-    async def _call_api() -> httpx.Response:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url,
-                json=payload,
-                params={"key": api_key},
-                headers={"Content-Type": "application/json"},
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            return response
+    # Execute API request with retry logic
+    response_data = await _execute_comparison_request(prompt, model_name, effective_api_key)
 
-    response = await call_with_retries(_call_api)
-
-    # Parse response
-    response_data = response.json()
-
-    # Extract the generated content
-    try:
-        candidates = response_data.get("candidates", [])
-        if not candidates:
-            msg = f"No candidates in response: {response_data}"
-            raise ValueError(msg)
-
-        content = candidates[0].get("content", {})
-        parts = content.get("parts", [])
-        if not parts:
-            msg = f"No parts in response content: {content}"
-            raise ValueError(msg)
-
-        text = parts[0].get("text", "")
-        result_data = json.loads(text)
-
-    except (KeyError, IndexError, json.JSONDecodeError) as e:
-        msg = f"Failed to parse Gemini response: {e}\nResponse: {response_data}"
-        raise ValueError(msg) from e
-
-    # Validate and parse result
-    try:
-        comparison_result = ComparisonResult(**result_data)
-    except ValidationError as e:
-        msg = f"Invalid comparison result from Gemini: {e}\nData: {result_data}"
-        raise ValueError(msg) from e
+    # Parse and validate response
+    comparison_result = _parse_comparison_response(response_data)
 
     # Convert to PostComparison (includes full Document references)
     return PostComparison(
