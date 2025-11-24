@@ -17,9 +17,12 @@ from google import genai
 
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore
+from egregora.agents.writer import WriterResources
 from egregora.config.settings import EgregoraConfig
+from egregora.data_primitives.protocols import UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineState
+from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.utils.cache import PipelineCache
@@ -217,6 +220,62 @@ class PipelineFactory:
             raise ValueError(msg)
 
         return site_paths
+
+    @staticmethod
+    def create_output_adapter(
+        config: EgregoraConfig,
+        output_dir: Path,
+        *,
+        site_root: Path | None = None,
+        url_context: UrlContext | None = None,
+    ):
+        """Create and initialize the output adapter for the pipeline."""
+        resolved_output = output_dir.expanduser().resolve()
+        site_paths = derive_mkdocs_paths(resolved_output, config=config)
+
+        root = site_root or site_paths["site_root"]
+
+        adapter = output_registry.detect_format(root)
+        if adapter is None:
+            adapter = create_output_format(root, format_type="mkdocs")
+
+        adapter.initialize(root, url_context=url_context)
+        return adapter
+
+    @staticmethod
+    def create_writer_resources(ctx: PipelineContext) -> WriterResources:
+        """Build WriterResources from the pipeline context."""
+        output = ctx.output_format
+        if output is None:
+            msg = "Output adapter must be initialized before creating writer resources."
+            raise RuntimeError(msg)
+
+        profiles_dir = getattr(output, "profiles_dir", ctx.profiles_dir)
+        journal_dir = getattr(output, "journal_dir", ctx.docs_dir / "journal")
+        prompts_dir = ctx.site_root / ".egregora" / "prompts" if ctx.site_root else None
+
+        profiles_dir.mkdir(parents=True, exist_ok=True)
+        journal_dir.mkdir(parents=True, exist_ok=True)
+        if prompts_dir:
+            prompts_dir.mkdir(parents=True, exist_ok=True)
+
+        retrieval_config = ctx.config.rag
+
+        return WriterResources(
+            output=output,
+            rag_store=ctx.rag_store if ctx.enable_rag else None,
+            annotations_store=ctx.annotations_store,
+            storage=ctx.storage,
+            embedding_model=ctx.embedding_model,
+            retrieval_config=retrieval_config,
+            profiles_dir=profiles_dir,
+            journal_dir=journal_dir,
+            prompts_dir=prompts_dir,
+            client=ctx.client,
+            quota=ctx.quota_tracker,
+            usage=ctx.usage_tracker,
+            rate_limit=ctx.rate_limit,
+        )
 
     @staticmethod
     def create_gemini_client() -> genai.Client:
