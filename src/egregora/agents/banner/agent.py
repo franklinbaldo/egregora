@@ -47,6 +47,10 @@ class BannerOutput(BaseModel):
 
     document: Document | None = None
     error: str | None = None
+    error_code: str | None = Field(
+        default=None,
+        description="Optional machine-readable error code for troubleshooting",
+    )
     debug_text: str | None = Field(default=None, description="Debug text from model response")
 
     @property
@@ -117,24 +121,29 @@ def _generate_banner_image(
         debug_text_parts: list[str] = []
 
         for chunk in stream:
-            if not (chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts):
+            if not chunk.candidates:
                 continue
 
-            for part in chunk.candidates[0].content.parts:
-                # Collect any text responses for debugging
-                if hasattr(part, "text") and part.text:
-                    debug_text_parts.append(part.text)
+            for candidate in chunk.candidates:
+                if not (candidate.content and candidate.content.parts):
+                    continue
 
-                # Extract image data
-                if part.inline_data and part.inline_data.data:
-                    inline_data = part.inline_data
-                    image_bytes = inline_data.data
-                    mime_type = inline_data.mime_type
+                for part in candidate.content.parts:
+                    # Collect any text responses for debugging
+                    text_part = getattr(part, "text", None)
+                    if text_part:
+                        debug_text_parts.append(text_part)
+
+                    # Extract image data (first hit wins)
+                    inline_data = getattr(part, "inline_data", None)
+                    if inline_data and inline_data.data and image_bytes is None:
+                        image_bytes = inline_data.data
+                        mime_type = inline_data.mime_type
 
         if image_bytes is None:
             error_msg = "No image data received from API"
-            logger.error(error_msg)
-            return BannerOutput(error=error_msg)
+            logger.error("%s for post '%s'", error_msg, input_data.post_title)
+            return BannerOutput(error=error_msg, error_code="NO_IMAGE_DATA")
 
         # Create Document with binary content
         document = Document(
@@ -155,8 +164,8 @@ def _generate_banner_image(
         return BannerOutput(document=document, debug_text=debug_text)
 
     except Exception as e:
-        logger.exception("Banner image generation failed")
-        return BannerOutput(error=str(e))
+        logger.exception("Banner image generation failed for post '%s'", input_data.post_title)
+        return BannerOutput(error=str(e), error_code="GENERATION_EXCEPTION")
 
 
 def generate_banner(
@@ -206,4 +215,4 @@ def generate_banner(
         return retry_sync(_generate, retry_policy)
     except Exception as e:
         logger.exception("Banner generation failed after retries")
-        return BannerOutput(error=str(e))
+        return BannerOutput(error=str(e), error_code="RETRY_FAILED")
