@@ -109,7 +109,6 @@ async def use_skill(ctx: RunContext[Any], skill_name: str, task: str) -> str:
 
     # Create sub-agent with skill context injected
     from egregora.resources.prompts import render_prompt
-
     truncate_limit = 500
     truncated = len(skill_content.content) > truncate_limit
 
