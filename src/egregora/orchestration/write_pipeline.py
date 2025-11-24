@@ -23,7 +23,6 @@ from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
 from pathlib import Path
 from typing import TYPE_CHECKING
-from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import ibis
@@ -33,13 +32,11 @@ from rich.console import Console
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
 from egregora.agents.model_limits import get_model_context_limit
-from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore, index_all_media
 from egregora.agents.writer import WriterResources, write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputSink, UrlContext
-from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.tracking import record_run
 from egregora.database.validation import validate_ir_schema
 from egregora.database.views import daily_aggregates_view

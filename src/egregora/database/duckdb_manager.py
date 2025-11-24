@@ -529,6 +529,7 @@ class DuckDBStorageManager:
         Returns:
             The name of the VSS function ('vss_search' or 'vss_match') if available,
             otherwise None.
+
         """
         if not self._vss_available:
             return None

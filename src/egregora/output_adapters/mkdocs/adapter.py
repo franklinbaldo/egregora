@@ -1082,6 +1082,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _write_post_doc(self, document: Document, path: Path) -> None:
         import yaml as _yaml
+
         metadata = dict(document.metadata or {})
         if "date" in metadata:
             metadata["date"] = _format_frontmatter_datetime(metadata["date"])
@@ -1094,6 +1095,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _write_journal_doc(self, document: Document, path: Path) -> None:
         import yaml as _yaml
+
         metadata = self._ensure_hidden(dict(document.metadata or {}))
         yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
@@ -1101,6 +1103,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _write_profile_doc(self, document: Document, path: Path) -> None:
         from egregora.knowledge.profiles import write_profile as write_profile_content
+
         author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
         if not author_uuid:
             msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
@@ -1109,6 +1112,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _write_enrichment_doc(self, document: Document, path: Path) -> None:
         import yaml as _yaml
+
         metadata = self._ensure_hidden(document.metadata.copy())
         metadata.setdefault("document_type", document.type.value)
         metadata.setdefault("slug", document.slug)

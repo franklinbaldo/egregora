@@ -281,9 +281,7 @@ def write(  # noqa: C901, PLR0913, PLR0915
             "max_windows": max_windows,
             "checkpoint_enabled": resume,
         },
-        "enrichment": {
-            "enabled": enable_enrichment
-        },
+        "enrichment": {"enabled": enable_enrichment},
         "rag": {
             "mode": retrieval_mode,
             "nprobe": retrieval_nprobe,

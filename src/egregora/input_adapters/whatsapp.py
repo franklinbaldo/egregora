@@ -21,7 +21,6 @@ import re
 import unicodedata
 import uuid
 import zipfile
-from collections.abc import Iterator
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict, Unpack

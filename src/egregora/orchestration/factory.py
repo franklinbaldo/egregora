@@ -10,7 +10,6 @@ import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import ibis
@@ -27,9 +26,6 @@ from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
 from egregora.utils.rate_limit import AsyncRateLimit
-
-if TYPE_CHECKING:
-    from egregora.data_primitives.protocols import UrlContext
 
 logger = logging.getLogger(__name__)
 

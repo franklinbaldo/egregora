@@ -907,7 +907,7 @@ def _finalize_and_index(
             logger.warning("Failed to update RAG index after writing: %s", e)
 
 
-def write_posts_for_window(  # noqa: C901, PLR0913
+def write_posts_for_window(  # noqa: PLR0913
     table: Table,
     window_start: datetime,
     window_end: datetime,
