@@ -874,7 +874,91 @@ def _cast_uuid_columns_to_str(table: Table) -> Table:
     )
 
 
-def write_posts_for_window(  # noqa: C901, PLR0913, PLR0912 - Complex orchestration function
+def _load_writer_template_for_signature(deps: WriterDeps) -> str:
+    """Load writer template content for signature calculation.
+
+    Args:
+        deps: Writer dependencies containing prompts_dir
+
+    Returns:
+        Template content string, or default signature if template cannot be loaded
+
+    """
+    template_content = DEFAULT_TEMPLATE_SIGNATURE  # Fallback
+
+    try:
+        # Try to find the template file to hash its content
+        if deps.prompts_dir:
+            tpl_path = deps.prompts_dir / WRITER_TEMPLATE_NAME
+            if tpl_path.exists():
+                return tpl_path.read_text()
+        else:
+            # Use internal resource
+            from egregora.resources.prompts import _get_prompts_dir
+
+            tpl_path = _get_prompts_dir() / TEMPLATES_DIR_NAME / WRITER_TEMPLATE_NAME
+            if tpl_path.exists():
+                return tpl_path.read_text()
+    except Exception:  # noqa: BLE001 - Fallback to default, non-critical
+        logger.debug("Could not load writer template for hashing, using default signature")
+
+    return template_content
+
+
+def _check_writer_cache(
+    cache: PipelineCache, signature: str, window_label: str
+) -> dict[str, list[str]] | None:
+    """Check L3 cache for cached writer results.
+
+    Args:
+        cache: Pipeline cache instance
+        signature: Window signature for cache lookup
+        window_label: Human-readable window label for logging
+
+    Returns:
+        Cached result if found, None otherwise
+
+    """
+    if cache.should_refresh(CacheTier.WRITER):
+        return None
+
+    cached_result = cache.writer.get(signature)
+    if cached_result:
+        logger.info("⚡ [L3 Cache Hit] Skipping Writer LLM for window %s", window_label)
+    return cached_result
+
+
+def _index_new_content_in_rag(resources: WriterResources, saved_posts: list[str], saved_profiles: list[str]) -> None:
+    """Index newly created content in RAG system.
+
+    Args:
+        resources: Writer resources including RAG configuration
+        saved_posts: List of post paths that were created
+        saved_profiles: List of profile paths that were updated
+
+    """
+    if not (
+        resources.retrieval_config.enabled
+        and resources.rag_store
+        and resources.storage
+        and (saved_posts or saved_profiles)
+    ):
+        return
+
+    try:
+        indexed_count = index_documents_for_rag(
+            resources.output,
+            resources.rag_store.parquet_path.parent,
+            resources.storage,
+            embedding_model=resources.embedding_model,
+        )
+        if indexed_count > 0:
+            logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to update RAG index after writing: %s", e)
+
+
+def write_posts_for_window(  # noqa: PLR0913 - Multiple params needed for orchestration
     table: Table,
     window_start: datetime,
     window_end: datetime,
@@ -905,69 +989,26 @@ def write_posts_for_window(  # noqa: C901, PLR0913, PLR0912 - Complex orchestrat
     # 2. Build Context & Calculate Signature (L3 Cache Check)
     table_with_str_uuids = _cast_uuid_columns_to_str(table)
 
+    # 3. Build Context & Calculate Signature
     # Generate XML content early for both prompt and signature
-    # This matches what the LLM will actually see
     prompt_context = _build_writer_prompt_context(table_with_str_uuids, resources, cache)
 
-    # Calculate signature using data (XML) + logic (template + instructions) + engine
-    # We need the raw template content, but for now we use the rendered prompt as a proxy
-    # OR we load the template file. Loading raw template is safer for "logic" hash.
-    # For simplicity, we rely on the function in windowing.py which handles it.
-    # Note: deps.prompts_dir might be custom.
+    # Load template content for signature calculation
+    template_content = _load_writer_template_for_signature(deps)
 
-    # We use a fixed string for template if we can't easily load it,
-    # BUT `generate_window_signature` uses the XML we just built.
-    # Let's load the raw template or use a placeholder if standard.
-    # Since we render the prompt next, let's assume standard logic for now.
-    # Ideally we'd read "writer.jinja" content.
-
-    # To be robust, we assume standard template or use a hash of the rendered prompt *logic* part?
-    # `generate_window_signature` takes `prompt_template`.
-    # We'll use "standard_writer_v1" as a placeholder if we don't read the file,
-    # but let's try to be correct.
-
-    template_content = DEFAULT_TEMPLATE_SIGNATURE  # Fallback
-
-    try:
-        # Try to find the template file to hash its content
-        if deps.prompts_dir:
-            tpl_path = deps.prompts_dir / WRITER_TEMPLATE_NAME
-            if tpl_path.exists():
-                template_content = tpl_path.read_text()
-        else:
-            # Use internal resource
-            from egregora.resources.prompts import _get_prompts_dir
-
-            tpl_path = _get_prompts_dir() / TEMPLATES_DIR_NAME / WRITER_TEMPLATE_NAME
-            if tpl_path.exists():
-                template_content = tpl_path.read_text()
-    except Exception:  # noqa: BLE001 - Fallback to default, non-critical
-        logger.debug("Could not load writer template for hashing, using default signature")
-
+    # Calculate signature using data (XML) + logic (template) + engine
     signature = generate_window_signature(
         table_with_str_uuids, config, template_content, xml_content=prompt_context.conversation_xml
     )
 
-    # CHECK L3 CACHE
-    if not cache.should_refresh(CacheTier.WRITER):
-        cached_result = cache.writer.get(signature)
-        if cached_result:
-            logger.info("⚡ [L3 Cache Hit] Skipping Writer LLM for window %s", deps.window_label)
-
-            # If we have a hit, we still need to ensure "finalization" happens if needed?
-            # Actually, the cached result contains the paths.
-            # But wait, did the cached run *actually write* the files?
-            # If we are resuming on a clean machine, the files might not exist even if cache does.
-            # However, the goal of "resume" usually implies the artifacts exist.
-            # If artifacts are missing, we might need to re-run.
-            # For now, we assume cache validity implies artifact existence or we trust the cache.
-            # A robust system might check if paths exist.
-
-            return cached_result
+    # 4. Check L3 Cache
+    cached_result = _check_writer_cache(cache, signature, deps.window_label)
+    if cached_result:
+        return cached_result
 
     logger.info("Using Pydantic AI backend for writer")
 
-    # Render prompt
+    # 5. Render Prompt and Execute Writer Agent
     prompt = _render_writer_prompt(
         prompt_context,
         deps,
@@ -989,7 +1030,7 @@ def write_posts_for_window(  # noqa: C901, PLR0913, PLR0912 - Complex orchestrat
         logger.exception(msg)
         raise RuntimeError(msg) from exc
 
-    # Finalize
+    # 6. Finalize Window
     resources.output.finalize_window(
         window_label=deps.window_label,
         posts_created=saved_posts,
@@ -997,26 +1038,10 @@ def write_posts_for_window(  # noqa: C901, PLR0913, PLR0912 - Complex orchestrat
         metadata=None,
     )
 
-    # Index newly created content
-    if (
-        resources.retrieval_config.enabled
-        and resources.rag_store
-        and resources.storage
-        and (saved_posts or saved_profiles)
-    ):
-        try:
-            indexed_count = index_documents_for_rag(
-                resources.output,
-                resources.rag_store.parquet_path.parent,  # Use parent dir
-                resources.storage,
-                embedding_model=resources.embedding_model,
-            )
-            if indexed_count > 0:
-                logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
-        except Exception as e:  # noqa: BLE001
-            logger.warning("Failed to update RAG index after writing: %s", e)
+    # 7. Index Newly Created Content in RAG
+    _index_new_content_in_rag(resources, saved_posts, saved_profiles)
 
-    # UPDATE L3 CACHE
+    # 8. Update L3 Cache
     result_payload = {RESULT_KEY_POSTS: saved_posts, RESULT_KEY_PROFILES: saved_profiles}
     cache.writer.set(signature, result_payload)
 
