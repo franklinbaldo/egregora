@@ -53,7 +53,6 @@ _ConfigLoader.add_constructor(None, lambda loader, node: None)
 
 def _safe_yaml_load(content: str) -> dict[str, Any]:
     """Load YAML safely, ignoring unknown tags like !ENV."""
-
     return yaml.load(content, Loader=_ConfigLoader) or {}  # noqa: S506
 
 
