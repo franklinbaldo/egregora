@@ -15,7 +15,7 @@ import ibis
 
 # Import from other RAG modules
 from egregora.agents.model_limits import PromptTooLargeError
-from egregora.agents.shared.rag.chunker import chunk_document, chunk_from_document
+from egregora.agents.shared.rag.chunker import chunk_from_document
 from egregora.agents.shared.rag.embedder import embed_chunks
 from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA, VectorStore
 from egregora.data_primitives.document import Document, DocumentType
@@ -243,9 +243,7 @@ def _identify_indexing_candidates(output_format: OutputAdapter) -> tuple[list[di
     return rows, doc_count
 
 
-def _filter_existing_documents(
-    rows: list[dict[str, Any]], store: VectorStore
-) -> list[dict[str, Any]]:
+def _filter_existing_documents(rows: list[dict[str, Any]], store: VectorStore) -> list[dict[str, Any]]:
     """Filter out documents that are already indexed and unchanged."""
     if not rows:
         return []
@@ -360,7 +358,7 @@ def index_post(post_path: Path, store: VectorStore, *, embedding_model: str) -> 
         store,
         embedding_model=embedding_model,
         source_path=str(post_path.resolve()),
-        source_mtime_ns=post_path.stat().st_mtime_ns
+        source_mtime_ns=post_path.stat().st_mtime_ns,
     )
 
 
@@ -431,8 +429,8 @@ def index_media_enrichment(
     # Construct a Document. We inject the parsed body metadata into the document metadata.
     doc = Document(
         content=content,
-        type=DocumentType.MEDIA, # Or ENRICHMENT_MEDIA? Original code used "media" string in row.
-        metadata=metadata_parsed, # type: ignore
+        type=DocumentType.MEDIA,  # Or ENRICHMENT_MEDIA? Original code used "media" string in row.
+        metadata=metadata_parsed,  # type: ignore
     )
     # Original code forced document_id to be media_uuid.
     # index_document uses content-hash ID.
@@ -449,17 +447,13 @@ def index_media_enrichment(
     doc = Document(
         content=content,
         type=DocumentType.ENRICHMENT_MEDIA,
-        metadata=metadata_parsed, # type: ignore
+        metadata=metadata_parsed,  # type: ignore
     )
     # We need to ensure `media_uuid` is set in metadata for _create_index_row
     doc.metadata["media_uuid"] = media_uuid
 
     return index_document(
-        doc,
-        store,
-        embedding_model=embedding_model,
-        source_path=absolute_path,
-        source_mtime_ns=mtime_ns
+        doc, store, embedding_model=embedding_model, source_path=absolute_path, source_mtime_ns=mtime_ns
     )
 
 

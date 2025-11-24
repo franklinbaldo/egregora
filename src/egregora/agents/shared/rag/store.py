@@ -48,8 +48,7 @@ class DatasetMetadata:
 
 
 class VectorStore:
-    """
-    Vector store backed by Parquet file.
+    """Vector store backed by Parquet file.
 
     Uses DuckDB VSS extension for similarity search.
     Data lives in Parquet for portability and client-side access.
@@ -127,7 +126,7 @@ class VectorStore:
         )
         # Primary key handling needs connection
         with self.backend.connection() as conn:
-             database_schema.add_primary_key(conn, METADATA_TABLE_NAME, "path")
+            database_schema.add_primary_key(conn, METADATA_TABLE_NAME, "path")
 
     def _ensure_index_meta_table(self) -> None:
         """Create the table used to persist ANN index metadata."""
@@ -553,7 +552,11 @@ class VectorStore:
         # So we trust manager's detection. If that fails, we fail to exact search or error.
 
         return self._handle_ann_failure(
-            getattr(self, "_last_ann_error", None), where_clause, order_clause, params, min_similarity_threshold
+            getattr(self, "_last_ann_error", None),
+            where_clause,
+            order_clause,
+            params,
+            min_similarity_threshold,
         )
 
     def _try_ann_search(  # noqa: PLR0913

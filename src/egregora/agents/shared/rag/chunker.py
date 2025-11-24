@@ -302,9 +302,7 @@ def chunk_document(post_path: Path, max_tokens: int = DEFAULT_MAX_TOKENS) -> lis
     return chunks
 
 
-def chunk_from_document(
-    document: Document, max_tokens: int = DEFAULT_MAX_TOKENS
-) -> list[dict[str, Any]]:
+def chunk_from_document(document: Document, max_tokens: int = DEFAULT_MAX_TOKENS) -> list[dict[str, Any]]:
     r"""Chunk a Document object into indexable chunks.
 
     This is the primary chunking function for Document-based RAG indexing.

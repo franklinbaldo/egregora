@@ -766,11 +766,11 @@ ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor"
 
 __all__ = [
     "DEFAULT_BANNER_MODEL",
+    "DEFAULT_CONCURRENCY",
+    "DEFAULT_DAILY_QUOTA",
     "DEFAULT_EMBEDDING_MODEL",
     "DEFAULT_MODEL",
-    "DEFAULT_DAILY_QUOTA",
     "DEFAULT_RATE_LIMIT",
-    "DEFAULT_CONCURRENCY",
     "EMBEDDING_DIM",
     "EgregoraConfig",
     "EnrichmentRuntimeConfig",

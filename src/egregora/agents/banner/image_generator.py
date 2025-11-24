@@ -161,9 +161,7 @@ class BannerGenerator:
     def _extract_image_from_stream(self, stream: Iterator[Any], output_dir: Path) -> Path | None:
         """Iterate over response stream and extract the first valid image."""
         for chunk in stream:
-            if not (
-                chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts
-            ):
+            if not (chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts):
                 continue
 
             part = chunk.candidates[0].content.parts[0]
