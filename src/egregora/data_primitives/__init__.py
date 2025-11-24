@@ -11,7 +11,12 @@ input adapters (to produce standardized data) and output adapters (to
 consume and publish it).
 """
 
-from egregora.data_primitives.document import Document, DocumentCollection, DocumentType, MediaAsset
+from egregora.data_primitives.document import (
+    Document,
+    DocumentCollection,
+    DocumentType,
+    MediaAsset,
+)
 from egregora.data_primitives.protocols import (
     DocumentMetadata,
     OutputAdapter,
