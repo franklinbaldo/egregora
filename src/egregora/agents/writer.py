@@ -52,7 +52,7 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.knowledge.profiles import get_active_authors, read_profile
 from egregora.output_adapters import output_registry
-from egregora.resources.prompts import render_prompt
+from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.batch import call_with_retries_sync
 from egregora.utils.cache import CacheTier, PipelineCache
@@ -436,14 +436,34 @@ def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
 
 
 @dataclass
-class WriterPromptContext:
-    """Values used to populate the writer prompt template."""
+class WriterContext:
+    """Encapsulates all contextual data required for the writer agent prompt."""
 
     conversation_xml: str
     rag_context: str
     profiles_context: str
     journal_memory: str
     active_authors: list[str]
+    format_instructions: str
+    custom_instructions: str
+    source_context: str
+    date_label: str
+
+    @property
+    def template_context(self) -> dict[str, Any]:
+        """Return context dictionary for Jinja template rendering."""
+        return {
+            "conversation_xml": self.conversation_xml,
+            "rag_context": self.rag_context,
+            "profiles_context": self.profiles_context,
+            "journal_memory": self.journal_memory,
+            "active_authors": ", ".join(self.active_authors),
+            "format_instructions": self.format_instructions,
+            "custom_instructions": self.custom_instructions,
+            "source_context": self.source_context,
+            "date": self.date_label,
+            "enable_memes": False,
+        }
 
 
 def _truncate_for_embedding(text: str, byte_limit: int = MAX_RAG_QUERY_BYTES) -> str:
@@ -461,11 +481,15 @@ def _truncate_for_embedding(text: str, byte_limit: int = MAX_RAG_QUERY_BYTES) ->
     return truncated_text + "\n\n<!-- truncated for RAG query -->"
 
 
-def _build_writer_prompt_context(
+def _build_writer_context(  # noqa: PLR0913
     table_with_str_uuids: Table,
     resources: WriterResources,
     cache: PipelineCache,
-) -> WriterPromptContext:
+    config: EgregoraConfig,
+    window_label: str,
+    adapter_content_summary: str,
+    adapter_generation_instructions: str,
+) -> WriterContext:
     """Collect contextual inputs used when rendering the writer prompt."""
     messages_table = table_with_str_uuids.to_pyarrow()
     conversation_xml = _build_conversation_xml(messages_table, resources.annotations_store)
@@ -488,12 +512,23 @@ def _build_writer_prompt_context(
     journal_memory = _load_journal_memory(resources.journal_dir)
     active_authors = get_active_authors(table_with_str_uuids)
 
-    return WriterPromptContext(
+    format_instructions = resources.output.get_format_instructions()
+    custom_instructions = config.writer.custom_instructions or ""
+    if adapter_generation_instructions:
+        custom_instructions = "\n\n".join(
+            filter(None, [custom_instructions, adapter_generation_instructions])
+        )
+
+    return WriterContext(
         conversation_xml=conversation_xml,
         rag_context=rag_context,
         profiles_context=profiles_context,
         journal_memory=journal_memory,
         active_authors=active_authors,
+        format_instructions=format_instructions,
+        custom_instructions=custom_instructions,
+        source_context=adapter_content_summary,
+        date_label=window_label,
     )
 
 
@@ -833,34 +868,14 @@ def write_posts_with_pydantic_agent(
 
 
 def _render_writer_prompt(
-    prompt_context: WriterPromptContext,
-    deps: WriterDeps,
-    config: EgregoraConfig,
-    adapter_content_summary: str,
-    adapter_generation_instructions: str,
+    context: WriterContext,
+    prompts_dir: Path | None,
 ) -> str:
     """Render the final writer prompt text."""
-    format_instructions = deps.resources.output.get_format_instructions()
-    custom_instructions = config.writer.custom_instructions or ""
-    if adapter_generation_instructions:
-        custom_instructions = "\n\n".join(
-            filter(None, [custom_instructions, adapter_generation_instructions])
-        )
-    source_context = adapter_content_summary
-
     return render_prompt(
         "writer.jinja",
-        prompts_dir=deps.resources.prompts_dir,
-        date=deps.window_label,
-        conversation_xml=prompt_context.conversation_xml,
-        active_authors=", ".join(prompt_context.active_authors),
-        custom_instructions=custom_instructions,
-        format_instructions=format_instructions,
-        profiles_context=prompt_context.profiles_context,
-        rag_context=prompt_context.rag_context,
-        journal_memory=prompt_context.journal_memory,
-        source_context=source_context,
-        enable_memes=False,
+        prompts_dir=prompts_dir,
+        **context.template_context,
     )
 
 
@@ -872,37 +887,6 @@ def _cast_uuid_columns_to_str(table: Table) -> Table:
         thread_id=table.thread_id.cast(str),
         created_by_run=table.created_by_run.cast(str),
     )
-
-
-def _load_writer_template_for_signature(deps: WriterDeps) -> str:
-    """Load writer template content for signature calculation.
-
-    Args:
-        deps: Writer dependencies containing prompts_dir
-
-    Returns:
-        Template content string, or default signature if template cannot be loaded
-
-    """
-    template_content = DEFAULT_TEMPLATE_SIGNATURE  # Fallback
-
-    try:
-        # Try to find the template file to hash its content
-        if deps.prompts_dir:
-            tpl_path = deps.prompts_dir / WRITER_TEMPLATE_NAME
-            if tpl_path.exists():
-                return tpl_path.read_text()
-        else:
-            # Use internal resource
-            from egregora.resources.prompts import _get_prompts_dir
-
-            tpl_path = _get_prompts_dir() / TEMPLATES_DIR_NAME / WRITER_TEMPLATE_NAME
-            if tpl_path.exists():
-                return tpl_path.read_text()
-    except Exception:  # noqa: BLE001 - Fallback to default, non-critical
-        logger.debug("Could not load writer template for hashing, using default signature")
-
-    return template_content
 
 
 def _check_writer_cache(
@@ -960,7 +944,7 @@ def _index_new_content_in_rag(
         logger.warning("Failed to update RAG index after writing: %s", e)
 
 
-def write_posts_for_window(  # noqa: PLR0913 - Multiple params needed for orchestration
+def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
     table: Table,
     window_start: datetime,
     window_end: datetime,
@@ -991,16 +975,25 @@ def write_posts_for_window(  # noqa: PLR0913 - Multiple params needed for orches
     # 2. Build Context & Calculate Signature (L3 Cache Check)
     table_with_str_uuids = _cast_uuid_columns_to_str(table)
 
-    # 3. Build Context & Calculate Signature
-    # Generate XML content early for both prompt and signature
-    prompt_context = _build_writer_prompt_context(table_with_str_uuids, resources, cache)
+    # Generate context early for both prompt and signature
+    writer_context = _build_writer_context(
+        table_with_str_uuids,
+        resources,
+        cache,
+        config,
+        window_label,
+        adapter_content_summary,
+        adapter_generation_instructions,
+    )
 
-    # Load template content for signature calculation
-    template_content = _load_writer_template_for_signature(deps)
+    # Use PromptManager to get template content safely
+    template_content = PromptManager.get_template_content(
+        "writer.jinja", custom_prompts_dir=deps.resources.prompts_dir
+    )
 
     # Calculate signature using data (XML) + logic (template) + engine
     signature = generate_window_signature(
-        table_with_str_uuids, config, template_content, xml_content=prompt_context.conversation_xml
+        table_with_str_uuids, config, template_content, xml_content=writer_context.conversation_xml
     )
 
     # 4. Check L3 Cache
@@ -1010,14 +1003,8 @@ def write_posts_for_window(  # noqa: PLR0913 - Multiple params needed for orches
 
     logger.info("Using Pydantic AI backend for writer")
 
-    # 5. Render Prompt and Execute Writer Agent
-    prompt = _render_writer_prompt(
-        prompt_context,
-        deps,
-        config,
-        adapter_content_summary,
-        adapter_generation_instructions,
-    )
+    # Render prompt
+    prompt = _render_writer_prompt(writer_context, deps.resources.prompts_dir)
 
     try:
         saved_posts, saved_profiles = write_posts_with_pydantic_agent(

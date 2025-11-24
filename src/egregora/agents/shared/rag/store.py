@@ -38,29 +38,6 @@ VECTOR_STORE_SCHEMA = database_schema.RAG_CHUNKS_SCHEMA
 SEARCH_RESULT_SCHEMA = database_schema.RAG_SEARCH_RESULT_SCHEMA
 
 
-class _ConnectionProxy:
-    """Allow attribute overrides on DuckDB connections (e.g., for monkeypatching)."""
-
-    def __init__(self, inner: duckdb.DuckDBPyConnection) -> None:
-        object.__setattr__(self, "_inner", inner)
-        object.__setattr__(self, "_overrides", {})
-
-    def __getattr__(self, name: str) -> Any:  # Proxy pattern requires Any for attribute access
-        overrides = object.__getattribute__(self, "_overrides")
-        if name in overrides:
-            return overrides[name]
-        return getattr(object.__getattribute__(self, "_inner"), name)
-
-    def __setattr__(
-        self, name: str, value: Any
-    ) -> None:  # Proxy pattern requires Any for attribute assignment
-        if name in {"_inner", "_overrides"}:
-            object.__setattr__(self, name, value)
-            return
-        overrides = object.__getattribute__(self, "_overrides")
-        overrides[name] = value
-
-
 @dataclass(frozen=True)
 class DatasetMetadata:
     """Lightweight container for persisted dataset metadata."""
@@ -71,8 +48,11 @@ class DatasetMetadata:
 
 
 class VectorStore:
-    conn: _ConnectionProxy
-    "\n    Vector store backed by Parquet file.\n\n    Uses DuckDB VSS extension for similarity search.\n    Data lives in Parquet for portability and client-side access.\n    "
+    """Vector store backed by Parquet file.
+
+    Uses DuckDB VSS extension for similarity search.
+    Data lives in Parquet for portability and client-side access.
+    """
 
     def __init__(
         self,
@@ -83,39 +63,28 @@ class VectorStore:
         """Initialize vector store."""
         self.parquet_path = parquet_path
         self.index_path = parquet_path.with_suffix(".duckdb")
-        self.conn = _ConnectionProxy(storage._conn)
-        self.backend = storage  # Use storage directly as backend
-        self._vss_available = False
-        self._vss_function = "vss_search"
-        self._client = ibis.duckdb.from_connection(self.conn)
+        self.storage = storage
+        self.backend = storage  # For backward compatibility with tests
+
+        # Use Ibis backend directly from storage manager
+        self._client = storage.ibis_conn
+
         self._table_synced = False
         self._ensure_index_meta_table()
         self._ensure_dataset_loaded()
-
-    def _init_vss(self) -> bool:
-        """Initialize DuckDB VSS extension (lazy loading)."""
-        if self._vss_available:
-            return True
-        self._vss_available = self.backend.install_vss_extensions()
-        if not self._vss_available:
-            logger.info("VSS extension unavailable; ANN mode disabled")
-            return False
-        self._vss_function = self.backend.detect_vss_function()
-        logger.info("DuckDB VSS extension loaded")
-        return True
 
     def _ensure_dataset_loaded(self, *, force: bool = False) -> None:
         """Materialize the Parquet dataset into DuckDB and refresh the ANN index."""
         self._ensure_metadata_table()
         if not self.parquet_path.exists():
-            self.backend.drop_index(INDEX_NAME)
-            self.backend.drop_table(TABLE_NAME, checkpoint_too=False)
+            self.storage.drop_index(INDEX_NAME)
+            self.storage.drop_table(TABLE_NAME, checkpoint_too=False)
             self._store_metadata(None)
             self._table_synced = True
             return
         stored_metadata = self._get_stored_metadata()
         current_metadata = self._read_parquet_metadata()
-        table_exists = self.backend.table_exists(TABLE_NAME)
+        table_exists = self.storage.table_exists(TABLE_NAME)
         metadata_changed = stored_metadata != current_metadata
         if not force and (not metadata_changed) and table_exists:
             self._table_synced = True
@@ -124,7 +93,7 @@ class VectorStore:
         # Materialize chunks table from parquet
         quoted_table = f'"{TABLE_NAME}"'
         try:
-            self.backend.conn.execute(
+            self.storage.execute_query(
                 f"CREATE OR REPLACE TABLE {quoted_table} AS SELECT * FROM read_parquet(?)",
                 [str(self.parquet_path)],
             )
@@ -142,15 +111,43 @@ class VectorStore:
         database_schema.create_table_if_not_exists(
             self._client, METADATA_TABLE_NAME, database_schema.RAG_CHUNKS_METADATA_SCHEMA
         )
-        database_schema.add_primary_key(self.conn, METADATA_TABLE_NAME, "path")
+        # Use storage context for direct operations
+        with self.storage.connection() as conn:
+            database_schema.add_primary_key(conn, METADATA_TABLE_NAME, "path")
 
     def _ensure_index_meta_table(self) -> None:
         """Create the table used to persist ANN index metadata."""
         database_schema.create_table_if_not_exists(
             self._client, INDEX_META_TABLE, database_schema.RAG_INDEX_META_SCHEMA
         )
+<<<<<<< HEAD
         database_schema.add_primary_key(self.conn, INDEX_META_TABLE, "index_name")
 
+=======
+        self._migrate_index_meta_table()
+        with self.storage.connection() as conn:
+            database_schema.add_primary_key(conn, INDEX_META_TABLE, "index_name")
+
+    def _migrate_index_meta_table(self) -> None:
+        """Ensure legacy index metadata tables gain any newly introduced columns."""
+        existing_columns = self.storage.get_table_columns(INDEX_META_TABLE)
+        schema = database_schema.RAG_INDEX_META_SCHEMA
+
+        for column in schema.names:
+            if column.lower() in existing_columns:
+                continue
+            column_type = self._duckdb_type_from_ibis(schema[column])
+            if column_type is None:
+                logger.warning(
+                    "Skipping migration for %s.%s due to unsupported type %s",
+                    INDEX_META_TABLE,
+                    column,
+                    schema[column],
+                )
+                continue
+            self.storage.execute_query(f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN {column} {column_type}")
+
+>>>>>>> origin/refactor/leaking-abstractions-v2
     @staticmethod
     def _duckdb_type_from_ibis(dtype: dt.DataType) -> str | None:
         """Map a subset of Ibis data types to DuckDB column definitions."""
@@ -177,10 +174,10 @@ class VectorStore:
 
     def _get_stored_metadata(self) -> DatasetMetadata | None:
         """Fetch cached metadata for the backing Parquet file."""
-        row = self.conn.execute(
+        row = self.storage.execute_query_single(
             f"SELECT mtime_ns, size, row_count FROM {METADATA_TABLE_NAME} WHERE path = ?",
             [str(self.parquet_path)],
-        ).fetchone()
+        )
         if not row:
             return None
         mtime_ns, size, row_count = row
@@ -190,10 +187,12 @@ class VectorStore:
 
     def _store_metadata(self, metadata: DatasetMetadata | None) -> None:
         """Persist or remove cached metadata for the backing Parquet file."""
-        self.conn.execute(f"DELETE FROM {METADATA_TABLE_NAME} WHERE path = ?", [str(self.parquet_path)])
+        self.storage.execute_query(
+            f"DELETE FROM {METADATA_TABLE_NAME} WHERE path = ?", [str(self.parquet_path)]
+        )
         if metadata is None:
             return
-        self.conn.execute(
+        self.storage.execute_query(
             f"INSERT INTO {METADATA_TABLE_NAME} (path, mtime_ns, size, row_count) VALUES (?, ?, ?, ?)",
             [str(self.parquet_path), metadata.mtime_ns, metadata.size, metadata.row_count],
         )
@@ -201,7 +200,9 @@ class VectorStore:
     def _read_parquet_metadata(self) -> DatasetMetadata:
         """Inspect the Parquet file for structural metadata."""
         stats = self.parquet_path.stat()
-        row = self.conn.execute("SELECT COUNT(*) FROM read_parquet(?)", [str(self.parquet_path)]).fetchone()
+        row = self.storage.execute_query_single(
+            "SELECT COUNT(*) FROM read_parquet(?)", [str(self.parquet_path)]
+        )
         row_count = int(row[0]) if row and row[0] is not None else 0
         return DatasetMetadata(
             mtime_ns=int(stats.st_mtime_ns), size=int(stats.st_size), row_count=int(row_count)
@@ -209,22 +210,21 @@ class VectorStore:
 
     def _rebuild_index(self) -> None:
         """Recreate the VSS index for the materialized chunks table."""
-        self.backend.drop_index(INDEX_NAME)
+        self.storage.drop_index(INDEX_NAME)
         self._ensure_index_meta_table()
-        if not self.backend.table_exists(TABLE_NAME):
+        if not self.storage.table_exists(TABLE_NAME):
             self._clear_index_meta()
             return
-        row_count = self.backend.row_count(TABLE_NAME)
+        row_count = self.storage.row_count(TABLE_NAME)
         if row_count == 0:
             self._clear_index_meta()
             return
-        if not self._init_vss():
-            logger.info("VSS not available, skipping index creation")
+
+        # VSS function is detected and stored in the storage manager
+        if not self.storage.create_hnsw_index(table_name=TABLE_NAME, index_name=INDEX_NAME):
             self._clear_index_meta()
             return
-        if not self.backend.create_hnsw_index(table_name=TABLE_NAME, index_name=INDEX_NAME):
-            self._clear_index_meta()
-            return
+
         self._upsert_index_meta(
             mode="ann",
             row_count=row_count,
@@ -243,21 +243,21 @@ class VectorStore:
     ) -> None:
         """Persist the latest index configuration for observability and telemetry."""
         timestamp = datetime.now(tz=UTC)
-        self.conn.execute(
+        self.storage.execute_query(
             f"\n            INSERT INTO {INDEX_META_TABLE} (\n                index_name,\n                mode,\n                row_count,\n                threshold,\n                nlist,\n                embedding_dim,\n                created_at,\n                updated_at\n            )\n            VALUES (?, ?, ?, ?, ?, ?, ?, ?)\n            ON CONFLICT(index_name) DO UPDATE SET\n                mode=excluded.mode,\n                row_count=excluded.row_count,\n                threshold=excluded.threshold,\n                nlist=excluded.nlist,\n                embedding_dim=excluded.embedding_dim,\n                updated_at=excluded.updated_at\n            ",
             [INDEX_NAME, mode, row_count, threshold, nlist, embedding_dim, timestamp, timestamp],
         )
 
     def _clear_index_meta(self) -> None:
         """Remove metadata when the backing table is empty or missing."""
-        self.conn.execute(f"DELETE FROM {INDEX_META_TABLE} WHERE index_name = ?", [INDEX_NAME])
+        self.storage.execute_query(f"DELETE FROM {INDEX_META_TABLE} WHERE index_name = ?", [INDEX_NAME])
 
     def _get_stored_embedding_dim(self) -> int | None:
         """Fetch the stored embedding dimensionality from index metadata."""
-        row = self.conn.execute(
+        row = self.storage.execute_query_single(
             f"SELECT embedding_dim FROM {INDEX_META_TABLE} WHERE index_name = ?",
             [INDEX_NAME],
-        ).fetchone()
+        )
         return int(row[0]) if row and row[0] is not None else None
 
     def _validate_embedding_dimension(self, embeddings: list[list[float]], context: str) -> int:
@@ -302,7 +302,7 @@ class VectorStore:
         view_name = f"_egregora_chunks_{uuid.uuid4().hex}"
         self._client.create_view(view_name, combined_table, overwrite=True)
         try:
-            self.conn.execute(
+            self.storage.execute_query(
                 f"COPY (SELECT * FROM {view_name}) TO ? (FORMAT PARQUET)",
                 [str(self.parquet_path)],
             )
@@ -405,9 +405,13 @@ class VectorStore:
         if mode_normalized not in {"ann", "exact"}:
             msg = "mode must be either 'ann' or 'exact'"
             raise ValueError(msg)
-        if mode_normalized == "ann" and (not self._init_vss()):
+
+        # Use detection from storage manager
+        vss_function = self.storage.get_vector_function_name()
+        if mode_normalized == "ann" and vss_function is None:
             logger.info("ANN mode requested but VSS unavailable, using exact search")
             mode_normalized = "exact"
+
         return mode_normalized
 
     def _validate_query_vector(self, query_vec: list[float]) -> int:
@@ -591,9 +595,11 @@ class VectorStore:
 
     def _execute_search_query(self, query: str, params: list[Any], min_similarity_threshold: float) -> Table:
         """Execute the provided search query and normalize the results."""
-        cursor = self.conn.execute(query, params)
-        columns = [description[0] for description in cursor.description or []]
-        rows = cursor.fetchall()
+        with self.storage.connection() as conn:
+            cursor = conn.execute(query, params)
+            columns = [description[0] for description in cursor.description or []]
+            rows = cursor.fetchall()
+
         if not rows:
             return self._empty_table(SEARCH_RESULT_SCHEMA)
         raw_records = [dict(zip(columns, row, strict=False)) for row in rows]
@@ -682,15 +688,16 @@ class VectorStore:
                 raise TypeError(msg)
             column_defs.append(f"{column_name} {column_type}")
         columns_sql = ", ".join(column_defs)
-        self.conn.execute(f"CREATE TEMP TABLE {temp_name} ({columns_sql})")
+        self.storage.execute_query(f"CREATE TEMP TABLE {temp_name} ({columns_sql})")
         column_names = list(schema.names)
         placeholders = ", ".join("?" for _ in column_names)
         values = [tuple(record.get(name) for name in column_names) for record in records]
         if values:
-            self.conn.executemany(
-                f"INSERT INTO {temp_name} ({', '.join(column_names)}) VALUES ({placeholders})",
-                values,
-            )
+            with self.storage.connection() as conn:
+                conn.executemany(
+                    f"INSERT INTO {temp_name} ({', '.join(column_names)}) VALUES ({placeholders})",
+                    values,
+                )
         return self._client.table(temp_name)
 
     def _ensure_local_table(self, table: Table) -> Table:
@@ -732,13 +739,13 @@ class VectorStore:
         try:
             self._ensure_dataset_loaded()
 
-            result = self.conn.execute(
+            result = self.storage.execute_query(
                 f"""
                 SELECT DISTINCT source_path, source_mtime_ns
                 FROM {TABLE_NAME}
                 WHERE source_path IS NOT NULL
                 """
-            ).fetchall()
+            )
 
             return {str(path): int(mtime) for path, mtime in result if path and mtime is not None}
 

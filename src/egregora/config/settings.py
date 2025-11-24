@@ -45,6 +45,11 @@ DEFAULT_DAILY_LLM_REQUESTS = 220
 DEFAULT_PER_SECOND_LIMIT = 10
 DEFAULT_CONCURRENCY = 4
 
+# Default database connection strings
+# Can be overridden via config.yml or environment variables
+DEFAULT_PIPELINE_DB = "duckdb:///./.egregora/pipeline.duckdb"
+DEFAULT_RUNS_DB = "duckdb:///./.egregora/runs.duckdb"
+
 # Model naming conventions
 PydanticModelName = Annotated[
     str,
@@ -321,7 +326,7 @@ class DatabaseSettings(BaseModel):
     """
 
     pipeline_db: str = Field(
-        default="duckdb:///./.egregora/pipeline.duckdb",
+        default=DEFAULT_PIPELINE_DB,
         description=(
             "Pipeline database connection URI (e.g. 'duckdb:///absolute/path.duckdb', "
             "'duckdb:///./.egregora/pipeline.duckdb' for a site-relative file, or "
@@ -329,7 +334,7 @@ class DatabaseSettings(BaseModel):
         ),
     )
     runs_db: str = Field(
-        default="duckdb:///./.egregora/runs.duckdb",
+        default=DEFAULT_RUNS_DB,
         description=(
             "Run tracking database connection URI (e.g. 'duckdb:///absolute/runs.duckdb', "
             "'duckdb:///./.egregora/runs.duckdb' for a site-relative file, or "
@@ -769,6 +774,8 @@ __all__ = [
     "DEFAULT_BANNER_MODEL",
     "DEFAULT_EMBEDDING_MODEL",
     "DEFAULT_MODEL",
+    "DEFAULT_PIPELINE_DB",
+    "DEFAULT_RUNS_DB",
     "EMBEDDING_DIM",
     "EgregoraConfig",
     "EnrichmentRuntimeConfig",

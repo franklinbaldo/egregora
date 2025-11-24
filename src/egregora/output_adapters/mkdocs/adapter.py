@@ -44,12 +44,14 @@ from egregora.utils.paths import slugify
 logger = logging.getLogger(__name__)
 
 
-# Custom YAML loader that ignores unknown tags
-class _ConfigLoader(yaml.SafeLoader):
-    """YAML loader that ignores unknown tags (like !ENV)."""
+def _safe_yaml_load(content: str) -> dict[str, Any]:
+    """Load YAML safely, ignoring unknown tags like !ENV."""
 
+    class _ConfigLoader(yaml.SafeLoader):
+        """YAML loader that ignores unknown tags."""
 
-_ConfigLoader.add_constructor(None, lambda loader, node: None)
+    _ConfigLoader.add_constructor(None, lambda loader, node: None)
+    return yaml.load(content, Loader=_ConfigLoader) or {}  # noqa: S506
 
 
 class MkDocsAdapter(OutputAdapter):
@@ -579,9 +581,7 @@ class MkDocsAdapter(OutputAdapter):
         mkdocs_path = site_paths.get("mkdocs_path")
         if mkdocs_path:
             try:
-                mkdocs_config = (
-                    yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}  # noqa: S506
-                )
+                mkdocs_config = _safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
             except yaml.YAMLError as exc:
                 logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
                 mkdocs_config = {}
@@ -685,7 +685,7 @@ class MkDocsAdapter(OutputAdapter):
             msg = f"No mkdocs.yml found in {site_root}"
             raise FileNotFoundError(msg)
         try:
-            config = yaml.load(mkdocs_path.read_text(encoding="utf-8"), Loader=_ConfigLoader) or {}  # noqa: S506
+            config = _safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
         except yaml.YAMLError as exc:
             logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
             config = {}
@@ -694,10 +694,30 @@ class MkDocsAdapter(OutputAdapter):
     def get_markdown_extensions(self) -> list[str]:
         """Get list of supported markdown extensions for MkDocs Material theme.
 
+        Reads from configuration if available, otherwise returns standard defaults.
+
         Returns:
             List of markdown extension identifiers
 
         """
+        # Load from mkdocs.yml if possible
+        if self.site_root:
+            try:
+                config = self.load_config(self.site_root)
+                markdown_extensions = config.get("markdown_extensions")
+                if markdown_extensions:
+                    # Handle both list and dict formats (mkdocs supports both)
+                    if isinstance(markdown_extensions, list):
+                        return [
+                            ext if isinstance(ext, str) else next(iter(ext.keys()))
+                            for ext in markdown_extensions
+                        ]
+                    if isinstance(markdown_extensions, dict):
+                        return list(markdown_extensions.keys())
+            except (FileNotFoundError, ValueError):
+                pass
+
+        # Fallback defaults
         return [
             "tables",
             "fenced_code",
