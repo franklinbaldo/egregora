@@ -63,7 +63,15 @@ class RetrievalMode(str, Enum):
     """RAG retrieval modes."""
 
     ANN = "ann"
-    FLAT = "flat"
+    EXACT = "exact"
+
+
+class SourceType(str, Enum):
+    """Input source types for data ingestion."""
+
+    WHATSAPP = "whatsapp"
+    IPERON_TJRO = "iperon-tjro"
+    SELF_REFLECTION = "self"
 
 
 class WindowUnit(str, Enum):

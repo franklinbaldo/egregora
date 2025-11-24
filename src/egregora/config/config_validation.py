@@ -6,6 +6,7 @@ extracted from CLI to maintain separation of concerns.
 
 import logging
 from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,34 @@ def validate_retrieval_config(
     return normalized_mode
 
 
+def validate_timezone(timezone_str: str) -> ZoneInfo:
+    """Validate timezone string and return ZoneInfo object.
+
+    Args:
+        timezone_str: Timezone identifier (e.g., 'America/New_York', 'UTC')
+
+    Returns:
+        ZoneInfo object for the specified timezone
+
+    Raises:
+        ValueError: If timezone_str is not a valid timezone identifier
+
+    Examples:
+        >>> validate_timezone("UTC")
+        ZoneInfo(key='UTC')
+        >>> validate_timezone("America/New_York")
+        ZoneInfo(key='America/New_York')
+
+    """
+    try:
+        return ZoneInfo(timezone_str)
+    except Exception as e:
+        msg = f"Invalid timezone '{timezone_str}': {e}"
+        raise ValueError(msg) from e
+
+
 __all__ = [
     "parse_date_arg",
     "validate_retrieval_config",
+    "validate_timezone",
 ]

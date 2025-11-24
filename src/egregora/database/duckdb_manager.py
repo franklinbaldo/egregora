@@ -38,9 +38,7 @@ import contextlib
 import logging
 import re
 import uuid
-import warnings
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Literal, Self
 
@@ -174,10 +172,9 @@ class DuckDBStorageManager:
         db_str = str(db_path) if db_path else ":memory:"
         self._conn = duckdb.connect(db_str)
 
-        # Enable HNSW index persistence for vector search
-        # Requires 'vss' extension to be loaded first
-        self._conn.execute("INSTALL vss; LOAD vss;")
-        self._conn.execute("SET hnsw_enable_experimental_persistence=true")
+        # Initialize vector extensions
+        self._vss_function: str | None = None
+        self._init_vector_extensions()
 
         # Initialize Ibis backend
         self.ibis_conn = ibis.duckdb.from_connection(self._conn)
@@ -191,22 +188,17 @@ class DuckDBStorageManager:
             self.checkpoint_dir,
         )
 
-    @property
-    def conn(self) -> duckdb.DuckDBPyConnection:
-        """Expose raw DuckDB connection (deprecated).
-
-        Direct access is retained for backwards compatibility but will be
-        removed once all modules migrate to the high-level helpers. Prefer
-        :meth:`connection` or table/query helpers instead of storing this
-        attribute.
-        """
-        warnings.warn(
-            "DuckDBStorageManager.conn is deprecated; use the helper methods "
-            "or connection() context manager instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._conn
+    def _init_vector_extensions(self) -> None:
+        """Install and load DuckDB VSS extension, and detect best search function."""
+        # Enable HNSW index persistence for vector search
+        # Requires 'vss' extension to be loaded first
+        try:
+            self._conn.execute("INSTALL vss; LOAD vss;")
+            self._conn.execute("SET hnsw_enable_experimental_persistence=true")
+            self._vss_function = self.detect_vss_function()
+        except (duckdb.Error, RuntimeError) as exc:
+            logger.warning("VSS extension unavailable: %s", exc)
+            self._vss_function = None
 
     @contextlib.contextmanager
     def connection(self) -> duckdb.DuckDBPyConnection:
@@ -217,6 +209,41 @@ class DuckDBStorageManager:
         available and avoid caching the returned handle.
         """
         yield self._conn
+
+    def execute_query(self, sql: str, params: list | None = None) -> list:
+        """Execute a raw SQL query and return all results.
+
+        This is the preferred way to run raw SQL when Ibis is insufficient.
+        It replaces direct access to ``self.conn``.
+
+        Args:
+            sql: SQL query string
+            params: Optional list of parameters for prepared statement
+
+        Returns:
+            List of result tuples
+
+        """
+        params = params or []
+        return self._conn.execute(sql, params).fetchall()
+
+    def execute_query_single(self, sql: str, params: list | None = None) -> tuple | None:
+        """Execute a raw SQL query and return a single result row.
+
+        Args:
+            sql: SQL query string
+            params: Optional list of parameters
+
+        Returns:
+            Single result tuple or None
+
+        """
+        params = params or []
+        return self._conn.execute(sql, params).fetchone()
+
+    def get_vector_function_name(self) -> str | None:
+        """Return the detected VSS search function name (vss_search or vss_match), or None."""
+        return self._vss_function
 
     def read_table(self, name: str) -> Table:
         """Read table as Ibis expression.
@@ -356,116 +383,6 @@ class DuckDBStorageManager:
 
         return self._table_info_cache[cache_key]
 
-    def _runs_duration_expression(self) -> str:
-        columns = self.get_table_columns("runs")
-        if "duration_seconds" in columns:
-            return "duration_seconds"
-        if "started_at" in columns and "finished_at" in columns:
-            return "CAST(date_diff('second', started_at, finished_at) AS DOUBLE) AS duration_seconds"
-        return "CAST(NULL AS DOUBLE) AS duration_seconds"
-
-    def _column_or_null(self, table_name: str, column: str, duck_type: str) -> str:
-        columns = self.get_table_columns(table_name)
-        if column in columns:
-            return column
-        return f"CAST(NULL AS {duck_type}) AS {column}"
-
-    def fetch_latest_runs(self, limit: int = 10) -> list[tuple]:
-        """Return summaries for the most recent runs."""
-        duration_expr = self._runs_duration_expression()
-        return self._conn.execute(
-            f"""
-            SELECT
-                run_id,
-                stage,
-                status,
-                started_at,
-                rows_in,
-                rows_out,
-                {duration_expr}
-            FROM runs
-            WHERE started_at IS NOT NULL
-            ORDER BY started_at DESC
-            LIMIT ?
-            """,
-            [limit],
-        ).fetchall()
-
-    def fetch_run_by_partial_id(self, run_id: str) -> dict | None:
-        """Return the newest run whose UUID starts with ``run_id``."""
-        parent_run_expr = self._column_or_null("runs", "parent_run_id", "UUID")
-        duration_expr = self._runs_duration_expression()
-        attrs_expr = self._column_or_null("runs", "attrs", "JSON")
-        return self._conn.execute(
-            f"""
-            SELECT
-                run_id,
-                tenant_id,
-                stage,
-                status,
-                error,
-                {parent_run_expr},
-                code_ref,
-                config_hash,
-                started_at,
-                finished_at,
-                {duration_expr},
-                rows_in,
-                rows_out,
-                llm_calls,
-                tokens,
-                {attrs_expr},
-                trace_id
-            FROM runs
-            WHERE CAST(run_id AS VARCHAR) LIKE ?
-            ORDER BY started_at DESC
-            LIMIT 1
-            """,
-            [f"{run_id}%"],
-        ).fetchone()
-
-    def mark_run_completed(
-        self,
-        *,
-        run_id: uuid.UUID,
-        finished_at: datetime,
-        duration_seconds: float,
-        rows_out: int | None,
-    ) -> None:
-        """Update ``runs`` when a stage completes."""
-        self._conn.execute(
-            """
-            UPDATE runs
-            SET status = 'completed',
-                finished_at = ?,
-                duration_seconds = ?,
-                rows_out = ?
-            WHERE run_id = ?
-            """,
-            [finished_at, duration_seconds, rows_out, str(run_id)],
-        )
-
-    def mark_run_failed(
-        self,
-        *,
-        run_id: uuid.UUID,
-        finished_at: datetime,
-        duration_seconds: float,
-        error: str,
-    ) -> None:
-        """Update ``runs`` when a stage fails."""
-        self._conn.execute(
-            """
-            UPDATE runs
-            SET status = 'failed',
-                finished_at = ?,
-                duration_seconds = ?,
-                error = ?
-            WHERE run_id = ?
-            """,
-            [finished_at, duration_seconds, error, str(run_id)],
-        )
-
     # ==================================================================
     # Sequence helpers
     # ==================================================================
@@ -473,11 +390,11 @@ class DuckDBStorageManager:
     def ensure_sequence(self, name: str, *, start: int = 1) -> None:
         """Create a sequence if it does not exist."""
         quoted_name = quote_identifier(name)
-        self.conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {quoted_name} START {int(start)}")
+        self._conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {quoted_name} START {int(start)}")
 
     def get_sequence_state(self, name: str) -> SequenceState | None:
         """Return metadata describing the current state of ``name``."""
-        row = self.conn.execute(
+        row = self._conn.execute(
             """
             SELECT start_value, increment_by, last_value
             FROM duckdb_sequences()
@@ -499,7 +416,7 @@ class DuckDBStorageManager:
     def ensure_sequence_default(self, table: str, column: str, sequence_name: str) -> None:
         """Ensure ``column`` uses ``sequence_name`` as its default value."""
         desired_default = f"nextval('{sequence_name}')"
-        column_default = self.conn.execute(
+        column_default = self._conn.execute(
             """
             SELECT column_default
             FROM information_schema.columns
@@ -511,7 +428,7 @@ class DuckDBStorageManager:
         if not column_default or column_default[0] != desired_default:
             quoted_table = quote_identifier(table)
             quoted_column = quote_identifier(column)
-            self.conn.execute(
+            self._conn.execute(
                 f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} SET DEFAULT {desired_default}"
             )
 
@@ -522,7 +439,7 @@ class DuckDBStorageManager:
 
         quoted_table = quote_identifier(table)
         quoted_column = quote_identifier(column)
-        max_row = self.conn.execute(f"SELECT MAX({quoted_column}) FROM {quoted_table}").fetchone()
+        max_row = self._conn.execute(f"SELECT MAX({quoted_column}) FROM {quoted_table}").fetchone()
         if not max_row or max_row[0] is None:
             return
 
@@ -549,7 +466,7 @@ class DuckDBStorageManager:
             msg = "count must be positive"
             raise ValueError(msg)
 
-        cursor = self.conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
+        cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
         return [int(row[0]) for row in cursor.fetchall()]
 
     def table_exists(self, name: str) -> bool:

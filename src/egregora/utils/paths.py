@@ -3,8 +3,6 @@
 from pathlib import Path
 
 from slugify import slugify as _slugify
-from werkzeug.exceptions import NotFound as _WerkzeugNotFound
-from werkzeug.exceptions import SecurityError as _WerkzeugSecurityError
 from werkzeug.utils import safe_join as _werkzeug_safe_join
 
 
@@ -45,9 +43,9 @@ def slugify(text: str, max_len: int = 60) -> str:
 def safe_path_join(base_dir: Path, *parts: str) -> Path:
     r"""Safely join path parts and ensure result stays within base_dir.
 
-    Uses werkzeug.utils.safe_join, the industry-standard path security
-    function from the Flask/Werkzeug ecosystem (100M+ downloads). Protects
-    against path traversal attacks on all platforms.
+    Protects against path traversal attacks on all platforms by normalizing
+    path separators and validating that the resolved path is contained within
+    the base directory.
 
     Args:
         base_dir: Base directory that result must stay within
@@ -67,18 +65,6 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
         Traceback (most recent call last):
         ...
         PathTraversalError: Path escaped output directory
-        >>> safe_path_join(base, "..\\\\\\\\..\\\\\\\\windows\\\\\\\\system32")  # doctest: +SKIP
-        Traceback (most recent call last):
-        ...
-        PathTraversalError: Path escaped output directory
-
-    Security:
-        Uses werkzeug.utils.safe_join (industry standard since 2007).
-        Protects against Unix (/) and Windows (\\\\) path traversal on all platforms.
-        Werkzeug normalizes path separators and validates containment automatically.
-
-    References:
-        https://werkzeug.palletsprojects.com/en/3.0.x/utils/#werkzeug.utils.safe_join
 
     """
     normalized_parts = []
@@ -91,7 +77,7 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
     base_str = str(base_dir.resolve())
     try:
         result_str = _werkzeug_safe_join(base_str, *normalized_parts)
-    except (_WerkzeugNotFound, _WerkzeugSecurityError) as exc:
+    except Exception as exc:
         msg = f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"
         raise PathTraversalError(msg) from exc
     if result_str is None:
