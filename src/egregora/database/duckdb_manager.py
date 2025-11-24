@@ -191,23 +191,6 @@ class DuckDBStorageManager:
             self.checkpoint_dir,
         )
 
-    @property
-    def conn(self) -> duckdb.DuckDBPyConnection:
-        """Expose raw DuckDB connection (deprecated).
-
-        Direct access is retained for backwards compatibility but will be
-        removed once all modules migrate to the high-level helpers. Prefer
-        :meth:`connection` or table/query helpers instead of storing this
-        attribute.
-        """
-        warnings.warn(
-            "DuckDBStorageManager.conn is deprecated; use the helper methods "
-            "or connection() context manager instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._conn
-
     @contextlib.contextmanager
     def connection(self) -> duckdb.DuckDBPyConnection:
         """Yield the managed DuckDB connection.

@@ -83,7 +83,7 @@ class VectorStore:
         """Initialize vector store."""
         self.parquet_path = parquet_path
         self.index_path = parquet_path.with_suffix(".duckdb")
-        self.conn = _ConnectionProxy(storage.conn)
+        self.conn = _ConnectionProxy(storage._conn)
         self.backend = storage  # Use storage directly as backend
         self._vss_available = False
         self._vss_function = "vss_search"
