@@ -15,6 +15,7 @@ Part of the three-layer architecture:
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from collections import deque
 from contextlib import contextmanager
@@ -98,6 +99,9 @@ def process_whatsapp_export(
     opts = options or WhatsAppProcessOptions()
     output_dir = opts.output_dir.expanduser().resolve()
 
+    if opts.gemini_api_key:
+        os.environ["GOOGLE_API_KEY"] = opts.gemini_api_key
+
     base_config = load_egregora_config(output_dir)
 
     # Apply CLI model override to all text generation models if provided
@@ -150,7 +154,6 @@ def process_whatsapp_export(
         input_path=zip_path,
         output_dir=output_dir,
         config=egregora_config,
-        api_key=opts.gemini_api_key,
         client=opts.client,
         refresh=opts.refresh,
     )
