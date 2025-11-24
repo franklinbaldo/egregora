@@ -19,9 +19,9 @@ from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore
 from egregora.agents.writer import WriterResources
 from egregora.config.settings import EgregoraConfig
+from egregora.data_primitives.protocols import UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineState
-from egregora.data_primitives.protocols import UrlContext
 from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
@@ -230,7 +230,6 @@ class PipelineFactory:
         url_context: UrlContext | None = None,
     ):
         """Create and initialize the output adapter for the pipeline."""
-
         resolved_output = output_dir.expanduser().resolve()
         site_paths = derive_mkdocs_paths(resolved_output, config=config)
 
@@ -246,7 +245,6 @@ class PipelineFactory:
     @staticmethod
     def create_writer_resources(ctx: PipelineContext) -> WriterResources:
         """Build WriterResources from the pipeline context."""
-
         output = ctx.output_format
         if output is None:
             msg = "Output adapter must be initialized before creating writer resources."
