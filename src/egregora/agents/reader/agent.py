@@ -180,9 +180,7 @@ def _parse_comparison_response(response_data: dict[str, Any]) -> ComparisonResul
         raise ValueError(msg) from e
 
 
-async def _execute_comparison_request(
-    prompt: str, model_name: str, api_key: str
-) -> dict[str, Any]:
+async def _execute_comparison_request(prompt: str, model_name: str, api_key: str) -> dict[str, Any]:
     """Execute API request to Gemini with retry logic.
 
     Args:

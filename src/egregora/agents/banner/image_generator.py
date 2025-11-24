@@ -150,7 +150,9 @@ class BannerGenerator:
             contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
             generate_content_config = types.GenerateContentConfig(
                 response_modalities=[_RESPONSE_MODALITIES_IMAGE, _RESPONSE_MODALITIES_TEXT],
-                image_config=types.ImageConfig(aspect_ratio=_BANNER_ASPECT_RATIO),  # Widescreen for blog banners
+                image_config=types.ImageConfig(
+                    aspect_ratio=_BANNER_ASPECT_RATIO
+                ),  # Widescreen for blog banners
                 system_instruction=[
                     types.Part.from_text(
                         text="You are a senior editorial illustrator for a modern blog. Your job is to translate an article into a striking, concept-driven cover/banner image that is legible at small sizes, brand-consistent, and accessible. Create minimalist, abstract representations that capture the essence of the article without literal depictions. Use bold colors, clear composition, and modern design principles."
