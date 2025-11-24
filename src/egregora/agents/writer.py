@@ -928,7 +928,9 @@ def _check_writer_cache(
     return cached_result
 
 
-def _index_new_content_in_rag(resources: WriterResources, saved_posts: list[str], saved_profiles: list[str]) -> None:
+def _index_new_content_in_rag(
+    resources: WriterResources, saved_posts: list[str], saved_profiles: list[str]
+) -> None:
     """Index newly created content in RAG system.
 
     Args:
