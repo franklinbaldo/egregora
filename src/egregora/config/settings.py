@@ -45,6 +45,11 @@ DEFAULT_DAILY_LLM_REQUESTS = 220
 DEFAULT_PER_SECOND_LIMIT = 10
 DEFAULT_CONCURRENCY = 4
 
+# Default database connection strings
+# Can be overridden via config.yml or environment variables
+DEFAULT_PIPELINE_DB = "duckdb:///./.egregora/pipeline.duckdb"
+DEFAULT_RUNS_DB = "duckdb:///./.egregora/runs.duckdb"
+
 # Model naming conventions
 PydanticModelName = Annotated[
     str,
@@ -321,7 +326,7 @@ class DatabaseSettings(BaseModel):
     """
 
     pipeline_db: str = Field(
-        default="duckdb:///./.egregora/pipeline.duckdb",
+        default=DEFAULT_PIPELINE_DB,
         description=(
             "Pipeline database connection URI (e.g. 'duckdb:///absolute/path.duckdb', "
             "'duckdb:///./.egregora/pipeline.duckdb' for a site-relative file, or "
@@ -329,7 +334,7 @@ class DatabaseSettings(BaseModel):
         ),
     )
     runs_db: str = Field(
-        default="duckdb:///./.egregora/runs.duckdb",
+        default=DEFAULT_RUNS_DB,
         description=(
             "Run tracking database connection URI (e.g. 'duckdb:///absolute/runs.duckdb', "
             "'duckdb:///./.egregora/runs.duckdb' for a site-relative file, or "
@@ -674,15 +679,14 @@ class RuntimeContext:
 
     This is the minimal set of fields that are truly runtime-specific:
     - Paths resolved at invocation time
-    - API keys from environment
     - Debug flags
 
+    API keys are read directly from environment variables by pydantic-ai/genai.
     All other configuration lives in EgregoraConfig (single source of truth).
     """
 
     output_dir: Annotated[Path, "Directory for the generated site"]
     input_file: Annotated[Path | None, "Path to the chat export file"] = None
-    api_key: Annotated[str | None, "Google API key (from env or CLI)"] = None
     model_override: Annotated[str | None, "Model override from CLI"] = None
     debug: Annotated[bool, "Enable debug logging"] = False
 
@@ -769,6 +773,8 @@ __all__ = [
     "DEFAULT_BANNER_MODEL",
     "DEFAULT_EMBEDDING_MODEL",
     "DEFAULT_MODEL",
+    "DEFAULT_PIPELINE_DB",
+    "DEFAULT_RUNS_DB",
     "EMBEDDING_DIM",
     "EgregoraConfig",
     "EnrichmentRuntimeConfig",

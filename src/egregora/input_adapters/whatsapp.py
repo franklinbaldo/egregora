@@ -21,6 +21,8 @@ import re
 import unicodedata
 import uuid
 import zipfile
+from collections.abc import Iterator
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict, Unpack
@@ -65,11 +67,6 @@ class WhatsAppExport(BaseModel):
 # ============================================================================
 # Parser Logic
 # ============================================================================
-
-# Internal columns for tracking during parsing
-_IMPORT_ORDER_COLUMN = "_import_order"
-_IMPORT_SOURCE_COLUMN = "_import_source"
-_AUTHOR_UUID_HEX_COLUMN = "_author_uuid_hex"
 
 # WhatsApp message line pattern
 WHATSAPP_LINE_PATTERN = re.compile(
@@ -155,105 +152,137 @@ def _resolve_timezone(timezone: str | ZoneInfo | None) -> ZoneInfo:
     return ZoneInfo(timezone)
 
 
-def _finalize_message(msg: dict, tenant_id: str, source: str) -> dict:
-    """Finalize a message by joining continuation lines - returns IR schema format."""
-    message_text = "\n".join(msg["_continuation_lines"]).strip()
-    original_text = "\n".join(msg["_original_lines"]).strip()
+@dataclass
+class MessageBuilder:
+    """Encapsulates message construction state, hiding internal tracking columns."""
 
-    author_raw = msg["author_raw"]
-    author_uuid = deterministic_author_uuid(tenant_id, source, author_raw)
+    tenant_id: str
+    source_identifier: str
+    current_date: date
+    timezone: ZoneInfo
+    message_count: int = 0
+    _current_entry: dict[str, Any] | None = None
+    _rows: list[dict[str, Any]] = field(default_factory=list)
 
-    return {
-        "ts": msg["timestamp"],
-        "date": msg["date"],
-        "message_date": msg["date"].isoformat(),
-        "author": author_raw,
-        "author_raw": author_raw,
-        "author_uuid": str(author_uuid),
-        _AUTHOR_UUID_HEX_COLUMN: author_uuid.hex,
-        "text": message_text,
-        "original_line": original_text or None,
-        "tagged_line": None,
-        _IMPORT_ORDER_COLUMN: msg.get("_import_order", 0),
-    }
+    def start_new_message(self, timestamp: datetime, author_raw: str, initial_text: str) -> None:
+        """Finalize pending message and start a new one."""
+        self.flush()
+        self.message_count += 1
+        self._current_entry = {
+            "timestamp": timestamp,
+            "date": self.current_date,
+            "author_raw": author_raw.strip(),
+            "_original_lines": [f"{timestamp} - {author_raw}: {initial_text}"],  # Approximate reconstruction
+            "_continuation_lines": [initial_text],
+            "_import_order": self.message_count,
+        }
+
+    def append_line(self, line: str, text_part: str) -> None:
+        """Append a line to the current message."""
+        if self._current_entry:
+            self._current_entry["_original_lines"].append(line)
+            self._current_entry["_continuation_lines"].append(text_part)
+
+    def flush(self) -> None:
+        """Finalize and store the current message."""
+        if self._current_entry:
+            finalized = self._finalize_message(self._current_entry)
+            if finalized["text"]:
+                self._rows.append(finalized)
+            self._current_entry = None
+
+    def _finalize_message(self, msg: dict) -> dict:
+        """Transform internal builder state to public schema dict."""
+        message_text = "\n".join(msg["_continuation_lines"]).strip()
+        original_text = "\n".join(msg["_original_lines"]).strip()
+
+        author_raw = msg["author_raw"]
+        author_uuid = deterministic_author_uuid(self.tenant_id, self.source_identifier, author_raw)
+
+        return {
+            "ts": msg["timestamp"],
+            "date": msg["date"],
+            "message_date": msg["date"].isoformat(),
+            "author": author_raw,
+            "author_raw": author_raw,
+            "author_uuid": str(author_uuid),
+            "_author_uuid_hex": author_uuid.hex,  # Temporary internal use
+            "text": message_text,
+            "original_line": original_text or None,
+            "tagged_line": None,
+            "_import_order": msg.get("_import_order", 0),  # Temporary internal use
+        }
+
+    def get_rows(self) -> list[dict[str, Any]]:
+        """Return the list of built message rows."""
+        return self._rows
+
+
+class ZipMessageSource:
+    """Iterates over lines from a WhatsApp chat export inside a ZIP file."""
+
+    def __init__(self, export: WhatsAppExport) -> None:
+        self.export = export
+
+    def lines(self) -> Iterator[str]:
+        """Yield normalized lines from the source file."""
+        with zipfile.ZipFile(self.export.zip_path) as zf:
+            validate_zip_contents(zf)
+            ensure_safe_member_size(zf, self.export.chat_file)
+            try:
+                with zf.open(self.export.chat_file) as raw:
+                    text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
+                    for line in text_stream:
+                        yield _normalize_text(line.rstrip("\n"))
+            except UnicodeDecodeError as exc:
+                msg = f"Failed to decode chat file '{self.export.chat_file}': {exc}"
+                raise ZipValidationError(msg) from exc
 
 
 def _parse_whatsapp_lines(
-    lines: list[str],
+    source: ZipMessageSource,
     export: WhatsAppExport,
     timezone: str | ZoneInfo | None,
 ) -> list[dict[str, Any]]:
     """Pure Python parser for WhatsApp logs.
 
-    Replaces the hybrid DuckDB/Python approach. Iterates lines once,
-    accumulates multi-line messages, and handles parsing immediately.
+    Iterates lines once, accumulates multi-line messages, and handles parsing immediately.
     """
-    rows: list[dict[str, Any]] = []
-
-    # Context Setup
     tz = _resolve_timezone(timezone)
-    tenant_id = str(export.group_slug)
-    source_identifier = "whatsapp"
-    current_date = export.export_date
+    builder = MessageBuilder(
+        tenant_id=str(export.group_slug),
+        source_identifier="whatsapp",
+        current_date=export.export_date,
+        timezone=tz,
+    )
 
-    # State
-    current_entry: dict[str, Any] | None = None
-    message_count = 0
-
-    for raw_line in lines:
-        # 1. Normalize
-        line = _normalize_text(raw_line)
-
-        # 2. Match Header
+    for line in source.lines():
         match = WHATSAPP_LINE_PATTERN.match(line)
 
         if match:
-            # Finalize previous entry
-            if current_entry:
-                finalized = _finalize_message(current_entry, tenant_id, source_identifier)
-                if finalized["text"]:
-                    rows.append(finalized)
-
-            # Start new entry
             date_str, time_str, author_raw, message_part = match.groups()
 
-            # 3. Parse Date/Time immediately (update context)
+            # Update builder date context if valid
             msg_date = _parse_message_date(date_str)
             if msg_date:
-                current_date = msg_date
+                builder.current_date = msg_date
 
             msg_time = _parse_message_time(time_str)
 
-            # Skip invalid times, but keep the date update
+            # Skip invalid times but keep date update
             if not msg_time:
-                current_entry = None
+                builder.flush()
                 continue
 
-            timestamp = datetime.combine(current_date, msg_time, tzinfo=tz).astimezone(UTC)
-            message_count += 1
+            timestamp = datetime.combine(builder.current_date, msg_time, tzinfo=tz).astimezone(UTC)
+            builder.start_new_message(timestamp, author_raw, message_part)
 
-            current_entry = {
-                "timestamp": timestamp,
-                "date": current_date,
-                "author_raw": author_raw.strip(),
-                "_original_lines": [line],
-                "_continuation_lines": [message_part],  # Just the text part
-                "_import_order": message_count,
-            }
+        else:
+            # Handle continuation
+            builder.append_line(line, line)  # For continuation, line IS the text part
 
-        elif current_entry:
-            # 4. Handle Continuation (Strict Parity)
-            # If no header match, append to previous message
-            current_entry["_original_lines"].append(line)
-            current_entry["_continuation_lines"].append(line)
-
-    # Flush last entry
-    if current_entry:
-        finalized = _finalize_message(current_entry, tenant_id, source_identifier)
-        if finalized["text"]:
-            rows.append(finalized)
-
-    return rows
+    builder.flush()
+    return builder.get_rows()
 
 
 def _add_message_ids(messages: Table) -> Table:
@@ -264,11 +293,10 @@ def _add_message_ids(messages: Table) -> Table:
     min_ts = messages.ts.min()
     delta_ms = ((messages.ts.epoch_seconds() - min_ts.epoch_seconds()) * 1000).round().cast("int64")
 
+    # Order by timestamp and import order (if present) to ensure determinism
     order_columns = [messages.ts]
-    if _IMPORT_SOURCE_COLUMN in messages.columns:
-        order_columns.append(messages[_IMPORT_SOURCE_COLUMN])
-    if _IMPORT_ORDER_COLUMN in messages.columns:
-        order_columns.append(messages[_IMPORT_ORDER_COLUMN])
+    if "_import_order" in messages.columns:
+        order_columns.append(messages["_import_order"])
 
     if "author_raw" in messages.columns:
         order_columns.append(messages.author_raw)
@@ -384,7 +412,7 @@ def extract_commands(messages: Table) -> list[dict]:
         ),
     )
 
-    commands_table = command_cases.filter(command_cases.command_name.notna()).select(
+    commands_table = command_cases.filter(command_cases.command_name.notnull()).select(
         command_cases.author_uuid,
         command_cases.ts,
         command_cases.text,
@@ -448,41 +476,28 @@ def parse_source(
     source_identifier: str = "whatsapp",
 ) -> Table:
     """Parse WhatsApp export using pure Ibis/DuckDB operations."""
-    with zipfile.ZipFile(export.zip_path) as zf:
-        validate_zip_contents(zf)
-        ensure_safe_member_size(zf, export.chat_file)
-        try:
-            with zf.open(export.chat_file) as raw:
-                text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
-                lines = [line.rstrip("\n") for line in text_stream]
-        except UnicodeDecodeError as exc:
-            msg = f"Failed to decode chat file '{export.chat_file}': {exc}"
-            raise ZipValidationError(msg) from exc
+    source = ZipMessageSource(export)
+    rows = _parse_whatsapp_lines(source, export, timezone)
 
-    if not lines:
+    if not rows:
         logger.warning("No messages found in %s", export.zip_path)
         return ibis.memtable([], schema=IR_MESSAGE_SCHEMA)
 
-    rows = _parse_whatsapp_lines(lines, export, timezone)
-
-    if not rows:
-        return ibis.memtable([], schema=IR_MESSAGE_SCHEMA)
-
     messages = ibis.memtable(rows)
-    if _IMPORT_ORDER_COLUMN in messages.columns:
-        messages = messages.order_by([messages.ts, messages[_IMPORT_ORDER_COLUMN]])
+    if "_import_order" in messages.columns:
+        messages = messages.order_by([messages.ts, messages["_import_order"]])
     else:
         messages = messages.order_by("ts")
 
     messages = _add_message_ids(messages)
 
-    if _IMPORT_ORDER_COLUMN in messages.columns:
-        messages = messages.drop(_IMPORT_ORDER_COLUMN)
+    if "_import_order" in messages.columns:
+        messages = messages.drop("_import_order")
 
     if not expose_raw_author:
         messages = anonymize_table(messages)
 
-    helper_columns = [_AUTHOR_UUID_HEX_COLUMN]
+    helper_columns = ["_author_uuid_hex"]
     columns_to_drop = [col for col in helper_columns if col in messages.columns]
     if columns_to_drop:
         messages = messages.drop(*columns_to_drop)
@@ -626,7 +641,7 @@ def build_message_attrs(
             "message_date": message_date,
         }
     )
-    has_metadata = ibis.coalesce(original_line, tagged_line, message_date).notna()
+    has_metadata = ibis.coalesce(original_line, tagged_line, message_date).notnull()
     attrs_json = attrs_struct.cast(dt.json).cast(dt.string)
     empty_json = ibis.literal(None, type=dt.string)
     return ibis.cases(

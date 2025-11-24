@@ -85,6 +85,35 @@ class PromptManager:
         return template.render(**context)
 
     @staticmethod
+    def get_template_content(template_name: str, custom_prompts_dir: Path | None = None) -> str:
+        """Retrieve raw content of a template, prioritizing custom overrides.
+
+        Used for signature generation (hashing logic) without rendering.
+
+        Args:
+            template_name: Name of the template (e.g. "writer.jinja")
+            custom_prompts_dir: Optional directory for user overrides
+
+        Returns:
+            Raw template content string
+
+        """
+        # Check custom directory first
+        if custom_prompts_dir:
+            custom_path = custom_prompts_dir / template_name
+            if custom_path.exists():
+                return custom_path.read_text(encoding="utf-8")
+
+        # Check default package location
+        default_path = PACKAGE_PROMPTS_DIR / template_name
+        if default_path.exists():
+            return default_path.read_text(encoding="utf-8")
+
+        # Fallback (should rarely happen if installed correctly)
+        logger.warning("Template %s not found in custom or package paths", template_name)
+        return ""
+
+    @staticmethod
     def copy_defaults(target_dir: Path) -> int:
         """Copy default prompt templates from package to target directory.
 
