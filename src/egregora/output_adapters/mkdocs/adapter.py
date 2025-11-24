@@ -323,6 +323,8 @@ class MkDocsAdapter(OutputAdapter):
                 "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
                 "generated_date": datetime.now(UTC).strftime("%Y-%m-%d"),
                 "default_writer_model": EgregoraConfig().models.writer,
+                "media_counts": {"urls": 0, "images": 0, "videos": 0, "audio": 0},  # Default counts for init
+                "recent_media": [],  # Empty for initial scaffold
             }
 
             # Create mkdocs.yml in .egregora/ (default location) ONLY if it doesn't exist
