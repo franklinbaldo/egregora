@@ -77,6 +77,25 @@ class MkDocsAdapter(OutputAdapter):
         self._index: dict[str, Path] = {}
         self._ctx: UrlContext | None = None
 
+        # Dispatch tables for strategy pattern
+        self._path_resolvers = {
+            DocumentType.POST: self._resolve_post_path,
+            DocumentType.PROFILE: self._resolve_profile_path,
+            DocumentType.JOURNAL: self._resolve_journal_path,
+            DocumentType.ENRICHMENT_URL: self._resolve_enrichment_url_path,
+            DocumentType.ENRICHMENT_MEDIA: self._resolve_enrichment_media_path,
+            DocumentType.MEDIA: self._resolve_media_path,
+        }
+
+        self._writers = {
+            DocumentType.POST: self._write_post_doc,
+            DocumentType.JOURNAL: self._write_journal_doc,
+            DocumentType.PROFILE: self._write_profile_doc,
+            DocumentType.ENRICHMENT_URL: self._write_enrichment_doc,
+            DocumentType.ENRICHMENT_MEDIA: self._write_enrichment_doc,
+            DocumentType.MEDIA: self._write_media_doc,
+        }
+
     def initialize(self, site_root: Path, url_context: UrlContext | None = None) -> None:
         """Initializes the adapter with all necessary paths and dependencies."""
         site_paths = derive_mkdocs_paths(site_root)
@@ -1034,7 +1053,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             metadata.setdefault("mtime_ns", 0)
         return Document(content=body.strip(), type=doc_type, metadata=metadata)
 
-    def _url_to_path(self, url: str, document: Document) -> Path:  # noqa: PLR0911, C901
+    def _url_to_path(self, url: str, document: Document) -> Path:
         base = self._ctx.base_url.rstrip("/")
         if url.startswith(base):
             url_path = url[len(base) :]
@@ -1043,106 +1062,125 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         url_path = url_path.strip("/")
 
-        if document.type == DocumentType.POST:
-            return self.posts_dir / f"{url_path.split('/')[-1]}.md"
-        if document.type == DocumentType.PROFILE:
-            return self.profiles_dir / f"{url_path.split('/')[-1]}.md"
-        if document.type == DocumentType.JOURNAL:
-            return self.journal_dir / f"{url_path.split('/')[-1]}.md"
-        if document.type == DocumentType.ENRICHMENT_URL:
-            # url_path might be 'media/urls/slug' -> we want 'slug.md' inside urls_dir
-            slug = url_path.split("/")[-1]
-            return self.urls_dir / f"{slug}.md"
-        if document.type == DocumentType.ENRICHMENT_MEDIA:
-            # url_path might be 'media/images/slug' -> we want 'slug.md' inside media/images
-            # We need to preserve the subdirectory (images/videos/etc)
-            # url_path is like 'media/images/foo'
-            # self.media_dir is 'docs/media'
-            # We want 'docs/media/images/foo.md'
+        # Use strategy pattern to resolve path based on document type
+        resolver = self._path_resolvers.get(document.type, self._resolve_generic_path)
+        return resolver(url_path)
 
-            # Strip the prefix (media/) from url_path if present
-            rel_path = url_path
-            media_prefix = self._ctx.site_prefix + "/media" if self._ctx.site_prefix else "media"
-            if rel_path.startswith(media_prefix):
-                rel_path = rel_path[len(media_prefix) :].strip("/")
-            elif rel_path.startswith("media/"):
-                rel_path = rel_path[6:]
+    # Path Resolution Strategies ----------------------------------------------
 
-            return self.media_dir / f"{rel_path}.md"
+    def _resolve_post_path(self, url_path: str) -> Path:
+        return self.posts_dir / f"{url_path.split('/')[-1]}.md"
 
-        if document.type == DocumentType.MEDIA:
-            # Similar logic for media files
-            rel_path = url_path
-            media_prefix = self._ctx.site_prefix + "/media" if self._ctx.site_prefix else "media"
-            if rel_path.startswith(media_prefix):
-                rel_path = rel_path[len(media_prefix) :].strip("/")
-            elif rel_path.startswith("media/"):
-                rel_path = rel_path[6:]
-            return self.media_dir / rel_path
+    def _resolve_profile_path(self, url_path: str) -> Path:
+        return self.profiles_dir / f"{url_path.split('/')[-1]}.md"
 
+    def _resolve_journal_path(self, url_path: str) -> Path:
+        return self.journal_dir / f"{url_path.split('/')[-1]}.md"
+
+    def _resolve_enrichment_url_path(self, url_path: str) -> Path:
+        # url_path might be 'media/urls/slug' -> we want 'slug.md' inside urls_dir
+        slug = url_path.split("/")[-1]
+        return self.urls_dir / f"{slug}.md"
+
+    def _resolve_enrichment_media_path(self, url_path: str) -> Path:
+        # url_path is like 'media/images/foo' -> we want 'docs/media/images/foo.md'
+        rel_path = self._strip_media_prefix(url_path)
+        return self.media_dir / f"{rel_path}.md"
+
+    def _resolve_media_path(self, url_path: str) -> Path:
+        rel_path = self._strip_media_prefix(url_path)
+        return self.media_dir / rel_path
+
+    def _resolve_generic_path(self, url_path: str) -> Path:
         return self.site_root / f"{url_path}.md"
 
-    def _write_document(self, document: Document, path: Path) -> None:  # noqa: C901
-        import yaml as _yaml
+    def _strip_media_prefix(self, url_path: str) -> str:
+        """Helper to strip media prefixes from URL path."""
+        rel_path = url_path
+        media_prefix = self._ctx.site_prefix + "/media" if self._ctx.site_prefix else "media"
+        if rel_path.startswith(media_prefix):
+            rel_path = rel_path[len(media_prefix) :].strip("/")
+        elif rel_path.startswith("media/"):
+            rel_path = rel_path[6:]
+        return rel_path
 
+    def _write_document(self, document: Document, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        def _ensure_hidden(metadata: dict[str, Any]) -> dict[str, Any]:
-            hide = metadata.get("hide", [])
-            if isinstance(hide, str):
-                hide = [hide]
-            if "navigation" not in hide:
-                hide.append("navigation")
-            metadata["hide"] = hide
-            metadata["nav_exclude"] = metadata.get("nav_exclude", True)
-            return metadata
+        # Use strategy pattern to write document
+        writer = self._writers.get(document.type, self._write_generic_doc)
+        writer(document, path)
 
-        if document.type == DocumentType.POST:
-            metadata = dict(document.metadata or {})
-            if "date" in metadata:
-                metadata["date"] = _format_frontmatter_datetime(metadata["date"])
-            if "authors" in metadata:
-                _ensure_author_entries(path.parent, metadata.get("authors"))
+    # Document Writing Strategies ---------------------------------------------
 
-            yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
-            full_content = f"---\n{yaml_front}---\n\n{document.content}"
-            path.write_text(full_content, encoding="utf-8")
-        elif document.type == DocumentType.JOURNAL:
-            metadata = _ensure_hidden(dict(document.metadata or {}))
-            yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
-            full_content = f"---\n{yaml_front}---\n\n{document.content}"
-            path.write_text(full_content, encoding="utf-8")
-        elif document.type == DocumentType.PROFILE:
-            from egregora.knowledge.profiles import (
-                write_profile as write_profile_content,
-            )
+    def _write_post_doc(self, document: Document, path: Path) -> None:
+        import yaml as _yaml
 
-            author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
-            if not author_uuid:
-                msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
-                raise ValueError(msg)
-            write_profile_content(author_uuid, document.content, self.profiles_dir)
-        elif document.type in (DocumentType.ENRICHMENT_URL, DocumentType.ENRICHMENT_MEDIA):
-            metadata = _ensure_hidden(document.metadata.copy())
-            metadata.setdefault("document_type", document.type.value)
-            metadata.setdefault("slug", document.slug)
-            if document.parent_id:
-                metadata.setdefault("parent_id", document.parent_id)
-            if document.parent and document.parent.metadata.get("slug"):
-                metadata.setdefault("parent_slug", document.parent.metadata.get("slug"))
+        metadata = dict(document.metadata or {})
+        if "date" in metadata:
+            metadata["date"] = _format_frontmatter_datetime(metadata["date"])
+        if "authors" in metadata:
+            _ensure_author_entries(path.parent, metadata.get("authors"))
 
-            yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
-            full_content = f"---\n{yaml_front}---\n\n{document.content}"
-            path.write_text(full_content, encoding="utf-8")
-        elif document.type == DocumentType.MEDIA:
-            payload = (
-                document.content if isinstance(document.content, bytes) else document.content.encode("utf-8")
-            )
-            path.write_bytes(payload)
-        elif isinstance(document.content, bytes):
+        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        full_content = f"---\n{yaml_front}---\n\n{document.content}"
+        path.write_text(full_content, encoding="utf-8")
+
+    def _write_journal_doc(self, document: Document, path: Path) -> None:
+        import yaml as _yaml
+
+        metadata = self._ensure_hidden(dict(document.metadata or {}))
+        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        full_content = f"---\n{yaml_front}---\n\n{document.content}"
+        path.write_text(full_content, encoding="utf-8")
+
+    def _write_profile_doc(self, document: Document, path: Path) -> None:
+        from egregora.knowledge.profiles import write_profile as write_profile_content
+
+        author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
+        if not author_uuid:
+            msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
+            raise ValueError(msg)
+        write_profile_content(author_uuid, document.content, self.profiles_dir)
+
+    def _write_enrichment_doc(self, document: Document, path: Path) -> None:
+        import yaml as _yaml
+
+        metadata = self._ensure_hidden(document.metadata.copy())
+        metadata.setdefault("document_type", document.type.value)
+        metadata.setdefault("slug", document.slug)
+        if document.parent_id:
+            metadata.setdefault("parent_id", document.parent_id)
+        if document.parent and document.parent.metadata.get("slug"):
+            metadata.setdefault("parent_slug", document.parent.metadata.get("slug"))
+
+        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        full_content = f"---\n{yaml_front}---\n\n{document.content}"
+        path.write_text(full_content, encoding="utf-8")
+
+    def _write_media_doc(self, document: Document, path: Path) -> None:
+        payload = (
+            document.content if isinstance(document.content, bytes) else document.content.encode("utf-8")
+        )
+        path.write_bytes(payload)
+
+    def _write_generic_doc(self, document: Document, path: Path) -> None:
+        if isinstance(document.content, bytes):
             path.write_bytes(document.content)
         else:
             path.write_text(document.content, encoding="utf-8")
+
+    @staticmethod
+    def _ensure_hidden(metadata: dict[str, Any]) -> dict[str, Any]:
+        """Ensure document is hidden from navigation."""
+        hide = metadata.get("hide", [])
+        if isinstance(hide, str):
+            hide = [hide]
+        if "navigation" not in hide:
+            hide.append("navigation")
+        metadata["hide"] = hide
+        metadata["nav_exclude"] = metadata.get("nav_exclude", True)
+        return metadata
 
     def _get_document_id_at_path(self, path: Path) -> str | None:
         if not path.exists():
