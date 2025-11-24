@@ -69,7 +69,27 @@ if TYPE_CHECKING:
     from egregora.orchestration.context import PipelineContext
 
 logger = logging.getLogger(__name__)
+
+# Constants for RAG and journaling
 MAX_RAG_QUERY_BYTES = 30000
+
+# Template names
+WRITER_TEMPLATE_NAME = "writer.jinja"
+JOURNAL_TEMPLATE_NAME = "journal.md.jinja"
+TEMPLATES_DIR_NAME = "templates"
+
+# Fallback template identifier for cache signature
+DEFAULT_TEMPLATE_SIGNATURE = "standard_writer_v1"
+
+# Journal entry types
+JOURNAL_TYPE_THINKING = "thinking"
+JOURNAL_TYPE_TEXT = "journal"
+JOURNAL_TYPE_TOOL_CALL = "tool_call"
+JOURNAL_TYPE_TOOL_RETURN = "tool_return"
+
+# Result keys
+RESULT_KEY_POSTS = "posts"
+RESULT_KEY_PROFILES = "profiles"
 
 # Type aliases for improved type safety
 MessageHistory = Sequence[ModelRequest | ModelResponse]
@@ -510,37 +530,49 @@ class JournalEntry:
     tool_name: str | None = None
 
 
-def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:  # noqa: C901
+def _create_tool_call_entry(part: ToolCallPart, timestamp) -> JournalEntry:
+    """Create a journal entry for a tool call part.
+
+    Args:
+        part: Tool call part from message
+        timestamp: Message timestamp
+
+    Returns:
+        Journal entry for the tool call
+
+    """
+    args_str = json.dumps(part.args, indent=2) if hasattr(part, "args") else "{}"
+    return JournalEntry(
+        JOURNAL_TYPE_TOOL_CALL,
+        f"Tool: {part.tool_name}\nArguments:\n{args_str}",
+        timestamp,
+        part.tool_name,
+    )
+
+
+def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
     """Extract intercalated journal log preserving actual execution order."""
     entries: list[JournalEntry] = []
 
     for message in messages:
+        timestamp = getattr(message, "timestamp", None)
+
         # Handle ModelResponse
         if isinstance(message, ModelResponse):
             for part in message.parts:
                 if isinstance(part, ThinkingPart):
-                    entries.append(
-                        JournalEntry("thinking", part.content, getattr(message, "timestamp", None))
-                    )
+                    entries.append(JournalEntry(JOURNAL_TYPE_THINKING, part.content, timestamp))
                 elif isinstance(part, TextPart):
-                    entries.append(JournalEntry("journal", part.content, getattr(message, "timestamp", None)))
+                    entries.append(JournalEntry(JOURNAL_TYPE_TEXT, part.content, timestamp))
                 elif isinstance(part, ToolCallPart):
-                    args_str = json.dumps(part.args, indent=2) if hasattr(part, "args") else "{}"
-                    entries.append(
-                        JournalEntry(
-                            "tool_call",
-                            f"Tool: {part.tool_name}\nArguments:\n{args_str}",
-                            getattr(message, "timestamp", None),
-                            part.tool_name,
-                        )
-                    )
+                    entries.append(_create_tool_call_entry(part, timestamp))
                 elif isinstance(part, ToolReturnPart):
                     result_str = str(part.content) if hasattr(part, "content") else "No result"
                     entries.append(
                         JournalEntry(
-                            "tool_return",
+                            JOURNAL_TYPE_TOOL_RETURN,
                             f"Result: {result_str}",
-                            getattr(message, "timestamp", None),
+                            timestamp,
                             getattr(part, "tool_name", None),
                         )
                     )
@@ -549,15 +581,7 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:  
         elif isinstance(message, ModelRequest):
             for part in message.parts:
                 if isinstance(part, ToolCallPart):
-                    args_str = json.dumps(part.args, indent=2) if hasattr(part, "args") else "{}"
-                    entries.append(
-                        JournalEntry(
-                            "tool_call",
-                            f"Tool: {part.tool_name}\nArguments:\n{args_str}",
-                            getattr(message, "timestamp", None),
-                            part.tool_name,
-                        )
-                    )
+                    entries.append(_create_tool_call_entry(part, timestamp))
 
     return entries
 
@@ -576,12 +600,12 @@ def _save_journal_to_file(  # noqa: PLR0913
     if not intercalated_log:
         return None
 
-    templates_dir = Path(__file__).resolve().parents[1] / "templates"
+    templates_dir = Path(__file__).resolve().parents[1] / TEMPLATES_DIR_NAME
     try:
         env = Environment(
             loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape(enabled_extensions=())
         )
-        template = env.get_template("journal.md.jinja")
+        template = env.get_template(JOURNAL_TEMPLATE_NAME)
     except Exception:
         logger.exception("Failed to load journal template")
         return None
@@ -867,7 +891,7 @@ def write_posts_for_window(  # noqa: C901, PLR0913, PLR0912 - Complex orchestrat
     of the writer agent.
     """
     if table.count().execute() == 0:
-        return {"posts": [], "profiles": []}
+        return {RESULT_KEY_POSTS: [], RESULT_KEY_PROFILES: []}
 
     # 1. Prepare Dependencies from resources
     window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
@@ -902,20 +926,19 @@ def write_posts_for_window(  # noqa: C901, PLR0913, PLR0912 - Complex orchestrat
     # We'll use "standard_writer_v1" as a placeholder if we don't read the file,
     # but let's try to be correct.
 
-    template_name = "writer.jinja"
-    template_content = "standard_writer_v1"  # Fallback
+    template_content = DEFAULT_TEMPLATE_SIGNATURE  # Fallback
 
     try:
         # Try to find the template file to hash its content
         if deps.prompts_dir:
-            tpl_path = deps.prompts_dir / template_name
+            tpl_path = deps.prompts_dir / WRITER_TEMPLATE_NAME
             if tpl_path.exists():
                 template_content = tpl_path.read_text()
         else:
             # Use internal resource
             from egregora.resources.prompts import _get_prompts_dir
 
-            tpl_path = _get_prompts_dir() / "templates" / template_name
+            tpl_path = _get_prompts_dir() / TEMPLATES_DIR_NAME / WRITER_TEMPLATE_NAME
             if tpl_path.exists():
                 template_content = tpl_path.read_text()
     except Exception:  # noqa: BLE001 - Fallback to default, non-critical
@@ -994,7 +1017,7 @@ def write_posts_for_window(  # noqa: C901, PLR0913, PLR0912 - Complex orchestrat
             logger.warning("Failed to update RAG index after writing: %s", e)
 
     # UPDATE L3 CACHE
-    result_payload = {"posts": saved_posts, "profiles": saved_profiles}
+    result_payload = {RESULT_KEY_POSTS: saved_posts, RESULT_KEY_PROFILES: saved_profiles}
     cache.writer.set(signature, result_payload)
 
     return result_payload
