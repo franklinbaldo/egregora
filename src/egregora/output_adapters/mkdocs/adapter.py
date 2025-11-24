@@ -151,26 +151,39 @@ class MkDocsAdapter(OutputAdapter):
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
 
-    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:  # noqa: C901
+    def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path | None:
+        """Resolve filesystem path for a document based on its type.
+
+        Args:
+            doc_type: Type of document
+            identifier: Document identifier
+
+        Returns:
+            Path to document or None if type unsupported
+
+        """
+        # Dispatch table for document type to path resolution
+        path_resolvers = {
+            DocumentType.PROFILE: lambda: self.profiles_dir / f"{identifier}.md",
+            DocumentType.POST: lambda: (
+                max(self.posts_dir.glob(f"*-{identifier}.md"), key=lambda p: p.stat().st_mtime)
+                if (matches := list(self.posts_dir.glob(f"*-{identifier}.md")))
+                else None
+            ),
+            DocumentType.JOURNAL: lambda: self.journal_dir / f"{identifier.replace('/', '-')}.md",
+            DocumentType.ENRICHMENT_URL: lambda: self.urls_dir / f"{identifier}.md",
+            DocumentType.ENRICHMENT_MEDIA: lambda: self.media_dir / f"{identifier}.md",
+            DocumentType.MEDIA: lambda: self.media_dir / identifier,
+        }
+
+        resolver = path_resolvers.get(doc_type)
+        return resolver() if resolver else None
+
+    def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
         if isinstance(doc_type, str):
             doc_type = DocumentType(doc_type)
-        path: Path | None = None
 
-        if doc_type == DocumentType.PROFILE:
-            path = self.profiles_dir / f"{identifier}.md"
-        elif doc_type == DocumentType.POST:
-            matches = list(self.posts_dir.glob(f"*-{identifier}.md"))
-            if matches:
-                path = max(matches, key=lambda p: p.stat().st_mtime)
-        elif doc_type == DocumentType.JOURNAL:
-            safe_identifier = identifier.replace("/", "-")
-            path = self.journal_dir / f"{safe_identifier}.md"
-        elif doc_type == DocumentType.ENRICHMENT_URL:
-            path = self.urls_dir / f"{identifier}.md"
-        elif doc_type == DocumentType.ENRICHMENT_MEDIA:
-            path = self.media_dir / f"{identifier}.md"
-        elif doc_type == DocumentType.MEDIA:
-            path = self.media_dir / identifier
+        path = self._resolve_document_path(doc_type, identifier)
 
         if path is None or not path.exists():
             logger.debug(
