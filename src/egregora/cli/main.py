@@ -1,7 +1,6 @@
 """Main Typer application for Egregora."""
 
 import logging
-import os
 from datetime import date
 from pathlib import Path
 from typing import Annotated
@@ -130,7 +129,7 @@ def init(
 
 
 @app.command()
-def write(  # noqa: C901, PLR0913, PLR0915
+def write(  # noqa: C901, PLR0913
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     source: Annotated[
