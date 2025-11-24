@@ -267,45 +267,40 @@ def write(  # noqa: C901, PLR0913, PLR0915
 
     # Load base config and merge CLI overrides
     base_config = load_egregora_config(output_dir)
-    models_update: dict[str, str] = {}
+
+    cli_overrides = {
+        "pipeline": {
+            "step_size": step_size,
+            "step_unit": step_unit,
+            "overlap_ratio": overlap,
+            "timezone": timezone,
+            "from_date": from_date_obj.isoformat() if from_date_obj else None,
+            "to_date": to_date_obj.isoformat() if to_date_obj else None,
+            "max_prompt_tokens": max_prompt_tokens,
+            "use_full_context_window": use_full_context_window,
+            "max_windows": max_windows,
+            "checkpoint_enabled": resume,
+        },
+        "enrichment": {
+            "enabled": enable_enrichment
+        },
+        "rag": {
+            "mode": retrieval_mode,
+            "nprobe": retrieval_nprobe,
+            "overfetch": retrieval_overfetch,
+        },
+    }
+
     if model:
-        models_update = {
+        cli_overrides["models"] = {
             "writer": model,
             "enricher": model,
             "enricher_vision": model,
             "ranking": model,
             "editor": model,
         }
-    egregora_config = base_config.model_copy(
-        deep=True,
-        update={
-            "pipeline": base_config.pipeline.model_copy(
-                update={
-                    "step_size": step_size,
-                    "step_unit": step_unit,
-                    "overlap_ratio": overlap,
-                    "timezone": timezone,
-                    "from_date": from_date_obj.isoformat() if from_date_obj else None,
-                    "to_date": to_date_obj.isoformat() if to_date_obj else None,
-                    "max_prompt_tokens": max_prompt_tokens,
-                    "use_full_context_window": use_full_context_window,
-                    "max_windows": max_windows,
-                    "checkpoint_enabled": resume,
-                }
-            ),
-            "enrichment": base_config.enrichment.model_copy(update={"enabled": enable_enrichment}),
-            "rag": base_config.rag.model_copy(
-                update={
-                    "mode": retrieval_mode,
-                    "nprobe": retrieval_nprobe if retrieval_nprobe is not None else base_config.rag.nprobe,
-                    "overfetch": retrieval_overfetch
-                    if retrieval_overfetch is not None
-                    else base_config.rag.overfetch,
-                }
-            ),
-            **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
-        },
-    )
+
+    egregora_config = base_config.from_cli_overrides(cli_overrides)
 
     # Create runtime context
     runtime = RuntimeContext(

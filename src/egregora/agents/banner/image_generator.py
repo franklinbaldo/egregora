@@ -15,12 +15,57 @@ import mimetypes
 import os
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
 
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
 logger = logging.getLogger(__name__)
+
+# Module constants for default values and magic strings
+_DEFAULT_MODEL = "models/gemini-2.5-flash-image"
+_BANNER_ASPECT_RATIO = "16:9"
+_DEFAULT_IMAGE_EXT = ".png"
+_RESPONSE_MODALITY_IMAGE = "IMAGE"
+_RESPONSE_MODALITY_TEXT = "TEXT"
+
+# System instruction for the image generation model
+_SYSTEM_INSTRUCTION = (
+    "You are a senior editorial illustrator for a modern blog. Your job is to translate an "
+    "article into a striking, concept-driven cover/banner image that is legible at small "
+    "sizes, brand-consistent, and accessible. Create minimalist, abstract representations "
+    "that capture the essence of the article without literal depictions. Use bold colors, "
+    "clear composition, and modern design principles."
+)
+
+# Template for the user prompt
+_PROMPT_TEMPLATE = """Create a striking cover image for this blog post:
+
+Title: {title}
+
+Summary: {summary}
+
+Design Requirements:
+- Aspect ratio: 16:9 (widescreen banner/header)
+- Composition: IMPORTANT - Keep the UPPER 30% relatively clean and simple to allow for text overlay
+- Style: Abstract, conceptual, minimalist modern editorial
+- Color palette: Bold but harmonious (2-4 colors maximum)
+- Visual focus: Place the main visual interest in the LOWER 2/3 of the frame
+- Avoid: Literal illustrations, complex text, photorealism, excessive detail
+
+Technical Requirements:
+- Do NOT include any text or typography in the image itself
+- Create clear focal point in lower portion
+- Use high contrast for good legibility
+- Design should scale well from thumbnail to full-width display
+
+The image should evoke the article's essence through abstract visual metaphor.
+Use geometric forms, gradients, or symbolic elements rather than literal depictions.
+Think editorial illustration, not stock photography."""
 
 
 class BannerRequest(BaseModel):
@@ -71,8 +116,7 @@ class BannerGenerator:
             msg = "Banner generation requires GOOGLE_API_KEY. Set environment variable or pass api_key parameter, or set enabled=False to disable banner generation."
             raise ValueError(msg)
         self.client = genai.Client(api_key=self.api_key)
-        # Default model (can be overridden via config or passed in __init__)
-        self.model = "models/gemini-2.5-flash-image"
+        self.model = _DEFAULT_MODEL
 
     def generate_banner(self, request: BannerRequest) -> BannerResult:
         """Generate a banner image for a blog post.
@@ -87,85 +131,68 @@ class BannerGenerator:
         if not self.enabled:
             logger.info("Banner generation disabled, skipping: %s", request.post_title)
             return BannerResult(success=False, error="Banner generation disabled (no GOOGLE_API_KEY)")
+
         request.output_dir.mkdir(parents=True, exist_ok=True)
-        prompt = self._build_prompt(request.post_title, request.post_summary)
+        prompt = _PROMPT_TEMPLATE.format(title=request.post_title, summary=request.post_summary)
+
         try:
             logger.info("Generating banner for post: %s", request.post_title)
             contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
             generate_content_config = types.GenerateContentConfig(
-                response_modalities=["IMAGE", "TEXT"],
-                image_config=types.ImageConfig(aspect_ratio="16:9"),  # Widescreen for blog banners
-                system_instruction=[
-                    types.Part.from_text(
-                        text="You are a senior editorial illustrator for a modern blog. Your job is to translate an article into a striking, concept-driven cover/banner image that is legible at small sizes, brand-consistent, and accessible. Create minimalist, abstract representations that capture the essence of the article without literal depictions. Use bold colors, clear composition, and modern design principles."
-                    )
-                ],
+                response_modalities=[_RESPONSE_MODALITY_IMAGE, _RESPONSE_MODALITY_TEXT],
+                image_config=types.ImageConfig(aspect_ratio=_BANNER_ASPECT_RATIO),
+                system_instruction=[types.Part.from_text(text=_SYSTEM_INSTRUCTION)],
             )
-            for chunk in self.client.models.generate_content_stream(
+
+            response_stream = self.client.models.generate_content_stream(
                 model=self.model, contents=contents, config=generate_content_config
-            ):
-                if not (
-                    chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts
-                ):
-                    continue
-                part = chunk.candidates[0].content.parts[0]
-                if part.inline_data and part.inline_data.data:
-                    inline_data = part.inline_data
-                    data_buffer = inline_data.data
-                    file_extension = mimetypes.guess_extension(inline_data.mime_type) or ".png"
+            )
 
-                    # Use content-based UUID5 for deterministic naming (like other media)
-                    content_hash = hashlib.sha256(data_buffer).digest()
-                    banner_uuid = uuid.UUID(bytes=content_hash[:16], version=5)
-                    banner_filename = f"{banner_uuid}{file_extension}"
-                    banner_path = request.output_dir / banner_filename
+            if banner_path := self._extract_image_from_stream(response_stream, request.output_dir):
+                return BannerResult(success=True, banner_path=banner_path)
 
-                    with banner_path.open("wb") as f:
-                        f.write(data_buffer)
-                    logger.info("Banner saved to: %s", banner_path)
-                    return BannerResult(success=True, banner_path=banner_path)
-                if hasattr(chunk, "text") and chunk.text:
-                    logger.debug("Gemini response: %s", chunk.text)
             logger.warning("No image generated for post: %s", request.post_title)
             return BannerResult(success=False, error="No image data received from API")
+
         except Exception as e:
             logger.error("Failed to generate banner for %s: %s", request.post_title, e, exc_info=True)
             return BannerResult(success=False, error=str(e))
 
-    def _build_prompt(self, title: str, summary: str) -> str:
-        """Build the prompt for banner image generation.
+    def _extract_image_from_stream(self, stream: Iterator[Any], output_dir: Path) -> Path | None:
+        """Iterate over response stream and extract the first valid image."""
+        for chunk in stream:
+            if not (
+                chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts
+            ):
+                continue
 
-        Args:
-            title: Post title
-            summary: Post summary
+            part = chunk.candidates[0].content.parts[0]
 
-        Returns:
-            Prompt string for image generation
+            # Handle image data
+            if part.inline_data and part.inline_data.data:
+                return self._save_image_asset(part.inline_data, output_dir)
 
-        """
-        return f"""Create a striking cover image for this blog post:
+            # Log text feedback from model (sometimes it explains why it can't generate)
+            if hasattr(chunk, "text") and chunk.text:
+                logger.debug("Gemini response: %s", chunk.text)
 
-Title: {title}
+        return None
 
-Summary: {summary}
+    def _save_image_asset(self, inline_data: Any, output_dir: Path) -> Path:
+        """Save binary image data to disk with deterministic filename."""
+        data_buffer = inline_data.data
+        file_extension = mimetypes.guess_extension(inline_data.mime_type) or _DEFAULT_IMAGE_EXT
 
-Design Requirements:
-- Aspect ratio: 16:9 (widescreen banner/header)
-- Composition: IMPORTANT - Keep the UPPER 30% relatively clean and simple to allow for text overlay
-- Style: Abstract, conceptual, minimalist modern editorial
-- Color palette: Bold but harmonious (2-4 colors maximum)
-- Visual focus: Place the main visual interest in the LOWER 2/3 of the frame
-- Avoid: Literal illustrations, complex text, photorealism, excessive detail
+        # Use content-based UUID5 for deterministic naming
+        content_hash = hashlib.sha256(data_buffer).digest()
+        banner_uuid = uuid.UUID(bytes=content_hash[:16], version=5)
+        banner_filename = f"{banner_uuid}{file_extension}"
+        banner_path = output_dir / banner_filename
 
-Technical Requirements:
-- Do NOT include any text or typography in the image itself
-- Create clear focal point in lower portion
-- Use high contrast for good legibility
-- Design should scale well from thumbnail to full-width display
-
-The image should evoke the article's essence through abstract visual metaphor.
-Use geometric forms, gradients, or symbolic elements rather than literal depictions.
-Think editorial illustration, not stock photography."""
+        with banner_path.open("wb") as f:
+            f.write(data_buffer)
+        logger.info("Banner saved to: %s", banner_path)
+        return banner_path
 
 
 def generate_banner_for_post(

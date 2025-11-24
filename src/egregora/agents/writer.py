@@ -69,7 +69,11 @@ if TYPE_CHECKING:
     from egregora.orchestration.context import PipelineContext
 
 logger = logging.getLogger(__name__)
+
+# Constants
 MAX_RAG_QUERY_BYTES = 30000
+WRITER_TEMPLATE_NAME = "writer.jinja"
+DEFAULT_WRITER_SIGNATURE_CONTENT = "standard_writer_v1"
 
 # Type aliases for improved type safety
 MessageHistory = Sequence[ModelRequest | ModelResponse]
@@ -510,54 +514,39 @@ class JournalEntry:
     tool_name: str | None = None
 
 
-def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:  # noqa: C901
+def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
     """Extract intercalated journal log preserving actual execution order."""
     entries: list[JournalEntry] = []
 
+    # Map part types to entry handlers
+    part_handlers = {
+        ThinkingPart: lambda p, m: JournalEntry("thinking", p.content, getattr(m, "timestamp", None)),
+        TextPart: lambda p, m: JournalEntry("journal", p.content, getattr(m, "timestamp", None)),
+        ToolCallPart: lambda p, m: JournalEntry(
+            "tool_call",
+            f"Tool: {p.tool_name}\nArguments:\n{json.dumps(p.args, indent=2) if hasattr(p, 'args') else '{}'}",
+            getattr(m, "timestamp", None),
+            p.tool_name,
+        ),
+        ToolReturnPart: lambda p, m: JournalEntry(
+            "tool_return",
+            f"Result: {str(p.content) if hasattr(p, 'content') else 'No result'}",
+            getattr(m, "timestamp", None),
+            getattr(p, "tool_name", None),
+        ),
+    }
+
     for message in messages:
-        # Handle ModelResponse
         if isinstance(message, ModelResponse):
             for part in message.parts:
-                if isinstance(part, ThinkingPart):
-                    entries.append(
-                        JournalEntry("thinking", part.content, getattr(message, "timestamp", None))
-                    )
-                elif isinstance(part, TextPart):
-                    entries.append(JournalEntry("journal", part.content, getattr(message, "timestamp", None)))
-                elif isinstance(part, ToolCallPart):
-                    args_str = json.dumps(part.args, indent=2) if hasattr(part, "args") else "{}"
-                    entries.append(
-                        JournalEntry(
-                            "tool_call",
-                            f"Tool: {part.tool_name}\nArguments:\n{args_str}",
-                            getattr(message, "timestamp", None),
-                            part.tool_name,
-                        )
-                    )
-                elif isinstance(part, ToolReturnPart):
-                    result_str = str(part.content) if hasattr(part, "content") else "No result"
-                    entries.append(
-                        JournalEntry(
-                            "tool_return",
-                            f"Result: {result_str}",
-                            getattr(message, "timestamp", None),
-                            getattr(part, "tool_name", None),
-                        )
-                    )
-
-        # Handle ModelRequest
+                handler = part_handlers.get(type(part))
+                if handler:
+                    entries.append(handler(part, message))
         elif isinstance(message, ModelRequest):
             for part in message.parts:
                 if isinstance(part, ToolCallPart):
-                    args_str = json.dumps(part.args, indent=2) if hasattr(part, "args") else "{}"
-                    entries.append(
-                        JournalEntry(
-                            "tool_call",
-                            f"Tool: {part.tool_name}\nArguments:\n{args_str}",
-                            getattr(message, "timestamp", None),
-                            part.tool_name,
-                        )
-                    )
+                    # Re-use logic for tool calls in requests
+                    entries.append(part_handlers[ToolCallPart](part, message))
 
     return entries
 
@@ -825,7 +814,7 @@ def _render_writer_prompt(
     source_context = adapter_content_summary
 
     return render_prompt(
-        "writer.jinja",
+        WRITER_TEMPLATE_NAME,
         prompts_dir=deps.resources.prompts_dir,
         date=deps.window_label,
         conversation_xml=prompt_context.conversation_xml,
@@ -850,14 +839,81 @@ def _cast_uuid_columns_to_str(table: Table) -> Table:
     )
 
 
-def write_posts_for_window(  # noqa: C901, PLR0913, PLR0912 - Complex orchestration function
+def _check_writer_cache(
+    table_with_str_uuids: Table,
+    config: EgregoraConfig,
+    cache: PipelineCache,
+    deps: WriterDeps,
+    prompt_context: WriterPromptContext,
+) -> dict[str, list[str]] | None:
+    """Check L3 cache and return cached result if valid."""
+    template_content = DEFAULT_WRITER_SIGNATURE_CONTENT
+    try:
+        if deps.resources.prompts_dir:
+            tpl_path = deps.resources.prompts_dir / WRITER_TEMPLATE_NAME
+            if tpl_path.exists():
+                template_content = tpl_path.read_text()
+        else:
+            from egregora.resources.prompts import _get_prompts_dir
+
+            tpl_path = _get_prompts_dir() / "templates" / WRITER_TEMPLATE_NAME
+            if tpl_path.exists():
+                template_content = tpl_path.read_text()
+    except Exception:  # noqa: BLE001
+        logger.debug("Could not load writer template for hashing, using default signature")
+
+    signature = generate_window_signature(
+        table_with_str_uuids, config, template_content, xml_content=prompt_context.conversation_xml
+    )
+
+    if not cache.should_refresh(CacheTier.WRITER):
+        cached_result = cache.writer.get(signature)
+        if cached_result:
+            logger.info("⚡ [L3 Cache Hit] Skipping Writer LLM for window %s", deps.window_label)
+            return cached_result
+    return None, signature
+
+
+def _finalize_and_index(
+    resources: WriterResources,
+    deps: WriterDeps,
+    saved_posts: list[str],
+    saved_profiles: list[str],
+) -> None:
+    """Finalize window and update RAG index."""
+    resources.output.finalize_window(
+        window_label=deps.window_label,
+        posts_created=saved_posts,
+        profiles_updated=saved_profiles,
+        metadata=None,
+    )
+
+    if (
+        resources.retrieval_config.enabled
+        and resources.rag_store
+        and resources.storage
+        and (saved_posts or saved_profiles)
+    ):
+        try:
+            indexed_count = index_documents_for_rag(
+                resources.output,
+                resources.rag_store.parquet_path.parent,
+                resources.storage,
+                embedding_model=resources.embedding_model,
+            )
+            if indexed_count > 0:
+                logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Failed to update RAG index after writing: %s", e)
+
+
+def write_posts_for_window(  # noqa: C901, PLR0913
     table: Table,
     window_start: datetime,
     window_end: datetime,
     resources: WriterResources,
     config: EgregoraConfig,
     cache: PipelineCache,
-    # These are extracted from pipeline context earlier and passed explicitly now
     adapter_content_summary: str = "",
     adapter_generation_instructions: str = "",
 ) -> dict[str, list[str]]:
@@ -869,7 +925,6 @@ def write_posts_for_window(  # noqa: C901, PLR0913, PLR0912 - Complex orchestrat
     if table.count().execute() == 0:
         return {"posts": [], "profiles": []}
 
-    # 1. Prepare Dependencies from resources
     window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
     deps = WriterDeps(
         resources=resources,
@@ -878,73 +933,16 @@ def write_posts_for_window(  # noqa: C901, PLR0913, PLR0912 - Complex orchestrat
         window_label=window_label,
     )
 
-    # 2. Build Context & Calculate Signature (L3 Cache Check)
     table_with_str_uuids = _cast_uuid_columns_to_str(table)
-
-    # Generate XML content early for both prompt and signature
-    # This matches what the LLM will actually see
     prompt_context = _build_writer_prompt_context(table_with_str_uuids, resources, cache)
 
-    # Calculate signature using data (XML) + logic (template + instructions) + engine
-    # We need the raw template content, but for now we use the rendered prompt as a proxy
-    # OR we load the template file. Loading raw template is safer for "logic" hash.
-    # For simplicity, we rely on the function in windowing.py which handles it.
-    # Note: deps.prompts_dir might be custom.
-
-    # We use a fixed string for template if we can't easily load it,
-    # BUT `generate_window_signature` uses the XML we just built.
-    # Let's load the raw template or use a placeholder if standard.
-    # Since we render the prompt next, let's assume standard logic for now.
-    # Ideally we'd read "writer.jinja" content.
-
-    # To be robust, we assume standard template or use a hash of the rendered prompt *logic* part?
-    # `generate_window_signature` takes `prompt_template`.
-    # We'll use "standard_writer_v1" as a placeholder if we don't read the file,
-    # but let's try to be correct.
-
-    template_name = "writer.jinja"
-    template_content = "standard_writer_v1"  # Fallback
-
-    try:
-        # Try to find the template file to hash its content
-        if deps.prompts_dir:
-            tpl_path = deps.prompts_dir / template_name
-            if tpl_path.exists():
-                template_content = tpl_path.read_text()
-        else:
-            # Use internal resource
-            from egregora.resources.prompts import _get_prompts_dir
-
-            tpl_path = _get_prompts_dir() / "templates" / template_name
-            if tpl_path.exists():
-                template_content = tpl_path.read_text()
-    except Exception:  # noqa: BLE001 - Fallback to default, non-critical
-        logger.debug("Could not load writer template for hashing, using default signature")
-
-    signature = generate_window_signature(
-        table_with_str_uuids, config, template_content, xml_content=prompt_context.conversation_xml
-    )
-
-    # CHECK L3 CACHE
-    if not cache.should_refresh(CacheTier.WRITER):
-        cached_result = cache.writer.get(signature)
-        if cached_result:
-            logger.info("⚡ [L3 Cache Hit] Skipping Writer LLM for window %s", deps.window_label)
-
-            # If we have a hit, we still need to ensure "finalization" happens if needed?
-            # Actually, the cached result contains the paths.
-            # But wait, did the cached run *actually write* the files?
-            # If we are resuming on a clean machine, the files might not exist even if cache does.
-            # However, the goal of "resume" usually implies the artifacts exist.
-            # If artifacts are missing, we might need to re-run.
-            # For now, we assume cache validity implies artifact existence or we trust the cache.
-            # A robust system might check if paths exist.
-
-            return cached_result
+    # Check cache
+    cached_result, signature = _check_writer_cache(table_with_str_uuids, config, cache, deps, prompt_context)
+    if cached_result:
+        return cached_result
 
     logger.info("Using Pydantic AI backend for writer")
 
-    # Render prompt
     prompt = _render_writer_prompt(
         prompt_context,
         deps,
@@ -966,34 +964,8 @@ def write_posts_for_window(  # noqa: C901, PLR0913, PLR0912 - Complex orchestrat
         logger.exception(msg)
         raise RuntimeError(msg) from exc
 
-    # Finalize
-    resources.output.finalize_window(
-        window_label=deps.window_label,
-        posts_created=saved_posts,
-        profiles_updated=saved_profiles,
-        metadata=None,
-    )
+    _finalize_and_index(resources, deps, saved_posts, saved_profiles)
 
-    # Index newly created content
-    if (
-        resources.retrieval_config.enabled
-        and resources.rag_store
-        and resources.storage
-        and (saved_posts or saved_profiles)
-    ):
-        try:
-            indexed_count = index_documents_for_rag(
-                resources.output,
-                resources.rag_store.parquet_path.parent,  # Use parent dir
-                resources.storage,
-                embedding_model=resources.embedding_model,
-            )
-            if indexed_count > 0:
-                logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
-        except Exception as e:  # noqa: BLE001
-            logger.warning("Failed to update RAG index after writing: %s", e)
-
-    # UPDATE L3 CACHE
     result_payload = {"posts": saved_posts, "profiles": saved_profiles}
     cache.writer.set(signature, result_payload)
 

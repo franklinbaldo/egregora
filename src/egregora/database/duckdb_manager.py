@@ -10,8 +10,8 @@ checkpoint management across pipeline stages.
 Callers should treat :class:`DuckDBStorageManager` as the single entry point
 for metadata queries and bookkeeping. Avoid holding on to the raw
 ``duckdb.Connection`` object; instead use helper methods like
-:meth:`get_table_columns`, :meth:`fetch_latest_runs`, or the
-:meth:`connection` context manager when absolutely necessary.
+:meth:`get_table_columns`, or the :meth:`connection` context manager when
+absolutely necessary.
 
 Usage:
     from egregora.database.duckdb_manager import DuckDBStorageManager
@@ -24,12 +24,6 @@ Usage:
 
     # Write table with checkpoint
     storage.write_table(table, "enriched_conversations")
-
-    # Execute a named view
-    from egregora.database.views import COMMON_VIEWS
-
-    chunks_builder = COMMON_VIEWS["chunks"]
-    result = storage.execute_view("chunks", chunks_builder, "conversations")
 """
 
 from __future__ import annotations
@@ -40,7 +34,6 @@ import re
 import uuid
 import warnings
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Literal, Self
 
@@ -137,12 +130,10 @@ class DuckDBStorageManager:
     """Centralized DuckDB connection + Ibis helpers.
 
     Manages database connections, table I/O, and automatic checkpointing
-    for pipeline stages. View transformations are provided as callables
-    (see :mod:`egregora.database.views`).
+    for pipeline stages.
 
     Attributes:
         db_path: Path to DuckDB file (or None for in-memory)
-        _conn: Raw DuckDB connection (private - prefer helpers)
         ibis_conn: Ibis backend connected to DuckDB
         checkpoint_dir: Directory for parquet checkpoints
 
@@ -176,7 +167,7 @@ class DuckDBStorageManager:
 
         # Enable HNSW index persistence for vector search
         # Requires 'vss' extension to be loaded first
-        self._conn.execute("INSTALL vss; LOAD vss;")
+        self._vss_available = self.install_vss_extensions()
         self._conn.execute("SET hnsw_enable_experimental_persistence=true")
 
         # Initialize Ibis backend
@@ -193,16 +184,14 @@ class DuckDBStorageManager:
 
     @property
     def conn(self) -> duckdb.DuckDBPyConnection:
-        """Expose raw DuckDB connection (deprecated).
+        """Deprecated alias for internal connection object.
 
-        Direct access is retained for backwards compatibility but will be
-        removed once all modules migrate to the high-level helpers. Prefer
-        :meth:`connection` or table/query helpers instead of storing this
-        attribute.
+        This property exists to support legacy code (like AnnotationStore) that
+        accesses .conn directly. New code should use the .connection() context manager
+        or Ibis operations.
         """
         warnings.warn(
-            "DuckDBStorageManager.conn is deprecated; use the helper methods "
-            "or connection() context manager instead.",
+            "DuckDBStorageManager.conn is deprecated, use .connection() context manager instead",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -355,116 +344,6 @@ class DuckDBStorageManager:
             self._table_info_cache[cache_key] = {row[0] for row in rows}
 
         return self._table_info_cache[cache_key]
-
-    def _runs_duration_expression(self) -> str:
-        columns = self.get_table_columns("runs")
-        if "duration_seconds" in columns:
-            return "duration_seconds"
-        if "started_at" in columns and "finished_at" in columns:
-            return "CAST(date_diff('second', started_at, finished_at) AS DOUBLE) AS duration_seconds"
-        return "CAST(NULL AS DOUBLE) AS duration_seconds"
-
-    def _column_or_null(self, table_name: str, column: str, duck_type: str) -> str:
-        columns = self.get_table_columns(table_name)
-        if column in columns:
-            return column
-        return f"CAST(NULL AS {duck_type}) AS {column}"
-
-    def fetch_latest_runs(self, limit: int = 10) -> list[tuple]:
-        """Return summaries for the most recent runs."""
-        duration_expr = self._runs_duration_expression()
-        return self._conn.execute(
-            f"""
-            SELECT
-                run_id,
-                stage,
-                status,
-                started_at,
-                rows_in,
-                rows_out,
-                {duration_expr}
-            FROM runs
-            WHERE started_at IS NOT NULL
-            ORDER BY started_at DESC
-            LIMIT ?
-            """,
-            [limit],
-        ).fetchall()
-
-    def fetch_run_by_partial_id(self, run_id: str) -> dict | None:
-        """Return the newest run whose UUID starts with ``run_id``."""
-        parent_run_expr = self._column_or_null("runs", "parent_run_id", "UUID")
-        duration_expr = self._runs_duration_expression()
-        attrs_expr = self._column_or_null("runs", "attrs", "JSON")
-        return self._conn.execute(
-            f"""
-            SELECT
-                run_id,
-                tenant_id,
-                stage,
-                status,
-                error,
-                {parent_run_expr},
-                code_ref,
-                config_hash,
-                started_at,
-                finished_at,
-                {duration_expr},
-                rows_in,
-                rows_out,
-                llm_calls,
-                tokens,
-                {attrs_expr},
-                trace_id
-            FROM runs
-            WHERE CAST(run_id AS VARCHAR) LIKE ?
-            ORDER BY started_at DESC
-            LIMIT 1
-            """,
-            [f"{run_id}%"],
-        ).fetchone()
-
-    def mark_run_completed(
-        self,
-        *,
-        run_id: uuid.UUID,
-        finished_at: datetime,
-        duration_seconds: float,
-        rows_out: int | None,
-    ) -> None:
-        """Update ``runs`` when a stage completes."""
-        self._conn.execute(
-            """
-            UPDATE runs
-            SET status = 'completed',
-                finished_at = ?,
-                duration_seconds = ?,
-                rows_out = ?
-            WHERE run_id = ?
-            """,
-            [finished_at, duration_seconds, rows_out, str(run_id)],
-        )
-
-    def mark_run_failed(
-        self,
-        *,
-        run_id: uuid.UUID,
-        finished_at: datetime,
-        duration_seconds: float,
-        error: str,
-    ) -> None:
-        """Update ``runs`` when a stage fails."""
-        self._conn.execute(
-            """
-            UPDATE runs
-            SET status = 'failed',
-                finished_at = ?,
-                duration_seconds = ?,
-                error = ?
-            WHERE run_id = ?
-            """,
-            [finished_at, duration_seconds, error, str(run_id)],
-        )
 
     # ==================================================================
     # Sequence helpers
@@ -644,20 +523,34 @@ class DuckDBStorageManager:
             return False
         return True
 
-    def detect_vss_function(self) -> str:
+    def detect_vss_function(self) -> str | None:
+        """Detect the available VSS search function.
+
+        Returns:
+            The name of the VSS function ('vss_search' or 'vss_match') if available,
+            otherwise None.
+        """
+        if not self._vss_available:
+            return None
+
         try:
             rows = self._conn.execute("SELECT name FROM pragma_table_functions()").fetchall()
         except duckdb.Error as exc:
             logger.debug("Unable to inspect table functions: %s", exc)
+            # If we know VSS is loaded, maybe default to vss_search?
+            # But safer to return None if we can't verify.
+            # Actually, previous logic defaulted to vss_search.
             return "vss_search"
+
         function_names = {str(row[0]).lower() for row in rows if row}
         if "vss_search" in function_names:
             return "vss_search"
         if "vss_match" in function_names:
             logger.debug("Using vss_match table function for ANN queries")
             return "vss_match"
-        logger.debug("No VSS table function detected; defaulting to vss_search")
-        return "vss_search"
+
+        logger.debug("No VSS table function detected despite successful install")
+        return None
 
     def drop_index(self, name: str) -> None:
         quoted = quote_identifier(name)
@@ -671,6 +564,10 @@ class DuckDBStorageManager:
         return int(row[0]) if row and row[0] is not None else 0
 
     def create_hnsw_index(self, *, table_name: str, index_name: str, column: str = "embedding") -> bool:
+        if not self._vss_available:
+            logger.warning("VSS not available, skipping index creation")
+            return False
+
         quoted_table = quote_identifier(table_name)
         quoted_index = quote_identifier(index_name)
         try:
