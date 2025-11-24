@@ -1,18 +1,19 @@
 """Pydantic-AI powered banner generation agent.
 
-This module implements the banner generation workflow using Pydantic-AI.
-It decouples the creative direction (LLM) from the image generation (Tool).
+This module implements banner generation using a single multimodal model
+(gemini-2.5-flash-image) that directly generates images from text prompts.
+
+No separate "creative director" LLM - the image model handles both creative
+interpretation and generation in a single API call.
 """
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 
 from google import genai
 from google.genai import types
-from pydantic import BaseModel, ConfigDict
-from pydantic_ai import Agent, RunContext
+from pydantic import BaseModel, ConfigDict, Field
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.utils.retry import RetryPolicy, retry_sync
@@ -25,41 +26,28 @@ _BANNER_ASPECT_RATIO = "16:9"
 _RESPONSE_MODALITIES_IMAGE = "IMAGE"
 _RESPONSE_MODALITIES_TEXT = "TEXT"
 
-# System prompt for the creative director agent
-_CREATIVE_DIRECTOR_PROMPT = """You are a senior editorial illustrator and creative director for a modern blog.
-Your goal is to design a striking, concept-driven cover/banner image for a blog post.
 
-You will be given the title and summary of a post.
-Your task is to:
-1. Analyze the essence of the article.
-2. Conceive a minimalist, abstract visual metaphor that captures this essence without literal depictions.
-3. Formulate a precise image generation prompt that describes this visual concept.
-4. Call the `generate_image_tool` with this refined prompt.
+class BannerInput(BaseModel):
+    """Input parameters for banner generation."""
 
-Design Principles:
-- Style: Abstract, conceptual, minimalist modern editorial.
-- Composition: Keep the UPPER 30% relatively clean for potential text overlay.
-- Focus: Main visual interest in the LOWER 2/3.
-- Colors: Bold but harmonious (2-4 colors max).
-- NO text or typography in the image itself.
-- NO photorealism or complex details.
-- Use geometric forms, gradients, and symbolic elements.
-
-Think like an artist, not a photographer.
-"""
+    post_title: str = Field(description="Blog post title")
+    post_summary: str = Field(description="Brief summary of the post")
+    slug: str | None = Field(default=None, description="Post slug for metadata")
+    language: str = Field(default="pt-BR", description="Content language")
 
 
-class BannerResult(BaseModel):
-    """Result from banner generation.
+class BannerOutput(BaseModel):
+    """Output from banner generation.
 
-    The agent returns a Document with binary content (type=MEDIA) or an error.
-    Filesystem operations (saving, paths, URLs) are handled by upper layers.
+    Contains a Document with binary image content. Filesystem operations
+    (saving, paths, URLs) are handled by upper layers.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     document: Document | None = None
     error: str | None = None
+    debug_text: str | None = Field(default=None, description="Debug text from model response")
 
     @property
     def success(self) -> bool:
@@ -67,111 +55,155 @@ class BannerResult(BaseModel):
         return self.document is not None
 
 
-@dataclass(frozen=True)
-class BannerDeps:
-    """Dependencies for the banner agent."""
+def _build_image_prompt(input_data: BannerInput) -> str:
+    """Build the image generation prompt from post metadata.
 
-    client: genai.Client
-    image_model: str = _DEFAULT_IMAGE_MODEL
+    This prompt combines creative direction with post context in a single
+    instruction for the multimodal image model.
+    """
+    return f"""Generate a striking, minimalist blog banner image for this post:
+
+Title: {input_data.post_title}
+Summary: {input_data.post_summary}
+
+Design Requirements:
+- Style: Abstract, conceptual, minimalist modern editorial
+- Composition: Keep the UPPER 30% relatively clean for potential text overlay
+- Focus: Main visual interest in the LOWER 2/3
+- Colors: Bold but harmonious (2-4 colors maximum)
+- NO text or typography in the image itself
+- NO photorealism or complex details
+- Use geometric forms, gradients, and symbolic elements
+
+Think like an artist creating a visual metaphor, not a photographer capturing a scene.
+The image should capture the essence of the article without literal depictions.
+"""
 
 
-# Define the agent
-# Using the pattern: Agent(model, deps_type=..., output_type=..., system_prompt=...)
-# Note: Using 'output_type' as required by Pydantic-AI 0.0.14+
-banner_agent = Agent(
-    "google-gla:gemini-1.5-flash",
-    deps_type=BannerDeps,
-    output_type=BannerResult,
-    system_prompt=_CREATIVE_DIRECTOR_PROMPT,
-)
-
-
-@banner_agent.tool
-def generate_image_tool(ctx: RunContext[BannerDeps], visual_prompt: str) -> BannerResult:
-    """Generate an image using the configured image generation model.
+def _generate_banner_image(
+    client: genai.Client,
+    input_data: BannerInput,
+    image_model: str = _DEFAULT_IMAGE_MODEL,
+) -> BannerOutput:
+    """Generate banner image using Gemini multimodal image model.
 
     Args:
-        ctx: Agent context containing dependencies
-        visual_prompt: The detailed prompt for the image generation model
+        client: Gemini API client
+        input_data: Banner generation parameters
+        image_model: Model name (defaults to gemini-2.5-flash-image)
 
     Returns:
-        BannerResult with document (bytes content) or error
+        BannerOutput with Document containing binary image data
 
     """
-    logger.info("Generating banner image with prompt: %s...", visual_prompt[:100])
+    prompt = _build_image_prompt(input_data)
+    logger.info("Generating banner with %s for: %s", image_model, input_data.post_title)
 
     try:
-        contents = [types.Content(role="user", parts=[types.Part.from_text(text=visual_prompt)])]
+        contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
         generate_content_config = types.GenerateContentConfig(
             response_modalities=[_RESPONSE_MODALITIES_IMAGE, _RESPONSE_MODALITIES_TEXT],
             image_config=types.ImageConfig(aspect_ratio=_BANNER_ASPECT_RATIO),
         )
 
-        # Use the client from deps to call the image model
-        stream = ctx.deps.client.models.generate_content_stream(
-            model=ctx.deps.image_model, contents=contents, config=generate_content_config
+        # Call the image model
+        stream = client.models.generate_content_stream(
+            model=image_model, contents=contents, config=generate_content_config
         )
 
-        # Extract image from stream
+        # Extract image and optional debug text
+        image_bytes: bytes | None = None
+        mime_type: str = "image/png"
+        debug_text_parts: list[str] = []
+
         for chunk in stream:
             if not (chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts):
                 continue
-            part = chunk.candidates[0].content.parts[0]
-            if part.inline_data and part.inline_data.data:
-                inline_data = part.inline_data
 
-                # Return Document with binary content (no filesystem operations)
-                return BannerResult(
-                    document=Document(
-                        content=inline_data.data,
-                        type=DocumentType.MEDIA,
-                        metadata={"mime_type": inline_data.mime_type},
-                    ),
-                )
+            for part in chunk.candidates[0].content.parts:
+                # Collect any text responses for debugging
+                if hasattr(part, "text") and part.text:
+                    debug_text_parts.append(part.text)
 
-            # Log text feedback if any (sometimes model explains why it failed)
-            if hasattr(chunk, "text") and chunk.text:
-                logger.debug("Image gen response text: %s", chunk.text)
+                # Extract image data
+                if part.inline_data and part.inline_data.data:
+                    inline_data = part.inline_data
+                    image_bytes = inline_data.data
+                    mime_type = inline_data.mime_type
 
-        return BannerResult(error="No image data received from API")
+        if image_bytes is None:
+            error_msg = "No image data received from API"
+            logger.error(error_msg)
+            return BannerOutput(error=error_msg)
+
+        # Create Document with binary content
+        document = Document(
+            content=image_bytes,
+            type=DocumentType.MEDIA,
+            metadata={
+                "mime_type": mime_type,
+                "source": image_model,
+                "slug": input_data.slug,
+                "language": input_data.language,
+            },
+        )
+
+        debug_text = "\n".join(debug_text_parts) if debug_text_parts else None
+        if debug_text:
+            logger.debug("Banner generation debug text: %s", debug_text)
+
+        return BannerOutput(document=document, debug_text=debug_text)
 
     except Exception as e:
-        logger.exception("Image generation failed")
-        return BannerResult(error=str(e))
+        logger.exception("Banner image generation failed")
+        return BannerOutput(error=str(e))
 
 
-def generate_banner_with_agent(post_title: str, post_summary: str) -> BannerResult:
-    """Generate a banner using the Pydantic-AI agent workflow.
+def generate_banner(
+    post_title: str,
+    post_summary: str,
+    slug: str | None = None,
+    language: str = "pt-BR",
+) -> BannerOutput:
+    """Generate a banner image using the Gemini multimodal image model.
 
-    The agent returns a Document with binary image content. Filesystem operations
-    (saving to disk, URL generation) are handled by upper layers (OutputAdapter).
+    This is a single-model approach: gemini-2.5-flash-image handles both
+    creative interpretation and image generation in one API call.
+
+    The function returns a Document with binary image content. Filesystem
+    operations (saving to disk, URL generation) are handled by upper layers.
 
     Args:
-        post_title: Title of the post
-        post_summary: Summary of the post
+        post_title: Title of the blog post
+        post_summary: Summary of the post content
+        slug: Optional post slug for metadata
+        language: Content language (default: pt-BR)
 
     Returns:
-        BannerResult with document (binary content) or error
+        BannerOutput with Document containing binary image or error message
+
+    Note:
+        Requires GOOGLE_API_KEY environment variable to be set.
 
     """
     # Client reads GOOGLE_API_KEY from environment automatically
     client = genai.Client()
-    deps = BannerDeps(client=client)
 
-    prompt = f"Title: {post_title}\n\nSummary: {post_summary}"
+    input_data = BannerInput(
+        post_title=post_title,
+        post_summary=post_summary,
+        slug=slug,
+        language=language,
+    )
 
-    # Retry policy for the agent execution
+    # Retry policy for API resilience
     retry_policy = RetryPolicy()
 
-    try:
-        result = retry_sync(lambda: banner_agent.run_sync(prompt, deps=deps), retry_policy)
-        data = result.data
+    def _generate() -> BannerOutput:
+        return _generate_banner_image(client, input_data)
 
-        # Validate that the agent returned the expected type
-        if not isinstance(data, BannerResult):
-            logger.error("Unexpected agent output type: %r", type(data))
-            return BannerResult(error="Agent did not return a BannerResult")
-        return data
+    try:
+        return retry_sync(_generate, retry_policy)
     except Exception as e:
-        logger.exception("Banner agent run failed")
-        return BannerResult(error=str(e))
+        logger.exception("Banner generation failed after retries")
+        return BannerOutput(error=str(e))

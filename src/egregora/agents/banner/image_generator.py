@@ -1,9 +1,8 @@
-"""Banner/cover image generation using Gemini image generation API.
+"""Banner/cover image generation - legacy compatibility layer.
 
-This module provides a legacy compatibility layer for the banner generation agent.
-The core agent (in agent.py) returns Document objects with binary content.
-This wrapper handles filesystem persistence for backward compatibility with
-existing code that expects file paths.
+This module provides backward compatibility for code that expects file paths
+rather than Document objects. The core agent (agent.py) returns Documents with
+binary content; this wrapper handles filesystem persistence.
 
 Requires GOOGLE_API_KEY environment variable.
 """
@@ -18,7 +17,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from egregora.agents.banner.agent import generate_banner_with_agent
+from egregora.agents.banner.agent import generate_banner
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +27,8 @@ _DEFAULT_IMAGE_EXTENSION = ".png"
 def _save_image_to_disk(data_buffer: bytes, mime_type: str, output_dir: Path) -> Path:
     """Save image data to disk with content-based deterministic naming.
 
-    This is a legacy compatibility function for the wrapper layer.
-    The core agent (agent.py) does NOT touch the filesystem.
+    This is a legacy compatibility function. The core agent does NOT touch
+    the filesystem - it only returns Document objects with binary content.
 
     Args:
         data_buffer: Image binary data
@@ -59,11 +58,11 @@ class BannerRequest(BaseModel):
     post_title: str = Field(description="The blog post title")
     post_summary: str = Field(description="Brief summary of the post")
     output_dir: Path = Field(description="Directory to save the generated banner")
-    slug: str = Field(description="Post slug (used for filename)")
+    slug: str = Field(description="Post slug for metadata")
 
 
 class BannerResult(BaseModel):
-    """Result from banner generation."""
+    """Result from banner generation (legacy format with file path)."""
 
     success: bool = Field(description="Whether banner was generated successfully")
     banner_path: Path | None = Field(default=None, description="Path to generated banner")
@@ -71,30 +70,30 @@ class BannerResult(BaseModel):
 
 
 class BannerGenerator:
-    """Legacy wrapper for banner generation to maintain compatibility.
+    """Legacy wrapper for banner generation.
 
-    This class delegates to the Pydantic-AI agent and handles filesystem persistence.
-    The agent returns Document objects; this wrapper saves them to disk and returns paths.
+    This class delegates to the core banner agent and handles filesystem
+    persistence. Maintains backward compatibility for code expecting file paths.
     """
 
     def __init__(self, api_key: str | None = None, *, enabled: bool = True) -> None:
         """Initialize the banner generator.
 
         Args:
-            api_key: Deprecated. API key is now read from GOOGLE_API_KEY environment variable.
+            api_key: Deprecated. API key is read from GOOGLE_API_KEY environment variable.
             enabled: Whether banner generation is enabled.
 
         """
         self.enabled = enabled
         if not enabled:
             return
-        # Validate API key is available (agent will fail if not)
+        # Validate API key is available
         if not os.environ.get("GOOGLE_API_KEY"):
             msg = "Banner generation requires GOOGLE_API_KEY environment variable."
             raise ValueError(msg)
 
     def generate_banner(self, request: BannerRequest) -> BannerResult:
-        """Generate a banner using the agent and save to disk.
+        """Generate a banner using the core agent and save to disk.
 
         Args:
             request: Banner generation parameters (includes output_dir for saving)
@@ -106,10 +105,13 @@ class BannerGenerator:
         if not self.enabled:
             return BannerResult(success=False, error="Banner generation disabled")
 
-        # Call the agent (returns Document with binary content)
-        agent_result = generate_banner_with_agent(
+        # Call the core agent (returns BannerOutput with Document)
+        from egregora.agents.banner.agent import BannerOutput
+
+        agent_result: BannerOutput = generate_banner(
             post_title=request.post_title,
             post_summary=request.post_summary,
+            slug=request.slug,
         )
 
         # Save to disk (legacy compatibility layer responsibility)
@@ -132,7 +134,11 @@ class BannerGenerator:
 
 
 def generate_banner_for_post(
-    post_title: str, post_summary: str, output_dir: Path, slug: str, api_key: str | None = None
+    post_title: str,
+    post_summary: str,
+    output_dir: Path,
+    slug: str,
+    api_key: str | None = None,
 ) -> Path | None:
     """Convenience function to generate a banner for a post and save to disk.
 
@@ -140,7 +146,7 @@ def generate_banner_for_post(
         post_title: The blog post title
         post_summary: Brief summary of the post
         output_dir: Directory to save the banner
-        slug: Post slug (unused, kept for backward compatibility)
+        slug: Post slug for metadata
         api_key: Deprecated. API key is read from GOOGLE_API_KEY environment variable.
 
     Returns:
@@ -152,10 +158,13 @@ def generate_banner_for_post(
             logger.warning("GOOGLE_API_KEY not set, banner generation skipped")
             return None
 
-        # Call the agent (returns Document with binary content)
-        agent_result = generate_banner_with_agent(
+        # Call the core agent
+        from egregora.agents.banner.agent import BannerOutput
+
+        agent_result: BannerOutput = generate_banner(
             post_title=post_title,
             post_summary=post_summary,
+            slug=slug,
         )
 
         # Save to disk
@@ -163,6 +172,7 @@ def generate_banner_for_post(
             content = agent_result.document.content
             mime_type = agent_result.document.metadata.get("mime_type", "image/png")
             return _save_image_to_disk(content, mime_type, output_dir)
+
         if agent_result.error:
             logger.error("Banner generation failed: %s", agent_result.error)
         return None
