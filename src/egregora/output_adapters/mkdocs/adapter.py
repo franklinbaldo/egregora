@@ -44,13 +44,16 @@ from egregora.utils.paths import slugify
 logger = logging.getLogger(__name__)
 
 
+class _ConfigLoader(yaml.SafeLoader):
+    """YAML loader that ignores unknown tags."""
+
+
+_ConfigLoader.add_constructor(None, lambda loader, node: None)
+
+
 def _safe_yaml_load(content: str) -> dict[str, Any]:
     """Load YAML safely, ignoring unknown tags like !ENV."""
 
-    class _ConfigLoader(yaml.SafeLoader):
-        """YAML loader that ignores unknown tags."""
-
-    _ConfigLoader.add_constructor(None, lambda loader, node: None)
     return yaml.load(content, Loader=_ConfigLoader) or {}  # noqa: S506
 
 
