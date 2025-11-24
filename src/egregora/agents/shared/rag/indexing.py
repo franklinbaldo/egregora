@@ -27,6 +27,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Default chunk size for indexing
+DEFAULT_INDEX_MAX_TOKENS = 1800
+
 
 class MediaEnrichmentMetadata(TypedDict):
     message_date: datetime | None
@@ -117,6 +120,94 @@ def _coerce_message_datetime(value: object) -> datetime | None:
     return result
 
 
+def _build_vector_store_row(
+    chunk: dict[str, Any],
+    chunk_index: int,
+    embedding: list[float],
+    *,
+    document_type: str,
+    document_id: str,
+    source_path: str,
+    source_mtime_ns: int,
+) -> dict[str, Any]:
+    """Build a single vector store row from chunk data.
+
+    Args:
+        chunk: Chunk dictionary with content and metadata
+        chunk_index: Index of chunk within document
+        embedding: Embedding vector for the chunk
+        document_type: Type of document (post, media, etc.)
+        document_id: Unique document identifier
+        source_path: Filesystem path to source document
+        source_mtime_ns: Modification time in nanoseconds
+
+    Returns:
+        Dictionary compatible with VECTOR_STORE_SCHEMA
+
+    """
+    metadata = chunk.get("metadata", {})
+    post_slug = chunk.get("post_slug")
+    post_title = chunk.get("post_title")
+
+    # Normalize authors and tags
+    authors = metadata.get("authors", [])
+    if isinstance(authors, str):
+        authors = [authors]
+    tags = metadata.get("tags", [])
+    if isinstance(tags, str):
+        tags = [tags]
+
+    # Build base row structure
+    row = {
+        "chunk_id": f"{document_id}_{chunk_index}",
+        "document_type": document_type,
+        "document_id": document_id,
+        "source_path": source_path,
+        "source_mtime_ns": source_mtime_ns,
+        "chunk_index": chunk_index,
+        "content": chunk["content"],
+        "embedding": embedding,
+        "tags": tags,
+        "category": metadata.get("category"),
+        "authors": authors,
+    }
+
+    # Add document-type-specific fields
+    if document_type in ("media", "enrichment_media"):
+        # Media documents
+        row.update(
+            {
+                "post_slug": None,
+                "post_title": None,
+                "post_date": None,
+                "media_uuid": metadata.get("media_uuid") or metadata.get("uuid"),
+                "media_type": metadata.get("media_type"),
+                "media_path": metadata.get("media_path"),
+                "original_filename": metadata.get("original_filename"),
+                "message_date": _coerce_message_datetime(metadata.get("message_date")),
+                "author_uuid": metadata.get("author_uuid"),
+            }
+        )
+    else:
+        # Post/Profile/Journal documents
+        post_date = _coerce_post_date(metadata.get("date"))
+        row.update(
+            {
+                "post_slug": post_slug,
+                "post_title": post_title,
+                "post_date": post_date,
+                "media_uuid": None,
+                "media_type": None,
+                "media_path": None,
+                "original_filename": None,
+                "message_date": None,
+                "author_uuid": None,
+            }
+        )
+
+    return row
+
+
 def index_document(
     document: Document,
     store: VectorStore,
@@ -129,7 +220,7 @@ def index_document(
     logger.info("Indexing Document %s (type=%s)", document.document_id[:8], document.type.value)
 
     # Chunk the document
-    chunks = chunk_from_document(document, max_tokens=1800)
+    chunks = chunk_from_document(document, max_tokens=DEFAULT_INDEX_MAX_TOKENS)
     if not chunks:
         logger.warning("No chunks generated from Document %s", document.document_id[:8])
         return 0
@@ -145,66 +236,19 @@ def index_document(
     chunk_texts = [chunk["content"] for chunk in chunks]
     embeddings = embed_chunks(chunk_texts, model=embedding_model, task_type="RETRIEVAL_DOCUMENT")
 
-    # Build rows for vector store
-    rows = []
-    for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
-        metadata = chunk["metadata"]
-        post_date = _coerce_post_date(metadata.get("date"))
-        authors = metadata.get("authors", [])
-        if isinstance(authors, str):
-            authors = [authors]
-        tags = metadata.get("tags", [])
-        if isinstance(tags, str):
-            tags = [tags]
-
-        # Handle media-specific fields for enrichments
-        if document.type in (DocumentType.ENRICHMENT_MEDIA, DocumentType.MEDIA):
-            media_uuid = metadata.get("media_uuid") or metadata.get("uuid")
-            media_type = metadata.get("media_type")
-            media_path = metadata.get("media_path")
-            original_filename = metadata.get("original_filename")
-            message_date = _coerce_message_datetime(metadata.get("message_date"))
-            author_uuid = metadata.get("author_uuid")
-            # Media documents don't have post fields
-            post_slug_val = None
-            post_title_val = None
-            post_date_val = None
-        else:
-            # Post/Profile/Journal documents
-            media_uuid = None
-            media_type = None
-            media_path = None
-            original_filename = None
-            message_date = None
-            author_uuid = None
-            post_slug_val = chunk["post_slug"]
-            post_title_val = chunk["post_title"]
-            post_date_val = post_date
-
-        rows.append(
-            {
-                "chunk_id": f"{document.document_id}_{i}",
-                "document_type": document.type.value,  # Use DocumentType enum
-                "document_id": document.document_id,  # Content-addressed ID
-                "source_path": source_path,
-                "source_mtime_ns": source_mtime_ns,
-                "post_slug": post_slug_val,
-                "post_title": post_title_val,
-                "post_date": post_date_val,
-                "media_uuid": media_uuid,
-                "media_type": media_type,
-                "media_path": media_path,
-                "original_filename": original_filename,
-                "message_date": message_date,
-                "author_uuid": author_uuid,
-                "chunk_index": i,
-                "content": chunk["content"],
-                "embedding": embedding,
-                "tags": tags,
-                "category": metadata.get("category"),
-                "authors": authors,
-            }
+    # Build rows for vector store using helper function
+    rows = [
+        _build_vector_store_row(
+            chunk,
+            i,
+            embedding,
+            document_type=document.type.value,
+            document_id=document.document_id,
+            source_path=source_path,
+            source_mtime_ns=source_mtime_ns,
         )
+        for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False))
+    ]
 
     # Add to store
     chunks_table = ibis.memtable(rows, schema=VECTOR_STORE_SCHEMA)
@@ -337,7 +381,7 @@ def index_documents_for_rag(  # noqa: C901, PLR0915, PLR0912
 def index_post(post_path: Path, store: VectorStore, *, embedding_model: str) -> int:
     """Chunk, embed, and index a blog post."""
     logger.info("Indexing post: %s", post_path.name)
-    chunks = chunk_document(post_path, max_tokens=1800)
+    chunks = chunk_document(post_path, max_tokens=DEFAULT_INDEX_MAX_TOKENS)
     if not chunks:
         logger.warning("No chunks generated from %s", post_path.name)
         return 0
@@ -347,40 +391,21 @@ def index_post(post_path: Path, store: VectorStore, *, embedding_model: str) -> 
 
     chunk_texts = [chunk["content"] for chunk in chunks]
     embeddings = embed_chunks(chunk_texts, model=embedding_model, task_type="RETRIEVAL_DOCUMENT")
-    rows = []
-    for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
-        metadata = chunk["metadata"]
-        post_date = _coerce_post_date(metadata.get("date"))
-        authors = metadata.get("authors", [])
-        if isinstance(authors, str):
-            authors = [authors]
-        tags = metadata.get("tags", [])
-        if isinstance(tags, str):
-            tags = [tags]
-        rows.append(
-            {
-                "chunk_id": f"{chunk['post_slug']}_{i}",
-                "document_type": "post",
-                "document_id": chunk["post_slug"],
-                "source_path": absolute_path,
-                "source_mtime_ns": mtime_ns,
-                "post_slug": chunk["post_slug"],
-                "post_title": chunk["post_title"],
-                "post_date": post_date,
-                "media_uuid": None,
-                "media_type": None,
-                "media_path": None,
-                "original_filename": None,
-                "message_date": None,
-                "author_uuid": None,
-                "chunk_index": i,
-                "content": chunk["content"],
-                "embedding": embedding,
-                "tags": tags,
-                "category": metadata.get("category"),
-                "authors": authors,
-            }
+
+    # Build rows using helper function
+    rows = [
+        _build_vector_store_row(
+            chunk,
+            i,
+            embedding,
+            document_type="post",
+            document_id=chunk["post_slug"],
+            source_path=absolute_path,
+            source_mtime_ns=mtime_ns,
         )
+        for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False))
+    ]
+
     chunks_table = ibis.memtable(rows, schema=VECTOR_STORE_SCHEMA)
     store.add(chunks_table)
     logger.info("Indexed %s chunks from %s", len(chunks), post_path.name)
@@ -433,8 +458,8 @@ def index_media_enrichment(
 ) -> int:
     """Chunk, embed, and index a media enrichment file."""
     logger.info("Indexing media enrichment: %s", enrichment_path.name)
-    metadata = _parse_media_enrichment(enrichment_path)
-    if not metadata:
+    media_metadata = _parse_media_enrichment(enrichment_path)
+    if not media_metadata:
         logger.warning("Failed to parse metadata from %s", enrichment_path.name)
         return 0
 
@@ -442,39 +467,41 @@ def index_media_enrichment(
     mtime_ns = enrichment_path.stat().st_mtime_ns
 
     media_uuid = enrichment_path.stem
-    chunks = chunk_document(enrichment_path, max_tokens=1800)
+    chunks = chunk_document(enrichment_path, max_tokens=DEFAULT_INDEX_MAX_TOKENS)
     if not chunks:
         logger.warning("No chunks generated from %s", enrichment_path.name)
         return 0
-    chunk_texts = [chunk["content"] for chunk in chunks]
-    embeddings = embed_chunks(chunk_texts, model=embedding_model, task_type="RETRIEVAL_DOCUMENT")
-    rows = []
-    for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
-        message_date = _coerce_message_datetime(metadata.get("message_date"))
-        rows.append(
+
+    # Merge media metadata into chunk metadata
+    for chunk in chunks:
+        chunk["metadata"].update(
             {
-                "chunk_id": f"{media_uuid}_{i}",
-                "document_type": "media",
-                "document_id": media_uuid,
-                "source_path": absolute_path,
-                "source_mtime_ns": mtime_ns,
-                "post_slug": None,
-                "post_title": None,
-                "post_date": None,
                 "media_uuid": media_uuid,
-                "media_type": metadata.get("media_type"),
-                "media_path": metadata.get("media_path"),
-                "original_filename": metadata.get("original_filename"),
-                "message_date": message_date,
-                "author_uuid": metadata.get("author_uuid"),
-                "chunk_index": i,
-                "content": chunk["content"],
-                "embedding": embedding,
-                "tags": [],
-                "category": None,
-                "authors": [],
+                "media_type": media_metadata.get("media_type"),
+                "media_path": media_metadata.get("media_path"),
+                "original_filename": media_metadata.get("original_filename"),
+                "message_date": media_metadata.get("message_date"),
+                "author_uuid": media_metadata.get("author_uuid"),
             }
         )
+
+    chunk_texts = [chunk["content"] for chunk in chunks]
+    embeddings = embed_chunks(chunk_texts, model=embedding_model, task_type="RETRIEVAL_DOCUMENT")
+
+    # Build rows using helper function
+    rows = [
+        _build_vector_store_row(
+            chunk,
+            i,
+            embedding,
+            document_type="media",
+            document_id=media_uuid,
+            source_path=absolute_path,
+            source_mtime_ns=mtime_ns,
+        )
+        for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False))
+    ]
+
     chunks_table = ibis.memtable(rows, schema=VECTOR_STORE_SCHEMA)
     store.add(chunks_table)
     logger.info("Indexed %s chunks from %s", len(chunks), enrichment_path.name)
