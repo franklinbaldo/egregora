@@ -257,39 +257,135 @@ def index_document(
     return len(chunks)
 
 
-def index_documents_for_rag(  # noqa: C901, PLR0915, PLR0912
+def _collect_document_metadata(output_format: OutputAdapter) -> tuple[list[dict[str, Any]], int]:
+    """Collect metadata from all documents in the output adapter.
+
+    Args:
+        output_format: Output adapter providing documents
+
+    Returns:
+        Tuple of (metadata rows list, total document count)
+
+    """
+    rows: list[dict[str, Any]] = []
+    doc_count = 0
+
+    for document in output_format.documents():
+        doc_count += 1
+        identifier = document.metadata.get("storage_identifier") or document.suggested_path
+        if not identifier:
+            continue
+
+        source_path = document.metadata.get("source_path")
+        if not source_path:
+            try:
+                source_path = str(output_format.resolve_document_path(identifier))
+            except (ValueError, RuntimeError, OSError) as e:
+                logger.warning("Failed to resolve identifier %s: %s", identifier, e)
+                source_path = ""
+
+        rows.append(
+            {
+                "storage_identifier": identifier,
+                "source_path": source_path or "",
+                "mtime_ns": document.metadata.get("mtime_ns") or 0,
+            }
+        )
+
+    return rows, doc_count
+
+
+def _identify_documents_to_index(docs_table: ibis.Table, store: VectorStore) -> ibis.Table:
+    """Perform delta detection to identify new or changed documents.
+
+    Args:
+        docs_table: Table of document metadata from output adapter
+        store: Vector store with indexed sources
+
+    Returns:
+        Table of documents that need indexing (new or changed)
+
+    """
+    indexed_table = store.get_indexed_sources_table()
+    logger.debug("Found %d already indexed sources in RAG", indexed_table.count().execute())
+
+    indexed_renamed = indexed_table.select(
+        indexed_path=indexed_table.source_path, indexed_mtime=indexed_table.source_mtime_ns
+    )
+
+    joined = docs_table.left_join(indexed_renamed, docs_table.source_path == indexed_renamed.indexed_path)
+
+    new_or_changed = joined.filter(
+        (joined.indexed_mtime.isnull()) | (joined.mtime_ns > joined.indexed_mtime)
+    ).select(
+        storage_identifier=joined.storage_identifier,
+        source_path=joined.source_path,
+        mtime_ns=joined.mtime_ns,
+    )
+
+    return new_or_changed
+
+
+def _index_new_documents(to_index, store: VectorStore, *, embedding_model: str) -> int:
+    """Index a set of new or changed documents.
+
+    Args:
+        to_index: DataFrame/table of documents to index
+        store: Vector store for indexing
+        embedding_model: Model name for embeddings
+
+    Returns:
+        Count of successfully indexed documents
+
+    """
+    indexed_count = 0
+    for row in to_index.itertuples():
+        try:
+            document_path = Path(row.source_path)
+
+            doc = _load_document_from_path(document_path)
+            if doc is None:
+                logger.warning("Failed to load document %s, skipping", row.storage_identifier)
+                continue
+
+            index_document(
+                doc,
+                store,
+                embedding_model=embedding_model,
+                source_path=str(document_path),
+                source_mtime_ns=row.mtime_ns,
+            )
+            indexed_count += 1
+            logger.debug("Indexed document: %s", row.storage_identifier)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Failed to index document %s: %s", row.storage_identifier, e)
+            continue
+
+    return indexed_count
+
+
+def index_documents_for_rag(
     output_format: OutputAdapter,
     rag_dir: Path,
     storage: DuckDBStorageManager,
     *,
     embedding_model: str,
 ) -> int:
-    """Index new/changed documents using incremental indexing via OutputSink."""
+    """Index new/changed documents using incremental indexing via OutputSink.
+
+    Args:
+        output_format: Output adapter providing documents
+        rag_dir: Directory containing RAG storage
+        storage: DuckDB storage manager
+        embedding_model: Model name for embeddings
+
+    Returns:
+        Number of documents successfully indexed
+
+    """
     try:
-        rows: list[dict[str, Any]] = []
-        doc_count = 0
-
-        for document in output_format.documents():
-            doc_count += 1
-            identifier = document.metadata.get("storage_identifier") or document.suggested_path
-            if not identifier:
-                continue
-
-            source_path = document.metadata.get("source_path")
-            if not source_path:
-                try:
-                    source_path = str(output_format.resolve_document_path(identifier))
-                except (ValueError, RuntimeError, OSError) as e:
-                    logger.warning("Failed to resolve identifier %s: %s", identifier, e)
-                    source_path = ""
-
-            rows.append(
-                {
-                    "storage_identifier": identifier,
-                    "source_path": source_path or "",
-                    "mtime_ns": document.metadata.get("mtime_ns") or 0,
-                }
-            )
+        # Step 1: Collect metadata from all documents
+        rows, doc_count = _collect_document_metadata(output_format)
 
         if doc_count == 0:
             logger.debug("No documents found by output format")
@@ -297,8 +393,8 @@ def index_documents_for_rag(  # noqa: C901, PLR0915, PLR0912
 
         logger.debug("Output sink reported %d documents", doc_count)
 
+        # Step 2: Build table and filter out unresolved paths
         docs_table = ibis.memtable(rows)
-
         docs_table = docs_table.filter(docs_table["source_path"] != "")
 
         remaining = docs_table.count().execute()
@@ -311,26 +407,9 @@ def index_documents_for_rag(  # noqa: C901, PLR0915, PLR0912
             logger.warning("All document identifiers failed to resolve to paths")
             return 0
 
+        # Step 3: Perform delta detection
         store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
-        indexed_table = store.get_indexed_sources_table()
-
-        indexed_count_val = indexed_table.count().execute()
-        logger.debug("Found %d already indexed sources in RAG", indexed_count_val)
-
-        indexed_renamed = indexed_table.select(
-            indexed_path=indexed_table.source_path, indexed_mtime=indexed_table.source_mtime_ns
-        )
-
-        joined = docs_table.left_join(indexed_renamed, docs_table.source_path == indexed_renamed.indexed_path)
-
-        new_or_changed = joined.filter(
-            (joined.indexed_mtime.isnull()) | (joined.mtime_ns > joined.indexed_mtime)
-        ).select(
-            storage_identifier=joined.storage_identifier,
-            source_path=joined.source_path,
-            mtime_ns=joined.mtime_ns,
-        )
-
+        new_or_changed = _identify_documents_to_index(docs_table, store)
         to_index = new_or_changed.execute()
 
         if to_index.empty:
@@ -343,39 +422,19 @@ def index_documents_for_rag(  # noqa: C901, PLR0915, PLR0912
             doc_count - len(to_index),
         )
 
-        indexed_count = 0
-        for row in to_index.itertuples():
-            try:
-                document_path = Path(row.source_path)
-
-                doc = _load_document_from_path(document_path)
-                if doc is None:
-                    logger.warning("Failed to load document %s, skipping", row.storage_identifier)
-                    continue
-
-                index_document(
-                    doc,
-                    store,
-                    embedding_model=embedding_model,
-                    source_path=str(document_path),
-                    source_mtime_ns=row.mtime_ns,
-                )
-                indexed_count += 1
-                logger.debug("Indexed document: %s", row.storage_identifier)
-            except Exception as e:  # noqa: BLE001
-                logger.warning("Failed to index document %s: %s", row.storage_identifier, e)
-                continue
+        # Step 4: Index new/changed documents
+        indexed_count = _index_new_documents(to_index, store, embedding_model=embedding_model)
 
         if indexed_count > 0:
             logger.info("Indexed %d new/changed documents in RAG (incremental)", indexed_count)
+
+        return indexed_count
 
     except PromptTooLargeError:
         raise
     except Exception:
         logger.exception("Failed to index documents in RAG")
         return 0
-
-    return indexed_count
 
 
 def index_post(post_path: Path, store: VectorStore, *, embedding_model: str) -> int:
