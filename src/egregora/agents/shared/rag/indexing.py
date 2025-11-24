@@ -315,7 +315,9 @@ def _identify_documents_to_index(docs_table: ibis.Table, store: VectorStore) -> 
 
     joined = docs_table.left_join(indexed_renamed, docs_table.source_path == indexed_renamed.indexed_path)
 
-    return joined.filter((joined.indexed_mtime.isnull()) | (joined.mtime_ns > joined.indexed_mtime)).select(
+    needs_index = (joined.indexed_mtime.isnull()) | (joined.mtime_ns > joined.indexed_mtime)
+
+    return joined.filter(needs_index).select(
         storage_identifier=joined.storage_identifier,
         source_path=joined.source_path,
         mtime_ns=joined.mtime_ns,
