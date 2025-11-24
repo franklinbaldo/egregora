@@ -17,7 +17,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID, uuid5
 
-from egregora.utils.paths import slugify
+from egregora.utils.paths import slugify as _slugify
 
 # Well-known namespace for Egregora documents
 # Based on DNS namespace but specific to Egregora
@@ -135,7 +135,7 @@ class Document:
         """Return a human-friendly identifier when available."""
         slug_value = self.metadata.get("slug")
         if isinstance(slug_value, str) and slug_value.strip():
-            cleaned = slugify(slug_value.strip())
+            cleaned = _slugify(slug_value.strip(), max_len=60)
             if cleaned:
                 return cleaned
         return self.document_id[:8]
