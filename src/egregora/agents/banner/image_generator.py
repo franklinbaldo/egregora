@@ -84,7 +84,11 @@ class BannerGenerator:
         )
 
         # Convert to local BannerResult if needed (though they are identical Pydantic models)
-        return BannerResult(success=result.success, banner_path=result.banner_path, error=result.error)
+        return BannerResult(
+            success=result.success,
+            banner_path=result.banner_path,
+            error=result.error
+        )
 
 
 def generate_banner_for_post(

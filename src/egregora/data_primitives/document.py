@@ -14,14 +14,10 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, NewType
+from typing import Any
 from uuid import UUID, uuid5
 
 from egregora.utils.paths import slugify
-
-# Type aliases for strong typing
-GroupSlug = NewType("GroupSlug", str)
-PostSlug = NewType("PostSlug", str)
 
 # Well-known namespace for Egregora documents
 # Based on DNS namespace but specific to Egregora

@@ -31,7 +31,6 @@ import ibis.expr.datatypes as dt
 from dateutil import parser as date_parser
 from pydantic import BaseModel
 
-from egregora.data_primitives import GroupSlug
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
@@ -57,7 +56,7 @@ class WhatsAppExport(BaseModel):
 
     zip_path: Path
     group_name: str
-    group_slug: GroupSlug
+    group_slug: str
     export_date: date
     chat_file: str
     media_files: list[str]
@@ -677,7 +676,7 @@ class WhatsAppAdapter(InputAdapter):
         export = WhatsAppExport(
             zip_path=input_path,
             group_name=group_name,
-            group_slug=GroupSlug(group_name.lower().replace(" ", "-")),
+            group_slug=group_name.lower().replace(" ", "-"),
             export_date=datetime.now(tz=UTC).date(),
             chat_file=chat_file,
             media_files=[],
@@ -776,10 +775,10 @@ class WhatsAppAdapter(InputAdapter):
             msg = f"Input path does not exist: {input_path}"
             raise FileNotFoundError(msg)
         group_name, chat_file = discover_chat_file(input_path)
-        group_slug = GroupSlug(group_name.lower().replace(" ", "-"))
+        group_slug = group_name.lower().replace(" ", "-")
         return {
             "group_name": group_name,
-            "group_slug": str(group_slug),
+            "group_slug": group_slug,
             "chat_file": chat_file,
             "export_date": datetime.now(tz=UTC).date().isoformat(),
         }
