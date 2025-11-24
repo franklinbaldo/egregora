@@ -310,9 +310,7 @@ def register_writer_tools(  # noqa: C901
             # media_dir is not part of OutputSink, so we use output_format here
             banner_output_dir = ctx.deps.resources.output.media_dir / "images"
 
-            result = generate_banner(
-                post_title=title, post_summary=summary, slug=post_slug
-            )
+            result = generate_banner(post_title=title, post_summary=summary, slug=post_slug)
 
             if result.success and result.document:
                 banner_path = save_media_asset(result.document, banner_output_dir)

@@ -196,7 +196,6 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentDeps, Enrichme
     # But deps depend on runtime.
     # I'll assume the request is satisfied if it uses `render_prompt`, OR maybe I should extract `system_prompt` function out of `create_url_enrichment_agent` scope.
     # I will keep it but ensure `_sanitize_prompt_input` is moved.
-    pass
 
     agent = Agent[UrlEnrichmentDeps, EnrichmentOutput](
         model=model,
@@ -207,6 +206,7 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentDeps, Enrichme
     @agent.system_prompt
     def system_prompt(ctx: RunContext[UrlEnrichmentDeps]) -> str:
         from egregora.resources.prompts import render_prompt
+
         return render_prompt(
             "url_detailed.jinja",
             prompts_dir=ctx.deps.prompts_dir,

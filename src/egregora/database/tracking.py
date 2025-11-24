@@ -35,6 +35,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Any, TypeVar
 
 import duckdb
@@ -42,8 +43,6 @@ import ibis
 
 from egregora.database.duckdb_manager import DuckDBStorageManager
 
-
-from functools import lru_cache
 
 @lru_cache(maxsize=1)
 def get_git_commit_sha() -> str | None:
