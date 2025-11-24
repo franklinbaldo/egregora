@@ -1348,6 +1348,111 @@ def _apply_filters(  # noqa: C901, PLR0913, PLR0912
     return messages_table
 
 
+def _record_run_start(runs_conn, run_id: uuid.UUID, started_at: datetime) -> None:
+    """Record the start of a pipeline run in the database.
+
+    Args:
+        runs_conn: DuckDB connection for run tracking
+        run_id: Unique identifier for this run
+        started_at: Timestamp when run started
+
+    """
+    if runs_conn is None:
+        return
+
+    try:
+        record_run(
+            conn=runs_conn,
+            run_id=run_id,
+            stage="write",
+            status="running",
+            started_at=started_at,
+        )
+    except Exception as exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
+        logger.debug("Failed to record run start: %s", exc)
+
+
+def _record_run_completion(
+    runs_conn,
+    run_id: uuid.UUID,
+    started_at: datetime,
+    results: dict[str, dict[str, list[str]]],
+) -> None:
+    """Record successful completion of a pipeline run.
+
+    Args:
+        runs_conn: DuckDB connection for run tracking
+        run_id: Unique identifier for this run
+        started_at: Timestamp when run started
+        results: Results dict mapping window labels to posts/profiles
+
+    """
+    if runs_conn is None:
+        return
+
+    try:
+        finished_at = datetime.now(UTC)
+        duration_seconds = (finished_at - started_at).total_seconds()
+
+        total_posts = sum(len(r.get("posts", [])) for r in results.values())
+        total_profiles = sum(len(r.get("profiles", [])) for r in results.values())
+        num_windows = len(results)
+
+        runs_conn.execute(
+            """
+            UPDATE runs
+            SET status = 'completed',
+                finished_at = ?,
+                duration_seconds = ?,
+                rows_out = ?
+            WHERE run_id = ?
+            """,
+            [finished_at, duration_seconds, total_posts + total_profiles, str(run_id)],
+        )
+        logger.debug(
+            "Recorded pipeline run: %s (posts=%d, profiles=%d, windows=%d)",
+            run_id,
+            total_posts,
+            total_profiles,
+            num_windows,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Failed to record run completion: %s", exc)
+
+
+def _record_run_failure(runs_conn, run_id: uuid.UUID, started_at: datetime, exc: Exception) -> None:
+    """Record failure of a pipeline run.
+
+    Args:
+        runs_conn: DuckDB connection for run tracking
+        run_id: Unique identifier for this run
+        started_at: Timestamp when run started
+        exc: Exception that caused the failure
+
+    """
+    if runs_conn is None:
+        return
+
+    try:
+        finished_at = datetime.now(UTC)
+        duration_seconds = (finished_at - started_at).total_seconds()
+        error_msg = f"{type(exc).__name__}: {exc!s}"
+
+        runs_conn.execute(
+            """
+            UPDATE runs
+            SET status = 'failed',
+                finished_at = ?,
+                duration_seconds = ?,
+                error = ?
+            WHERE run_id = ?
+            """,
+            [finished_at, duration_seconds, error_msg[:500], str(run_id)],
+        )
+    except Exception as tracking_exc:  # noqa: BLE001
+        logger.debug("Failed to record run failure: %s", tracking_exc)
+
+
 def run(  # noqa: PLR0913
     source: str,
     input_path: Path,
@@ -1389,17 +1494,7 @@ def run(  # noqa: PLR0913
             logger.warning("Unable to access DuckDB connection for run tracking - runs will not be recorded")
 
         # Record run start
-        if runs_conn is not None:
-            try:
-                record_run(
-                    conn=runs_conn,
-                    run_id=run_id,
-                    stage="write",
-                    status="running",
-                    started_at=started_at,
-                )
-            except Exception as exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
-                logger.debug("Failed to record run start: %s", exc)
+        _record_run_start(runs_conn, run_id, started_at)
 
         try:
             dataset = _prepare_pipeline_data(adapter, input_path, config, ctx, output_dir)
@@ -1419,59 +1514,14 @@ def run(  # noqa: PLR0913
             except Exception:
                 logger.exception("[red]Failed to generate statistics page (non-critical)[/]")
 
-            # Calculate metrics
-            finished_at = datetime.now(UTC)
-            total_posts = sum(len(r.get("posts", [])) for r in results.values())
-            total_profiles = sum(len(r.get("profiles", [])) for r in results.values())
-            num_windows = len(results)
-
             # Update run to completed
-            if runs_conn is not None:
-                try:
-                    duration_seconds = (finished_at - started_at).total_seconds()
-                    runs_conn.execute(
-                        """
-                        UPDATE runs
-                        SET status = 'completed',
-                            finished_at = ?,
-                            duration_seconds = ?,
-                            rows_out = ?
-                        WHERE run_id = ?
-                        """,
-                        [finished_at, duration_seconds, total_posts + total_profiles, str(run_id)],
-                    )
-                    logger.debug(
-                        "Recorded pipeline run: %s (posts=%d, profiles=%d, windows=%d)",
-                        run_id,
-                        total_posts,
-                        total_profiles,
-                        num_windows,
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    logger.debug("Failed to record run completion: %s", exc)
+            _record_run_completion(runs_conn, run_id, started_at, results)
 
             logger.info("[bold green]🎉 Pipeline completed successfully![/]")
 
         except Exception as exc:
             # Update run to failed
-            finished_at = datetime.now(UTC)
-            if runs_conn is not None:
-                try:
-                    duration_seconds = (finished_at - started_at).total_seconds()
-                    error_msg = f"{type(exc).__name__}: {exc!s}"
-                    runs_conn.execute(
-                        """
-                        UPDATE runs
-                        SET status = 'failed',
-                            finished_at = ?,
-                            duration_seconds = ?,
-                            error = ?
-                        WHERE run_id = ?
-                        """,
-                        [finished_at, duration_seconds, error_msg[:500], str(run_id)],
-                    )
-                except Exception as tracking_exc:  # noqa: BLE001
-                    logger.debug("Failed to record run failure: %s", tracking_exc)
+            _record_run_failure(runs_conn, run_id, started_at, exc)
             raise  # Re-raise original exception
 
         return results
