@@ -91,30 +91,6 @@ from egregora.agents.shared.rag.store import (
 )
 
 __all__ = [
-    # Storage & Retrieval
     "DatasetMetadata",
-    # Indexing
-    "MediaEnrichmentMetadata",
     "VectorStore",
-    # Chunking
-    "chunk_document",
-    "chunk_from_document",
-    "chunk_markdown",
-    # Embedding
-    "embed_chunks",
-    "embed_query_text",
-    "embed_text",
-    "embed_texts_in_batch",
-    "estimate_tokens",
-    "format_rag_context",
-    "index_all_media",
-    "index_document",
-    "index_documents_for_rag",
-    "index_media_enrichment",
-    "index_post",
-    "is_rag_available",
-    "parse_post",
-    # Retrieval
-    "query_media",
-    "query_similar_posts",
 ]

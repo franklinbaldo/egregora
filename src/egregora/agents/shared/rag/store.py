@@ -13,6 +13,7 @@ from datetime import UTC, date, datetime
 from datetime import time as dt_time
 from pathlib import Path
 from typing import Any
+import typing
 
 import duckdb
 import ibis
@@ -23,6 +24,10 @@ from ibis.expr.types import Table
 from egregora.config import EMBEDDING_DIM
 from egregora.database import ir_schema as database_schema
 from egregora.database.duckdb_manager import DuckDBStorageManager
+
+# Imports for type checking only to avoid circular dependencies at runtime
+if typing.TYPE_CHECKING:
+    from egregora.data_primitives.protocols import OutputAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -747,6 +752,92 @@ class VectorStore:
             return ibis.memtable(
                 [], schema=ibis.schema({"source_path": "string", "source_mtime_ns": "int64"})
             )
+
+    def index_documents(self, output_format: OutputAdapter, *, embedding_model: str) -> int:
+        """Index documents from an output adapter into the store."""
+        # Avoid circular import
+        from egregora.agents.shared.rag.indexing import index_documents_for_rag
+
+        return index_documents_for_rag(output_format, self, embedding_model=embedding_model)
+
+    def index_media(self, docs_dir: Path, *, embedding_model: str) -> int:
+        """Index media enrichments from the documentation directory."""
+        # Avoid circular import
+        from egregora.agents.shared.rag.indexing import index_all_media
+
+        return index_all_media(docs_dir, self, embedding_model=embedding_model)
+
+    def query_media(
+        self,
+        query: str,
+        media_types: list[str] | None = None,
+        top_k: int = 5,
+        min_similarity_threshold: float = 0.7,
+        *,
+        deduplicate: bool = True,
+        embedding_model: str,
+        retrieval_mode: str = "ann",
+        retrieval_nprobe: int | None = None,
+        retrieval_overfetch: int | None = None,
+    ) -> Table:
+        """Search for relevant media by description or topic."""
+        # Avoid circular import
+        from egregora.agents.shared.rag.retriever import query_media
+
+        return query_media(
+            query=query,
+            store=self,
+            media_types=media_types,
+            top_k=top_k,
+            min_similarity_threshold=min_similarity_threshold,
+            deduplicate=deduplicate,
+            embedding_model=embedding_model,
+            retrieval_mode=retrieval_mode,
+            retrieval_nprobe=retrieval_nprobe,
+            retrieval_overfetch=retrieval_overfetch,
+        )
+
+    def query_similar_posts(
+        self,
+        table: Table,
+        *,
+        embedding_model: str,
+        top_k: int = 5,
+        deduplicate: bool = True,
+        retrieval_mode: str = "ann",
+        retrieval_nprobe: int | None = None,
+        retrieval_overfetch: int | None = None,
+    ) -> Table:
+        """Find similar previous blog posts for a period's table."""
+        # Avoid circular import
+        from egregora.agents.shared.rag.retriever import query_similar_posts
+
+        return query_similar_posts(
+            table=table,
+            store=self,
+            embedding_model=embedding_model,
+            top_k=top_k,
+            deduplicate=deduplicate,
+            retrieval_mode=retrieval_mode,
+            retrieval_nprobe=retrieval_nprobe,
+            retrieval_overfetch=retrieval_overfetch,
+        )
+
+    @staticmethod
+    def is_available() -> bool:
+        """Check if RAG functionality is available (API key present)."""
+        # Avoid circular import
+        from egregora.agents.shared.rag.embedder import is_rag_available
+
+        return is_rag_available()
+
+    @staticmethod
+    def embed_query(query_text: str, *, model: str) -> list[float]:
+        """Embed a single query string for retrieval."""
+        # Avoid circular import
+        from egregora.agents.shared.rag.embedder import embed_query_text
+
+        return embed_query_text(query_text, model=model)
 
 
 __all__ = [
