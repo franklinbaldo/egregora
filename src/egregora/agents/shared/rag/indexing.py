@@ -268,7 +268,7 @@ def index_document(
     return len(chunks)
 
 
-def _collect_document_metadata(output_format: OutputAdapter) -> tuple[list[dict[str, Any]], int]:
+def _collect_document_metadata(output_format: OutputSink) -> tuple[list[dict[str, Any]], int]:
     """Collect metadata from all documents in the output adapter.
 
     Args:

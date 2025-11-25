@@ -915,17 +915,18 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if not hasattr(self, "_site_root") or self._site_root is None:
             return
 
-        yield from self._documents_from_dir(self.posts_dir, DocumentType.POST)
-        yield from self._documents_from_dir(self.profiles_dir, DocumentType.PROFILE)
-        yield from self._documents_from_dir(
-            self._site_root / "docs" / "media",
-            DocumentType.ENRICHMENT_MEDIA,
-            recursive=True,
-            exclude_names={"index.md"},
-        )
-        yield from self._documents_from_dir(
-            self.media_dir / "urls", DocumentType.ENRICHMENT_URL, recursive=True
-        )
+        # DRY: Use list() to scan directories, then get() to load content
+        # Note: list() returns metadata where identifier is a relative path (e.g., "posts/slug.md")
+        # but get() expects a simpler identifier for some types (e.g., "slug" for posts).
+        # To reliably load all listed documents, we bypass the identifier resolution logic
+        # and load directly from the known path found by list().
+        for meta in self.list():
+            if meta.doc_type and "path" in meta.metadata:
+                doc_path = Path(str(meta.metadata["path"]))
+                # Bypass identifier resolution by loading directly from path
+                doc = self._document_from_path(doc_path, meta.doc_type)
+                if doc:
+                    yield doc
 
     def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
         """Iterate through available documents as lightweight DocumentMetadata.

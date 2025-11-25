@@ -150,9 +150,16 @@ class MockGeminiBatchClient:
 class MockGeminiClient:
     """Mock genai.Client that returns fake responses instantly."""
 
-    def __init__(self, api_key: str | None = None):
-        """Initialize mock client."""
+    def __init__(self, api_key: str | None = None, http_options: dict[str, Any] | None = None, **kwargs):
+        """Initialize mock client.
+
+        Args:
+            api_key: API key (ignored in mock)
+            http_options: HTTP options (ignored in mock)
+            **kwargs: Additional arguments (ignored in mock for compatibility)
+        """
         self._api_key = api_key or "mock-key"
+        self._http_options = http_options or {}
         self._rng = random.Random(42)
 
         # Create mock models interface

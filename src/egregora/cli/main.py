@@ -79,6 +79,13 @@ def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
     console.print("[green]Initialized site. Continuing with processing.[/green]")
 
 
+def _resolve_gemini_key() -> str | None:
+    """Resolve Google Gemini API key from environment."""
+    import os
+
+    return os.environ.get("GOOGLE_API_KEY")
+
+
 @app.command()
 def init(
     output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
@@ -267,14 +274,16 @@ def write(  # noqa: C901, PLR0913
     output_dir = output.expanduser().resolve()
     _ensure_mkdocs_scaffold(output_dir)
 
-    api_key = _resolve_gemini_key()
+    import os
+
+    api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         # Try loading from .env
         from dotenv import load_dotenv
 
         load_dotenv(output_dir / ".env")
         load_dotenv()  # Check CWD as well
-        api_key = _resolve_gemini_key()
+        api_key = os.getenv("GOOGLE_API_KEY")
 
     if not api_key:
         console.print("[red]Error: GOOGLE_API_KEY environment variable not set[/red]")

@@ -58,6 +58,15 @@ In your package's `pyproject.toml`:
 discord = "egregora_discord:DiscordAdapter"
 ```
 
+### Built-in adapters use the same mechanism
+
+First-party adapters (WhatsApp, TJRO, self-reflection) are also
+registered under `egregora.adapters` in Egregora's `pyproject.toml`.
+Keeping everything behind entry points avoids importing heavy adapter
+modules at startup while making built-in and third-party discovery
+consistent. When adding a new built-in adapter, register it in that
+entry point table instead of importing it directly in the registry.
+
 ### 3. Install & Verify
 
 ```bash

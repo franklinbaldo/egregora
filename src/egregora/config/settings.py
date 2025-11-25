@@ -802,3 +802,21 @@ __all__ = [
     "load_egregora_config",
     "save_egregora_config",
 ]
+
+
+def get_google_api_key() -> str:
+    """Get Google API key from environment."""
+    import os
+
+    api_key = os.environ.get("GOOGLE_API_KEY")
+    if not api_key:
+        msg = "GOOGLE_API_KEY environment variable is required"
+        raise ValueError(msg)
+    return api_key
+
+
+def google_api_key_status() -> bool:
+    """Check if GOOGLE_API_KEY is configured."""
+    import os
+
+    return bool(os.environ.get("GOOGLE_API_KEY"))

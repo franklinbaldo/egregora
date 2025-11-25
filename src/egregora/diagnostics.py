@@ -108,6 +108,8 @@ def check_required_packages() -> DiagnosticResult:
 
 def check_api_key() -> DiagnosticResult:
     """Check if GOOGLE_API_KEY is configured."""
+    # Avoid importing from egregora.config to keep diagnostics dependency-free
+    # as egregora.config imports pydantic/yaml which might be missing.
     api_key = os.getenv("GOOGLE_API_KEY")
 
     if api_key:
@@ -178,7 +180,11 @@ def check_duckdb_extensions() -> DiagnosticResult:
         finally:
             conn.close()
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.exception("Failed to check VSS extension")
         return DiagnosticResult(
             check="DuckDB VSS Extension",
             status=HealthStatus.ERROR,
