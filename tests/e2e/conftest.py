@@ -5,8 +5,8 @@ from __future__ import annotations
 import gc
 import shutil
 import time
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 import pytest
 

@@ -70,8 +70,7 @@ class TestWriteCommandBasic:
 
         # Output directory should exist
         assert test_output_dir.exists(), (
-            f"Output directory was not created at {test_output_dir}. "
-            f"Command exit code: {result.exit_code}"
+            f"Output directory was not created at {test_output_dir}. Command exit code: {result.exit_code}"
         )
 
     def test_write_command_missing_input(self, test_output_dir):
@@ -423,20 +422,17 @@ class TestWriteCommandWithMocks:
         # Check for docs directory and subdirectories
         docs_dir = test_output_dir / "docs"
         assert docs_dir.exists(), (
-            f"docs directory not found at {docs_dir}. "
-            f"Output dir contents: {list(test_output_dir.iterdir())}"
+            f"docs directory not found at {docs_dir}. Output dir contents: {list(test_output_dir.iterdir())}"
         )
 
         posts_dir = docs_dir / "posts"
         assert posts_dir.exists(), (
-            f"posts directory not found at {posts_dir}. "
-            f"docs dir contents: {list(docs_dir.iterdir())}"
+            f"posts directory not found at {posts_dir}. docs dir contents: {list(docs_dir.iterdir())}"
         )
 
         profiles_dir = docs_dir / "profiles"
         assert profiles_dir.exists(), (
-            f"profiles directory not found at {profiles_dir}. "
-            f"docs dir contents: {list(docs_dir.iterdir())}"
+            f"profiles directory not found at {profiles_dir}. docs dir contents: {list(docs_dir.iterdir())}"
         )
 
         # If pipeline succeeded, verify we actually created content
