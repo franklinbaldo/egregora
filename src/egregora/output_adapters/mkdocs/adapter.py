@@ -142,7 +142,7 @@ class MkDocsAdapter(OutputAdapter):
         site_config = self.resolve_paths(site_root)
         return str(media_file.relative_to(site_config.docs_dir))
 
-    def persist(self, document: Document) -> None:
+    def persist(self, document: Document) -> str:
         doc_id = document.document_id
         url = self._url_convention.canonical_url(document, self._ctx)
         path = self._url_to_path(url, document)
@@ -176,6 +176,7 @@ class MkDocsAdapter(OutputAdapter):
         self._write_document(document, path)
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
+        return str(path.relative_to(self._site_root))
 
     def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path | None:
         """Resolve filesystem path for a document based on its type.

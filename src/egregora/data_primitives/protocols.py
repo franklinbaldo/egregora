@@ -103,8 +103,11 @@ class OutputSink(Protocol):
     def url_convention(self) -> UrlConvention:
         """Return the URL convention adopted by this sink."""
 
-    def persist(self, document: Document) -> None:
+    def persist(self, document: Document) -> str:
         """Persist ``document`` so that it becomes available at its canonical URL.
+
+        Returns the storage identifier (e.g. file path relative to site root) for
+        the persisted document.
 
         This method is idempotent: writing the same document twice with the
         same identifier should UPDATE the existing document, not create a duplicate.

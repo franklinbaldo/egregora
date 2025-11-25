@@ -535,6 +535,126 @@ def index_documents_for_rag(
         return 0
 
 
+def index_specific_documents(
+    documents: list[Document],
+    store: VectorStore,
+    *,
+    embedding_model: str,
+) -> int:
+    """Index a specific list of documents without scanning the filesystem.
+
+    Used by the writer pipeline to index newly created content immediately
+    and efficiently, avoiding O(N^2) directory scanning.
+
+    Args:
+        documents: List of Document objects to index
+        store: Vector store instance
+        embedding_model: Model name for embeddings
+
+    Returns:
+        Number of chunks indexed
+
+    """
+    if not documents:
+        return 0
+
+    total_chunks = 0
+    all_chunks_rows: list[dict[str, Any]] = []
+
+    logger.info("Directly indexing %d specific documents", len(documents))
+
+    for doc in documents:
+        try:
+            # Chunk and embed
+            chunks = chunk_from_document(doc, max_tokens=DEFAULT_INDEX_MAX_TOKENS)
+            if not chunks:
+                continue
+
+            chunk_texts = [chunk["content"] for chunk in chunks]
+            embeddings = embed_chunks(
+                chunk_texts, model=embedding_model, task_type="RETRIEVAL_DOCUMENT"
+            )
+
+            # Determine source path and mtime
+            source_path = doc.metadata.get("source_path")
+            if not source_path:
+                # If no source path (e.g. in-memory doc), use content-addressed ID
+                source_path = f"document:{doc.document_id}"
+
+            mtime_ns = doc.metadata.get("mtime_ns")
+            if mtime_ns is None:
+                # Default to current time if not specified
+                mtime_ns = int(doc.created_at.timestamp() * 1_000_000_000)
+
+            # Build chunk rows
+            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
+                metadata = chunk.get("metadata", {})
+
+                # Normalize metadata fields
+                post_date = _coerce_post_date(metadata.get("date"))
+                authors = metadata.get("authors", [])
+                if isinstance(authors, str):
+                    authors = [authors]
+                tags = metadata.get("tags", [])
+                if isinstance(tags, str):
+                    tags = [tags]
+
+                # Determine document-type specific fields
+                media_fields = {
+                    "media_uuid": None, "media_type": None, "media_path": None,
+                    "original_filename": None, "message_date": None, "author_uuid": None
+                }
+                post_fields = {
+                    "post_slug": chunk.get("post_slug"),
+                    "post_title": chunk.get("post_title"),
+                    "post_date": post_date
+                }
+
+                if doc.type in (DocumentType.MEDIA, DocumentType.ENRICHMENT_MEDIA):
+                    media_fields.update({
+                        "media_uuid": metadata.get("media_uuid") or metadata.get("uuid"),
+                        "media_type": metadata.get("media_type"),
+                        "media_path": metadata.get("media_path"),
+                        "original_filename": metadata.get("original_filename"),
+                        "message_date": _coerce_message_datetime(metadata.get("message_date")),
+                        "author_uuid": metadata.get("author_uuid"),
+                    })
+                    post_fields = {k: None for k in post_fields}
+
+                all_chunks_rows.append({
+                    "chunk_id": f"{doc.document_id}_{i}",
+                    "document_type": doc.type.value,
+                    "document_id": doc.document_id,
+                    "source_path": source_path,
+                    "source_mtime_ns": mtime_ns,
+                    "chunk_index": i,
+                    "content": chunk["content"],
+                    "embedding": embedding,
+                    "tags": tags,
+                    "category": metadata.get("category"),
+                    "authors": authors,
+                    **post_fields,
+                    **media_fields
+                })
+
+            total_chunks += len(chunks)
+
+        except Exception as e:
+            logger.warning("Failed to index specific document %s: %s", doc.document_id[:8], e)
+            continue
+
+    if all_chunks_rows:
+        try:
+            chunks_table = ibis.memtable(all_chunks_rows, schema=VECTOR_STORE_SCHEMA)
+            store.add(chunks_table)
+            logger.info("Indexed %d chunks from %d documents", total_chunks, len(documents))
+        except Exception as e:
+            logger.error("Failed to persist chunks to vector store: %s", e)
+            return 0
+
+    return total_chunks
+
+
 def index_post(post_path: Path, store: VectorStore, *, embedding_model: str) -> int:
     """Chunk, embed, and index a blog post."""
     logger.info("Indexing post: %s", post_path.name)

@@ -79,6 +79,7 @@ from egregora.agents.shared.rag.indexing import (
     index_documents_for_rag,
     index_media_enrichment,
     index_post,
+    index_specific_documents,
 )
 from egregora.agents.shared.rag.retriever import (
     format_rag_context,
@@ -112,6 +113,7 @@ __all__ = [
     "index_documents_for_rag",
     "index_media_enrichment",
     "index_post",
+    "index_specific_documents",
     "is_rag_available",
     "parse_post",
     # Retrieval

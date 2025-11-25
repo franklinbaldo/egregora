@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ibis
+import ibis.common.exceptions
 from ibis.expr.types import Table
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel, Field
@@ -42,7 +43,7 @@ from egregora.agents.model_limits import (
 from egregora.agents.shared.rag import (
     VectorStore,
     embed_query_text,
-    index_documents_for_rag,
+    index_specific_documents,
     is_rag_available,
     query_media,
 )
@@ -226,9 +227,9 @@ def register_writer_tools(  # noqa: C901
             source_window=ctx.deps.window_label,
         )
 
-        ctx.deps.resources.output.persist(doc)
-        logger.info("Writer agent saved post (doc_id: %s)", doc.document_id)
-        return WritePostResult(status="success", path=doc.document_id)
+        path = ctx.deps.resources.output.persist(doc)
+        logger.info("Writer agent saved post (doc_id: %s, path: %s)", doc.document_id, path)
+        return WritePostResult(status="success", path=path)
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str) -> ReadProfileResult:
@@ -244,9 +245,9 @@ def register_writer_tools(  # noqa: C901
             metadata={"uuid": author_uuid},
             source_window=ctx.deps.window_label,
         )
-        ctx.deps.resources.output.persist(doc)
-        logger.info("Writer agent saved profile (doc_id: %s)", doc.document_id)
-        return WriteProfileResult(status="success", path=doc.document_id)
+        path = ctx.deps.resources.output.persist(doc)
+        logger.info("Writer agent saved profile (doc_id: %s, path: %s)", doc.document_id, path)
+        return WriteProfileResult(status="success", path=path)
 
     if enable_rag:
 
@@ -936,6 +937,9 @@ def _index_new_content_in_rag(
 ) -> None:
     """Index newly created content in RAG system.
 
+    Uses index_specific_documents to index known documents directly,
+    avoiding the O(N^2) overhead of directory scanning.
+
     Args:
         resources: Writer resources including RAG configuration
         saved_posts: List of post paths that were created
@@ -950,16 +954,89 @@ def _index_new_content_in_rag(
     ):
         return
 
+    documents_to_index: list[Document] = []
+
+    # Resolve post paths to Document objects
+    for post_path in saved_posts:
+        try:
+            # We assume saved_posts contains identifiers returned by persist()
+            # MkDocs: relative path from site root.
+            # We can use read_document if we had the ID, but persist returned path.
+            # OutputSink doesn't have read_document_by_path.
+            # However, we can use resolve_document_path to get absolute path and read it.
+            # Or use resources.output.read_document() IF identifiers were doc_ids (which they are NOT anymore).
+
+            # Since persist now returns identifiers (relative paths for MkDocs),
+            # we can reconstruct documents from these paths.
+            # We need to use OutputAdapter's ability to read back what it wrote.
+
+            # The identifiers from persist are suitable for resolve_document_path
+            abs_path = resources.output.resolve_document_path(post_path)
+
+            # We manually load it because we need the Document object
+            # This logic mimics _load_document_from_path in indexing.py but using adapter
+            # Note: indexing.py uses _load_document_from_path which does parse_frontmatter.
+
+            # Better approach: Use the identifier to read the document.
+            # But read_document takes (DocumentType, identifier).
+            # The identifier for read_document is usually the "logical" identifier (slug, uuid).
+            # But the path returned by persist is the "storage" identifier.
+
+            # For MkDocsAdapter, persist returns relative path string.
+            # We can rely on the fact that we just wrote it.
+
+            if abs_path.exists():
+                content = abs_path.read_text(encoding="utf-8")
+                # We need a minimal Document object for indexing
+                # We can use the internal helper if we were inside adapter, but we are not.
+                # Let's rely on indexing.py's internal loader if we pass the Document object
+
+                # Actually, index_specific_documents expects Document objects.
+                # Let's create one.
+                from egregora.utils.frontmatter_utils import parse_frontmatter
+                metadata, body = parse_frontmatter(content)
+                metadata["source_path"] = str(abs_path)
+                metadata["mtime_ns"] = abs_path.stat().st_mtime_ns
+
+                doc = Document(
+                    content=body,
+                    type=DocumentType.POST if "/posts/" in str(post_path) else DocumentType.PROFILE,
+                    metadata=metadata,
+                )
+                documents_to_index.append(doc)
+
+        except Exception as e:
+            logger.warning("Failed to load document for indexing: %s (%s)", post_path, e)
+
+    # Resolve profile paths
+    for profile_path in saved_profiles:
+        try:
+            abs_path = resources.output.resolve_document_path(profile_path)
+            if abs_path.exists():
+                content = abs_path.read_text(encoding="utf-8")
+                from egregora.utils.frontmatter_utils import parse_frontmatter
+                metadata, body = parse_frontmatter(content)
+                metadata["source_path"] = str(abs_path)
+                metadata["mtime_ns"] = abs_path.stat().st_mtime_ns
+
+                doc = Document(
+                    content=body,
+                    type=DocumentType.PROFILE,
+                    metadata=metadata,
+                )
+                documents_to_index.append(doc)
+        except Exception as e:
+            logger.warning("Failed to load profile for indexing: %s (%s)", profile_path, e)
+
     try:
-        indexed_count = index_documents_for_rag(
-            resources.output,
-            resources.rag_store.parquet_path.parent,
-            resources.storage,
+        indexed_count = index_specific_documents(
+            documents_to_index,
+            resources.rag_store,
             embedding_model=resources.embedding_model,
         )
         if indexed_count > 0:
             logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
-    except (duckdb.Error, OSError) as e:
+    except (ibis.common.exceptions.IbisError, OSError) as e:
         logger.warning("Failed to update RAG index after writing: %s", e)
 
 
