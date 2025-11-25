@@ -20,7 +20,6 @@ from egregora.agents.shared.rag.embedder import embed_chunks
 from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA, VectorStore
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.utils.frontmatter_utils import parse_frontmatter
 
 if TYPE_CHECKING:
     from egregora.data_primitives.protocols import OutputAdapter
@@ -45,37 +44,6 @@ class MediaEnrichmentMetadata(TypedDict):
     media_type: str | None
     media_path: str | None
     original_filename: str
-
-
-def _load_document_from_path(path: Path) -> Document | None:
-    """Load a Document from a filesystem path."""
-    try:
-        content = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as e:
-        logger.warning("Failed to read document at %s: %s", path, e)
-        return None
-
-    metadata, body = parse_frontmatter(content)
-
-    path_str = str(path)
-    if "/posts/" in path_str and "/journal/" not in path_str:
-        doc_type = DocumentType.POST
-    elif "/journal/" in path_str:
-        doc_type = DocumentType.JOURNAL
-    elif "/profiles/" in path_str:
-        doc_type = DocumentType.PROFILE
-    elif "/urls/" in path_str:
-        doc_type = DocumentType.ENRICHMENT_URL
-    elif path_str.endswith(".md") and "/media/" in path_str:
-        doc_type = DocumentType.ENRICHMENT_MEDIA
-    else:
-        doc_type = DocumentType.MEDIA
-
-    return Document(
-        content=body,
-        type=doc_type,
-        metadata=metadata,
-    )
 
 
 def _coerce_post_date(value: object) -> date | None:
@@ -265,42 +233,54 @@ def index_document(
     return len(chunks)
 
 
-def _collect_document_metadata(output_format: OutputAdapter) -> tuple[list[dict[str, Any]], int]:
-    """Collect metadata from all documents in the output adapter.
+def _collect_document_metadata(
+    output_format: OutputAdapter,
+) -> tuple[list[dict[str, Any]], dict[str, Document]]:
+    """Collect document metadata and keep Document instances for indexing.
 
-    Args:
-        output_format: Output adapter providing documents
-
-    Returns:
-        Tuple of (metadata rows list, total document count)
-
+    The storage identifier favors the document's canonical URL (when available)
+    so that delta detection and indexing track logical URLs instead of on-disk
+    paths. This keeps ingestion centered on the :class:`Document` abstraction
+    rather than reloading files from the filesystem.
     """
+
     rows: list[dict[str, Any]] = []
-    doc_count = 0
+    documents: dict[str, Document] = {}
 
     for document in output_format.documents():
-        doc_count += 1
-        identifier = document.metadata.get("storage_identifier") or document.suggested_path
+        identifier = (
+            document.metadata.get("url")
+            or document.metadata.get("storage_identifier")
+            or document.suggested_path
+        )
         if not identifier:
             continue
 
-        source_path = document.metadata.get("source_path")
-        if not source_path:
+        source_path = document.metadata.get("source_path") or identifier
+        mtime_ns = document.metadata.get("mtime_ns")
+        if mtime_ns is None:
             try:
-                source_path = str(output_format.resolve_document_path(identifier))
-            except (ValueError, RuntimeError, OSError) as e:
-                logger.warning("Failed to resolve identifier %s: %s", identifier, e)
-                source_path = ""
+                resolved = output_format.resolve_document_path(str(identifier))
+            except Exception:  # noqa: BLE001
+                resolved = None
+            if resolved and resolved.exists():
+                try:
+                    mtime_ns = resolved.stat().st_mtime_ns
+                except OSError:
+                    mtime_ns = None
+        if mtime_ns is None:
+            mtime_ns = int(document.created_at.timestamp() * 1_000_000_000)
 
         rows.append(
             {
-                "storage_identifier": identifier,
-                "source_path": source_path or "",
-                "mtime_ns": document.metadata.get("mtime_ns") or 0,
+                "storage_identifier": str(identifier),
+                "source_path": str(source_path),
+                "mtime_ns": mtime_ns,
             }
         )
+        documents[str(identifier)] = document
 
-    return rows, doc_count
+    return rows, documents
 
 
 def _identify_documents_to_index(docs_table: ibis.Table, store: VectorStore) -> ibis.Table:
@@ -332,7 +312,9 @@ def _identify_documents_to_index(docs_table: ibis.Table, store: VectorStore) -> 
     )
 
 
-def _index_new_documents(to_index, store: VectorStore, *, embedding_model: str) -> int:
+def _index_new_documents(
+    to_index, store: VectorStore, documents: dict[str, Document], *, embedding_model: str
+) -> int:
     """Index a set of new or changed documents.
 
     Args:
@@ -347,18 +329,16 @@ def _index_new_documents(to_index, store: VectorStore, *, embedding_model: str) 
     indexed_count = 0
     for row in to_index.itertuples():
         try:
-            document_path = Path(row.source_path)
-
-            doc = _load_document_from_path(document_path)
+            doc = documents.get(str(row.storage_identifier))
             if doc is None:
-                logger.warning("Failed to load document %s, skipping", row.storage_identifier)
+                logger.warning("Missing Document object for %s, skipping", row.storage_identifier)
                 continue
 
             index_document(
                 doc,
                 store,
                 embedding_model=embedding_model,
-                source_path=str(document_path),
+                source_path=row.source_path,
                 source_mtime_ns=row.mtime_ns,
             )
             indexed_count += 1
@@ -390,16 +370,12 @@ def index_documents_for_rag(
 
     """
     try:
-        # Step 1: Collect metadata from all documents
-        rows, doc_count = _collect_document_metadata(output_format)
+        rows, documents = _collect_document_metadata(output_format)
 
-        if doc_count == 0:
+        if not rows:
             logger.debug("No documents found by output format")
             return 0
 
-        logger.debug("Output sink reported %d documents", doc_count)
-
-        # Step 2: Build table and filter out unresolved paths
         docs_table = ibis.memtable(rows)
         docs_table = docs_table.filter(docs_table["source_path"] != "")
 
@@ -413,7 +389,6 @@ def index_documents_for_rag(
             logger.warning("All document identifiers failed to resolve to paths")
             return 0
 
-        # Step 3: Perform delta detection
         store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
         new_or_changed = _identify_documents_to_index(docs_table, store)
 
@@ -426,107 +401,10 @@ def index_documents_for_rag(
         logger.info(
             "Incremental indexing: %d new/changed documents (skipped %d unchanged)",
             len(to_index),
-            doc_count - len(to_index),
+            len(rows) - len(to_index),
         )
 
-        indexed_count = 0
-        all_chunks_rows = []  # Accumulate all chunks here
-
-        for row in to_index.itertuples():
-            try:
-                document_path = Path(row.source_path)
-
-                doc = _load_document_from_path(document_path)
-                if doc is None:
-                    logger.warning("Failed to load document %s, skipping", row.storage_identifier)
-                    continue
-
-                # Chunk and embed the document, but don't persist yet
-                chunks = chunk_from_document(doc)
-                if not chunks:
-                    logger.debug("No chunks generated from document %s", doc.document_id[:8])
-                    continue
-
-                chunk_texts = [chunk["content"] for chunk in chunks]
-                embeddings = embed_chunks(chunk_texts, model=embedding_model, task_type="RETRIEVAL_DOCUMENT")
-
-                # Build chunk rows for this document
-                for i, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=False)):
-                    metadata = chunk["metadata"]
-                    post_date = _coerce_post_date(metadata.get("date"))
-                    authors = metadata.get("authors", [])
-                    if isinstance(authors, str):
-                        authors = [authors]
-                    tags = metadata.get("tags", [])
-                    if isinstance(tags, str):
-                        tags = [tags]
-
-                    # Handle media-specific fields for enrichments
-                    if doc.type in (DocumentType.ENRICHMENT_MEDIA, DocumentType.MEDIA):
-                        media_uuid = metadata.get("media_uuid") or metadata.get("uuid")
-                        media_type = metadata.get("media_type")
-                        media_path = metadata.get("media_path")
-                        original_filename = metadata.get("original_filename")
-                        message_date = _coerce_message_datetime(metadata.get("message_date"))
-                        author_uuid = metadata.get("author_uuid")
-                        post_slug_val = None
-                        post_title_val = None
-                        post_date_val = None
-                    else:
-                        media_uuid = None
-                        media_type = None
-                        media_path = None
-                        original_filename = None
-                        message_date = None
-                        author_uuid = None
-                        post_slug_val = chunk["post_slug"]
-                        post_title_val = chunk["post_title"]
-                        post_date_val = post_date
-
-                    all_chunks_rows.append(
-                        {
-                            "chunk_id": f"{doc.document_id}_{i}",
-                            "document_type": doc.type.value,
-                            "document_id": doc.document_id,
-                            "source_path": str(document_path),
-                            "source_mtime_ns": row.mtime_ns,
-                            "post_slug": post_slug_val,
-                            "post_title": post_title_val,
-                            "post_date": post_date_val,
-                            "media_uuid": media_uuid,
-                            "media_type": media_type,
-                            "media_path": media_path,
-                            "original_filename": original_filename,
-                            "message_date": message_date,
-                            "author_uuid": author_uuid,
-                            "chunk_index": i,
-                            "content": chunk["content"],
-                            "embedding": embedding,
-                            "tags": tags,
-                            "category": metadata.get("category"),
-                            "authors": authors,
-                        }
-                    )
-
-                indexed_count += 1
-                logger.debug("Indexed document: %s (%d chunks)", row.storage_identifier, len(chunks))
-            except Exception as e:  # noqa: BLE001
-                logger.warning("Failed to index document %s: %s", row.storage_identifier, e)
-                continue
-
-        # Persist all chunks at once
-        if all_chunks_rows:
-            chunks_table = ibis.memtable(all_chunks_rows, schema=VECTOR_STORE_SCHEMA)
-            store.add(chunks_table)
-            logger.info(
-                "Indexed %d chunks from %d documents (batched save)",
-                len(all_chunks_rows),
-                indexed_count,
-            )
-        elif indexed_count > 0:
-            logger.info("Indexed %d new/changed documents in RAG (incremental)", indexed_count)
-
-        return indexed_count
+        return _index_new_documents(to_index, store, documents, embedding_model=embedding_model)
 
     except PromptTooLargeError:
         raise

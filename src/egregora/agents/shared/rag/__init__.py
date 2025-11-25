@@ -6,7 +6,7 @@ functionality for the RAG knowledge system.
 Architecture:
     - chunker: Text chunking with token limits and overlap
     - embedder: Google GenAI embedding generation
-    - store: Vector storage (DuckDB VSS + Parquet)
+    - store: Vector storage (LanceDB)
     - indexing: Document indexing operations
     - retriever: Similarity search and retrieval
 
@@ -25,7 +25,7 @@ Public API:
         - is_rag_available: Check if API key is available
 
     Storage:
-        - VectorStore: Vector storage with DuckDB VSS
+        - VectorStore: Vector storage powered by LanceDB
         - DatasetMetadata: Metadata container for vector datasets
 
     Indexing:

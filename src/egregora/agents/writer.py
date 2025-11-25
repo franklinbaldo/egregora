@@ -271,8 +271,7 @@ def register_writer_tools(  # noqa: C901
                 retrieval_nprobe=ctx.deps.resources.retrieval_config.nprobe,
                 retrieval_overfetch=ctx.deps.resources.retrieval_config.overfetch,
             )
-            media_df = results.execute()
-            items = [MediaItem(**row) for row in media_df.to_dict("records")]
+            items = [MediaItem(**row) for row in results.to_dict("records")]
             return SearchMediaResult(results=items)
 
     @agent.tool
@@ -384,7 +383,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
 
     # Perform Search
     query_vector = embed_query_text(query_text, model=embedding_model)
-    search_results = store.search(
+    results = store.search(
         query_vec=query_vector,
         top_k=top_k,
         min_similarity_threshold=0.7,
@@ -392,18 +391,14 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
         nprobe=retrieval_nprobe,
         overfetch=retrieval_overfetch,
     )
-    results_df = search_results.execute()
-    if getattr(results_df, "empty", False):
+    if not results:
         logger.info("Writer RAG: no similar posts found for query")
-        return ""
-    records = results_df.to_dict("records")
-    if not records:
         return ""
     lines = [
         "## Related Previous Posts (for continuity and linking):",
         "You can reference these posts in your writing to maintain conversation continuity.\n",
     ]
-    for row in records:
+    for row in results:
         title = row.get("post_title") or "Untitled"
         post_date = row.get("post_date") or ""
         snippet = (row.get("content") or "")[:400]

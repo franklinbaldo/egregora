@@ -9,9 +9,6 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import ibis
-from ibis.expr.types import Table
-
 from egregora.agents.shared.rag.embedder import embed_query_text
 from egregora.agents.shared.rag.store import DEDUP_MAX_RANK, VectorStore
 from egregora.database.duckdb_manager import DuckDBStorageManager
@@ -23,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def query_similar_posts(  # noqa: PLR0913
-    table: Table,
+    table: Any,
     store: VectorStore,
     *,
     embedding_model: str,
@@ -32,11 +29,13 @@ def query_similar_posts(  # noqa: PLR0913
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
-) -> Table:
+) -> list[dict[str, Any]]:
     """Find similar previous blog posts for a period's table."""
-    msg_count = table.count().execute()
+
+    records = _to_records(table)
+    msg_count = len(records)
     logger.info("Querying similar posts for period with %s messages", msg_count)
-    query_text = table.execute().to_csv(sep="|", index=False)
+    query_text = _records_to_delimited(records)
     logger.debug("Query text length: %s chars", len(query_text))
     query_vec = embed_query_text(query_text, model=embedding_model)
     results = store.search(
@@ -47,23 +46,13 @@ def query_similar_posts(  # noqa: PLR0913
         nprobe=retrieval_nprobe,
         overfetch=retrieval_overfetch,
     )
-    if results.count().execute() == 0:
+    if not results:
         logger.info("No similar posts found")
         return results
-    result_count = results.count().execute()
-    logger.info("Found %s similar chunks", result_count)
+
+    logger.info("Found %s similar chunks", len(results))
     if deduplicate:
-        window = ibis.window(group_by="post_slug", order_by=ibis.desc("similarity"))
-        results = (
-            results.order_by(ibis.desc("similarity"))
-            .mutate(_rank=ibis.row_number().over(window))
-            .filter(lambda t: t._rank < DEDUP_MAX_RANK)
-            .drop("_rank")
-            .order_by(ibis.desc("similarity"))
-            .limit(top_k)
-        )
-        dedup_count = results.count().execute()
-        logger.info("After deduplication: %s unique posts", dedup_count)
+        results = _deduplicate(results, key="post_slug", limit=top_k)
     return results
 
 
@@ -79,7 +68,7 @@ def query_media(  # noqa: PLR0913
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
-) -> Table:
+) -> list[dict[str, Any]]:
     """Search for relevant media by description or topic."""
     logger.info("Searching media for: %s", query)
     query_vec = embed_query_text(query, model=embedding_model)
@@ -93,23 +82,12 @@ def query_media(  # noqa: PLR0913
         nprobe=retrieval_nprobe,
         overfetch=retrieval_overfetch,
     )
-    result_count = results.count().execute()
-    if result_count == 0:
+    if not results:
         logger.info("No matching media found")
         return results
-    logger.info("Found %s matching media chunks", result_count)
+    logger.info("Found %s matching media chunks", len(results))
     if deduplicate:
-        window = ibis.window(group_by="media_uuid", order_by=ibis.desc("similarity"))
-        results = (
-            results.order_by(ibis.desc("similarity"))
-            .mutate(_rank=ibis.row_number().over(window))
-            .filter(lambda t: t._rank < DEDUP_MAX_RANK)
-            .drop("_rank")
-            .order_by(ibis.desc("similarity"))
-            .limit(top_k)
-        )
-        dedup_count = results.count().execute()
-        logger.info("After deduplication: %s unique media files", dedup_count)
+        results = _deduplicate(results, key="media_uuid", limit=top_k)
     return results
 
 
@@ -138,11 +116,10 @@ async def find_relevant_docs(  # noqa: PLR0913
             nprobe=retrieval_nprobe,
             overfetch=retrieval_overfetch,
         )
-        dataframe = results.execute()
-        if getattr(dataframe, "empty", False):
+        if not results:
             logger.info("No relevant docs found for query: %s", query[:50])
             return []
-        records = dataframe.to_dict("records")
+        records = results
         logger.info("Found %d relevant docs for query: %s", len(records), query[:50])
         return [
             {
@@ -209,6 +186,61 @@ async def build_rag_context_for_writer(  # noqa: PLR0913
         retrieval_overfetch=retrieval_overfetch,
     )
     return format_rag_context(docs)
+
+
+def _to_records(table: Any) -> list[dict[str, Any]]:
+    if table is None:
+        return []
+    if hasattr(table, "to_pyarrow"):
+        return table.to_pyarrow().to_pylist()
+    if hasattr(table, "execute"):
+        result = table.execute()
+        if hasattr(result, "to_pyarrow"):
+            return result.to_pyarrow().to_pylist()
+        if isinstance(result, list):
+            return result
+        if isinstance(result, dict):
+            return [result]
+        return list(result)
+    if isinstance(table, list):
+        return table
+    if isinstance(table, dict):
+        return [table]
+    return []
+
+
+def _records_to_delimited(records: list[dict[str, Any]]) -> str:
+    if not records:
+        return ""
+    headers = sorted({key for record in records for key in record})
+    lines = ["|".join(headers)]
+    for record in records:
+        row = [str(record.get(key, "")) for key in headers]
+        lines.append("|".join(row))
+    return "\n".join(lines)
+
+
+def _deduplicate(records: list[dict[str, Any]], *, key: str, limit: int) -> list[dict[str, Any]]:
+    if not records:
+        return []
+    if key not in records[0]:
+        return sorted(records, key=lambda r: float(r.get("similarity", 0.0)), reverse=True)[
+            :limit
+        ]
+
+    ranked: list[dict[str, Any]] = []
+    seen_counts: dict[Any, int] = {}
+
+    for record in sorted(records, key=lambda r: float(r.get("similarity", 0.0)), reverse=True):
+        group_value = record.get(key)
+        count = seen_counts.get(group_value, 0)
+        if count < DEDUP_MAX_RANK:
+            ranked.append(record)
+            seen_counts[group_value] = count + 1
+        if len(ranked) >= limit:
+            break
+
+    return ranked[:limit]
 
 
 __all__ = [
