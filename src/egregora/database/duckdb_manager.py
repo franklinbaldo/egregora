@@ -351,7 +351,9 @@ class DuckDBStorageManager:
             except duckdb.Error:
                 rows: list[tuple[str, ...]] = []
 
-            self._table_info_cache[cache_key] = {row[0] for row in rows}
+            # PRAGMA table_info returns: (cid, name, type, notnull, dflt_value, pk)
+            # We want row[1] which is the column name, not row[0] which is the cid (int)
+            self._table_info_cache[cache_key] = {row[1] for row in rows}
 
         return self._table_info_cache[cache_key]
 
