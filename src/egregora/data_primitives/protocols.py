@@ -103,11 +103,8 @@ class OutputSink(Protocol):
     def url_convention(self) -> UrlConvention:
         """Return the URL convention adopted by this sink."""
 
-    def persist(self, document: Document) -> str:
+    def persist(self, document: Document) -> None:
         """Persist ``document`` so that it becomes available at its canonical URL.
-
-        Returns the storage identifier (e.g. file path relative to site root) for
-        the persisted document.
 
         This method is idempotent: writing the same document twice with the
         same identifier should UPDATE the existing document, not create a duplicate.
@@ -187,27 +184,6 @@ class OutputSink(Protocol):
 
         """
 
-    def resolve_document_path(self, identifier: str) -> Path:
-        """Resolve storage identifier (from ``list_documents``) to actual filesystem path.
-
-        Enables format-agnostic document reingestion.
-
-        Args:
-            identifier: Storage identifier from list_documents()
-
-        Returns:
-            Absolute filesystem path to the document
-
-        Examples:
-            >>> # MkDocs: identifier is relative path from site_root
-            >>> sink.resolve_document_path("posts/2025-01-10-post.md")
-            Path("/path/to/site/posts/2025-01-10-post.md")
-
-            >>> # Database: identifier is record ID, exports to temp file
-            >>> sink.resolve_document_path("post:123")
-            Path("/tmp/egregora-cache/post-123.md")
-
-        """
 
 
 @runtime_checkable

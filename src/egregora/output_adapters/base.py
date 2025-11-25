@@ -127,10 +127,6 @@ class OutputAdapter(OutputSink, ABC):
     def initialize(self, site_root: Path) -> None:
         """Initialize internal state for a specific site."""
 
-    @abstractmethod
-    def resolve_document_path(self, identifier: str) -> Path:
-        """Resolve storage identifier to actual filesystem path."""
-
     # ===== Common Utility Methods (Concrete) =====
 
     def _scan_directory_for_documents(
