@@ -43,9 +43,7 @@ class PipelineConfig:
 
     def __post_init__(self) -> None:
         """Derive site paths eagerly for frozen, slotted dataclass."""
-        object.__setattr__(
-            self, "site_paths", derive_mkdocs_paths(self.output_dir, config=self.config)
-        )
+        object.__setattr__(self, "site_paths", derive_mkdocs_paths(self.output_dir, config=self.config))
 
     @property
     def site_root(self) -> Path | None:
