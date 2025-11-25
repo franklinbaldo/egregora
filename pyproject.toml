@@ -15,11 +15,10 @@ dependencies = [
     "diskcache>=5.6.3",
     "python-dateutil>=2.9",
     "pydantic>=2.7",
-    "pydantic-ai[logfire]>=0.0.14",
+    "pydantic-ai>=0.0.14",
     "jinja2>=3.1.0",
     "pyarrow>=21.0.0",
-    "typer[all]>=0.20.0",
-    "pytest>=8.4.2",
+    "typer>=0.20.0",
     "python-slugify>=8.0.1", # Industry-standard slug generation
     "returns>=0.22.0", # Result types for error handling
     "werkzeug>=3.0.0", # Industry-standard path security (safe_join)
@@ -32,29 +31,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = [
-    "ruff>=0.4.4",
-]
 docs = [
     "mkdocs>=1.6",
-    "mkdocs-material>=9.5",
+    "mkdocs-material[imaging]>=9.5",
     "mkdocstrings[python]>=0.30",
     "mkdocs-autorefs>=1.0",
     "mkdocs-static-i18n>=1.2",
-    "python-dateutil>=2.9",
     "pymdown-extensions>=10.0",
     "codespell>=2.3.0",
     "mkdocs-git-revision-date-localized-plugin>=1.2",
     "mkdocs-minify-plugin>=0.8",
-    "mkdocs-material[imaging]>=9.5",
 ]
 rss = [
     "mkdocs-rss-plugin>=1.15",
-]
-ranking = []
-lint = [
-    "pre-commit>=3.8",
-    "ruff>=0.4.4",
 ]
 
 [project.scripts]
@@ -254,14 +243,10 @@ dev = [
     "deptry>=0.24.0",
     "hypothesis>=6.147.0",
     "pre-commit>=4.3.0",
+    "pytest>=8.4.2",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",
     "radon>=6.0.1",
     "ruff>=0.14.0",
     "vulture>=2.14",
-]
-test = [
-    "pytest>=8.4.2",
-    "ruff>=0.4.4",
-    "duckdb>=0.10.0",
 ]

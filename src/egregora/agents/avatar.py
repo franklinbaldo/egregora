@@ -269,6 +269,14 @@ def _validate_image_dimensions(content: bytes) -> None:
         raise AvatarProcessingError(msg) from e
 
 
+MIME_TYPE_TO_EXTENSION = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+}
+
+
 def _get_extension_from_mime_type(content_type: str, url: str) -> str:
     """Get file extension from MIME type.
 
@@ -280,14 +288,15 @@ def _get_extension_from_mime_type(content_type: str, url: str) -> str:
         File extension with leading dot
 
     """
-    if content_type.startswith("image/jpeg"):
-        return ".jpg"
-    if content_type.startswith("image/png"):
-        return ".png"
-    if content_type.startswith("image/gif"):
-        return ".gif"
-    if content_type.startswith("image/webp"):
-        return ".webp"
+    base_type = content_type.split(";")[0].strip()
+    if base_type in MIME_TYPE_TO_EXTENSION:
+        return MIME_TYPE_TO_EXTENSION[base_type]
+
+    # Try efficient prefix matching if exact match fails
+    for mime, ext in MIME_TYPE_TO_EXTENSION.items():
+        if content_type.startswith(mime):
+            return ext
+
     return _validate_image_format(url or ".jpg")
 
 

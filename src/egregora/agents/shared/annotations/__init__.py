@@ -192,7 +192,8 @@ class AnnotationStore:
     @property
     def _connection(self) -> duckdb.DuckDBPyConnection:
         """Return the underlying DuckDB connection."""
-        return self.storage.conn
+        # Access protected member directly as this is an internal component
+        return self.storage._conn
 
     # ========================================================================
     # Schema Initialization

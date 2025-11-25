@@ -30,6 +30,14 @@ logger = logging.getLogger(__name__)
 # Default chunk size for indexing
 DEFAULT_INDEX_MAX_TOKENS = 1800
 
+# Regex patterns for media enrichment parsing
+DATE_MATCH_PATTERN = re.compile(r"- \*\*Date:\*\* (.+)")
+TIME_MATCH_PATTERN = re.compile(r"- \*\*Time:\*\* (.+)")
+SENDER_MATCH_PATTERN = re.compile(r"- \*\*Sender:\*\* (.+)")
+MEDIA_TYPE_MATCH_PATTERN = re.compile(r"- \*\*Media Type:\*\* (.+)")
+FILE_MATCH_PATTERN = re.compile(r"- \*\*File:\*\* (.+)")
+FILENAME_MATCH_PATTERN = re.compile(r"# Enrichment: (.+)")
+
 
 class MediaEnrichmentMetadata(TypedDict):
     message_date: datetime | None
@@ -572,12 +580,12 @@ def _parse_media_enrichment(enrichment_path: Path) -> MediaEnrichmentMetadata | 
             "media_path": None,
             "original_filename": enrichment_path.name,
         }
-        date_match = re.search("- \\*\\*Date:\\*\\* (.+)", content)
-        time_match = re.search("- \\*\\*Time:\\*\\* (.+)", content)
-        sender_match = re.search("- \\*\\*Sender:\\*\\* (.+)", content)
-        media_type_match = re.search("- \\*\\*Media Type:\\*\\* (.+)", content)
-        file_match = re.search("- \\*\\*File:\\*\\* (.+)", content)
-        filename_match = re.search("# Enrichment: (.+)", content)
+        date_match = DATE_MATCH_PATTERN.search(content)
+        time_match = TIME_MATCH_PATTERN.search(content)
+        sender_match = SENDER_MATCH_PATTERN.search(content)
+        media_type_match = MEDIA_TYPE_MATCH_PATTERN.search(content)
+        file_match = FILE_MATCH_PATTERN.search(content)
+        filename_match = FILENAME_MATCH_PATTERN.search(content)
         original_filename_from_content = filename_match.group(1).strip() if filename_match else None
         if original_filename_from_content:
             metadata["original_filename"] = original_filename_from_content
