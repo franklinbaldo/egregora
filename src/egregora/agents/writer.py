@@ -994,6 +994,7 @@ def _index_new_content_in_rag(
                 # Actually, index_specific_documents expects Document objects.
                 # Let's create one.
                 from egregora.utils.frontmatter_utils import parse_frontmatter
+
                 metadata, body = parse_frontmatter(content)
                 metadata["source_path"] = str(abs_path)
                 metadata["mtime_ns"] = abs_path.stat().st_mtime_ns
@@ -1015,6 +1016,7 @@ def _index_new_content_in_rag(
             if abs_path.exists():
                 content = abs_path.read_text(encoding="utf-8")
                 from egregora.utils.frontmatter_utils import parse_frontmatter
+
                 metadata, body = parse_frontmatter(content)
                 metadata["source_path"] = str(abs_path)
                 metadata["mtime_ns"] = abs_path.stat().st_mtime_ns
