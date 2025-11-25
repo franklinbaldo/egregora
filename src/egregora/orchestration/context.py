@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import datetime
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -21,6 +22,7 @@ from egregora.agents.shared.rag import VectorStore
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.utils.cache import EnrichmentCache, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
@@ -36,14 +38,33 @@ class PipelineConfig:
 
     config: EgregoraConfig
     output_dir: Path
-    site_root: Path | None
-    docs_dir: Path
-    posts_dir: Path
-    profiles_dir: Path
-    media_dir: Path
-
-    # URL context is largely static configuration
     url_context: UrlContext | None = None
+
+    @cached_property
+    def site_paths(self) -> dict[str, Path | str | None]:
+        """Derive site paths from configuration settings."""
+
+        return derive_mkdocs_paths(self.output_dir, config=self.config)
+
+    @property
+    def site_root(self) -> Path | None:
+        return self.site_paths.get("site_root")
+
+    @property
+    def docs_dir(self) -> Path:
+        return self.site_paths["docs_dir"]
+
+    @property
+    def posts_dir(self) -> Path:
+        return self.site_paths["posts_dir"]
+
+    @property
+    def profiles_dir(self) -> Path:
+        return self.site_paths["profiles_dir"]
+
+    @property
+    def media_dir(self) -> Path:
+        return self.site_paths["media_dir"]
 
     @property
     def enable_enrichment(self) -> bool:

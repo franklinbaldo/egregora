@@ -15,6 +15,8 @@ from urllib.parse import urlparse
 import ibis
 from google import genai
 
+from dataclasses import replace
+
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore
 from egregora.agents.writer import WriterResources
@@ -65,9 +67,10 @@ class PipelineFactory:
 
         """
         resolved_output = output_dir.expanduser().resolve()
+        config_obj = PipelineConfig(config=config, output_dir=resolved_output)
 
         refresh_tiers = {r.strip().lower() for r in (refresh or "").split(",") if r.strip()}
-        site_paths = PipelineFactory.resolve_site_paths_or_raise(resolved_output, config)
+        site_paths = PipelineFactory.resolve_site_paths_or_raise(config_obj)
 
         _runtime_db_uri, pipeline_backend, runs_backend = PipelineFactory.create_database_backends(
             site_paths["site_root"], config
@@ -104,16 +107,7 @@ class PipelineFactory:
             base_path=site_paths["site_root"],
         )
 
-        config_obj = PipelineConfig(
-            config=config,
-            output_dir=resolved_output,
-            site_root=site_paths["site_root"],
-            docs_dir=site_paths["docs_dir"],
-            posts_dir=site_paths["posts_dir"],
-            profiles_dir=site_paths["profiles_dir"],
-            media_dir=site_paths["media_dir"],
-            url_context=url_ctx,
-        )
+        config_obj = replace(config_obj, url_context=url_ctx)
 
         state = PipelineState(
             run_id=run_id,
@@ -200,21 +194,21 @@ class PipelineFactory:
         return runtime_db_uri, pipeline_backend, runs_backend
 
     @staticmethod
-    def resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> dict[str, any]:
+    def resolve_site_paths_or_raise(config_obj: PipelineConfig) -> dict[str, any]:
         """Resolve site paths for the configured output format and validate structure."""
-        output_dir = output_dir.expanduser().resolve()
-        site_paths = derive_mkdocs_paths(output_dir, config=config)
+
+        site_paths = config_obj.site_paths
 
         # Default validation for MkDocs/standard structure
         mkdocs_path = site_paths.get("mkdocs_path")
         if not mkdocs_path or not mkdocs_path.exists():
             msg = (
-                f"No mkdocs.yml found for site at {output_dir}. "
+                f"No mkdocs.yml found for site at {config_obj.output_dir}. "
                 "Run 'egregora init <site-dir>' before processing exports."
             )
             raise ValueError(msg)
 
-        docs_dir = site_paths["docs_dir"]
+        docs_dir = config_obj.docs_dir
         if not docs_dir.exists():
             msg = f"Docs directory not found: {docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
             raise ValueError(msg)
