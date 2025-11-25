@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import duckdb
 import ibis
 from ibis.expr.types import Table
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -950,7 +951,7 @@ def _index_new_content_in_rag(
         )
         if indexed_count > 0:
             logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
-    except (ibis.common.exceptions.IbisError, OSError) as e:
+    except (duckdb.Error, ibis.common.exceptions.IbisError, OSError) as e:
         logger.warning("Failed to update RAG index after writing: %s", e)
 
 
