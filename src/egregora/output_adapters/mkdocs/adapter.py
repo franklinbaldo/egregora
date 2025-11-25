@@ -980,6 +980,29 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             if doc:
                 documents.append(doc)
         return documents
+    def resolve_document_path(self, identifier: str) -> Path:
+        """Resolve MkDocs storage identifier (relative path) to absolute filesystem path.
+
+        Args:
+            identifier: Relative path from site_root (e.g., "posts/2025-01-10-my-post.md")
+
+        Returns:
+            Path: Absolute filesystem path
+
+        Raises:
+            RuntimeError: If output format not initialized
+
+        Example:
+            >>> format.resolve_document_path("posts/2025-01-10-my-post.md")
+            Path("/path/to/site/posts/2025-01-10-my-post.md")
+
+        """
+        if not hasattr(self, "_site_root") or self._site_root is None:
+            msg = "MkDocsOutputAdapter not initialized - call initialize() first"
+            raise RuntimeError(msg)
+
+        # MkDocs identifiers are relative paths from site_root
+        return (self._site_root / identifier).resolve()
 
     def _list_from_dir(
         self,

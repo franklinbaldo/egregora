@@ -24,6 +24,7 @@ from egregora.utils.frontmatter_utils import parse_frontmatter
 if TYPE_CHECKING:
     from egregora.agents.shared.rag.store import VectorStore
     from egregora.data_primitives.protocols import OutputAdapter
+    from egregora.data_primitives.protocols import OutputSink
 
 # Use schema directly to avoid circular import with store.py
 VECTOR_STORE_SCHEMA = ir_schema.RAG_CHUNKS_SCHEMA
@@ -379,6 +380,9 @@ def _index_new_documents(to_index, store: VectorStore, *, embedding_model: str) 
 def index_documents_for_rag(
     output_format: OutputAdapter,
     store: VectorStore,
+    output_format: OutputSink,
+    rag_dir: Path,
+    storage: DuckDBStorageManager,
     *,
     embedding_model: str,
 ) -> int:
