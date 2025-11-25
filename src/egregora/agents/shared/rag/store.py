@@ -789,6 +789,7 @@ class VectorStore:
 
         Returns:
             Number of documents successfully indexed (0 if indexing fails)
+
         """
         # Avoid circular import
         from egregora.agents.shared.rag.indexing import index_documents_for_rag
@@ -808,6 +809,7 @@ class VectorStore:
 
         Returns:
             Number of media chunks successfully indexed (0 if indexing fails)
+
         """
         # Avoid circular import
         from egregora.agents.shared.rag.indexing import index_all_media

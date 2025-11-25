@@ -6,7 +6,6 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import ibis.common.exceptions
-import pytest
 
 
 class TestVectorStoreExceptionHandling:
