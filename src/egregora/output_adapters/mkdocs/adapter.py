@@ -916,9 +916,15 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             return
 
         # DRY: Use list() to scan directories, then get() to load content
+        # Note: list() returns metadata where identifier is a relative path (e.g., "posts/slug.md")
+        # but get() expects a simpler identifier for some types (e.g., "slug" for posts).
+        # To reliably load all listed documents, we bypass the identifier resolution logic
+        # and load directly from the known path found by list().
         for meta in self.list():
-            if meta.doc_type:
-                doc = self.get(meta.doc_type, meta.identifier)
+            if meta.doc_type and "path" in meta.metadata:
+                doc_path = Path(str(meta.metadata["path"]))
+                # Bypass identifier resolution by loading directly from path
+                doc = self._document_from_path(doc_path, meta.doc_type)
                 if doc:
                     yield doc
 

@@ -152,7 +152,7 @@ def embed_texts_in_batch(
         return []
 
     logger.info("Embedding %d text(s) with model %s", len(texts), model)
-    effective_api_key = api_key or _get_api_key()
+    effective_api_key = api_key or get_google_api_key()
     effective_timeout = timeout or _get_timeout()
     google_model = model
     requests = []
