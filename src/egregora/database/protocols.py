@@ -39,6 +39,7 @@ class StorageProtocol(Protocol):
 
         Raises:
             ValueError: If table doesn't exist
+
         """
         ...
 
@@ -57,6 +58,7 @@ class StorageProtocol(Protocol):
             name: Destination table name
             mode: Write mode ("replace" or "append")
             checkpoint: If True, save parquet checkpoint to disk
+
         """
         ...
 
@@ -75,6 +77,7 @@ class StorageProtocol(Protocol):
             table: Ibis table to persist
             name: Target table name
             schema: Optional schema to validate against
+
         """
         ...
 
@@ -86,6 +89,7 @@ class StorageProtocol(Protocol):
 
         Returns:
             True if table exists, False otherwise
+
         """
         ...
 
@@ -94,6 +98,7 @@ class StorageProtocol(Protocol):
 
         Returns:
             Sorted list of table names
+
         """
         ...
 
@@ -103,6 +108,7 @@ class StorageProtocol(Protocol):
         Args:
             name: Table name
             checkpoint_too: If True, also delete parquet checkpoint
+
         """
         ...
 
@@ -115,6 +121,7 @@ class StorageProtocol(Protocol):
 
         Returns:
             Set of column names
+
         """
         ...
 
@@ -127,6 +134,7 @@ class StorageProtocol(Protocol):
 
         Returns:
             List of result tuples
+
         """
         ...
 
@@ -139,6 +147,7 @@ class StorageProtocol(Protocol):
 
         Returns:
             Single result tuple or None
+
         """
         ...
 
@@ -182,6 +191,7 @@ class VectorStorageProtocol(Protocol):
 
         Returns:
             True if index created successfully, False otherwise
+
         """
         ...
 
@@ -190,6 +200,7 @@ class VectorStorageProtocol(Protocol):
 
         Args:
             name: Index name
+
         """
         ...
 
@@ -201,6 +212,7 @@ class VectorStorageProtocol(Protocol):
 
         Returns:
             Number of rows
+
         """
         ...
 
@@ -217,6 +229,7 @@ class SequenceStorageProtocol(Protocol):
         Args:
             name: Sequence name
             start: Starting value
+
         """
         ...
 
@@ -228,6 +241,7 @@ class SequenceStorageProtocol(Protocol):
 
         Returns:
             Next sequence value
+
         """
         ...
 
@@ -240,12 +254,13 @@ class SequenceStorageProtocol(Protocol):
 
         Returns:
             List of sequence values
+
         """
         ...
 
 
 __all__ = [
+    "SequenceStorageProtocol",
     "StorageProtocol",
     "VectorStorageProtocol",
-    "SequenceStorageProtocol",
 ]

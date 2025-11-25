@@ -24,6 +24,7 @@ def combine_with_enrichment_rows(
 
     Returns:
         Combined table with schema applied
+
     """
     messages_table_filtered = messages_table.select(*schema.names)
 

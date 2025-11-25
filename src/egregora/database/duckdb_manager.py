@@ -271,6 +271,7 @@ class DuckDBStorageManager:
             table: Ibis table to persist
             name: Target table name (must be valid SQL identifier)
             schema: Table schema to use for validation and column selection
+
         """
         if not re.fullmatch("[A-Za-z_][A-Za-z0-9_]*", name):
             msg = "target_table must be a valid DuckDB identifier"
@@ -327,7 +328,6 @@ class DuckDBStorageManager:
             self._table_info_cache[cache_key] = {row[1] for row in rows}
 
         return self._table_info_cache[cache_key]
-
 
     # ==================================================================
     # Sequence helpers

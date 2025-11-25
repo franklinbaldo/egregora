@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, Protocol, Self
+from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
     # Use Protocol for abstraction instead of concrete implementation
@@ -28,6 +28,7 @@ class RunStore:
 
         Args:
             storage: Storage backend implementing StorageProtocol
+
         """
         self.storage = storage
 

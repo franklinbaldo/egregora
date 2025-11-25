@@ -30,7 +30,6 @@ from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
-from egregora.transformations.enrichment import combine_with_enrichment_rows
 from egregora.input_adapters.base import MediaMapping
 from egregora.ops.media import (
     detect_media_type,
@@ -39,6 +38,7 @@ from egregora.ops.media import (
     replace_media_mentions,
 )
 from egregora.resources.prompts import render_prompt
+from egregora.transformations.enrichment import combine_with_enrichment_rows
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.paths import slugify

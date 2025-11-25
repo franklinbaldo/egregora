@@ -1379,7 +1379,9 @@ def _record_run_completion(
         logger.debug("Failed to record run completion: %s", exc)
 
 
-def _record_run_failure(run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime, exc: Exception) -> None:
+def _record_run_failure(
+    run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime, exc: Exception
+) -> None:
     """Record failure of a pipeline run.
 
     Args:
