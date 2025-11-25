@@ -312,7 +312,6 @@ class VectorStore:
 
     def get_indexed_sources_table(self) -> ibis.Table:
         """Return indexed sources as an Ibis table for delta detection."""
-
         schema = ibis.schema(
             {
                 "source_path": dt.string,
@@ -328,7 +327,6 @@ class VectorStore:
 
     def get_indexed_sources(self) -> dict[str, int]:
         """Return mapping of source paths to mtime for incremental indexing."""
-
         if self._table is None:
             return {}
 
