@@ -11,7 +11,11 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Self
 
+import ibis
+from ibis import _
+
 if TYPE_CHECKING:
+    from ibis.expr.types import Table
     from egregora.database.duckdb_manager import DuckDBStorageManager
 
 
@@ -19,69 +23,83 @@ class RunStore:
     def __init__(self, storage: DuckDBStorageManager) -> None:
         self.storage = storage
 
-    def _runs_duration_expression(self) -> str:
-        columns = self.storage.get_table_columns("runs")
+    def _duration_expression(self, runs_table: Table):
+        columns = set(runs_table.columns)
         if "duration_seconds" in columns:
-            return "duration_seconds"
-        if "started_at" in columns and "finished_at" in columns:
-            return "CAST(date_diff('second', started_at, finished_at) AS DOUBLE) AS duration_seconds"
-        return "CAST(NULL AS DOUBLE) AS duration_seconds"
+            return runs_table.duration_seconds
 
-    def _column_or_null(self, table_name: str, column: str, duck_type: str) -> str:
-        columns = self.storage.get_table_columns(table_name)
+        if "started_at" in columns and "finished_at" in columns:
+            duration = (runs_table.finished_at - runs_table.started_at).to_unit("s")
+            return duration.cast("float64").name("duration_seconds")
+
+        return ibis.null().cast("float64").name("duration_seconds")
+
+    def _column_or_null(self, table: Table, column: str, ibis_type: str):
+        columns = set(table.columns)
         if column in columns:
-            return column
-        return f"CAST(NULL AS {duck_type}) AS {column}"
+            return table[column]
+        return ibis.null().cast(ibis_type).name(column)
 
     def get_latest_runs(self, n: int = 10) -> list[tuple]:
         """Fetches the last N runs from the database."""
-        duration_expr = self._runs_duration_expression()
-        sql = f"""
-            SELECT
-                run_id,
-                stage,
-                status,
-                started_at,
-                rows_in,
-                rows_out,
-                {duration_expr}
-            FROM runs
-            WHERE started_at IS NOT NULL
-            ORDER BY started_at DESC
-            LIMIT ?
-        """
-        return self.storage.execute_query(sql, [n])
+        runs_table = self.storage.read_table("runs")
+        duration_expr = self._duration_expression(runs_table)
+
+        query = (
+            runs_table.filter(_.started_at.notnull())
+            .select(
+                _.run_id,
+                _.stage,
+                _.status,
+                _.started_at,
+                _.rows_in,
+                _.rows_out,
+                duration_expr,
+            )
+            .order_by(_.started_at.desc())
+            .limit(n)
+        )
+
+        result = query.execute()
+        return [tuple(row) for row in result.itertuples(index=False, name=None)]
 
     def get_run_by_id(self, run_id: str) -> tuple | None:
         """Fetches a single run by its full or partial UUID."""
-        parent_run_expr = self._column_or_null("runs", "parent_run_id", "UUID")
-        duration_expr = self._runs_duration_expression()
-        attrs_expr = self._column_or_null("runs", "attrs", "JSON")
-        sql = f"""
-            SELECT
-                run_id,
-                tenant_id,
-                stage,
-                status,
-                error,
-                {parent_run_expr},
-                code_ref,
-                config_hash,
-                started_at,
-                finished_at,
-                {duration_expr},
-                rows_in,
-                rows_out,
-                llm_calls,
-                tokens,
-                {attrs_expr},
-                trace_id
-            FROM runs
-            WHERE CAST(run_id AS VARCHAR) LIKE ?
-            ORDER BY started_at DESC
-            LIMIT 1
-        """
-        return self.storage.execute_query_single(sql, [f"{run_id}%"])
+        runs_table = self.storage.read_table("runs")
+        parent_run_expr = self._column_or_null(runs_table, "parent_run_id", "uuid")
+        duration_expr = self._duration_expression(runs_table)
+        attrs_expr = self._column_or_null(runs_table, "attrs", "json")
+        run_id_literal = ibis.literal(str(run_id))
+
+        query = (
+            runs_table.filter(_.run_id.cast("string").like(run_id_literal + "%"))
+            .select(
+                _.run_id,
+                _.tenant_id,
+                _.stage,
+                _.status,
+                _.error,
+                parent_run_expr,
+                _.code_ref,
+                _.config_hash,
+                _.started_at,
+                _.finished_at,
+                duration_expr,
+                _.rows_in,
+                _.rows_out,
+                _.llm_calls,
+                _.tokens,
+                attrs_expr,
+                _.trace_id,
+            )
+            .order_by(_.started_at.desc())
+            .limit(1)
+        )
+
+        result = query.execute()
+        if result.empty:
+            return None
+        return tuple(result.iloc[0])
 
     def mark_run_completed(
         self,
@@ -93,119 +111,24 @@ class RunStore:
     ) -> None:
         """Update ``runs`` when a stage completes."""
         runs = self.storage.read_table("runs")
-        # Use simple Ibis update if available, or fall back to SQL if backend limitation
-        # Note: Ibis DuckDB backend support for updates is limited, but this follows
-        # the requested refactoring pattern.
-        # Assuming we can't easily use Ibis for UPDATE in this version, I'll stick to SQL
-        # but the request was "Refactor to use Ibis expressions".
-        # DuckDB backend DOES NOT support .update().
-        # However, "EloStore" pattern was mentioned.
-        # If I look at EloStore (not provided here but assumed), maybe it uses something else.
-        # Given limitations, I will keep SQL but use parameter binding safely,
-        # or if I strictly follow "Refactor to use Ibis expressions", I might be stuck.
-        # Wait, the instruction says "Refactor to use Ibis expressions... to match the pattern in EloStore".
-        # If I can't see EloStore, I should probably stick to SQL but maybe cleaner?
-        # Re-reading: "Refactor to use Ibis expressions (`table.update(...)`)".
-        # Recent Ibis versions support `table.update()`. Let's try to use it if Ibis supports it.
-        # Since I cannot verify if the installed Ibis supports update on DuckDB backend,
-        # I will attempt to use the SQL approach but maybe the user thinks Ibis supports it.
-        # Actually, `runs` is a table in DuckDB.
+        run_id_literal = ibis.literal(str(run_id))
+        match_run = runs.run_id.cast("string") == run_id_literal
 
-        # NOTE: Ibis 9.x added some update support but it might be experimental.
-        # If the user insists, I will try to use the backend's capability if possible,
-        # or just wrap it. But `self.storage.ibis_conn` is the backend.
+        updates: dict[str, object] = {
+            "status": ibis.where(match_run, ibis.literal("completed"), runs.status),
+            "finished_at": ibis.where(match_run, ibis.literal(finished_at), runs.finished_at),
+        }
 
-        # Let's trust the user instruction implies it works or I should use `backend.update`.
-        # `DuckDBStorageManager` has `ibis_conn`.
+        if "duration_seconds" in runs.columns:
+            updates["duration_seconds"] = ibis.where(
+                match_run, ibis.literal(duration_seconds), runs.duration_seconds
+            )
 
-        # If I strictly follow instructions:
-        # runs = self.storage.read_table("runs")
-        # runs.filter(runs.run_id == run_id).update(...)
+        if "rows_out" in runs.columns:
+            updates["rows_out"] = ibis.where(match_run, ibis.literal(rows_out), runs.rows_out)
 
-        # But `run_id` is UUID in DuckDB, string in python usually.
-        # Let's try to implement it using `execute_query` for now as Ibis update is tricky.
-        # Wait, I must follow "Refactor to use Ibis expressions".
-
-        # Alternative: The user might be referring to `memtable` updates or something.
-        # But `runs` is persistent.
-
-        # Let's stick to the SQL implementation but clean it up, OR
-        # if I really must use Ibis, I would need to check `ibis.__version__`.
-        # I'll stick to SQL because Ibis update on DuckDB is not standard Ibis API for all backends yet.
-        # BUT the prompt explicitly asks for it.
-
-        # Let's try to simulate what `EloStore` might do:
-        # It probably doesn't use `table.update(...)` if it's not supported.
-        # Maybe it constructs a plan?
-
-        # I will stick to SQL for reliability but maybe the user meant "Construction of the query"?
-        # No, "Refactor to use Ibis expressions (`table.update(...)`)".
-
-        # I will assume Ibis supports it in this environment.
-        # Implementation below
-
-        # Since I can't easily verify Ibis version/capability for update here,
-        # and `mark_run_completed` is critical, I'll keep SQL but maybe format it better?
-        # The user instruction is specific: "Refactor to use Ibis expressions (`table.update(...)`)".
-
-        # I will try to use `con.update(table, ...)` style if available.
-        # `self.storage.ibis_conn` is the connection.
-
-        # Actually, looking at `DuckDBStorageManager`, it exposes `ibis_conn`.
-        # `ibis.duckdb.connect` returns a backend.
-        # Backend might have `update` method? No.
-
-        # Let's look at `EloStore` mentioned... I don't have it.
-
-        # I will modify the code to use SQL but with a comment explaining why if I can't use Ibis.
-        # Or I will try to use Ibis syntax if I assume it works.
-
-        # However, checking Ibis docs, `update` is not a method on Table expression usually.
-        # It is often on the backend or experimental.
-
-        # Wait, if I look at `src/egregora/database/run_store.py` again.
-        # It imports `DuckDBStorageManager`.
-
-        # Let's assume the user knows what they are asking and I should try to find where `update` is.
-        # Use `storage.execute_query` is safe. I will skip this specific refactor if I am unsure,
-        # BUT I should try.
-
-        # Actually, I will defer to SQL because Ibis `update` is not standard.
-        # I'll leave it as SQL but maybe the instruction meant `ibis` for *reading*?
-        # No, "Refactor to use Ibis expressions (`table.update(...)`)".
-
-        # Okay, I will try to use `storage.ibis_conn` which is a `BaseBackend`.
-        # Maybe `backend.con.execute(table.update()...)`?
-
-        # I'll stick to the existing SQL implementation but verify if I can clean it.
-        # The instruction is "Refactor ... to match ... EloStore".
-        # Since I can't see EloStore, I'll assume the user wants standard Ibis if possible,
-        # but since Ibis doesn't typically do updates, maybe they use a custom helper?
-
-        # I will leave the SQL but format it nicely.
-
-        # Wait, I missed something. Ibis 6+ has `memtable`.
-        # Maybe `runs` is managed differently?
-        # No, it's a persistent table.
-
-        # I will SKIP the Ibis update refactor for `run_store.py` because I cannot guarantee it works
-        # and standard Ibis doesn't support it well for DuckDB without experimental flags or specific versions.
-        # I'll just clean up the SQL.
-
-        # WAIT! I am an agent, I should try to follow instructions.
-        # "Easy wins" list. Maybe Ibis has `update` in this project's version?
-        # I'll check `pyproject.toml` or `uv.lock`?
-        # I'll just stick to SQL for safety.
-
-        sql = """
-            UPDATE runs
-            SET status = 'completed',
-                finished_at = ?,
-                duration_seconds = ?,
-                rows_out = ?
-            WHERE run_id = ?
-        """
-        self.storage.execute_query(sql, [finished_at, duration_seconds, rows_out, str(run_id)])
+        updated_table = runs.mutate(**updates)
+        self.storage.persist_atomic(updated_table, "runs", schema=runs.schema())
 
     def mark_run_failed(
         self,
@@ -216,15 +139,23 @@ class RunStore:
         error: str,
     ) -> None:
         """Update ``runs`` when a stage fails."""
-        sql = """
-            UPDATE runs
-            SET status = 'failed',
-                finished_at = ?,
-                duration_seconds = ?,
-                error = ?
-            WHERE run_id = ?
-        """
-        self.storage.execute_query(sql, [finished_at, duration_seconds, error, str(run_id)])
+        runs = self.storage.read_table("runs")
+        run_id_literal = ibis.literal(str(run_id))
+        match_run = runs.run_id.cast("string") == run_id_literal
+
+        updates: dict[str, object] = {
+            "status": ibis.where(match_run, ibis.literal("failed"), runs.status),
+            "finished_at": ibis.where(match_run, ibis.literal(finished_at), runs.finished_at),
+            "error": ibis.where(match_run, ibis.literal(error), runs.error),
+        }
+
+        if "duration_seconds" in runs.columns:
+            updates["duration_seconds"] = ibis.where(
+                match_run, ibis.literal(duration_seconds), runs.duration_seconds
+            )
+
+        updated_table = runs.mutate(**updates)
+        self.storage.persist_atomic(updated_table, "runs", schema=runs.schema())
 
     def __enter__(self) -> Self:
         return self
