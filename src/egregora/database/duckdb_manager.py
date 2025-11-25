@@ -47,7 +47,7 @@ import ibis
 from ibis.expr.types import Table
 
 from egregora.database import schemas
-from egregora.database.ir_schema import IR_MESSAGE_SCHEMA, quote_identifier
+from egregora.database.ir_schema import quote_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -67,40 +67,6 @@ class SequenceState:
         if self.last_value is None:
             return self.start_value
         return self.last_value + self.increment_by
-
-
-def combine_with_enrichment_rows(
-    messages_table: Table,
-    new_rows: list[dict],
-    schema: ibis.Schema | None = None,
-) -> Table:
-    """Combines a base messages table with new enrichment rows."""
-    target_schema = schema or IR_MESSAGE_SCHEMA
-    messages_table_filtered = messages_table.select(*target_schema.names)
-
-    # Ensure timestamps are UTC
-    if "ts" in messages_table_filtered.columns:
-        messages_table_filtered = messages_table_filtered.mutate(
-            ts=messages_table_filtered.ts.cast("timestamp('UTC')")
-        )
-    elif "timestamp" in messages_table_filtered.columns:
-        messages_table_filtered = messages_table_filtered.mutate(
-            timestamp=messages_table_filtered.timestamp.cast("timestamp('UTC', 9)")
-        )
-
-    messages_table_filtered = messages_table_filtered.cast(target_schema)
-
-    if new_rows:
-        normalized_rows = [{column: row.get(column) for column in target_schema.names} for row in new_rows]
-        enrichment_table = ibis.memtable(normalized_rows).cast(target_schema)
-        combined = messages_table_filtered.union(enrichment_table, distinct=False)
-
-        sort_col = "ts" if "ts" in target_schema.names else "timestamp"
-        combined = combined.order_by(sort_col)
-    else:
-        combined = messages_table_filtered
-
-    return combined
 
 
 class DuckDBStorageManager:
@@ -295,17 +261,22 @@ class DuckDBStorageManager:
             msg = "Append mode requires checkpoint=True"
             raise ValueError(msg)
 
-    def persist_atomic(self, table: Table, name: str, schema: ibis.Schema | None = None) -> None:
+    def persist_atomic(self, table: Table, name: str, schema: ibis.Schema) -> None:
         """Persist an Ibis table to a DuckDB table atomically using a transaction.
 
         This preserves existing table properties (like indexes) by performing a
         DELETE + INSERT transaction instead of dropping and recreating the table.
+
+        Args:
+            table: Ibis table to persist
+            name: Target table name (must be valid SQL identifier)
+            schema: Table schema to use for validation and column selection
         """
         if not re.fullmatch("[A-Za-z_][A-Za-z0-9_]*", name):
             msg = "target_table must be a valid DuckDB identifier"
             raise ValueError(msg)
 
-        target_schema = schema or IR_MESSAGE_SCHEMA
+        target_schema = schema
         schemas.create_table_if_not_exists(self._conn, name, target_schema)
 
         quoted_table = quote_identifier(name)
@@ -629,7 +600,6 @@ def duckdb_backend() -> ibis.BaseBackend:
 
 __all__ = [
     "DuckDBStorageManager",
-    "combine_with_enrichment_rows",
     "duckdb_backend",
     "quote_identifier",
     "temp_storage",

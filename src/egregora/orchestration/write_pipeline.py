@@ -40,6 +40,7 @@ from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.run_store import RunStore
 from egregora.database.tracking import record_run
 from egregora.database.validation import validate_ir_schema
 from egregora.database.views import daily_aggregates_view
@@ -1336,7 +1337,7 @@ def _record_run_start(runs_conn, run_id: uuid.UUID, started_at: datetime) -> Non
 
 
 def _record_run_completion(
-    runs_conn,
+    run_store: RunStore | None,
     run_id: uuid.UUID,
     started_at: datetime,
     results: dict[str, dict[str, list[str]]],
@@ -1344,13 +1345,13 @@ def _record_run_completion(
     """Record successful completion of a pipeline run.
 
     Args:
-        runs_conn: DuckDB connection for run tracking
+        run_store: Run store for tracking (None to skip tracking)
         run_id: Unique identifier for this run
         started_at: Timestamp when run started
         results: Results dict mapping window labels to posts/profiles
 
     """
-    if runs_conn is None:
+    if run_store is None:
         return
 
     try:
@@ -1361,16 +1362,11 @@ def _record_run_completion(
         total_profiles = sum(len(r.get("profiles", [])) for r in results.values())
         num_windows = len(results)
 
-        runs_conn.execute(
-            """
-            UPDATE runs
-            SET status = 'completed',
-                finished_at = ?,
-                duration_seconds = ?,
-                rows_out = ?
-            WHERE run_id = ?
-            """,
-            [finished_at, duration_seconds, total_posts + total_profiles, str(run_id)],
+        run_store.mark_run_completed(
+            run_id=run_id,
+            finished_at=finished_at,
+            duration_seconds=duration_seconds,
+            rows_out=total_posts + total_profiles,
         )
         logger.debug(
             "Recorded pipeline run: %s (posts=%d, profiles=%d, windows=%d)",
@@ -1383,17 +1379,17 @@ def _record_run_completion(
         logger.debug("Failed to record run completion: %s", exc)
 
 
-def _record_run_failure(runs_conn, run_id: uuid.UUID, started_at: datetime, exc: Exception) -> None:
+def _record_run_failure(run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime, exc: Exception) -> None:
     """Record failure of a pipeline run.
 
     Args:
-        runs_conn: DuckDB connection for run tracking
+        run_store: Run store for tracking (None to skip tracking)
         run_id: Unique identifier for this run
         started_at: Timestamp when run started
         exc: Exception that caused the failure
 
     """
-    if runs_conn is None:
+    if run_store is None:
         return
 
     try:
@@ -1401,16 +1397,11 @@ def _record_run_failure(runs_conn, run_id: uuid.UUID, started_at: datetime, exc:
         duration_seconds = (finished_at - started_at).total_seconds()
         error_msg = f"{type(exc).__name__}: {exc!s}"
 
-        runs_conn.execute(
-            """
-            UPDATE runs
-            SET status = 'failed',
-                finished_at = ?,
-                duration_seconds = ?,
-                error = ?
-            WHERE run_id = ?
-            """,
-            [finished_at, duration_seconds, error_msg[:500], str(run_id)],
+        run_store.mark_run_failed(
+            run_id=run_id,
+            finished_at=finished_at,
+            duration_seconds=duration_seconds,
+            error=error_msg[:500],
         )
     except Exception as tracking_exc:  # noqa: BLE001
         logger.debug("Failed to record run failure: %s", tracking_exc)
@@ -1449,9 +1440,15 @@ def run(  # noqa: PLR0913
     with _pipeline_environment(
         output_dir, config, client, run_id, started_at, source, input_path, refresh
     ) as (ctx, runs_backend):
-        # Get DuckDB connection from Ibis backend for run tracking
+        # Create RunStore from backend for abstracted run tracking
         runs_conn = getattr(runs_backend, "con", None)
-        if runs_conn is None:
+        run_store = None
+        if runs_conn is not None:
+            # Wrap the raw connection in a DuckDBStorageManager
+            temp_storage = DuckDBStorageManager(db_path=None)
+            temp_storage._conn = runs_conn
+            run_store = RunStore(temp_storage)
+        else:
             logger.warning("Unable to access DuckDB connection for run tracking - runs will not be recorded")
 
         # Record run start
@@ -1476,13 +1473,13 @@ def run(  # noqa: PLR0913
                 logger.exception("[red]Failed to generate statistics page (non-critical)[/]")
 
             # Update run to completed
-            _record_run_completion(runs_conn, run_id, started_at, results)
+            _record_run_completion(run_store, run_id, started_at, results)
 
             logger.info("[bold green]🎉 Pipeline completed successfully![/]")
 
         except Exception as exc:
             # Update run to failed
-            _record_run_failure(runs_conn, run_id, started_at, exc)
+            _record_run_failure(run_store, run_id, started_at, exc)
             raise  # Re-raise original exception
 
         return results

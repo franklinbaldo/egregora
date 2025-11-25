@@ -9,14 +9,26 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Protocol, Self
 
 if TYPE_CHECKING:
-    from egregora.database.duckdb_manager import DuckDBStorageManager
+    # Use Protocol for abstraction instead of concrete implementation
+    from egregora.database.protocols import StorageProtocol
 
 
 class RunStore:
-    def __init__(self, storage: DuckDBStorageManager) -> None:
+    """Repository for run tracking operations.
+
+    Abstracts run persistence logic away from the orchestration layer,
+    working with any storage backend that implements StorageProtocol.
+    """
+
+    def __init__(self, storage: StorageProtocol) -> None:
+        """Initialize run store with a storage backend.
+
+        Args:
+            storage: Storage backend implementing StorageProtocol
+        """
         self.storage = storage
 
     def _runs_duration_expression(self) -> str:

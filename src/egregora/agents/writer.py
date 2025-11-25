@@ -48,7 +48,6 @@ from egregora.agents.shared.rag import (
 )
 from egregora.config.settings import EgregoraConfig, RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.knowledge.profiles import get_active_authors, read_profile
 from egregora.output_adapters import output_registry
 from egregora.resources.prompts import PromptManager, render_prompt
@@ -168,7 +167,7 @@ class WriterResources:
     # Knowledge Stores
     rag_store: VectorStore | None
     annotations_store: AnnotationStore | None
-    storage: DuckDBStorageManager | None  # Required for RAG indexing
+    storage: Any | None  # StorageProtocol - Required for RAG indexing
 
     # Configuration required for tools
     embedding_model: str
