@@ -285,6 +285,18 @@ def _collect_document_metadata(output_format: OutputAdapter) -> tuple[list[dict[
             continue
 
         source_path = document.metadata.get("source_path")
+        if not source_path:
+            resolver = getattr(output_format, "resolve_document_path", None)
+            if callable(resolver):
+                try:
+                    resolved = resolver(document.type, identifier)
+                except TypeError:
+                    # Support adapters that accept only the identifier parameter
+                    resolved = resolver(identifier)
+
+                if resolved:
+                    source_path = str(resolved)
+
         # Note: source_path might be missing if the document was not loaded from a filesystem adapter
         # that populates it (e.g. MkDocsAdapter populates it). Without source_path, we can't index
         # the document as it requires a physical path for the vector store schema.
