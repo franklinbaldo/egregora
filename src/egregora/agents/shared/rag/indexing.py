@@ -288,6 +288,12 @@ def _collect_document_metadata(output_format: OutputAdapter) -> tuple[list[dict[
         # Note: source_path might be missing if the document was not loaded from a filesystem adapter
         # that populates it (e.g. MkDocsAdapter populates it). Without source_path, we can't index
         # the document as it requires a physical path for the vector store schema.
+        if not source_path and hasattr(output_format, "resolve_document_path"):
+            try:
+                source_path = str(output_format.resolve_document_path(identifier))
+            except (ValueError, RuntimeError, OSError) as e:
+                logger.warning("Failed to resolve identifier %s: %s", identifier, e)
+                source_path = ""
 
         rows.append(
             {
