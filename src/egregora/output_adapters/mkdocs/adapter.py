@@ -958,29 +958,28 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             self.media_dir / "urls", DocumentType.ENRICHMENT_URL, doc_type, recursive=True
         )
 
-    def resolve_document_path(self, identifier: str) -> Path:
-        """Resolve MkDocs storage identifier (relative path) to absolute filesystem path.
+    def _documents_from_dir(
+        self,
+        directory: Path,
+        doc_type: DocumentType,
+        *,
+        recursive: bool = False,
+        exclude_names: set[str] | None = None,
+    ) -> list[Document]:
+        if not directory or not directory.exists():
+            return []
 
-        Args:
-            identifier: Relative path from site_root (e.g., "posts/2025-01-10-my-post.md")
-
-        Returns:
-            Path: Absolute filesystem path
-
-        Raises:
-            RuntimeError: If output format not initialized
-
-        Example:
-            >>> format.resolve_document_path("posts/2025-01-10-my-post.md")
-            Path("/path/to/site/posts/2025-01-10-my-post.md")
-
-        """
-        if not hasattr(self, "_site_root") or self._site_root is None:
-            msg = "MkDocsOutputAdapter not initialized - call initialize() first"
-            raise RuntimeError(msg)
-
-        # MkDocs identifiers are relative paths from site_root
-        return (self._site_root / identifier).resolve()
+        documents: list[Document] = []
+        glob_func = directory.rglob if recursive else directory.glob
+        for path in glob_func("*.md"):
+            if not path.is_file():
+                continue
+            if exclude_names and path.name in exclude_names:
+                continue
+            doc = self._document_from_path(path, doc_type)
+            if doc:
+                documents.append(doc)
+        return documents
 
     def _list_from_dir(
         self,

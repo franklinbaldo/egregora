@@ -41,13 +41,7 @@ from egregora.agents.model_limits import (
     get_model_context_limit,
     validate_prompt_fits,
 )
-from egregora.agents.shared.rag import (
-    VectorStore,
-    embed_query_text,
-    index_documents_for_rag,
-    is_rag_available,
-    query_media,
-)
+from egregora.agents.shared.rag import VectorStore
 from egregora.config.settings import EgregoraConfig, RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors, read_profile
@@ -261,9 +255,8 @@ def register_writer_tools(  # noqa: C901
             if not ctx.deps.resources.rag_store:
                 return SearchMediaResult(results=[])
 
-            results = query_media(
+            results = ctx.deps.resources.rag_store.query_media(
                 query=query,
-                store=ctx.deps.resources.rag_store,
                 media_types=media_types,
                 top_k=limit,
                 min_similarity_threshold=0.7,
@@ -384,7 +377,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
             return cached_context
 
     # Perform Search
-    query_vector = embed_query_text(query_text, model=embedding_model)
+    query_vector = VectorStore.embed_query(query_text, model=embedding_model)
     search_results = store.search(
         query_vec=query_vector,
         top_k=top_k,
@@ -820,7 +813,7 @@ def write_posts_with_pydantic_agent(
     model_name = test_model if test_model is not None else config.models.writer
     agent = Agent[WriterDeps, WriterAgentReturn](model=model_name, deps_type=WriterDeps)
     register_writer_tools(
-        agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available()
+        agent, enable_banner=is_banner_generation_available(), enable_rag=VectorStore.is_available()
     )
 
     _validate_prompt_fits(prompt, model_name, config, context.window_label)
@@ -952,15 +945,13 @@ def _index_new_content_in_rag(
         return
 
     try:
-        indexed_count = index_documents_for_rag(
+        indexed_count = resources.rag_store.index_documents(
             resources.output,
-            resources.rag_store.parquet_path.parent,
-            resources.storage,
             embedding_model=resources.embedding_model,
         )
         if indexed_count > 0:
             logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
-    except (ibis.common.exceptions.IbisError, duckdb.Error, OSError) as e:
+    except (ibis.common.exceptions.IbisError, OSError) as e:
         logger.warning("Failed to update RAG index after writing: %s", e)
 
 
