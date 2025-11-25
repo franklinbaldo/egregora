@@ -16,7 +16,6 @@ from typing import NewType
 from egregora.data_primitives.document import Document, DocumentCollection, DocumentType, MediaAsset
 from egregora.data_primitives.protocols import (
     DocumentMetadata,
-    OutputAdapter,
     OutputSink,
     SiteScaffolder,
     UrlContext,
@@ -37,8 +36,6 @@ __all__ = [
     "GroupSlug",
     "MediaAsset",
     "PostSlug",
-    # Protocols (legacy/backward compatibility)
-    "OutputAdapter",
     # Protocols (ISP-compliant)
     "OutputSink",
     "SiteScaffolder",

@@ -23,7 +23,7 @@ from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.utils.frontmatter_utils import parse_frontmatter
 
 if TYPE_CHECKING:
-    from egregora.data_primitives.protocols import OutputAdapter
+    from egregora.data_primitives.protocols import OutputSink
 
 logger = logging.getLogger(__name__)
 
@@ -265,7 +265,7 @@ def index_document(
     return len(chunks)
 
 
-def _collect_document_metadata(output_format: OutputAdapter) -> tuple[list[dict[str, Any]], int]:
+def _collect_document_metadata(output_format: OutputSink) -> tuple[list[dict[str, Any]], int]:
     """Collect metadata from all documents in the output adapter.
 
     Args:
@@ -371,7 +371,7 @@ def _index_new_documents(to_index, store: VectorStore, *, embedding_model: str) 
 
 
 def index_documents_for_rag(
-    output_format: OutputAdapter,
+    output_format: OutputSink,
     rag_dir: Path,
     storage: DuckDBStorageManager,
     *,

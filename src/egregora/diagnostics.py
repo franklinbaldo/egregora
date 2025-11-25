@@ -108,9 +108,10 @@ def check_required_packages() -> DiagnosticResult:
 
 def check_api_key() -> DiagnosticResult:
     """Check if GOOGLE_API_KEY is configured."""
-    api_key = os.getenv("GOOGLE_API_KEY")
+    from egregora.config import get_google_api_key, google_api_key_status
 
-    if api_key:
+    if google_api_key_status():
+        api_key = get_google_api_key()
         # Mask the key for security
         masked = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > MIN_API_KEY_LENGTH_FOR_MASKING else "***"
         return DiagnosticResult(
@@ -179,6 +180,10 @@ def check_duckdb_extensions() -> DiagnosticResult:
             conn.close()
 
     except Exception as e:  # noqa: BLE001
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.exception("Failed to check VSS extension")
         return DiagnosticResult(
             check="DuckDB VSS Extension",
             status=HealthStatus.ERROR,
