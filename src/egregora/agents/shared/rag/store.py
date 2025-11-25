@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import ibis
+import ibis.expr.datatypes as dt
 import lancedb
 
 from egregora.config import EMBEDDING_DIM
@@ -39,6 +40,31 @@ VECTOR_COLUMNS = [
     "message_date",
     "author_uuid",
 ]
+
+VECTOR_STORE_SCHEMA = ibis.schema(
+    {
+        "chunk_id": dt.string,
+        "document_type": dt.string,
+        "document_id": dt.string,
+        "source_path": dt.string,
+        "source_mtime_ns": dt.int64,
+        "chunk_index": dt.int64,
+        "content": dt.string,
+        "embedding": dt.Array(dt.float32),
+        "tags": dt.Array(dt.string),
+        "category": dt.string,
+        "authors": dt.Array(dt.string),
+        "post_slug": dt.string,
+        "post_title": dt.string,
+        "post_date": dt.date,
+        "media_uuid": dt.string,
+        "media_type": dt.string,
+        "media_path": dt.string,
+        "original_filename": dt.string,
+        "message_date": dt.timestamp("UTC"),
+        "author_uuid": dt.string,
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -283,6 +309,31 @@ class VectorStore:
 
     def table_exists(self) -> bool:
         return self._table is not None
+
+    def get_indexed_sources_table(self) -> ibis.Table:
+        """Return indexed sources as an Ibis table for delta detection."""
+
+        schema = ibis.schema(
+            {
+                "source_path": dt.string,
+                "source_mtime_ns": dt.int64,
+            }
+        )
+
+        if self._table is None:
+            return ibis.memtable([], schema=schema)
+
+        arrow_table = self._table.to_arrow(columns=["source_path", "source_mtime_ns"])
+        return ibis.memtable(arrow_table.to_pylist(), schema=schema)
+
+    def get_indexed_sources(self) -> dict[str, int]:
+        """Return mapping of source paths to mtime for incremental indexing."""
+
+        if self._table is None:
+            return {}
+
+        arrow_table = self._table.to_arrow(columns=["source_path", "source_mtime_ns"])
+        return {row["source_path"]: row["source_mtime_ns"] for row in arrow_table.to_pylist()}
 
 
 def is_rag_available() -> bool:
