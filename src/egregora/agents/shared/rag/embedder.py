@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Constants
 GENAI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+RETRY_DELAY_PATTERN = re.compile(r"(\d+)s")
 
 
 def _get_timeout() -> float:
@@ -44,7 +45,7 @@ def _parse_retry_delay(error_response: dict[str, Any]) -> float:
         for detail in details:
             if detail.get("@type") == "type.googleapis.com/google.rpc.RetryInfo":
                 retry_delay = detail.get("retryDelay", "10s")
-                match = re.match(r"(\d+)s", retry_delay)
+                match = RETRY_DELAY_PATTERN.match(retry_delay)
                 if match:
                     # Use 100% of the suggested delay (respect server guidance)
                     return max(5.0, float(match.group(1)))

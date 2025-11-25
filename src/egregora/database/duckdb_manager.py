@@ -47,12 +47,9 @@ import ibis
 from ibis.expr.types import Table
 
 from egregora.database import schemas
-from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
+from egregora.database.ir_schema import IR_MESSAGE_SCHEMA, quote_identifier
 
 logger = logging.getLogger(__name__)
-
-
-from egregora.database.ir_schema import quote_identifier
 
 
 @dataclass(frozen=True)

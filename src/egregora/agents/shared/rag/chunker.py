@@ -25,6 +25,10 @@ DEFAULT_MAX_TOKENS = 1800  # Default maximum tokens per chunk
 DEFAULT_OVERLAP_TOKENS = 150  # Default overlap between chunks for context
 PARAGRAPH_SEPARATOR_BYTES = 2  # Byte length of "\n\n" separator
 
+# Regex patterns
+POST_FILENAME_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}-(.+)")
+DATE_FILENAME_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
+
 
 class _ChunkBuilder:
     """State manager for building text chunks with overlap.
@@ -181,26 +185,41 @@ def _paragraphs_byte_length(paragraphs: list[str]) -> int:
 
 
 def _split_text_by_bytes(text: str, limit: int) -> list[str]:
-    """Split a unicode string into chunks that each fit within the byte limit."""
-    if len(text.encode("utf-8")) <= limit:
+    """Split a unicode string into chunks that each fit within the byte limit.
+
+    Optimized implementation using binary slicing.
+    """
+    encoded = text.encode("utf-8")
+    if len(encoded) <= limit:
         return [text]
 
     chunks: list[str] = []
-    current: list[str] = []
-    current_bytes = 0
+    start = 0
+    total_len = len(encoded)
 
-    for char in text:
-        char_bytes = len(char.encode("utf-8"))
-        if current_bytes + char_bytes > limit and current:
-            chunks.append("".join(current))
-            current = [char]
-            current_bytes = char_bytes
-        else:
-            current.append(char)
-            current_bytes += char_bytes
+    while start < total_len:
+        end = start + limit
+        if end >= total_len:
+            chunks.append(encoded[start:].decode("utf-8", errors="ignore"))
+            break
 
-    if current:
-        chunks.append("".join(current))
+        # Adjust end to avoid splitting multi-byte characters
+        # UTF-8 continuation bytes start with 10xxxxxx (0x80-0xBF)
+        while end > start and (encoded[end] & 0xC0) == 0x80:
+            end -= 1
+
+        if end == start:
+            # If a single character is longer than limit (unlikely with reasonable limits)
+            # or we are stuck, force forward to avoid infinite loop.
+            # But with standard UTF-8 and reasonable limits, this shouldn't happen.
+            # Fallback to hard cut if needed, but 'ignore' handles valid chars.
+            # In practice, for RAG chunking, we can just take the slice.
+             end = start + limit
+
+        chunk_bytes = encoded[start:end]
+        chunks.append(chunk_bytes.decode("utf-8", errors="ignore"))
+        start = end
+
     return chunks
 
 
@@ -272,7 +291,7 @@ def parse_post(post_path: Path) -> tuple[dict[str, Any], str]:
     # Extract slug from filename if not in frontmatter
     if "slug" not in metadata:
         filename = post_path.stem
-        match = re.match("\\d{4}-\\d{2}-\\d{2}-(.+)", filename)
+        match = POST_FILENAME_PATTERN.match(filename)
         if match:
             metadata["slug"] = match.group(1)
         else:
@@ -285,7 +304,7 @@ def parse_post(post_path: Path) -> tuple[dict[str, Any], str]:
     # Extract date from filename if not in frontmatter
     if "date" not in metadata:
         filename = post_path.stem
-        match = re.match("(\\d{4}-\\d{2}-\\d{2})", filename)
+        match = DATE_FILENAME_PATTERN.match(filename)
         if match:
             metadata["date"] = match.group(1)
         else:

@@ -100,22 +100,23 @@ def _normalize_text(value: str) -> str:
     return _INVISIBLE_MARKS.sub("", normalized)
 
 
+# Define parsing strategies in order of preference
+_DATE_PARSING_STRATEGIES = [
+    lambda x: date_parser.isoparse(x),  # Try ISO format first
+    lambda x: date_parser.parse(x, dayfirst=True),  # Day-first format (DD/MM/YYYY)
+    lambda x: date_parser.parse(x, dayfirst=False),  # Month-first format (MM/DD/YYYY)
+]
+
+
 def _parse_message_date(token: str) -> date | None:
     """Parse date token into a date object using multiple parsing strategies."""
     normalized = token.strip()
     if not normalized:
         return None
 
-    # Define parsing strategies in order of preference
-    parsing_strategies = [
-        lambda: date_parser.isoparse(normalized),  # Try ISO format first
-        lambda: date_parser.parse(normalized, dayfirst=True),  # Day-first format (DD/MM/YYYY)
-        lambda: date_parser.parse(normalized, dayfirst=False),  # Month-first format (MM/DD/YYYY)
-    ]
-
-    for strategy in parsing_strategies:
+    for strategy in _DATE_PARSING_STRATEGIES:
         try:
-            parsed = strategy()
+            parsed = strategy(normalized)
             parsed = parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
             return parsed.date()
         except (TypeError, ValueError, OverflowError):

@@ -10,6 +10,7 @@ It provides standard helpers for:
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -21,12 +22,12 @@ from egregora.utils.paths import safe_path_join, slugify
 logger = logging.getLogger(__name__)
 
 ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
+_DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
 def _extract_clean_date(date_str: str) -> str:
     """Extract a clean ``YYYY-MM-DD`` date from user-provided strings."""
     import datetime
-    import re
 
     date_str = date_str.strip()
 
@@ -37,7 +38,7 @@ def _extract_clean_date(date_str: str) -> str:
     except (ValueError, AttributeError):
         pass
 
-    match = re.match(r"(\d{4}-\d{2}-\d{2})", date_str)
+    match = _DATE_PATTERN.match(date_str)
     if match:
         clean_date = match.group(1)
         try:

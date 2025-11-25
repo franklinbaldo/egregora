@@ -192,7 +192,8 @@ class AnnotationStore:
     @property
     def _connection(self) -> duckdb.DuckDBPyConnection:
         """Return the underlying DuckDB connection."""
-        return self.storage.conn
+        # Access protected member directly as this is an internal component
+        return self.storage._conn
 
     # ========================================================================
     # Schema Initialization
@@ -396,8 +397,7 @@ class AnnotationStore:
         elif isinstance(created_at_obj, datetime):
             created_at = created_at_obj
         else:
-            dt_str = str(created_at_obj).replace("Z", "+00:00")
-            created_at = datetime.fromisoformat(dt_str)
+            created_at = datetime.fromisoformat(str(created_at_obj))
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=UTC)
         else:

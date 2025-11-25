@@ -431,16 +431,21 @@ def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
     if not top_authors:
         return ""
     logger.info("Loading profiles for %s active authors", len(top_authors))
-    profiles_context = "\n\n## Active Participants (Profiles):\n"
-    profiles_context += "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n"
+
+    parts = [
+        "\n\n## Active Participants (Profiles):\n",
+        "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n"
+    ]
+
     for author_uuid in top_authors:
         profile_content = read_profile(author_uuid, profiles_dir)
+        parts.append(f"### Author: {author_uuid}\n")
         if profile_content:
-            profiles_context += f"### Author: {author_uuid}\n"
-            profiles_context += f"{profile_content}\n\n"
+            parts.append(f"{profile_content}\n\n")
         else:
-            profiles_context += f"### Author: {author_uuid}\n"
-            profiles_context += "(No profile yet - first appearance)\n\n"
+            parts.append("(No profile yet - first appearance)\n\n")
+
+    profiles_context = "".join(parts)
     logger.info("Profiles context: %s characters", len(profiles_context))
     return profiles_context
 
