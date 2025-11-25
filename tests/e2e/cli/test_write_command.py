@@ -21,9 +21,7 @@ from egregora.cli.main import app
 from tests.e2e.test_config import (
     TestDates,
     TestTimezones,
-    WindowConfig,
     assert_command_success,
-    assert_directory_exists,
     build_write_command_args,
 )
 
@@ -287,9 +285,7 @@ class TestWriteCommandDateFiltering:
 
         assert result.exit_code == 1, "Should fail with invalid date format"
 
-    def test_write_command_with_timezone(
-        self, test_zip_file, test_output_dir, test_timezones: TestTimezones
-    ):
+    def test_write_command_with_timezone(self, test_zip_file, test_output_dir, test_timezones: TestTimezones):
         """Test write command with timezone specification."""
         args = build_write_command_args(test_zip_file, test_output_dir, timezone=test_timezones.VALID)
         result = runner.invoke(app, args)

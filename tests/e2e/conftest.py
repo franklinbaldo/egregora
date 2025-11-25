@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.e2e.test_config import TestDates, TestTimezones, TestTimeouts, WindowConfig
+from tests.e2e.test_config import TestDates, TestTimeouts, TestTimezones, WindowConfig
 
 
 @pytest.fixture(autouse=True)
