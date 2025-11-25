@@ -15,7 +15,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import duckdb
 import ibis
 import ibis.common.exceptions
 from ibis.expr.types import Table
