@@ -803,7 +803,6 @@ __all__ = [
     "save_egregora_config",
 ]
 
-
 def get_google_api_key() -> str:
     """Get Google API key from environment."""
     import os

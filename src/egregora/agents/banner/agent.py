@@ -10,6 +10,7 @@ interpretation and generation in a single API call.
 from __future__ import annotations
 
 import logging
+import os
 
 from google import genai
 from google.genai import types
