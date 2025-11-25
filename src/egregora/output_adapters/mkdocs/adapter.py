@@ -980,6 +980,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             if doc:
                 documents.append(doc)
         return documents
+
     def resolve_document_path(self, identifier: str) -> Path:
         """Resolve MkDocs storage identifier (relative path) to absolute filesystem path.
 

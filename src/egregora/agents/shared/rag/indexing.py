@@ -23,8 +23,7 @@ from egregora.utils.frontmatter_utils import parse_frontmatter
 
 if TYPE_CHECKING:
     from egregora.agents.shared.rag.store import VectorStore
-    from egregora.data_primitives.protocols import OutputAdapter
-    from egregora.data_primitives.protocols import OutputSink
+    from egregora.data_primitives.protocols import OutputAdapter, OutputSink
 
 # Use schema directly to avoid circular import with store.py
 VECTOR_STORE_SCHEMA = ir_schema.RAG_CHUNKS_SCHEMA
