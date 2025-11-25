@@ -64,7 +64,7 @@ if TYPE_CHECKING:
     from google import genai
 
     from egregora.agents.shared.annotations import AnnotationStore
-    from egregora.data_primitives.protocols import OutputAdapter
+    from egregora.data_primitives.protocols import OutputSink
     from egregora.orchestration.context import PipelineContext
 
 logger = logging.getLogger(__name__)
@@ -163,7 +163,7 @@ class WriterResources:
     """Explicit resources required by the writer agent."""
 
     # The Sink/Source for posts and profiles
-    output: OutputAdapter
+    output: OutputSink
 
     # Knowledge Stores
     rag_store: VectorStore | None
@@ -200,7 +200,7 @@ class WriterDeps:
     window_label: str
 
     @property
-    def output_sink(self) -> OutputAdapter:
+    def output_sink(self) -> OutputSink:
         return self.resources.output
 
 
@@ -639,7 +639,7 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
 def _save_journal_to_file(  # noqa: PLR0913
     intercalated_log: list[JournalEntry],
     window_label: str,
-    output_format: OutputAdapter,
+    output_format: OutputSink,
     posts_published: int,
     profiles_updated: int,
     window_start: datetime,

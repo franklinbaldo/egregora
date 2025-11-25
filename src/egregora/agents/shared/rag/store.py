@@ -36,6 +36,7 @@ DEDUP_MAX_RANK = 2
 
 VECTOR_STORE_SCHEMA = database_schema.RAG_CHUNKS_SCHEMA
 SEARCH_RESULT_SCHEMA = database_schema.RAG_SEARCH_RESULT_SCHEMA
+INDEXED_SOURCES_SCHEMA = ibis.schema({"source_path": "string", "source_mtime_ns": "int64"})
 
 
 @dataclass(frozen=True)
@@ -64,7 +65,6 @@ class VectorStore:
         self.parquet_path = parquet_path
         self.index_path = parquet_path.with_suffix(".duckdb")
         self.storage = storage
-        self.backend = storage  # For backward compatibility with tests
 
         # Use Ibis backend directly from storage manager
         self._client = storage.ibis_conn
@@ -385,7 +385,7 @@ class VectorStore:
             logger.warning("Vector store does not exist yet")
             return False
         self._ensure_dataset_loaded()
-        return self.backend.table_exists(TABLE_NAME)
+        return self.storage.table_exists(TABLE_NAME)
 
     def _validate_and_normalize_mode(self, mode: str) -> str:
         """Normalize and validate search mode, switching to exact if VSS unavailable."""
@@ -744,9 +744,7 @@ class VectorStore:
     def get_indexed_sources_table(self) -> Table:
         """Get indexed source files as an Ibis table for efficient delta detection."""
         if not self.parquet_path.exists():
-            return ibis.memtable(
-                [], schema=ibis.schema({"source_path": "string", "source_mtime_ns": "int64"})
-            )
+            return ibis.memtable([], schema=INDEXED_SOURCES_SCHEMA)
 
         try:
             self._ensure_dataset_loaded()
@@ -756,9 +754,7 @@ class VectorStore:
             )
         except (duckdb.Error, IbisError) as e:
             logger.warning("Failed to get indexed sources table: %s", e)
-            return ibis.memtable(
-                [], schema=ibis.schema({"source_path": "string", "source_mtime_ns": "int64"})
-            )
+            return ibis.memtable([], schema=INDEXED_SOURCES_SCHEMA)
 
 
 __all__ = [
