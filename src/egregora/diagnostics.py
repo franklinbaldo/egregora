@@ -15,7 +15,6 @@ Usage:
 """
 
 import importlib.util
-import os
 import subprocess
 from dataclasses import dataclass
 from enum import Enum
@@ -179,7 +178,7 @@ def check_duckdb_extensions() -> DiagnosticResult:
         finally:
             conn.close()
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         import logging
 
         logger = logging.getLogger(__name__)
