@@ -43,7 +43,6 @@ class PipelineConfig:
     @cached_property
     def site_paths(self) -> dict[str, Path | str | None]:
         """Derive site paths from configuration settings."""
-
         return derive_mkdocs_paths(self.output_dir, config=self.config)
 
     @property

@@ -8,14 +8,13 @@ from __future__ import annotations
 
 import logging
 import uuid
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
 import ibis
 from google import genai
-
-from dataclasses import replace
 
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.shared.rag import VectorStore
@@ -196,7 +195,6 @@ class PipelineFactory:
     @staticmethod
     def resolve_site_paths_or_raise(config_obj: PipelineConfig) -> dict[str, any]:
         """Resolve site paths for the configured output format and validate structure."""
-
         site_paths = config_obj.site_paths
 
         # Default validation for MkDocs/standard structure

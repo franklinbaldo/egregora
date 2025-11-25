@@ -645,7 +645,6 @@ def _create_database_backends(
 
 def _resolve_site_paths_or_raise(config_obj: PipelineConfig) -> dict[str, any]:
     """Resolve site paths for the configured output format and validate structure."""
-
     site_paths = config_obj.site_paths
 
     # Default validation for MkDocs/standard structure
