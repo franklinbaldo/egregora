@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -21,7 +20,9 @@ def mock_storage():
     # Mock the context manager for connection()
     mock_conn = Mock()
     mock_conn.execute = Mock()
-    storage.connection = Mock(return_value=Mock(__enter__=Mock(return_value=mock_conn), __exit__=Mock(return_value=None)))
+    storage.connection = Mock(
+        return_value=Mock(__enter__=Mock(return_value=mock_conn), __exit__=Mock(return_value=None))
+    )
 
     return storage
 
@@ -46,9 +47,7 @@ class TestVectorStoreIndexDocuments:
             result = vector_store.index_documents(mock_adapter, embedding_model=embedding_model)
 
             # Verify delegation
-            mock_index.assert_called_once_with(
-                mock_adapter, vector_store, embedding_model=embedding_model
-            )
+            mock_index.assert_called_once_with(mock_adapter, vector_store, embedding_model=embedding_model)
             assert result == 5
 
     def test_index_documents_returns_count(self, vector_store):
