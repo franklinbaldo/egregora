@@ -260,14 +260,15 @@ class AnnotationStore:
             raise ValueError(msg)
 
         # Runtime privacy check
-        from egregora.privacy.config import PrivacySettings
-
-        if PrivacySettings.detect_pii:
-            from egregora.privacy.pii import detect_pii
-
-            if detect_pii(sanitized_commentary):
-                msg = "Annotation commentary contains PII"
-                raise ValueError(msg)
+        # TODO: Re-enable when egregora.privacy.pii module is implemented
+        # from egregora.privacy.config import PrivacySettings
+        #
+        # if PrivacySettings.detect_pii:
+        #     from egregora.privacy.pii import detect_pii
+        #
+        #     if detect_pii(sanitized_commentary):
+        #         msg = "Annotation commentary contains PII"
+        #         raise ValueError(msg)
 
         created_at = datetime.now(UTC)
         if sanitized_parent_type == "annotation":

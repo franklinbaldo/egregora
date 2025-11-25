@@ -79,6 +79,13 @@ def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
     console.print("[green]Initialized site. Continuing with processing.[/green]")
 
 
+def _resolve_gemini_key() -> str | None:
+    """Resolve Google Gemini API key from environment."""
+    import os
+
+    return os.environ.get("GOOGLE_API_KEY")
+
+
 @app.command()
 def init(
     output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],

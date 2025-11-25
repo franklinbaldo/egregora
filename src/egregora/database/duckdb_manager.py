@@ -357,6 +357,7 @@ class DuckDBStorageManager:
 
         return self._table_info_cache[cache_key]
 
+
     # ==================================================================
     # Sequence helpers
     # ==================================================================

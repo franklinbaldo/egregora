@@ -145,7 +145,15 @@ class VectorStore:
                     schema[column],
                 )
                 continue
-            self.storage.execute_query(f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN {column} {column_type}")
+            try:
+                self.storage.execute_query(
+                    f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN {column} {column_type}"
+                )
+            except duckdb.CatalogException as e:
+                if "already exists" in str(e):
+                    logger.debug("Column %s already exists in %s, skipping", column, INDEX_META_TABLE)
+                else:
+                    raise
 
     @staticmethod
     def _duckdb_type_from_ibis(dtype: dt.DataType) -> str | None:
