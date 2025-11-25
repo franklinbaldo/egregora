@@ -16,6 +16,7 @@ from ibis import _
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
+
     from egregora.database.duckdb_manager import DuckDBStorageManager
 
 
