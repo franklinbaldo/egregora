@@ -379,9 +379,6 @@ def _index_new_documents(to_index, store: VectorStore, *, embedding_model: str) 
 def index_documents_for_rag(
     output_format: OutputAdapter,
     store: VectorStore,
-    output_format: OutputSink,
-    rag_dir: Path,
-    storage: DuckDBStorageManager,
     *,
     embedding_model: str,
 ) -> int:
