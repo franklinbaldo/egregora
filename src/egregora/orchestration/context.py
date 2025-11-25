@@ -7,9 +7,8 @@ This module defines:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime
-from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -40,10 +39,11 @@ class PipelineConfig:
     output_dir: Path
     url_context: UrlContext | None = None
 
-    @cached_property
-    def site_paths(self) -> dict[str, Path | str | None]:
-        """Derive site paths from configuration settings."""
-        return derive_mkdocs_paths(self.output_dir, config=self.config)
+    site_paths: dict[str, Path | str | None] = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Derive site paths eagerly for frozen, slotted dataclass."""
+        object.__setattr__(self, "site_paths", derive_mkdocs_paths(self.output_dir, config=self.config))
 
     @property
     def site_root(self) -> Path | None:
