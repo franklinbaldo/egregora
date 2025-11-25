@@ -58,63 +58,12 @@ Example:
 
 """
 
-from egregora.agents.shared.rag.chunker import (
-    chunk_document,
-    chunk_from_document,
-    chunk_markdown,
-    estimate_tokens,
-    parse_post,
-)
-from egregora.agents.shared.rag.embedder import (
-    embed_chunks,
-    embed_query_text,
-    embed_text,
-    embed_texts_in_batch,
-    is_rag_available,
-)
-from egregora.agents.shared.rag.indexing import (
-    MediaEnrichmentMetadata,
-    index_all_media,
-    index_document,
-    index_documents_for_rag,
-    index_media_enrichment,
-    index_post,
-)
-from egregora.agents.shared.rag.retriever import (
-    format_rag_context,
-    query_media,
-    query_similar_posts,
-)
 from egregora.agents.shared.rag.store import (
     DatasetMetadata,
     VectorStore,
 )
 
 __all__ = [
-    # Storage & Retrieval
     "DatasetMetadata",
-    # Indexing
-    "MediaEnrichmentMetadata",
     "VectorStore",
-    # Chunking
-    "chunk_document",
-    "chunk_from_document",
-    "chunk_markdown",
-    # Embedding
-    "embed_chunks",
-    "embed_query_text",
-    "embed_text",
-    "embed_texts_in_batch",
-    "estimate_tokens",
-    "format_rag_context",
-    "index_all_media",
-    "index_document",
-    "index_documents_for_rag",
-    "index_media_enrichment",
-    "index_post",
-    "is_rag_available",
-    "parse_post",
-    # Retrieval
-    "query_media",
-    "query_similar_posts",
 ]

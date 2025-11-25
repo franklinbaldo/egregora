@@ -28,13 +28,14 @@ from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import ibis
+import ibis.common.exceptions
 from google import genai
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
 from egregora.agents.model_limits import get_model_context_limit
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.shared.rag import VectorStore, index_all_media
+from egregora.agents.shared.rag import VectorStore
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.document import Document, DocumentType
@@ -737,7 +738,7 @@ def _create_pipeline_context(  # noqa: PLR0913
 
     rag_store = None
     if config.rag.enabled:
-        rag_dir = site_paths["site_root"] / ".egregora" / "rag"
+        rag_dir = site_paths["rag_dir"]
         rag_dir.mkdir(parents=True, exist_ok=True)
         rag_store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
 
@@ -1044,20 +1045,20 @@ def _prepare_pipeline_data(
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
-            from egregora.agents.shared.rag import index_documents_for_rag
-
-            indexed_count = index_documents_for_rag(
+            rag_dir = ctx.site_root / config.paths.rag_dir
+            store = VectorStore(rag_dir / "chunks.parquet", storage=ctx.storage)
+            indexed_count = store.index_documents(
                 output_format,
-                ctx.site_root / ".egregora" / "rag",
-                ctx.storage,
                 embedding_model=embedding_model,
             )
             if indexed_count > 0:
                 logger.info("[green]✓ Indexed[/] %s documents into RAG", indexed_count)
             else:
                 logger.info("[dim]No new documents to index[/]")
-        except Exception:
-            logger.exception("[yellow]⚠️  Failed to index documents into RAG[/]")
+        except (ibis.common.exceptions.IbisError, OSError) as e:
+            # Gracefully degrade on RAG failures (Ibis query errors, file I/O)
+            # Note: DuckDB errors are handled internally by VectorStore
+            logger.warning("[yellow]⚠️  Failed to index documents into RAG: %s[/]", e)
 
     return PreparedPipelineData(
         messages_table=messages_table,
@@ -1089,15 +1090,17 @@ def _index_media_into_rag(
 
     logger.info("[bold cyan]📚 Indexing media into RAG...[/]")
     try:
-        rag_dir = ctx.site_root / ".egregora" / "rag"
+        rag_dir = ctx.site_root / ctx.config.paths.rag_dir
         store = VectorStore(rag_dir / "chunks.parquet", storage=ctx.storage)
-        media_chunks = index_all_media(ctx.docs_dir, store, embedding_model=embedding_model)
+        media_chunks = store.index_media(ctx.docs_dir, embedding_model=embedding_model)
         if media_chunks > 0:
             logger.info("[green]✓ Indexed[/] %s media chunks into RAG", media_chunks)
         else:
             logger.info("[yellow]No media enrichments to index[/]")
-    except Exception:
-        logger.exception("[red]Failed to index media into RAG[/]")
+    except (ibis.common.exceptions.IbisError, OSError) as e:
+        # Gracefully degrade on RAG failures (Ibis query errors, file I/O)
+        # Note: DuckDB errors are handled internally by VectorStore
+        logger.warning("[red]Failed to index media into RAG: %s[/]", e)
 
 
 def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) -> None:

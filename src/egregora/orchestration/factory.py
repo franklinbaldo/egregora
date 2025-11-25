@@ -87,7 +87,7 @@ class PipelineFactory:
 
         rag_store = None
         if config.rag.enabled:
-            rag_dir = site_paths["site_root"] / ".egregora" / "rag"
+            rag_dir = site_paths["rag_dir"]
             rag_dir.mkdir(parents=True, exist_ok=True)
             rag_store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
 

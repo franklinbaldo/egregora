@@ -184,28 +184,6 @@ class OutputSink(Protocol):
 
         """
 
-    def resolve_document_path(self, identifier: str) -> Path:
-        """Resolve storage identifier (from ``list_documents``) to actual filesystem path.
-
-        Enables format-agnostic document reingestion.
-
-        Args:
-            identifier: Storage identifier from list_documents()
-
-        Returns:
-            Absolute filesystem path to the document
-
-        Examples:
-            >>> # MkDocs: identifier is relative path from site_root
-            >>> sink.resolve_document_path("posts/2025-01-10-post.md")
-            Path("/path/to/site/posts/2025-01-10-post.md")
-
-            >>> # Database: identifier is record ID, exports to temp file
-            >>> sink.resolve_document_path("post:123")
-            Path("/tmp/egregora-cache/post-123.md")
-
-        """
-
 
 @runtime_checkable
 class SiteScaffolder(Protocol):

@@ -958,6 +958,29 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             self.media_dir / "urls", DocumentType.ENRICHMENT_URL, doc_type, recursive=True
         )
 
+    def _documents_from_dir(
+        self,
+        directory: Path,
+        doc_type: DocumentType,
+        *,
+        recursive: bool = False,
+        exclude_names: set[str] | None = None,
+    ) -> list[Document]:
+        if not directory or not directory.exists():
+            return []
+
+        documents: list[Document] = []
+        glob_func = directory.rglob if recursive else directory.glob
+        for path in glob_func("*.md"):
+            if not path.is_file():
+                continue
+            if exclude_names and path.name in exclude_names:
+                continue
+            doc = self._document_from_path(path, doc_type)
+            if doc:
+                documents.append(doc)
+        return documents
+
     def resolve_document_path(self, identifier: str) -> Path:
         """Resolve MkDocs storage identifier (relative path) to absolute filesystem path.
 

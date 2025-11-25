@@ -2,11 +2,25 @@
 
 Provides DuckDB VSS-backed vector storage with Parquet persistence for
 chunk embeddings and similarity search.
+
+Design Note: VectorStore uses the Facade pattern
+----------------------------------------------
+VectorStore provides a unified interface to RAG operations (indexing, retrieval,
+embedding) that are implemented across multiple modules (indexing.py, retriever.py,
+embedder.py). To avoid circular import issues, these implementation modules are
+imported lazily within VectorStore methods using local imports. This is an
+intentional design choice that enables clean separation of concerns.
+
+The pattern:
+- Implementation modules import VectorStore via TYPE_CHECKING for type hints
+- VectorStore facade imports implementation modules lazily in methods
+- Clean separation: clients interact with VectorStore, not implementation details
 """
 
 from __future__ import annotations
 
 import logging
+import typing
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -25,6 +39,10 @@ from egregora.database import ir_schema as database_schema
 
 if TYPE_CHECKING:
     from egregora.database.protocols import StorageProtocol, VectorStorageProtocol
+
+# Imports for type checking only to avoid circular dependencies at runtime
+if typing.TYPE_CHECKING:
+    from egregora.data_primitives.protocols import OutputAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -763,6 +781,117 @@ class VectorStore:
         except (duckdb.Error, IbisError) as e:
             logger.warning("Failed to get indexed sources table: %s", e)
             return ibis.memtable([], schema=INDEXED_SOURCES_SCHEMA)
+
+    def index_documents(self, output_format: OutputAdapter, *, embedding_model: str) -> int:
+        """Index documents from an output adapter into the store.
+
+        Gracefully handles DuckDB errors (VSS extension issues, locked files) internally.
+
+        Returns:
+            Number of documents successfully indexed (0 if indexing fails)
+
+        """
+        # Avoid circular import
+        from egregora.agents.shared.rag.indexing import index_documents_for_rag
+
+        try:
+            return index_documents_for_rag(output_format, self, embedding_model=embedding_model)
+        except duckdb.Error as e:
+            # Handle DuckDB-specific errors (VSS extension, locked files, malformed tables)
+            # Don't leak DuckDB errors to callers - this is an implementation detail
+            logger.warning("DuckDB error during document indexing: %s", e)
+            return 0
+
+    def index_media(self, docs_dir: Path, *, embedding_model: str) -> int:
+        """Index media enrichments from the documentation directory.
+
+        Gracefully handles DuckDB errors (VSS extension issues, locked files) internally.
+
+        Returns:
+            Number of media chunks successfully indexed (0 if indexing fails)
+
+        """
+        # Avoid circular import
+        from egregora.agents.shared.rag.indexing import index_all_media
+
+        try:
+            return index_all_media(docs_dir, self, embedding_model=embedding_model)
+        except duckdb.Error as e:
+            # Handle DuckDB-specific errors - don't leak to callers
+            logger.warning("DuckDB error during media indexing: %s", e)
+            return 0
+
+    def query_media(
+        self,
+        query: str,
+        media_types: list[str] | None = None,
+        top_k: int = 5,
+        min_similarity_threshold: float = 0.7,
+        *,
+        deduplicate: bool = True,
+        embedding_model: str,
+        retrieval_mode: str = "ann",
+        retrieval_nprobe: int | None = None,
+        retrieval_overfetch: int | None = None,
+    ) -> Table:
+        """Search for relevant media by description or topic."""
+        # Avoid circular import
+        from egregora.agents.shared.rag.retriever import query_media
+
+        return query_media(
+            query=query,
+            store=self,
+            media_types=media_types,
+            top_k=top_k,
+            min_similarity_threshold=min_similarity_threshold,
+            deduplicate=deduplicate,
+            embedding_model=embedding_model,
+            retrieval_mode=retrieval_mode,
+            retrieval_nprobe=retrieval_nprobe,
+            retrieval_overfetch=retrieval_overfetch,
+        )
+
+    def query_similar_posts(
+        self,
+        table: Table,
+        *,
+        embedding_model: str,
+        top_k: int = 5,
+        deduplicate: bool = True,
+        retrieval_mode: str = "ann",
+        retrieval_nprobe: int | None = None,
+        retrieval_overfetch: int | None = None,
+    ) -> Table:
+        """Find similar previous blog posts for a period's table."""
+        # Avoid circular import
+        from egregora.agents.shared.rag.retriever import query_similar_posts
+
+        return query_similar_posts(
+            table=table,
+            store=self,
+            embedding_model=embedding_model,
+            top_k=top_k,
+            deduplicate=deduplicate,
+            retrieval_mode=retrieval_mode,
+            retrieval_nprobe=retrieval_nprobe,
+            retrieval_overfetch=retrieval_overfetch,
+        )
+
+    @staticmethod
+    def is_available() -> bool:
+        """Check if RAG functionality is available (API key present)."""
+        # Avoid circular import
+        from egregora.agents.shared.rag.embedder import is_rag_available
+
+        return is_rag_available()
+
+    @staticmethod
+    def embed_query(query_text: str, *, model: str) -> list[float]:
+        """Embed a single query string for retrieval."""
+        # Avoid circular import
+        from egregora.agents.shared.rag.embedder import embed_query_text
+
+        return embed_query_text(query_text, model=model)
 
 
 __all__ = [
