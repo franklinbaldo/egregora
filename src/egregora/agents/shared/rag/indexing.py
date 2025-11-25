@@ -571,7 +571,9 @@ def index_specific_documents(
                 continue
 
             chunk_texts = [chunk["content"] for chunk in chunks]
-            embeddings = embed_chunks(chunk_texts, model=embedding_model, task_type="RETRIEVAL_DOCUMENT")
+            embeddings = embed_chunks(
+                chunk_texts, model=embedding_model, task_type="RETRIEVAL_DOCUMENT"
+            )
 
             # Determine source path and mtime
             source_path = doc.metadata.get("source_path")
@@ -599,49 +601,41 @@ def index_specific_documents(
 
                 # Determine document-type specific fields
                 media_fields = {
-                    "media_uuid": None,
-                    "media_type": None,
-                    "media_path": None,
-                    "original_filename": None,
-                    "message_date": None,
-                    "author_uuid": None,
+                    "media_uuid": None, "media_type": None, "media_path": None,
+                    "original_filename": None, "message_date": None, "author_uuid": None
                 }
                 post_fields = {
                     "post_slug": chunk.get("post_slug"),
                     "post_title": chunk.get("post_title"),
-                    "post_date": post_date,
+                    "post_date": post_date
                 }
 
                 if doc.type in (DocumentType.MEDIA, DocumentType.ENRICHMENT_MEDIA):
-                    media_fields.update(
-                        {
-                            "media_uuid": metadata.get("media_uuid") or metadata.get("uuid"),
-                            "media_type": metadata.get("media_type"),
-                            "media_path": metadata.get("media_path"),
-                            "original_filename": metadata.get("original_filename"),
-                            "message_date": _coerce_message_datetime(metadata.get("message_date")),
-                            "author_uuid": metadata.get("author_uuid"),
-                        }
-                    )
-                    post_fields = dict.fromkeys(post_fields)
+                    media_fields.update({
+                        "media_uuid": metadata.get("media_uuid") or metadata.get("uuid"),
+                        "media_type": metadata.get("media_type"),
+                        "media_path": metadata.get("media_path"),
+                        "original_filename": metadata.get("original_filename"),
+                        "message_date": _coerce_message_datetime(metadata.get("message_date")),
+                        "author_uuid": metadata.get("author_uuid"),
+                    })
+                    post_fields = {k: None for k in post_fields}
 
-                all_chunks_rows.append(
-                    {
-                        "chunk_id": f"{doc.document_id}_{i}",
-                        "document_type": doc.type.value,
-                        "document_id": doc.document_id,
-                        "source_path": source_path,
-                        "source_mtime_ns": mtime_ns,
-                        "chunk_index": i,
-                        "content": chunk["content"],
-                        "embedding": embedding,
-                        "tags": tags,
-                        "category": metadata.get("category"),
-                        "authors": authors,
-                        **post_fields,
-                        **media_fields,
-                    }
-                )
+                all_chunks_rows.append({
+                    "chunk_id": f"{doc.document_id}_{i}",
+                    "document_type": doc.type.value,
+                    "document_id": doc.document_id,
+                    "source_path": source_path,
+                    "source_mtime_ns": mtime_ns,
+                    "chunk_index": i,
+                    "content": chunk["content"],
+                    "embedding": embedding,
+                    "tags": tags,
+                    "category": metadata.get("category"),
+                    "authors": authors,
+                    **post_fields,
+                    **media_fields
+                })
 
             total_chunks += len(chunks)
 
