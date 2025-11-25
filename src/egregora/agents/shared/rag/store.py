@@ -323,7 +323,25 @@ class VectorStore:
             return ibis.memtable([], schema=schema)
 
         arrow_table = self._table.to_arrow(columns=["source_path", "source_mtime_ns"])
-        return ibis.memtable(arrow_table.to_pylist(), schema=schema)
+        indexed_sources: dict[str, int] = {}
+
+        for row in arrow_table.to_pylist():
+            source_path = row["source_path"]
+            source_mtime = row["source_mtime_ns"]
+            # Keep the most recent mtime for each source path to avoid duplicates.
+            if source_path not in indexed_sources or source_mtime > indexed_sources[source_path]:
+                indexed_sources[source_path] = source_mtime
+
+        return ibis.memtable(
+            [
+                {
+                    "source_path": source_path,
+                    "source_mtime_ns": source_mtime,
+                }
+                for source_path, source_mtime in indexed_sources.items()
+            ],
+            schema=schema,
+        )
 
     def get_indexed_sources(self) -> dict[str, int]:
         """Return mapping of source paths to mtime for incremental indexing."""
@@ -331,7 +349,15 @@ class VectorStore:
             return {}
 
         arrow_table = self._table.to_arrow(columns=["source_path", "source_mtime_ns"])
-        return {row["source_path"]: row["source_mtime_ns"] for row in arrow_table.to_pylist()}
+        indexed_sources: dict[str, int] = {}
+
+        for row in arrow_table.to_pylist():
+            source_path = row["source_path"]
+            source_mtime = row["source_mtime_ns"]
+            if source_path not in indexed_sources or source_mtime > indexed_sources[source_path]:
+                indexed_sources[source_path] = source_mtime
+
+        return indexed_sources
 
 
 def is_rag_available() -> bool:
