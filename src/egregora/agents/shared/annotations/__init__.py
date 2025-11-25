@@ -397,7 +397,8 @@ class AnnotationStore:
         elif isinstance(created_at_obj, datetime):
             created_at = created_at_obj
         else:
-            created_at = datetime.fromisoformat(str(created_at_obj))
+            dt_str = str(created_at_obj).replace("Z", "+00:00")
+            created_at = datetime.fromisoformat(dt_str)
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=UTC)
         else:

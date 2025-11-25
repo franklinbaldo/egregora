@@ -214,7 +214,7 @@ def _split_text_by_bytes(text: str, limit: int) -> list[str]:
             # But with standard UTF-8 and reasonable limits, this shouldn't happen.
             # Fallback to hard cut if needed, but 'ignore' handles valid chars.
             # In practice, for RAG chunking, we can just take the slice.
-            end = start + limit
+             end = start + limit
 
         chunk_bytes = encoded[start:end]
         chunks.append(chunk_bytes.decode("utf-8", errors="ignore"))

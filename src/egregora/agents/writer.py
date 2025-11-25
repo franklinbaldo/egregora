@@ -434,7 +434,7 @@ def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
 
     parts = [
         "\n\n## Active Participants (Profiles):\n",
-        "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n",
+        "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n"
     ]
 
     for author_uuid in top_authors:
