@@ -32,10 +32,10 @@ def test_annotation_store_initialization(tmp_path: Path):
         # This should work without AttributeError
         AnnotationStore(storage)
 
-        # Verify sequence was created
-        sequence_state = storage.get_sequence_state("annotations_seq")
+        # Verify sequence was created (AnnotationStore uses 'annotations_id_seq')
+        sequence_state = storage.get_sequence_state("annotations_id_seq")
         assert sequence_state is not None
-        assert sequence_state.sequence_name == "annotations_seq"
+        assert sequence_state.sequence_name == "annotations_id_seq"
         assert sequence_state.start_value == 1
 
 
@@ -125,16 +125,15 @@ def test_sequence_operations_e2e(tmp_path: Path):
         assert next_val > 200
 
 
-def test_pipeline_with_annotation_store(tmp_path: Path, sample_whatsapp_export):
+def test_pipeline_with_annotation_store(tmp_path: Path):
     """Test that a minimal pipeline run works with AnnotationStore.
 
     This simulates a real pipeline scenario where AnnotationStore
     would be initialized as part of pipeline setup.
 
-    Note: This is marked as xfail if sample_whatsapp_export fixture
-    doesn't exist, but demonstrates the integration test approach.
+    Note: This is a demonstration test showing the integration pattern.
     """
-    pytest.skip("Requires full pipeline fixtures - demonstration test")
+    pytest.skip("Requires full pipeline fixtures - demonstration test for future integration")
 
     # This would be a real e2e test:
     # 1. Initialize output directory with AnnotationStore

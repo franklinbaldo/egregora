@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from datetime import time as dt_time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import duckdb
 import ibis
@@ -22,7 +22,9 @@ from ibis.expr.types import Table
 
 from egregora.config import EMBEDDING_DIM
 from egregora.database import ir_schema as database_schema
-from egregora.database.duckdb_manager import DuckDBStorageManager
+
+if TYPE_CHECKING:
+    from egregora.database.protocols import StorageProtocol, VectorStorageProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,7 @@ DEDUP_MAX_RANK = 2
 
 VECTOR_STORE_SCHEMA = database_schema.RAG_CHUNKS_SCHEMA
 SEARCH_RESULT_SCHEMA = database_schema.RAG_SEARCH_RESULT_SCHEMA
+INDEXED_SOURCES_SCHEMA = ibis.schema({"source_path": "string", "source_mtime_ns": "int64"})
 
 
 @dataclass(frozen=True)
@@ -58,13 +61,18 @@ class VectorStore:
         self,
         parquet_path: Path,
         *,
-        storage: DuckDBStorageManager,
+        storage: StorageProtocol & VectorStorageProtocol,  # type: ignore[misc]
     ) -> None:
-        """Initialize vector store."""
+        """Initialize vector store.
+
+        Args:
+            parquet_path: Path to parquet file for vector data
+            storage: Storage backend implementing both StorageProtocol and VectorStorageProtocol
+
+        """
         self.parquet_path = parquet_path
         self.index_path = parquet_path.with_suffix(".duckdb")
         self.storage = storage
-        self.backend = storage  # For backward compatibility with tests
 
         # Use Ibis backend directly from storage manager
         self._client = storage.ibis_conn
@@ -126,11 +134,15 @@ class VectorStore:
 
     def _migrate_index_meta_table(self) -> None:
         """Ensure legacy index metadata tables gain any newly introduced columns."""
-        existing_columns = self.storage.get_table_columns(INDEX_META_TABLE)
+        # Use refresh=True to get current table state (cache might be stale after table creation)
+        existing_columns = self.storage.get_table_columns(INDEX_META_TABLE, refresh=True)
         schema = database_schema.RAG_INDEX_META_SCHEMA
 
+        # Normalize existing columns to lowercase for case-insensitive comparison
+        existing_columns_lower = {col.lower() for col in existing_columns}
+
         for column in schema.names:
-            if column.lower() in existing_columns:
+            if column.lower() in existing_columns_lower:
                 continue
             column_type = self._duckdb_type_from_ibis(schema[column])
             if column_type is None:
@@ -141,7 +153,15 @@ class VectorStore:
                     schema[column],
                 )
                 continue
-            self.storage.execute_query(f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN {column} {column_type}")
+            try:
+                self.storage.execute_query(
+                    f"ALTER TABLE {INDEX_META_TABLE} ADD COLUMN {column} {column_type}"
+                )
+            except duckdb.CatalogException as e:
+                if "already exists" in str(e):
+                    logger.debug("Column %s already exists in %s, skipping", column, INDEX_META_TABLE)
+                else:
+                    raise
 
     @staticmethod
     def _duckdb_type_from_ibis(dtype: dt.DataType) -> str | None:
@@ -373,7 +393,7 @@ class VectorStore:
             logger.warning("Vector store does not exist yet")
             return False
         self._ensure_dataset_loaded()
-        return self.backend.table_exists(TABLE_NAME)
+        return self.storage.table_exists(TABLE_NAME)
 
     def _validate_and_normalize_mode(self, mode: str) -> str:
         """Normalize and validate search mode, switching to exact if VSS unavailable."""
@@ -732,9 +752,7 @@ class VectorStore:
     def get_indexed_sources_table(self) -> Table:
         """Get indexed source files as an Ibis table for efficient delta detection."""
         if not self.parquet_path.exists():
-            return ibis.memtable(
-                [], schema=ibis.schema({"source_path": "string", "source_mtime_ns": "int64"})
-            )
+            return ibis.memtable([], schema=INDEXED_SOURCES_SCHEMA)
 
         try:
             self._ensure_dataset_loaded()
@@ -744,9 +762,7 @@ class VectorStore:
             )
         except (duckdb.Error, IbisError) as e:
             logger.warning("Failed to get indexed sources table: %s", e)
-            return ibis.memtable(
-                [], schema=ibis.schema({"source_path": "string", "source_mtime_ns": "int64"})
-            )
+            return ibis.memtable([], schema=INDEXED_SOURCES_SCHEMA)
 
 
 __all__ = [

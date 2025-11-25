@@ -20,26 +20,17 @@ This document outlines strategies to reduce duplication across the Egregora code
 
 ### Current State
 
-The `runs` table schema exists in three places:
-- `schema/runs_v1.sql` - SQL DDL with documentation
-- `src/egregora/database/ir_schema.py:RUNS_TABLE_DDL` - Python string copy
-- `src/egregora/database/ir_schema.py:RUNS_TABLE_SCHEMA` - Ibis schema
+The `runs` table schema is defined once in Python:
+- `src/egregora/database/ir_schema.py:RUNS_TABLE_SCHEMA` - Ibis schema used for creation
 
-### Problem
+### Solution: Single Python Source
 
-Manual synchronization is error-prone. The SQL file even admits: "Single source of truth: src/egregora/database/ir_schema.py:RUNS_TABLE_DDL"
+**Rationale**: Generating the table definition from `RUNS_TABLE_SCHEMA` via `create_table_if_not_exists` removes manual SQL copies and keeps creation logic in one place.
 
-### Solution: Delete `schema/runs_v1.sql`
-
-**Rationale**: Since Python is already the canonical source, the SQL file is pure documentation that can drift. The `RUNS_TABLE_DDL` string in Python serves the same purpose.
-
-**Action Items**:
+**Action Items (complete):**
 1. Delete `schema/runs_v1.sql`
 2. Move important documentation comments into the Python module docstring
-3. Keep `RUNS_TABLE_DDL` as the executable source
-4. Keep `RUNS_TABLE_SCHEMA` for Ibis operations
-
-**Alternative Considered**: Generate SQL from Ibis schema programmatically. However, this adds complexity and the current `_ibis_to_duckdb_type()` function already handles this for table creation.
+3. Use `RUNS_TABLE_SCHEMA` as the executable source for table creation
 
 ---
 

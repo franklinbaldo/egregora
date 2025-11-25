@@ -185,7 +185,7 @@ For an alpha, local-first tool with a single developer (or very small team):
 
 **Changes Made**:
 1. ✅ Removed `src/egregora/utils/fingerprinting.py` (32 LOC)
-2. ✅ Removed `input_fingerprint` column from `RUNS_TABLE_SCHEMA` and `RUNS_TABLE_DDL`
+2. ✅ Removed `input_fingerprint` column from `RUNS_TABLE_SCHEMA`
 3. ✅ Removed `fingerprint_table()` and `fingerprint_window()` from `tracking.py` (97 LOC)
 4. ✅ Removed `input_fingerprint` parameter from `record_run()` function
 5. ✅ Removed unused imports (`hashlib`, `pyarrow`, `ensure_deterministic_order`)

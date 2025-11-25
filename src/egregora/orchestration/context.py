@@ -17,10 +17,11 @@ if TYPE_CHECKING:
     from google import genai
 
     from egregora.agents.shared.annotations import AnnotationStore
+    from egregora.database.protocols import StorageProtocol
+
 from egregora.agents.shared.rag import VectorStore
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import OutputSink, UrlContext
-from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.utils.cache import EnrichmentCache, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
@@ -102,7 +103,7 @@ class PipelineState:
 
     # Resources & Clients
     client: genai.Client
-    storage: DuckDBStorageManager
+    storage: StorageProtocol  # Use protocol instead of concrete implementation
     cache: PipelineCache
 
     # Stores (Optional)
@@ -178,7 +179,8 @@ class PipelineContext:
         return self.state.client
 
     @property
-    def storage(self) -> DuckDBStorageManager:
+    def storage(self) -> StorageProtocol:
+        """Return storage backend (abstracted via protocol)."""
         return self.state.storage
 
     @property

@@ -304,6 +304,3 @@ class SiteScaffolder(Protocol):
 # ============================================================================
 # BACKWARD COMPATIBILITY
 # ============================================================================
-
-# Type alias for backward compatibility while callers migrate to OutputSink
-OutputAdapter = OutputSink

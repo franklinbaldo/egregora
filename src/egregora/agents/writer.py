@@ -15,7 +15,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import duckdb
 import ibis
+import ibis.common.exceptions
 from ibis.expr.types import Table
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel, Field
@@ -48,7 +50,6 @@ from egregora.agents.shared.rag import (
 )
 from egregora.config.settings import EgregoraConfig, RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.knowledge.profiles import get_active_authors, read_profile
 from egregora.output_adapters import output_registry
 from egregora.resources.prompts import PromptManager, render_prompt
@@ -64,7 +65,7 @@ if TYPE_CHECKING:
     from google import genai
 
     from egregora.agents.shared.annotations import AnnotationStore
-    from egregora.data_primitives.protocols import OutputAdapter
+    from egregora.data_primitives.protocols import OutputSink
     from egregora.orchestration.context import PipelineContext
 
 logger = logging.getLogger(__name__)
@@ -163,12 +164,12 @@ class WriterResources:
     """Explicit resources required by the writer agent."""
 
     # The Sink/Source for posts and profiles
-    output: OutputAdapter
+    output: OutputSink
 
     # Knowledge Stores
     rag_store: VectorStore | None
     annotations_store: AnnotationStore | None
-    storage: DuckDBStorageManager | None  # Required for RAG indexing
+    storage: Any | None  # StorageProtocol - Required for RAG indexing
 
     # Configuration required for tools
     embedding_model: str
@@ -200,7 +201,7 @@ class WriterDeps:
     window_label: str
 
     @property
-    def output_sink(self) -> OutputAdapter:
+    def output_sink(self) -> OutputSink:
         return self.resources.output
 
 
@@ -639,7 +640,7 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
 def _save_journal_to_file(  # noqa: PLR0913
     intercalated_log: list[JournalEntry],
     window_label: str,
-    output_format: OutputAdapter,
+    output_format: OutputSink,
     posts_published: int,
     profiles_updated: int,
     window_start: datetime,
@@ -959,7 +960,7 @@ def _index_new_content_in_rag(
         )
         if indexed_count > 0:
             logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
-    except (duckdb.Error, OSError) as e:
+    except (ibis.common.exceptions.IbisError, duckdb.Error, OSError) as e:
         logger.warning("Failed to update RAG index after writing: %s", e)
 
 

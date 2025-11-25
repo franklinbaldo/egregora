@@ -7,51 +7,23 @@ and batch processing support.
 from __future__ import annotations
 
 import logging
-import os
-import re
 from typing import Annotated, Any
 
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from egregora.config import EMBEDDING_DIM
+from egregora.config import EMBEDDING_DIM, get_google_api_key, google_api_key_status
 
 logger = logging.getLogger(__name__)
 
 # Constants
 GENAI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
-RETRY_DELAY_PATTERN = re.compile(r"(\d+)s")
 
 
 def _get_timeout() -> float:
     """Get request timeout from config or default."""
     # This could be exposed in config if needed, defaulting to 60s
     return 60.0
-
-
-def _get_api_key() -> str:
-    """Get Google API key from environment."""
-    api_key = os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        msg = "GOOGLE_API_KEY environment variable is required"
-        raise ValueError(msg)
-    return api_key
-
-
-def _parse_retry_delay(error_response: dict[str, Any]) -> float:
-    """Parse retry delay from 429 error response."""
-    try:
-        details = error_response.get("error", {}).get("details", [])
-        for detail in details:
-            if detail.get("@type") == "type.googleapis.com/google.rpc.RetryInfo":
-                retry_delay = detail.get("retryDelay", "10s")
-                match = RETRY_DELAY_PATTERN.match(retry_delay)
-                if match:
-                    # Use 100% of the suggested delay (respect server guidance)
-                    return max(5.0, float(match.group(1)))
-    except (KeyError, ValueError, AttributeError, TypeError):
-        logger.debug("Could not parse retry delay")
-    return 10.0
 
 
 @retry(
@@ -127,7 +99,7 @@ def embed_text(
         httpx.HTTPError: If API request fails after retries
 
     """
-    effective_api_key = api_key or _get_api_key()
+    effective_api_key = api_key or get_google_api_key()
     effective_timeout = timeout or _get_timeout()
     google_model = model
     payload: dict[str, Any] = {
@@ -180,7 +152,7 @@ def embed_texts_in_batch(
         return []
 
     logger.info("Embedding %d text(s) with model %s", len(texts), model)
-    effective_api_key = api_key or _get_api_key()
+    effective_api_key = api_key or get_google_api_key()
     effective_timeout = timeout or _get_timeout()
     google_model = model
     requests = []
@@ -270,7 +242,7 @@ def is_rag_available() -> bool:
         True if GOOGLE_API_KEY environment variable is set
 
     """
-    return bool(os.environ.get("GOOGLE_API_KEY"))
+    return google_api_key_status()
 
 
 __all__ = [
