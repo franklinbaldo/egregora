@@ -185,7 +185,6 @@ class OutputSink(Protocol):
         """
 
 
-
 @runtime_checkable
 class SiteScaffolder(Protocol):
     """Project lifecycle management for local site initialization.
