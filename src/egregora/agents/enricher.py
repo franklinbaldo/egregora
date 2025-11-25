@@ -688,8 +688,7 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
     if duckdb_connection and target_table:
         try:
             raw_conn = duckdb_connection.con
-            storage = DuckDBStorageManager(db_path=None)
-            storage._conn = raw_conn
+            storage = DuckDBStorageManager.from_connection(raw_conn)
             storage.persist_atomic(combined, target_table, schema=IR_MESSAGE_SCHEMA)
         except Exception:
             logger.exception("Failed to persist enrichments using DuckDBStorageManager")

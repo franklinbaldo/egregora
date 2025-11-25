@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from datetime import time as dt_time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import duckdb
 import ibis
@@ -22,7 +22,9 @@ from ibis.expr.types import Table
 
 from egregora.config import EMBEDDING_DIM
 from egregora.database import ir_schema as database_schema
-from egregora.database.duckdb_manager import DuckDBStorageManager
+
+if TYPE_CHECKING:
+    from egregora.database.protocols import StorageProtocol, VectorStorageProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +60,14 @@ class VectorStore:
         self,
         parquet_path: Path,
         *,
-        storage: DuckDBStorageManager,
+        storage: StorageProtocol & VectorStorageProtocol,  # type: ignore[misc]
     ) -> None:
-        """Initialize vector store."""
+        """Initialize vector store.
+
+        Args:
+            parquet_path: Path to parquet file for vector data
+            storage: Storage backend implementing both StorageProtocol and VectorStorageProtocol
+        """
         self.parquet_path = parquet_path
         self.index_path = parquet_path.with_suffix(".duckdb")
         self.storage = storage

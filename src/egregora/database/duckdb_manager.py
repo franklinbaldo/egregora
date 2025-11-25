@@ -126,6 +126,32 @@ class DuckDBStorageManager:
             self.checkpoint_dir,
         )
 
+    @classmethod
+    def from_connection(cls, conn: duckdb.DuckDBPyConnection, checkpoint_dir: Path | None = None) -> Self:
+        """Create storage manager from an existing DuckDB connection.
+
+        This properly initializes both the raw connection and Ibis backend
+        from an existing connection, avoiding the mutation pattern that
+        breaks ibis_conn synchronization.
+
+        Args:
+            conn: Existing DuckDB connection
+            checkpoint_dir: Directory for parquet checkpoints
+
+        Returns:
+            Storage manager instance with properly initialized backends
+        """
+        instance = cls.__new__(cls)
+        instance.db_path = None  # Unknown for external connections
+        instance.checkpoint_dir = checkpoint_dir or Path(".egregora/data")
+        instance._conn = conn
+        instance._vss_function = None
+        instance._init_vector_extensions(instance)  # Initialize VSS on instance
+        instance.ibis_conn = ibis.duckdb.from_connection(conn)
+        instance._table_info_cache = {}
+        logger.debug("DuckDBStorageManager created from existing connection")
+        return instance
+
     def _init_vector_extensions(self) -> None:
         """Install and load DuckDB VSS extension, and detect best search function."""
         # Enable HNSW index persistence for vector search

@@ -1446,9 +1446,8 @@ def run(  # noqa: PLR0913
         runs_conn = getattr(runs_backend, "con", None)
         run_store = None
         if runs_conn is not None:
-            # Wrap the raw connection in a DuckDBStorageManager
-            temp_storage = DuckDBStorageManager(db_path=None)
-            temp_storage._conn = runs_conn
+            # Properly wrap the connection to ensure ibis_conn is synchronized
+            temp_storage = DuckDBStorageManager.from_connection(runs_conn)
             run_store = RunStore(temp_storage)
         else:
             logger.warning("Unable to access DuckDB connection for run tracking - runs will not be recorded")
