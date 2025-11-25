@@ -41,7 +41,6 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.run_store import RunStore
-from egregora.database.tracking import record_run
 from egregora.database.validation import validate_ir_schema
 from egregora.database.views import daily_aggregates_view
 from egregora.input_adapters import get_adapter
@@ -1312,24 +1311,22 @@ def _apply_filters(  # noqa: C901, PLR0913, PLR0912
     return messages_table
 
 
-def _record_run_start(runs_conn, run_id: uuid.UUID, started_at: datetime) -> None:
+def _record_run_start(run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime) -> None:
     """Record the start of a pipeline run in the database.
 
     Args:
-        runs_conn: DuckDB connection for run tracking
+        run_store: Run store for tracking (None to skip tracking)
         run_id: Unique identifier for this run
         started_at: Timestamp when run started
 
     """
-    if runs_conn is None:
+    if run_store is None:
         return
 
     try:
-        record_run(
-            conn=runs_conn,
+        run_store.mark_run_started(
             run_id=run_id,
             stage="write",
-            status="running",
             started_at=started_at,
         )
     except Exception as exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
@@ -1453,7 +1450,7 @@ def run(  # noqa: PLR0913
             logger.warning("Unable to access DuckDB connection for run tracking - runs will not be recorded")
 
         # Record run start
-        _record_run_start(runs_conn, run_id, started_at)
+        _record_run_start(run_store, run_id, started_at)
 
         try:
             dataset = _prepare_pipeline_data(adapter, input_path, config, ctx, output_dir)
