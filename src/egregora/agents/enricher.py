@@ -28,7 +28,7 @@ from pydantic_ai.models.google import GoogleModelSettings
 
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.database.duckdb_manager import DuckDBStorageManager, combine_with_enrichment_rows
+from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import MediaMapping
 from egregora.ops.media import (
@@ -38,6 +38,7 @@ from egregora.ops.media import (
     replace_media_mentions,
 )
 from egregora.resources.prompts import render_prompt
+from egregora.transformations.enrichment import combine_with_enrichment_rows
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.paths import slugify
@@ -687,8 +688,7 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
     if duckdb_connection and target_table:
         try:
             raw_conn = duckdb_connection.con
-            storage = DuckDBStorageManager(db_path=None)
-            storage._conn = raw_conn
+            storage = DuckDBStorageManager.from_connection(raw_conn)
             storage.persist_atomic(combined, target_table, schema=IR_MESSAGE_SCHEMA)
         except Exception:
             logger.exception("Failed to persist enrichments using DuckDBStorageManager")

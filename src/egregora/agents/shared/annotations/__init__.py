@@ -77,12 +77,13 @@ import ibis
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database import ir_schema as database_schema
-from egregora.database.duckdb_manager import DuckDBStorageManager
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
     import duckdb
+
+    from egregora.database.protocols import SequenceStorageProtocol, StorageProtocol
 
 # ============================================================================
 # Constants
@@ -183,7 +184,13 @@ class AnnotationStore:
         - Sequences: annotations_id_seq for auto-increment
     """
 
-    def __init__(self, storage: DuckDBStorageManager) -> None:
+    def __init__(self, storage: StorageProtocol & SequenceStorageProtocol) -> None:  # type: ignore[misc]
+        """Initialize annotation store.
+
+        Args:
+            storage: Storage backend implementing both StorageProtocol and SequenceStorageProtocol
+
+        """
         self.storage = storage
         self._backend = storage.ibis_conn
         self._sequence_name = f"{ANNOTATIONS_TABLE}_id_seq"
