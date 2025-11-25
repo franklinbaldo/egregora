@@ -147,7 +147,7 @@ class DuckDBStorageManager:
         instance.checkpoint_dir = checkpoint_dir or Path(".egregora/data")
         instance._conn = conn
         instance._vss_function = None
-        instance._init_vector_extensions(instance)  # Initialize VSS on instance
+        instance._init_vector_extensions()  # Initialize VSS on instance
         instance.ibis_conn = ibis.duckdb.from_connection(conn)
         instance._table_info_cache = {}
         logger.debug("DuckDBStorageManager created from existing connection")
