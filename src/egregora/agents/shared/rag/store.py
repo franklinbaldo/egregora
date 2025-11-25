@@ -7,13 +7,13 @@ chunk embeddings and similarity search.
 from __future__ import annotations
 
 import logging
+import typing
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from datetime import time as dt_time
 from pathlib import Path
 from typing import Any
-import typing
 
 import duckdb
 import ibis

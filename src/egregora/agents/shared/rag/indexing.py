@@ -19,7 +19,6 @@ from egregora.agents.shared.rag.chunker import chunk_document, chunk_from_docume
 from egregora.agents.shared.rag.embedder import embed_chunks
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database import ir_schema
-from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.utils.frontmatter_utils import parse_frontmatter
 
 if TYPE_CHECKING:
