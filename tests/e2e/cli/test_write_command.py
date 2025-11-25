@@ -63,10 +63,16 @@ class TestWriteCommandBasic:
         )
 
         # Command should complete (may fail gracefully if no API key, but shouldn't crash)
-        assert result.exit_code in (0, 1), f"Unexpected exit code: {result.stdout}"
+        assert result.exit_code in (0, 1), (
+            f"Command exited with code {result.exit_code} (expected 0 or 1).\n"
+            f"Output: {result.stdout[:500]}"  # Show first 500 chars of output
+        )
 
         # Output directory should exist
-        assert test_output_dir.exists(), "Output directory was not created"
+        assert test_output_dir.exists(), (
+            f"Output directory was not created at {test_output_dir}. "
+            f"Command exit code: {result.exit_code}"
+        )
 
     def test_write_command_missing_input(self, test_output_dir):
         """Test write command with missing input ZIP file."""
@@ -388,29 +394,50 @@ class TestWriteCommandWithMocks:
 
         # Command may fail (exit code 1) due to mock limitations, but should initialize site
         # Exit code 0 = success, 1 = pipeline error (acceptable with mocks)
-        assert result.exit_code in (0, 1), f"Command crashed with unexpected error: {result.stdout}"
+        assert result.exit_code in (0, 1), (
+            f"Command exited with code {result.exit_code} (expected 0 or 1).\n"
+            f"Last 50 lines of output:\n{chr(10).join(result.stdout.split(chr(10))[-50:])}"
+        )
 
         # Verify site structure was created even if pipeline failed
-        assert test_output_dir.exists(), "Output directory should exist"
+        assert test_output_dir.exists(), (
+            f"Output directory {test_output_dir} was not created. Exit code: {result.exit_code}"
+        )
 
         # Check for .egregora config directory
         egregora_dir = test_output_dir / ".egregora"
-        assert egregora_dir.exists(), ".egregora directory should be created"
+        assert egregora_dir.exists(), (
+            f".egregora directory not found at {egregora_dir}. "
+            f"Output dir contents: {list(test_output_dir.iterdir())}"
+        )
 
         # Check for mkdocs.yml (could be in root or .egregora depending on structure)
         mkdocs_yml = test_output_dir / "mkdocs.yml"
         egregora_mkdocs = egregora_dir / "mkdocs.yml"
-        assert mkdocs_yml.exists() or egregora_mkdocs.exists(), "mkdocs.yml should be created"
+        assert mkdocs_yml.exists() or egregora_mkdocs.exists(), (
+            f"mkdocs.yml not found. Checked:\n"
+            f"  - {mkdocs_yml} (exists: {mkdocs_yml.exists()})\n"
+            f"  - {egregora_mkdocs} (exists: {egregora_mkdocs.exists()})"
+        )
 
         # Check for docs directory and subdirectories
         docs_dir = test_output_dir / "docs"
-        assert docs_dir.exists(), "docs directory should be created"
+        assert docs_dir.exists(), (
+            f"docs directory not found at {docs_dir}. "
+            f"Output dir contents: {list(test_output_dir.iterdir())}"
+        )
 
         posts_dir = docs_dir / "posts"
-        assert posts_dir.exists(), "posts directory should be created under docs/"
+        assert posts_dir.exists(), (
+            f"posts directory not found at {posts_dir}. "
+            f"docs dir contents: {list(docs_dir.iterdir())}"
+        )
 
         profiles_dir = docs_dir / "profiles"
-        assert profiles_dir.exists(), "profiles directory should be created under docs/"
+        assert profiles_dir.exists(), (
+            f"profiles directory not found at {profiles_dir}. "
+            f"docs dir contents: {list(docs_dir.iterdir())}"
+        )
 
         # If pipeline succeeded, verify we actually created content
         if result.exit_code == 0:
