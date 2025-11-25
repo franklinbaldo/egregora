@@ -569,30 +569,30 @@ class TestRunsCommandsIntegration:
         assert tail_result.exit_code == 0
 
         # 2. Get a run ID from the tail output and view details
-        conn = duckdb.connect(str(populated_runs_db), read_only=True)
-        run_result = conn.execute("SELECT CAST(run_id AS VARCHAR) FROM runs LIMIT 1").fetchone()
-        conn.close()
+        # Use a separate connection scope to avoid conflicts with CLI command connections
+        run_id = None
+        with duckdb.connect(str(populated_runs_db), read_only=True) as conn:
+            run_result = conn.execute("SELECT CAST(run_id AS VARCHAR) FROM runs LIMIT 1").fetchone()
+            if run_result:
+                run_id = run_result[0][:8]
 
-        if run_result:
-            run_id = run_result[0][:8]
+        if run_id:
             show_result = runner.invoke(app, ["runs", "show", run_id, "--db-path", str(populated_runs_db)])
             assert show_result.exit_code == 0
 
     def test_runs_commands_preserve_database(self, populated_runs_db: Path):
         """Test that read-only runs commands don't modify database."""
-        # Get initial state
-        conn = duckdb.connect(str(populated_runs_db), read_only=True)
-        initial_count = conn.execute("SELECT COUNT(DISTINCT run_id) FROM runs").fetchone()[0]
-        conn.close()
+        # Get initial state using context manager to ensure clean connection close
+        with duckdb.connect(str(populated_runs_db), read_only=True) as conn:
+            initial_count = conn.execute("SELECT COUNT(DISTINCT run_id) FROM runs").fetchone()[0]
 
         # Run commands
         runner.invoke(app, ["runs", "tail", "--db-path", str(populated_runs_db)])
         runner.invoke(app, ["runs", "tail", "--db-path", str(populated_runs_db), "--n", "3"])
 
-        # Verify database unchanged
-        conn = duckdb.connect(str(populated_runs_db), read_only=True)
-        final_count = conn.execute("SELECT COUNT(DISTINCT run_id) FROM runs").fetchone()[0]
-        conn.close()
+        # Verify database unchanged using context manager
+        with duckdb.connect(str(populated_runs_db), read_only=True) as conn:
+            final_count = conn.execute("SELECT COUNT(DISTINCT run_id) FROM runs").fetchone()[0]
 
         assert initial_count == final_count
 
