@@ -67,6 +67,7 @@ class VectorStore:
         Args:
             parquet_path: Path to parquet file for vector data
             storage: Storage backend implementing both StorageProtocol and VectorStorageProtocol
+
         """
         self.parquet_path = parquet_path
         self.index_path = parquet_path.with_suffix(".duckdb")

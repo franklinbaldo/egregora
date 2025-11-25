@@ -140,6 +140,7 @@ class DuckDBStorageManager:
 
         Returns:
             Storage manager instance with properly initialized backends
+
         """
         instance = cls.__new__(cls)
         instance.db_path = None  # Unknown for external connections

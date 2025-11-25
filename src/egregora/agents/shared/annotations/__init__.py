@@ -189,6 +189,7 @@ class AnnotationStore:
 
         Args:
             storage: Storage backend implementing both StorageProtocol and SequenceStorageProtocol
+
         """
         self.storage = storage
         self._backend = storage.ibis_conn
