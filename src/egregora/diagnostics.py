@@ -180,7 +180,7 @@ def check_duckdb_extensions() -> DiagnosticResult:
         finally:
             conn.close()
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         import logging
 
         logger = logging.getLogger(__name__)
