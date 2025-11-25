@@ -18,7 +18,7 @@ from egregora.agents.model_limits import PromptTooLargeError
 from egregora.agents.shared.rag.chunker import chunk_document, chunk_from_document
 from egregora.agents.shared.rag.embedder import embed_chunks
 from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA, VectorStore
-from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.document import Document
 from egregora.database.duckdb_manager import DuckDBStorageManager
 
 if TYPE_CHECKING:
@@ -243,7 +243,6 @@ def _collect_document_metadata(
     paths. This keeps ingestion centered on the :class:`Document` abstraction
     rather than reloading files from the filesystem.
     """
-
     rows: list[dict[str, Any]] = []
     documents: dict[str, Document] = {}
 

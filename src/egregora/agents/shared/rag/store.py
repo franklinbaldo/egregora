@@ -95,7 +95,6 @@ class VectorStore:
         ``to_pyarrow``/``execute``. Embedding dimensionality is validated to avoid
         index corruption.
         """
-
         records = self._to_records(chunks_table)
         if not records:
             logger.info("No chunks provided; skipping LanceDB add")
@@ -116,10 +115,7 @@ class VectorStore:
                 normalized.setdefault(col, None)
             normalized_records.append(normalized)
 
-        ordered_records = [
-            {col: rec[col] for col in VECTOR_COLUMNS}
-            for rec in normalized_records
-        ]
+        ordered_records = [{col: rec[col] for col in VECTOR_COLUMNS} for rec in normalized_records]
 
         self._ensure_table(ordered_records)
         logger.info("Saved %s chunks to LanceDB", len(ordered_records))
@@ -139,7 +135,6 @@ class VectorStore:
         overfetch: int | None = None,
     ) -> list[dict[str, Any]]:
         """Search for similar chunks using LanceDB."""
-
         if self._table is None:
             return self._empty_results()
 
@@ -191,11 +186,7 @@ class VectorStore:
         media_types: list[str] | None,
     ) -> list[dict[str, Any]]:
         filtered: list[dict[str, Any]] = []
-        normalized_date = (
-            self._normalize_date_filter(date_after)
-            if date_after is not None
-            else None
-        )
+        normalized_date = self._normalize_date_filter(date_after) if date_after is not None else None
 
         for record in records:
             similarity = float(record.get("similarity", 0.0))
@@ -296,7 +287,6 @@ class VectorStore:
 
 def is_rag_available() -> bool:
     """RAG is available when LanceDB can be imported."""
-
     try:
         import lancedb as _  # noqa: F401
     except Exception:

@@ -31,7 +31,6 @@ def query_similar_posts(  # noqa: PLR0913
     retrieval_overfetch: int | None = None,
 ) -> list[dict[str, Any]]:
     """Find similar previous blog posts for a period's table."""
-
     records = _to_records(table)
     msg_count = len(records)
     logger.info("Querying similar posts for period with %s messages", msg_count)
@@ -224,9 +223,7 @@ def _deduplicate(records: list[dict[str, Any]], *, key: str, limit: int) -> list
     if not records:
         return []
     if key not in records[0]:
-        return sorted(records, key=lambda r: float(r.get("similarity", 0.0)), reverse=True)[
-            :limit
-        ]
+        return sorted(records, key=lambda r: float(r.get("similarity", 0.0)), reverse=True)[:limit]
 
     ranked: list[dict[str, Any]] = []
     seen_counts: dict[Any, int] = {}
