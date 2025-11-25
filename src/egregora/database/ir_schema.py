@@ -259,7 +259,7 @@ ELO_HISTORY_SCHEMA = ibis.schema(
 #   Build lineage: Use recursive CTE on parent_run_id
 #
 # Note: This is the SINGLE SOURCE OF TRUTH for the runs table schema.
-# The SQL DDL below (RUNS_TABLE_DDL) is used for table creation.
+# Tables are created from this schema via create_table_if_not_exists.
 # ----------------------------------------------------------------------------
 
 RUNS_TABLE_SCHEMA = ibis.schema(
@@ -813,7 +813,6 @@ __all__ = [
     "RAG_INDEX_META_SCHEMA",
     "RAG_SEARCH_RESULT_SCHEMA",
     # Runs schema
-    "RUNS_TABLE_DDL",
     "RUNS_TABLE_SCHEMA",
     "WHATSAPP_CONVERSATION_SCHEMA",
     "WHATSAPP_SCHEMA",
