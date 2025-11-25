@@ -369,8 +369,16 @@ def _index_new_documents(to_index, store: VectorStore, *, embedding_model: str) 
             )
             indexed_count += 1
             logger.debug("Indexed document: %s", row.storage_identifier)
-        except Exception as e:  # noqa: BLE001
+        except (OSError, ValueError, PromptTooLargeError) as e:
+            # Expected errors during indexing:
+            # - OSError: File read/write failures
+            # - ValueError: Invalid document format or metadata
+            # - PromptTooLargeError: Document too large to embed
             logger.warning("Failed to index document %s: %s", row.storage_identifier, e)
+            continue
+        except Exception:
+            # Unexpected errors should be logged with full context for debugging
+            logger.exception("Unexpected error indexing document %s", row.storage_identifier)
             continue
 
     return indexed_count

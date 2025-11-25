@@ -2,6 +2,19 @@
 
 Provides DuckDB VSS-backed vector storage with Parquet persistence for
 chunk embeddings and similarity search.
+
+Design Note: VectorStore uses the Facade pattern
+----------------------------------------------
+VectorStore provides a unified interface to RAG operations (indexing, retrieval,
+embedding) that are implemented across multiple modules (indexing.py, retriever.py,
+embedder.py). To avoid circular import issues, these implementation modules are
+imported lazily within VectorStore methods using local imports. This is an
+intentional design choice that enables clean separation of concerns.
+
+The pattern:
+- Implementation modules import VectorStore via TYPE_CHECKING for type hints
+- VectorStore facade imports implementation modules lazily in methods
+- Clean separation: clients interact with VectorStore, not implementation details
 """
 
 from __future__ import annotations

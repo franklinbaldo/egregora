@@ -40,6 +40,60 @@ cd output && uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs ser
 
 ## Breaking Changes
 
+### 2025-11-25 (PR #926 - RAG Indexing Optimization)
+
+**VectorStore Facade Pattern**
+- **Changed:** RAG operations centralized as VectorStore methods
+- **Before:** Direct function calls: `index_documents_for_rag(output, rag_dir, storage, ...)`
+- **After:** Method calls: `store.index_documents(output, embedding_model=...)`
+- **New Methods:**
+  - `VectorStore.index_documents(output_format, *, embedding_model)` - Index documents from adapter
+  - `VectorStore.index_media(docs_dir, *, embedding_model)` - Index media enrichments
+  - `VectorStore.query_media(query, ...)` - Search for relevant media
+  - `VectorStore.query_similar_posts(table, ...)` - Find similar blog posts
+  - `VectorStore.is_available()` - Check if RAG is available (static)
+  - `VectorStore.embed_query(query_text, *, model)` - Embed query text (static)
+- **Migration:**
+  ```python
+  # Before
+  from egregora.agents.shared.rag import index_documents_for_rag, query_media
+  indexed = index_documents_for_rag(output, rag_dir, storage, embedding_model=model)
+  results = query_media(query, store, media_types=types, ...)
+
+  # After
+  from egregora.agents.shared.rag import VectorStore
+  store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
+  indexed = store.index_documents(output, embedding_model=model)
+  results = store.query_media(query, media_types=types, ...)
+  ```
+
+**Reduced RAG Export Surface**
+- **Removed from `egregora.agents.shared.rag` exports:** All internal functions
+- **Now exported:** Only `VectorStore` and `DatasetMetadata`
+- **Rationale:** VectorStore is the single public API; internal functions are implementation details
+- **Impact:** Code importing individual RAG functions will break
+- **Migration:** Use VectorStore methods instead of direct function imports
+
+**OutputSink Protocol Cleanup**
+- **Removed:** `resolve_document_path()` from OutputSink protocol
+- **Rationale:** Filesystem-specific method didn't belong in general output protocol
+- **Impact:** Code relying on OutputSink having this method will break
+- **Migration:** Check for method existence with `hasattr()` or use concrete adapter types
+
+**Deterministic File Locations**
+- **Changed:** RAG directory now uses settings instead of hardcoded paths
+- **Before:** `site_root / ".egregora" / "rag"` hardcoded in multiple locations
+- **After:** `config.paths.rag_dir` from settings (default: `.egregora/rag`)
+- **Configuration:** Set `paths.rag_dir` in `.egregora/config.yml` to customize
+- **Rationale:** All file locations should be configurable, not scattered throughout code
+
+**Improved Exception Handling**
+- **Changed:** `_index_new_documents` now catches specific exceptions
+- **Before:** `except Exception: # noqa: BLE001`
+- **After:** Catches `OSError`, `ValueError`, `PromptTooLargeError` explicitly
+- **Impact:** Unexpected errors now propagate with full stack traces for debugging
+- **Rationale:** Blanket exception catching hides bugs; be explicit about expected errors
+
 ### 2025-11-23 (Multi-PR Merge)
 
 **Tiered Caching Architecture (PR #890)**

@@ -737,7 +737,7 @@ def _create_pipeline_context(  # noqa: PLR0913
 
     rag_store = None
     if config.rag.enabled:
-        rag_dir = site_paths["site_root"] / ".egregora" / "rag"
+        rag_dir = site_paths["rag_dir"]
         rag_dir.mkdir(parents=True, exist_ok=True)
         rag_store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
 
@@ -1044,7 +1044,7 @@ def _prepare_pipeline_data(
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
-            rag_dir = ctx.site_root / ".egregora" / "rag"
+            rag_dir = ctx.site_root / config.paths.rag_dir
             store = VectorStore(rag_dir / "chunks.parquet", storage=ctx.storage)
             indexed_count = store.index_documents(
                 output_format,
@@ -1087,7 +1087,7 @@ def _index_media_into_rag(
 
     logger.info("[bold cyan]📚 Indexing media into RAG...[/]")
     try:
-        rag_dir = ctx.site_root / ".egregora" / "rag"
+        rag_dir = ctx.site_root / ctx.config.paths.rag_dir
         store = VectorStore(rag_dir / "chunks.parquet", storage=ctx.storage)
         media_chunks = store.index_media(ctx.docs_dir, embedding_model=embedding_model)
         if media_chunks > 0:
