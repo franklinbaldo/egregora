@@ -109,6 +109,7 @@ class RunStore:
             run_id: Unique identifier for this run
             stage: Pipeline stage (e.g., "write", "enrichment")
             started_at: Timestamp when run started
+
         """
         # Use database.tracking.record_run for initial run creation
         # This ensures proper initialization of all run metadata
@@ -138,6 +139,7 @@ class RunStore:
             finished_at: Timestamp when run finished
             duration_seconds: Total duration in seconds
             rows_out: Number of output rows/documents
+
         """
         sql = """
             UPDATE runs
