@@ -402,13 +402,15 @@ class TestWriteCommandWithMocks:
         egregora_mkdocs = egregora_dir / "mkdocs.yml"
         assert mkdocs_yml.exists() or egregora_mkdocs.exists(), "mkdocs.yml should be created"
 
-        # Check for posts directory
-        posts_dir = test_output_dir / "posts"
-        assert posts_dir.exists(), "posts directory should be created"
+        # Check for docs directory and subdirectories
+        docs_dir = test_output_dir / "docs"
+        assert docs_dir.exists(), "docs directory should be created"
 
-        # Check profiles directory was created
-        profiles_dir = test_output_dir / "profiles"
-        assert profiles_dir.exists(), "profiles directory should be created"
+        posts_dir = docs_dir / "posts"
+        assert posts_dir.exists(), "posts directory should be created under docs/"
+
+        profiles_dir = docs_dir / "profiles"
+        assert profiles_dir.exists(), "profiles directory should be created under docs/"
 
         # If pipeline succeeded, verify we actually created content
         if result.exit_code == 0:
@@ -416,7 +418,10 @@ class TestWriteCommandWithMocks:
             post_files = list(posts_dir.glob("*.md"))
             profile_files = list(profiles_dir.glob("*.md"))
             # At least one of these should have content if pipeline succeeded
-            assert post_files or profile_files, "Pipeline succeeded but no content generated"
+            # Exclude index files and tags files
+            content_posts = [p for p in post_files if p.name not in ("index.md", "tags.md")]
+            content_profiles = [p for p in profile_files if p.name != "index.md"]
+            assert content_posts or content_profiles, "Pipeline succeeded but no content generated"
 
 
 class TestWriteCommandEdgeCases:

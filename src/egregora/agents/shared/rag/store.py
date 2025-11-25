@@ -126,11 +126,15 @@ class VectorStore:
 
     def _migrate_index_meta_table(self) -> None:
         """Ensure legacy index metadata tables gain any newly introduced columns."""
-        existing_columns = self.storage.get_table_columns(INDEX_META_TABLE)
+        # Use refresh=True to get current table state (cache might be stale after table creation)
+        existing_columns = self.storage.get_table_columns(INDEX_META_TABLE, refresh=True)
         schema = database_schema.RAG_INDEX_META_SCHEMA
 
+        # Normalize existing columns to lowercase for case-insensitive comparison
+        existing_columns_lower = {col.lower() for col in existing_columns}
+
         for column in schema.names:
-            if column.lower() in existing_columns:
+            if column.lower() in existing_columns_lower:
                 continue
             column_type = self._duckdb_type_from_ibis(schema[column])
             if column_type is None:
