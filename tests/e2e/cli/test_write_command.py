@@ -18,6 +18,14 @@ import pytest
 from typer.testing import CliRunner
 
 from egregora.cli.main import app
+from tests.e2e.test_config import (
+    TestDates,
+    TestTimezones,
+    WindowConfig,
+    assert_command_success,
+    assert_directory_exists,
+    build_write_command_args,
+)
 
 # Create a CLI runner for testing
 runner = CliRunner()
@@ -231,55 +239,25 @@ class TestWriteCommandConfiguration:
 class TestWriteCommandDateFiltering:
     """Tests for 'egregora write' command with date filtering."""
 
-    def test_write_command_with_from_date(self, test_zip_file, test_output_dir):
+    def test_write_command_with_from_date(self, test_zip_file, test_output_dir, test_dates: TestDates):
         """Test write command with --from-date filter."""
-        result = runner.invoke(
-            app,
-            [
-                "write",
-                str(test_zip_file),
-                "--output-dir",
-                str(test_output_dir),
-                "--from-date",
-                "2025-10-01",
-            ],
-        )
+        args = build_write_command_args(test_zip_file, test_output_dir, from_date=test_dates.VALID_FROM)
+        result = runner.invoke(app, args)
+        assert_command_success(result)
 
-        assert result.exit_code in (0, 1), f"Unexpected error: {result.stdout}"
-
-    def test_write_command_with_to_date(self, test_zip_file, test_output_dir):
+    def test_write_command_with_to_date(self, test_zip_file, test_output_dir, test_dates: TestDates):
         """Test write command with --to-date filter."""
-        result = runner.invoke(
-            app,
-            [
-                "write",
-                str(test_zip_file),
-                "--output-dir",
-                str(test_output_dir),
-                "--to-date",
-                "2025-10-31",
-            ],
-        )
+        args = build_write_command_args(test_zip_file, test_output_dir, to_date=test_dates.VALID_TO)
+        result = runner.invoke(app, args)
+        assert_command_success(result)
 
-        assert result.exit_code in (0, 1), f"Unexpected error: {result.stdout}"
-
-    def test_write_command_with_date_range(self, test_zip_file, test_output_dir):
+    def test_write_command_with_date_range(self, test_zip_file, test_output_dir, test_dates: TestDates):
         """Test write command with both --from-date and --to-date."""
-        result = runner.invoke(
-            app,
-            [
-                "write",
-                str(test_zip_file),
-                "--output-dir",
-                str(test_output_dir),
-                "--from-date",
-                "2025-10-01",
-                "--to-date",
-                "2025-10-31",
-            ],
+        args = build_write_command_args(
+            test_zip_file, test_output_dir, from_date=test_dates.VALID_FROM, to_date=test_dates.VALID_TO
         )
-
-        assert result.exit_code in (0, 1), f"Unexpected error: {result.stdout}"
+        result = runner.invoke(app, args)
+        assert_command_success(result)
 
     def test_write_command_invalid_from_date_format(self, test_zip_file, test_output_dir):
         """Test write command with invalid --from-date format."""
@@ -300,54 +278,32 @@ class TestWriteCommandDateFiltering:
             "Should report invalid format error"
         )
 
-    def test_write_command_invalid_to_date_format(self, test_zip_file, test_output_dir):
+    def test_write_command_invalid_to_date_format(
+        self, test_zip_file, test_output_dir, test_dates: TestDates
+    ):
         """Test write command with invalid --to-date format."""
-        result = runner.invoke(
-            app,
-            [
-                "write",
-                str(test_zip_file),
-                "--output-dir",
-                str(test_output_dir),
-                "--to-date",
-                "2025/10/31",  # Invalid format (should be YYYY-MM-DD)
-            ],
-        )
+        args = build_write_command_args(test_zip_file, test_output_dir, to_date=test_dates.INVALID_FORMAT_2)
+        result = runner.invoke(app, args)
 
         assert result.exit_code == 1, "Should fail with invalid date format"
 
-    def test_write_command_with_timezone(self, test_zip_file, test_output_dir):
+    def test_write_command_with_timezone(
+        self, test_zip_file, test_output_dir, test_timezones: TestTimezones
+    ):
         """Test write command with timezone specification."""
-        result = runner.invoke(
-            app,
-            [
-                "write",
-                str(test_zip_file),
-                "--output-dir",
-                str(test_output_dir),
-                "--timezone",
-                "America/New_York",
-            ],
-        )
+        args = build_write_command_args(test_zip_file, test_output_dir, timezone=test_timezones.VALID)
+        result = runner.invoke(app, args)
+        assert_command_success(result)
 
-        assert result.exit_code in (0, 1), f"Unexpected error: {result.stdout}"
-
-    def test_write_command_with_invalid_timezone(self, test_zip_file, test_output_dir):
+    def test_write_command_with_invalid_timezone(
+        self, test_zip_file, test_output_dir, test_timezones: TestTimezones
+    ):
         """Test write command with invalid timezone."""
-        result = runner.invoke(
-            app,
-            [
-                "write",
-                str(test_zip_file),
-                "--output-dir",
-                str(test_output_dir),
-                "--timezone",
-                "Invalid/Timezone",
-            ],
-        )
+        args = build_write_command_args(test_zip_file, test_output_dir, timezone=test_timezones.INVALID)
+        result = runner.invoke(app, args)
 
         # May fail or succeed depending on timezone validation implementation
-        assert result.exit_code in (0, 1), "Invalid timezone should either fail or be handled gracefully"
+        assert_command_success(result, expected_codes=(0, 1))
 
 
 class TestWriteCommandWithMocks:

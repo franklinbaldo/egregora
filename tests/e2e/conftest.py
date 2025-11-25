@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.e2e.test_config import TestDates, TestTimezones, TestTimeouts, WindowConfig
+
 
 @pytest.fixture(autouse=True)
 def cleanup_temp_files(tmp_path: Path) -> Iterator[None]:
@@ -92,3 +94,32 @@ def clean_duckdb_path(tmp_path: Path) -> Path:
     timestamp = int(time.time() * 1000000)  # Microsecond precision
     db_path = tmp_path / f"test_{timestamp}.duckdb"
     return db_path
+
+
+# =============================================================================
+# Test Configuration Fixtures
+# =============================================================================
+
+
+@pytest.fixture
+def test_timeouts() -> TestTimeouts:
+    """Provide timeout constants for tests."""
+    return TestTimeouts()
+
+
+@pytest.fixture
+def test_dates() -> TestDates:
+    """Provide test date constants."""
+    return TestDates()
+
+
+@pytest.fixture
+def window_configs() -> WindowConfig:
+    """Provide windowing configuration constants."""
+    return WindowConfig()
+
+
+@pytest.fixture
+def test_timezones() -> TestTimezones:
+    """Provide timezone constants."""
+    return TestTimezones()
