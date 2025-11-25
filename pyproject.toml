@@ -49,6 +49,11 @@ rss = [
 [project.scripts]
 egregora = "egregora.cli:main"
 
+[project.entry-points."egregora.adapters"]
+whatsapp = "egregora.input_adapters.whatsapp:WhatsAppAdapter"
+iperon-tjro = "egregora.input_adapters.iperon_tjro:IperonTJROAdapter"
+self = "egregora.input_adapters.self_reflection:SelfInputAdapter"
+
 [build-system]
 requires = ["hatchling>=1.21.0"]
 build-backend = "hatchling.build"

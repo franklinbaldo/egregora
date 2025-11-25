@@ -1,4 +1,4 @@
-"""Adapter plugin registry for loading built-in and third-party adapters.
+"""Adapter plugin registry for loading adapters via entry points.
 
 This module provides the InputAdapterRegistry class which:
 - Automatically discovers adapters via Python entry points
@@ -29,9 +29,9 @@ __all__ = ["InputAdapterRegistry", "get_global_registry"]
 class InputAdapterRegistry:
     """Registry for discovering and managing source adapters.
 
-    The registry automatically loads:
-    1. Built-in adapters (WhatsApp)
-    2. Third-party adapters via entry points (group: 'egregora.adapters')
+    The registry automatically loads adapters from the
+    'egregora.adapters' entry point group, enabling both built-in and
+    third-party adapters to share the same discovery mechanism.
 
     Adapters must:
     - Implement InputAdapter protocol
@@ -48,46 +48,13 @@ class InputAdapterRegistry:
     def __init__(self) -> None:
         """Initialize registry and load adapters."""
         self._adapters: dict[str, InputAdapter] = {}
-        self._load_builtin()
         self._load_plugins()
 
-    def _load_builtin(self) -> None:
-        """Load built-in adapters (WhatsApp)."""
-        try:
-            from egregora.input_adapters.whatsapp import WhatsAppAdapter
-
-            adapter = WhatsAppAdapter()
-            meta = adapter.get_adapter_metadata()
-            self._adapters[meta["source"]] = adapter
-            logger.debug("Loaded built-in adapter: %s v%s", meta["name"], meta["version"])
-        except Exception:
-            logger.exception("Failed to load WhatsAppAdapter")
-
-        try:
-            from egregora.input_adapters.iperon_tjro import IperonTJROAdapter
-
-            adapter = IperonTJROAdapter()
-            meta = adapter.get_adapter_metadata()
-            self._adapters[meta["source"]] = adapter
-            logger.debug("Loaded built-in adapter: %s v%s", meta["name"], meta["version"])
-        except Exception:
-            logger.exception("Failed to load IperonTJROAdapter")
-
-        try:
-            from egregora.input_adapters.self_reflection import SelfInputAdapter
-
-            adapter = SelfInputAdapter()
-            meta = adapter.get_adapter_metadata()
-            self._adapters[meta["source"]] = adapter
-            logger.debug("Loaded built-in adapter: %s v%s", meta["name"], meta["version"])
-        except Exception:
-            logger.exception("Failed to load SelfInputAdapter")
-
     def _load_plugins(self) -> None:
-        """Load third-party adapters from entry points.
+        """Load adapters from entry points.
 
         Entry points should be registered under group 'egregora.adapters'.
-        Each entry point should provide a InputAdapter class.
+        Each entry point should provide an InputAdapter class.
 
         """
         discovered = entry_points(group="egregora.adapters")
