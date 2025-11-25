@@ -951,6 +951,9 @@ def _index_new_content_in_rag(
         if indexed_count > 0:
             logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
     except (ibis.common.exceptions.IbisError, OSError) as e:
+        # Gracefully degrade on RAG failures (Ibis query errors, file I/O issues)
+        # Note: DuckDB errors are handled internally by VectorStore
+        # Post generation should succeed even if RAG indexing fails
         logger.warning("Failed to update RAG index after writing: %s", e)
 
 

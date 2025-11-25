@@ -783,18 +783,41 @@ class VectorStore:
             return ibis.memtable([], schema=INDEXED_SOURCES_SCHEMA)
 
     def index_documents(self, output_format: OutputAdapter, *, embedding_model: str) -> int:
-        """Index documents from an output adapter into the store."""
+        """Index documents from an output adapter into the store.
+
+        Gracefully handles DuckDB errors (VSS extension issues, locked files) internally.
+
+        Returns:
+            Number of documents successfully indexed (0 if indexing fails)
+        """
         # Avoid circular import
         from egregora.agents.shared.rag.indexing import index_documents_for_rag
 
-        return index_documents_for_rag(output_format, self, embedding_model=embedding_model)
+        try:
+            return index_documents_for_rag(output_format, self, embedding_model=embedding_model)
+        except duckdb.Error as e:
+            # Handle DuckDB-specific errors (VSS extension, locked files, malformed tables)
+            # Don't leak DuckDB errors to callers - this is an implementation detail
+            logger.warning("DuckDB error during document indexing: %s", e)
+            return 0
 
     def index_media(self, docs_dir: Path, *, embedding_model: str) -> int:
-        """Index media enrichments from the documentation directory."""
+        """Index media enrichments from the documentation directory.
+
+        Gracefully handles DuckDB errors (VSS extension issues, locked files) internally.
+
+        Returns:
+            Number of media chunks successfully indexed (0 if indexing fails)
+        """
         # Avoid circular import
         from egregora.agents.shared.rag.indexing import index_all_media
 
-        return index_all_media(docs_dir, self, embedding_model=embedding_model)
+        try:
+            return index_all_media(docs_dir, self, embedding_model=embedding_model)
+        except duckdb.Error as e:
+            # Handle DuckDB-specific errors - don't leak to callers
+            logger.warning("DuckDB error during media indexing: %s", e)
+            return 0
 
     def query_media(
         self,

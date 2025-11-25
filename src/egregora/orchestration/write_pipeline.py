@@ -28,6 +28,7 @@ from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import ibis
+import ibis.common.exceptions
 from google import genai
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
@@ -1054,8 +1055,10 @@ def _prepare_pipeline_data(
                 logger.info("[green]✓ Indexed[/] %s documents into RAG", indexed_count)
             else:
                 logger.info("[dim]No new documents to index[/]")
-        except Exception:
-            logger.exception("[yellow]⚠️  Failed to index documents into RAG[/]")
+        except (ibis.common.exceptions.IbisError, OSError) as e:
+            # Gracefully degrade on RAG failures (Ibis query errors, file I/O)
+            # Note: DuckDB errors are handled internally by VectorStore
+            logger.warning("[yellow]⚠️  Failed to index documents into RAG: %s[/]", e)
 
     return PreparedPipelineData(
         messages_table=messages_table,
@@ -1094,8 +1097,10 @@ def _index_media_into_rag(
             logger.info("[green]✓ Indexed[/] %s media chunks into RAG", media_chunks)
         else:
             logger.info("[yellow]No media enrichments to index[/]")
-    except Exception:
-        logger.exception("[red]Failed to index media into RAG[/]")
+    except (ibis.common.exceptions.IbisError, OSError) as e:
+        # Gracefully degrade on RAG failures (Ibis query errors, file I/O)
+        # Note: DuckDB errors are handled internally by VectorStore
+        logger.warning("[red]Failed to index media into RAG: %s[/]", e)
 
 
 def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) -> None:
