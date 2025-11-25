@@ -36,6 +36,7 @@ from pydantic import BaseModel
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
+from egregora.ops.media import ATTACHMENT_MARKERS, WA_MEDIA_PATTERN, detect_media_type
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 from egregora.utils.paths import slugify
@@ -574,35 +575,6 @@ class DeliverMediaKwargs(TypedDict, total=False):
     zip_path: Path
 
 
-ATTACHMENT_MARKERS = ("(arquivo anexado)", "(file attached)", "(archivo adjunto)", "\u200e<attached:")
-WA_MEDIA_PATTERN = re.compile("\\b((?:IMG|VID|AUD|PTT|DOC)-\\d+-WA\\d+\\.\\w+)\\b")
-MEDIA_EXTENSIONS = {
-    ".jpg": "image",
-    ".jpeg": "image",
-    ".png": "image",
-    ".gif": "image",
-    ".webp": "image",
-    ".mp4": "video",
-    ".mov": "video",
-    ".3gp": "video",
-    ".avi": "video",
-    ".opus": "audio",
-    ".ogg": "audio",
-    ".mp3": "audio",
-    ".m4a": "audio",
-    ".aac": "audio",
-    ".pdf": "document",
-    ".doc": "document",
-    ".docx": "document",
-}
-
-
-def _detect_media_type(filename: str) -> str:
-    """Detect media type from filename for markdown alt text."""
-    ext = Path(filename).suffix.lower()
-    return MEDIA_EXTENSIONS.get(ext, "file")
-
-
 def _convert_whatsapp_media_to_markdown(message: str) -> str:
     """Convert WhatsApp media references to markdown format."""
     if not message:
@@ -610,7 +582,7 @@ def _convert_whatsapp_media_to_markdown(message: str) -> str:
     result = message
     media_files = WA_MEDIA_PATTERN.findall(message)
     for filename in media_files:
-        media_type = _detect_media_type(filename)
+        media_type = detect_media_type(Path(filename)) or "file"
         if media_type == "image":
             markdown = f"![Image]({filename})"
         elif media_type == "video":
