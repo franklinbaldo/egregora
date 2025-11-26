@@ -40,6 +40,7 @@ from egregora.utils.filesystem import (
 )
 from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import slugify
+from egregora.utils.text import calculate_reading_time
 
 logger = logging.getLogger(__name__)
 
@@ -1104,6 +1105,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             metadata["date"] = _format_frontmatter_datetime(metadata["date"])
         if "authors" in metadata:
             _ensure_author_entries(path.parent, metadata.get("authors"))
+
+        metadata["reading_time"] = calculate_reading_time(document.content)
 
         yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
