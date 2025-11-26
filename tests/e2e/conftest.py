@@ -273,9 +273,11 @@ def mock_vector_store(monkeypatch):
         def mock_embed_query(query_text: str, *, model: str) -> list[float]:
             """Mock embed_query to return deterministic embedding without API calls."""
             import hashlib
+
             # Generate deterministic embedding from query text
             hash_val = int(hashlib.md5(query_text.encode()).hexdigest(), 16)
             import random
+
             random.seed(hash_val)
             return [random.random() for _ in range(768)]  # 768-dim embedding
 
