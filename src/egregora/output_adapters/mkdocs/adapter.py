@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -40,6 +41,7 @@ from egregora.utils.filesystem import (
 )
 from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import slugify
+from egregora.utils.text import calculate_reading_time
 
 logger = logging.getLogger(__name__)
 
@@ -444,8 +446,6 @@ class MkDocsAdapter(OutputAdapter):
         custom_css_src = Path(env.loader.searchpath[0]) / "docs" / "stylesheets" / "custom.css"
         custom_css_dest = stylesheets_dir / "custom.css"
         if custom_css_src.exists() and not custom_css_dest.exists():
-            import shutil
-
             shutil.copy(custom_css_src, custom_css_dest)
 
         # Add media carousel JS
@@ -454,8 +454,6 @@ class MkDocsAdapter(OutputAdapter):
         carousel_js_src = Path(env.loader.searchpath[0]) / "docs" / "javascripts" / "media_carousel.js"
         carousel_js_dest = javascripts_dir / "media_carousel.js"
         if carousel_js_src.exists() and not carousel_js_dest.exists():
-            import shutil
-
             shutil.copy(carousel_js_src, carousel_js_dest)
 
         # Render each template
@@ -465,6 +463,14 @@ class MkDocsAdapter(OutputAdapter):
                 template = env.get_template(template_name)
                 content = template.render(**context)
                 target_path.write_text(content, encoding="utf-8")
+
+        # Add theme overrides
+        import shutil
+
+        theme_dest = site_root / "theme"
+        if not theme_dest.exists():
+            theme_src = Path(env.loader.searchpath[0]) / "theme"
+            shutil.copytree(theme_src, theme_dest)
 
     def _create_egregora_config(self, site_paths: dict[str, Path], env: Environment) -> None:
         """Create .egregora/config.yml from template.
@@ -1101,6 +1107,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             metadata["date"] = _format_frontmatter_datetime(metadata["date"])
         if "authors" in metadata:
             _ensure_author_entries(path.parent, metadata.get("authors"))
+
+        metadata["reading_time"] = calculate_reading_time(document.content)
 
         yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
