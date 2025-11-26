@@ -61,7 +61,6 @@ def retry_sync(
     retry_on_statuses: Iterable[str] = _DEFAULT_RETRY_STATUSES,
 ) -> T:
     """Execute ``func`` with retries using tenacity."""
-
     for attempt in Retrying(
         **_build_retry_kwargs(
             max_attempts=max_attempts,
@@ -88,7 +87,6 @@ async def retry_async(
     retry_on_statuses: Iterable[str] = _DEFAULT_RETRY_STATUSES,
 ) -> T:
     """Await ``func`` with retries using tenacity."""
-
     async for attempt in AsyncRetrying(
         **_build_retry_kwargs(
             max_attempts=max_attempts,
