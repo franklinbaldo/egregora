@@ -500,7 +500,7 @@ class EgregoraConfig(BaseModel):
     )
 
     @classmethod
-    def from_cli_overrides(cls, base_config: EgregoraConfig, **cli_args: Any) -> EgregoraConfig:  # noqa: C901, PLR0912
+    def from_cli_overrides(cls, base_config: EgregoraConfig, **cli_args: Any) -> EgregoraConfig:
         """Create a new config instance with CLI overrides applied.
 
         Handles nested updates for pipeline, enrichment, rag, etc.
@@ -521,9 +521,7 @@ class EgregoraConfig(BaseModel):
         )
 
         builder.with_enrichment(
-            enabled=cli_args.get("enable_enrichment")
-            if "enable_enrichment" in cli_args
-            else None
+            enabled=cli_args.get("enable_enrichment") if "enable_enrichment" in cli_args else None
         )
 
         builder.with_rag(
