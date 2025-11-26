@@ -41,7 +41,6 @@ def calculate_reading_time(text: str) -> int:
 
     Returns:
         The estimated reading time in minutes, rounded up.
-
     """
     if not text or not text.strip():
         return 0
