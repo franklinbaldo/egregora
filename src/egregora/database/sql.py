@@ -14,7 +14,6 @@ See Also:
       used by the 'quote' filter.
 
 """
-
 from jinja2 import Environment, PackageLoader
 
 from egregora.database.utils import quote_identifier
@@ -42,7 +41,6 @@ class SQLManager:
 
         Returns:
             The rendered SQL query as a string.
-
         """
         template = self.env.get_template(template_name)
         return template.render(**kwargs)

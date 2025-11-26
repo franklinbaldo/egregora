@@ -274,7 +274,11 @@ class DuckDBStorageManager:
                 table_name=name,
                 mode=mode,
             )
-            params = [str(parquet_path)] if mode == "replace" else [str(parquet_path), str(parquet_path)]
+            params = (
+                [str(parquet_path)]
+                if mode == "replace"
+                else [str(parquet_path), str(parquet_path)]
+            )
             self._conn.execute(sql, params)
             logger.info("Table '%s' written with checkpoint (%s)", name, mode)
 
