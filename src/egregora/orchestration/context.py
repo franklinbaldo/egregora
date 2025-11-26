@@ -7,8 +7,9 @@ This module defines:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from datetime import datetime
+import uuid
+from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -17,14 +18,29 @@ if TYPE_CHECKING:
     from google import genai
 
     from egregora.agents.shared.annotations import AnnotationStore
+    from egregora.database.protocols import StorageProtocol
+
 from egregora.agents.shared.rag import VectorStore
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import OutputSink, UrlContext
-from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.utils.cache import EnrichmentCache, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
 from egregora.utils.rate_limit import AsyncRateLimit, SyncRateLimit
+
+
+@dataclass(frozen=True, slots=True)
+class PipelineRunParams:
+    """Aggregated parameters required to start a pipeline run."""
+
+    output_dir: Path
+    config: EgregoraConfig
+    source_type: str
+    input_path: Path
+    client: genai.Client | None = None
+    refresh: str | None = None
+    run_id: UUID = field(default_factory=uuid.uuid4)
+    start_time: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,7 +118,7 @@ class PipelineState:
 
     # Resources & Clients
     client: genai.Client
-    storage: DuckDBStorageManager
+    storage: StorageProtocol  # Use protocol instead of concrete implementation
     cache: PipelineCache
 
     # Stores (Optional)
@@ -178,7 +194,8 @@ class PipelineContext:
         return self.state.client
 
     @property
-    def storage(self) -> DuckDBStorageManager:
+    def storage(self) -> StorageProtocol:
+        """Return storage backend (abstracted via protocol)."""
         return self.state.storage
 
     @property

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ibis
+import ibis.common.exceptions
 from ibis.expr.types import Table
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from pydantic import BaseModel, Field
@@ -39,16 +40,9 @@ from egregora.agents.model_limits import (
     get_model_context_limit,
     validate_prompt_fits,
 )
-from egregora.agents.shared.rag import (
-    VectorStore,
-    embed_query_text,
-    index_documents_for_rag,
-    is_rag_available,
-    query_media,
-)
+from egregora.agents.shared.rag import VectorStore
 from egregora.config.settings import EgregoraConfig, RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.knowledge.profiles import get_active_authors, read_profile
 from egregora.output_adapters import output_registry
 from egregora.resources.prompts import PromptManager, render_prompt
@@ -58,13 +52,13 @@ from egregora.utils.cache import CacheTier, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
 from egregora.utils.rate_limit import AsyncRateLimit, SyncRateLimit
-from egregora.utils.retry import RetryPolicy, retry_sync
+from egregora.utils.retry import retry_sync
 
 if TYPE_CHECKING:
     from google import genai
 
     from egregora.agents.shared.annotations import AnnotationStore
-    from egregora.data_primitives.protocols import OutputAdapter
+    from egregora.data_primitives.protocols import OutputSink
     from egregora.orchestration.context import PipelineContext
 
 logger = logging.getLogger(__name__)
@@ -163,12 +157,12 @@ class WriterResources:
     """Explicit resources required by the writer agent."""
 
     # The Sink/Source for posts and profiles
-    output: OutputAdapter
+    output: OutputSink
 
     # Knowledge Stores
     rag_store: VectorStore | None
     annotations_store: AnnotationStore | None
-    storage: DuckDBStorageManager | None  # Required for RAG indexing
+    storage: Any | None  # StorageProtocol - Required for RAG indexing
 
     # Configuration required for tools
     embedding_model: str
@@ -200,7 +194,7 @@ class WriterDeps:
     window_label: str
 
     @property
-    def output_sink(self) -> OutputAdapter:
+    def output_sink(self) -> OutputSink:
         return self.resources.output
 
 
@@ -260,9 +254,8 @@ def register_writer_tools(  # noqa: C901
             if not ctx.deps.resources.rag_store:
                 return SearchMediaResult(results=[])
 
-            results = query_media(
+            results = ctx.deps.resources.rag_store.query_media(
                 query=query,
-                store=ctx.deps.resources.rag_store,
                 media_types=media_types,
                 top_k=limit,
                 min_similarity_threshold=0.7,
@@ -383,7 +376,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
             return cached_context
 
     # Perform Search
-    query_vector = embed_query_text(query_text, model=embedding_model)
+    query_vector = VectorStore.embed_query(query_text, model=embedding_model)
     search_results = store.search(
         query_vec=query_vector,
         top_k=top_k,
@@ -639,7 +632,7 @@ def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
 def _save_journal_to_file(  # noqa: PLR0913
     intercalated_log: list[JournalEntry],
     window_label: str,
-    output_format: OutputAdapter,
+    output_format: OutputSink,
     posts_published: int,
     profiles_updated: int,
     window_start: datetime,
@@ -819,12 +812,10 @@ def write_posts_with_pydantic_agent(
     model_name = test_model if test_model is not None else config.models.writer
     agent = Agent[WriterDeps, WriterAgentReturn](model=model_name, deps_type=WriterDeps)
     register_writer_tools(
-        agent, enable_banner=is_banner_generation_available(), enable_rag=is_rag_available()
+        agent, enable_banner=is_banner_generation_available(), enable_rag=VectorStore.is_available()
     )
 
     _validate_prompt_fits(prompt, model_name, config, context.window_label)
-
-    retry_policy = RetryPolicy()
 
     def _invoke_agent() -> Any:
         if context.resources.rate_limit:
@@ -834,7 +825,7 @@ def write_posts_with_pydantic_agent(
         return call_with_retries_sync(agent.run_sync, prompt, deps=context)
 
     try:
-        result = retry_sync(_invoke_agent, retry_policy)
+        result = retry_sync(_invoke_agent)
     except QuotaExceededError as exc:
         msg = (
             "LLM quota exceeded for this day. No additional posts can be generated "
@@ -951,15 +942,16 @@ def _index_new_content_in_rag(
         return
 
     try:
-        indexed_count = index_documents_for_rag(
+        indexed_count = resources.rag_store.index_documents(
             resources.output,
-            resources.rag_store.parquet_path.parent,
-            resources.storage,
             embedding_model=resources.embedding_model,
         )
         if indexed_count > 0:
             logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
-    except (duckdb.Error, OSError) as e:
+    except (ibis.common.exceptions.IbisError, OSError) as e:
+        # Gracefully degrade on RAG failures (Ibis query errors, file I/O issues)
+        # Note: DuckDB errors are handled internally by VectorStore
+        # Post generation should succeed even if RAG indexing fails
         logger.warning("Failed to update RAG index after writing: %s", e)
 
 

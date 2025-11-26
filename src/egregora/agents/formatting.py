@@ -1,4 +1,4 @@
-"""Formatting utilities for writer module - markdown and table rendering."""
+"""Formatting utilities for writer module - XML conversation rendering."""
 
 from __future__ import annotations
 
@@ -7,17 +7,12 @@ import json
 import logging
 import math
 from collections.abc import Iterable, Mapping, Sequence
-from datetime import UTC
 from pathlib import Path
 
 import pyarrow as pa  # noqa: TID251
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from egregora.agents.shared.annotations import (
-    ANNOTATION_AUTHOR,
-    Annotation,
-    AnnotationStore,
-)
+from egregora.agents.shared.annotations import Annotation, AnnotationStore
 from egregora.data_primitives.document import DocumentType
 from egregora.output_adapters.base import OutputSink
 
@@ -39,7 +34,7 @@ def _load_journal_memory(output_sink: OutputSink) -> str:
 
 
 def _stringify_value(value: object) -> str:
-    """Convert values to safe strings for table rendering."""
+    """Convert values to safe strings for conversation rendering."""
     if isinstance(value, str):
         return value
     pyarrow_na = getattr(pa, "NA", None)
@@ -53,13 +48,6 @@ def _stringify_value(value: object) -> str:
     except TypeError:
         pass
     return str(value)
-
-
-def _escape_table_cell(value: object) -> str:
-    """Escape markdown table delimiters and normalize whitespace."""
-    text = _stringify_value(value)
-    text = text.replace("|", "\\|")
-    return text.replace("\n", "<br>")
 
 
 def _compute_message_id(row: Mapping[str, object]) -> str:
@@ -99,39 +87,6 @@ def _compute_message_id(row: Mapping[str, object]) -> str:
             parts.append(json.dumps(row, sort_keys=True, default=_stringify_value))
     raw = "||".join(parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
-
-
-def _format_annotations_for_message(annotations: list[Annotation]) -> str:
-    """Return formatted annotation text for inclusion in a table cell."""
-    if not annotations:
-        return ""
-    formatted_blocks: list[str] = []
-    for annotation in annotations:
-        timestamp = (
-            annotation.created_at.astimezone(UTC)
-            if annotation.created_at.tzinfo
-            else annotation.created_at.replace(tzinfo=UTC)
-        )
-        timestamp_text = timestamp.isoformat().replace("+00:00", "Z")
-        parent_note = ""
-        if annotation.parent_type == "annotation":
-            parent_note = f" · parent #{annotation.parent_id}"
-        commentary = _stringify_value(annotation.commentary)
-        formatted_blocks.append(
-            f"**Annotation #{annotation.id}{parent_note} — {timestamp_text} ({ANNOTATION_AUTHOR})**\n{commentary}"
-        )
-    return "\n\n".join(formatted_blocks)
-
-
-def _merge_message_and_annotations(message_value: object, annotations: list[Annotation]) -> str:
-    """Append annotation content after the original message text."""
-    message_text = _stringify_value(message_value)
-    annotations_block = _format_annotations_for_message(annotations)
-    if not annotations_block:
-        return message_text
-    if message_text:
-        return f"{message_text}\n\n{annotations_block}"
-    return annotations_block
 
 
 def _build_conversation_xml(
@@ -216,7 +171,7 @@ def _table_to_records(
                 if key_str not in iter_column_names:
                     iter_column_names.append(key_str)
         return (iter_records, iter_column_names)
-    msg = "Unsupported data source for markdown rendering"
+    msg = "Unsupported data source for conversation rendering"
     raise TypeError(msg)
 
 
@@ -242,7 +197,3 @@ def _ensure_msg_id_column(rows: list[dict[str, object]], column_order: list[str]
         else:
             row["msg_id"] = _stringify_value(row.get("message_id"))
     return column_order
-
-
-# _build_conversation_markdown_table removed (unused)
-# _build_conversation_markdown_verbose removed (unused)

@@ -1,7 +1,7 @@
 """Database utilities, schemas, and infrastructure for Egregora.
 
 This package consolidates all persistence, state management, and infrastructure:
-- Schemas: IR schema definitions and validation
+- Schemas: IR schema definitions
 - Storage: DuckDB connection management
 - Streaming: Memory-efficient data access utilities
 - Tracking: Run observability and lineage
@@ -13,7 +13,6 @@ This package consolidates all persistence, state management, and infrastructure:
 from egregora.database import ir_schema as schemas
 from egregora.database.duckdb_manager import (
     DuckDBStorageManager,
-    combine_with_enrichment_rows,
     duckdb_backend,
     temp_storage,
 )
@@ -67,7 +66,6 @@ __all__ = [
     "ViewBuilder",
     "chunks_sql",
     "chunks_view",
-    "combine_with_enrichment_rows",
     # Streaming
     "copy_expr_to_ndjson",
     "copy_expr_to_parquet",

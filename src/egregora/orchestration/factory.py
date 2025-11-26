@@ -7,8 +7,6 @@ for the write pipeline, decluttering the orchestration logic.
 from __future__ import annotations
 
 import logging
-import uuid
-from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -21,7 +19,12 @@ from egregora.agents.writer import WriterResources
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineState
+from egregora.orchestration.context import (
+    PipelineConfig,
+    PipelineContext,
+    PipelineRunParams,
+    PipelineState,
+)
 from egregora.output_adapters import create_output_format, output_registry
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
@@ -37,40 +40,24 @@ class PipelineFactory:
     """Factory for creating pipeline resources and contexts."""
 
     @staticmethod
-    def create_context(  # noqa: PLR0913
-        output_dir: Path,
-        config: EgregoraConfig,
-        client: genai.Client | None,
-        run_id: uuid.UUID,
-        start_time: datetime,
-        source_type: str,
-        input_path: Path,
-        refresh: str | None = None,
-    ) -> tuple[PipelineContext, any, any]:
+    def create_context(run_params: PipelineRunParams) -> tuple[PipelineContext, any, any]:
         """Create pipeline context with all resources and configuration.
 
         Args:
-            output_dir: Output directory for the pipeline
-            config: Egregora configuration
-            client: Optional existing Gemini client (reads GOOGLE_API_KEY env if None)
-            run_id: Unique run identifier
-            start_time: Run start timestamp
-            source_type: Source type (e.g., "whatsapp", "slack")
-            input_path: Path to input file
-            refresh: Optional comma-separated list of cache tiers to refresh
+            run_params: Aggregated pipeline run parameters
 
         Returns:
             Tuple of (PipelineContext, pipeline_backend, runs_backend)
             The backends are returned for cleanup by the context manager.
 
         """
-        resolved_output = output_dir.expanduser().resolve()
+        resolved_output = run_params.output_dir.expanduser().resolve()
 
-        refresh_tiers = {r.strip().lower() for r in (refresh or "").split(",") if r.strip()}
-        site_paths = PipelineFactory.resolve_site_paths_or_raise(resolved_output, config)
+        refresh_tiers = {r.strip().lower() for r in (run_params.refresh or "").split(",") if r.strip()}
+        site_paths = PipelineFactory.resolve_site_paths_or_raise(resolved_output, run_params.config)
 
         _runtime_db_uri, pipeline_backend, runs_backend = PipelineFactory.create_database_backends(
-            site_paths["site_root"], config
+            site_paths["site_root"], run_params.config
         )
 
         # Initialize database tables (CREATE TABLE IF NOT EXISTS)
@@ -78,7 +65,7 @@ class PipelineFactory:
 
         initialize_database(pipeline_backend)
 
-        client_instance = client or PipelineFactory.create_gemini_client()
+        client_instance = run_params.client or PipelineFactory.create_gemini_client()
         cache_dir = Path(".egregora-cache") / site_paths["site_root"].name
         cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
         site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
@@ -86,15 +73,15 @@ class PipelineFactory:
         storage = DuckDBStorageManager(db_path=db_file)
 
         rag_store = None
-        if config.rag.enabled:
-            rag_dir = site_paths["site_root"] / ".egregora" / "rag"
+        if run_params.config.rag.enabled:
+            rag_dir = site_paths["rag_dir"]
             rag_dir.mkdir(parents=True, exist_ok=True)
             rag_store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
 
         annotations_store = AnnotationStore(storage)
 
-        quota_tracker = QuotaTracker(site_paths["egregora_dir"], config.quota.daily_llm_requests)
-        rate_limit = AsyncRateLimit(config.quota.per_second_limit)
+        quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
+        rate_limit = AsyncRateLimit(run_params.config.quota.per_second_limit)
 
         from egregora.data_primitives.protocols import UrlContext
 
@@ -105,7 +92,7 @@ class PipelineFactory:
         )
 
         config_obj = PipelineConfig(
-            config=config,
+            config=run_params.config,
             output_dir=resolved_output,
             site_root=site_paths["site_root"],
             docs_dir=site_paths["docs_dir"],
@@ -116,10 +103,10 @@ class PipelineFactory:
         )
 
         state = PipelineState(
-            run_id=run_id,
-            start_time=start_time,
-            source_type=source_type,
-            input_path=input_path,
+            run_id=run_params.run_id,
+            start_time=run_params.start_time,
+            source_type=run_params.source_type,
+            input_path=run_params.input_path,
             client=client_instance,
             storage=storage,
             cache=cache,

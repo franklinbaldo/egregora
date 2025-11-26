@@ -71,18 +71,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import ibis
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database import ir_schema as database_schema
-from egregora.database.duckdb_manager import DuckDBStorageManager
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
-    import duckdb
+    from egregora.database.protocols import SequenceStorageProtocol, StorageProtocol
+
 
 # ============================================================================
 # Constants
@@ -183,17 +183,19 @@ class AnnotationStore:
         - Sequences: annotations_id_seq for auto-increment
     """
 
-    def __init__(self, storage: DuckDBStorageManager) -> None:
+    def __init__(self, storage: StorageProtocol & SequenceStorageProtocol) -> None:  # type: ignore[misc]
+        """Initialize annotation store.
+
+        Args:
+            storage: Storage backend implementing both StorageProtocol and SequenceStorageProtocol
+
+        """
         self.storage = storage
         self._backend = storage.ibis_conn
         self._sequence_name = f"{ANNOTATIONS_TABLE}_id_seq"
         self._initialize()
 
-    @property
-    def _connection(self) -> duckdb.DuckDBPyConnection:
-        """Return the underlying DuckDB connection."""
-        # Access protected member directly as this is an internal component
-        return self.storage._conn
+    # Note: Removed _connection property - use storage.connection() context manager instead
 
     # ========================================================================
     # Schema Initialization
@@ -231,7 +233,10 @@ class AnnotationStore:
             else:
                 raise
 
-        database_schema.add_primary_key(self._connection, ANNOTATIONS_TABLE, "id")
+        # Use protocol method instead of accessing protected member
+        with self.storage.connection() as conn:
+            database_schema.add_primary_key(conn, ANNOTATIONS_TABLE, "id")
+
         self.storage.ensure_sequence_default(ANNOTATIONS_TABLE, "id", sequence_name)
         self._backend.raw_sql(
             f"\n            CREATE INDEX IF NOT EXISTS idx_annotations_parent_created\n            ON {ANNOTATIONS_TABLE} (parent_id, parent_type, created_at)\n            "
@@ -244,29 +249,23 @@ class AnnotationStore:
 
     def _fetch_records(self, query: str, params: Sequence[object] | None = None) -> list[dict[str, object]]:
         """Execute a query and return results as a list of dictionaries."""
-        cursor = self._connection.execute(query, params or [])
-        column_names = [description[0] for description in cursor.description]
-        return [dict(zip(column_names, row, strict=False)) for row in cursor.fetchall()]
+        # Use protocol method instead of accessing protected member
+        with self.storage.connection() as conn:
+            cursor = conn.execute(query, params or [])
+            column_names = [description[0] for description in cursor.description]
+            return [dict(zip(column_names, row, strict=False)) for row in cursor.fetchall()]
 
     # ========================================================================
     # CRUD Operations
     # ========================================================================
 
-    def save_annotation(self, parent_id: str, parent_type: str, commentary: str) -> Annotation:
+    def save_annotation(
+        self,
+        parent_id: str,
+        parent_type: Literal["message", "annotation"],
+        commentary: str,
+    ) -> Annotation:
         """Persist an annotation and return the saved record."""
-        sanitized_parent_id = (parent_id or "").strip()
-        sanitized_parent_type = (parent_type or "").strip().lower()
-        sanitized_commentary = (commentary or "").strip()
-        if not sanitized_parent_id:
-            msg = "parent_id is required"
-            raise ValueError(msg)
-        if sanitized_parent_type not in ("message", "annotation"):
-            msg = "parent_type must be 'message' or 'annotation'"
-            raise ValueError(msg)
-        if not sanitized_commentary:
-            msg = "commentary must not be empty"
-            raise ValueError(msg)
-
         # Runtime privacy check
         # TODO: Re-enable when egregora.privacy.pii module is implemented
         # from egregora.privacy.config import PrivacySettings
@@ -274,31 +273,28 @@ class AnnotationStore:
         # if PrivacySettings.detect_pii:
         #     from egregora.privacy.pii import detect_pii
         #
-        #     if detect_pii(sanitized_commentary):
+        #     if detect_pii(commentary):
         #         msg = "Annotation commentary contains PII"
         #         raise ValueError(msg)
 
         created_at = datetime.now(UTC)
-        if sanitized_parent_type == "annotation":
+        if parent_type == "annotation":
             annotations_table = self._backend.table(ANNOTATIONS_TABLE)
             parent_exists = int(
-                annotations_table.filter(annotations_table.id == int(sanitized_parent_id))
-                .limit(1)
-                .count()
-                .execute()
+                annotations_table.filter(annotations_table.id == int(parent_id)).limit(1).count().execute()
             )
             if parent_exists == 0:
-                msg = f"parent annotation with id {sanitized_parent_id} does not exist"
+                msg = f"parent annotation with id {parent_id} does not exist"
                 raise ValueError(msg)
         annotation_id = self.storage.next_sequence_value(self._sequence_name)
         insert_row = ibis.memtable(
             [
                 {
                     "id": annotation_id,
-                    "parent_id": sanitized_parent_id,
-                    "parent_type": sanitized_parent_type,
+                    "parent_id": parent_id,
+                    "parent_type": parent_type,
                     "author": ANNOTATION_AUTHOR,
-                    "commentary": sanitized_commentary,
+                    "commentary": commentary,
                     "created_at": created_at,
                 }
             ]
@@ -306,10 +302,10 @@ class AnnotationStore:
         self._backend.insert(ANNOTATIONS_TABLE, insert_row)
         return Annotation(
             id=annotation_id,
-            parent_id=sanitized_parent_id,
-            parent_type=sanitized_parent_type,
+            parent_id=parent_id,
+            parent_type=parent_type,
             author=ANNOTATION_AUTHOR,
-            commentary=sanitized_commentary,
+            commentary=commentary,
             created_at=created_at,
         )
 
@@ -333,12 +329,14 @@ class AnnotationStore:
         sanitized_msg_id = (msg_id or "").strip()
         if not sanitized_msg_id:
             return None
-        cursor = self._connection.execute(
-            f"\n            SELECT id FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at DESC, id DESC\n            LIMIT 1\n            ",  # nosec B608 - ANNOTATIONS_TABLE is module constant
-            [sanitized_msg_id],
-        )
-        row = cursor.fetchone()
-        return int(row[0]) if row else None
+        # Use protocol method instead of accessing protected member
+        with self.storage.connection() as conn:
+            cursor = conn.execute(
+                f"\n            SELECT id FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at DESC, id DESC\n            LIMIT 1\n            ",  # nosec B608 - ANNOTATIONS_TABLE is module constant
+                [sanitized_msg_id],
+            )
+            row = cursor.fetchone()
+            return int(row[0]) if row else None
 
     def iter_all_annotations(self) -> Iterable[Annotation]:
         """Yield all annotations sorted by insertion order."""

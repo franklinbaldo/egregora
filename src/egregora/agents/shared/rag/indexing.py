@@ -17,13 +17,16 @@ import ibis
 from egregora.agents.model_limits import PromptTooLargeError
 from egregora.agents.shared.rag.chunker import chunk_document, chunk_from_document
 from egregora.agents.shared.rag.embedder import embed_chunks
-from egregora.agents.shared.rag.store import VECTOR_STORE_SCHEMA, VectorStore
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database import ir_schema
 from egregora.utils.frontmatter_utils import parse_frontmatter
 
 if TYPE_CHECKING:
-    from egregora.data_primitives.protocols import OutputAdapter
+    from egregora.agents.shared.rag.store import VectorStore
+    from egregora.data_primitives.protocols import OutputAdapter, OutputSink
+
+# Use schema directly to avoid circular import with store.py
+VECTOR_STORE_SCHEMA = ir_schema.RAG_CHUNKS_SCHEMA
 
 logger = logging.getLogger(__name__)
 
@@ -265,7 +268,7 @@ def index_document(
     return len(chunks)
 
 
-def _collect_document_metadata(output_format: OutputAdapter) -> tuple[list[dict[str, Any]], int]:
+def _collect_document_metadata(output_format: OutputSink) -> tuple[list[dict[str, Any]], int]:
     """Collect metadata from all documents in the output adapter.
 
     Args:
@@ -285,7 +288,10 @@ def _collect_document_metadata(output_format: OutputAdapter) -> tuple[list[dict[
             continue
 
         source_path = document.metadata.get("source_path")
-        if not source_path:
+        # Note: source_path might be missing if the document was not loaded from a filesystem adapter
+        # that populates it (e.g. MkDocsAdapter populates it). Without source_path, we can't index
+        # the document as it requires a physical path for the vector store schema.
+        if not source_path and hasattr(output_format, "resolve_document_path"):
             try:
                 source_path = str(output_format.resolve_document_path(identifier))
             except (ValueError, RuntimeError, OSError) as e:
@@ -363,8 +369,16 @@ def _index_new_documents(to_index, store: VectorStore, *, embedding_model: str) 
             )
             indexed_count += 1
             logger.debug("Indexed document: %s", row.storage_identifier)
-        except Exception as e:  # noqa: BLE001
+        except (OSError, ValueError, PromptTooLargeError) as e:
+            # Expected errors during indexing:
+            # - OSError: File read/write failures
+            # - ValueError: Invalid document format or metadata
+            # - PromptTooLargeError: Document too large to embed
             logger.warning("Failed to index document %s: %s", row.storage_identifier, e)
+            continue
+        except Exception:
+            # Unexpected errors should be logged with full context for debugging
+            logger.exception("Unexpected error indexing document %s", row.storage_identifier)
             continue
 
     return indexed_count
@@ -372,8 +386,7 @@ def _index_new_documents(to_index, store: VectorStore, *, embedding_model: str) 
 
 def index_documents_for_rag(
     output_format: OutputAdapter,
-    rag_dir: Path,
-    storage: DuckDBStorageManager,
+    store: VectorStore,
     *,
     embedding_model: str,
 ) -> int:
@@ -381,8 +394,7 @@ def index_documents_for_rag(
 
     Args:
         output_format: Output adapter providing documents
-        rag_dir: Directory containing RAG storage
-        storage: DuckDB storage manager
+        store: Vector store instance
         embedding_model: Model name for embeddings
 
     Returns:
@@ -414,7 +426,6 @@ def index_documents_for_rag(
             return 0
 
         # Step 3: Perform delta detection
-        store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
         new_or_changed = _identify_documents_to_index(docs_table, store)
 
         to_index = new_or_changed.execute()

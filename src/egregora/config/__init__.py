@@ -78,6 +78,8 @@ from egregora.config.settings import (
     # Config loading/saving functions
     create_default_config,
     find_egregora_config,
+    get_google_api_key,
+    google_api_key_status,
     load_egregora_config,
     save_egregora_config,
 )
@@ -98,6 +100,8 @@ __all__ = [
     "WriterAgentSettings",
     "create_default_config",
     "find_egregora_config",
+    "get_google_api_key",
+    "google_api_key_status",
     "load_egregora_config",
     "save_egregora_config",
 ]

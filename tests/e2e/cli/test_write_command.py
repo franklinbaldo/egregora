@@ -18,6 +18,12 @@ import pytest
 from typer.testing import CliRunner
 
 from egregora.cli.main import app
+from tests.e2e.test_config import (
+    TestDates,
+    TestTimezones,
+    assert_command_success,
+    build_write_command_args,
+)
 
 # Create a CLI runner for testing
 runner = CliRunner()
@@ -63,10 +69,15 @@ class TestWriteCommandBasic:
         )
 
         # Command should complete (may fail gracefully if no API key, but shouldn't crash)
-        assert result.exit_code in (0, 1), f"Unexpected exit code: {result.stdout}"
+        assert result.exit_code in (0, 1), (
+            f"Command exited with code {result.exit_code} (expected 0 or 1).\n"
+            f"Output: {result.stdout[:500]}"  # Show first 500 chars of output
+        )
 
         # Output directory should exist
-        assert test_output_dir.exists(), "Output directory was not created"
+        assert test_output_dir.exists(), (
+            f"Output directory was not created at {test_output_dir}. Command exit code: {result.exit_code}"
+        )
 
     def test_write_command_missing_input(self, test_output_dir):
         """Test write command with missing input ZIP file."""
@@ -226,55 +237,25 @@ class TestWriteCommandConfiguration:
 class TestWriteCommandDateFiltering:
     """Tests for 'egregora write' command with date filtering."""
 
-    def test_write_command_with_from_date(self, test_zip_file, test_output_dir):
+    def test_write_command_with_from_date(self, test_zip_file, test_output_dir, test_dates: TestDates):
         """Test write command with --from-date filter."""
-        result = runner.invoke(
-            app,
-            [
-                "write",
-                str(test_zip_file),
-                "--output-dir",
-                str(test_output_dir),
-                "--from-date",
-                "2025-10-01",
-            ],
-        )
+        args = build_write_command_args(test_zip_file, test_output_dir, from_date=test_dates.VALID_FROM)
+        result = runner.invoke(app, args)
+        assert_command_success(result)
 
-        assert result.exit_code in (0, 1), f"Unexpected error: {result.stdout}"
-
-    def test_write_command_with_to_date(self, test_zip_file, test_output_dir):
+    def test_write_command_with_to_date(self, test_zip_file, test_output_dir, test_dates: TestDates):
         """Test write command with --to-date filter."""
-        result = runner.invoke(
-            app,
-            [
-                "write",
-                str(test_zip_file),
-                "--output-dir",
-                str(test_output_dir),
-                "--to-date",
-                "2025-10-31",
-            ],
-        )
+        args = build_write_command_args(test_zip_file, test_output_dir, to_date=test_dates.VALID_TO)
+        result = runner.invoke(app, args)
+        assert_command_success(result)
 
-        assert result.exit_code in (0, 1), f"Unexpected error: {result.stdout}"
-
-    def test_write_command_with_date_range(self, test_zip_file, test_output_dir):
+    def test_write_command_with_date_range(self, test_zip_file, test_output_dir, test_dates: TestDates):
         """Test write command with both --from-date and --to-date."""
-        result = runner.invoke(
-            app,
-            [
-                "write",
-                str(test_zip_file),
-                "--output-dir",
-                str(test_output_dir),
-                "--from-date",
-                "2025-10-01",
-                "--to-date",
-                "2025-10-31",
-            ],
+        args = build_write_command_args(
+            test_zip_file, test_output_dir, from_date=test_dates.VALID_FROM, to_date=test_dates.VALID_TO
         )
-
-        assert result.exit_code in (0, 1), f"Unexpected error: {result.stdout}"
+        result = runner.invoke(app, args)
+        assert_command_success(result)
 
     def test_write_command_invalid_from_date_format(self, test_zip_file, test_output_dir):
         """Test write command with invalid --from-date format."""
@@ -295,54 +276,30 @@ class TestWriteCommandDateFiltering:
             "Should report invalid format error"
         )
 
-    def test_write_command_invalid_to_date_format(self, test_zip_file, test_output_dir):
+    def test_write_command_invalid_to_date_format(
+        self, test_zip_file, test_output_dir, test_dates: TestDates
+    ):
         """Test write command with invalid --to-date format."""
-        result = runner.invoke(
-            app,
-            [
-                "write",
-                str(test_zip_file),
-                "--output-dir",
-                str(test_output_dir),
-                "--to-date",
-                "2025/10/31",  # Invalid format (should be YYYY-MM-DD)
-            ],
-        )
+        args = build_write_command_args(test_zip_file, test_output_dir, to_date=test_dates.INVALID_FORMAT_2)
+        result = runner.invoke(app, args)
 
         assert result.exit_code == 1, "Should fail with invalid date format"
 
-    def test_write_command_with_timezone(self, test_zip_file, test_output_dir):
+    def test_write_command_with_timezone(self, test_zip_file, test_output_dir, test_timezones: TestTimezones):
         """Test write command with timezone specification."""
-        result = runner.invoke(
-            app,
-            [
-                "write",
-                str(test_zip_file),
-                "--output-dir",
-                str(test_output_dir),
-                "--timezone",
-                "America/New_York",
-            ],
-        )
+        args = build_write_command_args(test_zip_file, test_output_dir, timezone=test_timezones.VALID)
+        result = runner.invoke(app, args)
+        assert_command_success(result)
 
-        assert result.exit_code in (0, 1), f"Unexpected error: {result.stdout}"
-
-    def test_write_command_with_invalid_timezone(self, test_zip_file, test_output_dir):
+    def test_write_command_with_invalid_timezone(
+        self, test_zip_file, test_output_dir, test_timezones: TestTimezones
+    ):
         """Test write command with invalid timezone."""
-        result = runner.invoke(
-            app,
-            [
-                "write",
-                str(test_zip_file),
-                "--output-dir",
-                str(test_output_dir),
-                "--timezone",
-                "Invalid/Timezone",
-            ],
-        )
+        args = build_write_command_args(test_zip_file, test_output_dir, timezone=test_timezones.INVALID)
+        result = runner.invoke(app, args)
 
         # May fail or succeed depending on timezone validation implementation
-        assert result.exit_code in (0, 1), "Invalid timezone should either fail or be handled gracefully"
+        assert_command_success(result, expected_codes=(0, 1))
 
 
 class TestWriteCommandWithMocks:
@@ -388,29 +345,47 @@ class TestWriteCommandWithMocks:
 
         # Command may fail (exit code 1) due to mock limitations, but should initialize site
         # Exit code 0 = success, 1 = pipeline error (acceptable with mocks)
-        assert result.exit_code in (0, 1), f"Command crashed with unexpected error: {result.stdout}"
+        assert result.exit_code in (0, 1), (
+            f"Command exited with code {result.exit_code} (expected 0 or 1).\n"
+            f"Last 50 lines of output:\n{chr(10).join(result.stdout.split(chr(10))[-50:])}"
+        )
 
         # Verify site structure was created even if pipeline failed
-        assert test_output_dir.exists(), "Output directory should exist"
+        assert test_output_dir.exists(), (
+            f"Output directory {test_output_dir} was not created. Exit code: {result.exit_code}"
+        )
 
         # Check for .egregora config directory
         egregora_dir = test_output_dir / ".egregora"
-        assert egregora_dir.exists(), ".egregora directory should be created"
+        assert egregora_dir.exists(), (
+            f".egregora directory not found at {egregora_dir}. "
+            f"Output dir contents: {list(test_output_dir.iterdir())}"
+        )
 
         # Check for mkdocs.yml (could be in root or .egregora depending on structure)
         mkdocs_yml = test_output_dir / "mkdocs.yml"
         egregora_mkdocs = egregora_dir / "mkdocs.yml"
-        assert mkdocs_yml.exists() or egregora_mkdocs.exists(), "mkdocs.yml should be created"
+        assert mkdocs_yml.exists() or egregora_mkdocs.exists(), (
+            f"mkdocs.yml not found. Checked:\n"
+            f"  - {mkdocs_yml} (exists: {mkdocs_yml.exists()})\n"
+            f"  - {egregora_mkdocs} (exists: {egregora_mkdocs.exists()})"
+        )
 
         # Check for docs directory and subdirectories
         docs_dir = test_output_dir / "docs"
-        assert docs_dir.exists(), "docs directory should be created"
+        assert docs_dir.exists(), (
+            f"docs directory not found at {docs_dir}. Output dir contents: {list(test_output_dir.iterdir())}"
+        )
 
         posts_dir = docs_dir / "posts"
-        assert posts_dir.exists(), "posts directory should be created under docs/"
+        assert posts_dir.exists(), (
+            f"posts directory not found at {posts_dir}. docs dir contents: {list(docs_dir.iterdir())}"
+        )
 
         profiles_dir = docs_dir / "profiles"
-        assert profiles_dir.exists(), "profiles directory should be created under docs/"
+        assert profiles_dir.exists(), (
+            f"profiles directory not found at {profiles_dir}. docs dir contents: {list(docs_dir.iterdir())}"
+        )
 
         # If pipeline succeeded, verify we actually created content
         if result.exit_code == 0:

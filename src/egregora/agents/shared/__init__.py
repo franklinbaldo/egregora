@@ -2,9 +2,11 @@
 
 This package contains functionality shared across multiple agents (writer, reader, etc.):
 - rag: RAG knowledge system (chunking, embedding, storage, retrieval)
-- annotations: Conversation annotations (TODO: move from knowledge/)
-- author_profiles: Author profiling (TODO: move from knowledge/)
+- annotations: Conversation annotations
+- author_profiles: Author profiling (via knowledge/profiles)
 
 """
 
-__all__ = ["rag"]
+from egregora.agents.shared import annotations, rag
+
+__all__ = ["annotations", "rag"]

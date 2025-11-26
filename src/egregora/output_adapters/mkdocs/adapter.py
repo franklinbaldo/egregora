@@ -362,7 +362,7 @@ class MkDocsAdapter(OutputAdapter):
             logger.info("MkDocs site already exists at %s (config: %s)", path, mkdocs_path)
 
     def _create_site_structure(
-        self, site_paths: dict[str, Any], env: Environment, context: dict[str, Any]
+        self, site_paths: dict[str, Path], env: Environment, context: dict[str, Any]
     ) -> None:
         """Create essential directories and index files for the blog structure.
 
@@ -372,13 +372,6 @@ class MkDocsAdapter(OutputAdapter):
             context: Template rendering context
 
         """
-        if not isinstance(site_paths, dict):
-            msg = "site_paths must be a dict"
-            raise TypeError(msg)
-        if not isinstance(env, Environment):
-            msg = "env must be a Jinja2 Environment"
-            raise TypeError(msg)
-
         # Create .egregora/ structure
         self._create_egregora_structure(site_paths, env)
 
@@ -391,17 +384,13 @@ class MkDocsAdapter(OutputAdapter):
         # Create .egregora/config.yml
         self._create_egregora_config(site_paths, env)
 
-    def _create_content_directories(self, site_paths: dict[str, Any]) -> None:
+    def _create_content_directories(self, site_paths: dict[str, Path]) -> None:
         """Create main content directories for the site.
 
         Args:
             site_paths: Dictionary of site paths
 
         """
-        if not isinstance(site_paths, dict):
-            msg = "site_paths must be a dict"
-            raise TypeError(msg)
-
         posts_dir = site_paths["posts_dir"]
         profiles_dir = site_paths["profiles_dir"]
         media_dir = site_paths["media_dir"]
@@ -422,7 +411,7 @@ class MkDocsAdapter(OutputAdapter):
         (journal_dir / ".gitkeep").touch()
 
     def _create_template_files(
-        self, site_paths: dict[str, Any], env: Environment, context: dict[str, Any]
+        self, site_paths: dict[str, Path], env: Environment, context: dict[str, Any]
     ) -> None:
         """Create starter template files from Jinja2 templates.
 
@@ -432,13 +421,6 @@ class MkDocsAdapter(OutputAdapter):
             context: Template rendering context
 
         """
-        if not isinstance(site_paths, dict):
-            msg = "site_paths must be a dict"
-            raise TypeError(msg)
-        if not isinstance(env, Environment):
-            msg = "env must be a Jinja2 Environment"
-            raise TypeError(msg)
-
         site_root = site_paths["site_root"]
         docs_dir = site_paths["docs_dir"]
         profiles_dir = site_paths["profiles_dir"]
@@ -487,7 +469,7 @@ class MkDocsAdapter(OutputAdapter):
                 content = template.render(**context)
                 target_path.write_text(content, encoding="utf-8")
 
-    def _create_egregora_config(self, site_paths: dict[str, Any], env: Environment) -> None:
+    def _create_egregora_config(self, site_paths: dict[str, Path], env: Environment) -> None:
         """Create .egregora/config.yml from template.
 
         Args:
@@ -495,13 +477,6 @@ class MkDocsAdapter(OutputAdapter):
             env: Jinja2 environment for rendering templates
 
         """
-        if not isinstance(site_paths, dict):
-            msg = "site_paths must be a dict"
-            raise TypeError(msg)
-        if not isinstance(env, Environment):
-            msg = "env must be a Jinja2 Environment"
-            raise TypeError(msg)
-
         config_path = site_paths["config_path"]
         if not config_path.exists():
             try:
@@ -514,7 +489,7 @@ class MkDocsAdapter(OutputAdapter):
                 logger.warning("Failed to render config template: %s. Using Pydantic default.", e)
                 create_default_config(site_paths["site_root"])
 
-    def _create_egregora_structure(self, site_paths: dict[str, Any], env: Any | None = None) -> None:
+    def _create_egregora_structure(self, site_paths: dict[str, Path], env: Any | None = None) -> None:
         """Create .egregora/ directory structure with templates.
 
         Creates:
@@ -915,17 +890,18 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if not hasattr(self, "_site_root") or self._site_root is None:
             return
 
-        yield from self._documents_from_dir(self.posts_dir, DocumentType.POST)
-        yield from self._documents_from_dir(self.profiles_dir, DocumentType.PROFILE)
-        yield from self._documents_from_dir(
-            self._site_root / "docs" / "media",
-            DocumentType.ENRICHMENT_MEDIA,
-            recursive=True,
-            exclude_names={"index.md"},
-        )
-        yield from self._documents_from_dir(
-            self.media_dir / "urls", DocumentType.ENRICHMENT_URL, recursive=True
-        )
+        # DRY: Use list() to scan directories, then get() to load content
+        # Note: list() returns metadata where identifier is a relative path (e.g., "posts/slug.md")
+        # but get() expects a simpler identifier for some types (e.g., "slug" for posts).
+        # To reliably load all listed documents, we bypass the identifier resolution logic
+        # and load directly from the known path found by list().
+        for meta in self.list():
+            if meta.doc_type and "path" in meta.metadata:
+                doc_path = Path(str(meta.metadata["path"]))
+                # Bypass identifier resolution by loading directly from path
+                doc = self._document_from_path(doc_path, meta.doc_type)
+                if doc:
+                    yield doc
 
     def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
         """Iterate through available documents as lightweight DocumentMetadata.
@@ -957,6 +933,29 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             self.media_dir / "urls", DocumentType.ENRICHMENT_URL, doc_type, recursive=True
         )
 
+    def _documents_from_dir(
+        self,
+        directory: Path,
+        doc_type: DocumentType,
+        *,
+        recursive: bool = False,
+        exclude_names: set[str] | None = None,
+    ) -> list[Document]:
+        if not directory or not directory.exists():
+            return []
+
+        documents: list[Document] = []
+        glob_func = directory.rglob if recursive else directory.glob
+        for path in glob_func("*.md"):
+            if not path.is_file():
+                continue
+            if exclude_names and path.name in exclude_names:
+                continue
+            doc = self._document_from_path(path, doc_type)
+            if doc:
+                documents.append(doc)
+        return documents
+
     def resolve_document_path(self, identifier: str) -> Path:
         """Resolve MkDocs storage identifier (relative path) to absolute filesystem path.
 
@@ -980,29 +979,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
-
-    def _documents_from_dir(
-        self,
-        directory: Path,
-        doc_type: DocumentType,
-        *,
-        recursive: bool = False,
-        exclude_names: set[str] | None = None,
-    ) -> list[Document]:
-        if not directory or not directory.exists():
-            return []
-
-        documents: list[Document] = []
-        glob_func = directory.rglob if recursive else directory.glob
-        for path in glob_func("*.md"):
-            if not path.is_file():
-                continue
-            if exclude_names and path.name in exclude_names:
-                continue
-            doc = self._document_from_path(path, doc_type)
-            if doc:
-                documents.append(doc)
-        return documents
 
     def _list_from_dir(
         self,

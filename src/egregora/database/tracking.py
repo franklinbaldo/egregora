@@ -134,11 +134,17 @@ class RunContext:
 def _connection_scope(
     conn: duckdb.DuckDBPyConnection | DuckDBStorageManager,
 ) -> duckdb.DuckDBPyConnection:
-    """Yield a DuckDB connection from either a manager or connection."""
-    if isinstance(conn, DuckDBStorageManager):
+    """Yield a DuckDB connection from either a manager or connection.
+
+    Uses duck typing instead of isinstance() to support any storage backend
+    that provides a connection() context manager.
+    """
+    # Duck typing: check for connection() method instead of concrete type
+    if hasattr(conn, "connection") and callable(conn.connection):
         with conn.connection() as managed_conn:
             yield managed_conn
     else:
+        # Assume it's already a connection object
         yield conn
 
 

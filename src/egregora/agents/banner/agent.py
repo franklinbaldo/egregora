@@ -10,16 +10,15 @@ interpretation and generation in a single API call.
 from __future__ import annotations
 
 import logging
-import os
 
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, ConfigDict, Field
 
-from egregora.config.settings import EgregoraConfig
+from egregora.config import EgregoraConfig, google_api_key_status
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.resources.prompts import render_prompt
-from egregora.utils.retry import RetryPolicy, retry_sync
+from egregora.utils.retry import retry_sync
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +150,7 @@ def _generate_banner_image(
 
     except Exception as e:
         logger.exception("Banner image generation failed for post '%s'", input_data.post_title)
-        return BannerOutput(error=str(e), error_code="GENERATION_EXCEPTION")
+        return BannerOutput(error=type(e).__name__, error_code="GENERATION_EXCEPTION")
 
 
 def generate_banner(
@@ -195,17 +194,14 @@ def generate_banner(
         language=language,
     )
 
-    # Retry policy for API resilience
-    retry_policy = RetryPolicy()
-
     def _generate() -> BannerOutput:
         return _generate_banner_image(client, input_data, image_model)
 
     try:
-        return retry_sync(_generate, retry_policy)
+        return retry_sync(_generate)
     except Exception as e:
         logger.exception("Banner generation failed after retries")
-        return BannerOutput(error=str(e), error_code="RETRY_FAILED")
+        return BannerOutput(error=type(e).__name__, error_code="RETRY_FAILED")
 
 
 def is_banner_generation_available() -> bool:
@@ -215,4 +211,4 @@ def is_banner_generation_available() -> bool:
         True if GOOGLE_API_KEY environment variable is set
 
     """
-    return os.environ.get("GOOGLE_API_KEY") is not None
+    return google_api_key_status()

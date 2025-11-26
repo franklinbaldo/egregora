@@ -28,27 +28,27 @@ from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import ibis
+import ibis.common.exceptions
 from google import genai
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
 from egregora.agents.model_limits import get_model_context_limit
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.shared.rag import VectorStore, index_all_media
+from egregora.agents.shared.rag import VectorStore
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.database.tracking import record_run
-from egregora.database.validation import validate_ir_schema
+from egregora.database.run_store import RunStore
 from egregora.database.views import daily_aggregates_view
 from egregora.input_adapters import get_adapter
 from egregora.input_adapters.base import MediaMapping
-from egregora.input_adapters.whatsapp import extract_commands, filter_egregora_messages
+from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.media import process_media_for_window
-from egregora.orchestration.context import PipelineContext
+from egregora.orchestration.context import PipelineContext, PipelineRunParams
 from egregora.orchestration.factory import PipelineFactory
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
@@ -149,14 +149,16 @@ def process_whatsapp_export(
         },
     )
 
-    return run(
-        source="whatsapp",
-        input_path=zip_path,
+    run_params = PipelineRunParams(
         output_dir=output_dir,
         config=egregora_config,
+        source_type="whatsapp",
+        input_path=zip_path,
         client=opts.client,
         refresh=opts.refresh,
     )
+
+    return run(run_params)
 
 
 @dataclass
@@ -688,39 +690,23 @@ def _create_gemini_client() -> genai.Client:
     return genai.Client(http_options=http_options)
 
 
-def _create_pipeline_context(  # noqa: PLR0913
-    output_dir: Path,
-    config: EgregoraConfig,
-    client: genai.Client | None,
-    run_id: uuid.UUID,
-    start_time: datetime,
-    source_type: str,
-    input_path: Path,
-    refresh: str | None = None,
-) -> tuple[PipelineContext, any, any]:
+def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineContext, any, any]:
     """Create pipeline context with all resources and configuration.
 
     Args:
-        output_dir: Output directory for the pipeline
-        config: Egregora configuration
-        client: Optional existing Gemini client (reads GOOGLE_API_KEY env if None)
-        run_id: Unique run identifier
-        start_time: Run start timestamp
-        source_type: Source type (e.g., "whatsapp", "slack")
-        input_path: Path to input file
-        refresh: Optional comma-separated list of cache tiers to refresh
+        run_params: Aggregated pipeline run parameters
 
     Returns:
         Tuple of (PipelineContext, pipeline_backend, runs_backend)
         The backends are returned for cleanup by the context manager.
 
     """
-    resolved_output = output_dir.expanduser().resolve()
+    resolved_output = run_params.output_dir.expanduser().resolve()
 
-    refresh_tiers = {r.strip().lower() for r in (refresh or "").split(",") if r.strip()}
-    site_paths = _resolve_site_paths_or_raise(resolved_output, config)
+    refresh_tiers = {r.strip().lower() for r in (run_params.refresh or "").split(",") if r.strip()}
+    site_paths = _resolve_site_paths_or_raise(resolved_output, run_params.config)
     _runtime_db_uri, pipeline_backend, runs_backend = _create_database_backends(
-        site_paths["site_root"], config
+        site_paths["site_root"], run_params.config
     )
 
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
@@ -728,7 +714,7 @@ def _create_pipeline_context(  # noqa: PLR0913
 
     initialize_database(pipeline_backend)
 
-    client_instance = client or _create_gemini_client()
+    client_instance = run_params.client or _create_gemini_client()
     cache_dir = Path(".egregora-cache") / site_paths["site_root"].name
     cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
     site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
@@ -736,8 +722,8 @@ def _create_pipeline_context(  # noqa: PLR0913
     storage = DuckDBStorageManager(db_path=db_file)
 
     rag_store = None
-    if config.rag.enabled:
-        rag_dir = site_paths["site_root"] / ".egregora" / "rag"
+    if run_params.config.rag.enabled:
+        rag_dir = site_paths["rag_dir"]
         rag_dir.mkdir(parents=True, exist_ok=True)
         rag_store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
 
@@ -745,8 +731,8 @@ def _create_pipeline_context(  # noqa: PLR0913
 
     from egregora.orchestration.context import PipelineConfig, PipelineState
 
-    quota_tracker = QuotaTracker(site_paths["egregora_dir"], config.quota.daily_llm_requests)
-    rate_limit = SyncRateLimit(config.quota.per_second_limit)
+    quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
+    rate_limit = SyncRateLimit(run_params.config.quota.per_second_limit)
 
     url_ctx = UrlContext(
         base_url="",
@@ -755,7 +741,7 @@ def _create_pipeline_context(  # noqa: PLR0913
     )
 
     config_obj = PipelineConfig(
-        config=config,
+        config=run_params.config,
         output_dir=resolved_output,
         site_root=site_paths["site_root"],
         docs_dir=site_paths["docs_dir"],
@@ -766,10 +752,10 @@ def _create_pipeline_context(  # noqa: PLR0913
     )
 
     state = PipelineState(
-        run_id=run_id,
-        start_time=start_time,
-        source_type=source_type,
-        input_path=input_path,
+        run_id=run_params.run_id,
+        start_time=run_params.start_time,
+        source_type=run_params.source_type,
+        input_path=run_params.input_path,
         client=client_instance,
         storage=storage,
         cache=cache,
@@ -786,27 +772,11 @@ def _create_pipeline_context(  # noqa: PLR0913
 
 
 @contextmanager
-def _pipeline_environment(  # noqa: PLR0913
-    output_dir: Path,
-    config: EgregoraConfig,
-    client: genai.Client | None,
-    run_id: uuid.UUID,
-    start_time: datetime,
-    source_type: str,
-    input_path: Path,
-    refresh: str | None = None,
-) -> any:
+def _pipeline_environment(run_params: PipelineRunParams) -> any:
     """Context manager that provisions and tears down pipeline resources.
 
     Args:
-        output_dir: Output directory for the pipeline
-        config: Egregora configuration
-        client: Optional existing Gemini client (reads GOOGLE_API_KEY env if None)
-        run_id: Unique run identifier
-        start_time: Run start timestamp
-        source_type: Source type (e.g., "whatsapp", "slack")
-        input_path: Path to input file
-        refresh: Optional comma-separated list of cache tiers to refresh
+        run_params: Aggregated pipeline run parameters
 
     Yields:
         Tuple of (PipelineContext, runs_backend) for use in the pipeline
@@ -814,9 +784,7 @@ def _pipeline_environment(  # noqa: PLR0913
     """
     options = getattr(ibis, "options", None)
     old_backend = getattr(options, "default_backend", None) if options else None
-    ctx, pipeline_backend, runs_backend = _create_pipeline_context(
-        output_dir, config, client, run_id, start_time, source_type, input_path, refresh
-    )
+    ctx, pipeline_backend, runs_backend = _create_pipeline_context(run_params)
 
     if options is not None:
         options.default_backend = pipeline_backend
@@ -854,7 +822,7 @@ def _parse_and_validate_source(
     *,
     output_adapter: OutputSink | None = None,
 ) -> ir.Table:
-    """Parse source and validate schema.
+    """Parse source and return messages table.
 
     Args:
         adapter: Source adapter instance
@@ -863,24 +831,11 @@ def _parse_and_validate_source(
         output_adapter: Optional output adapter (used by adapters that reprocess existing sites)
 
     Returns:
-        messages_table: Validated messages table
-
-    Raises:
-        ValueError: If schema validation fails
-
-    Note:
-        Currently validates against CONVERSATION_SCHEMA (MESSAGE_SCHEMA).
-        IR_MESSAGE_SCHEMA implementation is planned for future release.
-        See docs/ux-testing-2025-11-15.md for details.
+        messages_table: Parsed messages table
 
     """
     logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
     messages_table = adapter.parse(input_path, timezone=timezone, output_adapter=output_adapter)
-
-    # Validate IR schema (raises SchemaError if invalid)
-    validate_ir_schema(messages_table)
-
-    logger.debug("IR schema validation passed: %s", messages_table.schema())
     total_messages = messages_table.count().execute()
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)
 
@@ -974,24 +929,21 @@ def _process_commands_and_avatars(
 
 def _prepare_pipeline_data(
     adapter: any,
-    input_path: Path,
-    config: EgregoraConfig,
+    run_params: PipelineRunParams,
     ctx: PipelineContext,
-    output_dir: Path,
 ) -> PreparedPipelineData:
     """Prepare messages, filters, and windowing context for processing.
 
     Args:
         adapter: Input adapter instance
-        input_path: Path to input file
-        config: Egregora configuration
+        run_params: Aggregated pipeline run parameters
         ctx: Pipeline context
-        output_dir: Output directory
 
     Returns:
         PreparedPipelineData with messages table, windows iterator, and updated context
 
     """
+    config = run_params.config
     timezone = config.pipeline.timezone
     step_size = config.pipeline.step_size
     step_unit = config.pipeline.step_unit
@@ -1011,11 +963,13 @@ def _prepare_pipeline_data(
     embedding_model = config.models.embedding
 
     output_format = PipelineFactory.create_output_adapter(
-        config, output_dir, site_root=ctx.site_root, url_context=ctx.url_context
+        config, run_params.output_dir, site_root=ctx.site_root, url_context=ctx.url_context
     )
     ctx = ctx.with_output_format(output_format)
 
-    messages_table = _parse_and_validate_source(adapter, input_path, timezone, output_adapter=output_format)
+    messages_table = _parse_and_validate_source(
+        adapter, run_params.input_path, timezone, output_adapter=output_format
+    )
     _setup_content_directories(ctx)
     messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
 
@@ -1044,20 +998,20 @@ def _prepare_pipeline_data(
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
-            from egregora.agents.shared.rag import index_documents_for_rag
-
-            indexed_count = index_documents_for_rag(
+            rag_dir = ctx.site_root / config.paths.rag_dir
+            store = VectorStore(rag_dir / "chunks.parquet", storage=ctx.storage)
+            indexed_count = store.index_documents(
                 output_format,
-                ctx.site_root / ".egregora" / "rag",
-                ctx.storage,
                 embedding_model=embedding_model,
             )
             if indexed_count > 0:
                 logger.info("[green]✓ Indexed[/] %s documents into RAG", indexed_count)
             else:
                 logger.info("[dim]No new documents to index[/]")
-        except Exception:
-            logger.exception("[yellow]⚠️  Failed to index documents into RAG[/]")
+        except (ibis.common.exceptions.IbisError, OSError) as e:
+            # Gracefully degrade on RAG failures (Ibis query errors, file I/O)
+            # Note: DuckDB errors are handled internally by VectorStore
+            logger.warning("[yellow]⚠️  Failed to index documents into RAG: %s[/]", e)
 
     return PreparedPipelineData(
         messages_table=messages_table,
@@ -1089,15 +1043,17 @@ def _index_media_into_rag(
 
     logger.info("[bold cyan]📚 Indexing media into RAG...[/]")
     try:
-        rag_dir = ctx.site_root / ".egregora" / "rag"
+        rag_dir = ctx.site_root / ctx.config.paths.rag_dir
         store = VectorStore(rag_dir / "chunks.parquet", storage=ctx.storage)
-        media_chunks = index_all_media(ctx.docs_dir, store, embedding_model=embedding_model)
+        media_chunks = store.index_media(ctx.docs_dir, embedding_model=embedding_model)
         if media_chunks > 0:
             logger.info("[green]✓ Indexed[/] %s media chunks into RAG", media_chunks)
         else:
             logger.info("[yellow]No media enrichments to index[/]")
-    except Exception:
-        logger.exception("[red]Failed to index media into RAG[/]")
+    except (ibis.common.exceptions.IbisError, OSError) as e:
+        # Gracefully degrade on RAG failures (Ibis query errors, file I/O)
+        # Note: DuckDB errors are handled internally by VectorStore
+        logger.warning("[red]Failed to index media into RAG: %s[/]", e)
 
 
 def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) -> None:
@@ -1311,24 +1267,22 @@ def _apply_filters(  # noqa: C901, PLR0913, PLR0912
     return messages_table
 
 
-def _record_run_start(runs_conn, run_id: uuid.UUID, started_at: datetime) -> None:
+def _record_run_start(run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime) -> None:
     """Record the start of a pipeline run in the database.
 
     Args:
-        runs_conn: DuckDB connection for run tracking
+        run_store: Run store for tracking (None to skip tracking)
         run_id: Unique identifier for this run
         started_at: Timestamp when run started
 
     """
-    if runs_conn is None:
+    if run_store is None:
         return
 
     try:
-        record_run(
-            conn=runs_conn,
+        run_store.mark_run_started(
             run_id=run_id,
             stage="write",
-            status="running",
             started_at=started_at,
         )
     except Exception as exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
@@ -1336,7 +1290,7 @@ def _record_run_start(runs_conn, run_id: uuid.UUID, started_at: datetime) -> Non
 
 
 def _record_run_completion(
-    runs_conn,
+    run_store: RunStore | None,
     run_id: uuid.UUID,
     started_at: datetime,
     results: dict[str, dict[str, list[str]]],
@@ -1344,13 +1298,13 @@ def _record_run_completion(
     """Record successful completion of a pipeline run.
 
     Args:
-        runs_conn: DuckDB connection for run tracking
+        run_store: Run store for tracking (None to skip tracking)
         run_id: Unique identifier for this run
         started_at: Timestamp when run started
         results: Results dict mapping window labels to posts/profiles
 
     """
-    if runs_conn is None:
+    if run_store is None:
         return
 
     try:
@@ -1361,16 +1315,11 @@ def _record_run_completion(
         total_profiles = sum(len(r.get("profiles", [])) for r in results.values())
         num_windows = len(results)
 
-        runs_conn.execute(
-            """
-            UPDATE runs
-            SET status = 'completed',
-                finished_at = ?,
-                duration_seconds = ?,
-                rows_out = ?
-            WHERE run_id = ?
-            """,
-            [finished_at, duration_seconds, total_posts + total_profiles, str(run_id)],
+        run_store.mark_run_completed(
+            run_id=run_id,
+            finished_at=finished_at,
+            duration_seconds=duration_seconds,
+            rows_out=total_posts + total_profiles,
         )
         logger.debug(
             "Recorded pipeline run: %s (posts=%d, profiles=%d, windows=%d)",
@@ -1383,17 +1332,19 @@ def _record_run_completion(
         logger.debug("Failed to record run completion: %s", exc)
 
 
-def _record_run_failure(runs_conn, run_id: uuid.UUID, started_at: datetime, exc: Exception) -> None:
+def _record_run_failure(
+    run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime, exc: Exception
+) -> None:
     """Record failure of a pipeline run.
 
     Args:
-        runs_conn: DuckDB connection for run tracking
+        run_store: Run store for tracking (None to skip tracking)
         run_id: Unique identifier for this run
         started_at: Timestamp when run started
         exc: Exception that caused the failure
 
     """
-    if runs_conn is None:
+    if run_store is None:
         return
 
     try:
@@ -1401,64 +1352,49 @@ def _record_run_failure(runs_conn, run_id: uuid.UUID, started_at: datetime, exc:
         duration_seconds = (finished_at - started_at).total_seconds()
         error_msg = f"{type(exc).__name__}: {exc!s}"
 
-        runs_conn.execute(
-            """
-            UPDATE runs
-            SET status = 'failed',
-                finished_at = ?,
-                duration_seconds = ?,
-                error = ?
-            WHERE run_id = ?
-            """,
-            [finished_at, duration_seconds, error_msg[:500], str(run_id)],
+        run_store.mark_run_failed(
+            run_id=run_id,
+            finished_at=finished_at,
+            duration_seconds=duration_seconds,
+            error=error_msg[:500],
         )
     except Exception as tracking_exc:  # noqa: BLE001
         logger.debug("Failed to record run failure: %s", tracking_exc)
 
 
-def run(  # noqa: PLR0913
-    source: str,
-    input_path: Path,
-    output_dir: Path,
-    config: EgregoraConfig,
-    *,
-    client: genai.Client | None = None,
-    refresh: str | None = None,
-) -> dict[str, dict[str, list[str]]]:
+def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
     """Run the complete write pipeline workflow.
 
     Args:
-        source: Source type (e.g., "whatsapp", "slack")
-        input_path: Path to input file
-        output_dir: Output directory
-        config: Egregora configuration
-        client: Optional existing Gemini client (if None, creates one with env GOOGLE_API_KEY)
-        refresh: Optional comma-separated list of cache tiers to refresh
+        run_params: Aggregated pipeline run parameters
 
     Returns:
         Dict mapping window labels to {'posts': [...], 'profiles': [...]}
 
     """
-    logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", source)
-    adapter = get_adapter(source)
+    logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", run_params.source_type)
+    adapter = get_adapter(run_params.source_type)
 
     # Generate run ID and timestamp for tracking
-    run_id = uuid.uuid4()
-    started_at = datetime.now(UTC)
+    run_id = run_params.run_id
+    started_at = run_params.start_time
 
-    with _pipeline_environment(
-        output_dir, config, client, run_id, started_at, source, input_path, refresh
-    ) as (ctx, runs_backend):
-        # Get DuckDB connection from Ibis backend for run tracking
+    with _pipeline_environment(run_params) as (ctx, runs_backend):
+        # Create RunStore from backend for abstracted run tracking
         runs_conn = getattr(runs_backend, "con", None)
-        if runs_conn is None:
+        run_store = None
+        if runs_conn is not None:
+            # Properly wrap the connection to ensure ibis_conn is synchronized
+            temp_storage = DuckDBStorageManager.from_connection(runs_conn)
+            run_store = RunStore(temp_storage)
+        else:
             logger.warning("Unable to access DuckDB connection for run tracking - runs will not be recorded")
 
         # Record run start
-        _record_run_start(runs_conn, run_id, started_at)
+        _record_run_start(run_store, run_id, started_at)
 
         try:
-            dataset = _prepare_pipeline_data(adapter, input_path, config, ctx, output_dir)
+            dataset = _prepare_pipeline_data(adapter, run_params, ctx)
             results, max_processed_timestamp = _process_all_windows(dataset.windows_iterator, dataset.context)
             _index_media_into_rag(
                 dataset.enable_enrichment,
@@ -1476,13 +1412,13 @@ def run(  # noqa: PLR0913
                 logger.exception("[red]Failed to generate statistics page (non-critical)[/]")
 
             # Update run to completed
-            _record_run_completion(runs_conn, run_id, started_at, results)
+            _record_run_completion(run_store, run_id, started_at, results)
 
             logger.info("[bold green]🎉 Pipeline completed successfully![/]")
 
         except Exception as exc:
             # Update run to failed
-            _record_run_failure(runs_conn, run_id, started_at, exc)
+            _record_run_failure(run_store, run_id, started_at, exc)
             raise  # Re-raise original exception
 
         return results

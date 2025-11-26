@@ -15,7 +15,7 @@ import re
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -28,7 +28,7 @@ from pydantic_ai.models.google import GoogleModelSettings
 
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.database.duckdb_manager import DuckDBStorageManager, combine_with_enrichment_rows
+from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import MediaMapping
 from egregora.ops.media import (
@@ -38,12 +38,14 @@ from egregora.ops.media import (
     replace_media_mentions,
 )
 from egregora.resources.prompts import render_prompt
+from egregora.transformations.enrichment import combine_with_enrichment_rows
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
+from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.paths import slugify
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
 from egregora.utils.rate_limit import AsyncRateLimit, SyncRateLimit
-from egregora.utils.retry import RetryPolicy, retry_async
+from egregora.utils.retry import retry_async
 
 if TYPE_CHECKING:
     import pandas as pd  # noqa: TID251
@@ -60,19 +62,9 @@ logger = logging.getLogger(__name__)
 
 def ensure_datetime(value: datetime | str | Any) -> datetime:
     """Convert various datetime representations to Python datetime."""
-    if isinstance(value, datetime):
-        return value
-
-    if isinstance(value, str):
-        try:
-            return datetime.fromisoformat(value)
-        except ValueError as e:
-            msg = f"Cannot parse datetime from string: {value}"
-            raise ValueError(msg) from e
-
-    # Handle pandas.Timestamp (avoid import at module level)
-    if hasattr(value, "to_pydatetime"):
-        return value.to_pydatetime()
+    parsed = parse_datetime_flexible(value, default_timezone=UTC)
+    if parsed is not None:
+        return parsed
 
     msg = f"Unsupported datetime type: {type(value)}"
     raise TypeError(msg)
@@ -277,7 +269,7 @@ async def _run_url_enrichment_async(
     async def call() -> AgentRunResult[EnrichmentOutput]:
         return await agent.run(prompt, deps=deps)
 
-    result = await retry_async(call, RetryPolicy())
+    result = await retry_async(call)
     output = getattr(result, "data", getattr(result, "output", result))
     output.markdown = output.markdown.strip()
     return output, result.usage()
@@ -310,7 +302,7 @@ async def _run_media_enrichment_async(  # noqa: PLR0913
     async def call() -> AgentRunResult[EnrichmentOutput]:
         return await agent.run(message_content, deps=deps)
 
-    result = await retry_async(call, RetryPolicy())
+    result = await retry_async(call)
     output = getattr(result, "data", getattr(result, "output", result))
     output.markdown = output.markdown.strip()
     return output, result.usage()
@@ -687,8 +679,7 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
     if duckdb_connection and target_table:
         try:
             raw_conn = duckdb_connection.con
-            storage = DuckDBStorageManager(db_path=None)
-            storage._conn = raw_conn
+            storage = DuckDBStorageManager.from_connection(raw_conn)
             storage.persist_atomic(combined, target_table, schema=IR_MESSAGE_SCHEMA)
         except Exception:
             logger.exception("Failed to persist enrichments using DuckDBStorageManager")
