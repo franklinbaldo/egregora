@@ -80,7 +80,16 @@ def test_pipeline_rejects_unsafe_zip(tmp_path: Path):
 # =============================================================================
 
 
-def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture):
+@pytest.fixture
+def mock_dynamic_regex_fallback(monkeypatch):
+    """Mocks the dynamic regex generator to force fallback."""
+    monkeypatch.setattr(
+        "egregora.input_adapters.whatsapp.parsing.generate_dynamic_regex",
+        lambda *args, **kwargs: None,
+    )
+
+
+def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
     """Test that parser produces valid IR table with expected columns."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -94,7 +103,7 @@ def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture):
     assert all(ts.tzinfo is not None for ts in timestamps)
 
 
-def test_parser_handles_portuguese_dates(whatsapp_fixture: WhatsAppFixture):
+def test_parser_handles_portuguese_dates(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
     """Test that parser correctly handles Portuguese date formats."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -105,7 +114,7 @@ def test_parser_handles_portuguese_dates(whatsapp_fixture: WhatsAppFixture):
     assert "2025-10-28" in dates
 
 
-def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture):
+def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
     """Test that parser preserves all participant messages."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -113,7 +122,7 @@ def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture):
     assert table.count().execute() == 10
 
 
-def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture):
+def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
     """Test that parser extracts media file references from messages."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -123,7 +132,7 @@ def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture):
     assert "arquivo anexado" in combined
 
 
-def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
+def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
     """Test that parser strictly enforces IR MESSAGE_SCHEMA without extra columns."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -137,7 +146,9 @@ def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
 # =============================================================================
 
 
-def test_anonymization_removes_real_author_names(whatsapp_fixture: WhatsAppFixture):
+def test_anonymization_removes_real_author_names(
+    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+):
     """Test that anonymization removes real author names from table."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -150,7 +161,9 @@ def test_anonymization_removes_real_author_names(whatsapp_fixture: WhatsAppFixtu
     assert any("@" in message and "teste de menção" in message for message in messages)
 
 
-def test_parse_source_exposes_raw_authors_when_requested(whatsapp_fixture: WhatsAppFixture):
+def test_parse_source_exposes_raw_authors_when_requested(
+    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+):
     """Test that raw author names are exposed when explicitly requested."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(
@@ -170,7 +183,7 @@ def test_parse_source_exposes_raw_authors_when_requested(whatsapp_fixture: Whats
     assert "Você" not in authors, "'Você' only appears in system messages, should not be in authors"
 
 
-def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture):
+def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
     """Test that anonymization produces same UUIDs for same names."""
     export = create_export_from_fixture(whatsapp_fixture)
     table_one = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -182,7 +195,7 @@ def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture):
     assert authors_one == authors_two
 
 
-def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture):
+def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
     """Test that anonymized UUIDs follow expected format (full UUID format)."""
     import uuid
 
@@ -258,7 +271,7 @@ def test_media_references_replaced_in_messages(whatsapp_fixture: WhatsAppFixture
 # =============================================================================
 
 
-def test_egregora_commands_are_filtered_out(whatsapp_fixture: WhatsAppFixture):
+def test_egregora_commands_are_filtered_out(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
     """Test that egregora in-chat commands are filtered from the message stream."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -292,6 +305,7 @@ def test_egregora_commands_are_filtered_out(whatsapp_fixture: WhatsAppFixture):
 def test_enrichment_adds_egregora_messages(
     whatsapp_fixture: WhatsAppFixture,
     tmp_path: Path,
+    mock_dynamic_regex_fallback,
 ):
     """Test that enrichment adds egregora system messages to the table."""
     export = create_export_from_fixture(whatsapp_fixture)
@@ -343,6 +357,7 @@ def test_enrichment_adds_egregora_messages(
 def test_enrichment_handles_schema_mismatch(
     whatsapp_fixture: WhatsAppFixture,
     tmp_path: Path,
+    mock_dynamic_regex_fallback,
 ):
     """Test that enrichment can handle extra columns not in CONVERSATION_SCHEMA."""
     export = create_export_from_fixture(whatsapp_fixture)
