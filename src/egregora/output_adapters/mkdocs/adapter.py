@@ -465,8 +465,6 @@ class MkDocsAdapter(OutputAdapter):
                 target_path.write_text(content, encoding="utf-8")
 
         # Add theme overrides
-        import shutil
-
         theme_dest = site_root / "theme"
         if not theme_dest.exists():
             theme_src = Path(env.loader.searchpath[0]) / "theme"
