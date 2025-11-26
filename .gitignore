@@ -66,3 +66,6 @@ Thumbs.db
 /media/
 /posts/
 /profiles/
+
+# Node.js (GitHub Actions scripts)
+node_modules/

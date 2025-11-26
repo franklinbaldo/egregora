@@ -1,0 +1,16 @@
+{
+  "name": "egregora-jules-pr-review",
+  "version": "1.0.0",
+  "description": "Jules automated PR review for egregora",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "review": "node jules-pr-review.mjs"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
