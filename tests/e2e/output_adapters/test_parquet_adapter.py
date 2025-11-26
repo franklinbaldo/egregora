@@ -5,8 +5,6 @@ from __future__ import annotations
 import datetime
 from pathlib import Path
 
-import pytest
-
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.output_adapters.parquet.adapter import ParquetAdapter
 
@@ -29,7 +27,7 @@ def test_parquet_adapter_persist_and_get(tmp_path: Path):
             "authors": ["author1", "author2"],
             "tags": ["tag1", "tag2"],
         },
-        created_at=datetime.datetime.now(datetime.timezone.utc),
+        created_at=datetime.datetime.now(datetime.UTC),
     )
     doc_id = document.document_id
 

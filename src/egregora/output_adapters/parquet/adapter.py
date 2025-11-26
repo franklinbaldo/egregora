@@ -1,18 +1,21 @@
+import builtins
 import json
 import logging
+from collections.abc import Iterator
+from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Iterator, List
-from datetime import datetime, date
+from typing import Any
 
 import ibis
 
 from egregora.data_primitives import Document, DocumentMetadata, DocumentType
-from egregora.output_adapters.base import OutputAdapter
 from egregora.data_primitives.protocols import UrlConvention
+from egregora.output_adapters.base import OutputAdapter
 from egregora.output_adapters.conventions import StandardUrlConvention
 from egregora.output_adapters.parquet.schema import DOCUMENT_PARQUET_SCHEMA
 
 logger = logging.getLogger(__name__)
+
 
 class ParquetAdapter(OutputAdapter):
     """Data Lake adapter: writes content as structured Parquet files."""
@@ -65,7 +68,7 @@ class ParquetAdapter(OutputAdapter):
             "tags": meta.get("tags", []),
             "metadata_json": json.dumps(self._sanitize_json(meta)),
             "created_at": document.created_at,
-            "updated_at": datetime.now()
+            "updated_at": datetime.now(),
         }
 
         # 2. Create Ibis Table (Validation)
@@ -105,16 +108,13 @@ class ParquetAdapter(OutputAdapter):
         return Document(
             content=data["content"],
             type=doc_type,
-            metadata={
-                **json.loads(data["metadata_json"]),
-                "title": data["title"],
-                "slug": data["slug"]
-            }
+            metadata={**json.loads(data["metadata_json"]), "title": data["title"], "slug": data["slug"]},
         )
 
     def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
         """Yield metadata by scanning the parquet directory structure."""
-        if not self.data_dir: return
+        if not self.data_dir:
+            return
 
         # Define types to scan
         types_to_scan = [doc_type] if doc_type else DocumentType
@@ -123,7 +123,8 @@ class ParquetAdapter(OutputAdapter):
             type_str = dtype.value if isinstance(dtype, DocumentType) else str(dtype)
             path = self.data_dir / f"type={type_str}"
 
-            if not path.exists(): continue
+            if not path.exists():
+                continue
 
             for p_file in path.glob("*.parquet"):
                 # Optimization: Read ONLY metadata columns, not content
@@ -135,7 +136,7 @@ class ParquetAdapter(OutputAdapter):
                     yield DocumentMetadata(
                         identifier=meta["id"],
                         doc_type=DocumentType(meta["type"]),
-                        metadata=json.loads(meta["metadata_json"])
+                        metadata=json.loads(meta["metadata_json"]),
                     )
                 except Exception as e:
                     logger.warning(f"Failed to read parquet {p_file}: {e}")
@@ -143,7 +144,8 @@ class ParquetAdapter(OutputAdapter):
     def documents(self) -> Iterator[Document]:
         for meta in self.list():
             doc = self.get(meta.doc_type, meta.identifier)
-            if doc: yield doc
+            if doc:
+                yield doc
 
     def _decode_content(self, content: str | bytes) -> str:
         if isinstance(content, bytes):
@@ -161,12 +163,17 @@ class ParquetAdapter(OutputAdapter):
         return clean
 
     # Protocol Requirements
-    def get_markdown_extensions(self) -> List[str]: return []
-    def get_format_instructions(self) -> str: return "Focus on rich metadata."
+    def get_markdown_extensions(self) -> builtins.list[str]:
+        return []
+
+    def get_format_instructions(self) -> str:
+        return "Focus on rich metadata."
+
     def scaffold_site(self, site_root: Path, site_name: str, **kwargs) -> tuple[Path, bool]:
         self.initialize(site_root)
         if self.data_dir is None:
             raise RuntimeError("Adapter not initialized properly, data_dir is None.")
         return self.data_dir, True
+
     def resolve_paths(self, site_root: Path) -> Any:
         return {"site_root": site_root}
