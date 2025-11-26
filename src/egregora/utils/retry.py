@@ -1,118 +1,103 @@
 from __future__ import annotations
 
-import asyncio
-import random
-import re
-import time
-from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+"""Lightweight tenacity-backed retry helpers."""
+
+from collections.abc import Awaitable, Callable, Iterable
+from typing import Any, TypeVar
 
 from pydantic_ai.exceptions import UnexpectedModelBehavior
+from tenacity import AsyncRetrying, Retrying, retry_if_exception, stop_after_attempt, wait_random_exponential
 
 RetryableException = UnexpectedModelBehavior
 
+T = TypeVar("T")
 
-def _parse_retry_delay(value: str | float | None) -> float | None:
-    if value is None:
-        return None
-
-    if isinstance(value, int | float):
-        return float(value)
-
-    if isinstance(value, str):
-        duration = 0.0
-        for match in re.finditer(r"(?P<value>\d+(?:\.\d+)?)(?P<unit>[hmsHMS])?", value):
-            number = float(match.group("value"))
-            unit = match.group("unit") or "s"
-            unit = unit.lower()
-            if unit == "h":
-                duration += number * 3600
-            elif unit == "m":
-                duration += number * 60
-            else:
-                duration += number
-        return duration or None
-
-    return None
+_DEFAULT_MAX_ATTEMPTS = 3
+_DEFAULT_INITIAL_DELAY = 1.0
+_DEFAULT_MAX_DELAY = 10.0
+_DEFAULT_RETRY_EXCEPTIONS: tuple[type[BaseException], ...] = (RetryableException,)
+_DEFAULT_RETRY_STATUSES: tuple[str, ...] = ("RESOURCE_EXHAUSTED",)
 
 
-@dataclass
-class RetryPolicy:
-    max_attempts: int = 3
-    initial_delay: float = 1.0
-    max_delay: float = 10.0
-    multiplier: float = 1.5
-    jitter: float = 0.3
-    retry_on: Iterable[type[BaseException]] = (RetryableException,)
-    retry_on_statuses: Iterable[str] = ("RESOURCE_EXHAUSTED",)
+def _build_retry_predicate(
+    retry_on: Iterable[type[BaseException]] = _DEFAULT_RETRY_EXCEPTIONS,
+    retry_on_statuses: Iterable[str] = _DEFAULT_RETRY_STATUSES,
+):
+    status_allow_list = {status.upper() for status in retry_on_statuses}
 
-    def should_retry(self, attempt: int, exc: BaseException) -> bool:
+    def _predicate(exc: BaseException) -> bool:
         status = getattr(exc, "status", None)
-        if isinstance(status, str):
-            status_upper = status.upper()
-            for allowed in self.retry_on_statuses:
-                if status_upper == allowed.upper():
-                    return attempt < self.max_attempts - 1
+        if isinstance(status, str) and status.upper() in status_allow_list:
+            return True
 
-        if attempt >= self.max_attempts - 1:
-            return False
+        return any(isinstance(exc, exc_type) for exc_type in retry_on)
 
-        return any(isinstance(exc, exc_type) for exc_type in self.retry_on)
-
-    def next_delay(self, attempt: int, exc: BaseException | None = None) -> float:
-        delay_from_exc = self._retry_delay_from_exception(exc)
-        if delay_from_exc is not None:
-            return min(self.max_delay, delay_from_exc)
-
-        delay = min(self.max_delay, self.initial_delay * (self.multiplier**attempt))
-        jitter = random.uniform(-self.jitter, self.jitter)  # noqa: S311
-        return max(0.0, delay + jitter)
-
-    def _retry_delay_from_exception(self, exc: BaseException | None) -> float | None:
-        if exc is None:
-            return None
-
-        details = getattr(exc, "details", None)
-        retry_delay = None
-
-        if isinstance(details, dict):
-            retry_delay = details.get("retryDelay")
-        elif isinstance(details, list):
-            for entry in details:
-                if isinstance(entry, dict):
-                    retry_delay = entry.get("retryDelay")
-                    if retry_delay is not None:
-                        break
-
-        return _parse_retry_delay(retry_delay)
+    return retry_if_exception(_predicate)
 
 
-async def retry_async(func: Callable[[], asyncio.Future], policy: RetryPolicy) -> any:
-    last_error: BaseException | None = None
-    for attempt in range(policy.max_attempts):
-        try:
-            return await func()
-        except BaseException as exc:
-            last_error = exc
-            if not policy.should_retry(attempt, exc):
-                raise
-            await asyncio.sleep(policy.next_delay(attempt, exc))
-    if last_error:
-        raise last_error
-    return None
+def _build_retry_kwargs(
+    *,
+    max_attempts: int = _DEFAULT_MAX_ATTEMPTS,
+    initial_delay: float = _DEFAULT_INITIAL_DELAY,
+    max_delay: float = _DEFAULT_MAX_DELAY,
+    retry_on: Iterable[type[BaseException]] = _DEFAULT_RETRY_EXCEPTIONS,
+    retry_on_statuses: Iterable[str] = _DEFAULT_RETRY_STATUSES,
+) -> dict[str, Any]:
+    return {
+        "stop": stop_after_attempt(max_attempts),
+        "wait": wait_random_exponential(multiplier=initial_delay, max=max_delay),
+        "retry": _build_retry_predicate(retry_on, retry_on_statuses),
+        "reraise": True,
+    }
 
 
-def retry_sync(func: Callable[[], any], policy: RetryPolicy) -> any:
-    last_error: BaseException | None = None
-    for attempt in range(policy.max_attempts):
-        try:
+def retry_sync(
+    func: Callable[[], T],
+    *,
+    max_attempts: int = _DEFAULT_MAX_ATTEMPTS,
+    initial_delay: float = _DEFAULT_INITIAL_DELAY,
+    max_delay: float = _DEFAULT_MAX_DELAY,
+    retry_on: Iterable[type[BaseException]] = _DEFAULT_RETRY_EXCEPTIONS,
+    retry_on_statuses: Iterable[str] = _DEFAULT_RETRY_STATUSES,
+) -> T:
+    """Execute ``func`` with retries using tenacity."""
+    for attempt in Retrying(
+        **_build_retry_kwargs(
+            max_attempts=max_attempts,
+            initial_delay=initial_delay,
+            max_delay=max_delay,
+            retry_on=retry_on,
+            retry_on_statuses=retry_on_statuses,
+        )
+    ):
+        with attempt:
             return func()
-        except BaseException as exc:
-            last_error = exc
-            if not policy.should_retry(attempt, exc):
-                raise
-            time_to_wait = policy.next_delay(attempt, exc)
-            time.sleep(time_to_wait)
-    if last_error:
-        raise last_error
-    return None
+
+    msg = "Retrying yielded no attempts; this should be unreachable"
+    raise RuntimeError(msg)
+
+
+async def retry_async(
+    func: Callable[[], Awaitable[T]],
+    *,
+    max_attempts: int = _DEFAULT_MAX_ATTEMPTS,
+    initial_delay: float = _DEFAULT_INITIAL_DELAY,
+    max_delay: float = _DEFAULT_MAX_DELAY,
+    retry_on: Iterable[type[BaseException]] = _DEFAULT_RETRY_EXCEPTIONS,
+    retry_on_statuses: Iterable[str] = _DEFAULT_RETRY_STATUSES,
+) -> T:
+    """Await ``func`` with retries using tenacity."""
+    async for attempt in AsyncRetrying(
+        **_build_retry_kwargs(
+            max_attempts=max_attempts,
+            initial_delay=initial_delay,
+            max_delay=max_delay,
+            retry_on=retry_on,
+            retry_on_statuses=retry_on_statuses,
+        )
+    ):
+        with attempt:
+            return await func()
+
+    msg = "Async retry yielded no attempts; this should be unreachable"
+    raise RuntimeError(msg)
