@@ -1,0 +1,5 @@
+{% if constraint_type == 'primary_key' %}
+ALTER TABLE {{ table_name | quote }}
+ADD CONSTRAINT {{ constraint_name | quote }}
+PRIMARY KEY ({{ column_name | quote }});
+{% endif %}

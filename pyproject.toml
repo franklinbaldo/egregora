@@ -64,6 +64,7 @@ packages = ["src/egregora"]
 
 [tool.hatchling.build.targets.wheel.force-include]
 "src/egregora/templates" = "egregora/templates"
+"src/egregora/resources/sql" = "egregora/resources/sql"
 
 [tool.uv]
 managed = true

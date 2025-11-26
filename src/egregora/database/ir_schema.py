@@ -28,10 +28,16 @@ import ibis
 import ibis.expr.datatypes as dt
 from ibis import udf
 
+from egregora.database.sql import SQLManager
+from egregora.database.utils import quote_identifier
+
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
+
+# Single, module-level instance of the SQL manager
+sql_manager = SQLManager()
 
 
 # ============================================================================
@@ -388,23 +394,6 @@ def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:  # noq
     return str(ibis_type).upper()
 
 
-def quote_identifier(identifier: str) -> str:
-    """Quote a SQL identifier to prevent injection and handle special characters.
-
-    Args:
-        identifier: The identifier to quote (table name, column name, etc.)
-
-    Returns:
-        Properly quoted identifier safe for use in SQL
-
-    Note:
-        DuckDB uses double quotes for identifiers. Inner quotes are escaped by doubling.
-        Example: my"table → "my""table"
-
-    """
-    return f'"{identifier.replace(chr(34), chr(34) * 2)}"'
-
-
 def add_primary_key(conn: duckdb.DuckDBPyConnection, table_name: str, column_name: str) -> None:
     """Add a primary key constraint to an existing table.
 
@@ -419,13 +408,14 @@ def add_primary_key(conn: duckdb.DuckDBPyConnection, table_name: str, column_nam
 
     """
     try:
-        # Use quoted identifiers to prevent SQL injection
-        quoted_table = quote_identifier(table_name)
-        quoted_column = quote_identifier(column_name)
-        constraint_name = quote_identifier(f"pk_{table_name}")
-        conn.execute(
-            f"ALTER TABLE {quoted_table} ADD CONSTRAINT {constraint_name} PRIMARY KEY ({quoted_column})"
+        sql = sql_manager.render(
+            "ddl/add_constraints.sql.jinja",
+            constraint_type="primary_key",
+            table_name=table_name,
+            column_name=column_name,
+            constraint_name=f"pk_{table_name}",
         )
+        conn.execute(sql)
     except duckdb.Error as e:
         # Constraint may already exist - log and continue
         logger.debug("Could not add primary key to %s.%s: %s", table_name, column_name, e)
@@ -493,19 +483,14 @@ def create_index(
         Uses CREATE INDEX IF NOT EXISTS to handle already-existing indexes.
 
     """
-    # Use quoted identifiers to prevent SQL injection
-    quoted_index = quote_identifier(index_name)
-    quoted_table = quote_identifier(table_name)
-    quoted_column = quote_identifier(column_name)
-
-    if index_type == "HNSW":
-        conn.execute(
-            f"CREATE INDEX IF NOT EXISTS {quoted_index} "
-            f"ON {quoted_table} USING HNSW ({quoted_column}) "
-            "WITH (metric = 'cosine')"
-        )
-    else:
-        conn.execute(f"CREATE INDEX IF NOT EXISTS {quoted_index} ON {quoted_table} ({quoted_column})")
+    sql = sql_manager.render(
+        "ddl/create_index.sql.jinja",
+        index_name=index_name,
+        table_name=table_name,
+        column_name=column_name,
+        index_type=index_type,
+    )
+    conn.execute(sql)
 
 
 # ----------------------------------------------------------------------------
