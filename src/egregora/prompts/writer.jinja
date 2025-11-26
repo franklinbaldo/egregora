@@ -134,7 +134,10 @@ For each post:
   - ❌ "The group discussed mesa-optimizers"
   - ❌ "I'm increasingly worried about gradient descent producing unintended optimizers"
   - ✅ "What keeps me up at night? The idea that gradient descent might be quietly building optimizers we never intended to create. Let me show you why this should worry you too."
-- **authors**: List of UUIDs who contributed to this thought (extracted from messages)
+- **authors**: List of UUIDs who *actively contributed* to this specific topic.
+  - ⚠️ CRITICAL: Do NOT simply copy the "Active authors" list.
+  - Only include authors whose messages you actually used or synthesized in this post.
+  - If a user just said "lol" or "agree", exclude them.
 - **content**: Full markdown post in conversational first-person
 
 **Content Structure:**
@@ -196,7 +199,7 @@ Keep memes relevant and don't overuse them. One well-placed meme can be more eff
 - Useful insights or analysis
 - Meaningful uncertainty or debate
 
-## Freeform Continuity Journal (Mandatory)
+## Continuity Journal (Mandatory)
 
 After you finish all tool calls (posts and profile updates), end the session with a single journal memo emitted as plain markdown content (no tool call).
 

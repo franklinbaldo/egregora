@@ -163,15 +163,15 @@ class MkDocsAdapter(OutputAdapter):
                 path = self._resolve_collision(path, doc_id)
                 logger.warning("Hash collision for %s, using %s", doc_id[:8], path)
 
-        # Phase 2: Add author cards to POST documents
-        if document.type == DocumentType.POST and document.metadata:
-            authors = document.metadata.get("authors", [])
-            if authors and isinstance(authors, list):
-                # Append author cards using Jinja template
-                import dataclasses
-
-                new_content = self._append_author_cards(document.content, authors)
-                document = dataclasses.replace(document, content=new_content)
+        # Phase 2: Add author cards to POST documents - REMOVED per user request
+        # if document.type == DocumentType.POST and document.metadata:
+        #     authors = document.metadata.get("authors", [])
+        #     if authors and isinstance(authors, list):
+        #         # Append author cards using Jinja template
+        #         import dataclasses
+        #
+        #         new_content = self._append_author_cards(document.content, authors)
+        #         document = dataclasses.replace(document, content=new_content)
 
         self._write_document(document, path)
         self._index[doc_id] = path
@@ -1118,13 +1118,34 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         path.write_text(full_content, encoding="utf-8")
 
     def _write_profile_doc(self, document: Document, path: Path) -> None:
-        from egregora.knowledge.profiles import write_profile as write_profile_content
+        import yaml as _yaml
 
+        from egregora.knowledge.profiles import generate_fallback_avatar_url
+
+        # Ensure UUID is in metadata
         author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
         if not author_uuid:
             msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
             raise ValueError(msg)
-        write_profile_content(author_uuid, document.content, self.profiles_dir)
+
+        # Use standard frontmatter writing logic
+        metadata = dict(document.metadata or {})
+
+        # Ensure avatar is present (fallback if needed)
+        if "avatar" not in metadata:
+            metadata["avatar"] = generate_fallback_avatar_url(author_uuid)
+
+        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+        # Prepend avatar using MkDocs macros syntax
+        # This matches the logic in profiles.py but ensures it happens even when writing via adapter
+        # Note: We use double braces {{ }} for Jinja2 syntax, so in f-string we need quadruple braces {{{{ }}}}
+        content_with_avatar = (
+            f"![Avatar]({{{{ page.meta.avatar }}}}){{ align=left width=150 }}\n\n{document.content}"
+        )
+
+        full_content = f"---\n{yaml_front}---\n\n{content_with_avatar}"
+        path.write_text(full_content, encoding="utf-8")
 
     def _write_enrichment_doc(self, document: Document, path: Path) -> None:
         import yaml as _yaml

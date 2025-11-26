@@ -20,11 +20,10 @@ from dateutil import parser as date_parser
 from pydantic import BaseModel
 
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
+from egregora.input_adapters.whatsapp.utils import build_message_attrs
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
-
-from .utils import build_message_attrs
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
