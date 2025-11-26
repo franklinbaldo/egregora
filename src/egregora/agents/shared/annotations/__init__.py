@@ -81,9 +81,8 @@ from egregora.database import ir_schema as database_schema
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
-    import duckdb
-
     from egregora.database.protocols import SequenceStorageProtocol, StorageProtocol
+
 
 # ============================================================================
 # Constants
@@ -223,12 +222,21 @@ class AnnotationStore:
             self._backend, ANNOTATIONS_TABLE, database_schema.ANNOTATIONS_SCHEMA
         )
         # Manually alter ID to use sequence (ibis create_table doesn't support DEFAULT nextval yet)
-        self._backend.raw_sql(
-            f"ALTER TABLE {ANNOTATIONS_TABLE} ALTER COLUMN id SET DEFAULT nextval('{sequence_name}')"
-        )
+        try:
+            self._backend.raw_sql(
+                f"ALTER TABLE {ANNOTATIONS_TABLE} ALTER COLUMN id SET DEFAULT nextval('{sequence_name}')"
+            )
+        except Exception as e:
+            # Table may already have the sequence default set, or have dependencies
+            if "depend" in str(e).lower() or "already" in str(e).lower():
+                pass  # Sequence default already set or dependencies exist - this is fine
+            else:
+                raise
+
         # Use protocol method instead of accessing protected member
         with self.storage.connection() as conn:
             database_schema.add_primary_key(conn, ANNOTATIONS_TABLE, "id")
+
         self.storage.ensure_sequence_default(ANNOTATIONS_TABLE, "id", sequence_name)
         self._backend.raw_sql(
             f"\n            CREATE INDEX IF NOT EXISTS idx_annotations_parent_created\n            ON {ANNOTATIONS_TABLE} (parent_id, parent_type, created_at)\n            "
