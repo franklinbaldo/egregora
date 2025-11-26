@@ -186,6 +186,7 @@ def mock_vector_store(monkeypatch):
 
         def __init__(self, chunks_path: Path, storage=None):
             self.chunks_path = chunks_path
+            self.parquet_path = chunks_path  # Alias for compatibility
             self.storage = storage
             self.indexed_documents = []
             self.indexed_media = []
@@ -193,21 +194,47 @@ def mock_vector_store(monkeypatch):
         def index_documents(self, output_format, *, embedding_model: str):
             """Mock document indexing."""
             self.indexed_documents.append({"output_format": output_format, "model": embedding_model})
-            # Return minimal metadata
-            return {
-                "total_chunks": 10,
-                "total_documents": 3,
-                "embedding_model": embedding_model,
-            }
+            # Return count of indexed chunks (matching real VectorStore signature)
+            return 10
 
         def index_media(self, docs_dir: Path, *, embedding_model: str):
             """Mock media indexing."""
             self.indexed_media.append({"docs_dir": docs_dir, "model": embedding_model})
-            return {
-                "total_chunks": 4,
-                "total_documents": 4,
-                "embedding_model": embedding_model,
-            }
+            # Return count of indexed chunks (matching real VectorStore signature)
+            return 4
+
+        def search(
+            self,
+            query_vec: list[float],
+            top_k: int = 5,
+            min_similarity_threshold: float = 0.7,
+            tag_filter: list[str] | None = None,
+            date_after=None,
+            document_type: str | None = None,
+            media_types: list[str] | None = None,
+            *,
+            mode: str = "ann",
+            nprobe: int | None = None,
+            overfetch: int | None = None,
+        ):
+            """Mock vector search that returns an Ibis Table."""
+            import ibis
+            import pandas as pd
+
+            # Create mock search results as pandas DataFrame
+            mock_results = pd.DataFrame(
+                [
+                    {
+                        "document_id": "test-doc-1",
+                        "text": "Test search result",
+                        "similarity": 0.85,
+                        "chunk_index": 0,
+                        "document_type": "post",
+                    }
+                ]
+            )
+            # Convert to Ibis table
+            return ibis.memtable(mock_results[:top_k])
 
         def query_media(
             self,
@@ -241,8 +268,36 @@ def mock_vector_store(monkeypatch):
         from egregora.agents.shared import rag
 
         monkeypatch.setattr(rag, "VectorStore", MockVectorStore)
+
+        # Also mock the embed_query function to avoid real API calls
+        def mock_embed_query(query_text: str, *, model: str) -> list[float]:
+            """Mock embed_query to return deterministic embedding without API calls."""
+            import hashlib
+            # Generate deterministic embedding from query text
+            hash_val = int(hashlib.md5(query_text.encode()).hexdigest(), 16)
+            import random
+            random.seed(hash_val)
+            return [random.random() for _ in range(768)]  # 768-dim embedding
+
+        monkeypatch.setattr("egregora.agents.shared.rag.embedder.embed_query_text", mock_embed_query)
     except (ImportError, AttributeError):
         # RAG module may not exist yet - this is optional
         pass
 
     return MockVectorStore
+
+
+@pytest.fixture
+def mocked_writer_agent(monkeypatch):
+    """Mock writer agent using Pydantic-AI TestModel.
+
+    This fixture integrates with the existing install_writer_test_model utility
+    to provide deterministic writer agent responses for E2E tests.
+    """
+    from tests.utils.pydantic_test_models import install_writer_test_model
+
+    # Install deterministic writer that avoids network calls
+    captured_windows = []
+    install_writer_test_model(monkeypatch, captured_windows)
+
+    return {"captured_windows": captured_windows}

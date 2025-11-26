@@ -8,11 +8,13 @@ import pytest
 
 
 @pytest.mark.e2e
-@pytest.mark.skip(reason="Pipeline integration pending - mocks are implemented")
 def test_full_pipeline_smoke_test(
+    whatsapp_fixture,
     llm_response_mocks,
     mock_vector_store,
+    mocked_writer_agent,
     tmp_path,
+    gemini_api_key,
 ):
     """Run full pipeline with mocked LLM responses.
 
@@ -22,17 +24,48 @@ def test_full_pipeline_smoke_test(
     - Output directory structure is created
     - Posts and profiles are generated
     - Media is processed
-
-    Note:
-        This test is currently skipped pending pipeline API finalization.
-        The mocks are fully implemented and ready to use.
     """
-    # TODO: Implement once pipeline API is stable
-    # Expected flow:
-    # 1. Create pipeline config with mocked LLM
-    # 2. Run pipeline with test fixture
-    # 3. Verify output structure
-    # 4. Verify content matches expectations
+    from egregora.orchestration.write_pipeline import (
+        WhatsAppProcessOptions,
+        process_whatsapp_export,
+    )
+
+    # Setup output directory
+    site_root = tmp_path / "site"
+    site_root.mkdir()
+
+    # Initialize site structure (required by pipeline)
+    from egregora.output_adapters.mkdocs import MkDocsAdapter
+
+    output_format = MkDocsAdapter()
+    output_format.scaffold_site(site_root, site_name="Test E2E Site")
+
+    # Configure pipeline with minimal overrides (using defaults where possible)
+    options = WhatsAppProcessOptions(
+        output_dir=site_root,
+        timezone=whatsapp_fixture.timezone,
+        gemini_api_key=gemini_api_key,
+    )
+
+    # Run pipeline with mocked LLM
+    results = process_whatsapp_export(
+        whatsapp_fixture.zip_path,
+        options=options,
+    )
+
+    # Verify pipeline completed
+    assert results is not None
+
+    # Verify output structure exists (MkDocs uses docs/ subdirectory)
+    assert (site_root / "docs" / "posts").exists(), "Posts directory should be created"
+    assert (site_root / "docs" / "profiles").exists(), "Profiles directory should be created"
+
+    # Verify at least one post was generated
+    post_files = list((site_root / "docs" / "posts").glob("*.md"))
+    assert len(post_files) > 0, "At least one post should be generated"
+
+    # Verify writer agent was called
+    assert len(mocked_writer_agent["captured_windows"]) > 0, "Writer should process windows"
 
 
 @pytest.mark.e2e
