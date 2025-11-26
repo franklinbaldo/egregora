@@ -43,7 +43,7 @@ from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.paths import slugify
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
-from egregora.utils.rate_limit import AsyncRateLimit, SyncRateLimit
+from egregora.utils.rate_limit import RateLimiter, apply_rate_limit
 from egregora.utils.retry import RetryPolicy, retry_async
 
 if TYPE_CHECKING:
@@ -155,7 +155,7 @@ class EnrichmentRuntimeContext:
     site_root: Path | None = None
     duckdb_connection: DuckDBBackend | None = None
     target_table: str | None = None
-    rate_limit: AsyncRateLimit | SyncRateLimit | None = None
+    rate_limit: RateLimiter | None = None
     quota: QuotaTracker | None = None
     usage_tracker: UsageTracker | None = None
 
@@ -429,14 +429,7 @@ async def _process_url_task(  # noqa: PLR0913
         else:
             try:
                 if context.rate_limit:
-                    # AsyncRateLimit returns a coroutine that must be awaited.
-                    # SyncRateLimit returns None (or does not block in async way).
-                    # Handle both types safely.
-                    limit = context.rate_limit
-                    if hasattr(limit, "acquire") and asyncio.iscoroutinefunction(limit.acquire):
-                        await limit.acquire()
-                    else:
-                        limit.acquire()
+                    await apply_rate_limit(context.rate_limit)
                 if context.quota:
                     context.quota.reserve(1)
                 output_data, usage = await _run_url_enrichment_async(agent, url, prompts_dir)
@@ -508,14 +501,7 @@ async def _process_media_task(  # noqa: PLR0913, C901
         else:
             try:
                 if context.rate_limit:
-                    # AsyncRateLimit returns a coroutine that must be awaited.
-                    # SyncRateLimit returns None (or does not block in async way).
-                    # Handle both types safely.
-                    limit = context.rate_limit
-                    if hasattr(limit, "acquire") and asyncio.iscoroutinefunction(limit.acquire):
-                        await limit.acquire()
-                    else:
-                        limit.acquire()
+                    await apply_rate_limit(context.rate_limit)
                 if context.quota:
                     context.quota.reserve(1)
                 output_data, usage = await _run_media_enrichment_async(

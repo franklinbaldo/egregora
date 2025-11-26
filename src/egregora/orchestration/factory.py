@@ -28,7 +28,7 @@ from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
-from egregora.utils.rate_limit import AsyncRateLimit
+from egregora.utils.rate_limit import AsyncRateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ class PipelineFactory:
         annotations_store = AnnotationStore(storage)
 
         quota_tracker = QuotaTracker(site_paths["egregora_dir"], config.quota.daily_llm_requests)
-        rate_limit = AsyncRateLimit(config.quota.per_second_limit)
+        rate_limit = AsyncRateLimiter(config.quota.per_second_limit)
 
         from egregora.data_primitives.protocols import UrlContext
 

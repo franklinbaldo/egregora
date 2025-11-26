@@ -51,7 +51,7 @@ from egregora.utils.batch import call_with_retries_sync
 from egregora.utils.cache import CacheTier, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
-from egregora.utils.rate_limit import AsyncRateLimit, SyncRateLimit
+from egregora.utils.rate_limit import RateLimiter
 from egregora.utils.retry import RetryPolicy, retry_sync
 
 if TYPE_CHECKING:
@@ -177,7 +177,7 @@ class WriterResources:
     client: genai.Client | None
     quota: QuotaTracker | None
     usage: UsageTracker | None
-    rate_limit: AsyncRateLimit | SyncRateLimit | None
+    rate_limit: RateLimiter | None
 
 
 @dataclass(frozen=True)
