@@ -353,7 +353,7 @@ class MkDocsAdapter(OutputAdapter):
     # SiteScaffolder protocol -------------------------------------------------
 
     def scaffold(self, path: Path, config: dict) -> None:
-        site_name = config.get("site_name") if isinstance(config, dict) else None
+        site_name = config.get("site_name")
         mkdocs_path, created = self.scaffold_site(path, site_name or path.name)
         if not created:
             logger.info("MkDocs site already exists at %s (config: %s)", path, mkdocs_path)
