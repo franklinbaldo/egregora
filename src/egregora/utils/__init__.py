@@ -11,6 +11,7 @@ from egregora.utils.batch import (
     chunk_requests,
 )
 from egregora.utils.cache import ENRICHMENT_CACHE_VERSION, EnrichmentCache, make_enrichment_cache_key
+from egregora.utils.network import SSRFValidationError, validate_public_url
 from egregora.utils.paths import PathTraversalError, ensure_dir, safe_path_join, slugify
 from egregora.utils.zip import (
     ZipValidationError,
@@ -26,6 +27,7 @@ __all__ = [
     "BatchPromptResult",
     "EmbeddingBatchRequest",
     "EmbeddingBatchResult",
+    "SSRFValidationError",
     "EnrichmentCache",
     "PathTraversalError",
     "ZipValidationError",
@@ -35,6 +37,7 @@ __all__ = [
     "ensure_dir",
     "ensure_safe_member_size",
     "make_enrichment_cache_key",
+    "validate_public_url",
     "safe_path_join",
     "slugify",
     "validate_zip_contents",
