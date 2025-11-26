@@ -72,7 +72,6 @@ def validate_public_url(
     blocked_ranges: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] = DEFAULT_BLOCKED_IP_RANGES,
 ) -> None:
     """Validate a URL to guard against SSRF attempts."""
-
     try:
         parsed = urlparse(url)
     except Exception as exc:  # pragma: no cover - urlparse rarely raises

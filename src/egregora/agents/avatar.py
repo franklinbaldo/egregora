@@ -51,6 +51,7 @@ MAGIC_BYTES = {
     b"RIFF": "image/webp",
 }
 
+
 class AvatarProcessingError(Exception):
     """Error during avatar processing."""
 
