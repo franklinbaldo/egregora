@@ -33,7 +33,6 @@ def test_full_pipeline_smoke_test(
     # 2. Run pipeline with test fixture
     # 3. Verify output structure
     # 4. Verify content matches expectations
-    pass
 
 
 @pytest.mark.e2e
@@ -50,7 +49,6 @@ def test_pipeline_respects_mocked_llm_responses(
     - Responses are deterministic and repeatable
     """
     # TODO: Implement enrichment validation
-    pass
 
 
 @pytest.mark.e2e
@@ -68,7 +66,6 @@ def test_pipeline_with_rag_enabled(
     - Pipeline completes with RAG enabled
     """
     # TODO: Implement RAG-enabled pipeline test
-    pass
 
 
 @pytest.mark.e2e
@@ -137,10 +134,10 @@ def test_mock_performance_baseline(llm_response_mocks, benchmark_if_available):
 
     This validates that mocks don't introduce performance overhead.
     """
-    from tests.e2e.mocks.enrichment_mocks import mock_url_enrichment
-
     # Simple performance check - mocks should be instant
     import time
+
+    from tests.e2e.mocks.enrichment_mocks import mock_url_enrichment
 
     start = time.time()
     for _ in range(100):
@@ -153,4 +150,3 @@ def test_mock_performance_baseline(llm_response_mocks, benchmark_if_available):
 
 def benchmark_if_available():
     """Placeholder for optional benchmark fixture."""
-    pass

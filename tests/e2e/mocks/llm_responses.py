@@ -10,7 +10,6 @@ Each mock is keyed to specific messages in the test fixture.
 """
 
 from dataclasses import dataclass
-from typing import Any
 
 
 @dataclass

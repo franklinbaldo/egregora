@@ -180,8 +180,6 @@ def mock_vector_store(monkeypatch):
     This creates a mock VectorStore that returns deterministic RAG results
     without requiring real embeddings or vector search.
     """
-    from pathlib import Path
-    from typing import Iterator
 
     class MockVectorStore:
         """Mock VectorStore for E2E testing."""
@@ -194,9 +192,7 @@ def mock_vector_store(monkeypatch):
 
         def index_documents(self, output_format, *, embedding_model: str):
             """Mock document indexing."""
-            self.indexed_documents.append(
-                {"output_format": output_format, "model": embedding_model}
-            )
+            self.indexed_documents.append({"output_format": output_format, "model": embedding_model})
             # Return minimal metadata
             return {
                 "total_chunks": 10,
