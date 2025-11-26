@@ -157,7 +157,7 @@ class ParquetAdapter(OutputAdapter):
         """Ensure metadata is JSON serializable."""
         clean = {}
         for k, v in data.items():
-            if isinstance(v, (datetime, date)):
+            if isinstance(v, datetime | date):
                 clean[k] = v.isoformat()
             else:
                 clean[k] = v
