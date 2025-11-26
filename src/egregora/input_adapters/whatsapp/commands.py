@@ -76,7 +76,7 @@ def _normalize_whitespace(value: str | None) -> str:
     return value.strip()
 
 
-def extract_commands(messages: "Table") -> list[dict]:
+def extract_commands(messages: Table) -> list[dict]:
     """Extract egregora commands from parsed Table."""
     normalized = messages.mutate(normalized_message=normalize_smart_quotes(messages.text))
     filtered = normalized.filter(normalized.normalized_message.lower().startswith("/egregora"))
@@ -166,7 +166,7 @@ def extract_commands(messages: "Table") -> list[dict]:
     return commands
 
 
-def filter_egregora_messages(messages: "Table") -> tuple["Table", int]:
+def filter_egregora_messages(messages: Table) -> tuple[Table, int]:
     """Remove all messages starting with /egregora from Table."""
     mask = messages.text.lower().startswith("/egregora")
     counts = messages.aggregate(
