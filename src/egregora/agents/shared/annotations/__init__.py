@@ -71,7 +71,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import ibis
 
@@ -81,9 +81,8 @@ from egregora.database import ir_schema as database_schema
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
-    import duckdb
-
     from egregora.database.protocols import SequenceStorageProtocol, StorageProtocol
+
 
 # ============================================================================
 # Constants
@@ -223,12 +222,21 @@ class AnnotationStore:
             self._backend, ANNOTATIONS_TABLE, database_schema.ANNOTATIONS_SCHEMA
         )
         # Manually alter ID to use sequence (ibis create_table doesn't support DEFAULT nextval yet)
-        self._backend.raw_sql(
-            f"ALTER TABLE {ANNOTATIONS_TABLE} ALTER COLUMN id SET DEFAULT nextval('{sequence_name}')"
-        )
+        try:
+            self._backend.raw_sql(
+                f"ALTER TABLE {ANNOTATIONS_TABLE} ALTER COLUMN id SET DEFAULT nextval('{sequence_name}')"
+            )
+        except Exception as e:
+            # Table may already have the sequence default set, or have dependencies
+            if "depend" in str(e).lower() or "already" in str(e).lower():
+                pass  # Sequence default already set or dependencies exist - this is fine
+            else:
+                raise
+
         # Use protocol method instead of accessing protected member
         with self.storage.connection() as conn:
             database_schema.add_primary_key(conn, ANNOTATIONS_TABLE, "id")
+
         self.storage.ensure_sequence_default(ANNOTATIONS_TABLE, "id", sequence_name)
         self._backend.raw_sql(
             f"\n            CREATE INDEX IF NOT EXISTS idx_annotations_parent_created\n            ON {ANNOTATIONS_TABLE} (parent_id, parent_type, created_at)\n            "
@@ -251,21 +259,13 @@ class AnnotationStore:
     # CRUD Operations
     # ========================================================================
 
-    def save_annotation(self, parent_id: str, parent_type: str, commentary: str) -> Annotation:
+    def save_annotation(
+        self,
+        parent_id: str,
+        parent_type: Literal["message", "annotation"],
+        commentary: str,
+    ) -> Annotation:
         """Persist an annotation and return the saved record."""
-        sanitized_parent_id = (parent_id or "").strip()
-        sanitized_parent_type = (parent_type or "").strip().lower()
-        sanitized_commentary = (commentary or "").strip()
-        if not sanitized_parent_id:
-            msg = "parent_id is required"
-            raise ValueError(msg)
-        if sanitized_parent_type not in ("message", "annotation"):
-            msg = "parent_type must be 'message' or 'annotation'"
-            raise ValueError(msg)
-        if not sanitized_commentary:
-            msg = "commentary must not be empty"
-            raise ValueError(msg)
-
         # Runtime privacy check
         # TODO: Re-enable when egregora.privacy.pii module is implemented
         # from egregora.privacy.config import PrivacySettings
@@ -273,31 +273,28 @@ class AnnotationStore:
         # if PrivacySettings.detect_pii:
         #     from egregora.privacy.pii import detect_pii
         #
-        #     if detect_pii(sanitized_commentary):
+        #     if detect_pii(commentary):
         #         msg = "Annotation commentary contains PII"
         #         raise ValueError(msg)
 
         created_at = datetime.now(UTC)
-        if sanitized_parent_type == "annotation":
+        if parent_type == "annotation":
             annotations_table = self._backend.table(ANNOTATIONS_TABLE)
             parent_exists = int(
-                annotations_table.filter(annotations_table.id == int(sanitized_parent_id))
-                .limit(1)
-                .count()
-                .execute()
+                annotations_table.filter(annotations_table.id == int(parent_id)).limit(1).count().execute()
             )
             if parent_exists == 0:
-                msg = f"parent annotation with id {sanitized_parent_id} does not exist"
+                msg = f"parent annotation with id {parent_id} does not exist"
                 raise ValueError(msg)
         annotation_id = self.storage.next_sequence_value(self._sequence_name)
         insert_row = ibis.memtable(
             [
                 {
                     "id": annotation_id,
-                    "parent_id": sanitized_parent_id,
-                    "parent_type": sanitized_parent_type,
+                    "parent_id": parent_id,
+                    "parent_type": parent_type,
                     "author": ANNOTATION_AUTHOR,
-                    "commentary": sanitized_commentary,
+                    "commentary": commentary,
                     "created_at": created_at,
                 }
             ]
@@ -305,10 +302,10 @@ class AnnotationStore:
         self._backend.insert(ANNOTATIONS_TABLE, insert_row)
         return Annotation(
             id=annotation_id,
-            parent_id=sanitized_parent_id,
-            parent_type=sanitized_parent_type,
+            parent_id=parent_id,
+            parent_type=parent_type,
             author=ANNOTATION_AUTHOR,
-            commentary=sanitized_commentary,
+            commentary=commentary,
             created_at=created_at,
         )
 

@@ -24,7 +24,7 @@ from egregora.input_adapters.base import InputAdapter
 from egregora.input_adapters.iperon_tjro import IperonTJROAdapter
 from egregora.input_adapters.registry import InputAdapterRegistry, get_global_registry
 from egregora.input_adapters.self_reflection import SelfInputAdapter
-from egregora.input_adapters.whatsapp import WhatsAppAdapter
+from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 
 # Legacy registry (deprecated in favor of InputAdapterRegistry)
 ADAPTER_REGISTRY: dict[str, type] = {

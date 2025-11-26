@@ -211,13 +211,6 @@ class InputAdapter(ABC):
             ValueError: If input is invalid or cannot be parsed
             FileNotFoundError: If input_path does not exist
 
-        Example:
-            >>> adapter = WhatsAppAdapter()
-            >>> table = adapter.parse(Path("export.zip"), timezone="UTC")
-            >>> # Table contains: "Check this out ![photo](IMG-001.jpg)"
-            >>> is_valid, errors = validate_ir_schema(table)
-            >>> assert is_valid, f"Schema validation failed: {errors}"
-
         """
 
     @property

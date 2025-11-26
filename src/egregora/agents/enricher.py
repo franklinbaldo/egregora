@@ -15,7 +15,7 @@ import re
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -40,11 +40,12 @@ from egregora.ops.media import (
 from egregora.resources.prompts import render_prompt
 from egregora.transformations.enrichment import combine_with_enrichment_rows
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
+from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.paths import slugify
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
-from egregora.utils.rate_limit import AsyncRateLimit, SyncRateLimit
-from egregora.utils.retry import RetryPolicy, retry_async
+from egregora.utils.rate_limit import RateLimiter, apply_rate_limit
+from egregora.utils.retry import retry_async
 
 if TYPE_CHECKING:
     import pandas as pd  # noqa: TID251
@@ -61,19 +62,9 @@ logger = logging.getLogger(__name__)
 
 def ensure_datetime(value: datetime | str | Any) -> datetime:
     """Convert various datetime representations to Python datetime."""
-    if isinstance(value, datetime):
-        return value
-
-    if isinstance(value, str):
-        try:
-            return datetime.fromisoformat(value)
-        except ValueError as e:
-            msg = f"Cannot parse datetime from string: {value}"
-            raise ValueError(msg) from e
-
-    # Handle pandas.Timestamp (avoid import at module level)
-    if hasattr(value, "to_pydatetime"):
-        return value.to_pydatetime()
+    parsed = parse_datetime_flexible(value, default_timezone=UTC)
+    if parsed is not None:
+        return parsed
 
     msg = f"Unsupported datetime type: {type(value)}"
     raise TypeError(msg)
@@ -155,7 +146,7 @@ class EnrichmentRuntimeContext:
     site_root: Path | None = None
     duckdb_connection: DuckDBBackend | None = None
     target_table: str | None = None
-    rate_limit: AsyncRateLimit | SyncRateLimit | None = None
+    rate_limit: RateLimiter | None = None
     quota: QuotaTracker | None = None
     usage_tracker: UsageTracker | None = None
 
@@ -278,7 +269,7 @@ async def _run_url_enrichment_async(
     async def call() -> AgentRunResult[EnrichmentOutput]:
         return await agent.run(prompt, deps=deps)
 
-    result = await retry_async(call, RetryPolicy())
+    result = await retry_async(call)
     output = getattr(result, "data", getattr(result, "output", result))
     output.markdown = output.markdown.strip()
     return output, result.usage()
@@ -311,7 +302,7 @@ async def _run_media_enrichment_async(  # noqa: PLR0913
     async def call() -> AgentRunResult[EnrichmentOutput]:
         return await agent.run(message_content, deps=deps)
 
-    result = await retry_async(call, RetryPolicy())
+    result = await retry_async(call)
     output = getattr(result, "data", getattr(result, "output", result))
     output.markdown = output.markdown.strip()
     return output, result.usage()
@@ -429,14 +420,7 @@ async def _process_url_task(  # noqa: PLR0913
         else:
             try:
                 if context.rate_limit:
-                    # AsyncRateLimit returns a coroutine that must be awaited.
-                    # SyncRateLimit returns None (or does not block in async way).
-                    # Handle both types safely.
-                    limit = context.rate_limit
-                    if hasattr(limit, "acquire") and asyncio.iscoroutinefunction(limit.acquire):
-                        await limit.acquire()
-                    else:
-                        limit.acquire()
+                    await apply_rate_limit(context.rate_limit)
                 if context.quota:
                     context.quota.reserve(1)
                 output_data, usage = await _run_url_enrichment_async(agent, url, prompts_dir)
@@ -508,14 +492,7 @@ async def _process_media_task(  # noqa: PLR0913, C901
         else:
             try:
                 if context.rate_limit:
-                    # AsyncRateLimit returns a coroutine that must be awaited.
-                    # SyncRateLimit returns None (or does not block in async way).
-                    # Handle both types safely.
-                    limit = context.rate_limit
-                    if hasattr(limit, "acquire") and asyncio.iscoroutinefunction(limit.acquire):
-                        await limit.acquire()
-                    else:
-                        limit.acquire()
+                    await apply_rate_limit(context.rate_limit)
                 if context.quota:
                     context.quota.reserve(1)
                 output_data, usage = await _run_media_enrichment_async(
