@@ -20,14 +20,16 @@ from typing import TYPE_CHECKING, Annotated
 
 from egregora.data_primitives.document import Document, DocumentType, MediaAsset
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
-from egregora.input_adapters.base import InputAdapter, MediaMapping
 from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
+    from egregora.input_adapters.base import InputAdapter, MediaMapping
+
 
 logger = logging.getLogger(__name__)
+
 
 # ----------------------------------------------------------------------------
 # Constants & Patterns
@@ -337,7 +339,8 @@ def save_media_asset(document: Document, output_dir: Path) -> Path:
         if isinstance(content, str):
             content = content.encode("utf-8")
         else:
-            raise TypeError(f"Media content must be bytes, got {type(content)}")
+            msg = f"Media content must be bytes, got {type(content)}"
+            raise TypeError(msg)
 
     mime_type = document.metadata.get("mime_type", "application/octet-stream")
     file_extension = mimetypes.guess_extension(mime_type) or ".bin"

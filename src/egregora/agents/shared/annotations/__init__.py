@@ -220,9 +220,17 @@ class AnnotationStore:
             self._backend, ANNOTATIONS_TABLE, database_schema.ANNOTATIONS_SCHEMA
         )
         # Manually alter ID to use sequence (ibis create_table doesn't support DEFAULT nextval yet)
-        self._backend.raw_sql(
-            f"ALTER TABLE {ANNOTATIONS_TABLE} ALTER COLUMN id SET DEFAULT nextval('{sequence_name}')"
-        )
+        try:
+            self._backend.raw_sql(
+                f"ALTER TABLE {ANNOTATIONS_TABLE} ALTER COLUMN id SET DEFAULT nextval('{sequence_name}')"
+            )
+        except Exception as e:
+            # Table may already have the sequence default set, or have dependencies
+            if "depend" in str(e).lower() or "already" in str(e).lower():
+                pass  # Sequence default already set or dependencies exist - this is fine
+            else:
+                raise
+
         database_schema.add_primary_key(self._connection, ANNOTATIONS_TABLE, "id")
         self.storage.ensure_sequence_default(ANNOTATIONS_TABLE, "id", sequence_name)
         self._backend.raw_sql(
