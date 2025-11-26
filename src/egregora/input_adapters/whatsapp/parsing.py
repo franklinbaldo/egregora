@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
+import json
 import logging
 import re
-import hashlib
-import json
 import unicodedata
 import zipfile
 from collections.abc import Iterator
@@ -290,9 +290,7 @@ def _parse_whatsapp_lines(
                 builder.flush()
                 continue
 
-            timestamp = datetime.combine(
-                builder.current_date, msg_time, tzinfo=tz
-            ).astimezone(UTC)
+            timestamp = datetime.combine(builder.current_date, msg_time, tzinfo=tz).astimezone(UTC)
             builder.start_new_message(timestamp, author_raw, message_part)
 
         else:

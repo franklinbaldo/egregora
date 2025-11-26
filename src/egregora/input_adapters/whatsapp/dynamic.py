@@ -1,11 +1,10 @@
 import logging
 import re
-from typing import Pattern
+from re import Pattern
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import AgentRunError
-from pydantic_ai.providers.google import GoogleProvider
 
 from egregora.config import EgregoraConfig
 from egregora.resources.prompts import render_prompt
@@ -21,9 +20,7 @@ class ParserDefinition(BaseModel):
 
 
 def generate_dynamic_regex(sample_lines: list[str], config: EgregoraConfig) -> Pattern | None:
-    """
-    Uses a pydantic-ai Agent to generate a regex pattern for the input file.
-    """
+    """Uses a pydantic-ai Agent to generate a regex pattern for the input file."""
     if not sample_lines:
         return None
 
@@ -52,9 +49,8 @@ def generate_dynamic_regex(sample_lines: list[str], config: EgregoraConfig) -> P
         # If it matches at least 50% of the sample lines, accept it
         if matches / len(sample_lines) >= 0.5:
             return pattern
-        else:
-            logger.warning(f"Generated regex failed validation (matched {matches}/{len(sample_lines)} lines)")
-            return None
+        logger.warning(f"Generated regex failed validation (matched {matches}/{len(sample_lines)} lines)")
+        return None
 
     except AgentRunError as e:
         logger.error(f"Agent run failed during dynamic parser generation: {e}")

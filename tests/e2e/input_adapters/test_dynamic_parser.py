@@ -1,15 +1,14 @@
-import re
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from conftest import WhatsAppFixture
 
 from egregora.config import EgregoraConfig
 from egregora.input_adapters.whatsapp.dynamic import (
     ParserDefinition,
     generate_dynamic_regex,
 )
-from conftest import WhatsAppFixture
 from tests.e2e.input_adapters.test_whatsapp_adapter import (
     create_export_from_fixture,
 )
@@ -35,10 +34,7 @@ def test_dynamic_regex_generator_success(mock_agent_run):
     pattern = generate_dynamic_regex(sample_lines, EgregoraConfig())
 
     assert pattern is not None
-    assert (
-        pattern.pattern
-        == r"^(\d{1,2}/\d{1,2}/\d{4}),\s(\d{1,2}:\d{2})\s-\s([^:]+):\s(.*)$"
-    )
+    assert pattern.pattern == r"^(\d{1,2}/\d{1,2}/\d{4}),\s(\d{1,2}:\d{2})\s-\s([^:]+):\s(.*)$"
     assert pattern.match("28/10/2025, 15:00 - Franklin: this is a test")
     mock_agent_run.assert_called_once()
 
@@ -54,9 +50,7 @@ def test_dynamic_regex_generator_failure(mock_agent_run):
     mock_agent_run.assert_called_once()
 
 
-def test_dynamic_regex_caching(
-    mock_agent_run, whatsapp_fixture: WhatsAppFixture, tmp_path: Path
-):
+def test_dynamic_regex_caching(mock_agent_run, whatsapp_fixture: WhatsAppFixture, tmp_path: Path):
     """Test that the dynamic regex generator caches the result."""
     from egregora.input_adapters.whatsapp.parsing import (
         ZipMessageSource,
