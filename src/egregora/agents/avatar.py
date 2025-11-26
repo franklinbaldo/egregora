@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
-from urllib.parse import urljoin
 
 import httpx
 from PIL import Image
@@ -28,6 +27,8 @@ from egregora.agents.enricher import (
 from egregora.input_adapters.whatsapp.commands import extract_commands
 from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
 from egregora.ops.media import detect_media_type, extract_urls
+from ratelimit import limits, sleep_and_retry
+
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.network import SSRFValidationError, validate_public_url
 
@@ -246,42 +247,6 @@ def _download_image_content(response: httpx.Response) -> tuple[bytes, str]:
     return bytes(content), content_type
 
 
-def _follow_redirects(client: httpx.Client, url: str) -> tuple[bytes, str]:
-    """Follow HTTP redirects and download content.
-
-    Args:
-        client: HTTP client
-        url: Starting URL
-
-    Returns:
-        Tuple of (content bytes, mime type)
-
-    Raises:
-        AvatarProcessingError: If too many redirects or download fails
-
-    """
-    current_url = url
-    redirect_count = 0
-
-    while redirect_count < MAX_REDIRECT_HOPS:
-        with client.stream("GET", current_url) as response:
-            if response.status_code in (301, 302, 303, 307, 308):
-                redirect_count += 1
-                location = response.headers.get("location")
-                if not location:
-                    msg = "Redirect response missing Location header"
-                    raise AvatarProcessingError(msg)
-                next_url = urljoin(current_url, location)
-                logger.info("Following redirect %s/%s: %s", redirect_count, MAX_REDIRECT_HOPS, next_url)
-                _validate_avatar_url(next_url)
-                current_url = next_url
-                continue
-
-            response.raise_for_status()
-            return _download_image_content(response)
-
-    msg = f"Too many redirects (>{MAX_REDIRECT_HOPS})"
-    raise AvatarProcessingError(msg)
 
 
 def _save_avatar_file(content: bytes, avatar_uuid: uuid.UUID, ext: str, media_dir: Path) -> Path:
@@ -314,6 +279,8 @@ def _save_avatar_file(content: bytes, avatar_uuid: uuid.UUID, ext: str, media_di
     return avatar_path
 
 
+@sleep_and_retry
+@limits(calls=10, period=60)
 def download_avatar_from_url(
     url: str, media_dir: Path, timeout: float = DEFAULT_DOWNLOAD_TIMEOUT
 ) -> tuple[uuid.UUID, Path]:
@@ -333,9 +300,24 @@ def download_avatar_from_url(
     """
     logger.info("Downloading avatar from URL: %s", url)
     _validate_avatar_url(url)
+
+    def _validate_redirect(response: httpx.Response) -> None:
+        """Event hook to validate each redirect URL."""
+        if response.is_redirect:
+            redirect_url = str(response.next_request.url)
+            logger.info("Following redirect to: %s", redirect_url)
+            _validate_avatar_url(redirect_url)
+
     try:
-        with httpx.Client(timeout=timeout, follow_redirects=False) as client:
-            content, content_type = _follow_redirects(client, url)
+        with httpx.Client(
+            timeout=timeout,
+            follow_redirects=True,
+            max_redirects=MAX_REDIRECT_HOPS,
+            event_hooks={"response": [_validate_redirect]},
+        ) as client:
+            with client.stream("GET", url) as response:
+                response.raise_for_status()
+                content, content_type = _download_image_content(response)
 
         _validate_image_content(content, content_type)
         _validate_image_dimensions(content)
@@ -343,6 +325,10 @@ def download_avatar_from_url(
         ext = _get_extension_from_mime_type(content_type, url)
         avatar_uuid = _generate_avatar_uuid(content)
         avatar_path = _save_avatar_file(content, avatar_uuid, ext, media_dir)
+
+    except httpx.TooManyRedirects as e:
+        msg = f"Too many redirects (>{MAX_REDIRECT_HOPS}) for URL: {url}"
+        raise AvatarProcessingError(msg) from e
     except httpx.HTTPError as e:
         logger.debug("HTTP error details: %s", e)
         msg = "Failed to download avatar. Please check the URL and try again."
@@ -351,8 +337,8 @@ def download_avatar_from_url(
         logger.debug("File system error details: %s", e)
         msg = "Failed to save avatar due to file system error."
         raise AvatarProcessingError(msg) from e
-    else:
-        return (avatar_uuid, avatar_path)
+
+    return avatar_uuid, avatar_path
 
 
 @dataclass

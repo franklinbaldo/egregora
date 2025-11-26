@@ -43,8 +43,9 @@ from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.paths import slugify
+from ratelimit import limits, sleep_and_retry
+
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
-from egregora.utils.rate_limit import RateLimiter, apply_rate_limit
 from egregora.utils.retry import retry_async
 
 if TYPE_CHECKING:
@@ -146,7 +147,6 @@ class EnrichmentRuntimeContext:
     site_root: Path | None = None
     duckdb_connection: DuckDBBackend | None = None
     target_table: str | None = None
-    rate_limit: RateLimiter | None = None
     quota: QuotaTracker | None = None
     usage_tracker: UsageTracker | None = None
 
@@ -249,6 +249,8 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentDeps, Enri
 # ---------------------------------------------------------------------------
 
 
+@sleep_and_retry
+@limits(calls=10, period=60)
 async def _run_url_enrichment_async(
     agent: Agent[UrlEnrichmentDeps, EnrichmentOutput],
     url: str,
@@ -275,6 +277,8 @@ async def _run_url_enrichment_async(
     return output, result.usage()
 
 
+@sleep_and_retry
+@limits(calls=10, period=60)
 async def _run_media_enrichment_async(  # noqa: PLR0913
     agent: Agent[MediaEnrichmentDeps, EnrichmentOutput],
     *,
@@ -419,8 +423,6 @@ async def _process_url_task(  # noqa: PLR0913
             cached_slug = cache_entry.get("slug")
         else:
             try:
-                if context.rate_limit:
-                    await apply_rate_limit(context.rate_limit)
                 if context.quota:
                     context.quota.reserve(1)
                 output_data, usage = await _run_url_enrichment_async(agent, url, prompts_dir)
@@ -491,8 +493,6 @@ async def _process_media_task(  # noqa: PLR0913, C901
             cached_slug = cache_entry.get("slug")
         else:
             try:
-                if context.rate_limit:
-                    await apply_rate_limit(context.rate_limit)
                 if context.quota:
                     context.quota.reserve(1)
                 output_data, usage = await _run_media_enrichment_async(

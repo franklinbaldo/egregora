@@ -11,6 +11,8 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
 from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.text import estimate_tokens
 
@@ -20,118 +22,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Chunking constants
-MAX_CHUNK_BYTES = 32000  # Stay below 36 KB embedContent limit
 DEFAULT_MAX_TOKENS = 1800  # Default maximum tokens per chunk
 DEFAULT_OVERLAP_TOKENS = 150  # Default overlap between chunks for context
-PARAGRAPH_SEPARATOR_BYTES = 2  # Byte length of "\n\n" separator
 
 # Regex patterns
 POST_FILENAME_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}-(.+)")
 DATE_FILENAME_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
-class _ChunkBuilder:
-    """State manager for building text chunks with overlap.
-
-    Encapsulates the stateful logic of accumulating paragraphs into chunks
-    while respecting token and byte limits.
-    """
-
-    def __init__(self, max_tokens: int, overlap_tokens: int) -> None:
-        """Initialize chunk builder with limits.
-
-        Args:
-            max_tokens: Maximum tokens per chunk
-            overlap_tokens: Tokens of overlap between chunks
-
-        """
-        self.max_tokens = max_tokens
-        self.overlap_tokens = overlap_tokens
-        self.current_chunk: list[str] = []
-        self.current_tokens = 0
-        self.current_bytes = 0
-        self.chunks: list[str] = []
-
-    def would_exceed_limits(self, para_tokens: int, para_bytes: int) -> bool:
-        """Check if adding a paragraph would exceed limits.
-
-        Args:
-            para_tokens: Token count of paragraph to add
-            para_bytes: Byte length of paragraph to add
-
-        Returns:
-            True if adding would exceed token or byte limits
-
-        """
-        if not self.current_chunk:
-            return False
-
-        separator_bytes = PARAGRAPH_SEPARATOR_BYTES
-        exceeds_tokens = self.current_tokens + para_tokens > self.max_tokens
-        exceeds_bytes = self.current_bytes + separator_bytes + para_bytes > MAX_CHUNK_BYTES
-
-        return exceeds_tokens or exceeds_bytes
-
-    def add_paragraph(self, paragraph: str, para_tokens: int, para_bytes: int) -> None:
-        """Add a paragraph to the current chunk.
-
-        Args:
-            paragraph: Paragraph text to add
-            para_tokens: Token count of paragraph
-            para_bytes: Byte length of paragraph
-
-        """
-        separator_bytes = PARAGRAPH_SEPARATOR_BYTES if self.current_chunk else 0
-        self.current_chunk.append(paragraph)
-        self.current_tokens += para_tokens
-        self.current_bytes += separator_bytes + para_bytes
-
-    def emit_chunk(self) -> None:
-        """Emit current chunk and create overlap for next chunk."""
-        if not self.current_chunk:
-            return
-
-        # Emit current chunk
-        chunk_text = "\n\n".join(self.current_chunk)
-        self.chunks.append(chunk_text)
-
-        # Create overlap from end of previous chunk
-        overlap_paras: list[str] = []
-        overlap_tokens_count = 0
-        for prev_para in reversed(self.current_chunk):
-            prev_tokens = estimate_tokens(prev_para)
-            if overlap_tokens_count + prev_tokens <= self.overlap_tokens:
-                overlap_paras.insert(0, prev_para)
-                overlap_tokens_count += prev_tokens
-            else:
-                break
-
-        # Reset state with overlap
-        self.current_chunk = overlap_paras
-        self.current_tokens = overlap_tokens_count
-        self.current_bytes = _paragraphs_byte_length(overlap_paras)
-
-    def finalize(self) -> list[str]:
-        """Emit final chunk and return all chunks.
-
-        Returns:
-            List of all emitted chunks
-
-        """
-        if self.current_chunk:
-            chunk_text = "\n\n".join(self.current_chunk)
-            self.chunks.append(chunk_text)
-
-        return self.chunks
-
-
 def chunk_markdown(
     content: str, max_tokens: int = DEFAULT_MAX_TOKENS, overlap_tokens: int = DEFAULT_OVERLAP_TOKENS
 ) -> list[str]:
-    r"""Chunk markdown content respecting token limits.
-
-    Splits content into paragraphs and groups them into chunks that fit within
-    token limits, with optional overlap between chunks for context preservation.
+    r"""Chunk markdown content respecting token limits using LangChain.
 
     Args:
         content: Markdown text to chunk
@@ -141,138 +43,24 @@ def chunk_markdown(
     Returns:
         List of markdown text chunks
 
-    Example:
-        >>> chunks = chunk_markdown("# Title\\n\\nPara 1\\n\\nPara 2", max_tokens=100)
-        >>> len(chunks) >= 1
-        True
-
     """
-    # Split content into paragraphs and handle large ones
-    paragraphs = []
-    for paragraph in content.split("\n\n"):
-        para = paragraph.strip()
-        if not para:
-            continue
-        # Split extremely long paragraphs to respect token/byte limits
-        paragraphs.extend(_split_large_paragraph(para, max_tokens))
+    if not content.strip():
+        return []
 
-    # Build chunks using the ChunkBuilder state manager
-    builder = _ChunkBuilder(max_tokens, overlap_tokens)
-
-    for paragraph in paragraphs:
-        para_tokens = estimate_tokens(paragraph)
-        para_bytes = len(paragraph.encode("utf-8"))
-
-        # Emit current chunk if adding this paragraph would exceed limits
-        if builder.would_exceed_limits(para_tokens, para_bytes):
-            builder.emit_chunk()
-
-        builder.add_paragraph(paragraph, para_tokens, para_bytes)
-
-    return builder.finalize()
-
-
-def _paragraphs_byte_length(paragraphs: list[str]) -> int:
-    """Return byte length (UTF-8) for a list of paragraphs with blank lines."""
-    if not paragraphs:
-        return 0
-    total = 0
-    for idx, para in enumerate(paragraphs):
-        if idx:
-            total += PARAGRAPH_SEPARATOR_BYTES  # account for the \n\n separator
-        total += len(para.encode("utf-8"))
-    return total
-
-
-def _split_text_by_bytes(text: str, limit: int) -> list[str]:
-    """Split a unicode string into chunks that each fit within the byte limit.
-
-    Optimized implementation using binary slicing.
-    """
-    encoded = text.encode("utf-8")
-    if len(encoded) <= limit:
-        return [text]
-
-    chunks: list[str] = []
-    start = 0
-    total_len = len(encoded)
-
-    while start < total_len:
-        end = start + limit
-        if end >= total_len:
-            chunks.append(encoded[start:].decode("utf-8", errors="ignore"))
-            break
-
-        # Adjust end to avoid splitting multi-byte characters
-        # UTF-8 continuation bytes start with 10xxxxxx (0x80-0xBF)
-        while end > start and (encoded[end] & 0xC0) == 0x80:
-            end -= 1
-
-        if end == start:
-            # If a single character is longer than limit (unlikely with reasonable limits)
-            # or we are stuck, force forward to avoid infinite loop.
-            # But with standard UTF-8 and reasonable limits, this shouldn't happen.
-            # Fallback to hard cut if needed, but 'ignore' handles valid chars.
-            # In practice, for RAG chunking, we can just take the slice.
-            end = start + limit
-
-        chunk_bytes = encoded[start:end]
-        chunks.append(chunk_bytes.decode("utf-8", errors="ignore"))
-        start = end
-
-    return chunks
-
-
-def _split_large_paragraph(paragraph: str, max_tokens: int) -> list[str]:
-    """Split oversized paragraphs so each chunk fits token/byte limits."""
-    para_tokens = estimate_tokens(paragraph)
-    para_bytes = len(paragraph.encode("utf-8"))
-    if para_tokens <= max_tokens and para_bytes <= MAX_CHUNK_BYTES:
-        return [paragraph]
-
-    segments: list[str] = []
-    current: list[str] = []
-    current_tokens = 0
-    current_bytes = 0
-
-    parts = re.split(r"(\s+)", paragraph)
-    for part in parts:
-        if not part:
-            continue
-        part_tokens = estimate_tokens(part) if not part.isspace() else 0
-        part_bytes = len(part.encode("utf-8"))
-
-        # Words that individually exceed the byte limit need slicing
-        if part_bytes > MAX_CHUNK_BYTES and not part.isspace():
-            leftover = part
-            slices = _split_text_by_bytes(leftover, MAX_CHUNK_BYTES)
-            segments.extend(piece.strip() for piece in slices[:-1] if piece)
-            last_piece = slices[-1]
-            current = [last_piece]
-            current_tokens = estimate_tokens(last_piece)
-            current_bytes = len(last_piece.encode("utf-8"))
-            continue
-
-        if current and (
-            current_tokens + part_tokens > max_tokens or current_bytes + part_bytes > MAX_CHUNK_BYTES
-        ):
-            segment = "".join(current).strip()
-            if segment:
-                segments.append(segment)
-            current = [part]
-            current_tokens = part_tokens
-            current_bytes = part_bytes
-        else:
-            current.append(part)
-            current_tokens += part_tokens
-            current_bytes += part_bytes
-
-    if current:
-        segment = "".join(current).strip()
-        if segment:
-            segments.append(segment)
-
-    return segments or [paragraph[:MAX_CHUNK_BYTES]]
+    # LangChain's text splitter is more robust for this task.
+    # It handles markdown structure, sentence splitting, and token estimation.
+    text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
+        model_name="cl100k_base",  # Standard encoder for Gemini
+        chunk_size=max_tokens,
+        chunk_overlap=overlap_tokens,
+        separators=[
+            "\n\n",  # Split by paragraph first
+            "\n",  # Then by line
+            " ",  # Then by word
+            "",  # Finally by character
+        ],
+    )
+    return text_splitter.split_text(content)
 
 
 def parse_post(post_path: Path) -> tuple[dict[str, Any], str]:
@@ -344,7 +132,7 @@ def chunk_document(post_path: Path, max_tokens: int = DEFAULT_MAX_TOKENS) -> lis
 
 
 def chunk_from_document(document: Document, max_tokens: int = DEFAULT_MAX_TOKENS) -> list[dict[str, Any]]:
-    r"""Chunk a Document object into indexable chunks.
+    """Chunk a Document object into indexable chunks.
 
     This is the primary chunking function for Document-based RAG indexing.
     Output adapters provide Documents, which are chunked for embedding.
@@ -355,17 +143,6 @@ def chunk_from_document(document: Document, max_tokens: int = DEFAULT_MAX_TOKENS
 
     Returns:
         List of chunk dicts with content, metadata, document_id, and indices
-
-    Example:
-        >>> from egregora.data_primitives import Document, DocumentType
-        >>> doc = Document(
-        ...     content="# Post\\n\\nContent here",
-        ...     type=DocumentType.POST,
-        ...     metadata={"slug": "my-post", "title": "My Post"}
-        ... )
-        >>> chunks = chunk_from_document(doc)
-        >>> chunks[0]["document_id"] == doc.document_id
-        True
 
     """
     # Extract slug and title from metadata
