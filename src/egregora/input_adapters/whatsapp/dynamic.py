@@ -1,11 +1,11 @@
+import json
 import logging
 import re
-import json
-from typing import Pattern
+from re import Pattern
 
-from pydantic import BaseModel
 import google.generativeai as genai
 from google.generativeai.types import GenerationConfig
+from pydantic import BaseModel
 
 from egregora.config import EgregoraConfig, get_google_api_key
 from egregora.resources.prompts import render_prompt
@@ -18,9 +18,7 @@ class ParserDefinition(BaseModel):
 
 
 def generate_dynamic_regex(sample_lines: list[str], config: EgregoraConfig) -> Pattern | None:
-    """
-    Uses LLM to generate a regex pattern matching the specific locale of the input file.
-    """
+    """Uses LLM to generate a regex pattern matching the specific locale of the input file."""
     if not sample_lines:
         return None
 
@@ -44,10 +42,8 @@ def generate_dynamic_regex(sample_lines: list[str], config: EgregoraConfig) -> P
         )
 
         text = response.text.strip()
-        if text.startswith("```json"):
-            text = text[7:]
-        if text.endswith("```"):
-            text = text[:-3]
+        text = text.removeprefix("```json")
+        text = text.removesuffix("```")
 
         data = json.loads(text)
         result = ParserDefinition.model_validate(data)
@@ -66,9 +62,8 @@ def generate_dynamic_regex(sample_lines: list[str], config: EgregoraConfig) -> P
 
         if matches / len(sample_lines) >= 0.5:
             return pattern
-        else:
-            logger.warning(f"Generated regex failed validation (matched {matches}/{len(sample_lines)} lines)")
-            return None
+        logger.warning(f"Generated regex failed validation (matched {matches}/{len(sample_lines)} lines)")
+        return None
 
     except Exception as e:
         logger.error(f"Failed to generate dynamic parser: {e}")
