@@ -29,6 +29,7 @@ from pydantic_ai.messages import (
     ToolCallPart,
     ToolReturnPart,
 )
+from ratelimit import limits, sleep_and_retry
 
 from egregora.agents.banner.agent import generate_banner, is_banner_generation_available
 from egregora.agents.formatting import (
@@ -50,8 +51,6 @@ from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.batch import call_with_retries_sync
 from egregora.utils.cache import CacheTier, PipelineCache
 from egregora.utils.metrics import UsageTracker
-from ratelimit import limits, sleep_and_retry
-
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
 from egregora.utils.retry import retry_sync
 

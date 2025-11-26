@@ -23,7 +23,6 @@ import logging
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
-import duckdb
 import ibis
 import ibis.expr.datatypes as dt
 
@@ -329,8 +328,7 @@ def create_table_if_not_exists(
             conn.execute(f"DROP TABLE IF EXISTS {quote_identifier(table_name)}")
 
         columns_sql = ", ".join(
-            f"{quote_identifier(name)} {_ibis_to_duckdb_type(dtype)}"
-            for name, dtype in schema.items()
+            f"{quote_identifier(name)} {_ibis_to_duckdb_type(dtype)}" for name, dtype in schema.items()
         )
 
         # If we dropped the table, we must use CREATE TABLE.

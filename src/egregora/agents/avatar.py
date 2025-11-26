@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 import httpx
 from PIL import Image
+from ratelimit import limits, sleep_and_retry
 
 from egregora.agents.enricher import (
     MediaEnrichmentDeps,
@@ -27,8 +28,6 @@ from egregora.agents.enricher import (
 from egregora.input_adapters.whatsapp.commands import extract_commands
 from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
 from egregora.ops.media import detect_media_type, extract_urls
-from ratelimit import limits, sleep_and_retry
-
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.network import SSRFValidationError, validate_public_url
 
@@ -247,8 +246,6 @@ def _download_image_content(response: httpx.Response) -> tuple[bytes, str]:
     return bytes(content), content_type
 
 
-
-
 def _save_avatar_file(content: bytes, avatar_uuid: uuid.UUID, ext: str, media_dir: Path) -> Path:
     """Save avatar content to file.
 
@@ -309,15 +306,17 @@ def download_avatar_from_url(
             _validate_avatar_url(redirect_url)
 
     try:
-        with httpx.Client(
-            timeout=timeout,
-            follow_redirects=True,
-            max_redirects=MAX_REDIRECT_HOPS,
-            event_hooks={"response": [_validate_redirect]},
-        ) as client:
-            with client.stream("GET", url) as response:
-                response.raise_for_status()
-                content, content_type = _download_image_content(response)
+        with (
+            httpx.Client(
+                timeout=timeout,
+                follow_redirects=True,
+                max_redirects=MAX_REDIRECT_HOPS,
+                event_hooks={"response": [_validate_redirect]},
+            ) as client,
+            client.stream("GET", url) as response,
+        ):
+            response.raise_for_status()
+            content, content_type = _download_image_content(response)
 
         _validate_image_content(content, content_type)
         _validate_image_dimensions(content)

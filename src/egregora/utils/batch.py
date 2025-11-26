@@ -98,7 +98,7 @@ def sleep_with_progress_sync(duration: float, message: str = "Sleeping") -> None
 
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Sequence
 
     from google import genai
 
@@ -415,4 +415,3 @@ class GeminiBatchClient:
 
 
 # Use the standard library implementation from Python 3.12+
-from itertools import batched as chunk_requests

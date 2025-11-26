@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from pydantic_ai import Agent, AgentRunResult, RunContext
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
+from ratelimit import limits, sleep_and_retry
 
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
@@ -43,8 +44,6 @@ from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.paths import slugify
-from ratelimit import limits, sleep_and_retry
-
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
 from egregora.utils.retry import retry_async
 
@@ -453,7 +452,7 @@ async def _process_url_task(  # noqa: PLR0913
         return _create_enrichment_row(metadata, "URL", url, doc.document_id)
 
 
-async def _process_media_task(  # noqa: PLR0913, C901
+async def _process_media_task(  # noqa: PLR0913
     ref: str,
     media_doc: Document,
     metadata: dict[str, Any],
