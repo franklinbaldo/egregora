@@ -18,6 +18,7 @@ from egregora.constants import RetrievalMode, SourceType, WindowUnit
 from egregora.database.elo_store import EloStore
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration import write_pipeline
+from egregora.orchestration.context import PipelineRunParams
 
 app = typer.Typer(
     name="egregora",
@@ -350,13 +351,14 @@ def write(  # noqa: C901, PLR0913
                 border_style="cyan",
             )
         )
-        write_pipeline.run(
-            source=source.value,
-            input_path=runtime.input_file,
+        run_params = PipelineRunParams(
             output_dir=runtime.output_dir,
             config=egregora_config,
+            source_type=source.value,
+            input_path=runtime.input_file,
             refresh=refresh,
         )
+        write_pipeline.run(run_params)
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:
         import traceback
