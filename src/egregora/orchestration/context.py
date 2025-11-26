@@ -44,6 +44,20 @@ class PipelineRunParams:
 
 
 @dataclass(frozen=True, slots=True)
+class PipelineRunParams:
+    """Aggregated parameters required to start a pipeline run."""
+
+    output_dir: Path
+    config: EgregoraConfig
+    source_type: str
+    input_path: Path
+    client: genai.Client | None = None
+    refresh: str | None = None
+    run_id: UUID = field(default_factory=uuid.uuid4)
+    start_time: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+
+@dataclass(frozen=True, slots=True)
 class PipelineConfig:
     """Immutable configuration for the pipeline.
 

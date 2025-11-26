@@ -30,7 +30,7 @@ transformations/ sits in the middle layer of Egregora's architecture:
   database/          → Persistence + infrastructure (WHERE to store/track)
 
 All transformations operate on Ibis Table objects and preserve the IR schema
-contract (see database.validation for schema enforcement).
+contract defined in :mod:`egregora.database.ir_schema`.
 
 Examples
 --------
