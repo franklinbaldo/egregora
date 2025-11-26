@@ -1,14 +1,17 @@
 {
-  "name": "egregora-jules-pr-review",
+  "name": "egregora-ai-pr-review",
   "version": "1.0.0",
-  "description": "Jules automated PR review for egregora",
-  "type": "module",
+  "description": "AI-powered PR review for egregora (Jules + Gemini)",
   "private": true,
   "scripts": {
+    "jules": "node jules-pr-review.mjs",
+    "gemini": "node gemini-pr-review.js",
     "review": "node jules-pr-review.mjs"
   },
   "dependencies": {
-    "@octokit/rest": "^21.0.2"
+    "@google/generative-ai": "^0.21.0",
+    "@octokit/rest": "^21.0.2",
+    "dotenv": "^16.4.5"
   },
   "engines": {
     "node": ">=20.0.0"
