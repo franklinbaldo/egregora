@@ -10,7 +10,7 @@ class PathTraversalError(Exception):
     """Raised when a path would escape its intended directory."""
 
 
-def slugify(text: str, max_len: int = 60) -> str:
+def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
     """Convert text to a safe URL-friendly slug using python-slugify.
 
     Uses the industry-standard python-slugify library with Unicode transliteration
@@ -19,6 +19,7 @@ def slugify(text: str, max_len: int = 60) -> str:
     Args:
         text: Input text to slugify
         max_len: Maximum length of output slug (default 60)
+        lowercase: Whether to lowercase the slug (default True)
 
     Returns:
         Safe slug string suitable for filenames
@@ -26,6 +27,8 @@ def slugify(text: str, max_len: int = 60) -> str:
     Examples:
         >>> slugify("Hello World!")
         'hello-world'
+        >>> slugify("Hello World!", lowercase=False)
+        'Hello-World'
         >>> slugify("Café à Paris")
         'cafe-a-paris'
         >>> slugify("Привет мир")
@@ -36,7 +39,7 @@ def slugify(text: str, max_len: int = 60) -> str:
         'aaaaaaaaaaaaaaaaaaaa'
 
     """
-    slug = _slugify(text, max_length=max_len, separator="-")
+    slug = _slugify(text, max_length=max_len, separator="-", lowercase=lowercase)
     return slug if slug else "post"
 
 

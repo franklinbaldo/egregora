@@ -46,6 +46,7 @@ from egregora.utils.paths import slugify
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
 from egregora.utils.rate_limit import RateLimiter, apply_rate_limit
 from egregora.utils.retry import retry_async
+from egregora.utils.text import sanitize_prompt_input as _sanitize_prompt_input
 
 if TYPE_CHECKING:
     import pandas as pd  # noqa: TID251
@@ -86,9 +87,6 @@ def load_file_as_binary_content(file_path: Path, max_size_mb: int = 20) -> Binar
         media_type = "application/octet-stream"
     file_bytes = file_path.read_bytes()
     return BinaryContent(data=file_bytes, media_type=media_type)
-
-
-from egregora.utils.text import sanitize_prompt_input as _sanitize_prompt_input
 
 
 def _normalize_slug(candidate: str | None, fallback: str) -> str:
@@ -415,6 +413,7 @@ async def _process_url_task(  # noqa: PLR0913
         cache_entry = cache.load(cache_key)
 
         if cache_entry:
+            logger.debug("⚡ [L1 Cache Hit] URL: %s", url)
             markdown = cache_entry.get("markdown", "")
             cached_slug = cache_entry.get("slug")
         else:
@@ -487,6 +486,7 @@ async def _process_media_task(  # noqa: PLR0913, C901
 
         cache_entry = cache.load(cache_key)
         if cache_entry:
+            logger.debug("⚡ [L1 Cache Hit] Media: %s", filename or ref)
             markdown = cache_entry.get("markdown", "")
             cached_slug = cache_entry.get("slug")
         else:
@@ -761,7 +761,7 @@ def _extract_media_candidates(  # noqa: C901, PLR0912
 
     # Regex setup
     # Match any filename in markdown link: ![alt](path/to/filename.ext)
-    markdown_re = re.compile(r"!\[[^\]]*\]\([^)]*?([^/)]+\.\w+)\)")
+    markdown_re = re.compile(r"(?:!\[|\[)[^\]]*\]\([^)]*?([^/)]+\.\w+)\)")
     uuid_re = re.compile(r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)")
 
     for batch in _iter_table_batches(

@@ -279,9 +279,9 @@ def _prepare_media_document(document: Document, media_ref: str) -> MediaAsset:
     filename = metadata.get("filename")
     slug_hint = metadata.get("slug")
     if not slug_hint and original_filename:
-        slug_hint = slugify(Path(original_filename).stem)
+        slug_hint = slugify(Path(original_filename).stem, lowercase=False)
     if not filename:
-        safe_slug = slugify(slug_hint) if slug_hint else metadata.get("filename", "")
+        safe_slug = slugify(slug_hint, lowercase=False) if slug_hint else metadata.get("filename", "")
         slug_base = safe_slug or Path(extension_source or "").stem or document.document_id[:8]
         unique_suffix = document.document_id[:8]
         if unique_suffix not in slug_base:
@@ -298,7 +298,7 @@ def _prepare_media_document(document: Document, media_ref: str) -> MediaAsset:
         }
     )
     if "slug" not in metadata and original_filename:
-        metadata["slug"] = slugify(Path(original_filename).stem)
+        metadata["slug"] = slugify(Path(original_filename).stem, lowercase=False)
     metadata.setdefault("nav_exclude", True)
     metadata["media_subdir"] = media_subdir
     hide_flags = metadata.get("hide", [])

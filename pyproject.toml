@@ -237,6 +237,8 @@ markers = [
     "deadcode: dead code detection with vulture",
     "security: security scans with bandit",
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "e2e: end-to-end pipeline tests with mocked LLM responses",
+    "benchmark: performance baseline tests for regression detection",
 ]
 # Default coverage settings (can be overridden with CLI flags)
 addopts = [
