@@ -1,7 +1,7 @@
 """Database utilities, schemas, and infrastructure for Egregora.
 
 This package consolidates all persistence, state management, and infrastructure:
-- Schemas: IR schema definitions and validation
+- Schemas: IR schema definitions
 - Storage: DuckDB connection management
 - Streaming: Memory-efficient data access utilities
 - Tracking: Run observability and lineage
