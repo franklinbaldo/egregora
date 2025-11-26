@@ -57,26 +57,30 @@ CONVERSATION_SCHEMA = ibis.schema(
         "original_line": dt.string,  # Raw line from WhatsApp export
         "tagged_line": dt.string,  # Processed line with mentions
         "message_id": dt.String(nullable=True),  # milliseconds since first message (group creation)
+        "event_id": dt.UUID(nullable=True),
     }
 )
 
+
+def conversation_schema_dict(*, timezone: str | ZoneInfo | None = None) -> dict[str, dt.DataType]:
+    """Return a dict view of :data:`CONVERSATION_SCHEMA` with an optional timezone."""
+
+    schema_dict = dict(CONVERSATION_SCHEMA.items())
+    timestamp_dtype = schema_dict.get("timestamp", dt.Timestamp(timezone=DEFAULT_TIMEZONE, scale=9))
+    tz = timezone or DEFAULT_TIMEZONE
+    tz_name = getattr(tz, "key", str(tz)) if isinstance(tz, ZoneInfo) else str(tz)
+    if isinstance(timestamp_dtype, dt.Timestamp):
+        schema_dict["timestamp"] = dt.Timestamp(timezone=tz_name, scale=timestamp_dtype.scale)
+    else:
+        schema_dict["timestamp"] = dt.Timestamp(timezone=tz_name, scale=9)
+    return schema_dict
+
+
+# Derived message schema dict for backward compatibility
+MESSAGE_SCHEMA: dict[str, dt.DataType] = conversation_schema_dict()
+
 # Alias for CONVERSATION_SCHEMA - represents WhatsApp export data
 WHATSAPP_CONVERSATION_SCHEMA = CONVERSATION_SCHEMA
-
-# Message schema as dict (used by message_schema.py utilities)
-MESSAGE_SCHEMA: dict[str, dt.DataType] = {
-    "timestamp": dt.Timestamp(timezone=DEFAULT_TIMEZONE, scale=9),
-    "date": dt.Date(),
-    "author": dt.String(),
-    "message": dt.String(),
-    "original_line": dt.String(),
-    "tagged_line": dt.String(),
-    "message_id": dt.String(nullable=True),
-    "event_id": dt.UUID(nullable=True),
-}
-
-# Legacy alias
-WHATSAPP_SCHEMA = MESSAGE_SCHEMA
 
 # ============================================================================
 # Persistent Schemas
@@ -731,10 +735,9 @@ def ensure_message_schema(table: Table, *, timezone: str | ZoneInfo | None = Non
     - Dropping any extra columns not in MESSAGE_SCHEMA
     - Normalizing timezone information
     """
-    target_schema = dict(MESSAGE_SCHEMA)
     tz = timezone or DEFAULT_TIMEZONE
     tz_name = getattr(tz, "key", str(tz)) if isinstance(tz, ZoneInfo) else str(tz)
-    target_schema["timestamp"] = dt.Timestamp(timezone=tz_name, scale=9)
+    target_schema = conversation_schema_dict(timezone=tz_name)
     if int(table.count().execute()) == 0:
         return ibis.memtable([], schema=ibis.schema(target_schema))
     result = table
@@ -801,6 +804,7 @@ __all__ = [
     "ANNOTATIONS_SCHEMA",
     # Ephemeral schemas
     "CONVERSATION_SCHEMA",
+    "conversation_schema_dict",
     "DEFAULT_TIMEZONE",
     # Elo schemas
     "ELO_HISTORY_SCHEMA",
@@ -815,7 +819,6 @@ __all__ = [
     # Runs schema
     "RUNS_TABLE_SCHEMA",
     "WHATSAPP_CONVERSATION_SCHEMA",
-    "WHATSAPP_SCHEMA",
     # General utilities
     "add_primary_key",
     "create_index",
