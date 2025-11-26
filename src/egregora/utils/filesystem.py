@@ -11,12 +11,13 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.paths import safe_path_join, slugify
 
 logger = logging.getLogger(__name__)
@@ -53,26 +54,12 @@ def _extract_clean_date(date_str: str) -> str:
 
 def _format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
     """Normalize a metadata date into the RSS-friendly ``YYYY-MM-DD HH:MM`` string."""
-    from dateutil import parser as dateutil_parser
-
     if raw_date is None:
         return ""
 
-    if isinstance(raw_date, datetime):
-        dt = raw_date
-    elif isinstance(raw_date, date):
-        dt = datetime.combine(raw_date, datetime.min.time())
-    else:
-        raw = str(raw_date).strip()
-        if not raw:
-            return ""
-        try:
-            dt = datetime.fromisoformat(raw)
-        except (ValueError, TypeError):
-            try:
-                dt = dateutil_parser.parse(raw)
-            except (ImportError, ValueError, TypeError):
-                return raw
+    dt = parse_datetime_flexible(raw_date, default_timezone=UTC)
+    if dt is None:
+        return str(raw_date).strip()
 
     return dt.strftime("%Y-%m-%d %H:%M")
 

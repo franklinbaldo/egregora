@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from egregora.config import EgregoraConfig, google_api_key_status
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.resources.prompts import render_prompt
-from egregora.utils.retry import RetryPolicy, retry_sync
+from egregora.utils.retry import retry_sync
 
 logger = logging.getLogger(__name__)
 
@@ -194,14 +194,11 @@ def generate_banner(
         language=language,
     )
 
-    # Retry policy for API resilience
-    retry_policy = RetryPolicy()
-
     def _generate() -> BannerOutput:
         return _generate_banner_image(client, input_data, image_model)
 
     try:
-        return retry_sync(_generate, retry_policy)
+        return retry_sync(_generate)
     except Exception as e:
         logger.exception("Banner generation failed after retries")
         return BannerOutput(error=type(e).__name__, error_code="RETRY_FAILED")

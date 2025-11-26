@@ -7,8 +7,9 @@ This module defines:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from datetime import datetime
+import uuid
+from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -25,7 +26,21 @@ from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.utils.cache import EnrichmentCache, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
-from egregora.utils.rate_limit import AsyncRateLimit, SyncRateLimit
+from egregora.utils.rate_limit import RateLimiter
+
+
+@dataclass(frozen=True, slots=True)
+class PipelineRunParams:
+    """Aggregated parameters required to start a pipeline run."""
+
+    output_dir: Path
+    config: EgregoraConfig
+    source_type: str
+    input_path: Path
+    client: genai.Client | None = None
+    refresh: str | None = None
+    run_id: UUID = field(default_factory=uuid.uuid4)
+    start_time: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,7 +127,7 @@ class PipelineState:
 
     # Quota tracking
     quota_tracker: QuotaTracker | None = None
-    rate_limit: AsyncRateLimit | SyncRateLimit | None = None
+    rate_limit: RateLimiter | None = None
 
     # Output & Adapters (Initialized lazily or updated)
     output_format: OutputSink | None = None  # ISP-compliant: Runtime data operations only
@@ -214,7 +229,7 @@ class PipelineContext:
         return self.state.adapter
 
     @property
-    def rate_limit(self) -> AsyncRateLimit | SyncRateLimit | None:
+    def rate_limit(self) -> RateLimiter | None:
         return self.state.rate_limit
 
     @property
