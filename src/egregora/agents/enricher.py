@@ -15,7 +15,7 @@ import re
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -40,6 +40,7 @@ from egregora.ops.media import (
 from egregora.resources.prompts import render_prompt
 from egregora.transformations.enrichment import combine_with_enrichment_rows
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
+from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.paths import slugify
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
@@ -61,19 +62,9 @@ logger = logging.getLogger(__name__)
 
 def ensure_datetime(value: datetime | str | Any) -> datetime:
     """Convert various datetime representations to Python datetime."""
-    if isinstance(value, datetime):
-        return value
-
-    if isinstance(value, str):
-        try:
-            return datetime.fromisoformat(value)
-        except ValueError as e:
-            msg = f"Cannot parse datetime from string: {value}"
-            raise ValueError(msg) from e
-
-    # Handle pandas.Timestamp (avoid import at module level)
-    if hasattr(value, "to_pydatetime"):
-        return value.to_pydatetime()
+    parsed = parse_datetime_flexible(value, default_timezone=UTC)
+    if parsed is not None:
+        return parsed
 
     msg = f"Unsupported datetime type: {type(value)}"
     raise TypeError(msg)
