@@ -129,7 +129,7 @@ def test_media_enrichment_mock_returns_fixture_data(llm_response_mocks):
 
 @pytest.mark.e2e
 @pytest.mark.benchmark
-def test_mock_performance_baseline(llm_response_mocks, benchmark_if_available):
+def test_mock_performance_baseline(llm_response_mocks):
     """Ensure mocks execute quickly (< 1ms per call).
 
     This validates that mocks don't introduce performance overhead.
@@ -146,7 +146,3 @@ def test_mock_performance_baseline(llm_response_mocks, benchmark_if_available):
 
     # 100 calls should take < 10ms
     assert elapsed < 0.01, f"Mocks too slow: {elapsed:.4f}s for 100 calls"
-
-
-def benchmark_if_available():
-    """Placeholder for optional benchmark fixture."""
