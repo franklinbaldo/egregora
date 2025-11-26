@@ -258,7 +258,6 @@ class AnnotationStore:
         commentary: str,
     ) -> Annotation:
         """Persist an annotation and return the saved record."""
-
         # Runtime privacy check
         # TODO: Re-enable when egregora.privacy.pii module is implemented
         # from egregora.privacy.config import PrivacySettings
@@ -274,10 +273,7 @@ class AnnotationStore:
         if parent_type == "annotation":
             annotations_table = self._backend.table(ANNOTATIONS_TABLE)
             parent_exists = int(
-                annotations_table.filter(annotations_table.id == int(parent_id))
-                .limit(1)
-                .count()
-                .execute()
+                annotations_table.filter(annotations_table.id == int(parent_id)).limit(1).count().execute()
             )
             if parent_exists == 0:
                 msg = f"parent annotation with id {parent_id} does not exist"
