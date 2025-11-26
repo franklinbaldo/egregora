@@ -46,7 +46,7 @@ from egregora.database.validation import validate_ir_schema
 from egregora.database.views import daily_aggregates_view
 from egregora.input_adapters import get_adapter
 from egregora.input_adapters.base import MediaMapping
-from egregora.input_adapters.whatsapp import extract_commands, filter_egregora_messages
+from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineContext
