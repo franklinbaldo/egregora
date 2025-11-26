@@ -1,0 +1,41 @@
+name: jules-pr-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    # Don't run on branches created by Jules itself to avoid infinite loops
+    branches-ignore:
+      - 'jules/**'
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    # Skip if PR is from a Jules branch or if title contains [skip-jules]
+    if: |
+      !startsWith(github.head_ref, 'jules/') &&
+      !contains(github.event.pull_request.title, '[skip-jules]')
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better context
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: .github/scripts
+        run: npm ci
+
+      - name: Run Jules PR review
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+        run: node .github/scripts/jules-pr-review.mjs
