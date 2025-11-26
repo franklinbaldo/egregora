@@ -75,9 +75,9 @@ class TestWriteCommandBasic:
         )
 
         # Output directory should exist
-        assert (
-            test_output_dir.exists()
-        ), f"Output directory was not created at {test_output_dir}. Command exit code: {result.exit_code}"
+        assert test_output_dir.exists(), (
+            f"Output directory was not created at {test_output_dir}. Command exit code: {result.exit_code}"
+        )
 
     def test_write_command_missing_input(self, test_output_dir):
         """Test write command with missing input ZIP file."""
@@ -118,9 +118,9 @@ class TestWriteCommandBasic:
         result = runner.invoke(app, ["write", "--help"])
 
         assert result.exit_code == 0, "Help should display without error"
-        assert (
-            "Output directory" in result.stdout or "output" in result.stdout.lower()
-        ), "Help should mention output directory"
+        assert "Output directory" in result.stdout or "output" in result.stdout.lower(), (
+            "Help should mention output directory"
+        )
         assert "step" in result.stdout.lower(), "Help should mention windowing parameters"
 
 
@@ -272,9 +272,9 @@ class TestWriteCommandDateFiltering:
         )
 
         assert result.exit_code == 1, "Should fail with invalid date format"
-        assert (
-            "invalid" in result.stdout.lower() or "format" in result.stdout.lower()
-        ), "Should report invalid format error"
+        assert "invalid" in result.stdout.lower() or "format" in result.stdout.lower(), (
+            "Should report invalid format error"
+        )
 
     def test_write_command_invalid_to_date_format(
         self, test_zip_file, test_output_dir, test_dates: TestDates
@@ -351,9 +351,9 @@ class TestWriteCommandWithMocks:
         )
 
         # Verify site structure was created even if pipeline failed
-        assert (
-            test_output_dir.exists()
-        ), f"Output directory {test_output_dir} was not created. Exit code: {result.exit_code}"
+        assert test_output_dir.exists(), (
+            f"Output directory {test_output_dir} was not created. Exit code: {result.exit_code}"
+        )
 
         # Check for .egregora config directory
         egregora_dir = test_output_dir / ".egregora"
@@ -373,19 +373,19 @@ class TestWriteCommandWithMocks:
 
         # Check for docs directory and subdirectories
         docs_dir = test_output_dir / "docs"
-        assert (
-            docs_dir.exists()
-        ), f"docs directory not found at {docs_dir}. Output dir contents: {list(test_output_dir.iterdir())}"
+        assert docs_dir.exists(), (
+            f"docs directory not found at {docs_dir}. Output dir contents: {list(test_output_dir.iterdir())}"
+        )
 
         posts_dir = docs_dir / "posts"
-        assert (
-            posts_dir.exists()
-        ), f"posts directory not found at {posts_dir}. docs dir contents: {list(docs_dir.iterdir())}"
+        assert posts_dir.exists(), (
+            f"posts directory not found at {posts_dir}. docs dir contents: {list(docs_dir.iterdir())}"
+        )
 
         profiles_dir = docs_dir / "profiles"
-        assert (
-            profiles_dir.exists()
-        ), f"profiles directory not found at {profiles_dir}. docs dir contents: {list(docs_dir.iterdir())}"
+        assert profiles_dir.exists(), (
+            f"profiles directory not found at {profiles_dir}. docs dir contents: {list(docs_dir.iterdir())}"
+        )
 
         # If pipeline succeeded, verify we actually created content
         if result.exit_code == 0:
