@@ -49,10 +49,12 @@ def _resolve_host_ips(hostname: str) -> set[ipaddress.IPv4Address | ipaddress.IP
     try:
         addr_info = socket.getaddrinfo(hostname, None)
     except socket.gaierror as exc:
-        raise SSRFValidationError(f"Could not resolve hostname '{hostname}': {exc}") from exc
+        msg = f"Could not resolve hostname '{hostname}': {exc}"
+        raise SSRFValidationError(msg) from exc
 
     if not addr_info:
-        raise SSRFValidationError(f"Could not resolve hostname '{hostname}': no addresses returned")
+        msg = f"Could not resolve hostname '{hostname}': no addresses returned"
+        raise SSRFValidationError(msg)
 
     resolved_ips: set[ipaddress.IPv4Address | ipaddress.IPv6Address] = set()
     for info in addr_info:
@@ -60,7 +62,8 @@ def _resolve_host_ips(hostname: str) -> set[ipaddress.IPv4Address | ipaddress.IP
         try:
             resolved_ips.add(ipaddress.ip_address(ip_str))
         except ValueError as exc:
-            raise SSRFValidationError(f"Invalid IP address '{ip_str}': {exc}") from exc
+            msg = f"Invalid IP address '{ip_str}': {exc}"
+            raise SSRFValidationError(msg) from exc
 
     return resolved_ips
 
@@ -75,15 +78,16 @@ def validate_public_url(
     try:
         parsed = urlparse(url)
     except Exception as exc:  # pragma: no cover - urlparse rarely raises
-        raise SSRFValidationError(f"Invalid URL: {exc}") from exc
+        msg = f"Invalid URL: {exc}"
+        raise SSRFValidationError(msg) from exc
 
     if parsed.scheme not in allowed_schemes:
-        raise SSRFValidationError(
-            f"Invalid URL scheme: {parsed.scheme}. Only {', '.join(allowed_schemes)} are allowed."
-        )
+        msg = f"Invalid URL scheme: {parsed.scheme}. Only {', '.join(allowed_schemes)} are allowed."
+        raise SSRFValidationError(msg)
 
     if not parsed.hostname:
-        raise SSRFValidationError("URL must have a hostname")
+        msg = "URL must have a hostname"
+        raise SSRFValidationError(msg)
 
     for ip_addr in _resolve_host_ips(parsed.hostname):
         _validate_ip_is_public(ip_addr, url, blocked_ranges)

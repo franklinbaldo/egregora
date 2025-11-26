@@ -196,14 +196,15 @@ def write_profile(
     avatar_url = front_matter.get("avatar")
 
     if not avatar_url:
-        avatar_url = _generate_fallback_avatar_url(author_uuid)
-        # Note: We don't save the fallback URL to front_matter to allow
-        # the user to set a custom one later without overwriting "None".
-        # But we DO render it in the profile body.
+        avatar_url = generate_fallback_avatar_url(author_uuid)
+        # Save fallback URL to front_matter so it's available for page generation
+        front_matter["avatar"] = avatar_url
+        yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
     if avatar_url:
-        # Use MkDocs attribute syntax for alignment and size
-        profile_body = f"![Avatar]({avatar_url}){{ align=left width=150 }}\n\n{profile_body}"
+        # Use MkDocs macros to render avatar from frontmatter
+        # This allows dynamic updates if frontmatter changes
+        profile_body = "![Avatar]({{ page.meta.avatar }}){ align=left width=150 }\n\n" + profile_body
 
     full_profile = f"---\n{yaml_front}---\n\n{profile_body}"
     profile_path.write_text(full_profile, encoding="utf-8")
@@ -223,7 +224,7 @@ def write_profile(
     return str(profile_path)
 
 
-def _generate_fallback_avatar_url(author_uuid: str) -> str:
+def generate_fallback_avatar_url(author_uuid: str) -> str:
     """Generate a deterministic fallback avatar URL using getavataaars.com.
 
     Args:

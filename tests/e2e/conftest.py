@@ -92,8 +92,7 @@ def clean_duckdb_path(tmp_path: Path) -> Path:
     import time
 
     timestamp = int(time.time() * 1000000)  # Microsecond precision
-    db_path = tmp_path / f"test_{timestamp}.duckdb"
-    return db_path
+    return tmp_path / f"test_{timestamp}.duckdb"
 
 
 # =============================================================================

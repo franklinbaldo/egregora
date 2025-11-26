@@ -54,7 +54,8 @@ def test_validate_public_url_blocks_ipv4_mapped(monkeypatch: pytest.MonkeyPatch)
 
 def test_validate_public_url_resolve_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     def _raise(*_args, **_kwargs):
-        raise socket.gaierror("unresolvable")
+        msg = "unresolvable"
+        raise socket.gaierror(msg)
 
     monkeypatch.setattr(socket, "getaddrinfo", _raise)
 

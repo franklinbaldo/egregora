@@ -43,9 +43,10 @@ DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash-image"
 EMBEDDING_DIM = 768  # Embedding vector dimensions
 
 # Quota defaults
+# Quota defaults
 DEFAULT_DAILY_LLM_REQUESTS = 220
-DEFAULT_PER_SECOND_LIMIT = 10
-DEFAULT_CONCURRENCY = 4
+DEFAULT_PER_SECOND_LIMIT = 1
+DEFAULT_CONCURRENCY = 1
 
 # Default database connection strings
 # Can be overridden via config.yml or environment variables

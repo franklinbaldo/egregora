@@ -760,7 +760,8 @@ def _extract_media_candidates(  # noqa: C901, PLR0912
     metadata_lookup: dict[str, dict[str, Any]] = {}
 
     # Regex setup
-    markdown_re = re.compile(r"!\[[^\]]*\]\([^)]*?([a-f0-9\-]+\.\w+)\)")
+    # Match any filename in markdown link: ![alt](path/to/filename.ext)
+    markdown_re = re.compile(r"!\[[^\]]*\]\([^)]*?([^/)]+\.\w+)\)")
     uuid_re = re.compile(r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)")
 
     for batch in _iter_table_batches(
