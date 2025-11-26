@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import TYPE_CHECKING, Any
 
 import ibis
 from ibis.expr.types import Table
@@ -148,9 +149,7 @@ class LlamaIndexRagAdapter:
         deduplicate: bool = True,
     ) -> Table:
         """Search for relevant media using LlamaIndex."""
-        filters = MetadataFilters(
-            filters=[ExactMatchFilter(key="document_type", value="enrichment_media")]
-        )
+        filters = MetadataFilters(filters=[ExactMatchFilter(key="document_type", value="enrichment_media")])
 
         fetch_k = (top_k * 3) if deduplicate else top_k
 

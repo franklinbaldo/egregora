@@ -8,6 +8,7 @@ from egregora.data_primitives.document import Document, DocumentType
 
 if TYPE_CHECKING:
     from pydantic_ai import RunContext
+
     from egregora.agents.writer import WriterDeps
 
 logger = logging.getLogger(__name__)

@@ -210,14 +210,13 @@ from egregora.agents.tools.definitions import (
 )
 
 
-def register_writer_tools(  # noqa: C901
+def register_writer_tools(
     agent: Agent[WriterDeps, WriterAgentReturn],
     *,
     enable_banner: bool = False,
     enable_rag: bool = False,
 ) -> None:
     """Attach tool implementations to the agent."""
-
     agent.tool(write_post_tool)
     agent.tool(read_profile_tool)
     agent.tool(write_profile_tool)

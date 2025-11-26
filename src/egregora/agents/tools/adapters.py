@@ -9,6 +9,7 @@ from egregora.agents.writer import PostMetadata, ReadProfileResult, WritePostRes
 
 if TYPE_CHECKING:
     from pydantic_ai import RunContext
+
     from egregora.agents.writer import WriterDeps
 
 

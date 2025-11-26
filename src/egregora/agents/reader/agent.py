@@ -13,6 +13,8 @@ import logging
 import os
 from typing import TYPE_CHECKING, Literal
 
+from llama_index.core.program import LLMTextCompletionProgram
+from llama_index.llms.gemini import Gemini
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
@@ -20,8 +22,6 @@ from egregora.agents.reader.models import PostComparison, ReaderFeedback
 from egregora.config.settings import EgregoraConfig
 from egregora.resources.prompts import render_prompt
 from egregora.utils.retry import retry_async
-from llama_index.core.program import LLMTextCompletionProgram
-from llama_index.llms.gemini import Gemini
 
 if TYPE_CHECKING:
     from egregora.agents.reader.models import EvaluationRequest

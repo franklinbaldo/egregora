@@ -23,9 +23,9 @@ import ibis
 from ibis.expr.types import Table
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
-from pydantic_ai.run import AgentRunResult
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
+from pydantic_ai.run import AgentRunResult
 
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
@@ -359,10 +359,10 @@ def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[d
 # LlamaIndex Agent Implementation
 # ---------------------------------------------------------------------------
 
-from llama_index.multi_modal_llms.gemini import GeminiMultiModal
 from llama_index.core.output_parsers import PydanticOutputParser
 from llama_index.core.program import MultiModalLLMCompletionProgram
 from llama_index.core.schema import ImageDocument
+from llama_index.multi_modal_llms.gemini import GeminiMultiModal
 
 
 async def _run_enrichment_with_llama_index(
@@ -720,9 +720,7 @@ async def _enrich_table_async(
     return combined
 
 
-def _extract_url_candidates(
-    messages_table: Table, max_enrichments: int
-) -> list[tuple[str, dict[str, Any]]]:
+def _extract_url_candidates(messages_table: Table, max_enrichments: int) -> list[tuple[str, dict[str, Any]]]:
     """Extract unique URL candidates with metadata, up to max_enrichments."""
     url_metadata: dict[str, dict[str, Any]] = {}
     discovered_count = 0
