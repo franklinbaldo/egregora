@@ -17,6 +17,7 @@ from egregora.data_primitives.document import DocumentType
 from egregora.data_primitives.protocols import OutputSink
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
+from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.paths import slugify
 
 logger = logging.getLogger(__name__)
@@ -172,29 +173,24 @@ class SelfInputAdapter(InputAdapter):
         base = path.stem if path else metadata.get("storage_identifier", "self")
         return slugify(base)
 
-    def _resolve_timestamp(self, value: Any, path: Path | None, timezone: str | None) -> datetime:
-        if isinstance(value, datetime):
-            ts = value
-        elif isinstance(value, date):
-            ts = datetime.combine(value, datetime.min.time())
-        elif isinstance(value, str) and value.strip():
+    def _resolve_timezone(self, timezone: str | None) -> ZoneInfo:
+        if timezone:
             try:
-                ts = datetime.fromisoformat(value)
-            except ValueError:
-                ts = datetime.strptime(value, "%Y-%m-%d")
-        elif path:
-            ts = datetime.fromtimestamp(path.stat().st_mtime)
-        else:
-            ts = datetime.now(UTC)
+                return ZoneInfo(timezone)
+            except ZoneInfoNotFoundError:
+                logger.debug("Unknown timezone %s, falling back to UTC", timezone)
+        return UTC
 
-        if ts.tzinfo is None:
-            if timezone:
-                try:
-                    ts = ts.replace(tzinfo=ZoneInfo(timezone))
-                except ZoneInfoNotFoundError:
-                    ts = ts.replace(tzinfo=UTC)
+    def _resolve_timestamp(self, value: Any, path: Path | None, timezone: str | None) -> datetime:
+        target_timezone = self._resolve_timezone(timezone)
+        ts = parse_datetime_flexible(value, default_timezone=target_timezone)
+
+        if ts is None:
+            if path:
+                ts = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
             else:
-                ts = ts.replace(tzinfo=UTC)
+                ts = datetime.now(UTC)
+
         return ts.astimezone(UTC)
 
     def _sanitize_metadata(

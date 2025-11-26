@@ -30,7 +30,6 @@ from zoneinfo import ZoneInfo
 
 import ibis
 import ibis.expr.datatypes as dt
-from dateutil import parser as date_parser
 from pydantic import BaseModel
 
 from egregora.data_primitives.document import Document, DocumentType
@@ -39,6 +38,7 @@ from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.ops.media import ATTACHMENT_MARKERS, WA_MEDIA_PATTERN, detect_media_type
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.privacy.uuid_namespaces import deterministic_author_uuid
+from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.paths import slugify
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
@@ -102,26 +102,20 @@ def _normalize_text(value: str) -> str:
 
 
 # Define parsing strategies in order of preference
-_DATE_PARSING_STRATEGIES = [
-    lambda x: date_parser.isoparse(x),  # Try ISO format first
-    lambda x: date_parser.parse(x, dayfirst=True),  # Day-first format (DD/MM/YYYY)
-    lambda x: date_parser.parse(x, dayfirst=False),  # Month-first format (MM/DD/YYYY)
-]
-
-
 def _parse_message_date(token: str) -> date | None:
     """Parse date token into a date object using multiple parsing strategies."""
     normalized = token.strip()
     if not normalized:
         return None
 
-    for strategy in _DATE_PARSING_STRATEGIES:
-        try:
-            parsed = strategy(normalized)
-            parsed = parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
+    for dayfirst in (True, False):
+        parsed = parse_datetime_flexible(
+            normalized,
+            default_timezone=UTC,
+            parser_kwargs={"dayfirst": dayfirst},
+        )
+        if parsed:
             return parsed.date()
-        except (TypeError, ValueError, OverflowError):
-            continue
 
     return None
 
