@@ -29,6 +29,8 @@ from typing import Annotated, Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from egregora.config.overrides import ConfigOverrideBuilder
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -505,49 +507,34 @@ class EgregoraConfig(BaseModel):
         CLI arguments are expected to be flat key-value pairs or dicts
         matching the argument structure of CLI commands.
         """
-        # Create dict representation for updates
-        updates = base_config.model_dump()
+        builder = ConfigOverrideBuilder(base_config)
 
-        # Pipeline overrides
-        if "step_size" in cli_args and cli_args["step_size"] is not None:
-            updates["pipeline"]["step_size"] = cli_args["step_size"]
-        if "step_unit" in cli_args and cli_args["step_unit"] is not None:
-            updates["pipeline"]["step_unit"] = cli_args["step_unit"]
-        if "overlap_ratio" in cli_args and cli_args["overlap_ratio"] is not None:
-            updates["pipeline"]["overlap_ratio"] = cli_args["overlap_ratio"]
-        if "timezone" in cli_args and cli_args["timezone"] is not None:
-            updates["pipeline"]["timezone"] = str(cli_args["timezone"])
-        if "from_date" in cli_args and cli_args["from_date"] is not None:
-            updates["pipeline"]["from_date"] = cli_args["from_date"].isoformat()
-        if "to_date" in cli_args and cli_args["to_date"] is not None:
-            updates["pipeline"]["to_date"] = cli_args["to_date"].isoformat()
-        if "max_prompt_tokens" in cli_args and cli_args["max_prompt_tokens"] is not None:
-            updates["pipeline"]["max_prompt_tokens"] = cli_args["max_prompt_tokens"]
-        if "use_full_context_window" in cli_args and cli_args["use_full_context_window"] is not None:
-            updates["pipeline"]["use_full_context_window"] = cli_args["use_full_context_window"]
+        builder.with_pipeline(
+            step_size=cli_args.get("step_size"),
+            step_unit=cli_args.get("step_unit"),
+            overlap_ratio=cli_args.get("overlap_ratio"),
+            timezone=str(cli_args["timezone"]) if cli_args.get("timezone") is not None else None,
+            from_date=cli_args.get("from_date").isoformat() if cli_args.get("from_date") else None,
+            to_date=cli_args.get("to_date").isoformat() if cli_args.get("to_date") else None,
+            max_prompt_tokens=cli_args.get("max_prompt_tokens"),
+            use_full_context_window=cli_args.get("use_full_context_window"),
+        )
 
-        # Enrichment overrides
-        if "enable_enrichment" in cli_args:
-            updates["enrichment"]["enabled"] = cli_args["enable_enrichment"]
+        builder.with_enrichment(
+            enabled=cli_args.get("enable_enrichment")
+            if "enable_enrichment" in cli_args
+            else None
+        )
 
-        # RAG overrides
-        if "retrieval_mode" in cli_args and cli_args["retrieval_mode"] is not None:
-            updates["rag"]["mode"] = cli_args["retrieval_mode"]
-        if "retrieval_nprobe" in cli_args and cli_args["retrieval_nprobe"] is not None:
-            updates["rag"]["nprobe"] = cli_args["retrieval_nprobe"]
-        if "retrieval_overfetch" in cli_args and cli_args["retrieval_overfetch"] is not None:
-            updates["rag"]["overfetch"] = cli_args["retrieval_overfetch"]
+        builder.with_rag(
+            mode=cli_args.get("retrieval_mode"),
+            nprobe=cli_args.get("retrieval_nprobe"),
+            overfetch=cli_args.get("retrieval_overfetch"),
+        )
 
-        # Model overrides (apply single CLI model arg to all relevant models)
-        if cli_args.get("model"):
-            model = cli_args["model"]
-            updates["models"]["writer"] = model
-            updates["models"]["enricher"] = model
-            updates["models"]["enricher_vision"] = model
-            updates["models"]["ranking"] = model
-            updates["models"]["editor"] = model
+        builder.with_models(model=cli_args.get("model"))
 
-        return cls.model_validate(updates)
+        return builder.build()
 
 
 # ============================================================================
