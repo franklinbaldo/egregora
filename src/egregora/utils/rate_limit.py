@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import time
 import threading
+import time
 from collections import deque
-from typing import Awaitable, Protocol
+from collections.abc import Awaitable
+from typing import Protocol
 
 
 class _RateLimitState:
@@ -81,7 +82,6 @@ class SyncRateLimiter:
 
 async def apply_rate_limit(rate_limit: RateLimiter | None) -> None:
     """Apply a rate limiter regardless of sync/async implementation."""
-
     if rate_limit is None:
         return
 
