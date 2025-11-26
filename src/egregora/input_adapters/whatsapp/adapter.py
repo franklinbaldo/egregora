@@ -13,11 +13,10 @@ import ibis
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
+from egregora.input_adapters.whatsapp.commands import EGREGORA_COMMAND_PATTERN
+from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
+from egregora.input_adapters.whatsapp.utils import convert_media_to_markdown, discover_chat_file
 from egregora.utils.paths import slugify
-
-from .commands import EGREGORA_COMMAND_PATTERN
-from .parsing import WhatsAppExport, parse_source
-from .utils import convert_media_to_markdown, discover_chat_file
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +56,7 @@ class WhatsAppAdapter(InputAdapter):
     def description(self) -> str:
         return "Parses WhatsApp chat exports and attaches optional media references."
 
-    @property
-    def meta(self) -> AdapterMeta:
+    def get_adapter_metadata(self) -> AdapterMeta:
         return AdapterMeta(
             name="WhatsApp",
             version="1.0.0",
@@ -169,8 +167,7 @@ class WhatsAppAdapter(InputAdapter):
     def _detect_media_type(self, media_path: Path) -> str | None:
         from egregora.ops.media import detect_media_type
 
-        media_type = detect_media_type(media_path)
-        return media_type
+        return detect_media_type(media_path)
 
     def get_metadata(self, input_path: Path, **_kwargs: _EmptyKwargs) -> dict[str, Any]:
         if not input_path.exists():
