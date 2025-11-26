@@ -74,9 +74,15 @@ class PipelineFactory:
 
         rag_store = None
         if run_params.config.rag.enabled:
-            rag_dir = site_paths["rag_dir"]
-            rag_dir.mkdir(parents=True, exist_ok=True)
-            rag_store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
+            if run_params.config.rag.backend == "lancedb":
+                from egregora.knowledge.rag_adapter import LlamaIndexRagAdapter
+
+                lancedb_dir = site_paths["lancedb_dir"]
+                rag_store = LlamaIndexRagAdapter(run_params.config, lancedb_dir)
+            else:
+                rag_dir = site_paths["rag_dir"]
+                rag_dir.mkdir(parents=True, exist_ok=True)
+                rag_store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
 
         annotations_store = AnnotationStore(storage)
 

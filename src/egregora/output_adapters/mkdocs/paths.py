@@ -129,6 +129,7 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
         "mkdocs_config_path": preferred_path,
         "prompts_dir": resolve_path(paths_settings.prompts_dir),
         "rag_dir": resolve_path(paths_settings.rag_dir),
+        "lancedb_dir": resolve_path(paths_settings.lancedb_dir),
         "cache_dir": resolve_path(paths_settings.cache_dir),
         "docs_dir": docs_dir,
         "blog_dir": blog_relative,

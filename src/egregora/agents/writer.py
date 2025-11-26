@@ -203,6 +203,13 @@ class WriterDeps:
 # ============================================================================
 
 
+from egregora.agents.tools.definitions import (
+    read_profile_tool,
+    write_post_tool,
+    write_profile_tool,
+)
+
+
 def register_writer_tools(  # noqa: C901
     agent: Agent[WriterDeps, WriterAgentReturn],
     *,
@@ -211,36 +218,9 @@ def register_writer_tools(  # noqa: C901
 ) -> None:
     """Attach tool implementations to the agent."""
 
-    @agent.tool
-    def write_post_tool(ctx: RunContext[WriterDeps], metadata: PostMetadata, content: str) -> WritePostResult:
-        doc = Document(
-            content=content,
-            type=DocumentType.POST,
-            metadata=metadata.model_dump(exclude_none=True),
-            source_window=ctx.deps.window_label,
-        )
-
-        ctx.deps.resources.output.persist(doc)
-        logger.info("Writer agent saved post (doc_id: %s)", doc.document_id)
-        return WritePostResult(status="success", path=doc.document_id)
-
-    @agent.tool
-    def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str) -> ReadProfileResult:
-        doc = ctx.deps.resources.output.read_document(DocumentType.PROFILE, author_uuid)
-        content = doc.content if doc else "No profile exists yet."
-        return ReadProfileResult(content=content)
-
-    @agent.tool
-    def write_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str, content: str) -> WriteProfileResult:
-        doc = Document(
-            content=content,
-            type=DocumentType.PROFILE,
-            metadata={"uuid": author_uuid},
-            source_window=ctx.deps.window_label,
-        )
-        ctx.deps.resources.output.persist(doc)
-        logger.info("Writer agent saved profile (doc_id: %s)", doc.document_id)
-        return WriteProfileResult(status="success", path=doc.document_id)
+    agent.tool(write_post_tool)
+    agent.tool(read_profile_tool)
+    agent.tool(write_profile_tool)
 
     if enable_rag:
 
@@ -799,6 +779,9 @@ def _validate_prompt_fits(
             )
 
 
+from egregora.agents.writer_new import write_posts_with_llama_index
+
+
 def write_posts_with_pydantic_agent(
     *,
     prompt: str,
@@ -1012,23 +995,35 @@ def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
     if cached_result:
         return cached_result
 
-    logger.info("Using Pydantic AI backend for writer")
-
     # Render prompt
     prompt = _render_writer_prompt(writer_context, deps.resources.prompts_dir)
 
-    try:
-        saved_posts, saved_profiles = write_posts_with_pydantic_agent(
-            prompt=prompt,
-            config=config,
-            context=deps,
-        )
-    except PromptTooLargeError:
-        raise
-    except Exception as exc:
-        msg = f"Writer agent failed for {deps.window_label}"
-        logger.exception(msg)
-        raise RuntimeError(msg) from exc
+    if config.agent.engine == "llama-index":
+        logger.info("Using LlamaIndex backend for writer")
+        try:
+            saved_posts, saved_profiles = write_posts_with_llama_index(
+                prompt=prompt,
+                config=config,
+                context=deps,
+            )
+        except Exception as exc:
+            msg = f"LlamaIndex writer agent failed for {deps.window_label}"
+            logger.exception(msg)
+            raise RuntimeError(msg) from exc
+    else:
+        logger.info("Using Pydantic AI backend for writer")
+        try:
+            saved_posts, saved_profiles = write_posts_with_pydantic_agent(
+                prompt=prompt,
+                config=config,
+                context=deps,
+            )
+        except PromptTooLargeError:
+            raise
+        except Exception as exc:
+            msg = f"Writer agent failed for {deps.window_label}"
+            logger.exception(msg)
+            raise RuntimeError(msg) from exc
 
     # 6. Finalize Window
     resources.output.finalize_window(

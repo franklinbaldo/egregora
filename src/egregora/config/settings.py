@@ -111,6 +111,10 @@ class ModelSettings(BaseModel):
 class RAGSettings(BaseModel):
     """Retrieval-Augmented Generation (RAG) configuration."""
 
+    backend: Literal["duckdb", "lancedb"] = Field(
+        default="duckdb",
+        description="Vector database backend: 'duckdb' (VSS) or 'lancedb' (LlamaIndex)",
+    )
     enabled: bool = Field(
         default=True,
         description="Enable RAG for writer agent",
@@ -151,6 +155,15 @@ class WriterAgentSettings(BaseModel):
     custom_instructions: str | None = Field(
         default=None,
         description="Custom instructions to guide the writer agent",
+    )
+
+
+class AgentSettings(BaseModel):
+    """Configuration for agent engines."""
+
+    engine: Literal["pydantic-ai", "llama-index"] = Field(
+        default="pydantic-ai",
+        description="The engine to use for agents (enricher, writer, etc.).",
     )
 
 
@@ -276,6 +289,10 @@ class PathsSettings(BaseModel):
     rag_dir: str = Field(
         default=".egregora/rag",
         description="RAG database and embeddings storage",
+    )
+    lancedb_dir: str = Field(
+        default=".egregora/lancedb",
+        description="LanceDB vector store directory",
     )
     cache_dir: str = Field(
         default=".egregora/.cache",
@@ -457,6 +474,10 @@ class EgregoraConfig(BaseModel):
     writer: WriterAgentSettings = Field(
         default_factory=WriterAgentSettings,
         description="Writer configuration",
+    )
+    agent: AgentSettings = Field(
+        default_factory=AgentSettings,
+        description="Agent engine configuration",
     )
     reader: ReaderSettings = Field(
         default_factory=ReaderSettings,

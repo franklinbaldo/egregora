@@ -22,7 +22,8 @@ from typing import TYPE_CHECKING, Any
 import ibis
 from ibis.expr.types import Table
 from pydantic import BaseModel
-from pydantic_ai import Agent, AgentRunResult, RunContext
+from pydantic_ai import Agent, RunContext
+from pydantic_ai.run import AgentRunResult
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
 
@@ -157,38 +158,8 @@ class EnrichmentRuntimeContext:
 
 
 def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentDeps, EnrichmentOutput]:
-    """Create URL enrichment agent.
-
-    Args:
-        model: The model name to use.
-        simple: If True, uses simple mode (just URL). If False, uses detailed mode (with context).
-
-    """
+    """Create URL enrichment agent."""
     model_settings = GoogleModelSettings(google_tools=[{"url_context": {}}])
-
-    # Use PromptManager to get system prompt content safely if needed,
-    # but here we need to render it with context from deps at runtime.
-    # The writer agent does similar dynamic rendering.
-    # However, the instruction says "Use PromptManager directly like the writer agent does."
-    # The writer agent calls `render_prompt` inside the flow or pre-renders it.
-    # Here it is inside `@agent.system_prompt`. This IS using `render_prompt` which uses `PromptManager`.
-    # Maybe the user meant "don't define prompt construction function inline"?
-    # It is already calling `render_prompt`.
-    # Ah, wait, the instruction says: `create_url_enrichment_agent` defines a prompt construction function inline. Use `PromptManager` directly like the writer agent does.
-    # The current code DOES define `system_prompt` inline.
-    # I'll check if I can avoid the inline definition or if it's fine.
-    # The writer agent pre-renders prompt and passes it. But for pydantic-ai agents with deps, dynamic system prompt is common.
-    # I'll leave it as is if it already uses `render_prompt` (which uses `PromptManager`),
-    # OR I might need to check if `render_prompt` was not used before (maybe I am seeing the file AFTER some changes? No).
-    # Let's assume the user refers to `src/egregora/agents/enricher.py` before my read.
-    # Wait, I read `enricher.py` content and it DOES use `render_prompt`.
-    # "create_url_enrichment_agent defines a prompt construction function inline. Use PromptManager directly like the writer agent does."
-    # Maybe the user sees `def system_prompt(ctx)` as "inline construction" and wants it extracted?
-    # Or maybe the "writer agent" pattern is to render prompt *before* creating agent?
-    # But deps depend on runtime.
-    # I'll assume the request is satisfied if it uses `render_prompt`, OR maybe I should extract `system_prompt` function out of `create_url_enrichment_agent` scope.
-    # I will keep it but ensure `_sanitize_prompt_input` is moved.
-
     agent = Agent[UrlEnrichmentDeps, EnrichmentOutput](
         model=model,
         output_type=EnrichmentOutput,
@@ -197,8 +168,6 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentDeps, Enrichme
 
     @agent.system_prompt
     def system_prompt(ctx: RunContext[UrlEnrichmentDeps]) -> str:
-        from egregora.resources.prompts import render_prompt
-
         return render_prompt(
             "url_detailed.jinja",
             prompts_dir=ctx.deps.prompts_dir,
@@ -213,15 +182,7 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentDeps, Enrichme
 
 
 def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentDeps, EnrichmentOutput]:
-    """Create media enrichment agent.
-
-    Args:
-        model: The model name to use.
-        simple: If True, uses simple mode. If False, uses detailed mode (with context).
-        Note: 'simple' defaults to False for media in legacy code (avatar uses detailed),
-        but enrichment pipeline uses simple.
-
-    """
+    """Create media enrichment agent."""
     agent = Agent[MediaEnrichmentDeps, EnrichmentOutput](
         model=model,
         output_type=EnrichmentOutput,
@@ -253,13 +214,12 @@ async def _run_url_enrichment_async(
     agent: Agent[UrlEnrichmentDeps, EnrichmentOutput],
     url: str,
     prompts_dir: Path | None,
-) -> EnrichmentOutput:
+) -> tuple[EnrichmentOutput, dict[str, int]]:
     """Run URL enrichment asynchronously."""
     url_str = str(url)
     sanitized_url = _sanitize_prompt_input(url_str, max_length=2000)
 
     deps = UrlEnrichmentDeps(url=url_str, prompts_dir=prompts_dir)
-    # Note: Prompt construction logic preserved from runners.py run_url_enrichment
     prompt = (
         "Fetch and summarize the content at this URL. Include the main topic, key points, and any important metadata "
         "(author, date, etc.).\n\nURL: {sanitized_url}"
@@ -275,7 +235,7 @@ async def _run_url_enrichment_async(
     return output, result.usage()
 
 
-async def _run_media_enrichment_async(  # noqa: PLR0913
+async def _run_media_enrichment_async(
     agent: Agent[MediaEnrichmentDeps, EnrichmentOutput],
     *,
     filename: str,
@@ -283,7 +243,7 @@ async def _run_media_enrichment_async(  # noqa: PLR0913
     prompts_dir: Path | None,
     binary_content: BinaryContent | None = None,
     file_path: Path | None = None,
-) -> EnrichmentOutput:
+) -> tuple[EnrichmentOutput, dict[str, int]]:
     """Run media enrichment asynchronously."""
     if binary_content is None and file_path is None:
         msg = "Either binary_content or file_path must be provided."
@@ -369,7 +329,7 @@ def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> 
 
 
 def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
-    """Stream table rows as batches of dictionaries without loading entire table into memory."""
+    """Stream table rows as batches of dictionaries."""
     from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 
     try:
@@ -396,11 +356,55 @@ def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[d
 
 
 # ---------------------------------------------------------------------------
+# LlamaIndex Agent Implementation
+# ---------------------------------------------------------------------------
+
+from llama_index.multi_modal_llms.gemini import GeminiMultiModal
+from llama_index.core.output_parsers import PydanticOutputParser
+from llama_index.core.program import MultiModalLLMCompletionProgram
+from llama_index.core.schema import ImageDocument
+
+
+async def _run_enrichment_with_llama_index(
+    model: str,
+    prompts_dir: Path | None,
+    prompt_template: str,
+    prompt_params: dict[str, Any],
+    binary_content: BinaryContent | None = None,
+) -> tuple[EnrichmentOutput, dict[str, int]]:
+    """Run enrichment using a LlamaIndex PydanticProgram."""
+    llm = GeminiMultiModal(model_name=model)
+    prompt = render_prompt(
+        prompt_template,
+        prompts_dir=prompts_dir,
+        **prompt_params,
+    )
+    program = MultiModalLLMCompletionProgram.from_defaults(
+        output_parser=PydanticOutputParser(EnrichmentOutput),
+        llm=llm,
+        prompt_template_str=prompt,
+    )
+    image_documents = []
+    if binary_content:
+        image_doc = ImageDocument(image=binary_content.data, mime_type=binary_content.media_type)
+        image_documents.append(image_doc)
+
+    output = await asyncio.to_thread(program, image_documents=image_documents)
+    usage = {
+        "prompt_tokens": llm.last_token_usage.prompt_tokens if llm.last_token_usage else 0,
+        "completion_tokens": llm.last_token_usage.completion_tokens if llm.last_token_usage else 0,
+        "total_tokens": llm.last_token_usage.total_tokens if llm.last_token_usage else 0,
+    }
+    output.markdown = output.markdown.strip()
+    return output, usage
+
+
+# ---------------------------------------------------------------------------
 # Batch Orchestration (Async)
 # ---------------------------------------------------------------------------
 
 
-async def _process_url_task(  # noqa: PLR0913
+async def _process_url_task(
     url: str,
     metadata: dict[str, Any],
     agent: Agent[UrlEnrichmentDeps, EnrichmentOutput],
@@ -408,6 +412,8 @@ async def _process_url_task(  # noqa: PLR0913
     context: EnrichmentRuntimeContext,
     prompts_dir: Path | None,
     semaphore: asyncio.Semaphore,
+    use_llama_index: bool = False,
+    model: str | None = None,
 ) -> dict[str, Any] | None:
     """Process a single URL enrichment task."""
     async with semaphore:
@@ -423,7 +429,17 @@ async def _process_url_task(  # noqa: PLR0913
                     await apply_rate_limit(context.rate_limit)
                 if context.quota:
                     context.quota.reserve(1)
-                output_data, usage = await _run_url_enrichment_async(agent, url, prompts_dir)
+
+                if use_llama_index:
+                    output_data, usage = await _run_enrichment_with_llama_index(
+                        model=model,
+                        prompts_dir=prompts_dir,
+                        prompt_template="url_detailed.jinja",
+                        prompt_params={"url": url},
+                    )
+                else:
+                    output_data, usage = await _run_url_enrichment_async(agent, url, prompts_dir)
+
                 if context.usage_tracker:
                     context.usage_tracker.record(usage)
                 markdown = output_data.markdown
@@ -451,7 +467,7 @@ async def _process_url_task(  # noqa: PLR0913
         return _create_enrichment_row(metadata, "URL", url, doc.document_id)
 
 
-async def _process_media_task(  # noqa: PLR0913, C901
+async def _process_media_task(
     ref: str,
     media_doc: Document,
     metadata: dict[str, Any],
@@ -460,13 +476,10 @@ async def _process_media_task(  # noqa: PLR0913, C901
     context: EnrichmentRuntimeContext,
     prompts_dir: Path | None,
     semaphore: asyncio.Semaphore,
+    use_llama_index: bool = False,
+    model: str | None = None,
 ) -> tuple[dict[str, Any] | None, bool, str | None, Document | None]:
-    """Process a single media enrichment task.
-
-    Returns:
-        tuple[row, pii_detected, media_ref, updated_media_doc]
-
-    """
+    """Process a single media enrichment task."""
     async with semaphore:
         cache_key = make_enrichment_cache_key(kind="media", identifier=media_doc.document_id)
 
@@ -495,13 +508,26 @@ async def _process_media_task(  # noqa: PLR0913, C901
                     await apply_rate_limit(context.rate_limit)
                 if context.quota:
                     context.quota.reserve(1)
-                output_data, usage = await _run_media_enrichment_async(
-                    agent,
-                    filename=filename or ref,
-                    mime_hint=media_type,
-                    prompts_dir=prompts_dir,
-                    binary_content=binary,
-                )
+
+                if use_llama_index:
+                    output_data, usage = await _run_enrichment_with_llama_index(
+                        model=model,
+                        prompts_dir=prompts_dir,
+                        prompt_template="media_detailed.jinja",
+                        prompt_params={
+                            "media_type": media_type,
+                            "media_filename": filename,
+                        },
+                        binary_content=binary,
+                    )
+                else:
+                    output_data, usage = await _run_media_enrichment_async(
+                        agent,
+                        filename=filename or ref,
+                        mime_hint=media_type,
+                        prompts_dir=prompts_dir,
+                        binary_content=binary,
+                    )
                 if context.usage_tracker:
                     context.usage_tracker.record(usage)
                 markdown = output_data.markdown
@@ -555,11 +581,10 @@ def enrich_table(
     context: EnrichmentRuntimeContext,
 ) -> Table:
     """Enrich messages table with URL and media context using async agents."""
-    # Use asyncio.run to execute async logic from synchronous context
     return asyncio.run(_enrich_table_async(messages_table, media_mapping, config, context))
 
 
-async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
+async def _enrich_table_async(
     messages_table: Table,
     media_mapping: MediaMapping,
     config: EgregoraConfig,
@@ -576,41 +601,62 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
     enable_media = config.enrichment.enable_media
     prompts_dir = context.site_root / ".egregora" / "prompts" if context.site_root else None
 
+    use_llama_index = config.agent.engine == "llama-index"
+
     logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
     logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
+    logger.info("[blue]🚀 Agent engine:[/] %s", config.agent.engine)
 
     new_rows: list[dict[str, Any]] = []
     pii_detected_count = 0
     pii_media_deleted = False
 
-    # Concurrency limit (configurable)
     concurrency = max(1, config.quota.concurrency)
     semaphore = asyncio.Semaphore(concurrency)
 
     tasks = []
 
-    # 1. URL Enrichment
     if enable_url:
-        url_agent = create_url_enrichment_agent(url_model)
+        url_agent = None
+        if not use_llama_index:
+            url_agent = create_url_enrichment_agent(url_model)
         url_candidates = _extract_url_candidates(messages_table, max_enrichments)
 
         for url, metadata in url_candidates:
             tasks.append(
-                _process_url_task(url, metadata, url_agent, context.cache, context, prompts_dir, semaphore)
+                _process_url_task(
+                    url,
+                    metadata,
+                    url_agent,
+                    context.cache,
+                    context,
+                    prompts_dir,
+                    semaphore,
+                    use_llama_index=use_llama_index,
+                    model=url_model,
+                )
             )
 
-    # 2. Media Enrichment
     if enable_media and media_mapping:
-        media_agent = create_media_enrichment_agent(vision_model)
+        media_agent = None
+        if not use_llama_index:
+            media_agent = create_media_enrichment_agent(vision_model)
 
-        # NOTE: We deliberately overfetch media candidates because we don't yet know
-        # how many URL tasks will succeed. We filter later.
         media_candidates = _extract_media_candidates(messages_table, media_mapping, max_enrichments)
 
         for ref, media_doc, metadata in media_candidates:
             tasks.append(
                 _process_media_task(
-                    ref, media_doc, metadata, media_agent, context.cache, context, prompts_dir, semaphore
+                    ref,
+                    media_doc,
+                    metadata,
+                    media_agent,
+                    context.cache,
+                    context,
+                    prompts_dir,
+                    semaphore,
+                    use_llama_index=use_llama_index,
+                    model=vision_model,
                 )
             )
 
@@ -623,7 +669,6 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
     url_success_count = 0
     media_results: list[tuple[dict[str, Any] | None, bool, str | None, Document | None]] = []
 
-    # First pass: Collect successful URL enrichments
     for res in results:
         if res is None:
             continue
@@ -633,7 +678,6 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
         new_rows.append(res)
         url_success_count += 1
 
-    # Second pass: Collect media enrichments, respecting remaining quota
     remaining_slots = max(0, max_enrichments - url_success_count)
     media_added_count = 0
 
@@ -654,7 +698,6 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
 
     combined = combine_with_enrichment_rows(messages_table, new_rows, schema=IR_MESSAGE_SCHEMA)
 
-    # Persistence logic copied from runners.py
     duckdb_connection = context.duckdb_connection
     target_table = context.target_table
 
@@ -677,7 +720,7 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
     return combined
 
 
-def _extract_url_candidates(  # noqa: C901
+def _extract_url_candidates(
     messages_table: Table, max_enrichments: int
 ) -> list[tuple[str, dict[str, Any]]]:
     """Extract unique URL candidates with metadata, up to max_enrichments."""
@@ -727,7 +770,6 @@ def _extract_url_candidates(  # noqa: C901
                     if discovered_count >= max_enrichments:
                         break
                 else:
-                    # Keep earliest timestamp
                     existing_ts = existing.get("ts")
                     if timestamp is not None and (existing_ts is None or timestamp < existing_ts):
                         existing.update(row_metadata)
@@ -742,7 +784,7 @@ def _extract_url_candidates(  # noqa: C901
     return sorted_items[:max_enrichments]
 
 
-def _extract_media_candidates(  # noqa: C901, PLR0912
+def _extract_media_candidates(
     messages_table: Table, media_mapping: MediaMapping, limit: int
 ) -> list[tuple[str, Document, dict[str, Any]]]:
     """Extract unique Media candidates with metadata."""
@@ -759,8 +801,6 @@ def _extract_media_candidates(  # noqa: C901, PLR0912
     unique_media: set[str] = set()
     metadata_lookup: dict[str, dict[str, Any]] = {}
 
-    # Regex setup
-    # Match any filename in markdown link: ![alt](path/to/filename.ext)
     markdown_re = re.compile(r"!\[[^\]]*\]\([^)]*?([^/)]+\.\w+)\)")
     uuid_re = re.compile(r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)")
 
@@ -810,7 +850,6 @@ def _extract_media_candidates(  # noqa: C901, PLR0912
                     unique_media.add(ref)
                     metadata_lookup[ref] = row_metadata.copy()
                 else:
-                    # Keep earliest timestamp
                     existing_ts = existing.get("ts")
                     if timestamp is not None and (existing_ts is None or timestamp < existing_ts):
                         existing.update(row_metadata)
