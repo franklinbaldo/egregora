@@ -464,11 +464,12 @@ class MkDocsAdapter(OutputAdapter):
                 content = template.render(**context)
                 target_path.write_text(content, encoding="utf-8")
 
-        # Add theme overrides
-        theme_dest = site_root / "theme"
-        if not theme_dest.exists():
-            theme_src = Path(env.loader.searchpath[0]) / "theme"
-            shutil.copytree(theme_src, theme_dest)
+        # Add theme overrides (for generated sites)
+        overrides_dest = site_root / "overrides"
+        if not overrides_dest.exists():
+            overrides_src = Path(env.loader.searchpath[0]) / "overrides"
+            if overrides_src.exists():
+                shutil.copytree(overrides_src, overrides_dest)
 
     def _create_egregora_config(self, site_paths: dict[str, Path], env: Environment) -> None:
         """Create .egregora/config.yml from template.
