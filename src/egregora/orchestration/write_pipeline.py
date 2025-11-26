@@ -56,7 +56,7 @@ from egregora.transformations import create_windows, load_checkpoint, save_check
 from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
-from egregora.utils.rate_limit import SyncRateLimit
+from egregora.utils.rate_limit import SyncRateLimiter
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
@@ -732,7 +732,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     from egregora.orchestration.context import PipelineConfig, PipelineState
 
     quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
-    rate_limit = SyncRateLimit(run_params.config.quota.per_second_limit)
+    rate_limit = SyncRateLimiter(run_params.config.quota.per_second_limit)
 
     url_ctx = UrlContext(
         base_url="",

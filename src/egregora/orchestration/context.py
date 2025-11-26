@@ -1,8 +1,10 @@
 """Unified pipeline context - split into immutable configuration and mutable state.
 
 This module defines:
-1. PipelineConfig: Immutable configuration and paths.
-2. PipelineState: Mutable runtime state (clients, connections, caches).
+1. PipelineRunParams: Immutable parameters required to start a run.
+2. PipelineConfig: Immutable configuration and paths.
+3. PipelineState: Mutable runtime state (clients, connections, caches).
+4. PipelineContext: Composite container exposing both configuration and state.
 """
 
 from __future__ import annotations
@@ -26,9 +28,17 @@ from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.utils.cache import EnrichmentCache, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
-from egregora.utils.rate_limit import AsyncRateLimit, SyncRateLimit
+from egregora.utils.rate_limit import RateLimiter
+
+__all__ = [
+    "PipelineConfig",
+    "PipelineContext",
+    "PipelineRunParams",
+    "PipelineState",
+]
 
 
+# Canonical run parameter container (single definition to avoid merge artifacts).
 @dataclass(frozen=True, slots=True)
 class PipelineRunParams:
     """Aggregated parameters required to start a pipeline run."""
@@ -127,7 +137,7 @@ class PipelineState:
 
     # Quota tracking
     quota_tracker: QuotaTracker | None = None
-    rate_limit: AsyncRateLimit | SyncRateLimit | None = None
+    rate_limit: RateLimiter | None = None
 
     # Output & Adapters (Initialized lazily or updated)
     output_format: OutputSink | None = None  # ISP-compliant: Runtime data operations only
@@ -229,7 +239,7 @@ class PipelineContext:
         return self.state.adapter
 
     @property
-    def rate_limit(self) -> AsyncRateLimit | SyncRateLimit | None:
+    def rate_limit(self) -> RateLimiter | None:
         return self.state.rate_limit
 
     @property

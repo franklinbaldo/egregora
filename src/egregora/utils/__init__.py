@@ -12,6 +12,7 @@ from egregora.utils.batch import (
 )
 from egregora.utils.cache import ENRICHMENT_CACHE_VERSION, EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
+from egregora.utils.network import SSRFValidationError, validate_public_url
 from egregora.utils.paths import PathTraversalError, ensure_dir, safe_path_join, slugify
 from egregora.utils.zip import (
     ZipValidationError,
@@ -29,6 +30,7 @@ __all__ = [
     "EmbeddingBatchResult",
     "EnrichmentCache",
     "PathTraversalError",
+    "SSRFValidationError",
     "ZipValidationError",
     "ZipValidationSettings",
     "chunk_requests",
@@ -39,5 +41,6 @@ __all__ = [
     "parse_datetime_flexible",
     "safe_path_join",
     "slugify",
+    "validate_public_url",
     "validate_zip_contents",
 ]

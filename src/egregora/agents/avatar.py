@@ -8,15 +8,13 @@ from __future__ import annotations
 
 import hashlib
 import io
-import ipaddress
 import logging
-import socket
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 import httpx
 from PIL import Image
@@ -31,6 +29,7 @@ from egregora.input_adapters.whatsapp.commands import extract_commands
 from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
 from egregora.ops.media import detect_media_type, extract_urls
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
+from egregora.utils.network import SSRFValidationError, validate_public_url
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -43,8 +42,6 @@ MAX_IMAGE_DIMENSION = 4096
 DEFAULT_DOWNLOAD_TIMEOUT = 30.0
 MAX_REDIRECT_HOPS = 10
 DOWNLOAD_CHUNK_SIZE = 8192
-IP_VERSION_IPV6 = 6
-IP_VERSION_IPV4 = 4
 WEBP_HEADER_SIZE = 12
 MAGIC_BYTES = {
     b"\xff\xd8\xff": "image/jpeg",
@@ -53,20 +50,17 @@ MAGIC_BYTES = {
     b"GIF89a": "image/gif",
     b"RIFF": "image/webp",
 }
-BLOCKED_IP_RANGES = [
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("127.0.0.0/8"),
-    ipaddress.ip_network("169.254.0.0/16"),
-    ipaddress.ip_network("::1/128"),
-    ipaddress.ip_network("fe80::/10"),
-    ipaddress.ip_network("fc00::/7"),
-]
 
 
 class AvatarProcessingError(Exception):
     """Error during avatar processing."""
+
+
+def _validate_avatar_url(url: str) -> None:
+    try:
+        validate_public_url(url)
+    except SSRFValidationError as exc:
+        raise AvatarProcessingError(str(exc)) from exc
 
 
 def _get_avatar_directory(media_dir: Path) -> Path:
@@ -84,92 +78,6 @@ def _get_avatar_directory(media_dir: Path) -> Path:
     avatar_dir = media_dir / "images"
     avatar_dir.mkdir(parents=True, exist_ok=True)
     return avatar_dir
-
-
-def _validate_ip_address(ip_str: str, url: str) -> None:
-    """Validate a single IP address against blocked ranges.
-
-    Args:
-        ip_str: IP address string to validate
-        url: Original URL (for error messages)
-
-    Raises:
-        AvatarProcessingError: If IP is in a blocked range
-
-    """
-    try:
-        ip_addr = ipaddress.ip_address(ip_str)
-    except ValueError as e:
-        msg = f"Invalid IP address '{ip_str}': {e}"
-        raise AvatarProcessingError(msg) from e
-
-    # Check for IPv4-mapped IPv6 addresses
-    if ip_addr.version == IP_VERSION_IPV6 and ip_addr.ipv4_mapped:
-        ipv4_addr = ip_addr.ipv4_mapped
-        logger.debug("Detected IPv4-mapped address: %s -> %s", ip_addr, ipv4_addr)
-        for blocked_range in BLOCKED_IP_RANGES:
-            if blocked_range.version == IP_VERSION_IPV4 and ipv4_addr in blocked_range:
-                logger.warning(
-                    "⚠️  SSRF attempt blocked (IPv4-mapped): %s resolves to %s (maps to %s in blocked range %s)",
-                    url,
-                    ip_str,
-                    ipv4_addr,
-                    blocked_range,
-                )
-                msg = f"URL resolves to blocked IPv4-mapped address: {ip_str} (maps to {ipv4_addr} in range {blocked_range}). Access to private/internal networks is not allowed."
-                raise AvatarProcessingError(msg)
-
-    # Check against blocked ranges
-    for blocked_range in BLOCKED_IP_RANGES:
-        if ip_addr in blocked_range:
-            logger.warning(
-                "⚠️  SSRF attempt blocked: %s resolves to %s in blocked range %s",
-                url,
-                ip_str,
-                blocked_range,
-            )
-            msg = f"URL resolves to blocked IP address: {ip_str} (in range {blocked_range}). Access to private/internal networks is not allowed."
-            raise AvatarProcessingError(msg)
-
-
-def _validate_url_for_ssrf(url: str) -> None:
-    """Validate URL to prevent SSRF attacks.
-
-    Checks:
-    - Only HTTP/HTTPS schemes allowed
-    - Resolves hostname to IP and blocks private/internal networks
-    - Blocks localhost, link-local, and private IP ranges
-
-    Args:
-        url: URL to validate
-
-    Raises:
-        AvatarProcessingError: If URL is not safe to fetch
-
-    """
-    try:
-        parsed = urlparse(url)
-    except Exception as e:
-        msg = f"Invalid URL: {e}"
-        raise AvatarProcessingError(msg) from e
-    if parsed.scheme not in ("http", "https"):
-        msg = f"Invalid URL scheme: {parsed.scheme}. Only HTTP and HTTPS are allowed."
-        raise AvatarProcessingError(msg)
-    hostname = parsed.hostname
-    if not hostname:
-        msg = "URL must have a hostname"
-        raise AvatarProcessingError(msg)
-    try:
-        addr_info = socket.getaddrinfo(hostname, None)
-        ip_addresses = {info[4][0] for info in addr_info}
-    except socket.gaierror as e:
-        msg = f"Could not resolve hostname '{hostname}': {e}"
-        raise AvatarProcessingError(msg) from e
-
-    for ip_str in ip_addresses:
-        _validate_ip_address(ip_str, url)
-
-    logger.info("URL validation passed for: %s (resolves to: %s)", url, ", ".join(ip_addresses))
 
 
 def _generate_avatar_uuid(content: bytes) -> uuid.UUID:
@@ -365,7 +273,7 @@ def _follow_redirects(client: httpx.Client, url: str) -> tuple[bytes, str]:
                     raise AvatarProcessingError(msg)
                 next_url = urljoin(current_url, location)
                 logger.info("Following redirect %s/%s: %s", redirect_count, MAX_REDIRECT_HOPS, next_url)
-                _validate_url_for_ssrf(next_url)
+                _validate_avatar_url(next_url)
                 current_url = next_url
                 continue
 
@@ -424,7 +332,7 @@ def download_avatar_from_url(
 
     """
     logger.info("Downloading avatar from URL: %s", url)
-    _validate_url_for_ssrf(url)
+    _validate_avatar_url(url)
     try:
         with httpx.Client(timeout=timeout, follow_redirects=False) as client:
             content, content_type = _follow_redirects(client, url)

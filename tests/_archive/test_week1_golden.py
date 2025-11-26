@@ -294,6 +294,7 @@ def test_week1_schema_lockfile_validation():
         "original_line",
         "tagged_line",
         "message_id",
+        "event_id",
     }
 
     # Actual columns from CONVERSATION_SCHEMA

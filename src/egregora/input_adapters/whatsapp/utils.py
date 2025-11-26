@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 import zipfile
+from pathlib import Path
 
 import ibis
 import ibis.expr.datatypes as dt
@@ -110,8 +110,8 @@ def normalize_media_markdown(messages: ibis.Table) -> ibis.Table:
 
 
 __all__ = [
-    "discover_chat_file",
     "build_message_attrs",
     "convert_media_to_markdown",
+    "discover_chat_file",
     "normalize_media_markdown",
 ]

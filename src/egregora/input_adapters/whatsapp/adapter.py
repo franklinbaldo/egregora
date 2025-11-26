@@ -50,7 +50,7 @@ class WhatsAppAdapter(InputAdapter):
     def content_summary(self) -> str:
         return (
             "This adapter parses a WhatsApp export to extract chat messages. Supported format: "
-            "WhatsApp ZIP exports (" "Chat export" in mobile clients)"
+            'WhatsApp ZIP exports ("Chat export" in mobile clients)'
         )
 
     @property
