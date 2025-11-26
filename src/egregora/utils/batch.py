@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from google.api_core import exceptions as google_exceptions
+from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 from tenacity import (
     RetryCallState,
@@ -35,6 +36,10 @@ _RETRYABLE_ERRORS = (
     google_exceptions.ServiceUnavailable,
     google_exceptions.InternalServerError,
     google_exceptions.GatewayTimeout,
+    # google-genai v1 errors
+    genai_errors.ServerError,
+    # Note: ClientError covers 429 but also 400, so we might want to be more specific later
+    # For now, we only retry ServerError (5xx) from the new SDK
 )
 _MAX_RETRIES = 5
 _INITIAL_WAIT_SECONDS = 2.0

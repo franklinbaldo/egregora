@@ -384,6 +384,9 @@ def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:  # noq
         return "BLOB"
     if isinstance(ibis_type, dt.UUID):
         return "UUID"
+    if isinstance(ibis_type, dt.Array):
+        value_type = _ibis_to_duckdb_type(ibis_type.value_type)
+        return f"{value_type}[]"
     # Fallback to string representation
     return str(ibis_type).upper()
 

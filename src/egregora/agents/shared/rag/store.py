@@ -485,7 +485,7 @@ class VectorStore:
 
     def _build_exact_query(self) -> str:
         """Build base query for exact cosine similarity search."""
-        return f"\n            WITH candidates AS (\n                SELECT\n                    * EXCLUDE (embedding),\n                    array_cosine_similarity(\n                        embedding::FLOAT[{EMBEDDING_DIM}],\n                        ?::FLOAT[{EMBEDDING_DIM}]\n                    ) AS similarity\n                FROM {TABLE_NAME}\n            )\n            SELECT * FROM candidates\n        "
+        return f"\n            WITH candidates AS (\n                SELECT\n                    * EXCLUDE (embedding),\n                    array_cosine_similarity(\n                        embedding::DOUBLE[{EMBEDDING_DIM}],\n                        ?::DOUBLE[{EMBEDDING_DIM}]\n                    ) AS similarity\n                FROM {TABLE_NAME}\n            )\n            SELECT * FROM candidates\n        "
 
     def _search_exact(
         self,
@@ -597,11 +597,13 @@ class VectorStore:
     def _build_ann_query(
         self, function_name: str, *, ann_limit: int, nprobe_clause: str, _embedding_dimensionality: int
     ) -> str:
-        return f"\n            WITH candidates AS (\n                SELECT\n                    base.*,\n                    1 - vs.distance AS similarity\n                FROM {function_name}(\n                    '{TABLE_NAME}',\n                    'embedding',\n                    ?::FLOAT[{EMBEDDING_DIM}],\n                    top_k := {ann_limit},\n                    metric := 'cosine'{nprobe_clause}\n                ) AS vs\n                JOIN {TABLE_NAME} AS base\n                  ON vs.rowid = base.rowid\n            )\n            SELECT * FROM candidates\n        "
+        return f"\n            WITH candidates AS (\n                SELECT\n                    base.*,\n                    1 - vs.distance AS similarity\n                FROM {function_name}(\n                    '{TABLE_NAME}',\n                    'embedding',\n                    ?::DOUBLE[{EMBEDDING_DIM}],\n                    top_k := {ann_limit},\n                    metric := 'cosine'{nprobe_clause}\n                ) AS vs\n                JOIN {TABLE_NAME} AS base\n                  ON vs.rowid = base.rowid\n            )\n            SELECT * FROM candidates\n        "
 
     def _candidate_vss_functions(self) -> list[str]:
         """Return preferred VSS table functions in fallback order."""
-        candidates = [self._vss_function]
+        candidates = []
+        if hasattr(self, "_vss_function"):
+            candidates.append(self._vss_function)
         for function_name in ("vss_match", "vss_search"):
             if function_name not in candidates:
                 candidates.append(function_name)

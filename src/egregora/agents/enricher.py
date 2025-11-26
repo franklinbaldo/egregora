@@ -415,6 +415,7 @@ async def _process_url_task(  # noqa: PLR0913
         cache_entry = cache.load(cache_key)
 
         if cache_entry:
+            logger.debug("⚡ [L1 Cache Hit] URL: %s", url)
             markdown = cache_entry.get("markdown", "")
             cached_slug = cache_entry.get("slug")
         else:
@@ -487,6 +488,7 @@ async def _process_media_task(  # noqa: PLR0913, C901
 
         cache_entry = cache.load(cache_key)
         if cache_entry:
+            logger.debug("⚡ [L1 Cache Hit] Media: %s", filename or ref)
             markdown = cache_entry.get("markdown", "")
             cached_slug = cache_entry.get("slug")
         else:

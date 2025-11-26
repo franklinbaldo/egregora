@@ -210,6 +210,14 @@ def write(  # noqa: C901, PLR0913
             help="Comma-separated cache tiers to invalidate (e.g., 'writer', 'rag', 'enrichment', 'all').",
         ),
     ] = None,
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force",
+            "-f",
+            help="Force full regeneration (ignore cache). Equivalent to --refresh=all.",
+        ),
+    ] = False,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> None:
     """Write blog posts from chat exports using LLM-powered synthesis.
@@ -356,7 +364,7 @@ def write(  # noqa: C901, PLR0913
             config=egregora_config,
             source_type=source.value,
             input_path=runtime.input_file,
-            refresh=refresh,
+            refresh="all" if force else refresh,
         )
         write_pipeline.run(run_params)
         console.print("[green]Processing completed successfully.[/green]")
