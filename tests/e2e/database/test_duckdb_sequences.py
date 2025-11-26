@@ -14,7 +14,6 @@ import pytest
 
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.database.tracking import record_run
 
 
 def test_annotation_store_initialization(tmp_path: Path):
@@ -39,32 +38,28 @@ def test_annotation_store_initialization(tmp_path: Path):
         assert sequence_state.start_value == 1
 
 
-def test_run_tracking_with_sequences(tmp_path: Path):
-    """Test that run tracking works with DuckDBStorageManager.
+from egregora.database.tracking import record_run
 
-    Run tracking uses sequences for run IDs in some code paths.
-    This verifies the integration works end-to-end.
-    """
+
+def test_run_tracking_with_sequences(tmp_path: Path):
+    """Test that run tracking works with DuckDBStorageManager."""
     db_path = tmp_path / "runs.duckdb"
 
     with DuckDBStorageManager(db_path=db_path) as storage:
-        # Get the underlying connection for run tracking
-        conn = storage._conn
-
-        # Record a run start (would have failed with self.conn bug)
         run_id = uuid.uuid4()
         started_at = datetime.now(UTC)
 
         record_run(
-            conn=conn,
+            conn=storage,
             run_id=run_id,
             stage="write",
             status="running",
             started_at=started_at,
         )
 
-        # Verify the run was recorded
-        result = conn.execute("SELECT stage, status FROM runs WHERE run_id = ?", [str(run_id)]).fetchone()
+        result = storage._conn.execute(
+            "SELECT stage, status FROM runs WHERE run_id = ?", [str(run_id)]
+        ).fetchone()
 
         assert result is not None
         assert result[0] == "write"

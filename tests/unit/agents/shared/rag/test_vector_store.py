@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -12,17 +12,10 @@ from egregora.agents.shared.rag.store import VectorStore
 @pytest.fixture
 def mock_storage():
     """Create a mock storage backend."""
-    storage = Mock()
-    storage.execute_ibis_query = Mock(return_value=Mock())
-    storage.get_table_columns = Mock(return_value=[])
-    storage.execute_sql = Mock()
-
-    # Mock the context manager for connection()
-    mock_conn = Mock()
-    mock_conn.execute = Mock()
-    storage.connection = Mock(
-        return_value=Mock(__enter__=Mock(return_value=mock_conn), __exit__=Mock(return_value=None))
-    )
+    storage = MagicMock()
+    storage.execute_ibis_query.return_value = MagicMock()
+    storage.get_table_columns.return_value = []
+    storage.connection.return_value.__enter__.return_value.list_tables.return_value = []
 
     return storage
 
