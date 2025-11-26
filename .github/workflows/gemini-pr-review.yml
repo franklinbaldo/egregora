@@ -3,221 +3,179 @@ name: Gemini PR Code Review
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-  issue_comment:
-    types: [created]
 
-# 🛑 Concurrency: Cancel old runs on the same PR to save costs
+# Cancel old runs on the same PR to save costs
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 permissions:
   contents: read
   pull-requests: write
-  issues: write
 
 jobs:
-  review:
+  gemini-review:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
-    # Only run if:
-    # 1. It's a non-draft PR
-    # 2. OR It's a comment on a PR starting with @gemini
-    if: |
-      (github.event_name == 'pull_request' && !github.event.pull_request.draft) ||
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@gemini'))
+    # Skip draft PRs
+    if: ${{ !github.event.pull_request.draft }}
 
     steps:
-      - name: 🔍 Setup & Security Checks
-        id: setup
-        uses: actions/github-script@v7
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        with:
-          script: |
-            const eventName = context.eventName;
-            let prData = {};
-
-            // --- 1. Get PR Details ---
-            if (eventName === 'issue_comment') {
-              const { data: pr } = await github.rest.pulls.get({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.issue.number
-              });
-              prData = pr;
-            } else {
-              prData = context.payload.pull_request;
-            }
-
-            const isFork = prData.head.repo.full_name !== prData.base.repo.full_name;
-
-            // --- 2. Security: Check Secrets & Permissions ---
-            // If this is an automatic run on a fork, secrets are missing. We must skip.
-            if (!process.env.GEMINI_API_KEY) {
-              if (isFork && eventName === 'pull_request') {
-                console.log("ℹ️ Fork detected on automatic trigger. Skipping (No secrets access).");
-                console.log("💡 To review this fork, a maintainer must comment '@gemini' on the PR.");
-                core.setOutput('skip', 'true');
-                return { skip: true };
-              } else {
-                core.setFailed("❌ GEMINI_API_KEY is missing in Repo Secrets.");
-                return;
-              }
-            }
-
-            // If manual trigger on a Fork, ensure the user is a maintainer
-            if (eventName === 'issue_comment' && isFork) {
-              const username = context.payload.comment.user.login;
-              try {
-                await github.rest.repos.checkCollaborator({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  username: username
-                });
-                console.log(`✅ Maintainer verified: ${username}`);
-              } catch (e) {
-                core.setFailed(`❌ Security: User @${username} is not a collaborator. Cannot trigger review on fork.`);
-                return;
-              }
-            }
-
-            // --- 3. Extract Instructions ---
-            let comment = '';
-            let mode = 'automatic';
-            if (eventName === 'issue_comment') {
-              const match = context.payload.comment.body.match(/@gemini\s*(.*)/s);
-              comment = match ? match[1].trim() : '';
-              mode = 'comment';
-            }
-
-            // --- 4. Set Outputs ---
-            core.setOutput('skip', 'false');
-            core.setOutput('pr_number', prData.number);
-            core.setOutput('head_sha', prData.head.sha);
-            core.setOutput('base_ref', prData.base.ref);
-            core.setOutput('head_clone_url', prData.head.repo?.clone_url || '');
-            core.setOutput('head_ref', prData.head.ref);
-            core.setOutput('head_repo_full_name', prData.head.repo?.full_name || '');
-            core.setOutput('base_repo_full_name', prData.base.repo?.full_name || '');
-            core.setOutput('user_comment', comment);
-            core.setOutput('trigger_mode', mode);
-
-      - name: 📥 Checkout Base (Trusted Scripts)
-        if: steps.setup.outputs.skip != 'true'
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.setup.outputs.base_ref }}
-          fetch-depth: 1 # Lightweight checkout
+          fetch-depth: 0
 
-      - name: 📥 Checkout PR Head (Analysis Target)
-        if: steps.setup.outputs.skip != 'true'
+      - name: Collect PR diff and context
+        id: collect
         env:
-          HEAD_SHA: ${{ steps.setup.outputs.head_sha }}
-          HEAD_REF: ${{ steps.setup.outputs.head_ref }}
-          HEAD_CLONE_URL: ${{ steps.setup.outputs.head_clone_url }}
-          HEAD_REPO_FULL_NAME: ${{ steps.setup.outputs.head_repo_full_name }}
-          BASE_REPO_FULL_NAME: ${{ steps.setup.outputs.base_repo_full_name }}
-          PR_NUMBER: ${{ steps.setup.outputs.pr_number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           set -euo pipefail
 
-          TARGET_SHA="$HEAD_SHA"
+          # Ensure we have the base commit
+          git fetch origin "${BASE_SHA}" --depth=1 || true
 
-          if [ "$HEAD_REPO_FULL_NAME" = "$BASE_REPO_FULL_NAME" ]; then
-            echo "Fetching head commit from origin (same repository)."
-            git fetch origin "$HEAD_SHA" --depth=1
-          else
-            echo "Fork detected from $HEAD_REPO_FULL_NAME. Attempting to fetch from fork origin."
-            if git fetch --depth=1 "$HEAD_CLONE_URL" "$HEAD_REF"; then
-              echo "Successfully fetched from fork remote."
-            else
-              echo "⚠️ Failed to fetch from fork remote. Falling back to PR refs."
-              if git fetch origin "refs/pull/${PR_NUMBER}/head" --depth=1; then
-                TARGET_SHA="$(git rev-parse FETCH_HEAD)"
-                echo "Fetched from refs/pull/${PR_NUMBER}/head using commit $TARGET_SHA."
-              else
-                echo "❌ Unable to fetch PR head from refs/pull/${PR_NUMBER}/head."
-                exit 1
-              fi
-            fi
+          # Get unified diff between base and head
+          git diff --unified=3 "${BASE_SHA}" "${HEAD_SHA}" > pr.diff
+
+          # Trim diff to avoid blowing the context window (90KB ~= 22k tokens)
+          head -c 90000 pr.diff > pr-trimmed.diff
+
+          # Read CLAUDE.md for project-specific context
+          CLAUDE_MD=""
+          if [ -f "CLAUDE.md" ]; then
+            CLAUDE_MD=$(cat CLAUDE.md)
           fi
 
-          git worktree add pr-code "$TARGET_SHA"
+          # Output diff and context for the next step
+          {
+            echo "diff<<EOF"
+            cat pr-trimmed.diff
+            echo "EOF"
+            echo "claude_md<<EOFCLAUDEMD"
+            echo "$CLAUDE_MD"
+            echo "EOFCLAUDEMD"
+          } >> "$GITHUB_OUTPUT"
 
-      - name: 📦 Setup Node & Install Deps
-        if: steps.setup.outputs.skip != 'true'
-        uses: actions/setup-node@v4
+      - name: Run Gemini PR Review
+        id: gemini
+        uses: google-github-actions/run-gemini-cli@v0
         with:
-          node-version: '20'
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          gemini_model: "gemini-2.5-pro"
+          prompt: |
+            You are a senior software engineer and code reviewer for the **egregora** repository.
 
-      - name: 📥 Install Script Dependencies
-        if: steps.setup.outputs.skip != 'true'
-        run: npm install @google/generative-ai @octokit/rest dotenv --no-save
+            ## Project Context
 
-      - name: 📄 Generate Context (Repomix)
-        if: steps.setup.outputs.skip != 'true'
-        run: |
-          # Run Repomix from the trusted checkout so PR-provided node_modules cannot
-          # shadow the CLI. Copy our vetted ignore file into the worktree so the
-          # generated context matches local expectations.
-          [ -f .repomixignore ] && cp .repomixignore pr-code/.repomixignore
+            Egregora is a privacy-first AI pipeline that extracts structured knowledge from unstructured communication.
+            - **Stack:** Python 3.12+ | uv | Ibis | DuckDB | Pydantic-AI | Google Gemini
+            - **Core Principle:** Privacy before intelligence (names → UUIDs before LLM)
+            - **Philosophy:** Alpha mindset—clean breaks over backward compatibility
+            - **Architecture:** Three-layer functional (orchestration → transformations/adapters → data_primitives)
 
-          # Always execute the published Repomix package (not anything from pr-code)
-          # and explicitly point it at the untrusted checkout via a path argument so
-          # we never need to cd into pr-code where attacker-controlled scripts might
-          # run with repository secrets in scope.
-          npx --yes --package repomix@1.9.1 repomix ./pr-code \
-            --output repomix.txt \
-            --ignore "**/*.lock,**/package-lock.json,**/node_modules/**,**/*.png,**/*.jpg"
+            ## Review Instructions
 
-          echo "✅ Repository context generated."
+            1. **Tone:** Professional, concise, and actionable. No fluff.
+            2. **Focus:** Identify bugs, security vulnerabilities, performance issues, and breaking changes.
+            3. **Priority:**
+               - 🔴 **CRITICAL:** Privacy bypasses, PII leaks, bugs, security exploits, data loss
+               - 🟡 **IMPORTANT:** Performance, confusing logic, missing tests, architecture violations
+               - 🟢 **MINOR:** Variable naming, style preferences (mention briefly or ignore)
 
-      - name: 📄 Fetch Diff & Chat History
-        if: steps.setup.outputs.skip != 'true'
+            ## Egregora-Specific Checks
+
+            **MUST verify:**
+            - ✅ Privacy stage runs BEFORE any LLM processing (CRITICAL invariant)
+            - ✅ Use Ibis for table operations (not pandas, except at boundaries)
+            - ✅ Functional transforms: `Table → Table` (avoid stateful classes)
+            - ✅ `IR_MESSAGE_SCHEMA` columns preserved (add columns OK, never drop core)
+            - ✅ Line length: 110 chars max (Ruff enforced)
+            - ✅ Proper exception handling (no bare `except Exception:` - BLE001 violation)
+            - ✅ `VectorStore` facade for RAG operations (not direct function imports)
+            - ✅ Config in `.egregora/config.yml` (not hardcoded paths)
+            - ✅ Breaking changes documented in `CLAUDE.md`
+            - ✅ Tests use VCR cassettes for API calls
+            - ✅ OutputAdapter protocol: `persist()`, `documents() -> Iterator[Document]`
+            - ✅ No backward compatibility hacks (Alpha mindset: clean breaks)
+
+            ## Additional Project Context
+
+            <claude_md>
+            ${{ steps.collect.outputs.claude_md }}
+            </claude_md>
+
+            ## Pull Request Details
+
+            - **Repository:** ${{ github.repository }}
+            - **PR #${{ github.event.pull_request.number }}:** ${{ steps.collect.outputs.pr_title || github.event.pull_request.title }}
+            - **Author:** @${{ github.event.pull_request.user.login }}
+
+            ## Unified Diff
+
+            ```diff
+            ${{ steps.collect.outputs.diff }}
+            ```
+
+            ## Output Format
+
+            Return your review in this Markdown structure:
+
+            ### 📋 Summary
+            (1-2 sentences high-level assessment)
+
+            ### 🔍 Critical Issues
+            (MUST flag any privacy/security issues - empty section is OK if none found)
+            - **file.py:45** - 🔴 Description with severity and impact
+
+            ### ⚠️ Important Issues
+            (Architecture violations, missing tests, performance issues)
+            - **file.py:90** - 🟡 Description and rationale
+
+            ### 💡 Suggestions
+            (Code quality improvements, optional enhancements)
+            - **file.py:120** - 🟢 Description
+
+            ### 🏗️ Architecture & Patterns
+            Comment on adherence to egregora patterns: privacy-first, Ibis usage, functional transforms, VectorStore, etc.
+
+            ### 📝 Breaking Changes
+            Verify if breaking changes are properly documented in CLAUDE.md. Flag if missing.
+
+            ### ✅ Action Items
+            - [ ] Fix X (if critical)
+            - [ ] Add tests for Y (if important)
+            - [ ] Document breaking changes (if applicable)
+
+            Keep the entire review under 1000 words. Be concise and actionable.
+
+      - name: Post review as PR comment
         uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const prNumber = parseInt('${{ steps.setup.outputs.pr_number }}');
-
-            // 1. Get Diff
-            const diff = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber,
-              mediaType: { format: "diff" }
-            });
-            fs.writeFileSync('pr.patch', diff.data);
-
-            // 2. Get Comments
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber
-            });
-            fs.writeFileSync('pr-comments.json', JSON.stringify(comments.data));
-
-      - name: 🤖 Run Gemini Review
-        if: steps.setup.outputs.skip != 'true'
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3-pro-preview' }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ steps.setup.outputs.pr_number }}
-          REPO_FULL_NAME: ${{ github.repository }}
-          TRIGGER_MODE: ${{ steps.setup.outputs.trigger_mode }}
-          USER_COMMENT: ${{ steps.setup.outputs.user_comment }}
-        run: node .github/scripts/gemini-pr-review.js
-
-      - name: 🧹 Cleanup & Debug Artifacts
-        if: failure() # Only upload on failure to debug
-        uses: actions/upload-artifact@v4
+          GEMINI_REVIEW: ${{ steps.gemini.outputs.summary }}
         with:
-          name: debug-context
-          path: |
-            repomix.txt
-            pr.patch
-            pr-comments.json
-          retention-days: 3
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const review = process.env.GEMINI_REVIEW || "_No review generated._";
+
+            // Add header with model info
+            const body = `## 🤖 Gemini Code Review
+
+            ${review}
+
+            ---
+            *Generated by gemini-2.5-pro using official Google GitHub Action*`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body,
+            });
+
+            console.log("✅ Review posted successfully!");
