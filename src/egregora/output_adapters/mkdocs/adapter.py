@@ -206,9 +206,6 @@ class MkDocsAdapter(OutputAdapter):
         return resolver() if resolver else None
 
     def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
-        if isinstance(doc_type, str):
-            doc_type = DocumentType(doc_type)
-
         path = self._resolve_document_path(doc_type, identifier)
 
         if path is None or not path.exists():
