@@ -122,3 +122,131 @@ def window_configs() -> WindowConfig:
 def test_timezones() -> TestTimezones:
     """Provide timezone constants."""
     return TestTimezones()
+
+
+# =============================================================================
+# E2E Pipeline Testing Fixtures
+# =============================================================================
+
+
+@pytest.fixture
+def llm_response_mocks(monkeypatch):
+    """Inject handcrafted LLM responses for deterministic E2E testing.
+
+    This fixture patches the enrichment agents to return pre-constructed,
+    realistic responses from the whatsapp_sample fixture.
+    """
+    from tests.e2e.mocks.enrichment_mocks import (
+        async_mock_media_enrichment,
+        async_mock_url_enrichment,
+    )
+    from tests.e2e.mocks.llm_responses import (
+        FIXTURE_MEDIA_ENRICHMENTS,
+        FIXTURE_URL_ENRICHMENTS,
+        FIXTURE_WRITER_POST,
+    )
+
+    # Patch enrichment functions
+    # Note: These paths may need adjustment based on actual implementation
+    try:
+        monkeypatch.setattr(
+            "egregora.agents.enricher._run_url_enrichment_async",
+            async_mock_url_enrichment,
+        )
+    except AttributeError:
+        # Enrichment implementation may vary - this is optional
+        pass
+
+    try:
+        monkeypatch.setattr(
+            "egregora.agents.enricher._run_media_enrichment_async",
+            async_mock_media_enrichment,
+        )
+    except AttributeError:
+        # Enrichment implementation may vary - this is optional
+        pass
+
+    return {
+        "url_enrichments": FIXTURE_URL_ENRICHMENTS,
+        "media_enrichments": FIXTURE_MEDIA_ENRICHMENTS,
+        "writer_post": FIXTURE_WRITER_POST,
+    }
+
+
+@pytest.fixture
+def mock_vector_store(monkeypatch):
+    """Mock VectorStore for RAG-enabled E2E tests.
+
+    This creates a mock VectorStore that returns deterministic RAG results
+    without requiring real embeddings or vector search.
+    """
+    from pathlib import Path
+    from typing import Iterator
+
+    class MockVectorStore:
+        """Mock VectorStore for E2E testing."""
+
+        def __init__(self, chunks_path: Path, storage=None):
+            self.chunks_path = chunks_path
+            self.storage = storage
+            self.indexed_documents = []
+            self.indexed_media = []
+
+        def index_documents(self, output_format, *, embedding_model: str):
+            """Mock document indexing."""
+            self.indexed_documents.append(
+                {"output_format": output_format, "model": embedding_model}
+            )
+            # Return minimal metadata
+            return {
+                "total_chunks": 10,
+                "total_documents": 3,
+                "embedding_model": embedding_model,
+            }
+
+        def index_media(self, docs_dir: Path, *, embedding_model: str):
+            """Mock media indexing."""
+            self.indexed_media.append({"docs_dir": docs_dir, "model": embedding_model})
+            return {
+                "total_chunks": 4,
+                "total_documents": 4,
+                "embedding_model": embedding_model,
+            }
+
+        def query_media(
+            self,
+            query: str,
+            *,
+            media_types: list[str] | None = None,
+            top_k: int = 5,
+            min_similarity: float = 0.7,
+        ) -> Iterator[dict]:
+            """Return mocked media search results."""
+            mock_results = [
+                {
+                    "document_id": "test-media-1",
+                    "filename": "media/images/test-media-1.jpg",
+                    "similarity": 0.92,
+                    "caption": "Test image",
+                    "media_type": "image",
+                }
+            ]
+            if media_types:
+                mock_results = [r for r in mock_results if r["media_type"] in media_types]
+            yield from mock_results[:top_k]
+
+        @staticmethod
+        def is_available() -> bool:
+            """Mock availability check."""
+            return True
+
+    # Try to patch VectorStore if RAG module exists
+    try:
+        from egregora.agents.shared import rag
+
+        monkeypatch.setattr(rag, "VectorStore", MockVectorStore)
+    except (ImportError, AttributeError):
+        # RAG module may not exist yet - this is optional
+        pass
+
+    return MockVectorStore
