@@ -42,7 +42,6 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.run_store import RunStore
-from egregora.database.validation import validate_ir_schema
 from egregora.database.views import daily_aggregates_view
 from egregora.input_adapters import get_adapter
 from egregora.input_adapters.base import MediaMapping
@@ -823,7 +822,7 @@ def _parse_and_validate_source(
     *,
     output_adapter: OutputSink | None = None,
 ) -> ir.Table:
-    """Parse source and validate schema.
+    """Parse source and return messages table.
 
     Args:
         adapter: Source adapter instance
@@ -832,24 +831,11 @@ def _parse_and_validate_source(
         output_adapter: Optional output adapter (used by adapters that reprocess existing sites)
 
     Returns:
-        messages_table: Validated messages table
-
-    Raises:
-        ValueError: If schema validation fails
-
-    Note:
-        Currently validates against CONVERSATION_SCHEMA (MESSAGE_SCHEMA).
-        IR_MESSAGE_SCHEMA implementation is planned for future release.
-        See docs/ux-testing-2025-11-15.md for details.
+        messages_table: Parsed messages table
 
     """
     logger.info("[bold cyan]📦 Parsing with adapter:[/] %s", adapter.source_name)
     messages_table = adapter.parse(input_path, timezone=timezone, output_adapter=output_adapter)
-
-    # Validate IR schema (raises SchemaError if invalid)
-    validate_ir_schema(messages_table)
-
-    logger.debug("IR schema validation passed: %s", messages_table.schema())
     total_messages = messages_table.count().execute()
     logger.info("[green]✅ Parsed[/] %s messages", total_messages)
 
