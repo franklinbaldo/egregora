@@ -89,7 +89,9 @@ def mock_dynamic_regex_fallback(monkeypatch):
     )
 
 
-def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
+def test_parser_produces_valid_table(
+    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+):
     """Test that parser produces valid IR table with expected columns."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -103,7 +105,9 @@ def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture, mock_dyn
     assert all(ts.tzinfo is not None for ts in timestamps)
 
 
-def test_parser_handles_portuguese_dates(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
+def test_parser_handles_portuguese_dates(
+    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+):
     """Test that parser correctly handles Portuguese date formats."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -114,7 +118,9 @@ def test_parser_handles_portuguese_dates(whatsapp_fixture: WhatsAppFixture, mock
     assert "2025-10-28" in dates
 
 
-def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
+def test_parser_preserves_all_messages(
+    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+):
     """Test that parser preserves all participant messages."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -122,7 +128,9 @@ def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture, mock_d
     assert table.count().execute() == 10
 
 
-def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
+def test_parser_extracts_media_references(
+    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+):
     """Test that parser extracts media file references from messages."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -132,7 +140,9 @@ def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture, moc
     assert "arquivo anexado" in combined
 
 
-def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
+def test_parser_enforces_message_schema(
+    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+):
     """Test that parser strictly enforces IR MESSAGE_SCHEMA without extra columns."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -183,7 +193,9 @@ def test_parse_source_exposes_raw_authors_when_requested(
     assert "Você" not in authors, "'Você' only appears in system messages, should not be in authors"
 
 
-def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
+def test_anonymization_is_deterministic(
+    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+):
     """Test that anonymization produces same UUIDs for same names."""
     export = create_export_from_fixture(whatsapp_fixture)
     table_one = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -195,7 +207,9 @@ def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture, mock_
     assert authors_one == authors_two
 
 
-def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
+def test_anonymized_uuids_are_valid_format(
+    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+):
     """Test that anonymized UUIDs follow expected format (full UUID format)."""
     import uuid
 
@@ -271,7 +285,9 @@ def test_media_references_replaced_in_messages(whatsapp_fixture: WhatsAppFixture
 # =============================================================================
 
 
-def test_egregora_commands_are_filtered_out(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
+def test_egregora_commands_are_filtered_out(
+    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+):
     """Test that egregora in-chat commands are filtered from the message stream."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)

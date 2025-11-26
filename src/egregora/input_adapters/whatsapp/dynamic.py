@@ -1,58 +1,47 @@
-import json
 import logging
 import re
-from re import Pattern
+from typing import Pattern
 
-import google.generativeai as genai
-from google.generativeai.types import GenerationConfig
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent
+from pydantic_ai.exceptions import AgentRunError
+from pydantic_ai.providers.google import GoogleProvider
 
-from egregora.config import EgregoraConfig, get_google_api_key
+from egregora.config import EgregoraConfig
 from egregora.resources.prompts import render_prompt
 
 logger = logging.getLogger(__name__)
 
 
 class ParserDefinition(BaseModel):
-    regex_pattern: str
+    regex_pattern: str = Field(
+        ...,
+        description="The Python regex pattern to parse a chat log line.",
+    )
 
 
 def generate_dynamic_regex(sample_lines: list[str], config: EgregoraConfig) -> Pattern | None:
-    """Uses LLM to generate a regex pattern matching the specific locale of the input file."""
+    """
+    Uses a pydantic-ai Agent to generate a regex pattern for the input file.
+    """
     if not sample_lines:
         return None
 
-    api_key = get_google_api_key()
-    if not api_key:
-        logger.warning("GOOGLE_API_KEY not found. Skipping dynamic parser generation.")
-        return None
+    # Use the same model as the other agents for consistency
+    system_prompt = render_prompt("parser_generator_system.jinja")
+    user_prompt = render_prompt("parser_generator_user.jinja", sample_lines="\n".join(sample_lines))
 
-    genai.configure(api_key=api_key)
-
-    prompt = render_prompt("parser_generator.jinja", sample_lines="\n".join(sample_lines))
+    agent = Agent(config.models.enricher, system_prompt=system_prompt)
 
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-
-        generation_config = GenerationConfig(response_mime_type="application/json")
-
-        response = model.generate_content(
-            prompt,
-            generation_config=generation_config,
-        )
-
-        text = response.text.strip()
-        text = text.removeprefix("```json")
-        text = text.removesuffix("```")
-
-        data = json.loads(text)
-        result = ParserDefinition.model_validate(data)
+        result = agent.run_sync(user_prompt, output_type=ParserDefinition)
 
         if not result or not result.regex_pattern:
             return None
 
         logger.info(f"LLM generated dynamic regex: {result.regex_pattern}")
 
+        # COMPILATION & VERIFICATION STEP
         pattern = re.compile(result.regex_pattern)
 
         matches = 0
@@ -60,11 +49,16 @@ def generate_dynamic_regex(sample_lines: list[str], config: EgregoraConfig) -> P
             if pattern.match(line):
                 matches += 1
 
+        # If it matches at least 50% of the sample lines, accept it
         if matches / len(sample_lines) >= 0.5:
             return pattern
-        logger.warning(f"Generated regex failed validation (matched {matches}/{len(sample_lines)} lines)")
-        return None
+        else:
+            logger.warning(f"Generated regex failed validation (matched {matches}/{len(sample_lines)} lines)")
+            return None
 
+    except AgentRunError as e:
+        logger.error(f"Agent run failed during dynamic parser generation: {e}")
+        return None
     except Exception as e:
-        logger.error(f"Failed to generate dynamic parser: {e}")
+        logger.error(f"Failed to generate or validate dynamic parser: {e}")
         return None
