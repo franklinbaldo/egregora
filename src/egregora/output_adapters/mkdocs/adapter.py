@@ -14,10 +14,8 @@ MODERN (2025-11-18): Imports site path resolution from
 from __future__ import annotations
 
 import logging
-import math
 import os
 import re
-import shutil
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -43,7 +41,6 @@ from egregora.utils.filesystem import (
 )
 from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import slugify
-from egregora.utils.text import calculate_reading_time
 
 logger = logging.getLogger(__name__)
 
@@ -422,6 +419,8 @@ class MkDocsAdapter(OutputAdapter):
             context: Template rendering context
 
         """
+        import shutil
+
         site_root = site_paths["site_root"]
         docs_dir = site_paths["docs_dir"]
         profiles_dir = site_paths["profiles_dir"]
@@ -1132,22 +1131,18 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if "authors" in metadata:
             _ensure_author_entries(path.parent, metadata.get("authors"))
 
-        # Add reading time (using utils function from PR #964)
-        metadata["reading_time"] = calculate_reading_time(document.content)
-
-        # Add related posts based on shared tags (from PR #968)
+        # Add related posts based on shared tags
         all_posts = list(self.documents())  # This is inefficient, but will work for now
         related_posts_docs = self._get_related_posts(document, all_posts)
         metadata["related_posts"] = [
             {
                 "title": post.metadata.get("title"),
                 "url": self.url_convention.canonical_url(post, self._ctx),
-                "reading_time": post.metadata.get("reading_time"),
             }
             for post in related_posts_docs
         ]
 
-        # Add enriched authors data (from PR #968)
+        # Add enriched authors data
         authors_data = self._get_profiles_data()
         post_authors = []
         if "authors" in metadata:
@@ -1196,7 +1191,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 "title": post.metadata.get("title"),
                 "url": self.url_convention.canonical_url(post, self._ctx),
                 "date": post.metadata.get("date"),
-                "reading_time": post.metadata.get("reading_time"),
             }
             for post in author_posts_docs
         ]
