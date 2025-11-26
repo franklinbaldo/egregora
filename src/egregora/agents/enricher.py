@@ -44,7 +44,7 @@ from egregora.utils.metrics import UsageTracker
 from egregora.utils.paths import slugify
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
 from egregora.utils.rate_limit import AsyncRateLimit, SyncRateLimit
-from egregora.utils.retry import RetryPolicy, retry_async
+from egregora.utils.retry import retry_async
 
 if TYPE_CHECKING:
     import pandas as pd  # noqa: TID251
@@ -278,7 +278,7 @@ async def _run_url_enrichment_async(
     async def call() -> AgentRunResult[EnrichmentOutput]:
         return await agent.run(prompt, deps=deps)
 
-    result = await retry_async(call, RetryPolicy())
+    result = await retry_async(call)
     output = getattr(result, "data", getattr(result, "output", result))
     output.markdown = output.markdown.strip()
     return output, result.usage()
@@ -311,7 +311,7 @@ async def _run_media_enrichment_async(  # noqa: PLR0913
     async def call() -> AgentRunResult[EnrichmentOutput]:
         return await agent.run(message_content, deps=deps)
 
-    result = await retry_async(call, RetryPolicy())
+    result = await retry_async(call)
     output = getattr(result, "data", getattr(result, "output", result))
     output.markdown = output.markdown.strip()
     return output, result.usage()
