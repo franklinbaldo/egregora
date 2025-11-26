@@ -57,7 +57,7 @@ def _log_before_retry(retry_state: RetryCallState) -> None:
     before_sleep=_log_before_retry,
     retry=retry_if_exception_type(_RETRYABLE_ERRORS),
 )
-def call_with_retries_sync(func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
+def call_with_retries_sync[T](func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
     """Execute a synchronous function with exponential backoff and jitter.
 
     Args:

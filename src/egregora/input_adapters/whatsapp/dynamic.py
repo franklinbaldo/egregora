@@ -53,8 +53,8 @@ def generate_dynamic_regex(sample_lines: list[str], config: EgregoraConfig) -> P
         return None
 
     except AgentRunError as e:
-        logger.error(f"Agent run failed during dynamic parser generation: {e}")
+        logger.exception(f"Agent run failed during dynamic parser generation: {e}")
         return None
     except Exception as e:
-        logger.error(f"Failed to generate or validate dynamic parser: {e}")
+        logger.exception(f"Failed to generate or validate dynamic parser: {e}")
         return None

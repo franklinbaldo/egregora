@@ -53,4 +53,4 @@ def calculate_reading_time(text: str) -> int:
     reading_time_minutes = word_count / 200
 
     # Round up to the nearest whole number, as is the standard convention.
-    return int(math.ceil(reading_time_minutes))
+    return math.ceil(reading_time_minutes)

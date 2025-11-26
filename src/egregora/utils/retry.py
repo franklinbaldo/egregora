@@ -51,7 +51,7 @@ def _build_retry_kwargs(
     }
 
 
-def retry_sync(
+def retry_sync[T](
     func: Callable[[], T],
     *,
     max_attempts: int = _DEFAULT_MAX_ATTEMPTS,
@@ -77,7 +77,7 @@ def retry_sync(
     raise RuntimeError(msg)
 
 
-async def retry_async(
+async def retry_async[T](
     func: Callable[[], Awaitable[T]],
     *,
     max_attempts: int = _DEFAULT_MAX_ATTEMPTS,

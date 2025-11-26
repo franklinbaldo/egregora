@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class ParquetAdapter(OutputAdapter):
     """Data Lake adapter: writes content as structured Parquet files."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.data_dir: Path | None = None
         self._url_convention = StandardUrlConvention()
         self.site_root: Path | None = None
@@ -49,7 +49,8 @@ class ParquetAdapter(OutputAdapter):
     def persist(self, document: Document) -> None:
         """Write the document as an atomic Parquet file."""
         if not self.data_dir:
-            raise RuntimeError("Adapter not initialized")
+            msg = "Adapter not initialized"
+            raise RuntimeError(msg)
 
         meta = document.metadata
         doc_type = document.type.value
@@ -172,7 +173,8 @@ class ParquetAdapter(OutputAdapter):
     def scaffold_site(self, site_root: Path, site_name: str, **kwargs) -> tuple[Path, bool]:
         self.initialize(site_root)
         if self.data_dir is None:
-            raise RuntimeError("Adapter not initialized properly, data_dir is None.")
+            msg = "Adapter not initialized properly, data_dir is None."
+            raise RuntimeError(msg)
         return self.data_dir, True
 
     def resolve_paths(self, site_root: Path) -> Any:
