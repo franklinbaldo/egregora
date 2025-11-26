@@ -485,6 +485,7 @@ class VectorStore:
 
     def _build_exact_query(self) -> str:
         """Build base query for exact cosine similarity search."""
+        # Use DOUBLE for higher precision embeddings from newer models
         return f"\n            WITH candidates AS (\n                SELECT\n                    * EXCLUDE (embedding),\n                    array_cosine_similarity(\n                        embedding::DOUBLE[{EMBEDDING_DIM}],\n                        ?::DOUBLE[{EMBEDDING_DIM}]\n                    ) AS similarity\n                FROM {TABLE_NAME}\n            )\n            SELECT * FROM candidates\n        "
 
     def _search_exact(

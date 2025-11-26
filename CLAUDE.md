@@ -40,6 +40,17 @@ cd output && uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs ser
 
 ## Breaking Changes
 
+### 2025-11-26 (PR #975 - Resumability & Fixes)
+
+**MkDocs Plugin Rename**
+- **Changed:** `mkdocs-blogging-plugin` renamed to `blog` in `mkdocs.yml` templates
+- **Impact:** Custom `mkdocs.yml` files using the old plugin name will fail to build
+- **Migration:** Update `plugins:` section in `mkdocs.yml`:
+  ```yaml
+  plugins:
+    - blog  # was 'blogging'
+  ```
+
 ### 2025-11-25 (PR #926 - RAG Indexing Optimization)
 
 **VectorStore Facade Pattern**
