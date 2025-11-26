@@ -14,7 +14,9 @@ MODERN (2025-11-18): Imports site path resolution from
 from __future__ import annotations
 
 import logging
+import math
 import os
+import re
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -1096,6 +1098,28 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     # Document Writing Strategies ---------------------------------------------
 
+    def _get_word_count(self, content: str) -> int:
+        """Calculate the number of words in a given text."""
+        return len(re.findall(r'\w+', content))
+
+    def _get_related_posts(self, current_post: Document, all_posts: list[Document], limit: int = 3) -> list[Document]:
+        """Get a list of related posts based on shared tags."""
+        if not current_post.metadata or 'tags' not in current_post.metadata:
+            return []
+
+        current_tags = set(current_post.metadata['tags'])
+        related = []
+        for post in all_posts:
+            if post.document_id == current_post.document_id or not post.metadata or 'tags' not in post.metadata:
+                continue
+
+            shared_tags = current_tags.intersection(set(post.metadata['tags']))
+            if shared_tags:
+                related.append((post, len(shared_tags)))
+
+        related.sort(key=lambda x: x[1], reverse=True)
+        return [post for post, score in related[:limit]]
+
     def _write_post_doc(self, document: Document, path: Path) -> None:
         import yaml as _yaml
 
@@ -1104,6 +1128,28 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             metadata["date"] = _format_frontmatter_datetime(metadata["date"])
         if "authors" in metadata:
             _ensure_author_entries(path.parent, metadata.get("authors"))
+
+        metadata['word_count'] = self._get_word_count(document.content)
+        all_posts = list(self.documents())  # This is inefficient, but will work for now
+        related_posts_docs = self._get_related_posts(document, all_posts)
+        metadata['related_posts'] = [
+            {
+                'title': post.metadata.get('title'),
+                'url': self.url_convention.canonical_url(post, self._ctx),
+                'word_count': post.metadata.get('word_count'),
+            }
+            for post in related_posts_docs
+        ]
+
+        authors_data = self._get_profiles_data()
+        post_authors = []
+        if 'authors' in metadata:
+            for author_id in metadata['authors']:
+                author_data = next((author for author in authors_data if author['uuid'] == author_id), None)
+                if author_data:
+                    post_authors.append(author_data)
+        metadata['authors_data'] = post_authors
+
 
         yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
@@ -1136,6 +1182,21 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             metadata["avatar"] = generate_fallback_avatar_url(author_uuid)
 
         yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+        all_posts = list(self.documents())
+        author_posts_docs = [
+            post for post in all_posts
+            if author_uuid in post.metadata.get('authors', [])
+        ]
+        metadata['posts'] = [
+            {
+                'title': post.metadata.get('title'),
+                'url': self.url_convention.canonical_url(post, self._ctx),
+                'date': post.metadata.get('date'),
+                'word_count': post.metadata.get('word_count'),
+            }
+            for post in author_posts_docs
+        ]
 
         # Prepend avatar using MkDocs macros syntax
         # This matches the logic in profiles.py but ensures it happens even when writing via adapter
@@ -1286,13 +1347,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         return stats
 
     def _get_profiles_data(self) -> list[dict[str, Any]]:
-        """Extract profile metadata for profiles index.
-
-        Returns:
-            List of profile dictionaries with uuid, name, avatar, bio, topics
-
-        """
+        """Extract profile metadata for profiles index, including calculated stats."""
         profiles = []
+        all_posts = list(self.documents())  # Inefficient, but necessary for stats
 
         if not hasattr(self, "profiles_dir") or not self.profiles_dir.exists():
             return profiles
@@ -1301,23 +1358,40 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             try:
                 content = profile_path.read_text(encoding="utf-8")
                 metadata, _ = parse_frontmatter(content)
+                author_uuid = profile_path.stem
 
-                # Use avatar from frontmatter or generate fallback
+                author_posts = [
+                    post for post in all_posts
+                    if post.metadata and author_uuid in post.metadata.get('authors', [])
+                ]
+
+                post_count = len(author_posts)
+                word_count = sum(len(post.content.split()) for post in author_posts)
+
+                topics = {}
+                for post in author_posts:
+                    for tag in post.metadata.get('tags', []):
+                        topics[tag] = topics.get(tag, 0) + 1
+
+                top_topics = sorted(topics.items(), key=lambda item: item[1], reverse=True)
+
+
                 avatar = metadata.get("avatar", "")
                 if not avatar:
                     from egregora.knowledge.profiles import _generate_fallback_avatar_url
+                    avatar = _generate_fallback_avatar_url(author_uuid)
 
-                    avatar = _generate_fallback_avatar_url(profile_path.stem)
-
-                profiles.append(
-                    {
-                        "uuid": profile_path.stem,
-                        "name": metadata.get("name", profile_path.stem[:8]),
-                        "avatar": avatar,
-                        "bio": metadata.get("bio", "Profile pending - first contributions detected"),
-                        "topics": metadata.get("topics", []),
-                    }
-                )
+                profiles.append({
+                    "uuid": author_uuid,
+                    "name": metadata.get("name", author_uuid[:8]),
+                    "avatar": avatar,
+                    "bio": metadata.get("bio", "Profile pending - first contributions detected"),
+                    "post_count": post_count,
+                    "word_count": word_count,
+                    "topics": [topic for topic, count in top_topics],
+                    "topic_counts": top_topics,
+                    "member_since": metadata.get("member_since", "2024"), # Placeholder
+                })
             except (OSError, yaml.YAMLError) as e:
                 logger.warning("Failed to parse profile %s: %s", profile_path, e)
                 continue

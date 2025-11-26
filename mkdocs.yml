@@ -169,7 +169,6 @@ nav:
       - Detector: api/privacy/detector.md
     - Augmentation:
       - Enrichment: api/augmentation/enrichment.md
-      - Profiler: api/augmentation/profiler.md
     - Knowledge:
       - RAG: api/knowledge/rag.md
       - Annotations: api/knowledge/annotations.md
