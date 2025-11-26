@@ -24,8 +24,12 @@ class StorageProtocol(Protocol):
     """
 
     @property
-    def checkpoint_dir(self) -> Path:
-        """Get the directory for parquet checkpoints."""
+    def checkpoint_dir(self) -> Path | None:
+        """Get the directory for parquet checkpoints.
+
+        Returns None for backends that don't support filesystem checkpoints
+        (e.g., cloud databases, remote servers).
+        """
         ...
 
     def read_table(self, name: str) -> Table:
