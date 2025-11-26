@@ -196,11 +196,7 @@ class AnnotationStore:
         self._sequence_name = f"{ANNOTATIONS_TABLE}_id_seq"
         self._initialize()
 
-    @property
-    def _connection(self) -> duckdb.DuckDBPyConnection:
-        """Return the underlying DuckDB connection."""
-        # Access protected member directly as this is an internal component
-        return self.storage._conn
+    # Note: Removed _connection property - use storage.connection() context manager instead
 
     # ========================================================================
     # Schema Initialization
@@ -230,7 +226,9 @@ class AnnotationStore:
         self._backend.raw_sql(
             f"ALTER TABLE {ANNOTATIONS_TABLE} ALTER COLUMN id SET DEFAULT nextval('{sequence_name}')"
         )
-        database_schema.add_primary_key(self._connection, ANNOTATIONS_TABLE, "id")
+        # Use protocol method instead of accessing protected member
+        with self.storage.connection() as conn:
+            database_schema.add_primary_key(conn, ANNOTATIONS_TABLE, "id")
         self.storage.ensure_sequence_default(ANNOTATIONS_TABLE, "id", sequence_name)
         self._backend.raw_sql(
             f"\n            CREATE INDEX IF NOT EXISTS idx_annotations_parent_created\n            ON {ANNOTATIONS_TABLE} (parent_id, parent_type, created_at)\n            "
@@ -243,9 +241,11 @@ class AnnotationStore:
 
     def _fetch_records(self, query: str, params: Sequence[object] | None = None) -> list[dict[str, object]]:
         """Execute a query and return results as a list of dictionaries."""
-        cursor = self._connection.execute(query, params or [])
-        column_names = [description[0] for description in cursor.description]
-        return [dict(zip(column_names, row, strict=False)) for row in cursor.fetchall()]
+        # Use protocol method instead of accessing protected member
+        with self.storage.connection() as conn:
+            cursor = conn.execute(query, params or [])
+            column_names = [description[0] for description in cursor.description]
+            return [dict(zip(column_names, row, strict=False)) for row in cursor.fetchall()]
 
     # ========================================================================
     # CRUD Operations
@@ -332,12 +332,14 @@ class AnnotationStore:
         sanitized_msg_id = (msg_id or "").strip()
         if not sanitized_msg_id:
             return None
-        cursor = self._connection.execute(
-            f"\n            SELECT id FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at DESC, id DESC\n            LIMIT 1\n            ",  # nosec B608 - ANNOTATIONS_TABLE is module constant
-            [sanitized_msg_id],
-        )
-        row = cursor.fetchone()
-        return int(row[0]) if row else None
+        # Use protocol method instead of accessing protected member
+        with self.storage.connection() as conn:
+            cursor = conn.execute(
+                f"\n            SELECT id FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at DESC, id DESC\n            LIMIT 1\n            ",  # nosec B608 - ANNOTATIONS_TABLE is module constant
+                [sanitized_msg_id],
+            )
+            row = cursor.fetchone()
+            return int(row[0]) if row else None
 
     def iter_all_annotations(self) -> Iterable[Annotation]:
         """Yield all annotations sorted by insertion order."""
