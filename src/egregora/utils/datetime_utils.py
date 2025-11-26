@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, date, datetime
-from typing import Any, Mapping
+from typing import Any
 
 from dateutil import parser as dateutil_parser
 
@@ -25,8 +26,8 @@ def parse_datetime_flexible(
 
     Returns:
         A timezone-normalized ``datetime`` or ``None`` if parsing fails.
-    """
 
+    """
     if value is None:
         return None
 
