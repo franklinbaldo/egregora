@@ -1,8 +1,10 @@
 """Unified pipeline context - split into immutable configuration and mutable state.
 
 This module defines:
-1. PipelineConfig: Immutable configuration and paths.
-2. PipelineState: Mutable runtime state (clients, connections, caches).
+1. PipelineRunParams: Immutable parameters required to start a run.
+2. PipelineConfig: Immutable configuration and paths.
+3. PipelineState: Mutable runtime state (clients, connections, caches).
+4. PipelineContext: Composite container exposing both configuration and state.
 """
 
 from __future__ import annotations
@@ -28,21 +30,15 @@ from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
 from egregora.utils.rate_limit import RateLimiter
 
-
-@dataclass(frozen=True, slots=True)
-class PipelineRunParams:
-    """Aggregated parameters required to start a pipeline run."""
-
-    output_dir: Path
-    config: EgregoraConfig
-    source_type: str
-    input_path: Path
-    client: genai.Client | None = None
-    refresh: str | None = None
-    run_id: UUID = field(default_factory=uuid.uuid4)
-    start_time: datetime = field(default_factory=lambda: datetime.now(UTC))
+__all__ = [
+    "PipelineConfig",
+    "PipelineContext",
+    "PipelineRunParams",
+    "PipelineState",
+]
 
 
+# Canonical run parameter container (single definition to avoid merge artifacts).
 @dataclass(frozen=True, slots=True)
 class PipelineRunParams:
     """Aggregated parameters required to start a pipeline run."""
