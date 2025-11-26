@@ -64,7 +64,6 @@ CONVERSATION_SCHEMA = ibis.schema(
 
 def conversation_schema_dict(*, timezone: str | ZoneInfo | None = None) -> dict[str, dt.DataType]:
     """Return a dict view of :data:`CONVERSATION_SCHEMA` with an optional timezone."""
-
     schema_dict = dict(CONVERSATION_SCHEMA.items())
     timestamp_dtype = schema_dict.get("timestamp", dt.Timestamp(timezone=DEFAULT_TIMEZONE, scale=9))
     tz = timezone or DEFAULT_TIMEZONE
