@@ -281,7 +281,9 @@ def register_writer_tools(
                             )
                         )
 
-                logger.info("RAG media search returned %d results for query: %s", len(media_items), query[:50])
+                logger.info(
+                    "RAG media search returned %d results for query: %s", len(media_items), query[:50]
+                )
                 return SearchMediaResult(results=media_items)
 
             except Exception:
