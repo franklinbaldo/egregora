@@ -115,6 +115,10 @@ class RAGSettings(BaseModel):
         default=True,
         description="Enable RAG for writer agent",
     )
+    backend: Literal["duckdb_legacy", "lancedb"] = Field(
+        default="duckdb_legacy",
+        description="RAG backend: 'duckdb_legacy' (current) or 'lancedb' (new)",
+    )
     top_k: int = Field(
         default=5,
         ge=1,
@@ -275,7 +279,11 @@ class PathsSettings(BaseModel):
     )
     rag_dir: str = Field(
         default=".egregora/rag",
-        description="RAG database and embeddings storage",
+        description="RAG database and embeddings storage (DuckDB backend)",
+    )
+    lancedb_dir: str = Field(
+        default=".egregora/lancedb",
+        description="LanceDB vector database directory (LanceDB backend)",
     )
     cache_dir: str = Field(
         default=".egregora/.cache",
