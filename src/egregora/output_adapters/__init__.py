@@ -11,7 +11,6 @@ from egregora.output_adapters.parquet.adapter import ParquetAdapter
 
 def create_default_output_registry() -> OutputAdapterRegistry:
     """Create a registry pre-populated with built-in adapters."""
-
     registry = create_output_registry()
     registry.register(MkDocsAdapter)
     registry.register(ParquetAdapter)
@@ -20,9 +19,9 @@ def create_default_output_registry() -> OutputAdapterRegistry:
 
 __all__ = [
     "MkDocsAdapter",
+    "OutputAdapterRegistry",
     "ParquetAdapter",
+    "create_default_output_registry",
     "create_output_format",
     "create_output_registry",
-    "create_default_output_registry",
-    "OutputAdapterRegistry",
 ]

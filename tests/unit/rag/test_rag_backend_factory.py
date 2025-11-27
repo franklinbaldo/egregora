@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 import types
-import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
@@ -25,7 +25,7 @@ if "lancedb" not in sys.modules:
 
     def _connect(_path: str) -> types.SimpleNamespace:
         return types.SimpleNamespace(
-            table_names=lambda: [],
+            table_names=list,
             create_table=lambda *args, **kwargs: _DummyTable(),
             open_table=lambda _name: _DummyTable(),
         )
@@ -33,7 +33,7 @@ if "lancedb" not in sys.modules:
     lancedb_module.connect = _connect
     sys.modules["lancedb"] = lancedb_module
 
-import egregora.rag as rag
+from egregora import rag
 from egregora.config.settings import EgregoraConfig
 
 

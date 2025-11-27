@@ -447,7 +447,6 @@ async def create_embedding_router(
     timeout: float = 60.0,
 ) -> EmbeddingRouter:
     """Create and start a dedicated embedding router instance."""
-
     router = EmbeddingRouter(
         model=model,
         api_key=api_key,
@@ -470,7 +469,6 @@ async def get_router(
     Prefer :func:`create_embedding_router` when the caller owns lifecycle
     management. This helper is kept for backwards compatibility.
     """
-
     global _router
     async with _router_lock:
         if _router is None:
