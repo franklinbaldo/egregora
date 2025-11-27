@@ -175,118 +175,46 @@ def llm_response_mocks(monkeypatch):
 
 @pytest.fixture
 def mock_vector_store(monkeypatch):
-    """Mock VectorStore for RAG-enabled E2E tests.
+    """Mock RAG functions for E2E tests.
 
-    This creates a mock VectorStore that returns deterministic RAG results
-    without requiring real embeddings or vector search.
+    This mocks the new egregora.rag API (index_documents and search) to return
+    deterministic results without requiring real embeddings or vector search.
     """
+    from egregora.rag import RAGHit, RAGQueryResponse
 
-    class MockVectorStore:
-        """Mock VectorStore for E2E testing."""
+    # Track what's been indexed for assertions
+    indexed_docs = []
 
-        def __init__(self, chunks_path: Path, storage=None):
-            self.chunks_path = chunks_path
-            self.parquet_path = chunks_path  # Alias for compatibility
-            self.storage = storage
-            self.indexed_documents = []
-            self.indexed_media = []
+    def mock_index_documents(documents):
+        """Mock document indexing."""
+        indexed_docs.extend(documents)
+        # Silently succeed - indexing is non-critical
 
-        def index_documents(self, output_format, *, embedding_model: str):
-            """Mock document indexing."""
-            self.indexed_documents.append({"output_format": output_format, "model": embedding_model})
-            # Return count of indexed chunks (matching real VectorStore signature)
-            return 10
-
-        def index_media(self, docs_dir: Path, *, embedding_model: str):
-            """Mock media indexing."""
-            self.indexed_media.append({"docs_dir": docs_dir, "model": embedding_model})
-            # Return count of indexed chunks (matching real VectorStore signature)
-            return 4
-
-        def search(
-            self,
-            query_vec: list[float],
-            top_k: int = 5,
-            min_similarity_threshold: float = 0.7,
-            tag_filter: list[str] | None = None,
-            date_after=None,
-            document_type: str | None = None,
-            media_types: list[str] | None = None,
-            *,
-            mode: str = "ann",
-            nprobe: int | None = None,
-            overfetch: int | None = None,
-        ):
-            """Mock vector search that returns an Ibis Table."""
-            import ibis
-            import pandas as pd
-
-            # Create mock search results as pandas DataFrame
-            mock_results = pd.DataFrame(
-                [
-                    {
-                        "document_id": "test-doc-1",
-                        "text": "Test search result",
-                        "similarity": 0.85,
-                        "chunk_index": 0,
-                        "document_type": "post",
-                    }
-                ]
+    def mock_search(request):
+        """Mock RAG search that returns deterministic results."""
+        # Return mock results
+        hits = [
+            RAGHit(
+                chunk_id="test-chunk-1",
+                text="This is a test document about AI and machine learning.",
+                score=0.85,
+                metadata={"document_type": "POST", "slug": "test-post"},
             )
-            # Convert to Ibis table
-            return ibis.memtable(mock_results[:top_k])
+        ]
+        return RAGQueryResponse(hits=hits[: request.top_k])
 
-        def query_media(
-            self,
-            query: str,
-            *,
-            media_types: list[str] | None = None,
-            top_k: int = 5,
-            min_similarity: float = 0.7,
-        ) -> Iterator[dict]:
-            """Return mocked media search results."""
-            mock_results = [
-                {
-                    "document_id": "test-media-1",
-                    "filename": "media/images/test-media-1.jpg",
-                    "similarity": 0.92,
-                    "caption": "Test image",
-                    "media_type": "image",
-                }
-            ]
-            if media_types:
-                mock_results = [r for r in mock_results if r["media_type"] in media_types]
-            yield from mock_results[:top_k]
-
-        @staticmethod
-        def is_available() -> bool:
-            """Mock availability check."""
-            return True
-
-    # Try to patch VectorStore if RAG module exists
+    # Patch the new RAG API
     try:
-        from egregora.agents.shared import rag
+        import egregora.rag
 
-        monkeypatch.setattr(rag, "VectorStore", MockVectorStore)
-
-        # Also mock the embed_query function to avoid real API calls
-        def mock_embed_query(query_text: str, *, model: str) -> list[float]:
-            """Mock embed_query to return deterministic embedding without API calls."""
-            import hashlib
-
-            # Generate deterministic embedding from query text
-            hash_val = int(hashlib.md5(query_text.encode()).hexdigest(), 16)
-            import random
-
-            random.seed(hash_val)
-            return [random.random() for _ in range(768)]  # 768-dim embedding
-
-        monkeypatch.setattr("egregora.agents.shared.rag.embedder.embed_query_text", mock_embed_query)
+        monkeypatch.setattr(egregora.rag, "index_documents", mock_index_documents)
+        monkeypatch.setattr(egregora.rag, "search", mock_search)
     except (ImportError, AttributeError):
         # RAG module may not exist yet - this is optional
         pass
 
-    return MockVectorStore
+    # Return the indexed_docs list for test assertions
+    return indexed_docs
 
 
 @pytest.fixture

@@ -992,7 +992,7 @@ def _prepare_pipeline_data(
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
-            from egregora.rag import index_documents
+            from egregora.rag import index_documents  # noqa: PLC0415
 
             # Get existing documents from output format
             existing_docs = list(output_format.documents())
