@@ -243,7 +243,7 @@ def register_writer_tools(
     if enable_rag:
 
         @agent.tool
-        def search_media_tool(ctx: RunContext[WriterDeps], query: str, top_k: int = 5) -> SearchMediaResult:
+        async def search_media_tool(ctx: RunContext[WriterDeps], query: str, top_k: int = 5) -> SearchMediaResult:
             """Search for relevant media (images, videos, audio) in the knowledge base.
 
             Args:
@@ -259,7 +259,7 @@ def register_writer_tools(
 
                 # Execute RAG search
                 request = RAGQueryRequest(text=query, top_k=top_k)
-                response = search(request)
+                response = await search(request)
 
                 # Convert RAGHit results to MediaItem format
                 media_items: list[MediaItem] = []
@@ -398,8 +398,10 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
                 return cached
 
         # Execute RAG search
+        import asyncio  # noqa: PLC0415
+
         request = RAGQueryRequest(text=query_text, top_k=top_k)
-        response = search(request)
+        response = asyncio.run(search(request))
 
         if not response.hits:
             return ""
@@ -964,7 +966,9 @@ def _index_new_content_in_rag(
                         break
 
         if docs:
-            index_documents(docs)
+            import asyncio  # noqa: PLC0415
+
+            asyncio.run(index_documents(docs))
             logger.info("Indexed %d new posts in RAG", len(docs))
         else:
             logger.debug("No new documents to index in RAG")

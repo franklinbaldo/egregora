@@ -45,7 +45,7 @@ def temp_db_dir() -> Path:
 def mock_embed_fn():
     """Create a mock embedding function that returns deterministic vectors."""
 
-    def embed(texts: list[str], task_type: str) -> list[list[float]]:
+    async def embed(texts: list[str], task_type: str) -> list[list[float]]:
         # Return deterministic embeddings based on text content
         # This allows us to test similarity meaningfully
         embeddings = []
@@ -64,7 +64,7 @@ def mock_embed_fn():
 def mock_embed_fn_similar():
     """Create an embedding function where similar texts get similar embeddings."""
 
-    def embed(texts: list[str], task_type: str) -> list[list[float]]:
+    async def embed(texts: list[str], task_type: str) -> list[list[float]]:
         embeddings = []
         for text in texts:
             # Create embeddings based on word overlap

@@ -16,10 +16,11 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Annotated
 
 from egregora.config import get_google_api_key
-from egregora.config.settings import load_config
+from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.rag.embedding_router import get_router
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,11 @@ async def embed_texts_async(
         return []
 
     # Load config for router settings
-    config = load_config()
+    try:
+        config = load_egregora_config(Path.cwd())
+    except (OSError, ValueError):
+        # Fall back to default config if not found
+        config = EgregoraConfig()
     rag_settings = config.rag
     embedding_model = config.models.embedding
 

@@ -984,12 +984,14 @@ def _prepare_pipeline_data(
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
+            import asyncio  # noqa: PLC0415
+
             from egregora.rag import index_documents  # noqa: PLC0415
 
             # Get existing documents from output format
             existing_docs = list(output_format.documents())
             if existing_docs:
-                index_documents(existing_docs)
+                asyncio.run(index_documents(existing_docs))
                 logger.info("[green]✓ Indexed %d existing documents into RAG[/]", len(existing_docs))
             else:
                 logger.info("[dim]No existing documents to index[/]")
