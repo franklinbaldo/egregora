@@ -38,9 +38,10 @@ import contextlib
 import logging
 import re
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Self, Sequence
+from typing import Literal, Self
 
 import duckdb
 import ibis
@@ -199,7 +200,6 @@ class DuckDBStorageManager:
 
     def execute_sql(self, sql: str, params: Sequence | None = None) -> None:
         """Execute a raw SQL statement without returning results."""
-
         self._conn.execute(sql, params or [])
 
     def execute_query_single(self, sql: str, params: list | None = None) -> tuple | None:
@@ -230,7 +230,6 @@ class DuckDBStorageManager:
         upsert-like behavior by issuing a parameterized ``DELETE`` followed
         by an insert of the provided rows.
         """
-
         quoted_table = quote_identifier(table)
         self.execute_sql(f"DELETE FROM {quoted_table} WHERE {where_clause}", params)
         self.ibis_conn.insert(table, rows)
