@@ -554,7 +554,7 @@ def enrich_table(
     return asyncio.run(_enrich_table_async(messages_table, media_mapping, config, context))
 
 
-async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
+async def _enrich_table_async(
     messages_table: Table,
     media_mapping: MediaMapping,
     config: EgregoraConfig,
@@ -584,36 +584,120 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
 
     tasks = []
 
-    # 1. URL Enrichment
-    if enable_url:
-        url_agent = create_url_enrichment_agent(url_model)
-        url_candidates = _extract_url_candidates(messages_table, max_enrichments)
+    tasks.extend(
+        _schedule_url_tasks(
+            messages_table,
+            enable_url,
+            max_enrichments,
+            url_model,
+            context,
+            prompts_dir,
+            semaphore,
+        )
+    )
 
-        for url, metadata in url_candidates:
-            tasks.append(
-                _process_url_task(url, metadata, url_agent, context.cache, context, prompts_dir, semaphore)
-            )
-
-    # 2. Media Enrichment
-    if enable_media and media_mapping:
-        media_agent = create_media_enrichment_agent(vision_model)
-
-        # NOTE: We deliberately overfetch media candidates because we don't yet know
-        # how many URL tasks will succeed. We filter later.
-        media_candidates = _extract_media_candidates(messages_table, media_mapping, max_enrichments)
-
-        for ref, media_doc, metadata in media_candidates:
-            tasks.append(
-                _process_media_task(
-                    ref, media_doc, metadata, media_agent, context.cache, context, prompts_dir, semaphore
-                )
-            )
+    tasks.extend(
+        _schedule_media_tasks(
+            messages_table,
+            media_mapping,
+            enable_media,
+            max_enrichments,
+            vision_model,
+            context,
+            prompts_dir,
+            semaphore,
+        )
+    )
 
     if not tasks:
         return messages_table
 
     logger.info("Running %d enrichment tasks...", len(tasks))
     results = await asyncio.gather(*tasks)
+
+    (
+        new_rows,
+        pii_detected_count,
+        pii_media_deleted,
+    ) = _process_enrichment_results(results, max_enrichments, media_mapping)
+
+    if pii_media_deleted:
+        messages_table = _replace_pii_media_references(messages_table, media_mapping)
+
+    combined = combine_with_enrichment_rows(messages_table, new_rows, schema=IR_MESSAGE_SCHEMA)
+
+    _persist_enrichments(combined, context)
+
+    if pii_detected_count > 0:
+        logger.info("Privacy summary: %d media file(s) deleted due to PII detection", pii_detected_count)
+
+    return combined
+
+
+def _schedule_url_tasks(
+    messages_table: Table,
+    enable_url: bool,
+    max_enrichments: int,
+    url_model: str,
+    context: EnrichmentRuntimeContext,
+    prompts_dir: Path | None,
+    semaphore: asyncio.Semaphore,
+) -> list[asyncio.Task]:
+    tasks: list[asyncio.Task] = []
+
+    if not enable_url:
+        return tasks
+
+    url_agent = create_url_enrichment_agent(url_model)
+    url_candidates = _extract_url_candidates(messages_table, max_enrichments)
+
+    for url, metadata in url_candidates:
+        tasks.append(
+            _process_url_task(url, metadata, url_agent, context.cache, context, prompts_dir, semaphore)
+        )
+
+    return tasks
+
+
+def _schedule_media_tasks(
+    messages_table: Table,
+    media_mapping: MediaMapping,
+    enable_media: bool,
+    max_enrichments: int,
+    vision_model: str,
+    context: EnrichmentRuntimeContext,
+    prompts_dir: Path | None,
+    semaphore: asyncio.Semaphore,
+) -> list[asyncio.Task]:
+    tasks: list[asyncio.Task] = []
+
+    if not (enable_media and media_mapping):
+        return tasks
+
+    media_agent = create_media_enrichment_agent(vision_model)
+
+    # NOTE: We deliberately overfetch media candidates because we don't yet know
+    # how many URL tasks will succeed. We filter later.
+    media_candidates = _extract_media_candidates(messages_table, media_mapping, max_enrichments)
+
+    for ref, media_doc, metadata in media_candidates:
+        tasks.append(
+            _process_media_task(
+                ref, media_doc, metadata, media_agent, context.cache, context, prompts_dir, semaphore
+            )
+        )
+
+    return tasks
+
+
+def _process_enrichment_results(
+    results: list[dict[str, Any] | tuple[dict[str, Any] | None, bool, str | None, Document | None] | None],
+    max_enrichments: int,
+    media_mapping: MediaMapping,
+) -> tuple[list[dict[str, Any]], int, bool]:
+    new_rows: list[dict[str, Any]] = []
+    pii_detected_count = 0
+    pii_media_deleted = False
 
     url_success_count = 0
     media_results: list[tuple[dict[str, Any] | None, bool, str | None, Document | None]] = []
@@ -644,11 +728,10 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
             new_rows.append(row)
             media_added_count += 1
 
-    if pii_media_deleted:
-        messages_table = _replace_pii_media_references(messages_table, media_mapping)
+    return new_rows, pii_detected_count, pii_media_deleted
 
-    combined = combine_with_enrichment_rows(messages_table, new_rows, schema=IR_MESSAGE_SCHEMA)
 
+def _persist_enrichments(combined: Table, context: EnrichmentRuntimeContext) -> None:
     # Persistence logic copied from runners.py
     duckdb_connection = context.duckdb_connection
     target_table = context.target_table
@@ -666,16 +749,14 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
             logger.exception("Failed to persist enrichments using DuckDBStorageManager")
             raise
 
-    if pii_detected_count > 0:
-        logger.info("Privacy summary: %d media file(s) deleted due to PII detection", pii_detected_count)
-
-    return combined
-
 
 def _extract_url_candidates(  # noqa: C901
     messages_table: Table, max_enrichments: int
 ) -> list[tuple[str, dict[str, Any]]]:
     """Extract unique URL candidates with metadata, up to max_enrichments."""
+    if max_enrichments <= 0:
+        return []
+
     url_metadata: dict[str, dict[str, Any]] = {}
     discovered_count = 0
 
