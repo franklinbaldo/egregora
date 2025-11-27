@@ -1,6 +1,7 @@
 """LanceDB-based RAG backend.
 
 Provides vector storage and similarity search using LanceDB with native Python.
+Uses Arrow for zero-copy data transfer (no Pandas dependency).
 """
 
 from __future__ import annotations
@@ -13,7 +14,9 @@ from typing import Any
 
 import lancedb
 import numpy as np
+from lancedb.pydantic import LanceModel, Vector
 
+from egregora.config import EMBEDDING_DIM
 from egregora.data_primitives.document import Document
 from egregora.rag.ingestion import chunks_from_documents
 from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
@@ -22,6 +25,21 @@ logger = logging.getLogger(__name__)
 
 # Type alias for embedding functions
 EmbedFn = Callable[[Sequence[str]], list[list[float]]]
+
+
+# Pydantic-based schema for LanceDB (zero-copy Arrow)
+class RagChunkModel(LanceModel):
+    """Schema for RAG chunks stored in LanceDB.
+
+    Uses LanceDB's Pydantic integration for type-safe schema definition.
+    This maps directly to Arrow types without requiring Pandas.
+    """
+
+    chunk_id: str
+    document_id: str
+    text: str
+    vector: Vector(EMBEDDING_DIM)  # type: ignore[valid-type]
+    metadata_json: str  # JSON-serialized metadata for flexibility
 
 
 class LanceDBRAGBackend:
@@ -76,26 +94,15 @@ class LanceDBRAGBackend:
         db_dir.mkdir(parents=True, exist_ok=True)
         self._db = lancedb.connect(str(db_dir))
 
-        # Create or open table
+        # Create or open table using Pydantic schema
         if table_name not in self._db.table_names():
             logger.info("Creating new LanceDB table: %s", table_name)
-            # Initialize with empty schema
-            # Store metadata as JSON string to avoid schema conflicts
+            # Use Pydantic schema for type-safe table creation
             self._table = self._db.create_table(
                 table_name,
-                data=[
-                    {
-                        "chunk_id": "",
-                        "document_id": "",
-                        "text": "",
-                        "embedding": np.zeros(768, dtype=np.float32),  # Gemini embedding dim
-                        "metadata_json": "{}",  # Store as JSON string
-                    }
-                ],
+                schema=RagChunkModel,
                 mode="overwrite",
             )
-            # Delete the placeholder row
-            self._table.delete("chunk_id == ''")
         else:
             logger.info("Opening existing LanceDB table: %s", table_name)
             self._table = self._db.open_table(table_name)
@@ -106,7 +113,7 @@ class LanceDBRAGBackend:
         Implementation:
             1. Convert Documents to chunks using ingestion module
             2. Compute embeddings for all chunk texts
-            3. Upsert into LanceDB (delete existing, then add)
+            3. Atomic upsert into LanceDB (merge_insert with update/insert)
 
         Args:
             docs: Sequence of Document instances to index
@@ -139,46 +146,27 @@ class LanceDBRAGBackend:
             msg = f"Embedding count mismatch: got {len(embeddings)}, expected {len(chunks)}"
             raise RuntimeError(msg)
 
-        # Prepare rows for LanceDB
-        rows: list[dict[str, Any]] = []
+        # Prepare rows using Pydantic models (ensures schema consistency)
+        rows: list[RagChunkModel] = []
         for chunk, emb in zip(chunks, embeddings, strict=True):
             rows.append(
-                {
-                    "chunk_id": chunk.chunk_id,
-                    "document_id": chunk.document_id,
-                    "text": chunk.text,
-                    "embedding": np.asarray(emb, dtype=np.float32),
-                    "metadata_json": json.dumps(chunk.metadata),  # Serialize metadata to JSON
-                }
+                RagChunkModel(
+                    chunk_id=chunk.chunk_id,
+                    document_id=chunk.document_id,
+                    text=chunk.text,
+                    vector=np.asarray(emb, dtype=np.float32),
+                    metadata_json=json.dumps(chunk.metadata),
+                )
             )
 
-        # Upsert: delete existing rows with the same chunk_ids, then add
-        chunk_ids = [c.chunk_id for c in chunks]
-        if chunk_ids:
-            try:
-                # Delete existing chunks (LanceDB uses SQL-like syntax)
-                # Properly escape single quotes to prevent SQL injection (SQL standard: double the quote)
-                def _escape_sql_string(s: str) -> str:
-                    """Escape single quotes in SQL string literals."""
-                    return s.replace("'", "''")
-
-                if len(chunk_ids) == 1:
-                    escaped_id = _escape_sql_string(chunk_ids[0])
-                    self._table.delete(f"chunk_id = '{escaped_id}'")
-                else:
-                    # For multiple IDs, use IN clause with properly escaped values
-                    escaped_ids = [_escape_sql_string(cid) for cid in chunk_ids]
-                    ids_str = ", ".join([f"'{cid}'" for cid in escaped_ids])
-                    self._table.delete(f"chunk_id IN ({ids_str})")
-            except (OSError, ValueError, RuntimeError) as e:
-                logger.warning("Failed to delete existing chunks (may not exist): %s", e)
-
-        # Add new chunks
+        # Atomic upsert using merge_insert (no race conditions)
         try:
-            self._table.add(rows)
-            logger.info("Successfully indexed %d chunks", len(rows))
+            self._table.merge_insert(
+                "chunk_id"
+            ).when_matched_update_all().when_not_matched_insert_all().execute(rows)
+            logger.info("Successfully indexed %d chunks (atomic upsert)", len(rows))
         except Exception as e:
-            msg = f"Failed to add chunks to LanceDB: {e}"
+            msg = f"Failed to upsert chunks to LanceDB: {e}"
             raise RuntimeError(msg) from e
 
     def query(self, request: RAGQueryRequest) -> RAGQueryResponse:
@@ -211,24 +199,25 @@ class LanceDBRAGBackend:
 
         query_vec = np.asarray(query_emb, dtype=np.float32)
 
-        # Execute search
+        # Execute search using Arrow (zero-copy, no Pandas)
         try:
             q = self._table.search(query_vec).limit(top_k)
 
             # Apply filters if provided
-            # LanceDB supports SQL-like WHERE clauses
-            # For now, we skip complex filters and handle them post-search
-            # Future: translate request.filters to WHERE clauses
+            # LanceDB supports SQL-like WHERE clauses for pre-filtering
+            if request.filters:
+                q = q.where(request.filters)
 
-            # Execute and get results
-            df = q.to_pandas()
+            # Execute and get results as Arrow table (zero-copy)
+            arrow_table = q.to_arrow()
         except Exception as e:
             msg = f"LanceDB search failed: {e}"
             raise RuntimeError(msg) from e
 
-        # Convert to RAGHit objects
+        # Convert Arrow table to Python dicts (fast native method)
+        # This is much faster than iterating over pandas rows
         hits: list[RAGHit] = []
-        for _, row in df.iterrows():
+        for row in arrow_table.to_pylist():
             # LanceDB exposes a distance column (usually "_distance")
             distance = float(row.get("_distance", 0.0))
 
