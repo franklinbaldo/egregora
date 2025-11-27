@@ -108,21 +108,37 @@ def test_chunking_small_document():
 
 
 def test_chunking_large_document():
-    """Test chunking a document larger than max_chars."""
+    """Test chunking a document larger than max_chars with overlap."""
     # Create a document with ~2000 chars (should split into multiple chunks)
     content = " ".join([f"Word{i}" for i in range(400)])  # ~2400 chars
     doc = Document(content=content, type=DocumentType.POST)
 
-    chunks = chunks_from_document(doc, max_chars=800)
+    chunks = chunks_from_document(doc, max_chars=800, chunk_overlap=200)
 
     # Should have multiple chunks
     assert len(chunks) >= 3
     # Each chunk should be roughly <= max_chars
     for chunk in chunks:
         assert len(chunk.text) <= 900  # Allow some flexibility for word boundaries
-    # All chunks combined should equal original content
-    combined = " ".join(c.text for c in chunks)
-    assert combined == content
+
+    # Verify overlap behavior
+    # First chunk should start with beginning of content
+    assert content.startswith(chunks[0].text.split()[0])
+    # Last chunk should end with end of content
+    assert content.endswith(chunks[-1].text.split()[-1])
+
+    # Verify consecutive chunks have overlapping content
+    for i in range(len(chunks) - 1):
+        current_words = chunks[i].text.split()
+        next_words = chunks[i + 1].text.split()
+        # There should be some overlap between consecutive chunks
+        # Find common words at the end of current and start of next
+        overlap_found = False
+        for j in range(1, min(len(current_words), len(next_words))):
+            if current_words[-j:] == next_words[:j]:
+                overlap_found = True
+                break
+        assert overlap_found, f"No overlap found between chunk {i} and {i+1}"
 
 
 def test_chunking_preserves_metadata():
