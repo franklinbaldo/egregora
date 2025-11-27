@@ -38,6 +38,7 @@ import contextlib
 import logging
 import re
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Self
@@ -197,6 +198,10 @@ class DuckDBStorageManager:
         params = params or []
         return self._conn.execute(sql, params).fetchall()
 
+    def execute_sql(self, sql: str, params: Sequence | None = None) -> None:
+        """Execute a raw SQL statement without returning results."""
+        self._conn.execute(sql, params or [])
+
     def execute_query_single(self, sql: str, params: list | None = None) -> tuple | None:
         """Execute a raw SQL query and return a single result row.
 
@@ -210,6 +215,24 @@ class DuckDBStorageManager:
         """
         params = params or []
         return self._conn.execute(sql, params).fetchone()
+
+    def replace_rows(
+        self,
+        table: str,
+        rows: Table,
+        *,
+        where_clause: str,
+        params: Sequence | None = None,
+    ) -> None:
+        """Delete matching rows and insert replacements.
+
+        DuckDB lacks native ``UPSERT`` support; this helper provides
+        upsert-like behavior by issuing a parameterized ``DELETE`` followed
+        by an insert of the provided rows.
+        """
+        quoted_table = quote_identifier(table)
+        self.execute_sql(f"DELETE FROM {quoted_table} WHERE {where_clause}", params)
+        self.ibis_conn.insert(table, rows)
 
     def get_vector_function_name(self) -> str | None:
         """Return the detected VSS search function name (vss_search or vss_match), or None."""
