@@ -560,6 +560,7 @@ def enrich_table(
         enrichment_settings: Feature toggles and limits for enrichment.
         quota_settings: Quota controls (e.g., concurrency) used during enrichment.
         context: Runtime resources and caches needed by enrichment helpers.
+
     """
     # Use asyncio.run to execute async logic from synchronous context
     return asyncio.run(
@@ -591,6 +592,7 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
         enrichment_settings: Feature toggles and limits for enrichment.
         quota_settings: Quota controls (e.g., concurrency) used during enrichment.
         context: Runtime resources and caches needed by enrichment helpers.
+
     """
     if messages_table.count().execute() == 0:
         return messages_table
