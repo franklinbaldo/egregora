@@ -40,6 +40,157 @@ cd output && uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs ser
 
 ## Breaking Changes
 
+### 2025-11-27 (PR #TBD - Async RAG Migration with Dual-Queue Embedding Router)
+
+**Complete Async Migration of RAG Backend**
+- **Changed:** All RAG APIs are now fully async
+- **Before:** Sync API with blocking calls
+  ```python
+  # Old sync API (no longer supported)
+  from egregora.rag import index_documents, search
+  index_documents([doc])  # Blocking call
+  response = search(request)  # Blocking call
+  ```
+- **After:** Async API with proper await
+  ```python
+  # New async API (required)
+  from egregora.rag import index_documents, search
+  await index_documents([doc])  # Async call
+  response = await search(request)  # Async call
+  ```
+- **Migration for Sync Callers:** Use `asyncio.run()` wrapper
+  ```python
+  import asyncio
+  asyncio.run(index_documents([doc]))
+  response = asyncio.run(search(request))
+  ```
+
+**Dual-Queue Embedding Router**
+- **Added:** New `egregora.rag.embedding_router` module with intelligent routing
+- **Architecture:** Dual-queue system routes requests to optimal endpoint
+  - **Single endpoint:** Low-latency, preferred for queries (1 request/sec)
+  - **Batch endpoint:** High-throughput, used for bulk indexing (1000 embeddings/min)
+- **Features:**
+  - Independent rate limit tracking per endpoint
+  - Automatic 429 fallback and retry with exponential backoff
+  - Request accumulation during rate limits
+  - Intelligent routing based on request size and endpoint availability
+- **Configuration:** New settings in `.egregora/config.yml`:
+  ```yaml
+  rag:
+    embedding_max_batch_size: 100  # Max texts per batch request
+    embedding_timeout: 60.0  # Timeout for embedding requests
+  ```
+- **Performance:** Significantly improved throughput for bulk indexing operations
+- **Asymmetric Embeddings:** Proper support for Google Gemini's asymmetric embeddings
+  - Documents: `RETRIEVAL_DOCUMENT` task type
+  - Queries: `RETRIEVAL_QUERY` task type
+  - Better retrieval quality through task-specific embeddings
+
+**Breaking Changes:**
+- **API Surface:** All `index_documents()` and `search()` calls must use `await`
+- **Sync Integration:** Sync code must wrap calls in `asyncio.run()`
+- **Test Updates:** All RAG tests converted to async (`@pytest.mark.asyncio`)
+- **Impact:** Any code calling RAG functions must be updated to handle async
+
+**Performance Improvements:**
+- **Chunking:** Fixed O(n²) performance issue in text chunking
+- **Embedding Router:**
+  - Dual-queue architecture maximizes API quota utilization
+  - Automatic fallback prevents cascading failures
+  - Request batching reduces API calls by up to 100x
+
+**Migration Guide:**
+1. **Async Context (Pydantic-AI tools):** Already async, just add `await`
+2. **Sync Context (pipeline orchestration):** Wrap in `asyncio.run()`
+3. **Tests:** Add `@pytest.mark.asyncio` decorator and `await` calls
+4. **Custom Embedding Functions:** Must now be async with signature:
+   ```python
+   async def embed_fn(texts: Sequence[str], task_type: str) -> list[list[float]]
+   ```
+
+**Files Changed:**
+- `src/egregora/rag/__init__.py`: Async API signatures
+- `src/egregora/rag/lancedb_backend.py`: Async backend methods
+- `src/egregora/rag/embedding_router.py`: New dual-queue router
+- `src/egregora/rag/embeddings_async.py`: New async embedding API
+- `src/egregora/agents/writer.py`: Tool updated with `await`
+- `src/egregora/orchestration/write_pipeline.py`: Wrapped in `asyncio.run()`
+- `tests/unit/rag/*.py`: All tests converted to async
+
+### 2025-11-27 (PR #981 - LanceDB RAG Backend)
+
+**New RAG Backend with LanceDB**
+- **Added:** New `egregora.rag` package with LanceDB-based vector storage
+- **Architecture:** Clean protocol-based design with `RAGBackend` interface
+- **API:** Simplified API compared to legacy `VectorStore`:
+  ```python
+  # New API (egregora.rag)
+  from egregora.rag import index_documents, search, RAGQueryRequest
+  from egregora.data_primitives import Document, DocumentType
+
+  # Index documents
+  doc = Document(content="# Post\n\nContent", type=DocumentType.POST)
+  index_documents([doc])
+
+  # Search
+  request = RAGQueryRequest(text="search query", top_k=5)
+  response = search(request)
+  for hit in response.hits:
+      print(f"{hit.score:.2f}: {hit.text[:50]}")
+  ```
+- **Configuration:** New settings in `.egregora/config.yml`:
+  ```yaml
+  paths:
+    lancedb_dir: .egregora/lancedb  # LanceDB storage location
+
+  rag:
+    enabled: true
+    top_k: 5
+    min_similarity_threshold: 0.7
+    indexable_types: ["POST"]  # Document types to index (configurable)
+  ```
+- **Dependencies:** Replaced `langchain-text-splitters` and `langchain-core` with `lancedb>=0.4.0`
+- **Chunking:** Simple whitespace-based chunking (no LangChain dependency)
+- **Status:** The legacy `VectorStore` in `egregora.agents.shared.rag` is now deprecated
+- **Migration:** Legacy VectorStore will be removed in a future PR. New code should use `egregora.rag` package.
+- **Security:** Fixed potential SQL injection in delete operations with proper string escaping
+- **Flexibility:**
+  - Indexable document types are now configurable via `rag.indexable_types` setting
+  - Embedding function is dependency-injected for easier testing and alternative models
+
+**Key Improvements Over Legacy RAG:**
+1. **Cleaner Architecture:** Protocol-based design with `RAGBackend` interface
+2. **Better Performance:** LanceDB provides faster vector search than DuckDB VSS
+3. **Simpler API:** Direct document indexing without adapter coupling
+4. **More Configurable:** Indexable types, storage paths, and search parameters are all configurable
+5. **Better Error Handling:** More specific exception handling with clear error messages
+
+**Breaking Changes (Fixed in Follow-up):**
+- **Similarity Scores:** Now use cosine metric instead of L2 distance (default)
+  - Previous implementation: Scores could be negative due to L2 distance
+  - Current implementation: Scores in [-1, 1] range using `.metric("cosine")`
+  - Impact: Scores will differ from earlier versions; re-index recommended
+- **Filters API:** Changed from `dict[str, Any]` to `str`
+  - Before: `filters={"category": "programming"}` (not actually supported)
+  - After: `filters="category = 'programming'"` (SQL WHERE clause)
+  - Rationale: Exposes LanceDB's native filtering without abstraction layer
+  - Example:
+    ```python
+    # Search with SQL filtering
+    request = RAGQueryRequest(
+        text="search query",
+        top_k=5,
+        filters="metadata_json LIKE '%programming%'"  # SQL WHERE clause
+    )
+    response = search(request)
+    ```
+- **Backend Initialization:** Removed unused `top_k_default` parameter
+  - Before: `LanceDBRAGBackend(..., top_k_default=5)`
+  - After: `LanceDBRAGBackend(...)` (use `RAGQueryRequest.top_k` instead)
+- **Query Limits:** Increased `top_k` maximum from 20 to 100
+  - Allows more flexible retrieval for analytics and batch processing
+
 ### 2025-11-26 (PR #975 - Resumability & Fixes)
 
 **MkDocs Plugin Rename**

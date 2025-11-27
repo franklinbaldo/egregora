@@ -15,6 +15,7 @@ Part of the three-layer architecture:
 from __future__ import annotations
 
 import logging
+import math
 import os
 import uuid
 from collections import deque
@@ -33,13 +34,13 @@ from google import genai
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
-from egregora.agents.model_limits import get_model_context_limit
+from egregora.agents.model_limits import PromptTooLargeError, get_model_context_limit
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.shared.rag import VectorStore
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputSink, UrlContext
+from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.run_store import RunStore
 from egregora.database.views import daily_aggregates_view
@@ -48,11 +49,16 @@ from egregora.input_adapters.base import MediaMapping
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.media import process_media_for_window
-from egregora.orchestration.context import PipelineContext, PipelineRunParams
+from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
-from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
+from egregora.transformations import (
+    create_windows,
+    load_checkpoint,
+    save_checkpoint,
+    split_window_into_n_parts,
+)
 from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
@@ -80,9 +86,7 @@ class WhatsAppProcessOptions:
     gemini_api_key: str | None = None
     model: str | None = None
     batch_threshold: int = 10
-    retrieval_mode: str = "ann"
-    retrieval_nprobe: int | None = None
-    retrieval_overfetch: int | None = None
+    # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch removed (legacy DuckDB VSS settings)
     max_prompt_tokens: int = 100_000
     use_full_context_window: bool = False
     client: genai.Client | None = None
@@ -131,19 +135,9 @@ def process_whatsapp_export(
                 }
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": opts.enable_enrichment}),
-            "rag": base_config.rag.model_copy(
-                update={
-                    "mode": opts.retrieval_mode,
-                    "nprobe": (
-                        opts.retrieval_nprobe if opts.retrieval_nprobe is not None else base_config.rag.nprobe
-                    ),
-                    "overfetch": (
-                        opts.retrieval_overfetch
-                        if opts.retrieval_overfetch is not None
-                        else base_config.rag.overfetch
-                    ),
-                }
-            ),
+            # RAG settings: no runtime overrides needed (uses config from .egregora/config.yml)
+            # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch were legacy DuckDB VSS settings
+            "rag": base_config.rag,
             **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
         },
     )
@@ -296,9 +290,6 @@ def _process_window_with_auto_split(
         Dict mapping window labels to {'posts': [...], 'profiles': [...]}
 
     """
-    from egregora.agents.model_limits import PromptTooLargeError
-    from egregora.transformations import split_window_into_n_parts
-
     min_window_size = 5
     results: dict[str, dict[str, list[str]]] = {}
     queue: deque[tuple[any, int]] = deque([(window, depth)])
@@ -357,8 +348,6 @@ def _split_window_for_retry(
     indent: str,
     splitter: any,
 ) -> list[tuple[any, int]]:
-    import math
-
     estimated_tokens = getattr(error, "estimated_tokens", 0)
     effective_limit = getattr(error, "effective_limit", 1) or 1
 
@@ -708,8 +697,6 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     )
 
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
-    from egregora.database import initialize_database
-
     initialize_database(pipeline_backend)
 
     client_instance = run_params.client or _create_gemini_client()
@@ -718,16 +705,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
     db_file = site_paths["egregora_dir"] / "app.duckdb"
     storage = DuckDBStorageManager(db_path=db_file)
-
-    rag_store = None
-    if run_params.config.rag.enabled:
-        rag_dir = site_paths["rag_dir"]
-        rag_dir.mkdir(parents=True, exist_ok=True)
-        rag_store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
-
     annotations_store = AnnotationStore(storage)
-
-    from egregora.orchestration.context import PipelineConfig, PipelineState
 
     quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
 
@@ -756,7 +734,6 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         client=client_instance,
         storage=storage,
         cache=cache,
-        rag_store=rag_store,
         annotations_store=annotations_store,
         quota_tracker=quota_tracker,
         usage_tracker=UsageTracker(),
@@ -991,23 +968,23 @@ def _prepare_pipeline_data(
     # Update context with adapter
     ctx = ctx.with_adapter(adapter)
 
+    # Index existing documents into RAG
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
-            rag_dir = ctx.site_root / config.paths.rag_dir
-            store = VectorStore(rag_dir / "chunks.parquet", storage=ctx.storage)
-            indexed_count = store.index_documents(
-                output_format,
-                embedding_model=embedding_model,
-            )
-            if indexed_count > 0:
-                logger.info("[green]✓ Indexed[/] %s documents into RAG", indexed_count)
+            import asyncio  # noqa: PLC0415
+
+            from egregora.rag import index_documents  # noqa: PLC0415
+
+            # Get existing documents from output format
+            existing_docs = list(output_format.documents())
+            if existing_docs:
+                asyncio.run(index_documents(existing_docs))
+                logger.info("[green]✓ Indexed %d existing documents into RAG[/]", len(existing_docs))
             else:
-                logger.info("[dim]No new documents to index[/]")
-        except (ibis.common.exceptions.IbisError, OSError) as e:
-            # Gracefully degrade on RAG failures (Ibis query errors, file I/O)
-            # Note: DuckDB errors are handled internally by VectorStore
-            logger.warning("[yellow]⚠️  Failed to index documents into RAG: %s[/]", e)
+                logger.info("[dim]No existing documents to index[/]")
+        except Exception:
+            logger.exception("[yellow]⚠️ Failed to index existing documents into RAG (non-critical)[/]")
 
     return PreparedPipelineData(
         messages_table=messages_table,
@@ -1037,19 +1014,9 @@ def _index_media_into_rag(
     if not (enable_enrichment and results):
         return
 
-    logger.info("[bold cyan]📚 Indexing media into RAG...[/]")
-    try:
-        rag_dir = ctx.site_root / ctx.config.paths.rag_dir
-        store = VectorStore(rag_dir / "chunks.parquet", storage=ctx.storage)
-        media_chunks = store.index_media(ctx.docs_dir, embedding_model=embedding_model)
-        if media_chunks > 0:
-            logger.info("[green]✓ Indexed[/] %s media chunks into RAG", media_chunks)
-        else:
-            logger.info("[yellow]No media enrichments to index[/]")
-    except (ibis.common.exceptions.IbisError, OSError) as e:
-        # Gracefully degrade on RAG failures (Ibis query errors, file I/O)
-        # Note: DuckDB errors are handled internally by VectorStore
-        logger.warning("[red]Failed to index media into RAG: %s[/]", e)
+    # Media RAG indexing removed - will be reimplemented with egregora.rag
+    # logger.info("[bold cyan]📚 Indexing media into RAG...[/]")
+    # ... (removed for now)
 
 
 def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) -> None:

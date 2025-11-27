@@ -172,17 +172,17 @@ def test_mock_fixtures_are_available(llm_response_mocks, mock_vector_store):
     assert "media_enrichments" in llm_response_mocks
     assert "writer_post" in llm_response_mocks
 
-    # Verify VectorStore mock is available
+    # Verify RAG mock is available
+    # mock_vector_store is now a list that tracks indexed documents (not a VectorStore class)
     assert mock_vector_store is not None
+    assert isinstance(mock_vector_store, list), "mock_vector_store should be a list tracking indexed docs"
 
-    # Verify mock has expected interface
-    from pathlib import Path
+    # Verify the new RAG API functions are mocked
+    from egregora import rag
 
-    mock_store = mock_vector_store(chunks_path=Path("/tmp/test.parquet"))
-    assert hasattr(mock_store, "index_documents")
-    assert hasattr(mock_store, "index_media")
-    assert hasattr(mock_store, "query_media")
-    assert mock_store.is_available() is True
+    # The functions should be mocked (they won't raise ImportError)
+    assert hasattr(rag, "index_documents")
+    assert hasattr(rag, "search")
 
 
 @pytest.mark.e2e

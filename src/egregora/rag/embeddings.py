@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 
 # Constants
 GENAI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+MAX_BATCH_SIZE = 100  # Google API limit for batchEmbedContents
+HTTP_TOO_MANY_REQUESTS = 429  # Rate limit status code
+HTTP_SERVER_ERROR = 500  # Server error status code threshold
 
 
 def _get_timeout() -> float:
@@ -37,10 +40,10 @@ def _call_with_retries(func: Any) -> Any:
     try:
         return func()
     except httpx.HTTPStatusError as e:
-        if e.response.status_code == 429:
+        if e.response.status_code == HTTP_TOO_MANY_REQUESTS:
             # Parse retry-after if available, but tenacity handles backoff
             logger.warning("Rate limit exceeded (429). Retrying...")
-        elif e.response.status_code >= 500:
+        elif e.response.status_code >= HTTP_SERVER_ERROR:
             logger.warning("Server error %s. Retrying...", e.response.status_code)
         else:
             # Don't retry client errors (4xx) except 429
@@ -122,21 +125,21 @@ def embed_text(
     return _call_with_retries(_make_request)
 
 
-def embed_texts_in_batch(
-    texts: Annotated[list[str], "List of texts to embed"],
+def _embed_batch_chunk(
+    texts: Annotated[list[str], "List of texts to embed (max 100)"],
     *,
-    model: Annotated[str, "The embedding model to use (Google format, e.g., 'models/text-embedding-004')"],
+    model: Annotated[str, "The embedding model to use"],
     task_type: Annotated[str | None, "The task type for the embedding"] = None,
-    api_key: Annotated[str | None, "Optional API key (reads from GOOGLE_API_KEY if not provided)"] = None,
+    api_key: Annotated[str | None, "Optional API key"] = None,
     timeout: Annotated[float | None, "Request timeout in seconds"] = None,
-) -> Annotated[list[list[float]], "List of embedding vectors (768 dimensions each)"]:
-    """Embed multiple texts using the Google Generative AI batch HTTP API.
+) -> Annotated[list[list[float]], "List of embedding vectors"]:
+    """Embed a single batch chunk (internal helper).
 
     Args:
-        texts: List of texts to embed
-        model: Embedding model name (e.g., 'models/text-embedding-004')
-        task_type: Optional task type hint for the embeddings
-        api_key: Optional API key (defaults to GOOGLE_API_KEY env var)
+        texts: List of texts to embed (should be ≤100 items)
+        model: Embedding model name
+        task_type: Optional task type hint
+        api_key: Optional API key
         timeout: Request timeout in seconds
 
     Returns:
@@ -148,10 +151,6 @@ def embed_texts_in_batch(
         httpx.HTTPError: If API request fails after retries
 
     """
-    if not texts:
-        return []
-
-    logger.info("Embedding %d text(s) with model %s", len(texts), model)
     effective_api_key = api_key or get_google_api_key()
     effective_timeout = timeout or _get_timeout()
     google_model = model
@@ -179,10 +178,68 @@ def embed_texts_in_batch(
                 values = embedding_result.get("values")
                 _validate_embedding_values(values, i, texts[i])
                 embeddings.append(list(values))
-            logger.info("Embedded %d text(s)", len(embeddings))
             return embeddings
 
     return _call_with_retries(_make_request)
+
+
+def embed_texts_in_batch(
+    texts: Annotated[list[str], "List of texts to embed"],
+    *,
+    model: Annotated[str, "The embedding model to use (Google format, e.g., 'models/text-embedding-004')"],
+    task_type: Annotated[str | None, "The task type for the embedding"] = None,
+    api_key: Annotated[str | None, "Optional API key (reads from GOOGLE_API_KEY if not provided)"] = None,
+    timeout: Annotated[float | None, "Request timeout in seconds"] = None,
+) -> Annotated[list[list[float]], "List of embedding vectors (768 dimensions each)"]:
+    """Embed multiple texts using the Google Generative AI batch HTTP API.
+
+    Automatically handles the Google API limit of 100 items per batch by chunking
+    larger requests into multiple API calls.
+
+    Args:
+        texts: List of texts to embed
+        model: Embedding model name (e.g., 'models/text-embedding-004')
+        task_type: Optional task type hint for the embeddings
+        api_key: Optional API key (defaults to GOOGLE_API_KEY env var)
+        timeout: Request timeout in seconds
+
+    Returns:
+        List of 768-dimensional embedding vectors
+
+    Raises:
+        ValueError: If GOOGLE_API_KEY not set and api_key not provided
+        RuntimeError: If embedding API returns invalid response
+        httpx.HTTPError: If API request fails after retries
+
+    """
+    if not texts:
+        return []
+
+    # Fast path: single batch
+    if len(texts) <= MAX_BATCH_SIZE:
+        logger.info("Embedding %d text(s) with model %s", len(texts), model)
+        return _embed_batch_chunk(texts, model=model, task_type=task_type, api_key=api_key, timeout=timeout)
+
+    # Chunked path: multiple batches for large inputs
+    logger.info(
+        "Embedding %d text(s) in batches of %d with model %s",
+        len(texts),
+        MAX_BATCH_SIZE,
+        model,
+    )
+    all_embeddings: list[list[float]] = []
+    for i in range(0, len(texts), MAX_BATCH_SIZE):
+        chunk = texts[i : i + MAX_BATCH_SIZE]
+        logger.debug(
+            "Processing batch %d/%d", i // MAX_BATCH_SIZE + 1, (len(texts) - 1) // MAX_BATCH_SIZE + 1
+        )
+        embeddings = _embed_batch_chunk(
+            chunk, model=model, task_type=task_type, api_key=api_key, timeout=timeout
+        )
+        all_embeddings.extend(embeddings)
+
+    logger.info("Embedded %d text(s) total", len(all_embeddings))
+    return all_embeddings
 
 
 def embed_chunks(

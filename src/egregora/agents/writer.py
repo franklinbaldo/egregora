@@ -41,10 +41,10 @@ from egregora.agents.model_limits import (
     get_model_context_limit,
     validate_prompt_fits,
 )
-from egregora.agents.shared.rag import VectorStore
 from egregora.config.settings import EgregoraConfig, RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors, read_profile
+from egregora.ops.media import save_media_asset
 from egregora.output_adapters import output_registry
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
@@ -160,7 +160,6 @@ class WriterResources:
     output: OutputSink
 
     # Knowledge Stores
-    rag_store: VectorStore | None
     annotations_store: AnnotationStore | None
     storage: Any | None  # StorageProtocol - Required for RAG indexing
 
@@ -202,7 +201,7 @@ class WriterDeps:
 # ============================================================================
 
 
-def register_writer_tools(  # noqa: C901
+def register_writer_tools(
     agent: Agent[WriterDeps, WriterAgentReturn],
     *,
     enable_banner: bool = False,
@@ -244,28 +243,55 @@ def register_writer_tools(  # noqa: C901
     if enable_rag:
 
         @agent.tool
-        def search_media_tool(
-            ctx: RunContext[WriterDeps],
-            query: str,
-            media_types: list[str] | None = None,
-            limit: int = 5,
+        async def search_media_tool(
+            ctx: RunContext[WriterDeps], query: str, top_k: int = 5
         ) -> SearchMediaResult:
-            if not ctx.deps.resources.rag_store:
-                return SearchMediaResult(results=[])
+            """Search for relevant media (images, videos, audio) in the knowledge base.
 
-            results = ctx.deps.resources.rag_store.query_media(
-                query=query,
-                media_types=media_types,
-                top_k=limit,
-                min_similarity_threshold=0.7,
-                embedding_model=ctx.deps.resources.embedding_model,
-                retrieval_mode=ctx.deps.resources.retrieval_config.mode,
-                retrieval_nprobe=ctx.deps.resources.retrieval_config.nprobe,
-                retrieval_overfetch=ctx.deps.resources.retrieval_config.overfetch,
-            )
-            media_df = results.execute()
-            items = [MediaItem(**row) for row in media_df.to_dict("records")]
-            return SearchMediaResult(results=items)
+            Args:
+                query: Search query text describing the media you're looking for
+                top_k: Number of results to return (default: 5)
+
+            Returns:
+                SearchMediaResult with matching media items
+
+            """
+            try:
+                from egregora.rag import RAGQueryRequest, search  # noqa: PLC0415
+
+                # Execute RAG search
+                request = RAGQueryRequest(text=query, top_k=top_k)
+                response = await search(request)
+
+                # Convert RAGHit results to MediaItem format
+                media_items: list[MediaItem] = []
+                for hit in response.hits:
+                    # Extract media-specific metadata
+                    metadata = hit.metadata or {}
+                    media_type = metadata.get("media_type")
+                    media_path = metadata.get("media_path")
+                    original_filename = metadata.get("original_filename")
+
+                    # Only include media documents
+                    if media_type:
+                        media_items.append(
+                            MediaItem(
+                                media_type=media_type,
+                                media_path=media_path,
+                                original_filename=original_filename,
+                                description=hit.text[:500] if hit.text else None,
+                                similarity=hit.score,
+                            )
+                        )
+
+                logger.info(
+                    "RAG media search returned %d results for query: %s", len(media_items), query[:50]
+                )
+                return SearchMediaResult(results=media_items)
+
+            except Exception:
+                logger.exception("Failed to search media via RAG")
+                return SearchMediaResult(results=[])
 
     @agent.tool
     def annotate_conversation_tool(
@@ -293,7 +319,6 @@ def register_writer_tools(  # noqa: C901
         )
 
     if enable_banner:
-        from egregora.ops.media import save_media_asset
 
         @agent.tool
         def generate_banner_tool(
@@ -334,87 +359,78 @@ class RagContext:
 
 def build_rag_context_for_prompt(  # noqa: PLR0913
     table_markdown: str,
-    store: VectorStore,
-    client: genai.Client,
+    store: Any = None,
+    client: Any = None,
     *,
-    embedding_model: str,
+    embedding_model: str = "",
     retrieval_mode: str = "ann",
     retrieval_nprobe: int | None = None,
     retrieval_overfetch: int | None = None,
     top_k: int = 5,
-    cache: Any | None = None,  # PipelineCache
+    cache: Any | None = None,
 ) -> str:
-    """Build a lightweight RAG context string from the conversation markdown.
+    """Build RAG context by searching for similar posts.
 
-    Uses L2 caching to avoid re-querying vector store for identical inputs.
+    Uses the new egregora.rag API to find relevant posts based on the conversation content.
+
+    Args:
+        table_markdown: Conversation content in markdown format to search against
+        top_k: Number of similar posts to retrieve (default: 5)
+        cache: Optional cache for RAG queries
+
+    Returns:
+        Formatted string with similar posts context, or empty string if no results
+
     """
-    if not table_markdown.strip():
+    if not table_markdown or not table_markdown.strip():
         return ""
 
-    # Check L2 Cache
-    query_text = _truncate_for_embedding(table_markdown)
-    rag_cache_key = None
+    try:
+        from egregora.rag import RAGQueryRequest, search  # noqa: PLC0415
 
-    if cache and not cache.should_refresh(CacheTier.RAG):
-        import hashlib
+        # Use conversation content as search query (truncate if too long)
+        query_text = table_markdown[:500]  # Use first 500 chars as query
 
-        # Key components: Query + Vector Store State (mtime) + Model
-        query_hash = hashlib.sha256(query_text.encode()).hexdigest()
+        # Check cache if available
+        cache_key = f"rag_context_{hash(query_text)}"
+        if cache is not None:
+            cached = cache.rag.get(cache_key)
+            if cached is not None:
+                logger.debug("RAG context cache hit")
+                return cached
 
-        # Use file modification time as index version proxy
-        index_version = "0"
-        if store.parquet_path.exists():
-            stat = store.parquet_path.stat()
-            index_version = f"{stat.st_mtime_ns}:{stat.st_size}"
+        # Execute RAG search
+        import asyncio  # noqa: PLC0415
 
-        rag_cache_key = f"{query_hash}:{index_version}:{embedding_model}:{top_k}"
+        request = RAGQueryRequest(text=query_text, top_k=top_k)
+        response = asyncio.run(search(request))
 
-        cached_context = cache.rag.get(rag_cache_key)
-        if cached_context is not None:
-            logger.debug("⚡ [L2 Cache Hit] Using cached RAG context")
-            return cached_context
+        if not response.hits:
+            return ""
 
-    # Perform Search
-    query_vector = VectorStore.embed_query(query_text, model=embedding_model)
-    search_results = store.search(
-        query_vec=query_vector,
-        top_k=top_k,
-        min_similarity_threshold=0.7,
-        mode=retrieval_mode,
-        nprobe=retrieval_nprobe,
-        overfetch=retrieval_overfetch,
-    )
-    results_df = search_results.execute()
-    if getattr(results_df, "empty", False):
-        logger.info("Writer RAG: no similar posts found for query")
-        return ""
-    records = results_df.to_dict("records")
-    if not records:
-        return ""
-    lines = [
-        "## Related Previous Posts (for continuity and linking):",
-        "You can reference these posts in your writing to maintain conversation continuity.\n",
-    ]
-    for row in records:
-        title = row.get("post_title") or "Untitled"
-        post_date = row.get("post_date") or ""
-        snippet = (row.get("content") or "")[:400]
-        tags = row.get("tags") or []
-        similarity = row.get("similarity")
-        lines.append(f"### [{title}] ({post_date})")
-        lines.append(f"{snippet}...")
-        lines.append(f"- Tags: {(', '.join(tags) if tags else 'none')}")
-        if similarity is not None:
-            lines.append(f"- Similarity: {float(similarity):.2f}")
-        lines.append("")
+        # Build context from results
+        parts = [
+            "\n\n## Similar Posts (for context and inspiration):\n",
+            "These are similar posts from previous conversations that might provide useful context:\n\n",
+        ]
 
-    final_context = "\n".join(lines).strip()
+        for idx, hit in enumerate(response.hits, 1):
+            similarity_pct = int(hit.score * 100)
+            parts.append(f"### Similar Post {idx} (similarity: {similarity_pct}%)\n")
+            parts.append(f"{hit.text[:500]}...\n\n")  # Truncate to 500 chars
 
-    # Update Cache
-    if cache and rag_cache_key:
-        cache.rag.set(rag_cache_key, final_context)
+        context = "".join(parts)
 
-    return final_context
+        # Cache the result
+        if cache is not None:
+            cache.rag.set(cache_key, context)
+
+        logger.info("Built RAG context with %d similar posts", len(response.hits))
+        return context
+
+    except Exception:
+        logger.exception("Failed to build RAG context (non-critical)")
+        return ""  # Return empty string on error, don't fail the pipeline
 
 
 def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
@@ -501,16 +517,13 @@ def _build_writer_context(  # noqa: PLR0913
     messages_table = table_with_str_uuids.to_pyarrow()
     conversation_xml = _build_conversation_xml(messages_table, resources.annotations_store)
 
-    if resources.rag_store and resources.client:
+    # Build RAG context if enabled
+    if resources.retrieval_config.enabled:
+        table_markdown = conversation_xml  # Use XML content for RAG query
         rag_context = build_rag_context_for_prompt(
-            conversation_xml,
-            resources.rag_store,
-            resources.client,
-            embedding_model=resources.embedding_model,
-            retrieval_mode=resources.retrieval_config.mode,
-            retrieval_nprobe=resources.retrieval_config.nprobe,
-            retrieval_overfetch=resources.retrieval_config.overfetch,
-            cache=cache.rag,  # Use RAG cache tier from pipeline cache
+            table_markdown,
+            top_k=resources.retrieval_config.top_k,
+            cache=cache,
         )
     else:
         rag_context = ""
@@ -813,7 +826,7 @@ def write_posts_with_pydantic_agent(
     model_name = test_model if test_model is not None else config.models.writer
     agent = Agent[WriterDeps, WriterAgentReturn](model=model_name, deps_type=WriterDeps)
     register_writer_tools(
-        agent, enable_banner=is_banner_generation_available(), enable_rag=VectorStore.is_available()
+        agent, enable_banner=is_banner_generation_available(), enable_rag=config.rag.enabled
     )
 
     _validate_prompt_fits(prompt, model_name, config, context.window_label)
@@ -922,36 +935,49 @@ def _check_writer_cache(
 
 
 def _index_new_content_in_rag(
-    resources: WriterResources, saved_posts: list[str], saved_profiles: list[str]
+    resources: WriterResources,
+    saved_posts: list[str],
+    saved_profiles: list[str],
 ) -> None:
     """Index newly created content in RAG system.
 
     Args:
         resources: Writer resources including RAG configuration
-        saved_posts: List of post paths that were created
-        saved_profiles: List of profile paths that were updated
+        saved_posts: List of post identifiers that were created
+        saved_profiles: List of profile identifiers that were updated
 
     """
-    if not (
-        resources.retrieval_config.enabled
-        and resources.rag_store
-        and resources.storage
-        and (saved_posts or saved_profiles)
-    ):
+    # Check if RAG is enabled and we have posts to index
+    if not (resources.retrieval_config.enabled and saved_posts):
         return
 
     try:
-        indexed_count = resources.rag_store.index_documents(
-            resources.output,
-            embedding_model=resources.embedding_model,
-        )
-        if indexed_count > 0:
-            logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
-    except (ibis.common.exceptions.IbisError, OSError) as e:
-        # Gracefully degrade on RAG failures (Ibis query errors, file I/O issues)
-        # Note: DuckDB errors are handled internally by VectorStore
-        # Post generation should succeed even if RAG indexing fails
-        logger.warning("Failed to update RAG index after writing: %s", e)
+        from egregora.data_primitives.document import DocumentType  # noqa: PLC0415
+        from egregora.rag import index_documents  # noqa: PLC0415
+
+        # Read the newly saved post documents
+        docs: list[Document] = []
+        for post_id in saved_posts:
+            # Try to read the document from output format
+            # The output format should have a way to read documents by identifier
+            if hasattr(resources.output, "documents"):
+                # Find the matching document in the output format's documents
+                for doc in resources.output.documents():
+                    if doc.type == DocumentType.POST and post_id in str(doc.metadata.get("slug", "")):
+                        docs.append(doc)
+                        break
+
+        if docs:
+            import asyncio  # noqa: PLC0415
+
+            asyncio.run(index_documents(docs))
+            logger.info("Indexed %d new posts in RAG", len(docs))
+        else:
+            logger.debug("No new documents to index in RAG")
+
+    except Exception:
+        # Don't fail the pipeline if RAG indexing fails
+        logger.exception("Failed to index new content in RAG (non-critical)")
 
 
 def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function

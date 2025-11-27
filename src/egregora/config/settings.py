@@ -109,7 +109,11 @@ class ModelSettings(BaseModel):
 
 
 class RAGSettings(BaseModel):
-    """Retrieval-Augmented Generation (RAG) configuration."""
+    """Retrieval-Augmented Generation (RAG) configuration.
+
+    Uses LanceDB for vector storage and similarity search.
+    Embedding API uses dual-queue router for optimal throughput.
+    """
 
     enabled: bool = Field(
         default=True,
@@ -127,21 +131,29 @@ class RAGSettings(BaseModel):
         le=1.0,
         description="Minimum similarity threshold for results",
     )
-    mode: Literal["ann", "exact"] = Field(
-        default="ann",
-        description="Retrieval mode: 'ann' (fast, approximate) or 'exact' (slow, precise)",
+    indexable_types: list[str] = Field(
+        default=["POST"],
+        description="Document types to index in RAG (e.g., ['POST', 'NOTE'])",
     )
-    nprobe: int | None = Field(
-        default=None,
+
+    # Embedding router settings (dual-queue architecture)
+    embedding_max_batch_size: int = Field(
+        default=100,
         ge=1,
         le=100,
-        description="ANN search quality parameter (higher = better quality, slower)",
+        description="Maximum texts per batch embedding request (Google API limit: 100)",
     )
-    overfetch: int | None = Field(
-        default=None,
+    embedding_timeout: float = Field(
+        default=60.0,
+        ge=1.0,
+        le=600.0,
+        description="HTTP timeout for embedding requests in seconds",
+    )
+    embedding_max_retries: int = Field(
+        default=5,
         ge=1,
-        le=100,
-        description="Overfetch multiplier for ANN candidate pool",
+        le=10,
+        description="Maximum consecutive errors before failing (per endpoint)",
     )
 
 
@@ -275,7 +287,11 @@ class PathsSettings(BaseModel):
     )
     rag_dir: str = Field(
         default=".egregora/rag",
-        description="RAG database and embeddings storage",
+        description="RAG database and embeddings storage (DuckDB backend)",
+    )
+    lancedb_dir: str = Field(
+        default=".egregora/lancedb",
+        description="LanceDB vector database directory (LanceDB backend)",
     )
     cache_dir: str = Field(
         default=".egregora/.cache",
