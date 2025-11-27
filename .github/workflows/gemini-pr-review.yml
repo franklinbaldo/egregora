@@ -96,13 +96,17 @@ jobs:
           fi
 
           # Output diff and context for the next step
+          # Use unique delimiters to avoid conflicts with diff content
+          DIFF_DELIMITER="ghadelimiter_diff_$(uuidgen)"
+          CLAUDE_DELIMITER="ghadelimiter_claude_$(uuidgen)"
+
           {
-            echo "diff<<EOF"
+            echo "diff<<${DIFF_DELIMITER}"
             cat pr-trimmed.diff
-            echo "EOF"
-            echo "claude_md<<EOFCLAUDEMD"
+            echo "${DIFF_DELIMITER}"
+            echo "claude_md<<${CLAUDE_DELIMITER}"
             echo "$CLAUDE_MD"
-            echo "EOFCLAUDEMD"
+            echo "${CLAUDE_DELIMITER}"
             echo "user_instructions=$USER_INSTRUCTIONS"
             echo "trigger_mode=$TRIGGER_MODE"
           } >> "$GITHUB_OUTPUT"
