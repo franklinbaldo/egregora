@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import Mock, patch
 
+from egregora.config.settings import RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
 
 
@@ -14,12 +15,12 @@ class TestRAGExceptionHandling:
         """Verify exceptions during RAG indexing don't crash post generation."""
         from egregora.agents.writer import _index_new_content_in_rag
 
+        # Use real RAGSettings with defaults
         mock_resources = Mock()
-        mock_resources.retrieval_config = Mock()
-        mock_resources.retrieval_config.enabled = True
+        mock_resources.retrieval_config = RAGSettings()  # Uses default enabled=True
         mock_resources.output = Mock()
 
-        # Mock the documents iterator to return a test document
+        # Use real Document instances
         test_doc = Document(
             content="# Test Post\n\nTest content",
             type=DocumentType.POST,
@@ -27,7 +28,7 @@ class TestRAGExceptionHandling:
         )
         mock_resources.output.documents = Mock(return_value=[test_doc])
 
-        # Mock index_documents to raise an exception
+        # Mock only the external dependency
         with patch("egregora.rag.index_documents") as mock_index:
             mock_index.side_effect = RuntimeError("Database connection failed")
 
@@ -41,12 +42,12 @@ class TestRAGExceptionHandling:
         """Verify successful indexing logs the indexed document count."""
         from egregora.agents.writer import _index_new_content_in_rag
 
+        # Use real RAGSettings with defaults
         mock_resources = Mock()
-        mock_resources.retrieval_config = Mock()
-        mock_resources.retrieval_config.enabled = True
+        mock_resources.retrieval_config = RAGSettings()
         mock_resources.output = Mock()
 
-        # Mock the documents iterator to return test documents
+        # Use real Document instances
         test_docs = [
             Document(
                 content=f"# Test Post {i}\n\nTest content",
@@ -74,9 +75,9 @@ class TestRAGExceptionHandling:
         """Verify indexing is skipped when RAG is disabled."""
         from egregora.agents.writer import _index_new_content_in_rag
 
+        # Use real RAGSettings with disabled RAG
         mock_resources = Mock()
-        mock_resources.retrieval_config = Mock()
-        mock_resources.retrieval_config.enabled = False
+        mock_resources.retrieval_config = RAGSettings(enabled=False)
         mock_resources.output = Mock()
 
         with patch("egregora.rag.index_documents") as mock_index:
@@ -89,9 +90,9 @@ class TestRAGExceptionHandling:
         """Verify indexing is skipped when no posts were saved."""
         from egregora.agents.writer import _index_new_content_in_rag
 
+        # Use real RAGSettings with defaults
         mock_resources = Mock()
-        mock_resources.retrieval_config = Mock()
-        mock_resources.retrieval_config.enabled = True
+        mock_resources.retrieval_config = RAGSettings()
         mock_resources.output = Mock()
 
         with patch("egregora.rag.index_documents") as mock_index:
@@ -100,6 +101,11 @@ class TestRAGExceptionHandling:
 
             # Should not attempt indexing
             mock_index.assert_not_called()
+
+    def test_rag_enabled_by_default(self):
+        """Verify RAG is enabled by default in settings."""
+        settings = RAGSettings()
+        assert settings.enabled is True, "RAG should be enabled by default"
 
 
 class TestPipelineRAGExceptionHandling:
