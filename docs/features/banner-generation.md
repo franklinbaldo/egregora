@@ -196,4 +196,4 @@ uv run egregora process export.zip --output ./output
 
 - [Gemini 2.5 Flash Image Documentation](https://ai.google.dev/gemini-api/docs/image-generation)
 - [Material for MkDocs Blog Plugin](https://squidfunk.github.io/mkdocs-material/plugins/blog/)
-- [Writer Architecture](../guides/architecture.md#5-generation-writer)
+- [Writer Architecture](../guide/architecture.md#5-generation)

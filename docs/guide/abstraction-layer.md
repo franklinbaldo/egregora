@@ -552,6 +552,6 @@ Potential future improvements to the abstraction layer:
 ## See Also
 
 - [Architecture Guide](architecture.md) - Overall system design
-- [API Reference](../reference/api.md) - Detailed API documentation
-- [WhatsApp Parser](../reference/parser.md) - WhatsApp implementation details
-- [MkDocs Integration](../reference/mkdocs.md) - MkDocs format details
+- [API Reference](../api/index.md) - Detailed API documentation
+- [WhatsApp Parser](../api/ingestion/parser.md) - WhatsApp implementation details
+- [MkDocs Integration](../configuration/mkdocs-material.md) - MkDocs format details
