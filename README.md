@@ -7,6 +7,8 @@
 [![uv](https://img.shields.io/badge/uv-powered-FF6C37.svg)](https://github.com/astral-sh/uv)
 [![Pydantic-AI](https://img.shields.io/badge/Pydantic--AI-type--safe-00D9FF.svg)](https://ai.pydantic.dev/)
 
+**[🚀 Live Demo →](https://franklinbaldo.github.io/egregora/demo)** | See a real blog generated from WhatsApp chats
+
 > Named after the concept of collective consciousness, Egregora finds patterns and insights that emerge from group interaction—then writes them into existence as coherent articles, documentation, and living archives.
 
 ---
