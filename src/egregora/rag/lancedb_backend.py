@@ -161,9 +161,9 @@ class LanceDBRAGBackend:
 
         # Atomic upsert using merge_insert (no race conditions)
         try:
-            self._table.merge_insert("chunk_id").when_matched_update_all().when_not_matched_insert_all().execute(
-                rows
-            )
+            self._table.merge_insert(
+                "chunk_id"
+            ).when_matched_update_all().when_not_matched_insert_all().execute(rows)
             logger.info("Successfully indexed %d chunks (atomic upsert)", len(rows))
         except Exception as e:
             msg = f"Failed to upsert chunks to LanceDB: {e}"
