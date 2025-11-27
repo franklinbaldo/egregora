@@ -44,6 +44,7 @@ from egregora.agents.model_limits import (
 from egregora.config.settings import EgregoraConfig, RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors, read_profile
+from egregora.ops.media import save_media_asset
 from egregora.output_adapters import output_registry
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
@@ -316,7 +317,6 @@ def register_writer_tools(
         )
 
     if enable_banner:
-        from egregora.ops.media import save_media_asset
 
         @agent.tool
         def generate_banner_tool(

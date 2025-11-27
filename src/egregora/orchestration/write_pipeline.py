@@ -15,6 +15,7 @@ Part of the three-layer architecture:
 from __future__ import annotations
 
 import logging
+import math
 import os
 import uuid
 from collections import deque
@@ -33,7 +34,7 @@ from google import genai
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
-from egregora.agents.model_limits import get_model_context_limit
+from egregora.agents.model_limits import PromptTooLargeError, get_model_context_limit
 from egregora.agents.shared.annotations import AnnotationStore
 
 # VectorStore removed - using new egregora.rag API
@@ -41,6 +42,7 @@ from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputSink, UrlContext
+from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.run_store import RunStore
 from egregora.database.views import daily_aggregates_view
@@ -49,11 +51,11 @@ from egregora.input_adapters.base import MediaMapping
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.media import process_media_for_window
-from egregora.orchestration.context import PipelineContext, PipelineRunParams
+from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
-from egregora.transformations import create_windows, load_checkpoint, save_checkpoint
+from egregora.transformations import create_windows, load_checkpoint, save_checkpoint, split_window_into_n_parts
 from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
@@ -297,9 +299,6 @@ def _process_window_with_auto_split(
         Dict mapping window labels to {'posts': [...], 'profiles': [...]}
 
     """
-    from egregora.agents.model_limits import PromptTooLargeError
-    from egregora.transformations import split_window_into_n_parts
-
     min_window_size = 5
     results: dict[str, dict[str, list[str]]] = {}
     queue: deque[tuple[any, int]] = deque([(window, depth)])
@@ -358,8 +357,6 @@ def _split_window_for_retry(
     indent: str,
     splitter: any,
 ) -> list[tuple[any, int]]:
-    import math
-
     estimated_tokens = getattr(error, "estimated_tokens", 0)
     effective_limit = getattr(error, "effective_limit", 1) or 1
 
@@ -709,8 +706,6 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     )
 
     # Initialize database tables (CREATE TABLE IF NOT EXISTS)
-    from egregora.database import initialize_database
-
     initialize_database(pipeline_backend)
 
     client_instance = run_params.client or _create_gemini_client()
@@ -724,8 +719,6 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     # VectorStore will be replaced with direct calls to egregora.rag functions
 
     annotations_store = AnnotationStore(storage)
-
-    from egregora.orchestration.context import PipelineConfig, PipelineState
 
     quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
 
