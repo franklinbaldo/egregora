@@ -645,8 +645,8 @@ def test_ir_v1_end_to_end():
 
 ## References
 
-- [IR v1 Schema Definition](../src/egregora/database/validation.py)
-- [Privacy Constants](../src/egregora/privacy/constants.py)
-- [WhatsApp Adapter](../src/egregora/input_adapters/whatsapp.py)
-- [Slack Adapter](../src/egregora/input_adapters/slack.py)
-- [CLAUDE.md](../../CLAUDE.md)
+- IR v1 Schema Definition: `src/egregora/database/validation.py`
+- Privacy Constants: `src/egregora/privacy/constants.py`
+- WhatsApp Adapter: `src/egregora/input_adapters/whatsapp.py`
+- Slack Adapter: `src/egregora/input_adapters/slack.py`
+- [CLAUDE.md](../CLAUDE.md)

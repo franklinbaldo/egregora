@@ -364,7 +364,7 @@ with pytest.raises(RuntimeError):
 - [Pydantic AI Docs](https://ai.pydantic.dev/)
 - [Logfire Docs](https://docs.pydantic.dev/logfire/)
 - [PR #569 - Writer Agent](https://github.com/franklinbaldo/egregora/pull/569)
-- [CLAUDE.md - Ibis-First Policy](../CLAUDE.md#ibis-first-coding-standard)
+- [CLAUDE.md - Ibis-First Policy](../../CLAUDE.md)
 
 ---
 

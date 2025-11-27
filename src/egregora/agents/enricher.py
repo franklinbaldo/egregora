@@ -158,7 +158,6 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentDeps, Enrichme
 
     Args:
         model: The model name to use.
-        simple: If True, uses simple mode (just URL). If False, uses detailed mode (with context).
 
     """
     model_settings = GoogleModelSettings(google_tools=[{"url_context": {}}])
@@ -214,9 +213,6 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentDeps, Enri
 
     Args:
         model: The model name to use.
-        simple: If True, uses simple mode. If False, uses detailed mode (with context).
-        Note: 'simple' defaults to False for media in legacy code (avatar uses detailed),
-        but enrichment pipeline uses simple.
 
     """
     agent = Agent[MediaEnrichmentDeps, EnrichmentOutput](
