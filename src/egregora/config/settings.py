@@ -308,7 +308,7 @@ class PathsSettings(BaseModel):
         description="Documentation/content directory",
     )
     posts_dir: str = Field(
-        default="posts",
+        default="blog/posts",
         description="Blog posts directory",
     )
     profiles_dir: str = Field(
