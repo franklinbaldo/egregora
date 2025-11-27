@@ -27,7 +27,7 @@ from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
 from ratelimit import limits, sleep_and_retry
 
-from egregora.config.settings import EgregoraConfig
+from egregora.config.settings import EnrichmentSettings, ModelSettings, QuotaSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
@@ -546,29 +546,60 @@ async def _process_media_task(  # noqa: PLR0913
 def enrich_table(
     messages_table: Table,
     media_mapping: MediaMapping,
-    config: EgregoraConfig,
+    models: ModelSettings,
+    enrichment_settings: EnrichmentSettings,
+    quota_settings: QuotaSettings,
     context: EnrichmentRuntimeContext,
 ) -> Table:
-    """Enrich messages table with URL and media context using async agents."""
+    """Enrich messages table with URL and media context using async agents.
+
+    Args:
+        messages_table: Parsed messages to enrich.
+        media_mapping: Mapping from media reference to associated documents.
+        models: Model configuration specific to enrichment.
+        enrichment_settings: Feature toggles and limits for enrichment.
+        quota_settings: Quota controls (e.g., concurrency) used during enrichment.
+        context: Runtime resources and caches needed by enrichment helpers.
+    """
     # Use asyncio.run to execute async logic from synchronous context
-    return asyncio.run(_enrich_table_async(messages_table, media_mapping, config, context))
+    return asyncio.run(
+        _enrich_table_async(
+            messages_table,
+            media_mapping,
+            models,
+            enrichment_settings,
+            quota_settings,
+            context,
+        )
+    )
 
 
 async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
     messages_table: Table,
     media_mapping: MediaMapping,
-    config: EgregoraConfig,
+    models: ModelSettings,
+    enrichment_settings: EnrichmentSettings,
+    quota_settings: QuotaSettings,
     context: EnrichmentRuntimeContext,
 ) -> Table:
-    """Async implementation of enrich_table."""
+    """Async implementation of :func:`enrich_table`.
+
+    Args:
+        messages_table: Parsed messages to enrich.
+        media_mapping: Mapping from media reference to associated documents.
+        models: Model configuration specific to enrichment.
+        enrichment_settings: Feature toggles and limits for enrichment.
+        quota_settings: Quota controls (e.g., concurrency) used during enrichment.
+        context: Runtime resources and caches needed by enrichment helpers.
+    """
     if messages_table.count().execute() == 0:
         return messages_table
 
-    url_model = config.models.enricher
-    vision_model = config.models.enricher_vision
-    max_enrichments = config.enrichment.max_enrichments
-    enable_url = config.enrichment.enable_url
-    enable_media = config.enrichment.enable_media
+    url_model = models.enricher
+    vision_model = models.enricher_vision
+    max_enrichments = enrichment_settings.max_enrichments
+    enable_url = enrichment_settings.enable_url
+    enable_media = enrichment_settings.enable_media
     prompts_dir = context.site_root / ".egregora" / "prompts" if context.site_root else None
 
     logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
@@ -579,7 +610,7 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
     pii_media_deleted = False
 
     # Concurrency limit (configurable)
-    concurrency = max(1, config.quota.concurrency)
+    concurrency = max(1, quota_settings.concurrency)
     semaphore = asyncio.Semaphore(concurrency)
 
     tasks = []
