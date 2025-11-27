@@ -554,7 +554,7 @@ def enrich_table(
     return asyncio.run(_enrich_table_async(messages_table, media_mapping, config, context))
 
 
-async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
+async def _enrich_table_async(
     messages_table: Table,
     media_mapping: MediaMapping,
     config: EgregoraConfig,
