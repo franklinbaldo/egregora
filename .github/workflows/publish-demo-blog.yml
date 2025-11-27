@@ -1,0 +1,126 @@
+name: Publish Egregora Demo Blog
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'  # optional: rebuild every 6 hours even without push
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: demo-blog
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python + uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install egregora + dependencies
+        run: uv sync --all-extras --dev
+
+      # ──────────────────────────────────────────────────────────────
+      # 1. Download your latest WhatsApp export (CHANGE THIS URL!)
+      # ──────────────────────────────────────────────────────────────
+      - name: Download latest chat export
+        run: |
+          curl -fsSL -o chat.zip \
+            "https://your-real-secure-link.com/whatsapp/latest.zip"
+        env:
+          DOWNLOAD_TOKEN: ${{ secrets.CHAT_DOWNLOAD_TOKEN }}  # optional
+
+      # ──────────────────────────────────────────────────────────────
+      # 2. FULL CACHING – this makes daily runs almost free
+      # ──────────────────────────────────────────────────────────────
+      - name: Restore DuckDB database (posts, ELO, run state)
+        uses: actions/cache@v4
+        id: cache-db
+        with:
+          path: pipeline.duckdb
+          key: demo-db-v6-${{ hashFiles('chat.zip') }}-${{ github.sha }}
+          restore-keys: |
+            demo-db-v6-${{ hashFiles('chat.zip') }}-
+            demo-db-v6-
+
+      - name: Restore all egregora caches (banners, embeddings, etc.)
+        uses: actions/cache@v4
+        id: cache-app
+        with:
+          path: .egregora-cache
+          key: demo-cache-v6-${{ hashFiles('chat.zip', '.egregora/config.yml', 'src/egregora/prompts/*.jinja') }}-${{ github.sha }}
+          restore-keys: |
+            demo-cache-v6-${{ hashFiles('chat.zip', '.egregora/config.yml', 'src/egregora/prompts/*.jinja') }}-
+            demo-cache-v6-
+
+      # ──────────────────────────────────────────────────────────────
+      # 3. Generate the blog → ./dist/demo
+      # ──────────────────────────────────────────────────────────────
+      - name: Generate blog
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          mkdir -p dist/demo
+          uv run egregora write chat.zip \
+            --output ./dist/demo \
+            --refresh=none \
+            --max-workers 12 \
+            --step-size 2 \
+            --step-unit days \
+            --max-tokens-per-window 100_000 \
+            --quiet  # less noise in logs
+
+      # Optional: warm cache for next run (banners, avatars)
+      - name: Warm cache (optional)
+        if: success()
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          uv run egregora warm-cache chat.zip || true
+
+      # ──────────────────────────────────────────────────────────────
+      # 4. Save caches for next run
+      # ──────────────────────────────────────────────────────────────
+      - name: Save DuckDB state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: pipeline.duckdb
+          key: ${{ steps.cache-db.outputs.cache-primary-key }}
+
+      - name: Save app cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .egregora-cache
+          key: ${{ steps.cache-app.outputs.cache-primary-key }}
+
+      # ──────────────────────────────────────────────────────────────
+      # 5. Deploy ONLY the /demo folder to GitHub Pages
+      # ──────────────────────────────────────────────────────────────
+      - name: Create empty _config.yml (prevents Jekyll from skipping)
+        run: touch dist/_config.yml
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist/demo   # ← ONLY the blog
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
