@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 from egregora.data_primitives.document import Document, DocumentType
@@ -61,7 +60,9 @@ class TestRAGExceptionHandling:
         with patch("egregora.rag.index_documents") as mock_index:
             with caplog.at_level("INFO"):
                 _index_new_content_in_rag(
-                    mock_resources, saved_posts=["test-post-0", "test-post-1", "test-post-2"], saved_profiles=[]
+                    mock_resources,
+                    saved_posts=["test-post-0", "test-post-1", "test-post-2"],
+                    saved_profiles=[],
                 )
 
             # Verify indexing was called
