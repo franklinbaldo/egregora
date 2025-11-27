@@ -71,7 +71,6 @@ class LanceDBRAGBackend:
         db_dir: Path,
         table_name: str,
         embed_fn: EmbedFn,
-        top_k_default: int = 5,
         indexable_types: set[Any] | None = None,
     ) -> None:
         """Initialize LanceDB RAG backend.
@@ -80,14 +79,12 @@ class LanceDBRAGBackend:
             db_dir: Directory for LanceDB database
             table_name: Name of the table to store embeddings
             embed_fn: Function that takes texts and returns embeddings
-            top_k_default: Default number of results to return (default: 5)
             indexable_types: Set of DocumentType values to index (optional)
 
         """
         self._db_dir = db_dir
         self._table_name = table_name
         self._embed_fn = embed_fn
-        self._top_k_default = top_k_default
         self._indexable_types = indexable_types
 
         # Initialize LanceDB connection
@@ -188,7 +185,7 @@ class LanceDBRAGBackend:
             RuntimeError: If search operation fails
 
         """
-        top_k = request.top_k or self._top_k_default
+        top_k = request.top_k
 
         # Embed query
         try:
@@ -201,7 +198,7 @@ class LanceDBRAGBackend:
 
         # Execute search using Arrow (zero-copy, no Pandas)
         try:
-            q = self._table.search(query_vec).limit(top_k)
+            q = self._table.search(query_vec).metric("cosine").limit(top_k)
 
             # Apply filters if provided
             # LanceDB supports SQL-like WHERE clauses for pre-filtering
@@ -222,8 +219,11 @@ class LanceDBRAGBackend:
             distance = float(row.get("_distance", 0.0))
 
             # Convert distance to similarity score
-            # For cosine distance: similarity = 1 - distance
-            # (LanceDB uses distance, lower is better; we want similarity, higher is better)
+            # For cosine distance: distance ∈ [0, 2], similarity = 1 - distance ∈ [-1, 1]
+            # Normalize to [0, 1] range: score = (1 - distance) / 2 + 0.5
+            # Simplified: score = (2 - distance) / 2 = 1 - (distance / 2)
+            # However, for typical use cases, distance should be in [0, 2] range
+            # and we want higher similarity scores for lower distances
             score = 1.0 - distance
 
             # Extract and deserialize metadata

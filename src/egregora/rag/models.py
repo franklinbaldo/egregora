@@ -39,13 +39,13 @@ class RAGQueryRequest(BaseModel):
     Attributes:
         text: Query text to search for
         top_k: Number of top results to retrieve (default: 5)
-        filters: Optional filters to apply (e.g., {"document_type": "post"})
+        filters: Optional SQL WHERE clause for filtering (e.g., "category = 'programming'")
 
     """
 
     text: str = Field(..., description="Query text")
-    top_k: int = Field(default=5, ge=1, le=20, description="Number of results to retrieve")
-    filters: dict[str, Any] | None = Field(default=None, description="Optional filters")
+    top_k: int = Field(default=5, ge=1, le=100, description="Number of results to retrieve")
+    filters: str | None = Field(default=None, description="Optional SQL WHERE clause for filtering")
 
 
 class RAGQueryResponse(BaseModel):

@@ -88,6 +88,31 @@ cd output && uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs ser
 4. **More Configurable:** Indexable types, storage paths, and search parameters are all configurable
 5. **Better Error Handling:** More specific exception handling with clear error messages
 
+**Breaking Changes (Fixed in Follow-up):**
+- **Similarity Scores:** Now use cosine metric instead of L2 distance (default)
+  - Previous implementation: Scores could be negative due to L2 distance
+  - Current implementation: Scores in [-1, 1] range using `.metric("cosine")`
+  - Impact: Scores will differ from earlier versions; re-index recommended
+- **Filters API:** Changed from `dict[str, Any]` to `str`
+  - Before: `filters={"category": "programming"}` (not actually supported)
+  - After: `filters="category = 'programming'"` (SQL WHERE clause)
+  - Rationale: Exposes LanceDB's native filtering without abstraction layer
+  - Example:
+    ```python
+    # Search with SQL filtering
+    request = RAGQueryRequest(
+        text="search query",
+        top_k=5,
+        filters="metadata_json LIKE '%programming%'"  # SQL WHERE clause
+    )
+    response = search(request)
+    ```
+- **Backend Initialization:** Removed unused `top_k_default` parameter
+  - Before: `LanceDBRAGBackend(..., top_k_default=5)`
+  - After: `LanceDBRAGBackend(...)` (use `RAGQueryRequest.top_k` instead)
+- **Query Limits:** Increased `top_k` maximum from 20 to 100
+  - Allows more flexible retrieval for analytics and batch processing
+
 ### 2025-11-26 (PR #975 - Resumability & Fixes)
 
 **MkDocs Plugin Rename**
