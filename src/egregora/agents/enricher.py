@@ -252,9 +252,7 @@ async def _run_url_enrichment_async(
     """Run URL enrichment asynchronously."""
     url_str = str(url)
     sanitized_url_raw = _sanitize_prompt_input(url_str, max_length=2000)
-    sanitized_url = "\n".join(
-        line.strip() for line in sanitized_url_raw.splitlines() if line.strip()
-    )
+    sanitized_url = "\n".join(line.strip() for line in sanitized_url_raw.splitlines() if line.strip())
 
     deps = UrlEnrichmentDeps(url=sanitized_url, prompts_dir=prompts_dir)
     prompt = render_prompt(
@@ -290,9 +288,7 @@ async def _run_media_enrichment_async(  # noqa: PLR0913
 
     sanitized_filename_raw = _sanitize_prompt_input(filename, max_length=255)
     sanitized_filename = sanitized_filename_raw.replace("\\", "").strip()
-    sanitized_mime = (
-        _sanitize_prompt_input(mime_hint, max_length=50).strip() if mime_hint else None
-    )
+    sanitized_mime = _sanitize_prompt_input(mime_hint, max_length=50).strip() if mime_hint else None
     deps = MediaEnrichmentDeps(
         prompts_dir=prompts_dir,
         media_filename=sanitized_filename,
