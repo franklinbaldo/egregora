@@ -6,10 +6,10 @@ on:
   issue_comment:
     types: [created]
 
-# Cancel old runs on the same PR to save costs
+# Allow concurrent runs - don't cancel in-progress Gemini reviews (they cost API credits)
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
