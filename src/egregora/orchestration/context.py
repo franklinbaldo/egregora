@@ -28,7 +28,6 @@ from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.utils.cache import EnrichmentCache, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
-from egregora.utils.rate_limit import RateLimiter
 
 __all__ = [
     "PipelineConfig",
@@ -137,7 +136,6 @@ class PipelineState:
 
     # Quota tracking
     quota_tracker: QuotaTracker | None = None
-    rate_limit: RateLimiter | None = None
 
     # Output & Adapters (Initialized lazily or updated)
     output_format: OutputSink | None = None  # ISP-compliant: Runtime data operations only
@@ -237,10 +235,6 @@ class PipelineContext:
     @property
     def adapter(self) -> Any:
         return self.state.adapter
-
-    @property
-    def rate_limit(self) -> RateLimiter | None:
-        return self.state.rate_limit
 
     @property
     def usage_tracker(self) -> UsageTracker | None:

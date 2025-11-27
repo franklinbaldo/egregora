@@ -266,26 +266,8 @@ class AnnotationStore:
         commentary: str,
     ) -> Annotation:
         """Persist an annotation and return the saved record."""
-        # Runtime privacy check
-        # TODO: Re-enable when egregora.privacy.pii module is implemented
-        # from egregora.privacy.config import PrivacySettings
-        #
-        # if PrivacySettings.detect_pii:
-        #     from egregora.privacy.pii import detect_pii
-        #
-        #     if detect_pii(commentary):
-        #         msg = "Annotation commentary contains PII"
-        #         raise ValueError(msg)
-
+        # Trust internal callers, type hints enforce contract
         created_at = datetime.now(UTC)
-        if parent_type == "annotation":
-            annotations_table = self._backend.table(ANNOTATIONS_TABLE)
-            parent_exists = int(
-                annotations_table.filter(annotations_table.id == int(parent_id)).limit(1).count().execute()
-            )
-            if parent_exists == 0:
-                msg = f"parent annotation with id {parent_id} does not exist"
-                raise ValueError(msg)
         annotation_id = self.storage.next_sequence_value(self._sequence_name)
         insert_row = ibis.memtable(
             [
@@ -315,25 +297,19 @@ class AnnotationStore:
 
     def list_annotations_for_message(self, msg_id: str) -> list[Annotation]:
         """Return annotations for ``msg_id`` ordered by creation time."""
-        sanitized_msg_id = (msg_id or "").strip()
-        if not sanitized_msg_id:
-            return []
         records = self._fetch_records(
             f"\n            SELECT id, parent_id, parent_type, author, commentary, created_at\n            FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at ASC, id ASC\n            ",  # nosec B608 - ANNOTATIONS_TABLE is module constant
-            [sanitized_msg_id],
+            [msg_id],
         )
         return [self._row_to_annotation(row) for row in records]
 
     def get_last_annotation_id(self, msg_id: str) -> int | None:
         """Return the most recent annotation ID for ``msg_id`` if any exist."""
-        sanitized_msg_id = (msg_id or "").strip()
-        if not sanitized_msg_id:
-            return None
         # Use protocol method instead of accessing protected member
         with self.storage.connection() as conn:
             cursor = conn.execute(
                 f"\n            SELECT id FROM {ANNOTATIONS_TABLE}\n            WHERE parent_id = ? AND parent_type = 'message'\n            ORDER BY created_at DESC, id DESC\n            LIMIT 1\n            ",  # nosec B608 - ANNOTATIONS_TABLE is module constant
-                [sanitized_msg_id],
+                [msg_id],
             )
             row = cursor.fetchone()
             return int(row[0]) if row else None

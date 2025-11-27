@@ -17,8 +17,14 @@ class TestVectorStoreExceptionHandling:
 
         # Setup mock storage
         mock_storage = Mock()
-        mock_storage.get_table_columns = Mock(return_value=[])
+        mock_storage.get_table_columns.return_value = []
+        mock_storage.ibis_conn.list_tables.return_value = []
         mock_storage.execute_sql = Mock()
+        mock_conn = Mock()
+        mock_conn.execute = Mock()
+        mock_storage.connection = Mock(
+            return_value=Mock(__enter__=Mock(return_value=mock_conn), __exit__=Mock(return_value=None))
+        )
         mock_conn = Mock()
         mock_conn.execute = Mock()
         mock_storage.connection = Mock(
@@ -41,7 +47,8 @@ class TestVectorStoreExceptionHandling:
         from egregora.agents.shared.rag.store import VectorStore
 
         mock_storage = Mock()
-        mock_storage.get_table_columns = Mock(return_value=[])
+        mock_storage.get_table_columns.return_value = []
+        mock_storage.ibis_conn.list_tables.return_value = []
         mock_storage.execute_sql = Mock()
         mock_conn = Mock()
         mock_conn.execute = Mock()

@@ -1,0 +1,8 @@
+CREATE INDEX IF NOT EXISTS {{ index_name | quote }}
+ON {{ table_name | quote }}
+{% if index_type == 'HNSW' %}
+USING HNSW ({{ column_name | quote }})
+WITH (metric = 'cosine')
+{% else %}
+({{ column_name | quote }})
+{% endif %};
