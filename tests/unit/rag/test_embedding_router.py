@@ -405,9 +405,8 @@ async def test_concurrent_requests_under_rate_limits(router):
         single_calls += 1
         if single_calls == 1:
             return httpx.Response(200, json={"embedding": {"values": [0.1] * 768}})
-        else:
-            # Subsequent calls get rate limited
-            return httpx.Response(429, headers={"Retry-After": "0.5"})
+        # Subsequent calls get rate limited
+        return httpx.Response(429, headers={"Retry-After": "0.5"})
 
     single_route = respx.post(f"{GENAI_API_BASE}/{MODEL}:embedContent").mock(side_effect=single_side_effect)
 
