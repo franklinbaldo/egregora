@@ -34,15 +34,6 @@ def create_export_from_fixture(fixture: WhatsAppFixture):
     return fixture.create_export()
 
 
-# Legacy helper placeholder ----------------------------------------------------
-
-
-def extract_and_replace_media(*_args, **_kwargs):  # pragma: no cover - legacy placeholder
-    """Placeholder until legacy media tests are updated to the Document pipeline."""
-    message = "Media extraction tests rely on the legacy pipeline"
-    raise NotImplementedError(message)
-
-
 # =============================================================================
 # ZIP Extraction & Validation Tests
 # =============================================================================
@@ -214,6 +205,52 @@ def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture, mo
 # =============================================================================
 # Media Extraction Tests
 # =============================================================================
+
+
+def test_media_extraction_creates_expected_files(whatsapp_fixture: WhatsAppFixture):
+    """Test that media files are correctly extracted from the ZIP."""
+    from egregora.data_primitives.document import DocumentType
+    from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
+
+    adapter = WhatsAppAdapter()
+
+    # Test extracting an image
+    image_ref = "IMG-20251028-WA0035.jpg"
+    doc = adapter.deliver_media(image_ref, zip_path=whatsapp_fixture.zip_path)
+
+    assert doc is not None
+    assert doc.type == DocumentType.MEDIA
+    assert doc.metadata["original_filename"] == image_ref
+    assert doc.metadata["media_type"] == "image"
+    assert len(doc.content) > 0
+
+    # Test extracting a non-existent file
+    assert adapter.deliver_media("non_existent.jpg", zip_path=whatsapp_fixture.zip_path) is None
+
+
+def test_media_references_replaced_in_messages(
+    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+):
+    """Test that media references in messages are converted to markdown."""
+    from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
+
+    adapter = WhatsAppAdapter()
+    table = adapter.parse(whatsapp_fixture.zip_path, timezone=whatsapp_fixture.timezone)
+
+    # Get all text content
+    messages = table["text"].execute().tolist()
+    combined_text = " ".join(messages)
+
+    # Verify markdown conversion
+    # The fixture contains "IMG-20251028-WA0035.jpg (arquivo anexado)"
+    # It should be converted to "![Image](IMG-20251028-WA0035.jpg)"
+    assert "![Image](IMG-20251028-WA0035.jpg)" in combined_text
+
+    # Verify raw "arquivo anexado" text is removed or replaced
+    # Note: The regex replacement might leave some whitespace, but the marker itself should be gone/replaced
+    # Actually, the utility replaces "filename + marker" with the markdown.
+    # So "IMG...jpg (arquivo anexado)" -> "![Image](IMG...jpg)"
+    assert "(arquivo anexado)" not in combined_text
 
 
 # =============================================================================
