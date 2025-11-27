@@ -41,7 +41,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from egregora.data_primitives.document import Document
-
 from egregora.rag.backend import RAGBackend
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
 from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
