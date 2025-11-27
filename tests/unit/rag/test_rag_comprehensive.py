@@ -520,9 +520,19 @@ def test_backend_query_with_filters(temp_db_dir: Path, mock_embed_fn):
 
     assert len(response.hits) == 2
 
-    # Note: Testing actual filter functionality requires understanding the metadata
-    # storage format in LanceDB. The metadata is stored as JSON string, so filtering
-    # would require JSON path queries which are backend-specific.
+    # Test filtering by document_id (available as a column)
+    # Get one of the document IDs from the results
+    doc_id = response.hits[0].document_id
+
+    # Filter to only that specific document
+    request_filtered = RAGQueryRequest(
+        text="Post", top_k=10, filters=f"document_id = '{doc_id}'"
+    )
+    response_filtered = backend.query(request_filtered)
+
+    # Should only return chunks from that one document
+    assert len(response_filtered.hits) >= 1
+    assert all(hit.document_id == doc_id for hit in response_filtered.hits)
 
 
 # ============================================================================
