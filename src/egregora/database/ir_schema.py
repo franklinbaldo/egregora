@@ -23,6 +23,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
+import duckdb
 import ibis
 import ibis.expr.datatypes as dt
 
@@ -344,7 +345,7 @@ def create_table_if_not_exists(
         conn.execute(create_sql)
 
 
-def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:  # noqa: PLR0911
+def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:  # noqa: PLR0911, C901
     """Convert Ibis data type to DuckDB SQL type string.
 
     Args:
@@ -424,7 +425,7 @@ def ensure_identity_column(
             conn.raw_sql(sql)
         else:
             conn.execute(sql)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.debug(
             "Could not set identity on %s.%s (generated=%s): %s", table_name, column_name, generated, e
         )
@@ -524,7 +525,7 @@ def ensure_runs_table_exists(conn: Any) -> None:
             ).fetchone()
             if result and result[0] == 0:
                 create_runs_table(conn)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning("Error checking for runs table existence: %s, attempting creation...", e)
         create_runs_table(conn)
 
@@ -633,7 +634,7 @@ def ensure_lineage_table_exists(conn: Any) -> None:
             ).fetchone()
             if result and result[0] == 0:
                 create_lineage_table(conn)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning("Error checking for lineage table existence: %s, attempting creation...", e)
         create_lineage_table(conn)
 

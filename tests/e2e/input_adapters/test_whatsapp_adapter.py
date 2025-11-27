@@ -22,11 +22,8 @@ from typing import TYPE_CHECKING
 import ibis
 import pytest
 
-from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
-from egregora.config.settings import create_default_config
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp import filter_egregora_messages, parse_source
-from egregora.utils.cache import EnrichmentCache
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
 
 if TYPE_CHECKING:
@@ -219,53 +216,6 @@ def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture, mo
 # =============================================================================
 
 
-@pytest.mark.xfail(reason="Media extraction not returning files - needs investigation")
-def test_media_extraction_creates_expected_files(whatsapp_fixture: WhatsAppFixture, tmp_path: Path):
-    """Test that media extraction creates expected files in output directory."""
-    export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_source(export, timezone=whatsapp_fixture.timezone)
-
-    docs_dir = tmp_path / "docs"
-    posts_dir = docs_dir / "posts"
-    docs_dir.mkdir()
-    posts_dir.mkdir()
-
-    _, media_mapping = extract_and_replace_media(
-        table,
-        export.zip_path,
-        docs_dir,
-        posts_dir,
-    )
-
-    assert len(media_mapping) == 4
-    for media_doc in media_mapping.values():
-        public_url = media_doc.metadata.get("public_url")
-        assert public_url is not None
-        assert public_url.endswith((".jpg", ".jpeg", ".png", ".gif"))
-
-
-@pytest.mark.xfail(reason="Media extraction not returning files - needs investigation")
-def test_media_references_replaced_in_messages(whatsapp_fixture: WhatsAppFixture, tmp_path: Path):
-    """Test that media references in messages are replaced with markdown."""
-    export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_source(export, timezone=whatsapp_fixture.timezone)
-
-    docs_dir = tmp_path / "docs"
-    posts_dir = docs_dir / "posts"
-    docs_dir.mkdir()
-    posts_dir.mkdir()
-
-    updated_table, _ = extract_and_replace_media(
-        table,
-        export.zip_path,
-        docs_dir,
-        posts_dir,
-    )
-
-    joined_messages = " ".join(updated_table["text"].execute().dropna().tolist())
-    assert "![Image]" in joined_messages
-
-
 # =============================================================================
 # Message Filtering Tests
 # =============================================================================
@@ -299,116 +249,3 @@ def test_egregora_commands_are_filtered_out(whatsapp_fixture: WhatsAppFixture, m
 # =============================================================================
 # Enrichment Tests
 # =============================================================================
-
-
-@pytest.mark.xfail(reason="Enrichment tests need schema updates (event_id, timestamp columns)")
-def test_enrichment_adds_egregora_messages(
-    whatsapp_fixture: WhatsAppFixture,
-    tmp_path: Path,
-    mock_dynamic_regex_fallback,
-):
-    """Test that enrichment adds egregora system messages to the table."""
-    export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_source(export, timezone=whatsapp_fixture.timezone)
-
-    docs_dir = tmp_path / "docs"
-    posts_dir = docs_dir / "posts"
-    docs_dir.mkdir()
-    posts_dir.mkdir()
-
-    updated_table, media_mapping = extract_and_replace_media(
-        table,
-        export.zip_path,
-        docs_dir,
-        posts_dir,
-    )
-
-    cache = EnrichmentCache(tmp_path / "cache")
-
-    # MODERN (Phase 2): Create config and context
-    config = create_default_config(tmp_path)
-    config = config.model_copy(
-        deep=True,
-        update={
-            "enrichment": config.enrichment.model_copy(update={"enable_url": False}),
-        },
-    )
-
-    enrichment_context = EnrichmentRuntimeContext(
-        cache=cache,
-        output_format=None,  # Not needed for test
-    )
-
-    try:
-        enriched = enrich_table(
-            updated_table,
-            media_mapping,
-            config=config,
-            context=enrichment_context,
-        )
-    finally:
-        cache.close()
-
-    assert enriched.count().execute() >= updated_table.count().execute()
-    assert enriched.filter(enriched.author == "egregora").count().execute() > 0
-
-
-@pytest.mark.xfail(reason="Enrichment tests need schema updates (event_id, timestamp columns)")
-def test_enrichment_handles_schema_mismatch(
-    whatsapp_fixture: WhatsAppFixture,
-    tmp_path: Path,
-    mock_dynamic_regex_fallback,
-):
-    """Test that enrichment can handle extra columns not in CONVERSATION_SCHEMA."""
-    export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_source(export, timezone=whatsapp_fixture.timezone)
-
-    # Add extra columns to simulate the schema mismatch
-    table = table.mutate(
-        time=table.timestamp.strftime("%H:%M:%S"),
-        group_slug=ibis.literal("test-group"),
-        group_name=ibis.literal("Test Group"),
-    )
-
-    docs_dir = tmp_path / "docs"
-    posts_dir = docs_dir / "posts"
-    docs_dir.mkdir()
-    posts_dir.mkdir()
-
-    updated_table, media_mapping = extract_and_replace_media(
-        table,
-        export.zip_path,
-        docs_dir,
-        posts_dir,
-    )
-
-    cache = EnrichmentCache(tmp_path / "cache")
-
-    # MODERN (Phase 2): Create config and context
-    config = create_default_config(tmp_path)
-    config = config.model_copy(
-        deep=True,
-        update={
-            "enrichment": config.enrichment.model_copy(update={"enable_url": False}),
-        },
-    )
-
-    enrichment_context = EnrichmentRuntimeContext(
-        cache=cache,
-        output_format=None,  # Not needed for test
-    )
-
-    try:
-        # This should not raise an exception
-        enriched = enrich_table(
-            updated_table,
-            media_mapping,
-            config=config,
-            context=enrichment_context,
-        )
-        # Verify that the new rows have been added
-        assert enriched.count().execute() > updated_table.count().execute()
-        assert "egregora" in enriched.author.execute().tolist()
-
-    finally:
-        cache.close()

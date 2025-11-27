@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 import ibis
@@ -111,7 +112,6 @@ class PipelineFactory:
             rag_store=rag_store,
             annotations_store=annotations_store,
             quota_tracker=quota_tracker,
-            rate_limit=None,
             usage_tracker=UsageTracker(),
         )
 
@@ -213,7 +213,7 @@ class PipelineFactory:
         *,
         site_root: Path | None = None,
         url_context: UrlContext | None = None,
-    ):
+    ) -> Any:
         """Create and initialize the output adapter for the pipeline."""
         resolved_output = output_dir.expanduser().resolve()
         site_paths = derive_mkdocs_paths(resolved_output, config=config)
@@ -259,7 +259,6 @@ class PipelineFactory:
             client=ctx.client,
             quota=ctx.quota_tracker,
             usage=ctx.usage_tracker,
-            rate_limit=ctx.rate_limit,
         )
 
     @staticmethod

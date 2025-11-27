@@ -438,6 +438,7 @@ class MkDocsAdapter(OutputAdapter):
             (media_dir / "index.md", "docs/media/index.md.jinja"),
             (posts_dir / "index.md", "docs/posts/index.md.jinja"),
             (posts_dir / "tags.md", "docs/posts/tags.md.jinja"),
+            (site_root / "main.py", "main.py.jinja"),
         ]
 
         # Add custom CSS (not a Jinja template, just copy)
@@ -1143,14 +1144,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         ]
 
         # Add enriched authors data
-        authors_data = self._get_profiles_data()
-        post_authors = []
-        if "authors" in metadata:
-            for author_id in metadata["authors"]:
-                author_data = next((author for author in authors_data if author["uuid"] == author_id), None)
-                if author_data:
-                    post_authors.append(author_data)
-        metadata["authors_data"] = post_authors
 
         yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"

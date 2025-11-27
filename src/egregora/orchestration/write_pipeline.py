@@ -569,7 +569,6 @@ def _perform_enrichment(
         output_format=ctx.output_format,
         site_root=ctx.site_root,
         quota=ctx.quota_tracker,
-        rate_limit=ctx.rate_limit,
         usage_tracker=ctx.usage_tracker,
     )
     return enrich_table(
@@ -760,7 +759,6 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         rag_store=rag_store,
         annotations_store=annotations_store,
         quota_tracker=quota_tracker,
-        rate_limit=None,
         usage_tracker=UsageTracker(),
     )
 
