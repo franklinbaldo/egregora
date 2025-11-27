@@ -44,6 +44,7 @@ def test_lancedb_backend_initialization(temp_db_dir: Path, mock_embed_fn):
     assert backend._table_name == "test_embeddings"
 
 
+@pytest.mark.asyncio
 async def test_lancedb_backend_index_documents(temp_db_dir: Path, mock_embed_fn):
     """Test indexing documents into LanceDB."""
     backend = LanceDBRAGBackend(
@@ -70,6 +71,7 @@ async def test_lancedb_backend_index_documents(temp_db_dir: Path, mock_embed_fn)
     await backend.index_documents(docs)
 
 
+@pytest.mark.asyncio
 async def test_lancedb_backend_query(temp_db_dir: Path, mock_embed_fn):
     """Test querying the LanceDB backend."""
     backend = LanceDBRAGBackend(
@@ -108,6 +110,7 @@ async def test_lancedb_backend_query(temp_db_dir: Path, mock_embed_fn):
     assert all(hit.text for hit in response.hits)
 
 
+@pytest.mark.asyncio
 async def test_lancedb_backend_empty_query(temp_db_dir: Path, mock_embed_fn):
     """Test querying an empty database."""
     backend = LanceDBRAGBackend(
@@ -125,6 +128,7 @@ async def test_lancedb_backend_empty_query(temp_db_dir: Path, mock_embed_fn):
     assert len(response.hits) == 0
 
 
+@pytest.mark.asyncio
 async def test_lancedb_backend_index_binary_content(temp_db_dir: Path, mock_embed_fn):
     """Test that binary content is skipped during indexing."""
     backend = LanceDBRAGBackend(
