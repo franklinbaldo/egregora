@@ -52,10 +52,10 @@ import logging
 from collections.abc import Sequence
 from pathlib import Path
 
-from egregora.agents.shared.rag.embedder import embed_texts_in_batch
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.rag.backend import RAGBackend
+from egregora.rag.embeddings import embed_texts_in_batch
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
 from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
 
