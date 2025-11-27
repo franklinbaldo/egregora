@@ -109,7 +109,10 @@ class ModelSettings(BaseModel):
 
 
 class RAGSettings(BaseModel):
-    """Retrieval-Augmented Generation (RAG) configuration."""
+    """Retrieval-Augmented Generation (RAG) configuration.
+
+    Uses LanceDB for vector storage and similarity search.
+    """
 
     enabled: bool = Field(
         default=True,
@@ -127,21 +130,9 @@ class RAGSettings(BaseModel):
         le=1.0,
         description="Minimum similarity threshold for results",
     )
-    mode: Literal["ann", "exact"] = Field(
-        default="ann",
-        description="Retrieval mode: 'ann' (fast, approximate) or 'exact' (slow, precise)",
-    )
-    nprobe: int | None = Field(
-        default=None,
-        ge=1,
-        le=100,
-        description="ANN search quality parameter (higher = better quality, slower)",
-    )
-    overfetch: int | None = Field(
-        default=None,
-        ge=1,
-        le=100,
-        description="Overfetch multiplier for ANN candidate pool",
+    indexable_types: list[str] = Field(
+        default=["POST"],
+        description="Document types to index in RAG (e.g., ['POST', 'NOTE'])",
     )
 
 
@@ -275,7 +266,11 @@ class PathsSettings(BaseModel):
     )
     rag_dir: str = Field(
         default=".egregora/rag",
-        description="RAG database and embeddings storage",
+        description="RAG database and embeddings storage (DuckDB backend)",
+    )
+    lancedb_dir: str = Field(
+        default=".egregora/lancedb",
+        description="LanceDB vector database directory (LanceDB backend)",
     )
     cache_dir: str = Field(
         default=".egregora/.cache",
