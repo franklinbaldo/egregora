@@ -3,9 +3,6 @@ name: Auto-format and lint
 on:
   pull_request:
     branches: [main]
-  push:
-    branches-ignore:
-      - 'main'
 
 permissions:
   contents: write
