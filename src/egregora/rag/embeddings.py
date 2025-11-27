@@ -218,9 +218,7 @@ def embed_texts_in_batch(
     # Fast path: single batch
     if len(texts) <= MAX_BATCH_SIZE:
         logger.info("Embedding %d text(s) with model %s", len(texts), model)
-        return _embed_batch_chunk(
-            texts, model=model, task_type=task_type, api_key=api_key, timeout=timeout
-        )
+        return _embed_batch_chunk(texts, model=model, task_type=task_type, api_key=api_key, timeout=timeout)
 
     # Chunked path: multiple batches for large inputs
     logger.info(
@@ -232,7 +230,9 @@ def embed_texts_in_batch(
     all_embeddings: list[list[float]] = []
     for i in range(0, len(texts), MAX_BATCH_SIZE):
         chunk = texts[i : i + MAX_BATCH_SIZE]
-        logger.debug("Processing batch %d/%d", i // MAX_BATCH_SIZE + 1, (len(texts) - 1) // MAX_BATCH_SIZE + 1)
+        logger.debug(
+            "Processing batch %d/%d", i // MAX_BATCH_SIZE + 1, (len(texts) - 1) // MAX_BATCH_SIZE + 1
+        )
         embeddings = _embed_batch_chunk(
             chunk, model=model, task_type=task_type, api_key=api_key, timeout=timeout
         )
