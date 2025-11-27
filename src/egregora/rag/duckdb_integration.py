@@ -63,19 +63,22 @@ def search_to_table(request: RAGQueryRequest) -> ir.Table:
 
         records.append(record)
 
-    # Create Ibis table from records
+    # Create Ibis table from records (no Pandas, direct from list-of-dicts)
     if not records:
         # Return empty table with expected schema
-        import pandas as pd
+        # Ibis memtable accepts list of dicts directly
+        empty_record = {
+            "chunk_id": "",
+            "text": "",
+            "score": 0.0,
+            "document_id": "",
+            "document_type": "",
+            "slug": "",
+        }
+        return ibis.memtable([empty_record]).limit(0)
 
-        empty_df = pd.DataFrame(columns=["chunk_id", "text", "score", "document_id", "document_type", "slug"])
-        return ibis.memtable(empty_df)
-
-    # Create table from records
-    import pandas as pd
-
-    df = pd.DataFrame(records)
-    return ibis.memtable(df)
+    # Create table from records (Ibis memtable accepts list-of-dicts natively)
+    return ibis.memtable(records)
 
 
 def join_with_messages(
@@ -139,9 +142,9 @@ def create_rag_analytics_view(storage_manager, rag_query: str, top_k: int = 100)
 
     # Register as a DuckDB table for querying
     with storage_manager.connection() as conn:
-        # Convert to pandas for DuckDB registration
-        df = rag_table.execute()
-        conn.register("rag_search_results", df)
+        # Use Arrow for zero-copy registration (no Pandas)
+        arrow_table = rag_table.to_pyarrow()
+        conn.register("rag_search_results", arrow_table)
 
         # Create view combining RAG results with analytics
         view_sql = """
