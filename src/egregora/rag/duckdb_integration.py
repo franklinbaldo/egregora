@@ -68,9 +68,7 @@ def search_to_table(request: RAGQueryRequest) -> ir.Table:
         # Return empty table with expected schema
         import pandas as pd
 
-        empty_df = pd.DataFrame(
-            columns=["chunk_id", "text", "score", "document_id", "document_type", "slug"]
-        )
+        empty_df = pd.DataFrame(columns=["chunk_id", "text", "score", "document_id", "document_type", "slug"])
         return ibis.memtable(empty_df)
 
     # Create table from records
