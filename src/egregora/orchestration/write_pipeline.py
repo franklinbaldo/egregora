@@ -35,6 +35,7 @@ from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
 from egregora.agents.model_limits import get_model_context_limit
 from egregora.agents.shared.annotations import AnnotationStore
+
 # VectorStore removed - using new egregora.rag API
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config

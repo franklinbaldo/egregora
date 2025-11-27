@@ -200,7 +200,7 @@ class WriterDeps:
 # ============================================================================
 
 
-def register_writer_tools(  # noqa: C901
+def register_writer_tools(
     agent: Agent[WriterDeps, WriterAgentReturn],
     *,
     enable_banner: bool = False,
@@ -311,16 +311,16 @@ class RagContext:
 
 
 def build_rag_context_for_prompt(  # noqa: PLR0913
-    table_markdown: str,  # noqa: ARG001
-    store: Any = None,  # noqa: ARG001
-    client: Any = None,  # noqa: ARG001
+    table_markdown: str,
+    store: Any = None,
+    client: Any = None,
     *,
-    embedding_model: str = "",  # noqa: ARG001
-    retrieval_mode: str = "ann",  # noqa: ARG001
-    retrieval_nprobe: int | None = None,  # noqa: ARG001
-    retrieval_overfetch: int | None = None,  # noqa: ARG001
-    top_k: int = 5,  # noqa: ARG001
-    cache: Any | None = None,  # noqa: ARG001
+    embedding_model: str = "",
+    retrieval_mode: str = "ann",
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
+    top_k: int = 5,
+    cache: Any | None = None,
 ) -> str:
     """Build RAG context - currently disabled, will be reimplemented with new RAG API.
 
@@ -714,7 +714,9 @@ def write_posts_with_pydantic_agent(
     model_name = test_model if test_model is not None else config.models.writer
     agent = Agent[WriterDeps, WriterAgentReturn](model=model_name, deps_type=WriterDeps)
     register_writer_tools(
-        agent, enable_banner=is_banner_generation_available(), enable_rag=False  # RAG disabled temporarily
+        agent,
+        enable_banner=is_banner_generation_available(),
+        enable_rag=False,  # RAG disabled temporarily
     )
 
     _validate_prompt_fits(prompt, model_name, config, context.window_label)
@@ -823,9 +825,9 @@ def _check_writer_cache(
 
 
 def _index_new_content_in_rag(
-    resources: WriterResources,  # noqa: ARG001
-    saved_posts: list[str],  # noqa: ARG001
-    saved_profiles: list[str],  # noqa: ARG001
+    resources: WriterResources,
+    saved_posts: list[str],
+    saved_profiles: list[str],
 ) -> None:
     """Index newly created content in RAG system.
 

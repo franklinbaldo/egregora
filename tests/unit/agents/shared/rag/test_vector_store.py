@@ -5,7 +5,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-
 from egregora.agents.shared.rag.store import VectorStore
 
 
