@@ -251,15 +251,17 @@ async def _run_url_enrichment_async(
 ) -> EnrichmentOutput:
     """Run URL enrichment asynchronously."""
     url_str = str(url)
-    sanitized_url = _sanitize_prompt_input(url_str, max_length=2000)
-
-    deps = UrlEnrichmentDeps(url=url_str, prompts_dir=prompts_dir)
-    # Note: Prompt construction logic preserved from runners.py run_url_enrichment
-    prompt = (
-        "Fetch and summarize the content at this URL. Include the main topic, key points, and any important metadata "
-        "(author, date, etc.).\n\nURL: {sanitized_url}"
+    sanitized_url_raw = _sanitize_prompt_input(url_str, max_length=2000)
+    sanitized_url = "\n".join(
+        line.strip() for line in sanitized_url_raw.splitlines() if line.strip()
     )
-    prompt = prompt.format(sanitized_url=sanitized_url)
+
+    deps = UrlEnrichmentDeps(url=sanitized_url, prompts_dir=prompts_dir)
+    prompt = render_prompt(
+        "enrichment_url.jinja",
+        prompts_dir=prompts_dir,
+        sanitized_url=sanitized_url,
+    )
 
     async def call() -> AgentRunResult[EnrichmentOutput]:
         return await agent.run(prompt, deps=deps)
@@ -286,12 +288,22 @@ async def _run_media_enrichment_async(  # noqa: PLR0913
         msg = "Either binary_content or file_path must be provided."
         raise ValueError(msg)
 
-    deps = MediaEnrichmentDeps(prompts_dir=prompts_dir)
-    desc = "Describe this media file in 2-3 sentences, highlighting what a reader would learn by viewing it."
-    sanitized_filename = _sanitize_prompt_input(filename, max_length=255)
-    sanitized_mime = _sanitize_prompt_input(mime_hint, max_length=50) if mime_hint else None
-    hint_text = f" ({sanitized_mime})" if sanitized_mime else ""
-    prompt = f"{desc}\nFILE: {sanitized_filename}{hint_text}"
+    sanitized_filename_raw = _sanitize_prompt_input(filename, max_length=255)
+    sanitized_filename = sanitized_filename_raw.replace("\\", "").strip()
+    sanitized_mime = (
+        _sanitize_prompt_input(mime_hint, max_length=50).strip() if mime_hint else None
+    )
+    deps = MediaEnrichmentDeps(
+        prompts_dir=prompts_dir,
+        media_filename=sanitized_filename,
+        media_type=sanitized_mime,
+    )
+    prompt = render_prompt(
+        "enrichment_media.jinja",
+        prompts_dir=prompts_dir,
+        sanitized_filename=sanitized_filename,
+        sanitized_mime=sanitized_mime,
+    )
 
     payload = binary_content or load_file_as_binary_content(file_path)
     message_content = [prompt, payload]
