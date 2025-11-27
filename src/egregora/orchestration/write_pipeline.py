@@ -563,7 +563,9 @@ def _perform_enrichment(
     return enrich_table(
         window_table,
         media_mapping,
-        ctx.config,
+        ctx.config.models,
+        ctx.config.enrichment,
+        ctx.config.quota,
         enrichment_context,
     )
 

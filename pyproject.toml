@@ -33,6 +33,10 @@ dependencies = [
     "langchain-core>=0.2.0",
     "tiktoken>=0.12.0",
     "lancedb>=0.4.0",  # Vector database for RAG
+    "mkdocs>=1.6",
+    "mkdocs-material[imaging]>=9.5",
+    "mkdocs-macros-plugin>=1.0.0",
+    "mkdocs-rss-plugin>=1.15",
 ]
 
 [project.optional-dependencies]
