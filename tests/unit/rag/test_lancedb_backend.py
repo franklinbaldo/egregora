@@ -37,7 +37,6 @@ def test_lancedb_backend_initialization(temp_db_dir: Path, mock_embed_fn):
         db_dir=temp_db_dir,
         table_name="test_embeddings",
         embed_fn=mock_embed_fn,
-        top_k_default=5,
     )
 
     assert backend is not None
@@ -51,7 +50,6 @@ def test_lancedb_backend_index_documents(temp_db_dir: Path, mock_embed_fn):
         db_dir=temp_db_dir,
         table_name="test_embeddings",
         embed_fn=mock_embed_fn,
-        top_k_default=5,
     )
 
     # Create test documents
@@ -78,7 +76,6 @@ def test_lancedb_backend_query(temp_db_dir: Path, mock_embed_fn):
         db_dir=temp_db_dir,
         table_name="test_embeddings",
         embed_fn=mock_embed_fn,
-        top_k_default=5,
     )
 
     # Create and index test documents
@@ -117,7 +114,6 @@ def test_lancedb_backend_empty_query(temp_db_dir: Path, mock_embed_fn):
         db_dir=temp_db_dir,
         table_name="test_embeddings",
         embed_fn=mock_embed_fn,
-        top_k_default=5,
     )
 
     # Query without indexing anything
@@ -135,7 +131,6 @@ def test_lancedb_backend_index_binary_content(temp_db_dir: Path, mock_embed_fn):
         db_dir=temp_db_dir,
         table_name="test_embeddings",
         embed_fn=mock_embed_fn,
-        top_k_default=5,
     )
 
     # Create document with binary content
