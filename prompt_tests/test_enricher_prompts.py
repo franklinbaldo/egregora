@@ -1,10 +1,8 @@
-from dataclasses import dataclass
+import asyncio
 import sys
 import types
+from dataclasses import dataclass
 from pathlib import Path
-import asyncio
-
-import pytest
 
 sys.modules.pop("ibis", None)
 sys.modules.pop("ibis.expr", None)
@@ -79,14 +77,14 @@ dt_mod = types.ModuleType("ibis.expr.datatypes")
 
 
 class _StubDataType:
-    def __init__(self, name: str | None = None, *args, **kwargs):
+    def __init__(self, name: str | None = None, *args, **kwargs) -> None:
         self.name = name
         self.args = args
         self.kwargs = kwargs
 
 
 class _StubTimestamp(_StubDataType):
-    def __init__(self, timezone=None, scale=None, nullable=False):
+    def __init__(self, timezone=None, scale=None, nullable=False) -> None:
         super().__init__(timezone=timezone, scale=scale, nullable=nullable)
         self.timezone = timezone
         self.scale = scale
@@ -94,19 +92,19 @@ class _StubTimestamp(_StubDataType):
 
 
 class _StubString(_StubDataType):
-    def __init__(self, nullable=False):
+    def __init__(self, nullable=False) -> None:
         super().__init__(nullable=nullable)
         self.nullable = nullable
 
 
 class _StubJSON(_StubDataType):
-    def __init__(self, nullable=False):
+    def __init__(self, nullable=False) -> None:
         super().__init__(nullable=nullable)
         self.nullable = nullable
 
 
 class _StubUUID(_StubDataType):
-    def __init__(self, nullable=False):
+    def __init__(self, nullable=False) -> None:
         super().__init__(nullable=nullable)
         self.nullable = nullable
 
@@ -229,7 +227,7 @@ class _FakeAgent:
         return _FakeResult(" some content \n")
 
 
-def test_run_url_enrichment_builds_prompt_with_sanitized_context(tmp_path: Path):
+def test_run_url_enrichment_builds_prompt_with_sanitized_context(tmp_path: Path) -> None:
     prompts_dir = tmp_path / "prompts"
     prompts_dir.mkdir()
     (prompts_dir / "enrichment_url.jinja").write_text("URL: {{ sanitized_url }}", encoding="utf-8")
@@ -249,7 +247,7 @@ def test_run_url_enrichment_builds_prompt_with_sanitized_context(tmp_path: Path)
     assert usage == {"input_tokens": 1}
 
 
-def test_run_media_enrichment_passes_sanitized_metadata(tmp_path: Path):
+def test_run_media_enrichment_passes_sanitized_metadata(tmp_path: Path) -> None:
     prompts_dir = tmp_path / "prompts"
     prompts_dir.mkdir()
     (prompts_dir / "enrichment_media.jinja").write_text(

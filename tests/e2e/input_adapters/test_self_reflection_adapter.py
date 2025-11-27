@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from egregora.input_adapters.self_reflection import SelfInputAdapter
-from egregora.output_adapters import create_output_format
+from egregora.output_adapters import create_default_output_registry, create_output_format
 
 
 def _write_markdown(path: Path, title: str, slug: str, body: str) -> None:
@@ -29,7 +29,8 @@ summary: test summary
 
 def test_self_adapter_parses_existing_site(tmp_path: Path):
     adapter = SelfInputAdapter()
-    output_format = create_output_format(tmp_path, format_type="mkdocs")
+    registry = create_default_output_registry()
+    output_format = create_output_format(tmp_path, format_type="mkdocs", registry=registry)
     _mkdocs_path, created = output_format.scaffold_site(tmp_path, site_name="Self Test")
     assert created
 

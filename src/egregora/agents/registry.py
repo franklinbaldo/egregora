@@ -289,13 +289,13 @@ class ToolRegistry:
                 allow = profile.get("allow", []) or []
                 deny = profile.get("deny", []) or []
 
-                if not isinstance(allow, (list, tuple)):
+                if not isinstance(allow, list | tuple):
                     msg = (
                         f"'allow' list for profile '{name}' in {profiles_path} must be a sequence of strings, "
                         f"got {type(allow).__name__}"
                     )
                     raise ToolRegistryError(msg)
-                if not isinstance(deny, (list, tuple)):
+                if not isinstance(deny, list | tuple):
                     msg = (
                         f"'deny' list for profile '{name}' in {profiles_path} must be a sequence of strings, "
                         f"got {type(deny).__name__}"

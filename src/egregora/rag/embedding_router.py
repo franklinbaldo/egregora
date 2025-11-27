@@ -13,6 +13,7 @@ Architecture:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from collections.abc import Sequence
@@ -134,10 +135,8 @@ class EndpointQueue:
         """Stop background worker."""
         if self.worker_task and not self.worker_task.done():
             self.worker_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.worker_task
-            except asyncio.CancelledError:
-                pass
             logger.info("Stopped %s endpoint worker", self.endpoint_type.value)
 
     async def submit(self, texts: list[str], task_type: str) -> list[list[float]]:
@@ -338,7 +337,7 @@ class EmbeddingRouter:
         api_key: str | None = None,
         max_batch_size: int = 100,
         timeout: float = 60.0,
-    ):
+    ) -> None:
         """Initialize router with dual queues.
 
         Args:

@@ -258,7 +258,7 @@ def register_writer_tools(
 
             """
             try:
-                from egregora.rag import RAGQueryRequest, search  # noqa: PLC0415
+                from egregora.rag import RAGQueryRequest, search
 
                 # Execute RAG search
                 request = RAGQueryRequest(text=query, top_k=top_k)
@@ -387,7 +387,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
         return ""
 
     try:
-        from egregora.rag import RAGQueryRequest, search  # noqa: PLC0415
+        from egregora.rag import RAGQueryRequest, search
 
         # Use conversation content as search query (truncate if too long)
         query_text = table_markdown[:500]  # Use first 500 chars as query
@@ -401,7 +401,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
                 return cached
 
         # Execute RAG search
-        import asyncio  # noqa: PLC0415
+        import asyncio
 
         request = RAGQueryRequest(text=query_text, top_k=top_k)
         response = asyncio.run(search(request))
@@ -953,8 +953,8 @@ def _index_new_content_in_rag(
         return
 
     try:
-        from egregora.data_primitives.document import DocumentType  # noqa: PLC0415
-        from egregora.rag import index_documents  # noqa: PLC0415
+        from egregora.data_primitives.document import DocumentType
+        from egregora.rag import index_documents
 
         # Read the newly saved post documents
         docs: list[Document] = []
@@ -969,7 +969,7 @@ def _index_new_content_in_rag(
                         break
 
         if docs:
-            import asyncio  # noqa: PLC0415
+            import asyncio
 
             asyncio.run(index_documents(docs))
             logger.info("Indexed %d new posts in RAG", len(docs))

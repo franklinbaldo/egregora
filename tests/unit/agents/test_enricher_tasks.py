@@ -11,7 +11,8 @@ def test_extract_url_candidates_short_circuits_when_limit_not_positive(monkeypat
     """URL extraction should avoid scanning tables when no enrichments are allowed."""
 
     def _fail_iter(*_args, **_kwargs):
-        raise AssertionError("_iter_table_batches should not be called when limit <= 0")
+        msg = "_iter_table_batches should not be called when limit <= 0"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(enricher, "_iter_table_batches", _fail_iter)
 
