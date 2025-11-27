@@ -316,7 +316,6 @@ class OutputAdapterRegistry:
 
 def create_output_registry() -> OutputAdapterRegistry:
     """Create a fresh output adapter registry."""
-
     return OutputAdapterRegistry()
 
 
@@ -327,7 +326,6 @@ def create_output_format(
     registry: OutputAdapterRegistry | None = None,
 ) -> OutputAdapter:
     """Create and initialize an OutputAdapter based on configuration."""
-
     if registry is None:
         msg = "An OutputAdapterRegistry instance must be provided to create output formats."
         raise ValueError(msg)

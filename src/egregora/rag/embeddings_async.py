@@ -15,9 +15,9 @@ Key features:
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
-from typing import Annotated, Awaitable
+from typing import Annotated
 
 from egregora.config import get_google_api_key
 from egregora.config.settings import EgregoraConfig, load_egregora_config

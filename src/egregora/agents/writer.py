@@ -1074,11 +1074,8 @@ def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
     return result_payload
 
 
-def load_format_instructions(
-    site_root: Path | None, *, registry: OutputAdapterRegistry | None = None
-) -> str:
+def load_format_instructions(site_root: Path | None, *, registry: OutputAdapterRegistry | None = None) -> str:
     """Load output format instructions for the writer agent."""
-
     registry = registry or create_default_output_registry()
 
     if site_root:

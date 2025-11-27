@@ -229,7 +229,6 @@ class PipelineContext:
     @property
     def output_registry(self) -> OutputAdapterRegistry | None:
         """Return the output adapter registry."""
-
         return self.state.output_registry
 
     @property
