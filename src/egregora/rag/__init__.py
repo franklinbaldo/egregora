@@ -1,12 +1,18 @@
 r"""RAG (Retrieval-Augmented Generation) package for Egregora.
 
-This package provides a simple RAG implementation using LanceDB for vector storage.
+This package provides a simple RAG implementation using LanceDB for vector storage,
+with DuckDB integration for SQL-based analytics and filtering.
 
 Public API:
     - get_backend(): Get the configured LanceDB RAG backend
     - index_documents(): Index documents into RAG
     - search(): Execute vector similarity search
     - RAGHit, RAGQueryRequest, RAGQueryResponse: Core data models
+
+DuckDB Integration:
+    - search_to_table(): Convert RAG results to Ibis/DuckDB table
+    - join_with_messages(): Join RAG results with message data
+    - search_with_filters(): Vector search with SQL filtering
 
 Configuration:
     Set paths in .egregora/config.yml:
@@ -31,6 +37,12 @@ Example:
     >>> response = search(request)
     >>> for hit in response.hits:
     ...     print(f"{hit.score:.2f}: {hit.text[:50]}")
+    >>>
+    >>> # DuckDB integration - query results as SQL table
+    >>> from egregora.rag.duckdb_integration import search_to_table
+    >>> table = search_to_table(RAGQueryRequest(text="query", top_k=10))
+    >>> high_scores = table.filter(table.score > 0.8)
+    >>> print(high_scores.execute())
 
 """
 
@@ -177,4 +189,5 @@ __all__ = [
     "get_backend",
     "index_documents",
     "search",
+    # DuckDB integration (import from duckdb_integration module)
 ]
