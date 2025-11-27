@@ -86,9 +86,7 @@ class WhatsAppProcessOptions:
     gemini_api_key: str | None = None
     model: str | None = None
     batch_threshold: int = 10
-    retrieval_mode: str = "ann"
-    retrieval_nprobe: int | None = None
-    retrieval_overfetch: int | None = None
+    # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch removed (legacy DuckDB VSS settings)
     max_prompt_tokens: int = 100_000
     use_full_context_window: bool = False
     client: genai.Client | None = None
@@ -137,19 +135,9 @@ def process_whatsapp_export(
                 }
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": opts.enable_enrichment}),
-            "rag": base_config.rag.model_copy(
-                update={
-                    "mode": opts.retrieval_mode,
-                    "nprobe": (
-                        opts.retrieval_nprobe if opts.retrieval_nprobe is not None else base_config.rag.nprobe
-                    ),
-                    "overfetch": (
-                        opts.retrieval_overfetch
-                        if opts.retrieval_overfetch is not None
-                        else base_config.rag.overfetch
-                    ),
-                }
-            ),
+            # RAG settings: no runtime overrides needed (uses config from .egregora/config.yml)
+            # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch were legacy DuckDB VSS settings
+            "rag": base_config.rag,
             **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
         },
     )

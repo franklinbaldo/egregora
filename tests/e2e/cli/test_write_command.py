@@ -335,8 +335,7 @@ class TestWriteCommandWithMocks:
                 "100",  # Process all messages in one window
                 "--step-unit",
                 "messages",
-                "--retrieval-mode",
-                "exact",  # Avoid VSS extension dependency
+                # Note: --retrieval-mode removed (legacy DuckDB VSS setting)
                 "--no-enable-enrichment",  # Faster test
                 "--max-windows",
                 "1",  # Just process one window
@@ -483,8 +482,7 @@ class TestWriteCommandEdgeCases:
                 "2025-10-31",
                 "--timezone",
                 "America/Sao_Paulo",
-                "--retrieval-mode",
-                "exact",
+                # Note: --retrieval-mode removed (legacy DuckDB VSS setting)
                 "--max-prompt-tokens",
                 "50000",
             ],
