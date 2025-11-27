@@ -117,6 +117,7 @@ class EndpointQueue:
 
     endpoint_type: EndpointType
     rate_limiter: RateLimiter
+    model: str  # Google model name (e.g., "models/gemini-embedding-001")
     queue: asyncio.Queue[EmbeddingRequest] = field(default_factory=asyncio.Queue)
     worker_task: asyncio.Task[None] | None = None
     max_batch_size: int = 100
@@ -248,12 +249,12 @@ class EndpointQueue:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             for text in texts:
                 payload: dict[str, Any] = {
-                    "model": "models/text-embedding-004",  # TODO: Make configurable
+                    "model": self.model,
                     "content": {"parts": [{"text": text}]},
                     "outputDimensionality": EMBEDDING_DIM,
                     "taskType": task_type,
                 }
-                url = f"{GENAI_API_BASE}/models/text-embedding-004:embedContent"
+                url = f"{GENAI_API_BASE}/{self.model}:embedContent"
 
                 try:
                     response = await client.post(url, params={"key": self.api_key}, json=payload)
@@ -282,7 +283,7 @@ class EndpointQueue:
         requests_payload = []
         for text in texts:
             req: dict[str, Any] = {
-                "model": "models/text-embedding-004",  # TODO: Make configurable
+                "model": self.model,
                 "content": {"parts": [{"text": text}]},
                 "outputDimensionality": EMBEDDING_DIM,
                 "taskType": task_type,
@@ -290,7 +291,7 @@ class EndpointQueue:
             requests_payload.append(req)
 
         payload = {"requests": requests_payload}
-        url = f"{GENAI_API_BASE}/models/text-embedding-004:batchEmbedContents"
+        url = f"{GENAI_API_BASE}/{self.model}:batchEmbedContents"
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
@@ -333,6 +334,7 @@ class EmbeddingRouter:
     def __init__(
         self,
         *,
+        model: str,
         api_key: str | None = None,
         max_batch_size: int = 100,
         timeout: float = 60.0,
@@ -340,6 +342,7 @@ class EmbeddingRouter:
         """Initialize router with dual queues.
 
         Args:
+            model: Google embedding model (e.g., "models/gemini-embedding-001")
             api_key: Google API key (defaults to GOOGLE_API_KEY env var)
             max_batch_size: Maximum texts per batch request
             timeout: HTTP timeout in seconds
@@ -355,6 +358,7 @@ class EmbeddingRouter:
         self.batch_queue = EndpointQueue(
             endpoint_type=EndpointType.BATCH,
             rate_limiter=self.batch_limiter,
+            model=model,
             max_batch_size=max_batch_size,
             api_key=effective_api_key,
             timeout=timeout,
@@ -362,6 +366,7 @@ class EmbeddingRouter:
         self.single_queue = EndpointQueue(
             endpoint_type=EndpointType.SINGLE,
             rate_limiter=self.single_limiter,
+            model=model,
             max_batch_size=1,
             api_key=effective_api_key,
             timeout=timeout,
@@ -436,6 +441,7 @@ _router_lock = asyncio.Lock()
 
 async def get_router(
     *,
+    model: str,
     api_key: str | None = None,
     max_batch_size: int = 100,
     timeout: float = 60.0,
@@ -443,6 +449,7 @@ async def get_router(
     """Get or create global embedding router singleton.
 
     Args:
+        model: Google embedding model (e.g., "models/gemini-embedding-001")
         api_key: Google API key (defaults to GOOGLE_API_KEY env var)
         max_batch_size: Maximum texts per batch request
         timeout: HTTP timeout in seconds
@@ -455,6 +462,7 @@ async def get_router(
     async with _router_lock:
         if _router is None:
             _router = EmbeddingRouter(
+                model=model,
                 api_key=api_key,
                 max_batch_size=max_batch_size,
                 timeout=timeout,

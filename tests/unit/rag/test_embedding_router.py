@@ -31,11 +31,6 @@ from egregora.rag.embedding_router import (
 _model_settings = ModelSettings()
 MODEL = _model_settings.embedding  # "models/gemini-embedding-001"
 
-# Note: Currently embedding_router.py hardcodes "models/text-embedding-004"
-# This is tracked with TODO comments in the router code
-# For tests, we use the hardcoded value to match actual behavior
-MODEL = "models/text-embedding-004"  # TODO: Use settings once router is updated
-
 # Default settings from config
 _rag_settings = RAGSettings()
 DEFAULT_MAX_BATCH_SIZE = _rag_settings.embedding_max_batch_size  # 100
@@ -57,10 +52,13 @@ def mock_api_key():
 async def router(mock_api_key):
     """Create router and clean up after test.
 
+    Uses configured embedding model from settings.
     Uses small batch size (3) for testing batch accumulation behavior.
     Uses short timeout (10s) for faster test execution.
     """
-    r = EmbeddingRouter(api_key=mock_api_key, max_batch_size=TEST_BATCH_SIZE, timeout=TEST_TIMEOUT)
+    r = EmbeddingRouter(
+        model=MODEL, api_key=mock_api_key, max_batch_size=TEST_BATCH_SIZE, timeout=TEST_TIMEOUT
+    )
     await r.start()
     yield r
     await r.stop()
@@ -254,6 +252,7 @@ async def test_endpoint_queue_processes_single_request(mock_api_key):
     queue = EndpointQueue(
         endpoint_type=EndpointType.SINGLE,
         rate_limiter=limiter,
+        model=MODEL,
         api_key=mock_api_key,
         timeout=TEST_TIMEOUT,
     )
@@ -284,6 +283,7 @@ async def test_endpoint_queue_batches_multiple_requests(mock_api_key):
     queue = EndpointQueue(
         endpoint_type=EndpointType.BATCH,
         rate_limiter=limiter,
+        model=MODEL,
         max_batch_size=TEST_BATCH_SIZE,  # Use small batch to test accumulation
         api_key=mock_api_key,
         timeout=TEST_TIMEOUT,
@@ -329,6 +329,7 @@ async def test_endpoint_queue_handles_api_error(mock_api_key):
     queue = EndpointQueue(
         endpoint_type=EndpointType.SINGLE,
         rate_limiter=limiter,
+        model=MODEL,
         api_key=mock_api_key,
         timeout=TEST_TIMEOUT,
     )

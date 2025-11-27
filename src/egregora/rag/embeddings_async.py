@@ -56,9 +56,11 @@ async def embed_texts_async(
     # Load config for router settings
     config = load_config()
     rag_settings = config.rag
+    embedding_model = config.models.embedding
 
     # Get or create router
     router = await get_router(
+        model=embedding_model,
         api_key=api_key,
         max_batch_size=rag_settings.embedding_max_batch_size,
         timeout=rag_settings.embedding_timeout,
