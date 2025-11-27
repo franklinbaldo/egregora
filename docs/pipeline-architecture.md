@@ -510,7 +510,7 @@ integration-tests:
 
 ## See Also
 
-- [API Reference](api/pipeline.md)
+- [API Reference](api/orchestration/pipeline.md)
 - [Adapter Development Guide](guides/adapter-development.md)
 - [Stage Development Guide](guides/stage-development.md)
 - [Testing Guide](guides/testing.md)

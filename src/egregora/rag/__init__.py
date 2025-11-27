@@ -55,7 +55,7 @@ from pathlib import Path
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.rag.backend import RAGBackend
-from egregora.rag.embeddings import embed_texts_in_batch
+from egregora.rag.embeddings_async import embed_texts_async
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
 from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
 
@@ -105,16 +105,18 @@ def _create_backend() -> RAGBackend:
             except KeyError:
                 logger.warning("Unknown document type in config: %s (skipping)", type_str)
 
-    # Create embedding function that wraps the existing embedder
-    def embed_fn(texts: Sequence[str]) -> list[list[float]]:
-        return embed_texts_in_batch(list(texts), model=embedding_model)
+    # Create async embedding function that uses the dual-queue router
+    # IMPORTANT: Google Gemini embeddings are asymmetric - documents and queries
+    # must use different task_type values for optimal retrieval quality.
+    # The caller (LanceDBRAGBackend) is responsible for specifying the correct task_type.
+    async def embed_fn(texts: Sequence[str], task_type: str) -> list[list[float]]:
+        return await embed_texts_async(list(texts), task_type=task_type)
 
     logger.info("Creating LanceDB RAG backend at %s", lancedb_dir)
     return LanceDBRAGBackend(
         db_dir=lancedb_dir,
         table_name="rag_embeddings",
         embed_fn=embed_fn,
-        top_k_default=config.rag.top_k,
         indexable_types=indexable_types,
     )
 
@@ -137,8 +139,10 @@ def get_backend() -> RAGBackend:
     return _backend
 
 
-def index_documents(docs: Sequence[Document]) -> None:
-    r"""Index documents into the RAG knowledge base.
+async def index_documents(docs: Sequence[Document]) -> None:
+    r"""Index documents into the RAG knowledge base (async).
+
+    Uses the async embedding router for optimal throughput.
 
     Args:
         docs: Sequence of Document instances to index
@@ -150,15 +154,17 @@ def index_documents(docs: Sequence[Document]) -> None:
     Example:
         >>> from egregora.data_primitives import Document, DocumentType
         >>> doc = Document(content="# Post\n\nContent", type=DocumentType.POST)
-        >>> index_documents([doc])
+        >>> await index_documents([doc])
 
     """
     backend = get_backend()
-    backend.index_documents(docs)
+    await backend.index_documents(docs)
 
 
-def search(request: RAGQueryRequest) -> RAGQueryResponse:
-    """Execute vector similarity search.
+async def search(request: RAGQueryRequest) -> RAGQueryResponse:
+    """Execute vector similarity search (async).
+
+    Uses the async embedding router for optimal throughput.
 
     Args:
         request: Query parameters (text, top_k, filters)
@@ -172,13 +178,13 @@ def search(request: RAGQueryRequest) -> RAGQueryResponse:
 
     Example:
         >>> request = RAGQueryRequest(text="search query", top_k=5)
-        >>> response = search(request)
+        >>> response = await search(request)
         >>> for hit in response.hits:
         ...     print(f"{hit.score:.2f}: {hit.text[:50]}")
 
     """
     backend = get_backend()
-    return backend.query(request)
+    return await backend.query(request)
 
 
 __all__ = [

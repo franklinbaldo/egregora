@@ -427,7 +427,7 @@ chmod 644 .egregora/runs.duckdb
 
 ## Related Documentation
 
-- [Architecture Roadmap](../../ARCHITECTURE_ROADMAP.md) - Priority D.1 specification
+- [Architecture Overview](../pipeline-architecture.md) - Priority D.1 specification
 - [Checkpointing](../pipeline/checkpointing.md) - Content-addressed caching
 - [Pipeline Runner](../pipeline/runner.md) - Main pipeline execution
 - [Testing](../testing/runs-tracking.md) - Run tracking tests

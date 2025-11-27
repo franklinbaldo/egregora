@@ -30,13 +30,13 @@ class RAGBackend(Protocol):
 
     """
 
-    def index_documents(self, docs: Sequence[Document]) -> None:
-        """Index a batch of Documents into the RAG knowledge base.
+    async def index_documents(self, docs: Sequence[Document]) -> None:
+        """Index a batch of Documents into the RAG knowledge base (async).
 
         The implementation is responsible for:
         - Filtering to text documents (skipping bytes content)
         - Chunking per document according to backend strategy
-        - Computing embeddings for all chunks
+        - Computing embeddings for all chunks (async)
         - Upserting into the vector store
 
         Args:
@@ -49,8 +49,8 @@ class RAGBackend(Protocol):
         """
         ...
 
-    def query(self, request: RAGQueryRequest) -> RAGQueryResponse:
-        """Execute vector search in the knowledge base.
+    async def query(self, request: RAGQueryRequest) -> RAGQueryResponse:
+        """Execute vector search in the knowledge base (async).
 
         Returns ranked hits pointing back to original documents.
 

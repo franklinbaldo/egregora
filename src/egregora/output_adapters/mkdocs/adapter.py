@@ -327,6 +327,7 @@ class MkDocsAdapter(OutputAdapter):
                 "default_writer_model": EgregoraConfig().models.writer,
                 "media_counts": {"urls": 0, "images": 0, "videos": 0, "audio": 0},  # Default counts for init
                 "recent_media": [],  # Empty for initial scaffold
+                "overrides_dir": Path(os.path.relpath(site_root / "overrides", mkdocs_config_dir)).as_posix(),
             }
 
             # Create mkdocs.yml in .egregora/ (default location) ONLY if it doesn't exist

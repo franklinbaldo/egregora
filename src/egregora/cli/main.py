@@ -13,8 +13,8 @@ from rich.panel import Panel
 from egregora.cli.read import read_app
 from egregora.cli.runs import get_storage, runs_app
 from egregora.config import RuntimeContext, load_egregora_config
-from egregora.config.config_validation import parse_date_arg, validate_retrieval_config, validate_timezone
-from egregora.constants import RetrievalMode, SourceType, WindowUnit
+from egregora.config.config_validation import parse_date_arg, validate_timezone
+from egregora.constants import SourceType, WindowUnit
 from egregora.database.elo_store import EloStore
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration import write_pipeline
@@ -178,16 +178,8 @@ def write(  # noqa: C901, PLR0913
     model: Annotated[
         str | None, typer.Option(help="Gemini model to use (or configure in mkdocs.yml)")
     ] = None,
-    retrieval_mode: Annotated[
-        RetrievalMode,
-        typer.Option(help="Retrieval strategy: ann (default) or exact", case_sensitive=False),
-    ] = RetrievalMode.ANN,
-    retrieval_nprobe: Annotated[
-        int | None, typer.Option(help="Advanced: override DuckDB VSS nprobe for ANN retrieval")
-    ] = None,
-    retrieval_overfetch: Annotated[
-        int | None, typer.Option(help="Advanced: multiply ANN candidate pool before filtering")
-    ] = None,
+    # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch removed (legacy DuckDB VSS settings)
+    # RAG now uses LanceDB with settings from .egregora/config.yml
     max_prompt_tokens: Annotated[
         int, typer.Option(help="Maximum tokens per prompt (default 100k cap, prevents overflow)")
     ] = 100_000,
@@ -270,14 +262,8 @@ def write(  # noqa: C901, PLR0913
             console.print(f"[red]{e}[/red]")
             raise typer.Exit(1) from e
 
-    # Validate retrieval config
-    try:
-        retrieval_mode_str = validate_retrieval_config(
-            retrieval_mode.value, retrieval_nprobe, retrieval_overfetch
-        )
-    except ValueError as e:
-        console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1) from e
+    # Note: retrieval config validation removed (legacy DuckDB VSS settings)
+    # RAG now uses LanceDB with settings from .egregora/config.yml
 
     # Resolve paths
     output_dir = output.expanduser().resolve()
@@ -329,15 +315,9 @@ def write(  # noqa: C901, PLR0913
                 }
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": enable_enrichment}),
-            "rag": base_config.rag.model_copy(
-                update={
-                    "mode": retrieval_mode_str,
-                    "nprobe": retrieval_nprobe if retrieval_nprobe is not None else base_config.rag.nprobe,
-                    "overfetch": retrieval_overfetch
-                    if retrieval_overfetch is not None
-                    else base_config.rag.overfetch,
-                }
-            ),
+            # RAG settings: no runtime overrides needed (uses config from .egregora/config.yml)
+            # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch were legacy DuckDB VSS settings
+            "rag": base_config.rag,
             **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
         },
     )

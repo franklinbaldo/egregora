@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 # Chunking constants
 DEFAULT_MAX_CHARS = 800  # Conservative default for manageable chunks
+DEFAULT_CHUNK_OVERLAP = 200  # Overlap between chunks to preserve context
 
 
 @dataclass
@@ -32,37 +33,70 @@ class _RAGChunk:
     metadata: dict[str, Any]
 
 
-def _simple_chunk_text(text: str, max_chars: int = DEFAULT_MAX_CHARS) -> list[str]:
-    """Simple chunking: split text into ~max_chars chunks on whitespace.
+def _simple_chunk_text(
+    text: str,
+    max_chars: int = DEFAULT_MAX_CHARS,
+    overlap: int = DEFAULT_CHUNK_OVERLAP,
+) -> list[str]:
+    """Simple chunking: split text into ~max_chars chunks with overlap on whitespace.
 
     Splits on word boundaries to avoid breaking mid-word.
-    For better semantic chunking, consider using a more sophisticated
-    approach in the future.
+    Overlapping chunks ensure context is preserved across boundaries.
 
     Args:
         text: Text to chunk
         max_chars: Maximum characters per chunk
+        overlap: Number of characters to overlap between chunks
 
     Returns:
-        List of text chunks
+        List of text chunks with overlap
 
     """
     if len(text) <= max_chars:
         return [text]
+
+    # Ensure overlap is less than max_chars
+    overlap = min(overlap, max_chars // 2)
 
     words = text.split()
     chunks: list[str] = []
     current: list[str] = []
     current_len = 0
 
-    for w in words:
-        if current_len + len(w) + 1 > max_chars and current:
-            chunks.append(" ".join(current))
-            current = []
-            current_len = 0
-        current.append(w)
-        current_len += len(w) + 1
+    # Track words for overlap
+    overlap_words: list[str] = []
+    overlap_len = 0
 
+    for w in words:
+        word_len = len(w) + 1  # +1 for space
+
+        # Check if we need to start a new chunk
+        if current_len + word_len > max_chars and current:
+            # Save current chunk
+            chunk_text = " ".join(current)
+            chunks.append(chunk_text)
+
+            # Build overlap from end of current chunk (O(n) not O(n²))
+            overlap_words = []
+            overlap_len = 0
+            for overlap_word in reversed(current):
+                overlap_word_len = len(overlap_word) + 1
+                if overlap_len + overlap_word_len <= overlap:
+                    overlap_words.append(overlap_word)  # O(1) append, not O(n) insert(0)
+                    overlap_len += overlap_word_len
+                else:
+                    break
+            # Reverse once at the end (O(n) once, not O(n) per word)
+            overlap_words.reverse()
+
+            # Start new chunk with overlap
+            current = overlap_words.copy()
+            current_len = overlap_len
+
+        current.append(w)
+        current_len += word_len
+
+    # Add final chunk
     if current:
         chunks.append(" ".join(current))
 
@@ -72,6 +106,7 @@ def _simple_chunk_text(text: str, max_chars: int = DEFAULT_MAX_CHARS) -> list[st
 def chunks_from_document(
     doc: Document,
     max_chars: int = DEFAULT_MAX_CHARS,
+    chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
     indexable_types: set[DocumentType] | None = None,
 ) -> list[_RAGChunk]:
     """Convert a pipeline Document into one or more text chunks for RAG.
@@ -80,9 +115,14 @@ def chunks_from_document(
         - Skips non-text content (bytes)
         - Only indexes specified document types (defaults to POST only)
 
+    Chunking:
+        - Overlapping chunks preserve context across boundaries
+        - Default 200 char overlap prevents information loss
+
     Args:
         doc: Document instance to chunk
         max_chars: Maximum characters per chunk
+        chunk_overlap: Characters to overlap between chunks
         indexable_types: Set of DocumentType values to index (default: {DocumentType.POST})
 
     Returns:
@@ -105,8 +145,8 @@ def chunks_from_document(
 
     text = doc.content
 
-    # Chunk the text
-    pieces = _simple_chunk_text(text, max_chars=max_chars)
+    # Chunk the text with overlap
+    pieces = _simple_chunk_text(text, max_chars=max_chars, overlap=chunk_overlap)
 
     chunks: list[_RAGChunk] = []
 
@@ -143,6 +183,7 @@ def chunks_from_document(
 def chunks_from_documents(
     docs: Sequence[Document],
     max_chars: int = DEFAULT_MAX_CHARS,
+    chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
     indexable_types: set[DocumentType] | None = None,
 ) -> list[_RAGChunk]:
     """Convert multiple Documents into chunks.
@@ -150,6 +191,7 @@ def chunks_from_documents(
     Args:
         docs: Sequence of Document instances
         max_chars: Maximum characters per chunk
+        chunk_overlap: Characters to overlap between chunks
         indexable_types: Set of DocumentType values to index (default: {DocumentType.POST})
 
     Returns:
@@ -158,7 +200,14 @@ def chunks_from_documents(
     """
     chunks: list[_RAGChunk] = []
     for doc in docs:
-        chunks.extend(chunks_from_document(doc, max_chars=max_chars, indexable_types=indexable_types))
+        chunks.extend(
+            chunks_from_document(
+                doc,
+                max_chars=max_chars,
+                chunk_overlap=chunk_overlap,
+                indexable_types=indexable_types,
+            )
+        )
     return chunks
 
 

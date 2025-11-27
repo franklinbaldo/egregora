@@ -86,9 +86,7 @@ class WhatsAppProcessOptions:
     gemini_api_key: str | None = None
     model: str | None = None
     batch_threshold: int = 10
-    retrieval_mode: str = "ann"
-    retrieval_nprobe: int | None = None
-    retrieval_overfetch: int | None = None
+    # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch removed (legacy DuckDB VSS settings)
     max_prompt_tokens: int = 100_000
     use_full_context_window: bool = False
     client: genai.Client | None = None
@@ -137,19 +135,9 @@ def process_whatsapp_export(
                 }
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": opts.enable_enrichment}),
-            "rag": base_config.rag.model_copy(
-                update={
-                    "mode": opts.retrieval_mode,
-                    "nprobe": (
-                        opts.retrieval_nprobe if opts.retrieval_nprobe is not None else base_config.rag.nprobe
-                    ),
-                    "overfetch": (
-                        opts.retrieval_overfetch
-                        if opts.retrieval_overfetch is not None
-                        else base_config.rag.overfetch
-                    ),
-                }
-            ),
+            # RAG settings: no runtime overrides needed (uses config from .egregora/config.yml)
+            # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch were legacy DuckDB VSS settings
+            "rag": base_config.rag,
             **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
         },
     )
@@ -984,12 +972,14 @@ def _prepare_pipeline_data(
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
+            import asyncio  # noqa: PLC0415
+
             from egregora.rag import index_documents  # noqa: PLC0415
 
             # Get existing documents from output format
             existing_docs = list(output_format.documents())
             if existing_docs:
-                index_documents(existing_docs)
+                asyncio.run(index_documents(existing_docs))
                 logger.info("[green]✓ Indexed %d existing documents into RAG[/]", len(existing_docs))
             else:
                 logger.info("[dim]No existing documents to index[/]")

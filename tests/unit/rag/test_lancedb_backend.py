@@ -24,9 +24,9 @@ def temp_db_dir() -> Path:
 def mock_embed_fn():
     """Create a mock embedding function that returns fixed-size vectors."""
 
-    def embed(texts: list[str]) -> list[list[float]]:
+    async def embed(texts: list[str], task_type: str) -> list[list[float]]:
         # Return random 768-dimensional embeddings
-        return [np.random.rand(768).tolist() for _ in texts]
+        return [np.random.rand(768).tolist() for _ in texts]  # noqa: NPY002
 
     return embed
 
@@ -44,7 +44,8 @@ def test_lancedb_backend_initialization(temp_db_dir: Path, mock_embed_fn):
     assert backend._table_name == "test_embeddings"
 
 
-def test_lancedb_backend_index_documents(temp_db_dir: Path, mock_embed_fn):
+@pytest.mark.asyncio
+async def test_lancedb_backend_index_documents(temp_db_dir: Path, mock_embed_fn):
     """Test indexing documents into LanceDB."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -67,10 +68,11 @@ def test_lancedb_backend_index_documents(temp_db_dir: Path, mock_embed_fn):
     ]
 
     # Index documents (should not raise)
-    backend.index_documents(docs)
+    await backend.index_documents(docs)
 
 
-def test_lancedb_backend_query(temp_db_dir: Path, mock_embed_fn):
+@pytest.mark.asyncio
+async def test_lancedb_backend_query(temp_db_dir: Path, mock_embed_fn):
     """Test querying the LanceDB backend."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -92,11 +94,11 @@ def test_lancedb_backend_query(temp_db_dir: Path, mock_embed_fn):
         ),
     ]
 
-    backend.index_documents(docs)
+    await backend.index_documents(docs)
 
     # Query for documents
     request = RAGQueryRequest(text="cats and dogs", top_k=2)
-    response = backend.query(request)
+    response = await backend.query(request)
 
     # Should return results
     assert response is not None
@@ -108,7 +110,8 @@ def test_lancedb_backend_query(temp_db_dir: Path, mock_embed_fn):
     assert all(hit.text for hit in response.hits)
 
 
-def test_lancedb_backend_empty_query(temp_db_dir: Path, mock_embed_fn):
+@pytest.mark.asyncio
+async def test_lancedb_backend_empty_query(temp_db_dir: Path, mock_embed_fn):
     """Test querying an empty database."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -118,14 +121,15 @@ def test_lancedb_backend_empty_query(temp_db_dir: Path, mock_embed_fn):
 
     # Query without indexing anything
     request = RAGQueryRequest(text="test query", top_k=5)
-    response = backend.query(request)
+    response = await backend.query(request)
 
     # Should return empty results
     assert response is not None
     assert len(response.hits) == 0
 
 
-def test_lancedb_backend_index_binary_content(temp_db_dir: Path, mock_embed_fn):
+@pytest.mark.asyncio
+async def test_lancedb_backend_index_binary_content(temp_db_dir: Path, mock_embed_fn):
     """Test that binary content is skipped during indexing."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -143,4 +147,4 @@ def test_lancedb_backend_index_binary_content(temp_db_dir: Path, mock_embed_fn):
     ]
 
     # Should not raise, but should skip the binary document
-    backend.index_documents(docs)
+    await backend.index_documents(docs)

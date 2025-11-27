@@ -63,8 +63,8 @@ uv run pytest --cov=egregora tests/
 
 ## Related Documentation
 
-- [CLAUDE.md](../../CLAUDE.md) - Development guidelines and recent changes
-- [CONTRIBUTING.md](../../CONTRIBUTING.md) - Contribution guidelines
+- [CLAUDE.md](../CLAUDE.md) - Development guidelines and recent changes
+- [CONTRIBUTING.md](../CONTRIBUTING.md) - Contribution guidelines
 - [Architecture Docs](../architecture/) - System architecture documentation
 
 ## Contributing
