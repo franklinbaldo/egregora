@@ -87,7 +87,7 @@ class EloStore:
     def _ensure_tables(self) -> None:
         """Create ratings and history tables if they don't exist."""
         # Create ratings table
-        if "elo_ratings" not in self.storage.ibis_conn.list_tables():
+        if "elo_ratings" not in self.storage.list_tables():
             self.storage.ibis_conn.create_table(
                 "elo_ratings",
                 schema=ELO_RATINGS_SCHEMA,
@@ -95,7 +95,7 @@ class EloStore:
             logger.info("Created elo_ratings table")
 
         # Create comparison history table
-        if "comparison_history" not in self.storage.ibis_conn.list_tables():
+        if "comparison_history" not in self.storage.list_tables():
             self.storage.ibis_conn.create_table(
                 "comparison_history",
                 schema=COMPARISON_HISTORY_SCHEMA,
@@ -112,7 +112,7 @@ class EloStore:
             EloRating with current stats, or new rating at DEFAULT_ELO
 
         """
-        ratings_table = self.storage.ibis_conn.table("elo_ratings")
+        ratings_table = self.storage.read_table("elo_ratings")
         result = ratings_table.filter(_.post_slug == post_slug).limit(1).execute()
 
         if result.empty:
@@ -229,14 +229,6 @@ class EloStore:
         created_at: datetime,
     ) -> None:
         """Insert or update a rating record."""
-        # DuckDB doesn't support UPSERT directly in Ibis, so we delete + insert
-        # Delete existing record
-        self.storage.ibis_conn.raw_sql(
-            "DELETE FROM elo_ratings WHERE post_slug = ?",
-            parameters=[post_slug],
-        )
-
-        # Insert new record
         new_row = ibis.memtable(
             [
                 {
@@ -253,7 +245,12 @@ class EloStore:
             schema=ELO_RATINGS_SCHEMA,
         )
 
-        self.storage.ibis_conn.insert("elo_ratings", new_row)
+        self.storage.replace_rows(
+            "elo_ratings",
+            new_row,
+            where_clause="post_slug = ?",
+            params=[post_slug],
+        )
 
     def _record_comparison(  # noqa: PLR0913
         self,
@@ -317,7 +314,7 @@ class EloStore:
             Ibis table with comparison history
 
         """
-        history_table = self.storage.ibis_conn.table("comparison_history")
+        history_table = self.storage.read_table("comparison_history")
 
         if post_slug:
             history_table = history_table.filter((_.post_a_slug == post_slug) | (_.post_b_slug == post_slug))
