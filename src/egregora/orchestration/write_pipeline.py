@@ -55,7 +55,12 @@ from egregora.orchestration.context import PipelineConfig, PipelineContext, Pipe
 from egregora.orchestration.factory import PipelineFactory
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
-from egregora.transformations import create_windows, load_checkpoint, save_checkpoint, split_window_into_n_parts
+from egregora.transformations import (
+    create_windows,
+    load_checkpoint,
+    save_checkpoint,
+    split_window_into_n_parts,
+)
 from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
