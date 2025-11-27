@@ -13,7 +13,6 @@ from pathlib import Path
 
 from egregora.data_primitives.document import Document
 
-from .backend import RAGBackend
 from .models import RAGHit, RAGQueryRequest, RAGQueryResponse
 
 logger = logging.getLogger(__name__)
@@ -67,8 +66,6 @@ class DuckDBRAGBackend:
             RuntimeError: If embedding or storage operations fail
 
         """
-        from egregora.data_primitives.protocols import OutputAdapter
-
         # The existing VectorStore.index_documents() expects an OutputAdapter
         # For now, we'll create a simple adapter that wraps our documents
 

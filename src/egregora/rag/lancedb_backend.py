@@ -16,8 +16,7 @@ import numpy as np
 
 from egregora.data_primitives.document import Document
 
-from .backend import RAGBackend
-from .ingestion import _RAGChunk, chunks_from_documents
+from .ingestion import chunks_from_documents
 from .models import RAGHit, RAGQueryRequest, RAGQueryResponse
 
 logger = logging.getLogger(__name__)
@@ -253,4 +252,4 @@ class LanceDBRAGBackend:
         return RAGQueryResponse(hits=hits)
 
 
-__all__ = ["LanceDBRAGBackend", "EmbedFn"]
+__all__ = ["EmbedFn", "LanceDBRAGBackend"]

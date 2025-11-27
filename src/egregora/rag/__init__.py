@@ -69,10 +69,10 @@ def _create_backend() -> RAGBackend:
 
     """
     # Import here to avoid circular dependency
-    from egregora.config.settings import load_egregora_config
-
     # Try to load config from current directory
     from pathlib import Path
+
+    from egregora.config.settings import load_egregora_config
 
     try:
         config = load_egregora_config(Path.cwd())
