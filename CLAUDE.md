@@ -40,6 +40,84 @@ cd output && uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs ser
 
 ## Breaking Changes
 
+### 2025-11-27 (PR #TBD - Async RAG Migration with Dual-Queue Embedding Router)
+
+**Complete Async Migration of RAG Backend**
+- **Changed:** All RAG APIs are now fully async
+- **Before:** Sync API with blocking calls
+  ```python
+  # Old sync API (no longer supported)
+  from egregora.rag import index_documents, search
+  index_documents([doc])  # Blocking call
+  response = search(request)  # Blocking call
+  ```
+- **After:** Async API with proper await
+  ```python
+  # New async API (required)
+  from egregora.rag import index_documents, search
+  await index_documents([doc])  # Async call
+  response = await search(request)  # Async call
+  ```
+- **Migration for Sync Callers:** Use `asyncio.run()` wrapper
+  ```python
+  import asyncio
+  asyncio.run(index_documents([doc]))
+  response = asyncio.run(search(request))
+  ```
+
+**Dual-Queue Embedding Router**
+- **Added:** New `egregora.rag.embedding_router` module with intelligent routing
+- **Architecture:** Dual-queue system routes requests to optimal endpoint
+  - **Single endpoint:** Low-latency, preferred for queries (1 request/sec)
+  - **Batch endpoint:** High-throughput, used for bulk indexing (1000 embeddings/min)
+- **Features:**
+  - Independent rate limit tracking per endpoint
+  - Automatic 429 fallback and retry with exponential backoff
+  - Request accumulation during rate limits
+  - Intelligent routing based on request size and endpoint availability
+- **Configuration:** New settings in `.egregora/config.yml`:
+  ```yaml
+  rag:
+    embedding_max_batch_size: 100  # Max texts per batch request
+    embedding_timeout: 60.0  # Timeout for embedding requests
+  ```
+- **Performance:** Significantly improved throughput for bulk indexing operations
+- **Asymmetric Embeddings:** Proper support for Google Gemini's asymmetric embeddings
+  - Documents: `RETRIEVAL_DOCUMENT` task type
+  - Queries: `RETRIEVAL_QUERY` task type
+  - Better retrieval quality through task-specific embeddings
+
+**Breaking Changes:**
+- **API Surface:** All `index_documents()` and `search()` calls must use `await`
+- **Sync Integration:** Sync code must wrap calls in `asyncio.run()`
+- **Test Updates:** All RAG tests converted to async (`@pytest.mark.asyncio`)
+- **Impact:** Any code calling RAG functions must be updated to handle async
+
+**Performance Improvements:**
+- **Chunking:** Fixed O(n²) performance issue in text chunking
+- **Embedding Router:**
+  - Dual-queue architecture maximizes API quota utilization
+  - Automatic fallback prevents cascading failures
+  - Request batching reduces API calls by up to 100x
+
+**Migration Guide:**
+1. **Async Context (Pydantic-AI tools):** Already async, just add `await`
+2. **Sync Context (pipeline orchestration):** Wrap in `asyncio.run()`
+3. **Tests:** Add `@pytest.mark.asyncio` decorator and `await` calls
+4. **Custom Embedding Functions:** Must now be async with signature:
+   ```python
+   async def embed_fn(texts: Sequence[str], task_type: str) -> list[list[float]]
+   ```
+
+**Files Changed:**
+- `src/egregora/rag/__init__.py`: Async API signatures
+- `src/egregora/rag/lancedb_backend.py`: Async backend methods
+- `src/egregora/rag/embedding_router.py`: New dual-queue router
+- `src/egregora/rag/embeddings_async.py`: New async embedding API
+- `src/egregora/agents/writer.py`: Tool updated with `await`
+- `src/egregora/orchestration/write_pipeline.py`: Wrapped in `asyncio.run()`
+- `tests/unit/rag/*.py`: All tests converted to async
+
 ### 2025-11-27 (PR #981 - LanceDB RAG Backend)
 
 **New RAG Backend with LanceDB**
