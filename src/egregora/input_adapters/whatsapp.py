@@ -77,6 +77,10 @@ WHATSAPP_LINE_PATTERN = re.compile(
 # Text normalization
 _INVISIBLE_MARKS = re.compile(r"[\u200e\u200f\u202a-\u202e]")
 
+# WhatsApp mention markers (U+2068 FSI, U+2069 PDI)
+# Pattern: @<U+2068>Name<U+2069> where <U+2068> is FIRST STRONG ISOLATE and <U+2069> is POP DIRECTIONAL ISOLATE
+WA_MENTION_PATTERN = re.compile(r"@\u2068([^\u2069]+)\u2069")
+
 # Command parsing constants
 SET_COMMAND_PARTS = 2
 EGREGORA_COMMAND_PATTERN = re.compile("^/egregora\\s+(\\w+)\\s+(.+)$", re.IGNORECASE)
@@ -95,9 +99,15 @@ _CHAT_FILE_PATTERN = re.compile(r"WhatsApp(?: Chat with|.*) (.+)\.txt")
 
 
 def _normalize_text(value: str) -> str:
-    """Normalize unicode text."""
+    """Normalize unicode text.
+
+    Preserves WhatsApp mention markers (U+2068/U+2069) for proper anonymization,
+    while removing other invisible directional marks.
+    """
     normalized = unicodedata.normalize("NFKC", value)
     normalized = normalized.replace("\u202f", " ")
+    # Remove invisible marks but keep mention markers (U+2068, U+2069)
+    # We'll handle mentions separately in the anonymization pipeline
     return _INVISIBLE_MARKS.sub("", normalized)
 
 
@@ -595,6 +605,38 @@ def _convert_whatsapp_media_to_markdown(message: str) -> str:
     return result
 
 
+def _convert_whatsapp_mentions_to_markdown(message: str, tenant_id: str, source: str) -> str:
+    """Convert WhatsApp unicode-wrapped mentions to profile wikilinks.
+
+    Converts WhatsApp's unicode-wrapped mention format to profile links.
+    Example: @NAME (wrapped with U+2068/U+2069) becomes [[profile/uuid]]
+    where uuid is deterministically generated from the mentioned name.
+
+    Args:
+        message: Message text containing mentions
+        tenant_id: Tenant identifier for UUID generation
+        source: Source adapter name (e.g., 'whatsapp')
+
+    Returns:
+        Message with mentions converted to [[profile/uuid]] wikilinks
+
+    """
+    if not message:
+        return message
+
+    def replace_mention(match):
+        """Replace a single mention with its profile link."""
+        mentioned_name = match.group(1)
+        # Generate deterministic UUID for this author
+        author_uuid = deterministic_author_uuid(tenant_id, source, mentioned_name)
+        # Return wikilink format: [[profile/uuid]]
+        return f"[[profile/{author_uuid}]]"
+
+    # Replace unicode-wrapped mentions with profile links
+    result = WA_MENTION_PATTERN.sub(replace_mention, message)
+    return result
+
+
 def build_message_attrs(
     original_line: ibis.Expr,
     tagged_line: ibis.Expr,
@@ -673,7 +715,11 @@ class WhatsAppAdapter(InputAdapter):
         def convert_media_to_markdown(message: str | None) -> str | None:
             if message is None:
                 return None
-            return _convert_whatsapp_media_to_markdown(message)
+            # Convert media references
+            result = _convert_whatsapp_media_to_markdown(message)
+            # Convert mentions to profile links
+            result = _convert_whatsapp_mentions_to_markdown(result, export.group_slug, "whatsapp")
+            return result
 
         # IR v1: use 'text' column instead of 'message'
         messages_table = messages_table.mutate(text=convert_media_to_markdown(messages_table.text))

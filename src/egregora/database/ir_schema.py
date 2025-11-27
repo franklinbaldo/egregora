@@ -26,12 +26,17 @@ from zoneinfo import ZoneInfo
 import duckdb
 import ibis
 import ibis.expr.datatypes as dt
-from ibis import udf
+
+from egregora.database.sql import SQLManager
+from egregora.database.utils import quote_identifier
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
+
+# Single, module-level instance of the SQL manager
+sql_manager = SQLManager()
 
 
 # ============================================================================
@@ -318,43 +323,29 @@ RUNS_TABLE_SCHEMA = ibis.schema(
 
 
 def create_table_if_not_exists(
-    conn: duckdb.DuckDBPyConnection | Any,  # Any allows Ibis DuckDBBackend
-    table_name: str,
-    schema: ibis.Schema,
+    conn: Any, table_name: str, schema: ibis.Schema, *, overwrite: bool = False
 ) -> None:
-    """Create a table using Ibis schema if it doesn't already exist.
-
-    Args:
-        conn: DuckDB connection or Ibis DuckDB backend
-        table_name: Name of the table to create
-        schema: Ibis schema definition
-
-    Note:
-        This uses CREATE TABLE IF NOT EXISTS to safely handle existing tables.
-        Primary keys and constraints should be added separately if needed.
-        Accepts both raw DuckDB connections and Ibis backends.
-
-    """
-    # Convert Ibis schema to DuckDB SQL column definitions
-    column_defs = []
-    for name, dtype in schema.items():
-        # Map Ibis types to DuckDB types
-        sql_type = _ibis_to_duckdb_type(dtype)
-        column_defs.append(f"{quote_identifier(name)} {sql_type}")
-
-    columns_sql = ", ".join(column_defs)
-    create_sql = f"CREATE TABLE IF NOT EXISTS {quote_identifier(table_name)} ({columns_sql})"
-
-    # Check if this is an Ibis backend or raw DuckDB connection
-    if hasattr(conn, "raw_sql"):
-        # Ibis backend - use raw_sql for SQL strings
-        conn.raw_sql(create_sql)
+    """Create a table using Ibis if it doesn't already exist."""
+    if hasattr(conn, "list_tables"):  # More reliable check for Ibis connection
+        if table_name not in conn.list_tables() or overwrite:
+            conn.create_table(table_name, schema=schema, overwrite=overwrite)
     else:
-        # Raw DuckDB connection - use execute
+        # Raw duckdb connection
+        if overwrite:
+            conn.execute(f"DROP TABLE IF EXISTS {quote_identifier(table_name)}")
+
+        columns_sql = ", ".join(
+            f"{quote_identifier(name)} {_ibis_to_duckdb_type(dtype)}" for name, dtype in schema.items()
+        )
+
+        # If we dropped the table, we must use CREATE TABLE.
+        # Otherwise, CREATE TABLE IF NOT EXISTS is safe.
+        create_verb = "CREATE TABLE" if overwrite else "CREATE TABLE IF NOT EXISTS"
+        create_sql = f"{create_verb} {quote_identifier(table_name)} ({columns_sql})"
         conn.execute(create_sql)
 
 
-def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:  # noqa: PLR0911
+def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:  # noqa: PLR0911, C901
     """Convert Ibis data type to DuckDB SQL type string.
 
     Args:
@@ -391,23 +382,6 @@ def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:  # noq
     return str(ibis_type).upper()
 
 
-def quote_identifier(identifier: str) -> str:
-    """Quote a SQL identifier to prevent injection and handle special characters.
-
-    Args:
-        identifier: The identifier to quote (table name, column name, etc.)
-
-    Returns:
-        Properly quoted identifier safe for use in SQL
-
-    Note:
-        DuckDB uses double quotes for identifiers. Inner quotes are escaped by doubling.
-        Example: my"table → "my""table"
-
-    """
-    return f'"{identifier.replace(chr(34), chr(34) * 2)}"'
-
-
 def add_primary_key(conn: duckdb.DuckDBPyConnection, table_name: str, column_name: str) -> None:
     """Add a primary key constraint to an existing table.
 
@@ -422,64 +396,43 @@ def add_primary_key(conn: duckdb.DuckDBPyConnection, table_name: str, column_nam
 
     """
     try:
-        # Use quoted identifiers to prevent SQL injection
-        quoted_table = quote_identifier(table_name)
-        quoted_column = quote_identifier(column_name)
-        constraint_name = quote_identifier(f"pk_{table_name}")
-        conn.execute(
-            f"ALTER TABLE {quoted_table} ADD CONSTRAINT {constraint_name} PRIMARY KEY ({quoted_column})"
+        sql = sql_manager.render(
+            "ddl/add_constraints.sql.jinja",
+            constraint_type="primary_key",
+            table_name=table_name,
+            column_name=column_name,
+            constraint_name=f"pk_{table_name}",
         )
+        conn.execute(sql)
     except duckdb.Error as e:
         # Constraint may already exist - log and continue
         logger.debug("Could not add primary key to %s.%s: %s", table_name, column_name, e)
 
 
 def ensure_identity_column(
-    conn: duckdb.DuckDBPyConnection,
-    table_name: str,
-    column_name: str,
-    *,
-    generated: str = "ALWAYS",
+    conn: Any, table_name: str, column_name: str, *, generated: str = "ALWAYS"
 ) -> None:
-    """Ensure a column is configured as an identity column in DuckDB.
-
-    Args:
-        conn: DuckDB connection (raw, not Ibis)
-        table_name: Name of the table
-        column_name: Column to configure as identity
-        generated: 'ALWAYS' or 'BY DEFAULT' for identity generation
-
-    Note:
-        This must be called on raw DuckDB connection, not Ibis connection.
-        If the column already has identity configured, this is a no-op.
-
-    """
-    # Validate generated parameter to prevent SQL injection
+    """Ensure a column is configured as an identity column in DuckDB."""
     if generated not in ("ALWAYS", "BY DEFAULT"):
-        msg = f"Invalid identity generation mode: {generated!r}. Must be 'ALWAYS' or 'BY DEFAULT'."
+        msg = f"Invalid identity generation mode: {generated!r}"
         raise ValueError(msg)
 
     try:
-        # Use quoted identifiers to prevent SQL injection
         quoted_table = quote_identifier(table_name)
         quoted_column = quote_identifier(column_name)
-        # generated is validated above, safe to interpolate
-        conn.execute(
-            f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} SET GENERATED {generated} AS IDENTITY"
-        )
-    except duckdb.Error as e:
-        # Identity already configured or column contains incompatible data - log and continue
+        sql = f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} SET GENERATED {generated} AS IDENTITY"
+        if hasattr(conn, "raw_sql"):
+            conn.raw_sql(sql)
+        else:
+            conn.execute(sql)
+    except Exception as e:  # noqa: BLE001
         logger.debug(
             "Could not set identity on %s.%s (generated=%s): %s", table_name, column_name, generated, e
         )
 
 
 def create_index(
-    conn: duckdb.DuckDBPyConnection,
-    table_name: str,
-    index_name: str,
-    column_name: str,
-    index_type: str = "HNSW",
+    conn: Any, table_name: str, index_name: str, column_name: str, index_type: str = "HNSW"
 ) -> None:
     """Create an index on a table.
 
@@ -496,19 +449,14 @@ def create_index(
         Uses CREATE INDEX IF NOT EXISTS to handle already-existing indexes.
 
     """
-    # Use quoted identifiers to prevent SQL injection
-    quoted_index = quote_identifier(index_name)
-    quoted_table = quote_identifier(table_name)
-    quoted_column = quote_identifier(column_name)
-
-    if index_type == "HNSW":
-        conn.execute(
-            f"CREATE INDEX IF NOT EXISTS {quoted_index} "
-            f"ON {quoted_table} USING HNSW ({quoted_column}) "
-            "WITH (metric = 'cosine')"
-        )
-    else:
-        conn.execute(f"CREATE INDEX IF NOT EXISTS {quoted_index} ON {quoted_table} ({quoted_column})")
+    sql = sql_manager.render(
+        "ddl/create_index.sql.jinja",
+        index_name=index_name,
+        table_name=table_name,
+        column_name=column_name,
+        index_type=index_type,
+    )
+    conn.execute(sql)
 
 
 # ----------------------------------------------------------------------------
@@ -516,7 +464,7 @@ def create_index(
 # ----------------------------------------------------------------------------
 
 
-def create_runs_table(conn: duckdb.DuckDBPyConnection) -> None:
+def create_runs_table(conn: Any) -> None:
     """Create runs table in DuckDB connection.
 
     Args:
@@ -541,11 +489,19 @@ def create_runs_table(conn: duckdb.DuckDBPyConnection) -> None:
         add_primary_key(conn, "runs", "run_id")
 
         # Create indexes manually
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs(started_at DESC)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_runs_stage ON runs(stage)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_runs_tenant ON runs(tenant_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_runs_parent ON runs(parent_run_id)")
+        indexes = [
+            "CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs(started_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_runs_stage ON runs(stage)",
+            "CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status)",
+            "CREATE INDEX IF NOT EXISTS idx_runs_tenant ON runs(tenant_id)",
+            "CREATE INDEX IF NOT EXISTS idx_runs_parent ON runs(parent_run_id)",
+        ]
+        if hasattr(conn, "raw_sql"):
+            for index_sql in indexes:
+                conn.raw_sql(index_sql)
+        else:
+            for index_sql in indexes:
+                conn.execute(index_sql)
 
         logger.info("Created runs table with indexes")
     except Exception as e:
@@ -556,39 +512,25 @@ def create_runs_table(conn: duckdb.DuckDBPyConnection) -> None:
 # create_run_events_table - REMOVED (2025-11-17)
 
 
-def ensure_runs_table_exists(conn: duckdb.DuckDBPyConnection) -> None:
-    """Ensure runs table exists (idempotent).
-
-    This is the recommended function to call before any runs operations.
-    It will create the table if it doesn't exist, or do nothing if it does.
-
-    Args:
-        conn: DuckDB connection
-
-    Example:
-        >>> from egregora.database import DuckDBStorageManager
-        >>> storage = DuckDBStorageManager()
-        >>> ensure_runs_table_exists(storage.conn)  # Safe to call multiple times
-
-    """
+def ensure_runs_table_exists(conn: Any) -> None:
+    """Ensure runs table exists (idempotent)."""
     try:
-        # Check if table exists
-        result = conn.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'runs'"
-        ).fetchone()
-
-        if result and result[0] == 0:
-            logger.debug("Runs table doesn't exist, creating...")
-            create_runs_table(conn)
+        if hasattr(conn, "list_tables"):
+            if "runs" not in conn.list_tables():
+                create_runs_table(conn)
         else:
-            logger.debug("Runs table already exists")
-    except duckdb.Error as e:
-        # If check fails, try creating anyway (DuckDB will skip if exists)
+            # Raw duckdb connection
+            result = conn.execute(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'runs'"
+            ).fetchone()
+            if result and result[0] == 0:
+                create_runs_table(conn)
+    except Exception as e:  # noqa: BLE001
         logger.warning("Error checking for runs table existence: %s, attempting creation...", e)
         create_runs_table(conn)
 
 
-def drop_runs_table(conn: duckdb.DuckDBPyConnection) -> None:
+def drop_runs_table(conn: Any) -> None:
     """Drop runs table (for testing/cleanup).
 
     Args:
@@ -605,7 +547,11 @@ def drop_runs_table(conn: duckdb.DuckDBPyConnection) -> None:
 
     """
     try:
-        conn.execute("DROP TABLE IF EXISTS runs")
+        sql = "DROP TABLE IF EXISTS runs"
+        if hasattr(conn, "raw_sql"):
+            conn.raw_sql(sql)
+        else:
+            conn.execute(sql)
         logger.info("Dropped runs table")
     except Exception:
         logger.exception("Failed to drop runs table")
@@ -642,7 +588,7 @@ CREATE INDEX idx_lineage_parent ON lineage (parent_run_id);
 """
 
 
-def create_lineage_table(conn: duckdb.DuckDBPyConnection) -> None:
+def create_lineage_table(conn: Any) -> None:
     """Create lineage table in DuckDB connection.
 
     The lineage table tracks data lineage relationships between pipeline runs,
@@ -664,47 +610,31 @@ def create_lineage_table(conn: duckdb.DuckDBPyConnection) -> None:
 
     """
     try:
-        conn.execute(LINEAGE_TABLE_DDL)
+        if hasattr(conn, "raw_sql"):
+            conn.raw_sql(LINEAGE_TABLE_DDL)
+        else:
+            conn.execute(LINEAGE_TABLE_DDL)
         logger.info("Created lineage table with indexes")
     except Exception as e:
         msg = f"Failed to create lineage table: {e}"
         raise RuntimeError(msg) from e
 
 
-def ensure_lineage_table_exists(conn: duckdb.DuckDBPyConnection) -> None:
-    """Ensure lineage table exists (idempotent).
-
-    This is the recommended function to call before any lineage operations.
-    It will create the table if it doesn't exist, or do nothing if it does.
-
-    Note: This function also ensures the runs table exists, since lineage
-    has foreign key constraints to the runs table.
-
-    Args:
-        conn: DuckDB connection
-
-    Example:
-        >>> from egregora.database import DuckDBStorageManager
-        >>> storage = DuckDBStorageManager()
-        >>> ensure_lineage_table_exists(storage.conn)  # Safe to call multiple times
-
-    """
-    # Ensure runs table exists first (lineage has FK to runs)
+def ensure_lineage_table_exists(conn: Any) -> None:
+    """Ensure lineage table exists (idempotent)."""
     ensure_runs_table_exists(conn)
-
     try:
-        # Check if table exists
-        result = conn.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'lineage'"
-        ).fetchone()
-
-        if result and result[0] == 0:
-            logger.debug("Lineage table doesn't exist, creating...")
-            create_lineage_table(conn)
+        if hasattr(conn, "list_tables"):
+            if "lineage" not in conn.list_tables():
+                create_lineage_table(conn)
         else:
-            logger.debug("Lineage table already exists")
-    except duckdb.Error as e:
-        # If check fails, try creating anyway (DuckDB will skip if exists)
+            # Raw duckdb connection
+            result = conn.execute(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'lineage'"
+            ).fetchone()
+            if result and result[0] == 0:
+                create_lineage_table(conn)
+    except Exception as e:  # noqa: BLE001
         logger.warning("Error checking for lineage table existence: %s, attempting creation...", e)
         create_lineage_table(conn)
 
@@ -712,18 +642,6 @@ def ensure_lineage_table_exists(conn: duckdb.DuckDBPyConnection) -> None:
 # ----------------------------------------------------------------------------
 # Message Schema Utilities
 # ----------------------------------------------------------------------------
-
-
-@udf.scalar.builtin(
-    name="timezone", signature=((dt.string, dt.Timestamp(timezone=None)), dt.Timestamp(timezone="UTC"))
-)
-def _builtin_timezone(_: str, __: dt.Timestamp) -> dt.Timestamp:
-    """Bind to backend ``timezone`` scalar function.
-
-    The function body is never executed; at runtime Ibis forwards calls to the
-    backend implementation. DuckDB mirrors Polars' ``replace_time_zone``
-    semantics when a naive timestamp is paired with the export's timezone.
-    """
 
 
 def ensure_message_schema(table: Table, *, timezone: str | ZoneInfo | None = None) -> Table:
@@ -781,7 +699,7 @@ def _normalise_timestamp(table: Table, desired_timezone: str) -> Table:
     if desired_timezone is None:
         normalized_ts = ts_col
     elif current_timezone is None:
-        localized = _builtin_timezone(desired_timezone, ts_col.cast(dt.Timestamp()))
+        localized = ts_col.cast(dt.Timestamp()).timezone(ibis.literal(desired_timezone))
         normalized_ts = localized.cast(desired_dtype)
     elif current_timezone == desired_timezone:
         normalized_ts = ts_col
@@ -806,7 +724,6 @@ __all__ = [
     "ANNOTATIONS_SCHEMA",
     # Ephemeral schemas
     "CONVERSATION_SCHEMA",
-    "conversation_schema_dict",
     "DEFAULT_TIMEZONE",
     # Elo schemas
     "ELO_HISTORY_SCHEMA",
@@ -823,6 +740,7 @@ __all__ = [
     "WHATSAPP_CONVERSATION_SCHEMA",
     # General utilities
     "add_primary_key",
+    "conversation_schema_dict",
     "create_index",
     # Runs utilities
     "create_runs_table",

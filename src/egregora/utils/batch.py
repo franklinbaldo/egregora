@@ -62,7 +62,7 @@ def _log_before_retry(retry_state: RetryCallState) -> None:
     before_sleep=_log_before_retry,
     retry=retry_if_exception_type(_RETRYABLE_ERRORS),
 )
-def call_with_retries_sync(func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
+def call_with_retries_sync[T](func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
     """Execute a synchronous function with exponential backoff and jitter.
 
     Args:
@@ -103,7 +103,7 @@ def sleep_with_progress_sync(duration: float, message: str = "Sleeping") -> None
 
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Sequence
 
     from google import genai
 
@@ -419,11 +419,4 @@ class GeminiBatchClient:
             sleep_with_progress_sync(poll_interval, f"Waiting for {job_name}")
 
 
-def chunk_requests[T](items: Sequence[T], *, size: int) -> Iterable[Sequence[T]]:
-    """Yield fixed-size batches from ``items``."""
-    if size <= 0:
-        msg = "Batch size must be positive"
-        raise ValueError(msg)
-
-    for index in range(0, len(items), size):
-        yield items[index : index + size]
+# Use the standard library implementation from Python 3.12+

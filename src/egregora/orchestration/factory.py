@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 import ibis
@@ -31,7 +32,6 @@ from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
-from egregora.utils.rate_limit import AsyncRateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,6 @@ class PipelineFactory:
         annotations_store = AnnotationStore(storage)
 
         quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
-        rate_limit = AsyncRateLimiter(run_params.config.quota.per_second_limit)
 
         from egregora.data_primitives.protocols import UrlContext
 
@@ -113,7 +112,6 @@ class PipelineFactory:
             rag_store=rag_store,
             annotations_store=annotations_store,
             quota_tracker=quota_tracker,
-            rate_limit=rate_limit,
             usage_tracker=UsageTracker(),
         )
 
@@ -215,7 +213,7 @@ class PipelineFactory:
         *,
         site_root: Path | None = None,
         url_context: UrlContext | None = None,
-    ):
+    ) -> Any:
         """Create and initialize the output adapter for the pipeline."""
         resolved_output = output_dir.expanduser().resolve()
         site_paths = derive_mkdocs_paths(resolved_output, config=config)
@@ -261,7 +259,6 @@ class PipelineFactory:
             client=ctx.client,
             quota=ctx.quota_tracker,
             usage=ctx.usage_tracker,
-            rate_limit=ctx.rate_limit,
         )
 
     @staticmethod

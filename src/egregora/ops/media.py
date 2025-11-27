@@ -114,17 +114,28 @@ def find_media_references(text: str) -> list[str]:
     Detects patterns like:
     - "IMG-20250101-WA0001.jpg (file attached)"
     - "<attached: IMG-20250101-WA0001.jpg>"
+    - "‎IMG-20250101-WA0001.jpg" (with U+200E LEFT-TO-RIGHT MARK)
     """
     if not text:
         return []
     media_files = []
+
+    # Pattern 1: Attachment markers (localized strings)
     for marker in ATTACHMENT_MARKERS:
         pattern = r"([\w\-\.]+\.\w+)\s*" + re.escape(marker)
         matches = re.findall(pattern, text, re.IGNORECASE)
         media_files.extend(matches)
 
+    # Pattern 2: WhatsApp filename pattern (IMG-/VID-/AUD-/etc.)
     wa_matches = WA_MEDIA_PATTERN.findall(text)
     media_files.extend(wa_matches)
+
+    # Pattern 3: Unicode marker (U+200E LEFT-TO-RIGHT MARK) followed by media filename
+    # This is the most consistent WhatsApp marker, works across all localizations
+    unicode_pattern = r"\u200e((?:IMG|VID|AUD|PTT|DOC)-\d+-WA\d+\.\w+)"
+    unicode_matches = re.findall(unicode_pattern, text, re.IGNORECASE)
+    media_files.extend(unicode_matches)
+
     return list(set(media_files))
 
 

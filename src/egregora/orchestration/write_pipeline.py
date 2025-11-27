@@ -56,7 +56,6 @@ from egregora.transformations import create_windows, load_checkpoint, save_check
 from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
-from egregora.utils.rate_limit import SyncRateLimiter
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
@@ -570,7 +569,6 @@ def _perform_enrichment(
         output_format=ctx.output_format,
         site_root=ctx.site_root,
         quota=ctx.quota_tracker,
-        rate_limit=ctx.rate_limit,
         usage_tracker=ctx.usage_tracker,
     )
     return enrich_table(
@@ -732,7 +730,6 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     from egregora.orchestration.context import PipelineConfig, PipelineState
 
     quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
-    rate_limit = SyncRateLimiter(run_params.config.quota.per_second_limit)
 
     url_ctx = UrlContext(
         base_url="",
@@ -762,7 +759,6 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         rag_store=rag_store,
         annotations_store=annotations_store,
         quota_tracker=quota_tracker,
-        rate_limit=rate_limit,
         usage_tracker=UsageTracker(),
     )
 

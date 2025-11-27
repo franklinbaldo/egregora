@@ -35,9 +35,9 @@ __all__ = [
     # Type aliases
     "GroupSlug",
     "MediaAsset",
-    "PostSlug",
     # Protocols (ISP-compliant)
     "OutputSink",
+    "PostSlug",
     "SiteScaffolder",
     "UrlContext",
     "UrlConvention",

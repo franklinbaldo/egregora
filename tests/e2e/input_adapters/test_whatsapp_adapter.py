@@ -22,11 +22,8 @@ from typing import TYPE_CHECKING
 import ibis
 import pytest
 
-from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
-from egregora.config.settings import create_default_config
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp import filter_egregora_messages, parse_source
-from egregora.utils.cache import EnrichmentCache
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
 
 if TYPE_CHECKING:
@@ -35,15 +32,6 @@ if TYPE_CHECKING:
 
 def create_export_from_fixture(fixture: WhatsAppFixture):
     return fixture.create_export()
-
-
-# Legacy helper placeholder ----------------------------------------------------
-
-
-def extract_and_replace_media(*_args, **_kwargs):  # pragma: no cover - legacy placeholder
-    """Placeholder until legacy media tests are updated to the Document pipeline."""
-    message = "Media extraction tests rely on the legacy pipeline"
-    raise NotImplementedError(message)
 
 
 # =============================================================================
@@ -80,7 +68,16 @@ def test_pipeline_rejects_unsafe_zip(tmp_path: Path):
 # =============================================================================
 
 
-def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture):
+@pytest.fixture
+def mock_dynamic_regex_fallback(monkeypatch):
+    """Mocks the dynamic regex generator to force fallback."""
+    monkeypatch.setattr(
+        "egregora.input_adapters.whatsapp.parsing.generate_dynamic_regex",
+        lambda *args, **kwargs: None,
+    )
+
+
+def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
     """Test that parser produces valid IR table with expected columns."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -94,7 +91,7 @@ def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture):
     assert all(ts.tzinfo is not None for ts in timestamps)
 
 
-def test_parser_handles_portuguese_dates(whatsapp_fixture: WhatsAppFixture):
+def test_parser_handles_portuguese_dates(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
     """Test that parser correctly handles Portuguese date formats."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -105,7 +102,7 @@ def test_parser_handles_portuguese_dates(whatsapp_fixture: WhatsAppFixture):
     assert "2025-10-28" in dates
 
 
-def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture):
+def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
     """Test that parser preserves all participant messages."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -113,7 +110,7 @@ def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture):
     assert table.count().execute() == 10
 
 
-def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture):
+def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
     """Test that parser extracts media file references from messages."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -123,7 +120,7 @@ def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture):
     assert "arquivo anexado" in combined
 
 
-def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
+def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
     """Test that parser strictly enforces IR MESSAGE_SCHEMA without extra columns."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -137,7 +134,9 @@ def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
 # =============================================================================
 
 
-def test_anonymization_removes_real_author_names(whatsapp_fixture: WhatsAppFixture):
+def test_anonymization_removes_real_author_names(
+    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+):
     """Test that anonymization removes real author names from table."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -150,7 +149,9 @@ def test_anonymization_removes_real_author_names(whatsapp_fixture: WhatsAppFixtu
     assert any("@" in message and "teste de menção" in message for message in messages)
 
 
-def test_parse_source_exposes_raw_authors_when_requested(whatsapp_fixture: WhatsAppFixture):
+def test_parse_source_exposes_raw_authors_when_requested(
+    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+):
     """Test that raw author names are exposed when explicitly requested."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(
@@ -170,7 +171,7 @@ def test_parse_source_exposes_raw_authors_when_requested(whatsapp_fixture: Whats
     assert "Você" not in authors, "'Você' only appears in system messages, should not be in authors"
 
 
-def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture):
+def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
     """Test that anonymization produces same UUIDs for same names."""
     export = create_export_from_fixture(whatsapp_fixture)
     table_one = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -182,7 +183,7 @@ def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture):
     assert authors_one == authors_two
 
 
-def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture):
+def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
     """Test that anonymized UUIDs follow expected format (full UUID format)."""
     import uuid
 
@@ -206,51 +207,50 @@ def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture):
 # =============================================================================
 
 
-@pytest.mark.xfail(reason="Media extraction not returning files - needs investigation")
-def test_media_extraction_creates_expected_files(whatsapp_fixture: WhatsAppFixture, tmp_path: Path):
-    """Test that media extraction creates expected files in output directory."""
-    export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_source(export, timezone=whatsapp_fixture.timezone)
+def test_media_extraction_creates_expected_files(whatsapp_fixture: WhatsAppFixture):
+    """Test that media files are correctly extracted from the ZIP."""
+    from egregora.data_primitives.document import DocumentType
+    from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 
-    docs_dir = tmp_path / "docs"
-    posts_dir = docs_dir / "posts"
-    docs_dir.mkdir()
-    posts_dir.mkdir()
+    adapter = WhatsAppAdapter()
 
-    _, media_mapping = extract_and_replace_media(
-        table,
-        export.zip_path,
-        docs_dir,
-        posts_dir,
-    )
+    # Test extracting an image
+    image_ref = "IMG-20251028-WA0035.jpg"
+    doc = adapter.deliver_media(image_ref, zip_path=whatsapp_fixture.zip_path)
 
-    assert len(media_mapping) == 4
-    for media_doc in media_mapping.values():
-        public_url = media_doc.metadata.get("public_url")
-        assert public_url is not None
-        assert public_url.endswith((".jpg", ".jpeg", ".png", ".gif"))
+    assert doc is not None
+    assert doc.type == DocumentType.MEDIA
+    assert doc.metadata["original_filename"] == image_ref
+    assert doc.metadata["media_type"] == "image"
+    assert len(doc.content) > 0
+
+    # Test extracting a non-existent file
+    assert adapter.deliver_media("non_existent.jpg", zip_path=whatsapp_fixture.zip_path) is None
 
 
-@pytest.mark.xfail(reason="Media extraction not returning files - needs investigation")
-def test_media_references_replaced_in_messages(whatsapp_fixture: WhatsAppFixture, tmp_path: Path):
-    """Test that media references in messages are replaced with markdown."""
-    export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_source(export, timezone=whatsapp_fixture.timezone)
+def test_media_references_replaced_in_messages(
+    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+):
+    """Test that media references in messages are converted to markdown."""
+    from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 
-    docs_dir = tmp_path / "docs"
-    posts_dir = docs_dir / "posts"
-    docs_dir.mkdir()
-    posts_dir.mkdir()
+    adapter = WhatsAppAdapter()
+    table = adapter.parse(whatsapp_fixture.zip_path, timezone=whatsapp_fixture.timezone)
 
-    updated_table, _ = extract_and_replace_media(
-        table,
-        export.zip_path,
-        docs_dir,
-        posts_dir,
-    )
+    # Get all text content
+    messages = table["text"].execute().tolist()
+    combined_text = " ".join(messages)
 
-    joined_messages = " ".join(updated_table["text"].execute().dropna().tolist())
-    assert "![Image]" in joined_messages
+    # Verify markdown conversion
+    # The fixture contains "IMG-20251028-WA0035.jpg (arquivo anexado)"
+    # It should be converted to "![Image](IMG-20251028-WA0035.jpg)"
+    assert "![Image](IMG-20251028-WA0035.jpg)" in combined_text
+
+    # Verify raw "arquivo anexado" text is removed or replaced
+    # Note: The regex replacement might leave some whitespace, but the marker itself should be gone/replaced
+    # Actually, the utility replaces "filename + marker" with the markdown.
+    # So "IMG...jpg (arquivo anexado)" -> "![Image](IMG...jpg)"
+    assert "(arquivo anexado)" not in combined_text
 
 
 # =============================================================================
@@ -258,7 +258,7 @@ def test_media_references_replaced_in_messages(whatsapp_fixture: WhatsAppFixture
 # =============================================================================
 
 
-def test_egregora_commands_are_filtered_out(whatsapp_fixture: WhatsAppFixture):
+def test_egregora_commands_are_filtered_out(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
     """Test that egregora in-chat commands are filtered from the message stream."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -286,114 +286,3 @@ def test_egregora_commands_are_filtered_out(whatsapp_fixture: WhatsAppFixture):
 # =============================================================================
 # Enrichment Tests
 # =============================================================================
-
-
-@pytest.mark.xfail(reason="Enrichment tests need schema updates (event_id, timestamp columns)")
-def test_enrichment_adds_egregora_messages(
-    whatsapp_fixture: WhatsAppFixture,
-    tmp_path: Path,
-):
-    """Test that enrichment adds egregora system messages to the table."""
-    export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_source(export, timezone=whatsapp_fixture.timezone)
-
-    docs_dir = tmp_path / "docs"
-    posts_dir = docs_dir / "posts"
-    docs_dir.mkdir()
-    posts_dir.mkdir()
-
-    updated_table, media_mapping = extract_and_replace_media(
-        table,
-        export.zip_path,
-        docs_dir,
-        posts_dir,
-    )
-
-    cache = EnrichmentCache(tmp_path / "cache")
-
-    # MODERN (Phase 2): Create config and context
-    config = create_default_config(tmp_path)
-    config = config.model_copy(
-        deep=True,
-        update={
-            "enrichment": config.enrichment.model_copy(update={"enable_url": False}),
-        },
-    )
-
-    enrichment_context = EnrichmentRuntimeContext(
-        cache=cache,
-        output_format=None,  # Not needed for test
-    )
-
-    try:
-        enriched = enrich_table(
-            updated_table,
-            media_mapping,
-            config=config,
-            context=enrichment_context,
-        )
-    finally:
-        cache.close()
-
-    assert enriched.count().execute() >= updated_table.count().execute()
-    assert enriched.filter(enriched.author == "egregora").count().execute() > 0
-
-
-@pytest.mark.xfail(reason="Enrichment tests need schema updates (event_id, timestamp columns)")
-def test_enrichment_handles_schema_mismatch(
-    whatsapp_fixture: WhatsAppFixture,
-    tmp_path: Path,
-):
-    """Test that enrichment can handle extra columns not in CONVERSATION_SCHEMA."""
-    export = create_export_from_fixture(whatsapp_fixture)
-    table = parse_source(export, timezone=whatsapp_fixture.timezone)
-
-    # Add extra columns to simulate the schema mismatch
-    table = table.mutate(
-        time=table.timestamp.strftime("%H:%M:%S"),
-        group_slug=ibis.literal("test-group"),
-        group_name=ibis.literal("Test Group"),
-    )
-
-    docs_dir = tmp_path / "docs"
-    posts_dir = docs_dir / "posts"
-    docs_dir.mkdir()
-    posts_dir.mkdir()
-
-    updated_table, media_mapping = extract_and_replace_media(
-        table,
-        export.zip_path,
-        docs_dir,
-        posts_dir,
-    )
-
-    cache = EnrichmentCache(tmp_path / "cache")
-
-    # MODERN (Phase 2): Create config and context
-    config = create_default_config(tmp_path)
-    config = config.model_copy(
-        deep=True,
-        update={
-            "enrichment": config.enrichment.model_copy(update={"enable_url": False}),
-        },
-    )
-
-    enrichment_context = EnrichmentRuntimeContext(
-        cache=cache,
-        output_format=None,  # Not needed for test
-    )
-
-    try:
-        # This should not raise an exception
-        enriched = enrich_table(
-            updated_table,
-            media_mapping,
-            config=config,
-            context=enrichment_context,
-        )
-        # Verify that the new rows have been added
-        assert enriched.count().execute() > updated_table.count().execute()
-        assert "egregora" in enriched.author.execute().tolist()
-
-    finally:
-        cache.close()

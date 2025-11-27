@@ -29,6 +29,7 @@ from pydantic_ai.messages import (
     ToolCallPart,
     ToolReturnPart,
 )
+from ratelimit import limits, sleep_and_retry
 
 from egregora.agents.banner.agent import generate_banner, is_banner_generation_available
 from egregora.agents.formatting import (
@@ -51,7 +52,6 @@ from egregora.utils.batch import call_with_retries_sync
 from egregora.utils.cache import CacheTier, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
-from egregora.utils.rate_limit import RateLimiter
 from egregora.utils.retry import retry_sync
 
 if TYPE_CHECKING:
@@ -177,7 +177,6 @@ class WriterResources:
     client: genai.Client | None
     quota: QuotaTracker | None
     usage: UsageTracker | None
-    rate_limit: RateLimiter | None
 
 
 @dataclass(frozen=True)
@@ -799,6 +798,8 @@ def _validate_prompt_fits(
             )
 
 
+@sleep_and_retry
+@limits(calls=10, period=60)
 def write_posts_with_pydantic_agent(
     *,
     prompt: str,
@@ -818,8 +819,6 @@ def write_posts_with_pydantic_agent(
     _validate_prompt_fits(prompt, model_name, config, context.window_label)
 
     def _invoke_agent() -> Any:
-        if context.resources.rate_limit:
-            context.resources.rate_limit.acquire()
         if context.resources.quota:
             context.resources.quota.reserve(1)
         return call_with_retries_sync(agent.run_sync, prompt, deps=context)
