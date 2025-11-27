@@ -754,7 +754,6 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         client=client_instance,
         storage=storage,
         cache=cache,
-        rag_store=rag_store,
         annotations_store=annotations_store,
         quota_tracker=quota_tracker,
         usage_tracker=UsageTracker(),
@@ -989,10 +988,21 @@ def _prepare_pipeline_data(
     # Update context with adapter
     ctx = ctx.with_adapter(adapter)
 
-    # RAG indexing removed - will be reimplemented with egregora.rag.index_documents()
-    # if config.rag.enabled:
-    #     logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
-    #     ... (removed for now)
+    # Index existing documents into RAG
+    if config.rag.enabled:
+        logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
+        try:
+            from egregora.rag import index_documents
+
+            # Get existing documents from output format
+            existing_docs = list(output_format.documents())
+            if existing_docs:
+                index_documents(existing_docs)
+                logger.info("[green]✓ Indexed %d existing documents into RAG[/]", len(existing_docs))
+            else:
+                logger.info("[dim]No existing documents to index[/]")
+        except Exception:
+            logger.exception("[yellow]⚠️ Failed to index existing documents into RAG (non-critical)[/]")
 
     return PreparedPipelineData(
         messages_table=messages_table,

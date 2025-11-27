@@ -239,11 +239,54 @@ def register_writer_tools(
         logger.info("Writer agent saved profile (doc_id: %s)", doc.document_id)
         return WriteProfileResult(status="success", path=doc.document_id)
 
-    # RAG tool removed - will be re-implemented with new egregora.rag API
-    # if enable_rag:
-    #     @agent.tool
-    #     def search_media_tool(...) -> SearchMediaResult:
-    #         ...
+    if enable_rag:
+
+        @agent.tool
+        def search_media_tool(ctx: RunContext[WriterDeps], query: str, top_k: int = 5) -> SearchMediaResult:
+            """Search for relevant media (images, videos, audio) in the knowledge base.
+
+            Args:
+                query: Search query text describing the media you're looking for
+                top_k: Number of results to return (default: 5)
+
+            Returns:
+                SearchMediaResult with matching media items
+
+            """
+            try:
+                from egregora.rag import RAGQueryRequest, search
+
+                # Execute RAG search
+                request = RAGQueryRequest(text=query, top_k=top_k)
+                response = search(request)
+
+                # Convert RAGHit results to MediaItem format
+                media_items: list[MediaItem] = []
+                for hit in response.hits:
+                    # Extract media-specific metadata
+                    metadata = hit.metadata or {}
+                    media_type = metadata.get("media_type")
+                    media_path = metadata.get("media_path")
+                    original_filename = metadata.get("original_filename")
+
+                    # Only include media documents
+                    if media_type:
+                        media_items.append(
+                            MediaItem(
+                                media_type=media_type,
+                                media_path=media_path,
+                                original_filename=original_filename,
+                                description=hit.text[:500] if hit.text else None,
+                                similarity=hit.score,
+                            )
+                        )
+
+                logger.info("RAG media search returned %d results for query: %s", len(media_items), query[:50])
+                return SearchMediaResult(results=media_items)
+
+            except Exception:
+                logger.exception("Failed to search media via RAG")
+                return SearchMediaResult(results=[])
 
     @agent.tool
     def annotate_conversation_tool(
@@ -322,11 +365,66 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
     top_k: int = 5,
     cache: Any | None = None,
 ) -> str:
-    """Build RAG context - currently disabled, will be reimplemented with new RAG API.
+    """Build RAG context by searching for similar posts.
 
-    TODO: Reimplement using egregora.rag.search() when ready.
+    Uses the new egregora.rag API to find relevant posts based on the conversation content.
+
+    Args:
+        table_markdown: Conversation content in markdown format to search against
+        top_k: Number of similar posts to retrieve (default: 5)
+        cache: Optional cache for RAG queries
+
+    Returns:
+        Formatted string with similar posts context, or empty string if no results
+
     """
-    return ""  # Disabled for now
+    if not table_markdown or not table_markdown.strip():
+        return ""
+
+    try:
+        from egregora.rag import RAGQueryRequest, search
+
+        # Use conversation content as search query (truncate if too long)
+        query_text = table_markdown[:500]  # Use first 500 chars as query
+
+        # Check cache if available
+        cache_key = f"rag_context_{hash(query_text)}"
+        if cache is not None:
+            cached = cache.rag.get(cache_key)
+            if cached is not None:
+                logger.debug("RAG context cache hit")
+                return cached
+
+        # Execute RAG search
+        request = RAGQueryRequest(text=query_text, top_k=top_k)
+        response = search(request)
+
+        if not response.hits:
+            return ""
+
+        # Build context from results
+        parts = [
+            "\n\n## Similar Posts (for context and inspiration):\n",
+            "These are similar posts from previous conversations that might provide useful context:\n\n",
+        ]
+
+        for idx, hit in enumerate(response.hits, 1):
+            similarity_pct = int(hit.score * 100)
+            parts.append(f"### Similar Post {idx} (similarity: {similarity_pct}%)\n")
+            parts.append(f"{hit.text[:500]}...\n\n")  # Truncate to 500 chars
+
+        context = "".join(parts)
+
+        # Cache the result
+        if cache is not None:
+            cache.rag.set(cache_key, context)
+
+        logger.info("Built RAG context with %d similar posts", len(response.hits))
+        return context
+
+    except Exception:
+        logger.exception("Failed to build RAG context (non-critical)")
+        return ""  # Return empty string on error, don't fail the pipeline
 
 
 def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
@@ -714,9 +812,7 @@ def write_posts_with_pydantic_agent(
     model_name = test_model if test_model is not None else config.models.writer
     agent = Agent[WriterDeps, WriterAgentReturn](model=model_name, deps_type=WriterDeps)
     register_writer_tools(
-        agent,
-        enable_banner=is_banner_generation_available(),
-        enable_rag=False,  # RAG disabled temporarily
+        agent, enable_banner=is_banner_generation_available(), enable_rag=config.rag.enabled
     )
 
     _validate_prompt_fits(prompt, model_name, config, context.window_label)
@@ -831,16 +927,41 @@ def _index_new_content_in_rag(
 ) -> None:
     """Index newly created content in RAG system.
 
-    TODO: Re-implement using egregora.rag.index_documents() when ready.
-
     Args:
         resources: Writer resources including RAG configuration
-        saved_posts: List of post paths that were created
-        saved_profiles: List of profile paths that were updated
+        saved_posts: List of post identifiers that were created
+        saved_profiles: List of profile identifiers that were updated
 
     """
-    # Disabled for now - will be re-implemented with new egregora.rag API
-    return
+    # Check if RAG is enabled and we have posts to index
+    if not (resources.retrieval_config.enabled and saved_posts):
+        return
+
+    try:
+        from egregora.data_primitives.document import DocumentType
+        from egregora.rag import index_documents
+
+        # Read the newly saved post documents
+        docs: list[Document] = []
+        for post_id in saved_posts:
+            # Try to read the document from output format
+            # The output format should have a way to read documents by identifier
+            if hasattr(resources.output, "documents"):
+                # Find the matching document in the output format's documents
+                for doc in resources.output.documents():
+                    if doc.type == DocumentType.POST and post_id in str(doc.metadata.get("slug", "")):
+                        docs.append(doc)
+                        break
+
+        if docs:
+            index_documents(docs)
+            logger.info("Indexed %d new posts in RAG", len(docs))
+        else:
+            logger.debug("No new documents to index in RAG")
+
+    except Exception:
+        # Don't fail the pipeline if RAG indexing fails
+        logger.exception("Failed to index new content in RAG (non-critical)")
 
 
 def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
