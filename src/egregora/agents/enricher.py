@@ -19,9 +19,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import httpx
 import ibis
 from ibis.expr.types import Table
-import httpx
 from pydantic import BaseModel
 from pydantic_ai import Agent, AgentRunResult, RunContext
 from pydantic_ai.messages import BinaryContent

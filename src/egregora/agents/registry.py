@@ -274,12 +274,16 @@ class ToolRegistry:
                 raise ToolRegistryError(msg)
             profiles = data.get("profiles", {})
             if not isinstance(profiles, dict):
-                msg = f"'profiles' section in {profiles_path} must be a mapping, got {type(profiles).__name__}"
+                msg = (
+                    f"'profiles' section in {profiles_path} must be a mapping, got {type(profiles).__name__}"
+                )
                 raise ToolRegistryError(msg)
             validated_profiles: dict[str, Any] = {}
             for name, profile in profiles.items():
                 if not isinstance(profile, dict):
-                    msg = f"Profile '{name}' in {profiles_path} must be a mapping, got {type(profile).__name__}"
+                    msg = (
+                        f"Profile '{name}' in {profiles_path} must be a mapping, got {type(profile).__name__}"
+                    )
                     raise ToolRegistryError(msg)
 
                 allow = profile.get("allow", []) or []
