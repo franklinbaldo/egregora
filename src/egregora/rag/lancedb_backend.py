@@ -15,9 +15,8 @@ import lancedb
 import numpy as np
 
 from egregora.data_primitives.document import Document
-
-from .ingestion import chunks_from_documents
-from .models import RAGHit, RAGQueryRequest, RAGQueryResponse
+from egregora.rag.ingestion import chunks_from_documents
+from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
 
 logger = logging.getLogger(__name__)
 

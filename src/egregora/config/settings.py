@@ -109,15 +109,14 @@ class ModelSettings(BaseModel):
 
 
 class RAGSettings(BaseModel):
-    """Retrieval-Augmented Generation (RAG) configuration."""
+    """Retrieval-Augmented Generation (RAG) configuration.
+
+    Uses LanceDB for vector storage and similarity search.
+    """
 
     enabled: bool = Field(
         default=True,
         description="Enable RAG for writer agent",
-    )
-    backend: Literal["duckdb_legacy", "lancedb"] = Field(
-        default="duckdb_legacy",
-        description="RAG backend: 'duckdb_legacy' (current) or 'lancedb' (new)",
     )
     top_k: int = Field(
         default=5,
@@ -130,22 +129,6 @@ class RAGSettings(BaseModel):
         ge=0.0,
         le=1.0,
         description="Minimum similarity threshold for results",
-    )
-    mode: Literal["ann", "exact"] = Field(
-        default="ann",
-        description="Retrieval mode: 'ann' (fast, approximate) or 'exact' (slow, precise)",
-    )
-    nprobe: int | None = Field(
-        default=None,
-        ge=1,
-        le=100,
-        description="ANN search quality parameter (higher = better quality, slower)",
-    )
-    overfetch: int | None = Field(
-        default=None,
-        ge=1,
-        le=100,
-        description="Overfetch multiplier for ANN candidate pool",
     )
 
 

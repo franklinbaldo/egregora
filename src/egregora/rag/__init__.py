@@ -1,21 +1,20 @@
 """RAG (Retrieval-Augmented Generation) package for Egregora.
 
-This package provides a clean RAG abstraction with pluggable backends:
-
-- **LanceDBRAGBackend**: New LanceDB-based implementation (recommended)
-- **DuckDBRAGBackend**: Legacy DuckDB VSS wrapper (deprecated)
+This package provides a simple RAG implementation using LanceDB for vector storage.
 
 Public API:
-    - get_backend(): Get the configured RAG backend
+    - get_backend(): Get the configured LanceDB RAG backend
     - index_documents(): Index documents into RAG
     - search(): Execute vector similarity search
     - RAGHit, RAGQueryRequest, RAGQueryResponse: Core data models
 
 Configuration:
-    Set backend via .egregora/config.yml:
+    Set paths in .egregora/config.yml:
     ```yaml
+    paths:
+      lancedb_dir: .egregora/lancedb
+
     rag:
-      backend: lancedb  # or "duckdb_legacy"
       top_k: 5
     ```
 
@@ -43,8 +42,9 @@ from typing import TYPE_CHECKING, Any
 
 from egregora.data_primitives.document import Document
 
-from .backend import RAGBackend
-from .models import RAGHit, RAGQueryRequest, RAGQueryResponse
+from egregora.rag.backend import RAGBackend
+from egregora.rag.lancedb_backend import LanceDBRAGBackend
+from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -56,24 +56,21 @@ _backend: RAGBackend | None = None
 
 
 def _create_backend() -> RAGBackend:
-    """Create RAG backend based on configuration.
-
-    Reads from egregora.config.settings to determine which backend to use.
+    """Create LanceDB RAG backend based on configuration.
 
     Returns:
-        Configured RAGBackend instance
+        LanceDBRAGBackend instance
 
     Raises:
-        ValueError: If backend configuration is invalid
         RuntimeError: If backend initialization fails
 
     """
-    # Import here to avoid circular dependency
-    # Try to load config from current directory
     from pathlib import Path
 
+    from egregora.agents.shared.rag.embedder import embed_texts_in_batch
     from egregora.config.settings import load_egregora_config
 
+    # Try to load config from current directory
     try:
         config = load_egregora_config(Path.cwd())
     except Exception as e:
@@ -82,36 +79,6 @@ def _create_backend() -> RAGBackend:
         from egregora.config.settings import EgregoraConfig
 
         config = EgregoraConfig()
-
-    rag_settings = config.rag
-    backend_type = getattr(rag_settings, "backend", "duckdb_legacy")
-
-    if backend_type == "lancedb":
-        logger.info("Creating LanceDB RAG backend")
-        return _create_lancedb_backend(config)
-    if backend_type == "duckdb_legacy":
-        logger.info("Creating DuckDB legacy RAG backend")
-        return _create_duckdb_backend(config)
-
-    msg = f"Unknown RAG backend: {backend_type}"
-    raise ValueError(msg)
-
-
-def _create_lancedb_backend(config: Any) -> RAGBackend:  # type: ignore[misc]
-    """Create LanceDB backend.
-
-    Args:
-        config: EgregoraConfig instance
-
-    Returns:
-        LanceDBRAGBackend instance
-
-    """
-    from pathlib import Path
-
-    from egregora.agents.shared.rag.embedder import embed_texts_in_batch
-
-    from .lancedb_backend import LanceDBRAGBackend
 
     # Determine lancedb_dir from config
     lancedb_dir = Path.cwd() / ".egregora" / "lancedb"
@@ -125,6 +92,7 @@ def _create_lancedb_backend(config: Any) -> RAGBackend:  # type: ignore[misc]
     def embed_fn(texts: Sequence[str]) -> list[list[float]]:
         return embed_texts_in_batch(list(texts), model=embedding_model)
 
+    logger.info("Creating LanceDB RAG backend at %s", lancedb_dir)
     return LanceDBRAGBackend(
         db_dir=lancedb_dir,
         table_name="rag_embeddings",
@@ -133,51 +101,15 @@ def _create_lancedb_backend(config: Any) -> RAGBackend:  # type: ignore[misc]
     )
 
 
-def _create_duckdb_backend(config: Any) -> RAGBackend:  # type: ignore[misc]
-    """Create DuckDB legacy backend.
-
-    Args:
-        config: EgregoraConfig instance
-
-    Returns:
-        DuckDBRAGBackend instance
-
-    """
-    from pathlib import Path
-
-    from egregora.database.duckdb_manager import DuckDBStorageManager
-
-    from .duckdb_backend import DuckDBRAGBackend
-
-    # Determine rag_dir from config
-    rag_dir = Path.cwd() / ".egregora" / "rag"
-    if hasattr(config, "paths") and hasattr(config.paths, "rag_dir"):
-        rag_dir = Path.cwd() / config.paths.rag_dir
-
-    parquet_path = rag_dir / "chunks.parquet"
-
-    # Create storage manager
-    # For now, use default connection
-    storage = DuckDBStorageManager()
-
-    return DuckDBRAGBackend(
-        parquet_path=parquet_path,
-        storage=storage,
-        embedding_model=config.models.embedding,
-        top_k_default=config.rag.top_k,
-    )
-
-
 def get_backend() -> RAGBackend:
     """Get the configured RAG backend.
 
-    Lazily initializes the backend on first call.
+    Lazily initializes the LanceDB backend on first call.
 
     Returns:
-        RAGBackend instance
+        RAGBackend instance (LanceDB implementation)
 
     Raises:
-        ValueError: If backend configuration is invalid
         RuntimeError: If backend initialization fails
 
     """
