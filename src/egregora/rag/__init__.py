@@ -110,11 +110,7 @@ def _create_backend() -> RAGBackend:
     # must use different task_type values for optimal retrieval quality.
     # The caller (LanceDBRAGBackend) is responsible for specifying the correct task_type.
     def embed_fn(texts: Sequence[str], task_type: str) -> list[list[float]]:
-        return embed_texts_in_batch(
-            list(texts),
-            model=embedding_model,
-            task_type=task_type
-        )
+        return embed_texts_in_batch(list(texts), model=embedding_model, task_type=task_type)
 
     logger.info("Creating LanceDB RAG backend at %s", lancedb_dir)
     return LanceDBRAGBackend(
