@@ -270,11 +270,10 @@ class EndpointQueue:
                         retry_after = float(e.response.headers.get("Retry-After", 60))
                         self.rate_limiter.mark_rate_limited(retry_after)
                         raise
-                    elif e.response.status_code >= HTTP_SERVER_ERROR:
+                    if e.response.status_code >= HTTP_SERVER_ERROR:
                         self.rate_limiter.mark_error()
                         raise
-                    else:
-                        raise  # Client error, don't retry
+                    raise  # Client error, don't retry
 
         return embeddings
 
@@ -318,11 +317,10 @@ class EndpointQueue:
                     retry_after = float(e.response.headers.get("Retry-After", 60))
                     self.rate_limiter.mark_rate_limited(retry_after)
                     raise
-                elif e.response.status_code >= HTTP_SERVER_ERROR:
+                if e.response.status_code >= HTTP_SERVER_ERROR:
                     self.rate_limiter.mark_error()
                     raise
-                else:
-                    raise  # Client error, don't retry
+                raise  # Client error, don't retry
 
     def _handle_response_status(self, response: httpx.Response) -> None:
         """Handle HTTP response status."""
@@ -408,14 +406,13 @@ class EmbeddingRouter:
             # Single endpoint available - use it for low latency
             logger.debug("Routing %d text(s) to single endpoint (low latency)", len(texts_list))
             return await self.single_queue.submit(texts_list, task_type)
-        elif self.batch_queue.is_available():
+        if self.batch_queue.is_available():
             # Single exhausted, fallback to batch
             logger.debug("Single endpoint exhausted, routing %d texts to batch endpoint", len(texts_list))
             return await self.batch_queue.submit(texts_list, task_type)
-        else:
-            # Both exhausted - wait for single (lower latency)
-            logger.debug("Both endpoints rate-limited, waiting for single endpoint")
-            return await self.single_queue.submit(texts_list, task_type)
+        # Both exhausted - wait for single (lower latency)
+        logger.debug("Both endpoints rate-limited, waiting for single endpoint")
+        return await self.single_queue.submit(texts_list, task_type)
 
 
 # Global singleton

@@ -128,8 +128,8 @@ def is_rag_available() -> bool:
 
 
 __all__ = [
-    "embed_texts_async",
     "embed_chunks_async",
     "embed_query_async",
+    "embed_texts_async",
     "is_rag_available",
 ]
