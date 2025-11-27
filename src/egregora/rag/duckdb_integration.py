@@ -10,7 +10,7 @@ allowing you to:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import ibis
 
@@ -109,7 +109,7 @@ def join_with_messages(
     return rag_results.inner_join(messages_table, rag_results[on_column] == messages_table[on_column])
 
 
-def create_rag_analytics_view(storage_manager, rag_query: str, top_k: int = 100) -> ir.Table:
+def create_rag_analytics_view(storage_manager: Any, rag_query: str, top_k: int = 100) -> ir.Table:
     """Create a DuckDB view combining RAG results with analytics.
 
     This creates a materialized view that you can query with SQL, joining

@@ -19,12 +19,14 @@ All critical issues have been fixed:
 from __future__ import annotations
 
 import tempfile
+import time
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
 
+import egregora.rag
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.rag import get_backend, index_documents, search
 from egregora.rag.ingestion import DEFAULT_MAX_CHARS, chunks_from_document, chunks_from_documents
@@ -291,7 +293,8 @@ def test_backend_index_embedding_failure(temp_db_dir: Path):
     """Test handling of embedding failures."""
 
     def failing_embed_fn(texts: list[str], task_type: str) -> list[list[float]]:
-        raise RuntimeError("Embedding API failed")
+        msg = "Embedding API failed"
+        raise RuntimeError(msg)
 
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -310,7 +313,7 @@ def test_backend_index_embedding_count_mismatch(temp_db_dir: Path):
 
     def bad_embed_fn(texts: list[str], task_type: str) -> list[list[float]]:
         # Return wrong number of embeddings
-        return [np.random.rand(768).tolist()]
+        return [np.random.rand(768).tolist()]  # noqa: NPY002
 
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -505,7 +508,7 @@ def test_backend_asymmetric_embeddings(temp_db_dir: Path):
         embedding_calls.append({"count": len(texts), "task_type": task_type})
 
         # Return mock embeddings
-        return [np.random.rand(768).tolist() for _ in texts]
+        return [np.random.rand(768).tolist() for _ in texts]  # noqa: NPY002
 
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -584,28 +587,27 @@ def test_backend_query_with_filters(temp_db_dir: Path, mock_embed_fn):
 
 def test_high_level_api_index_and_search():
     """Test the high-level index_documents() and search() API."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Mock the backend creation
-        with patch("egregora.rag._create_backend") as mock_create:
-            mock_backend = Mock()
-            mock_create.return_value = mock_backend
+    with (
+        tempfile.TemporaryDirectory(),
+        patch("egregora.rag._create_backend") as mock_create,
+    ):
+        mock_backend = Mock()
+        mock_create.return_value = mock_backend
 
-            # Reset global backend
-            import egregora.rag
+        # Reset global backend
+        egregora.rag._backend = None
 
-            egregora.rag._backend = None
+        # Use high-level API
+        docs = [Document(content="Test", type=DocumentType.POST)]
+        index_documents(docs)
 
-            # Use high-level API
-            docs = [Document(content="Test", type=DocumentType.POST)]
-            index_documents(docs)
+        mock_backend.index_documents.assert_called_once_with(docs)
 
-            mock_backend.index_documents.assert_called_once_with(docs)
+        # Search
+        request = RAGQueryRequest(text="Test", top_k=5)
+        search(request)
 
-            # Search
-            request = RAGQueryRequest(text="Test", top_k=5)
-            search(request)
-
-            mock_backend.query.assert_called_once_with(request)
+        mock_backend.query.assert_called_once_with(request)
 
 
 def test_high_level_api_backend_singleton():
@@ -615,8 +617,6 @@ def test_high_level_api_backend_singleton():
         mock_create.return_value = mock_backend1
 
         # Reset global backend
-        import egregora.rag
-
         egregora.rag._backend = None
 
         # Get backend twice
@@ -737,8 +737,6 @@ def test_chunking_performance():
     doc = Document(content=content, type=DocumentType.POST)
 
     # Should complete in reasonable time
-    import time
-
     start = time.time()
     chunks = chunks_from_document(doc, max_chars=DEFAULT_MAX_CHARS)
     elapsed = time.time() - start

@@ -26,7 +26,7 @@ def mock_embed_fn():
 
     def embed(texts: list[str], task_type: str) -> list[list[float]]:
         # Return random 768-dimensional embeddings
-        return [np.random.rand(768).tolist() for _ in texts]
+        return [np.random.rand(768).tolist() for _ in texts]  # noqa: NPY002
 
     return embed
 
