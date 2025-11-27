@@ -18,6 +18,7 @@ from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.writer import WriterResources
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import UrlContext
+from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.orchestration.context import (
     PipelineConfig,
@@ -60,8 +61,6 @@ class PipelineFactory:
         )
 
         # Initialize database tables (CREATE TABLE IF NOT EXISTS)
-        from egregora.database import initialize_database
-
         initialize_database(pipeline_backend)
 
         client_instance = run_params.client or PipelineFactory.create_gemini_client()
@@ -74,8 +73,6 @@ class PipelineFactory:
         annotations_store = AnnotationStore(storage)
 
         quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
-
-        from egregora.data_primitives.protocols import UrlContext
 
         url_ctx = UrlContext(
             base_url="",
