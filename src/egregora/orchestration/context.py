@@ -24,6 +24,8 @@ if TYPE_CHECKING:
 
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import OutputSink, UrlContext
+from egregora.output_adapters import OutputAdapterRegistry
+from egregora.rag.embedding_router import EmbeddingRouter
 from egregora.utils.cache import EnrichmentCache, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
@@ -139,6 +141,8 @@ class PipelineState:
     output_format: OutputSink | None = None  # ISP-compliant: Runtime data operations only
     adapter: Any = None  # InputAdapter protocol
     usage_tracker: UsageTracker | None = None
+    output_registry: OutputAdapterRegistry | None = None
+    embedding_router: EmbeddingRouter | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -223,6 +227,11 @@ class PipelineContext:
         return self.state.output_format
 
     @property
+    def output_registry(self) -> OutputAdapterRegistry | None:
+        """Return the output adapter registry."""
+        return self.state.output_registry
+
+    @property
     def url_context(self) -> UrlContext | None:
         return self.config_obj.url_context
 
@@ -237,6 +246,10 @@ class PipelineContext:
     @property
     def quota_tracker(self) -> QuotaTracker | None:
         return self.state.quota_tracker
+
+    @property
+    def embedding_router(self) -> EmbeddingRouter | None:
+        return self.state.embedding_router
 
     # Forward config properties
     @property

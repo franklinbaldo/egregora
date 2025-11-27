@@ -26,7 +26,11 @@ from egregora.orchestration.context import (
     PipelineRunParams,
     PipelineState,
 )
-from egregora.output_adapters import create_output_format, output_registry
+from egregora.output_adapters import (
+    OutputAdapterRegistry,
+    create_default_output_registry,
+    create_output_format,
+)
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.utils.cache import PipelineCache
@@ -74,6 +78,8 @@ class PipelineFactory:
 
         quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
 
+        output_registry = create_default_output_registry()
+
         url_ctx = UrlContext(
             base_url="",
             site_prefix=compute_site_prefix(site_paths["site_root"], site_paths["docs_dir"]),
@@ -102,6 +108,7 @@ class PipelineFactory:
             annotations_store=annotations_store,
             quota_tracker=quota_tracker,
             usage_tracker=UsageTracker(),
+            output_registry=output_registry,
         )
 
         ctx = PipelineContext(config_obj, state)
@@ -201,6 +208,7 @@ class PipelineFactory:
         output_dir: Path,
         *,
         site_root: Path | None = None,
+        registry: OutputAdapterRegistry | None = None,
         url_context: UrlContext | None = None,
     ) -> Any:
         """Create and initialize the output adapter for the pipeline."""
@@ -209,9 +217,11 @@ class PipelineFactory:
 
         root = site_root or site_paths["site_root"]
 
-        adapter = output_registry.detect_format(root)
+        registry = registry or create_default_output_registry()
+
+        adapter = registry.detect_format(root)
         if adapter is None:
-            adapter = create_output_format(root, format_type="mkdocs")
+            adapter = create_output_format(root, format_type="mkdocs", registry=registry)
 
         adapter.initialize(root, url_context=url_context)
         return adapter
@@ -237,6 +247,7 @@ class PipelineFactory:
 
         return WriterResources(
             output=output,
+            output_registry=ctx.output_registry,
             annotations_store=ctx.annotations_store,
             storage=ctx.storage,
             embedding_model=ctx.embedding_model,

@@ -51,6 +51,7 @@ from egregora.knowledge.profiles import filter_opted_out_authors, process_comman
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
+from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.transformations import (
@@ -711,6 +712,8 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
     quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
 
+    output_registry = create_default_output_registry()
+
     url_ctx = UrlContext(
         base_url="",
         site_prefix=compute_site_prefix(site_paths["site_root"], site_paths["docs_dir"]),
@@ -739,6 +742,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         annotations_store=annotations_store,
         quota_tracker=quota_tracker,
         usage_tracker=UsageTracker(),
+        output_registry=output_registry,
     )
 
     ctx = PipelineContext(config_obj, state)
@@ -938,7 +942,11 @@ def _prepare_pipeline_data(
     embedding_model = config.models.embedding
 
     output_format = PipelineFactory.create_output_adapter(
-        config, run_params.output_dir, site_root=ctx.site_root, url_context=ctx.url_context
+        config,
+        run_params.output_dir,
+        site_root=ctx.site_root,
+        registry=ctx.output_registry,
+        url_context=ctx.url_context,
     )
     ctx = ctx.with_output_format(output_format)
 

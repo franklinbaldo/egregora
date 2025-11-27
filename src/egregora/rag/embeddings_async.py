@@ -15,13 +15,13 @@ Key features:
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import Annotated
 
 from egregora.config import get_google_api_key
 from egregora.config.settings import EgregoraConfig, load_egregora_config
-from egregora.rag.embedding_router import get_router
+from egregora.rag.embedding_router import EmbeddingRouter, get_router
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,8 @@ async def embed_texts_async(
     *,
     task_type: Annotated[str, "Task type (RETRIEVAL_DOCUMENT or RETRIEVAL_QUERY)"],
     api_key: Annotated[str | None, "Optional API key (defaults to GOOGLE_API_KEY env var)"] = None,
+    router: EmbeddingRouter | None = None,
+    router_factory: Callable[..., Awaitable[EmbeddingRouter]] | None = None,
 ) -> Annotated[list[list[float]], "Embedding vectors (768 dimensions each)"]:
     """Embed texts using dual-queue router for optimal throughput.
 
@@ -41,6 +43,8 @@ async def embed_texts_async(
         texts: Sequence of texts to embed
         task_type: Task type for embeddings (RETRIEVAL_DOCUMENT or RETRIEVAL_QUERY)
         api_key: Optional API key (defaults to GOOGLE_API_KEY env var)
+        router: Optional embedding router instance to use
+        router_factory: Optional factory to construct a router when one isn't provided
 
     Returns:
         List of 768-dimensional embedding vectors
@@ -63,17 +67,19 @@ async def embed_texts_async(
     rag_settings = config.rag
     embedding_model = config.models.embedding
 
-    # Get or create router
-    router = await get_router(
-        model=embedding_model,
-        api_key=api_key,
-        max_batch_size=rag_settings.embedding_max_batch_size,
-        timeout=rag_settings.embedding_timeout,
-    )
+    router_factory = router_factory or get_router
+    router_instance = router
+    if router_instance is None:
+        router_instance = await router_factory(
+            model=embedding_model,
+            api_key=api_key,
+            max_batch_size=rag_settings.embedding_max_batch_size,
+            timeout=rag_settings.embedding_timeout,
+        )
 
     # Route to optimal endpoint
     logger.info("Embedding %d text(s) with task_type=%s", len(texts), task_type)
-    embeddings = await router.embed(texts, task_type)
+    embeddings = await router_instance.embed(texts, task_type)
     logger.info("Embedded %d text(s) successfully", len(embeddings))
 
     return embeddings

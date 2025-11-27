@@ -45,7 +45,7 @@ from egregora.config.settings import EgregoraConfig, RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors, read_profile
 from egregora.ops.media import save_media_asset
-from egregora.output_adapters import output_registry
+from egregora.output_adapters import OutputAdapterRegistry, create_default_output_registry
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.batch import call_with_retries_sync
@@ -176,6 +176,7 @@ class WriterResources:
     client: genai.Client | None
     quota: QuotaTracker | None
     usage: UsageTracker | None
+    output_registry: OutputAdapterRegistry | None = None
 
 
 @dataclass(frozen=True)
@@ -1073,15 +1074,17 @@ def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
     return result_payload
 
 
-def load_format_instructions(site_root: Path | None) -> str:
+def load_format_instructions(site_root: Path | None, *, registry: OutputAdapterRegistry | None = None) -> str:
     """Load output format instructions for the writer agent."""
+    registry = registry or create_default_output_registry()
+
     if site_root:
-        detected_format = output_registry.detect_format(site_root)
+        detected_format = registry.detect_format(site_root)
         if detected_format:
             return detected_format.get_format_instructions()
 
     try:
-        default_format = output_registry.get_format("mkdocs")
+        default_format = registry.get_format("mkdocs")
         return default_format.get_format_instructions()
     except KeyError:
         return ""

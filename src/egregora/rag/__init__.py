@@ -55,6 +55,7 @@ from pathlib import Path
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.rag.backend import RAGBackend
+from egregora.rag.embedding_router import EmbeddingRouter, create_embedding_router
 from egregora.rag.embeddings_async import embed_texts_async
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
 from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
@@ -92,6 +93,7 @@ def _create_backend() -> RAGBackend:
         lancedb_dir = Path.cwd() / config.paths.lancedb_dir
 
     # Get embedding model
+    rag_settings = config.rag
     embedding_model = config.models.embedding
 
     # Convert indexable_types from string list to DocumentType set
@@ -109,8 +111,19 @@ def _create_backend() -> RAGBackend:
     # IMPORTANT: Google Gemini embeddings are asymmetric - documents and queries
     # must use different task_type values for optimal retrieval quality.
     # The caller (LanceDBRAGBackend) is responsible for specifying the correct task_type.
+    router: EmbeddingRouter | None = None
+
     async def embed_fn(texts: Sequence[str], task_type: str) -> list[list[float]]:
-        return await embed_texts_async(list(texts), task_type=task_type)
+        nonlocal router
+        if router is None:
+            router = await create_embedding_router(
+                model=embedding_model,
+                api_key=None,
+                max_batch_size=rag_settings.embedding_max_batch_size,
+                timeout=rag_settings.embedding_timeout,
+            )
+
+        return await embed_texts_async(list(texts), task_type=task_type, router=router)
 
     logger.info("Creating LanceDB RAG backend at %s", lancedb_dir)
     return LanceDBRAGBackend(
