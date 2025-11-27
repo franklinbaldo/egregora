@@ -174,9 +174,7 @@ def test_chunking_filters_by_document_type():
 
 def test_chunking_multiple_documents():
     """Test chunking multiple documents at once."""
-    docs = [
-        Document(content=f"Document {i} content", type=DocumentType.POST) for i in range(5)
-    ]
+    docs = [Document(content=f"Document {i} content", type=DocumentType.POST) for i in range(5)]
 
     all_chunks = chunks_from_documents(docs)
 
@@ -274,10 +272,7 @@ def test_backend_index_large_batch(temp_db_dir: Path, mock_embed_fn):
     )
 
     # Create 100 documents
-    docs = [
-        Document(content=f"Document {i} with unique content", type=DocumentType.POST)
-        for i in range(100)
-    ]
+    docs = [Document(content=f"Document {i} with unique content", type=DocumentType.POST) for i in range(100)]
 
     # Should handle large batch
     backend.index_documents(docs)
@@ -516,9 +511,7 @@ def test_backend_query_with_filters(temp_db_dir: Path, mock_embed_fn):
             type=DocumentType.POST,
             metadata={"category": "programming"},
         ),
-        Document(
-            content="Post about cooking", type=DocumentType.POST, metadata={"category": "food"}
-        ),
+        Document(content="Post about cooking", type=DocumentType.POST, metadata={"category": "food"}),
     ]
 
     backend.index_documents(docs)
