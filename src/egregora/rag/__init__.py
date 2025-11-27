@@ -106,15 +106,21 @@ def _create_backend() -> RAGBackend:
                 logger.warning("Unknown document type in config: %s (skipping)", type_str)
 
     # Create embedding function that wraps the existing embedder
-    def embed_fn(texts: Sequence[str]) -> list[list[float]]:
-        return embed_texts_in_batch(list(texts), model=embedding_model)
+    # IMPORTANT: Google Gemini embeddings are asymmetric - documents and queries
+    # must use different task_type values for optimal retrieval quality.
+    # The caller (LanceDBRAGBackend) is responsible for specifying the correct task_type.
+    def embed_fn(texts: Sequence[str], task_type: str) -> list[list[float]]:
+        return embed_texts_in_batch(
+            list(texts),
+            model=embedding_model,
+            task_type=task_type
+        )
 
     logger.info("Creating LanceDB RAG backend at %s", lancedb_dir)
     return LanceDBRAGBackend(
         db_dir=lancedb_dir,
         table_name="rag_embeddings",
         embed_fn=embed_fn,
-        top_k_default=config.rag.top_k,
         indexable_types=indexable_types,
     )
 

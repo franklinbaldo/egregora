@@ -43,7 +43,7 @@ def temp_db_dir() -> Path:
 def mock_embed_fn():
     """Create a mock embedding function that returns deterministic vectors."""
 
-    def embed(texts: list[str]) -> list[list[float]]:
+    def embed(texts: list[str], task_type: str) -> list[list[float]]:
         # Return deterministic embeddings based on text content
         # This allows us to test similarity meaningfully
         embeddings = []
@@ -62,7 +62,7 @@ def mock_embed_fn():
 def mock_embed_fn_similar():
     """Create an embedding function where similar texts get similar embeddings."""
 
-    def embed(texts: list[str]) -> list[list[float]]:
+    def embed(texts: list[str], task_type: str) -> list[list[float]]:
         embeddings = []
         for text in texts:
             # Create embeddings based on word overlap
@@ -290,7 +290,7 @@ def test_backend_index_large_batch(temp_db_dir: Path, mock_embed_fn):
 def test_backend_index_embedding_failure(temp_db_dir: Path):
     """Test handling of embedding failures."""
 
-    def failing_embed_fn(texts: list[str]) -> list[list[float]]:
+    def failing_embed_fn(texts: list[str], task_type: str) -> list[list[float]]:
         raise RuntimeError("Embedding API failed")
 
     backend = LanceDBRAGBackend(
@@ -308,7 +308,7 @@ def test_backend_index_embedding_failure(temp_db_dir: Path):
 def test_backend_index_embedding_count_mismatch(temp_db_dir: Path):
     """Test handling of embedding count mismatch."""
 
-    def bad_embed_fn(texts: list[str]) -> list[list[float]]:
+    def bad_embed_fn(texts: list[str], task_type: str) -> list[list[float]]:
         # Return wrong number of embeddings
         return [np.random.rand(768).tolist()]
 
@@ -490,6 +490,50 @@ def test_backend_query_chunk_id_format(temp_db_dir: Path, mock_embed_fn):
         doc_id, chunk_idx = hit.chunk_id.rsplit(":", 1)
         assert doc_id == hit.document_id
         assert chunk_idx.isdigit()
+
+
+def test_backend_asymmetric_embeddings(temp_db_dir: Path):
+    """Test that documents and queries use different task_types for asymmetric embeddings.
+
+    Google Gemini embeddings are asymmetric - documents should use RETRIEVAL_DOCUMENT
+    and queries should use RETRIEVAL_QUERY for optimal retrieval quality.
+    """
+    # Track what task_types were used
+    embedding_calls = []
+
+    def mock_embed_with_task_tracking(texts: list[str], task_type: str) -> list[list[float]]:
+        embedding_calls.append({"count": len(texts), "task_type": task_type})
+
+        # Return mock embeddings
+        return [np.random.rand(768).tolist() for _ in texts]
+
+    backend = LanceDBRAGBackend(
+        db_dir=temp_db_dir,
+        table_name="test",
+        embed_fn=mock_embed_with_task_tracking,
+    )
+
+    # Index documents (should use RETRIEVAL_DOCUMENT)
+    docs = [
+        Document(content="Document 1", type=DocumentType.POST),
+        Document(content="Document 2", type=DocumentType.POST),
+    ]
+    backend.index_documents(docs)
+
+    # Query (should use RETRIEVAL_QUERY)
+    request = RAGQueryRequest(text="search query", top_k=5)
+    backend.query(request)
+
+    # Verify task types
+    assert len(embedding_calls) == 2, "Should have 2 embedding calls (index + query)"
+
+    index_call = embedding_calls[0]
+    assert index_call["count"] == 2, "Indexing should embed 2 documents"
+    assert index_call["task_type"] == "RETRIEVAL_DOCUMENT"
+
+    query_call = embedding_calls[1]
+    assert query_call["count"] == 1, "Query should embed 1 text"
+    assert query_call["task_type"] == "RETRIEVAL_QUERY"
 
 
 def test_backend_query_with_filters(temp_db_dir: Path, mock_embed_fn):

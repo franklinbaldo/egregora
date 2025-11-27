@@ -24,7 +24,7 @@ def temp_db_dir() -> Path:
 def mock_embed_fn():
     """Create a mock embedding function that returns fixed-size vectors."""
 
-    def embed(texts: list[str]) -> list[list[float]]:
+    def embed(texts: list[str], task_type: str) -> list[list[float]]:
         # Return random 768-dimensional embeddings
         return [np.random.rand(768).tolist() for _ in texts]
 

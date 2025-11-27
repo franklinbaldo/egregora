@@ -24,7 +24,8 @@ from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
 logger = logging.getLogger(__name__)
 
 # Type alias for embedding functions
-EmbedFn = Callable[[Sequence[str]], list[list[float]]]
+# task_type should be "RETRIEVAL_DOCUMENT" for indexing, "RETRIEVAL_QUERY" for searching
+EmbedFn = Callable[[Sequence[str], str], list[list[float]]]
 
 
 # Pydantic-based schema for LanceDB (zero-copy Arrow)
@@ -132,9 +133,9 @@ class LanceDBRAGBackend:
         # Extract texts for embedding
         texts = [c.text for c in chunks]
 
-        # Compute embeddings
+        # Compute embeddings with RETRIEVAL_DOCUMENT task type
         try:
-            embeddings = self._embed_fn(texts)
+            embeddings = self._embed_fn(texts, "RETRIEVAL_DOCUMENT")
         except Exception as e:
             msg = f"Failed to compute embeddings: {e}"
             raise RuntimeError(msg) from e
@@ -187,9 +188,9 @@ class LanceDBRAGBackend:
         """
         top_k = request.top_k
 
-        # Embed query
+        # Embed query with RETRIEVAL_QUERY task type
         try:
-            query_emb = self._embed_fn([request.text])[0]
+            query_emb = self._embed_fn([request.text], "RETRIEVAL_QUERY")[0]
         except Exception as e:
             msg = f"Failed to embed query: {e}"
             raise RuntimeError(msg) from e
