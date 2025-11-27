@@ -14,16 +14,13 @@ MODERN (2025-11-18): Imports site path resolution from
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import Iterator
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
-from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
@@ -31,6 +28,7 @@ from egregora.knowledge.profiles import write_profile as write_profile_content
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 from egregora.output_adapters.conventions import StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
+from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, _safe_yaml_load
 from egregora.utils.filesystem import (
     _ensure_author_entries,
     _format_frontmatter_datetime,
@@ -44,18 +42,6 @@ from egregora.utils.paths import slugify
 logger = logging.getLogger(__name__)
 
 
-class _ConfigLoader(yaml.SafeLoader):
-    """YAML loader that ignores unknown tags."""
-
-
-_ConfigLoader.add_constructor(None, lambda loader, node: None)
-
-
-def _safe_yaml_load(content: str) -> dict[str, Any]:
-    """Load YAML safely, ignoring unknown tags like !ENV."""
-    return yaml.load(content, Loader=_ConfigLoader) or {}  # noqa: S506
-
-
 class MkDocsAdapter(OutputAdapter):
     """Unified MkDocs output adapter.
 
@@ -67,12 +53,16 @@ class MkDocsAdapter(OutputAdapter):
     1. Pipeline execution (via OutputSink interface)
     2. Site initialization (via SiteScaffolder interface)
 
+    Site scaffolding is delegated to :class:`MkDocsSiteScaffolder` to keep
+    runtime persistence concerns separate from one-time setup.
+
     For adapters that only need data persistence (e.g., PostgresAdapter, S3Adapter),
     implement only OutputSink. For pure initialization tools, implement only SiteScaffolder.
     """
 
     def __init__(self) -> None:
         """Initializes the adapter."""
+        self._scaffolder = MkDocsSiteScaffolder()
         self._initialized = False
         self.site_root = None
         self._url_convention = StandardUrlConvention()
@@ -237,376 +227,22 @@ class MkDocsAdapter(OutputAdapter):
         return self.supports_site(site_root)
 
     def supports_site(self, site_root: Path) -> bool:
-        """Check if the site root contains a mkdocs.yml file.
-
-        READ-ONLY: Does not create any files or directories.
-
-        Args:
-            site_root: Path to check
-
-        Returns:
-            True if mkdocs.yml exists in site_root or standard locations
-
-        """
-        if not site_root.exists():
-            return False
-
-        # Check .egregora/mkdocs.yml (modern location)
-        egregora_mkdocs = site_root / ".egregora" / "mkdocs.yml"
-        if egregora_mkdocs.exists():
-            return True
-
-        # Check root mkdocs.yml (legacy location)
-        legacy_path = site_root / "mkdocs.yml"
-        return legacy_path.exists()
+        """Check if the site root contains a mkdocs.yml file."""
+        return self._scaffolder.supports_site(site_root)
 
     def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
-        """Create the initial MkDocs site structure.
-
-        Creates a comprehensive MkDocs site with:
-        - .egregora/mkdocs.yml configuration
-        - .egregora/config.yml (Egregora configuration)
-        - .egregora/prompts/ (custom prompt overrides)
-        - .github/workflows/publish.yml (GitHub Actions deployment)
-        - posts/, profiles/, media/ directories
-        - index.md, about.md, and other starter pages
-        - .gitignore files
-
-        Args:
-            site_root: Root directory for the site
-            site_name: Display name for the site
-            **kwargs: Additional options (ignored)
-
-        Returns:
-            tuple of (mkdocs_yml_path, was_created)
-
-        Raises:
-            RuntimeError: If scaffolding fails
-
-        """
-        site_root = site_root.expanduser().resolve()
-        site_root.mkdir(parents=True, exist_ok=True)
-
-        # Check if mkdocs.yml already exists ANYWHERE (including custom paths)
-        # Prevents duplicate configs - refuse to init if ANY mkdocs.yml exists
-        # derive_mkdocs_paths() checks:
-        #   1. .egregora/mkdocs.yml (default new location)
-        #   2. mkdocs.yml at root (legacy location)
-        site_paths = derive_mkdocs_paths(site_root)
-
-        mkdocs_path = site_paths.get("mkdocs_path")
-        site_exists = False
-        if mkdocs_path and mkdocs_path.exists():
-            logger.info("MkDocs site already exists at %s (config: %s)", site_root, mkdocs_path)
-            site_exists = True
-
-        legacy_mkdocs = site_root / "mkdocs.yml"
-        if legacy_mkdocs.exists() and legacy_mkdocs != mkdocs_path:
-            logger.info("MkDocs site already exists at %s (config: %s)", site_root, legacy_mkdocs)
-            site_exists = True
-
-        # Site doesn't exist - create it
-        try:
-            # Set up Jinja2 environment for templates
-            templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
-            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
-
-            # Render context (paths relative to mkdocs.yml inside .egregora/)
-            mkdocs_config_dir = site_paths["mkdocs_config_path"].parent
-            docs_dir = site_paths["docs_dir"]
-            docs_relative = Path(os.path.relpath(docs_dir, mkdocs_config_dir)).as_posix()
-            blog_relative = Path(os.path.relpath(site_paths["posts_dir"], docs_dir)).as_posix()
-
-            context = {
-                "site_name": site_name or site_root.name or "Egregora Archive",
-                "site_root": site_root,
-                "blog_dir": blog_relative,
-                "docs_dir": docs_relative,
-                "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
-                "generated_date": datetime.now(UTC).strftime("%Y-%m-%d"),
-                "default_writer_model": EgregoraConfig().models.writer,
-                "media_counts": {"urls": 0, "images": 0, "videos": 0, "audio": 0},  # Default counts for init
-                "recent_media": [],  # Empty for initial scaffold
-                "overrides_dir": Path(os.path.relpath(site_root / "overrides", mkdocs_config_dir)).as_posix(),
-            }
-
-            # Create mkdocs.yml in .egregora/ (default location) ONLY if it doesn't exist
-            new_mkdocs_path = site_paths["mkdocs_config_path"]  # Default: .egregora/mkdocs.yml
-            if not site_exists:
-                mkdocs_template = env.get_template("mkdocs.yml.jinja")
-                mkdocs_content = mkdocs_template.render(**context)
-                new_mkdocs_path.parent.mkdir(parents=True, exist_ok=True)
-                new_mkdocs_path.write_text(mkdocs_content, encoding="utf-8")
-                logger.info("Created .egregora/mkdocs.yml")
-            else:
-                # Use existing path for return value
-                new_mkdocs_path = mkdocs_path or legacy_mkdocs
-
-            # Create site structure (will only create missing files)
-            self._create_site_structure(site_paths, env, context)
-        except Exception as e:
-            msg = f"Failed to scaffold MkDocs site: {e}"
-            raise RuntimeError(msg) from e
-        else:
-            logger.info("MkDocs site scaffold checked/updated at %s", site_root)
-            return (new_mkdocs_path, not site_exists)
+        """Create or update an MkDocs site using the dedicated scaffolder."""
+        return self._scaffolder.scaffold_site(site_root, site_name, **_kwargs)
 
     # SiteScaffolder protocol -------------------------------------------------
 
     def scaffold(self, path: Path, config: dict) -> None:
-        site_name = config.get("site_name")
-        mkdocs_path, created = self.scaffold_site(path, site_name or path.name)
-        if not created:
-            logger.info("MkDocs site already exists at %s (config: %s)", path, mkdocs_path)
-
-    def _create_site_structure(
-        self, site_paths: dict[str, Path], env: Environment, context: dict[str, Any]
-    ) -> None:
-        """Create essential directories and index files for the blog structure.
-
-        Args:
-            site_paths: Dictionary of site paths
-            env: Jinja2 environment for rendering templates
-            context: Template rendering context
-
-        """
-        # Create .egregora/ structure
-        self._create_egregora_structure(site_paths, env)
-
-        # Create content directories
-        self._create_content_directories(site_paths)
-
-        # Create template files
-        self._create_template_files(site_paths, env, context)
-
-        # Create .egregora/config.yml
-        self._create_egregora_config(site_paths, env)
-
-    def _create_content_directories(self, site_paths: dict[str, Path]) -> None:
-        """Create main content directories for the site.
-
-        Args:
-            site_paths: Dictionary of site paths
-
-        """
-        posts_dir = site_paths["posts_dir"]
-        profiles_dir = site_paths["profiles_dir"]
-        media_dir = site_paths["media_dir"]
-        journal_dir = site_paths["journal_dir"]
-
-        # Create main content directories at root
-        for directory in (posts_dir, profiles_dir, media_dir, journal_dir):
-            directory.mkdir(parents=True, exist_ok=True)
-
-        # Create media subdirectories with .gitkeep
-        for subdir in ["images", "videos", "audio", "documents"]:
-            media_subdir = media_dir / subdir
-            media_subdir.mkdir(exist_ok=True)
-            (media_subdir / ".gitkeep").touch()
-
-        # Ensure journal dir has gitkeep
-        journal_dir.mkdir(exist_ok=True)
-        (journal_dir / ".gitkeep").touch()
-
-    def _create_template_files(
-        self, site_paths: dict[str, Path], env: Environment, context: dict[str, Any]
-    ) -> None:
-        """Create starter template files from Jinja2 templates.
-
-        Args:
-            site_paths: Dictionary of site paths
-            env: Jinja2 environment for rendering templates
-            context: Template rendering context
-
-        """
-        import shutil
-
-        site_root = site_paths["site_root"]
-        docs_dir = site_paths["docs_dir"]
-        profiles_dir = site_paths["profiles_dir"]
-        media_dir = site_paths["media_dir"]
-        posts_dir = site_paths["posts_dir"]
-
-        # Define templates to render
-        templates_to_render = [
-            (site_root / "README.md", "README.md.jinja"),
-            (site_root / ".gitignore", ".gitignore.jinja"),
-            (site_root / ".github" / "workflows" / "publish.yml", ".github/workflows/publish.yml.jinja"),
-            (docs_dir / "index.md", "docs/index.md.jinja"),
-            (docs_dir / "about.md", "docs/about.md.jinja"),
-            (docs_dir / "journal" / "index.md", "docs/journal/index.md.jinja"),
-            (profiles_dir / "index.md", "docs/profiles/index.md.jinja"),
-            (media_dir / "index.md", "docs/media/index.md.jinja"),
-            (posts_dir / "index.md", "docs/posts/index.md.jinja"),
-            (posts_dir / "tags.md", "docs/posts/tags.md.jinja"),
-            (site_root / "main.py", "main.py.jinja"),
-        ]
-
-        # Add custom CSS (not a Jinja template, just copy)
-        stylesheets_dir = docs_dir / "stylesheets"
-        stylesheets_dir.mkdir(parents=True, exist_ok=True)
-        custom_css_src = Path(env.loader.searchpath[0]) / "docs" / "stylesheets" / "custom.css"
-        custom_css_dest = stylesheets_dir / "custom.css"
-        if custom_css_src.exists() and not custom_css_dest.exists():
-            shutil.copy(custom_css_src, custom_css_dest)
-
-        # Add media carousel JS
-        javascripts_dir = docs_dir / "javascripts"
-        javascripts_dir.mkdir(parents=True, exist_ok=True)
-        carousel_js_src = Path(env.loader.searchpath[0]) / "docs" / "javascripts" / "media_carousel.js"
-        carousel_js_dest = javascripts_dir / "media_carousel.js"
-        if carousel_js_src.exists() and not carousel_js_dest.exists():
-            shutil.copy(carousel_js_src, carousel_js_dest)
-
-        # Render each template
-        for target_path, template_name in templates_to_render:
-            if not target_path.exists():
-                target_path.parent.mkdir(parents=True, exist_ok=True)
-                template = env.get_template(template_name)
-                content = template.render(**context)
-                target_path.write_text(content, encoding="utf-8")
-
-        # Add theme overrides (for generated sites)
-        overrides_dest = site_root / "overrides"
-        if not overrides_dest.exists():
-            overrides_src = Path(env.loader.searchpath[0]) / "overrides"
-            if overrides_src.exists():
-                shutil.copytree(overrides_src, overrides_dest)
-
-    def _create_egregora_config(self, site_paths: dict[str, Path], env: Environment) -> None:
-        """Create .egregora/config.yml from template.
-
-        Args:
-            site_paths: Dictionary of site paths
-            env: Jinja2 environment for rendering templates
-
-        """
-        config_path = site_paths["config_path"]
-        if not config_path.exists():
-            try:
-                config_template = env.get_template(".egregora/config.yml.jinja")
-                config_content = config_template.render()
-                config_path.write_text(config_content, encoding="utf-8")
-                logger.info("Created .egregora/config.yml from template")
-            except (OSError, TemplateError) as e:
-                # Fallback to Pydantic default if template fails
-                logger.warning("Failed to render config template: %s. Using Pydantic default.", e)
-                create_default_config(site_paths["site_root"])
-
-    def _create_egregora_structure(self, site_paths: dict[str, Path], env: Any | None = None) -> None:
-        """Create .egregora/ directory structure with templates.
-
-        Creates:
-        - .egregora/config.yml (from template with comments)
-        - .egregora/prompts/ (flat directory for prompt overrides)
-        - .egregora/prompts/README.md (usage guide)
-        - .egregora/.gitignore (ignore ephemeral data)
-
-        Args:
-            site_paths: Dictionary of site paths
-            env: Jinja2 environment (optional, will be created if not provided)
-
-        """
-        from egregora.resources.prompts import PromptManager
-
-        egregora_dir = site_paths["egregora_dir"]
-        egregora_dir.mkdir(parents=True, exist_ok=True)
-
-        # Use template environment if not provided
-        if env is None:
-            templates_dir = Path(__file__).resolve().parent.parent / "rendering" / "templates" / "site"
-            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
-
-        # Create prompts directory
-        prompts_dir = site_paths["prompts_dir"]
-        prompts_dir.mkdir(exist_ok=True)
-
-        # Copy default prompts from package to site using centralized manager
-        PromptManager.copy_defaults(prompts_dir)
-
-        # Create prompts README from template
-        prompts_readme = prompts_dir / "README.md"
-        if not prompts_readme.exists():
-            try:
-                readme_template = env.get_template(".egregora/prompts/README.md.jinja")
-                readme_content = readme_template.render()
-                prompts_readme.write_text(readme_content, encoding="utf-8")
-                logger.info("Created .egregora/prompts/README.md")
-            except (OSError, TemplateError) as e:
-                # Fallback to simple README if template fails
-                logger.warning("Failed to render prompts README template: %s. Using simple version.", e)
-                prompts_readme.write_text(
-                    "# Custom Prompts\n\n"
-                    "Place custom prompt overrides here with same structure as package defaults.\n\n"
-                    "See https://docs.egregora.ai for more information.\n",
-                    encoding="utf-8",
-                )
-
-        # Create .gitignore
-        gitignore = egregora_dir / ".gitignore"
-        if not gitignore.exists():
-            gitignore.write_text(
-                "# Ephemeral data (regenerated on each run)\n"
-                ".cache/\n"
-                "rag/*.duckdb\n"
-                "rag/*.parquet\n"
-                "rag/*.duckdb.wal\n"
-                "\n"
-                "# Python cache\n"
-                "__pycache__/\n"
-                "*.pyc\n",
-                encoding="utf-8",
-            )
-            logger.info("Created .egregora/.gitignore")
+        """Compatibility entry point for the scaffolder protocol."""
+        self._scaffolder.scaffold(path, config)
 
     def resolve_paths(self, site_root: Path) -> SiteConfiguration:
-        """Resolve all paths for an existing MkDocs site.
-
-        Args:
-            site_root: Root directory of the site
-
-        Returns:
-            SiteConfiguration with all resolved paths
-
-        Raises:
-            ValueError: If site_root is not a valid MkDocs site
-            FileNotFoundError: If required directories don't exist
-
-        """
-        if not self.supports_site(site_root):
-            msg = f"{site_root} is not a valid MkDocs site (no mkdocs.yml found)"
-            raise ValueError(msg)
-        try:
-            site_paths = derive_mkdocs_paths(site_root)
-        except Exception as e:
-            msg = f"Failed to resolve site paths: {e}"
-            raise RuntimeError(msg) from e
-        config_file = site_paths.get("mkdocs_path")
-        # Load mkdocs.yml to get site_name
-        mkdocs_path = site_paths.get("mkdocs_path")
-        if mkdocs_path:
-            try:
-                mkdocs_config = _safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
-            except yaml.YAMLError as exc:
-                logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
-                mkdocs_config = {}
-        else:
-            logger.debug("mkdocs.yml not found in %s", site_root)
-            mkdocs_config = {}
-        return SiteConfiguration(
-            site_root=site_paths["site_root"],
-            site_name=mkdocs_config.get("site_name", "Egregora Site"),
-            docs_dir=site_paths["docs_dir"],
-            posts_dir=site_paths["posts_dir"],
-            profiles_dir=site_paths["profiles_dir"],
-            media_dir=site_paths["media_dir"],
-            config_file=config_file,
-            additional_paths={
-                "rag_dir": site_paths["rag_dir"],
-                "enriched_dir": site_paths["enriched_dir"],
-                "rankings_dir": site_paths["rankings_dir"],
-            },
-        )
+        """Resolve all paths for an existing MkDocs site."""
+        return self._scaffolder.resolve_paths(site_root)
 
     def write_post(self, content: str, metadata: dict[str, Any], output_dir: Path, **_kwargs: object) -> str:
         """Write a blog post in MkDocs format.
