@@ -13,7 +13,6 @@ from egregora.utils.batch import (
     EmbeddingBatchRequest,
     GeminiBatchClient,
     call_with_retries_sync,
-    chunk_requests,
 )
 
 
@@ -115,20 +114,6 @@ def test_gemini_batch_client_poll_timeout(mock_genai_client):
 
     with pytest.raises(TimeoutError, match="Batch job test-job exceeded timeout"):
         client.generate_content(requests, timeout=0.2)
-
-
-def test_chunk_requests():
-    """Test chunking of requests."""
-    items = list(range(10))
-    chunks = list(chunk_requests(items, size=3))
-    assert len(chunks) == 4
-    assert list(chunks[0]) == [0, 1, 2]
-    assert list(chunks[1]) == [3, 4, 5]
-    assert list(chunks[2]) == [6, 7, 8]
-    assert list(chunks[3]) == [9]
-
-    with pytest.raises(ValueError):
-        list(chunk_requests(items, size=0))
 
 
 @mock.patch("time.sleep", return_value=None)

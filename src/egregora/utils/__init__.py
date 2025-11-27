@@ -8,7 +8,6 @@ from egregora.utils.batch import (
     BatchPromptResult,
     EmbeddingBatchRequest,
     EmbeddingBatchResult,
-    chunk_requests,
 )
 from egregora.utils.cache import ENRICHMENT_CACHE_VERSION, EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
@@ -33,7 +32,6 @@ __all__ = [
     "SSRFValidationError",
     "ZipValidationError",
     "ZipValidationSettings",
-    "chunk_requests",
     "configure_default_limits",
     "ensure_dir",
     "ensure_safe_member_size",

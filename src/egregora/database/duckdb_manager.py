@@ -48,6 +48,7 @@ from ibis.expr.types import Table
 
 from egregora.database import schemas
 from egregora.database.ir_schema import quote_identifier
+from egregora.database.sql import SQLManager
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +118,9 @@ class DuckDBStorageManager:
         # Initialize Ibis backend
         self.ibis_conn = ibis.duckdb.from_connection(self._conn)
 
+        # Initialize SQL template manager
+        self.sql = SQLManager()
+
         # Cache for PRAGMA table metadata
         self._table_info_cache: dict[str, set[str]] = {}
 
@@ -149,6 +153,7 @@ class DuckDBStorageManager:
         instance._vss_function = None
         instance._init_vector_extensions()  # Initialize VSS on instance
         instance.ibis_conn = ibis.duckdb.from_connection(conn)
+        instance.sql = SQLManager()
         instance._table_info_cache = {}
         logger.debug("DuckDBStorageManager created from existing connection")
         return instance
@@ -263,18 +268,14 @@ class DuckDBStorageManager:
             logger.debug("Writing checkpoint: %s", parquet_path)
             table.to_parquet(str(parquet_path))
 
-            # Load into DuckDB from parquet (use quoted identifier to prevent SQL injection)
-            quoted_name = quote_identifier(name)
-            if mode == "replace":
-                sql = f"CREATE OR REPLACE TABLE {quoted_name} AS SELECT * FROM read_parquet('{parquet_path}')"
-            else:  # append
-                # Create table if not exists, then insert
-                sql = f"""
-                    CREATE TABLE IF NOT EXISTS {quoted_name} AS SELECT * FROM read_parquet('{parquet_path}') WHERE 1=0;
-                    INSERT INTO {quoted_name} SELECT * FROM read_parquet('{parquet_path}')
-                """
-
-            self._conn.execute(sql)
+            # Load into DuckDB from parquet
+            sql = self.sql.render(
+                "dml/load_parquet.sql.jinja",
+                table_name=name,
+                mode=mode,
+            )
+            params = [str(parquet_path)] if mode == "replace" else [str(parquet_path), str(parquet_path)]
+            self._conn.execute(sql, params)
             logger.info("Table '%s' written with checkpoint (%s)", name, mode)
 
         # Direct write without checkpoint (faster but no persistence)
@@ -307,26 +308,17 @@ class DuckDBStorageManager:
         target_schema = schema
         schemas.create_table_if_not_exists(self._conn, name, target_schema)
 
-        quoted_table = quote_identifier(name)
-        column_list = ", ".join(quote_identifier(col) for col in target_schema.names)
         temp_view = f"_egregora_persist_{uuid.uuid4().hex}"
+        self._conn.create_view(temp_view, table.to_pyarrow(), overwrite=True)
 
         try:
-            # Create temp view from table expression
-            self._conn.create_view(temp_view, table.to_pyarrow(), overwrite=True)
-            quoted_view = quote_identifier(temp_view)
-
-            self._conn.execute("BEGIN TRANSACTION")
-            try:
-                self._conn.execute(f"DELETE FROM {quoted_table}")
-                self._conn.execute(
-                    f"INSERT INTO {quoted_table} ({column_list}) SELECT {column_list} FROM {quoted_view}"
-                )
-                self._conn.execute("COMMIT")
-            except Exception:
-                logger.exception("Transaction failed during DuckDB persistence, rolling back")
-                self._conn.execute("ROLLBACK")
-                raise
+            sql = self.sql.render(
+                "ddl/atomic_persist.sql.jinja",
+                target_table=name,
+                columns=target_schema.names,
+                source_view=temp_view,
+            )
+            self._conn.execute(sql)
         finally:
             with contextlib.suppress(Exception):
                 self._conn.unregister(temp_view)
@@ -561,17 +553,15 @@ class DuckDBStorageManager:
         return int(row[0]) if row and row[0] is not None else 0
 
     def create_hnsw_index(self, *, table_name: str, index_name: str, column: str = "embedding") -> bool:
-        quoted_table = quote_identifier(table_name)
-        quoted_index = quote_identifier(index_name)
         try:
-            self._conn.execute(
-                f"""
-                CREATE INDEX {quoted_index}
-                ON {quoted_table}
-                USING HNSW ({column})
-                WITH (metric = 'cosine')
-                """
+            sql = self.sql.render(
+                "ddl/create_index.sql.jinja",
+                index_name=index_name,
+                table_name=table_name,
+                column_name=column,
+                index_type="HNSW",
             )
+            self._conn.execute(sql)
             logger.info("Created HNSW index %s on %s.%s", index_name, table_name, column)
         except duckdb.Error as exc:
             logger.warning("Skipping HNSW index creation: %s", exc)
