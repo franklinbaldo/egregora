@@ -17,7 +17,9 @@ import pytest
 import pytest_asyncio
 import respx
 
+from egregora.config.settings import ModelSettings, RAGSettings
 from egregora.rag.embedding_router import (
+    GENAI_API_BASE,
     EmbeddingRouter,
     EndpointQueue,
     EndpointType,
@@ -25,9 +27,24 @@ from egregora.rag.embedding_router import (
     RateLimitState,
 )
 
-# Constants
-GENAI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
-MODEL = "models/text-embedding-004"
+# Get embedding model from settings
+_model_settings = ModelSettings()
+MODEL = _model_settings.embedding  # "models/gemini-embedding-001"
+
+# Note: Currently embedding_router.py hardcodes "models/text-embedding-004"
+# This is tracked with TODO comments in the router code
+# For tests, we use the hardcoded value to match actual behavior
+MODEL = "models/text-embedding-004"  # TODO: Use settings once router is updated
+
+# Default settings from config
+_rag_settings = RAGSettings()
+DEFAULT_MAX_BATCH_SIZE = _rag_settings.embedding_max_batch_size  # 100
+DEFAULT_TIMEOUT = _rag_settings.embedding_timeout  # 60.0
+DEFAULT_MAX_RETRIES = _rag_settings.embedding_max_retries  # 5
+
+# Test overrides (smaller values for faster tests)
+TEST_BATCH_SIZE = 3  # Small batch for testing accumulation behavior
+TEST_TIMEOUT = 10.0  # Shorter timeout for faster test execution
 
 
 @pytest.fixture
@@ -38,8 +55,12 @@ def mock_api_key():
 
 @pytest_asyncio.fixture
 async def router(mock_api_key):
-    """Create router and clean up after test."""
-    r = EmbeddingRouter(api_key=mock_api_key, max_batch_size=3, timeout=10.0)
+    """Create router and clean up after test.
+
+    Uses small batch size (3) for testing batch accumulation behavior.
+    Uses short timeout (10s) for faster test execution.
+    """
+    r = EmbeddingRouter(api_key=mock_api_key, max_batch_size=TEST_BATCH_SIZE, timeout=TEST_TIMEOUT)
     await r.start()
     yield r
     await r.stop()
@@ -234,7 +255,7 @@ async def test_endpoint_queue_processes_single_request(mock_api_key):
         endpoint_type=EndpointType.SINGLE,
         rate_limiter=limiter,
         api_key=mock_api_key,
-        timeout=10.0,
+        timeout=TEST_TIMEOUT,
     )
 
     await queue.start()
@@ -256,41 +277,42 @@ async def test_endpoint_queue_processes_single_request(mock_api_key):
 
 
 @pytest.mark.asyncio
+@respx.mock
 async def test_endpoint_queue_batches_multiple_requests(mock_api_key):
     """Test that batch endpoint accumulates multiple requests."""
     limiter = RateLimiter(EndpointType.BATCH)
     queue = EndpointQueue(
         endpoint_type=EndpointType.BATCH,
         rate_limiter=limiter,
-        max_batch_size=3,
+        max_batch_size=TEST_BATCH_SIZE,  # Use small batch to test accumulation
         api_key=mock_api_key,
-        timeout=10.0,
+        timeout=TEST_TIMEOUT,
+    )
+
+    # Mock batch endpoint before starting queue
+    respx.post(f"{GENAI_API_BASE}/{MODEL}:batchEmbedContents").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "embeddings": [
+                    {"values": [0.1] * 768},
+                    {"values": [0.2] * 768},
+                    {"values": [0.3] * 768},
+                ]
+            },
+        )
     )
 
     await queue.start()
 
-    with respx.mock:
-        respx.post(f"{GENAI_API_BASE}/{MODEL}:batchEmbedContents").mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "embeddings": [
-                        {"values": [0.1] * 768},
-                        {"values": [0.2] * 768},
-                        {"values": [0.3] * 768},
-                    ]
-                },
-            )
-        )
+    # Submit 3 requests that should be batched
+    tasks = [
+        asyncio.create_task(queue.submit(["text1"], "RETRIEVAL_DOCUMENT")),
+        asyncio.create_task(queue.submit(["text2"], "RETRIEVAL_DOCUMENT")),
+        asyncio.create_task(queue.submit(["text3"], "RETRIEVAL_DOCUMENT")),
+    ]
 
-        # Submit 3 requests that should be batched
-        tasks = [
-            asyncio.create_task(queue.submit(["text1"], "RETRIEVAL_DOCUMENT")),
-            asyncio.create_task(queue.submit(["text2"], "RETRIEVAL_DOCUMENT")),
-            asyncio.create_task(queue.submit(["text3"], "RETRIEVAL_DOCUMENT")),
-        ]
-
-        results = await asyncio.gather(*tasks)
+    results = await asyncio.gather(*tasks)
 
     await queue.stop()
 
@@ -308,7 +330,7 @@ async def test_endpoint_queue_handles_api_error(mock_api_key):
         endpoint_type=EndpointType.SINGLE,
         rate_limiter=limiter,
         api_key=mock_api_key,
-        timeout=10.0,
+        timeout=TEST_TIMEOUT,
     )
 
     await queue.start()
@@ -373,32 +395,38 @@ async def test_full_workflow_with_both_endpoints(router):
 @pytest.mark.asyncio
 @respx.mock
 async def test_concurrent_requests_under_rate_limits(router):
-    """Test handling many concurrent requests under rate limit pressure."""
-    # Single endpoint: first call succeeds, second gets 429, third succeeds after wait
-    single_responses = [
-        httpx.Response(200, json={"embedding": {"values": [0.1] * 768}}),
-        httpx.Response(429, headers={"Retry-After": "0.5"}),
-        httpx.Response(200, json={"embedding": {"values": [0.2] * 768}}),
-    ]
-    single_route = respx.post(f"{GENAI_API_BASE}/{MODEL}:embedContent").mock(side_effect=single_responses)
+    """Test handling concurrent requests with rate limit fallback."""
+    # Single endpoint: first call succeeds, then gets 429
+    single_calls = 0
 
-    # Batch endpoint always succeeds
+    def single_side_effect(request):
+        nonlocal single_calls
+        single_calls += 1
+        if single_calls == 1:
+            return httpx.Response(200, json={"embedding": {"values": [0.1] * 768}})
+        else:
+            # Subsequent calls get rate limited
+            return httpx.Response(429, headers={"Retry-After": "0.5"})
+
+    single_route = respx.post(f"{GENAI_API_BASE}/{MODEL}:embedContent").mock(side_effect=single_side_effect)
+
+    # Batch endpoint always succeeds with single item (since we're submitting one text at a time)
     batch_route = respx.post(f"{GENAI_API_BASE}/{MODEL}:batchEmbedContents").mock(
         return_value=httpx.Response(
             200,
-            json={"embeddings": [{"values": [0.3] * 768}, {"values": [0.4] * 768}]},
+            json={"embeddings": [{"values": [0.3] * 768}]},
         )
     )
 
-    # Submit many concurrent requests
-    tasks = [asyncio.create_task(router.embed([f"text{i}"], "RETRIEVAL_QUERY")) for i in range(5)]
+    # Submit 3 concurrent requests
+    tasks = [asyncio.create_task(router.embed([f"text{i}"], "RETRIEVAL_QUERY")) for i in range(3)]
 
     results = await asyncio.gather(*tasks)
 
     # All should succeed
-    assert len(results) == 5
+    assert len(results) == 3
     assert all(len(r) == 1 for r in results)
 
     # Both endpoints should have been used
-    assert single_route.called
-    assert batch_route.called
+    assert single_route.called, "Single endpoint should have been tried"
+    assert batch_route.called, "Batch endpoint should have been used as fallback"

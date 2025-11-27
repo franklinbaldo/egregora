@@ -405,11 +405,25 @@ class EmbeddingRouter:
         if self.single_queue.is_available():
             # Single endpoint available - use it for low latency
             logger.debug("Routing %d text(s) to single endpoint (low latency)", len(texts_list))
-            return await self.single_queue.submit(texts_list, task_type)
+            try:
+                return await self.single_queue.submit(texts_list, task_type)
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == HTTP_TOO_MANY_REQUESTS and self.batch_queue.is_available():
+                    # Got 429 on single, fallback to batch
+                    logger.info("Single endpoint hit rate limit, falling back to batch endpoint")
+                    return await self.batch_queue.submit(texts_list, task_type)
+                raise
         if self.batch_queue.is_available():
             # Single exhausted, fallback to batch
             logger.debug("Single endpoint exhausted, routing %d texts to batch endpoint", len(texts_list))
-            return await self.batch_queue.submit(texts_list, task_type)
+            try:
+                return await self.batch_queue.submit(texts_list, task_type)
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == HTTP_TOO_MANY_REQUESTS and self.single_queue.is_available():
+                    # Got 429 on batch, fallback to single
+                    logger.info("Batch endpoint hit rate limit, falling back to single endpoint")
+                    return await self.single_queue.submit(texts_list, task_type)
+                raise
         # Both exhausted - wait for single (lower latency)
         logger.debug("Both endpoints rate-limited, waiting for single endpoint")
         return await self.single_queue.submit(texts_list, task_type)
