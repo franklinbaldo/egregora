@@ -69,15 +69,15 @@ def test_gemini_provider_returns_image_and_debug_text():
 
 def test_gemini_provider_returns_error_when_no_image():
     responses = [
-        SimpleNamespace(candidates=[_candidate_with_content(_content_with_parts(SimpleNamespace(text="note")))])
+        SimpleNamespace(
+            candidates=[_candidate_with_content(_content_with_parts(SimpleNamespace(text="note")))]
+        )
     ]
     client = _FakeClient(responses)
     provider = GeminiImageGenerationProvider(client=client, model="models/test")
 
     result = provider.generate(
-        ImageGenerationRequest(
-            prompt="prompt", response_modalities=["IMAGE", "TEXT"], aspect_ratio=None
-        )
+        ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE", "TEXT"], aspect_ratio=None)
     )
 
     assert not result.has_image

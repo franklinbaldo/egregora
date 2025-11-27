@@ -21,7 +21,7 @@ class _FakeProvider:
         return self.result
 
 
-@pytest.fixture()
+@pytest.fixture
 def fake_provider(monkeypatch):
     provider = _FakeProvider(
         result=ImageGenerationResult(

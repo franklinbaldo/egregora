@@ -23,6 +23,7 @@ from egregora.utils.retry import retry_sync
 
 logger = logging.getLogger(__name__)
 
+
 class BannerInput(BaseModel):
     """Input parameters for banner generation."""
 

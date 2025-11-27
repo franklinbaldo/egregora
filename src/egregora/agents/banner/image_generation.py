@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Protocol, Sequence
+from typing import Protocol
 
 
 @dataclass
@@ -28,7 +29,6 @@ class ImageGenerationResult:
     @property
     def has_image(self) -> bool:
         """True when binary image data is available."""
-
         return self.image_bytes is not None and self.mime_type is not None
 
 
@@ -37,4 +37,3 @@ class ImageGenerationProvider(Protocol):
 
     def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult:
         """Generate an image using provider-specific implementation."""
-

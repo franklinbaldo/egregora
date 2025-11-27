@@ -23,19 +23,15 @@ class GeminiImageGenerationProvider(ImageGenerationProvider):
         self._client = client
         self._model = model
 
-    def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult:  # noqa: D401
-        contents = [
-            types.Content(role="user", parts=[types.Part.from_text(text=request.prompt)])
-        ]
+    def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult:
+        contents = [types.Content(role="user", parts=[types.Part.from_text(text=request.prompt)])]
 
         config_kwargs: dict[str, object] = {}
         if request.response_modalities:
             config_kwargs["response_modalities"] = list(request.response_modalities)
 
         if request.aspect_ratio:
-            config_kwargs["image_config"] = types.ImageConfig(
-                aspect_ratio=request.aspect_ratio
-            )
+            config_kwargs["image_config"] = types.ImageConfig(aspect_ratio=request.aspect_ratio)
 
         generate_content_config = types.GenerateContentConfig(**config_kwargs)
 
@@ -83,4 +79,3 @@ class GeminiImageGenerationProvider(ImageGenerationProvider):
             mime_type=mime_type,
             debug_text=debug_text,
         )
-
