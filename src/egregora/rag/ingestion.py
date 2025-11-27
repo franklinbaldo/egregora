@@ -76,16 +76,18 @@ def _simple_chunk_text(
             chunk_text = " ".join(current)
             chunks.append(chunk_text)
 
-            # Build overlap from end of current chunk
+            # Build overlap from end of current chunk (O(n) not O(n²))
             overlap_words = []
             overlap_len = 0
             for overlap_word in reversed(current):
                 overlap_word_len = len(overlap_word) + 1
                 if overlap_len + overlap_word_len <= overlap:
-                    overlap_words.insert(0, overlap_word)
+                    overlap_words.append(overlap_word)  # O(1) append, not O(n) insert(0)
                     overlap_len += overlap_word_len
                 else:
                     break
+            # Reverse once at the end (O(n) once, not O(n) per word)
+            overlap_words.reverse()
 
             # Start new chunk with overlap
             current = overlap_words.copy()
