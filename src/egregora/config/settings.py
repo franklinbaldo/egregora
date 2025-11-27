@@ -130,6 +130,10 @@ class RAGSettings(BaseModel):
         le=1.0,
         description="Minimum similarity threshold for results",
     )
+    indexable_types: list[str] = Field(
+        default=["POST"],
+        description="Document types to index in RAG (e.g., ['POST', 'NOTE'])",
+    )
 
 
 class WriterAgentSettings(BaseModel):

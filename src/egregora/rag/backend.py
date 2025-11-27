@@ -9,8 +9,7 @@ from collections.abc import Sequence
 from typing import Protocol
 
 from egregora.data_primitives.document import Document
-
-from .models import RAGQueryRequest, RAGQueryResponse
+from egregora.rag.models import RAGQueryRequest, RAGQueryResponse
 
 
 class RAGBackend(Protocol):

@@ -54,6 +54,7 @@ class LanceDBRAGBackend:
         table_name: str,
         embed_fn: EmbedFn,
         top_k_default: int = 5,
+        indexable_types: set[Any] | None = None,
     ) -> None:
         """Initialize LanceDB RAG backend.
 
@@ -62,12 +63,14 @@ class LanceDBRAGBackend:
             table_name: Name of the table to store embeddings
             embed_fn: Function that takes texts and returns embeddings
             top_k_default: Default number of results to return (default: 5)
+            indexable_types: Set of DocumentType values to index (optional)
 
         """
         self._db_dir = db_dir
         self._table_name = table_name
         self._embed_fn = embed_fn
         self._top_k_default = top_k_default
+        self._indexable_types = indexable_types
 
         # Initialize LanceDB connection
         db_dir.mkdir(parents=True, exist_ok=True)
@@ -114,7 +117,7 @@ class LanceDBRAGBackend:
 
         """
         # Convert documents to chunks
-        chunks = chunks_from_documents(docs)
+        chunks = chunks_from_documents(docs, indexable_types=self._indexable_types)
 
         if not chunks:
             logger.info("No chunks to index (empty or filtered documents)")
@@ -154,15 +157,20 @@ class LanceDBRAGBackend:
         if chunk_ids:
             try:
                 # Delete existing chunks (LanceDB uses SQL-like syntax)
-                # Convert list to tuple for SQL IN clause
-                chunk_ids_tuple = tuple(chunk_ids) if len(chunk_ids) > 1 else f"('{chunk_ids[0]}')"
+                # Properly escape single quotes to prevent SQL injection (SQL standard: double the quote)
+                def _escape_sql_string(s: str) -> str:
+                    """Escape single quotes in SQL string literals."""
+                    return s.replace("'", "''")
+
                 if len(chunk_ids) == 1:
-                    self._table.delete(f"chunk_id = '{chunk_ids[0]}'")
+                    escaped_id = _escape_sql_string(chunk_ids[0])
+                    self._table.delete(f"chunk_id = '{escaped_id}'")
                 else:
-                    # For multiple IDs, use IN clause
-                    ids_str = ", ".join([f"'{cid}'" for cid in chunk_ids])
+                    # For multiple IDs, use IN clause with properly escaped values
+                    escaped_ids = [_escape_sql_string(cid) for cid in chunk_ids]
+                    ids_str = ", ".join([f"'{cid}'" for cid in escaped_ids])
                     self._table.delete(f"chunk_id IN ({ids_str})")
-            except Exception as e:
+            except (OSError, ValueError, RuntimeError) as e:
                 logger.warning("Failed to delete existing chunks (may not exist): %s", e)
 
         # Add new chunks

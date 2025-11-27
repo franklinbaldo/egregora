@@ -40,6 +40,54 @@ cd output && uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs ser
 
 ## Breaking Changes
 
+### 2025-11-27 (PR #981 - LanceDB RAG Backend)
+
+**New RAG Backend with LanceDB**
+- **Added:** New `egregora.rag` package with LanceDB-based vector storage
+- **Architecture:** Clean protocol-based design with `RAGBackend` interface
+- **API:** Simplified API compared to legacy `VectorStore`:
+  ```python
+  # New API (egregora.rag)
+  from egregora.rag import index_documents, search, RAGQueryRequest
+  from egregora.data_primitives import Document, DocumentType
+
+  # Index documents
+  doc = Document(content="# Post\n\nContent", type=DocumentType.POST)
+  index_documents([doc])
+
+  # Search
+  request = RAGQueryRequest(text="search query", top_k=5)
+  response = search(request)
+  for hit in response.hits:
+      print(f"{hit.score:.2f}: {hit.text[:50]}")
+  ```
+- **Configuration:** New settings in `.egregora/config.yml`:
+  ```yaml
+  paths:
+    lancedb_dir: .egregora/lancedb  # LanceDB storage location
+
+  rag:
+    enabled: true
+    top_k: 5
+    min_similarity_threshold: 0.7
+    indexable_types: ["POST"]  # Document types to index (configurable)
+  ```
+- **Dependencies:** Replaced `langchain-text-splitters` and `langchain-core` with `lancedb>=0.4.0`
+- **Chunking:** Simple whitespace-based chunking (no LangChain dependency)
+- **Status:** The legacy `VectorStore` in `egregora.agents.shared.rag` is now deprecated
+- **Migration:** Legacy VectorStore will be removed in a future PR. New code should use `egregora.rag` package.
+- **Security:** Fixed potential SQL injection in delete operations with proper string escaping
+- **Flexibility:**
+  - Indexable document types are now configurable via `rag.indexable_types` setting
+  - Embedding function is dependency-injected for easier testing and alternative models
+
+**Key Improvements Over Legacy RAG:**
+1. **Cleaner Architecture:** Protocol-based design with `RAGBackend` interface
+2. **Better Performance:** LanceDB provides faster vector search than DuckDB VSS
+3. **Simpler API:** Direct document indexing without adapter coupling
+4. **More Configurable:** Indexable types, storage paths, and search parameters are all configurable
+5. **Better Error Handling:** More specific exception handling with clear error messages
+
 ### 2025-11-26 (PR #975 - Resumability & Fixes)
 
 **MkDocs Plugin Rename**

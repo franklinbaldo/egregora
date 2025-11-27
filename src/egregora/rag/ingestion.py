@@ -69,16 +69,21 @@ def _simple_chunk_text(text: str, max_chars: int = DEFAULT_MAX_CHARS) -> list[st
     return chunks
 
 
-def chunks_from_document(doc: Document, max_chars: int = DEFAULT_MAX_CHARS) -> list[_RAGChunk]:
+def chunks_from_document(
+    doc: Document,
+    max_chars: int = DEFAULT_MAX_CHARS,
+    indexable_types: set[DocumentType] | None = None,
+) -> list[_RAGChunk]:
     """Convert a pipeline Document into one or more text chunks for RAG.
 
     Filtering:
         - Skips non-text content (bytes)
-        - Only indexes POST and NOTE document types by default
+        - Only indexes specified document types (defaults to POST only)
 
     Args:
         doc: Document instance to chunk
         max_chars: Maximum characters per chunk
+        indexable_types: Set of DocumentType values to index (default: {DocumentType.POST})
 
     Returns:
         List of _RAGChunk instances
@@ -88,11 +93,12 @@ def chunks_from_document(doc: Document, max_chars: int = DEFAULT_MAX_CHARS) -> l
     if isinstance(doc.content, bytes):
         return []
 
-    # Only index certain document types
-    # Adjust this filter based on your needs
-    indexable_types = {DocumentType.POST}
-    if hasattr(DocumentType, "NOTE"):
-        indexable_types.add(DocumentType.NOTE)
+    # Use default indexable types if not provided
+    if indexable_types is None:
+        indexable_types = {DocumentType.POST}
+        # Optionally include NOTE if it exists
+        if hasattr(DocumentType, "NOTE"):
+            indexable_types = {DocumentType.POST, DocumentType.NOTE}
 
     if doc.type not in indexable_types:
         return []
@@ -134,12 +140,17 @@ def chunks_from_document(doc: Document, max_chars: int = DEFAULT_MAX_CHARS) -> l
     return chunks
 
 
-def chunks_from_documents(docs: Sequence[Document], max_chars: int = DEFAULT_MAX_CHARS) -> list[_RAGChunk]:
+def chunks_from_documents(
+    docs: Sequence[Document],
+    max_chars: int = DEFAULT_MAX_CHARS,
+    indexable_types: set[DocumentType] | None = None,
+) -> list[_RAGChunk]:
     """Convert multiple Documents into chunks.
 
     Args:
         docs: Sequence of Document instances
         max_chars: Maximum characters per chunk
+        indexable_types: Set of DocumentType values to index (default: {DocumentType.POST})
 
     Returns:
         List of _RAGChunk instances from all documents
@@ -147,7 +158,7 @@ def chunks_from_documents(docs: Sequence[Document], max_chars: int = DEFAULT_MAX
     """
     chunks: list[_RAGChunk] = []
     for doc in docs:
-        chunks.extend(chunks_from_document(doc, max_chars=max_chars))
+        chunks.extend(chunks_from_document(doc, max_chars=max_chars, indexable_types=indexable_types))
     return chunks
 
 

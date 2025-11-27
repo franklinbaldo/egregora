@@ -1,4 +1,4 @@
-"""RAG (Retrieval-Augmented Generation) package for Egregora.
+r"""RAG (Retrieval-Augmented Generation) package for Egregora.
 
 This package provides a simple RAG implementation using LanceDB for vector storage.
 
@@ -23,7 +23,7 @@ Example:
     >>> from egregora.data_primitives import Document, DocumentType
     >>>
     >>> # Index documents
-    >>> doc = Document(content="# Post\\n\\nContent", type=DocumentType.POST)
+    >>> doc = Document(content="# Post\n\nContent", type=DocumentType.POST)
     >>> index_documents([doc])
     >>>
     >>> # Search
@@ -38,15 +38,14 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
 
-from egregora.data_primitives.document import Document
+from egregora.agents.shared.rag.embedder import embed_texts_in_batch
+from egregora.config.settings import EgregoraConfig, load_egregora_config
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.rag.backend import RAGBackend
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
 from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -64,19 +63,15 @@ def _create_backend() -> RAGBackend:
         RuntimeError: If backend initialization fails
 
     """
-    from pathlib import Path
-
-    from egregora.agents.shared.rag.embedder import embed_texts_in_batch
-    from egregora.config.settings import load_egregora_config
-
     # Try to load config from current directory
     try:
         config = load_egregora_config(Path.cwd())
-    except Exception as e:
-        logger.warning("Failed to load config, using defaults: %s", e)
+    except (OSError, ValueError):
+        logger.exception(
+            "Failed to load .egregora/config.yml - using default configuration. "
+            "Your custom settings will be ignored."
+        )
         # Fall back to default config
-        from egregora.config.settings import EgregoraConfig
-
         config = EgregoraConfig()
 
     # Determine lancedb_dir from config
@@ -86,6 +81,17 @@ def _create_backend() -> RAGBackend:
 
     # Get embedding model
     embedding_model = config.models.embedding
+
+    # Convert indexable_types from string list to DocumentType set
+    indexable_types: set[DocumentType] | None = None
+    if hasattr(config.rag, "indexable_types") and config.rag.indexable_types:
+        indexable_types = set()
+        for type_str in config.rag.indexable_types:
+            try:
+                doc_type = DocumentType[type_str.upper()]
+                indexable_types.add(doc_type)
+            except KeyError:
+                logger.warning("Unknown document type in config: %s (skipping)", type_str)
 
     # Create embedding function that wraps the existing embedder
     def embed_fn(texts: Sequence[str]) -> list[list[float]]:
@@ -97,6 +103,7 @@ def _create_backend() -> RAGBackend:
         table_name="rag_embeddings",
         embed_fn=embed_fn,
         top_k_default=config.rag.top_k,
+        indexable_types=indexable_types,
     )
 
 
@@ -119,7 +126,7 @@ def get_backend() -> RAGBackend:
 
 
 def index_documents(docs: Sequence[Document]) -> None:
-    """Index documents into the RAG knowledge base.
+    r"""Index documents into the RAG knowledge base.
 
     Args:
         docs: Sequence of Document instances to index
@@ -130,7 +137,7 @@ def index_documents(docs: Sequence[Document]) -> None:
 
     Example:
         >>> from egregora.data_primitives import Document, DocumentType
-        >>> doc = Document(content="# Post\\n\\nContent", type=DocumentType.POST)
+        >>> doc = Document(content="# Post\n\nContent", type=DocumentType.POST)
         >>> index_documents([doc])
 
     """
