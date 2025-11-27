@@ -3,10 +3,12 @@ name: Gemini PR Code Review
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
 
 # Cancel old runs on the same PR to save costs
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true
 
 permissions:
@@ -18,10 +20,50 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    # Skip draft PRs
-    if: ${{ !github.event.pull_request.draft }}
+    # Run if:
+    # 1. It's a non-draft PR (automatic trigger)
+    # 2. OR it's a comment on a PR containing @gemini (manual trigger)
+    if: |
+      (github.event_name == 'pull_request' && !github.event.pull_request.draft) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@gemini'))
 
     steps:
+      - name: Get PR details
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let prNumber, prData;
+
+            if (context.eventName === 'issue_comment') {
+              // Manual trigger via @gemini comment
+              prNumber = context.issue.number;
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber
+              });
+              prData = pr;
+
+              // Extract any additional instructions after @gemini
+              const match = context.payload.comment.body.match(/@gemini\s*(.*)/s);
+              const userInstructions = match ? match[1].trim() : '';
+              core.setOutput('user_instructions', userInstructions);
+              core.setOutput('trigger_mode', 'manual');
+            } else {
+              // Automatic trigger on PR event
+              prNumber = context.payload.pull_request.number;
+              prData = context.payload.pull_request;
+              core.setOutput('user_instructions', '');
+              core.setOutput('trigger_mode', 'automatic');
+            }
+
+            core.setOutput('pr_number', prNumber);
+            core.setOutput('base_sha', prData.base.sha);
+            core.setOutput('head_sha', prData.head.sha);
+            core.setOutput('pr_title', prData.title);
+            core.setOutput('pr_author', prData.user.login);
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -30,10 +72,11 @@ jobs:
       - name: Collect PR diff and context
         id: collect
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+          PR_TITLE: ${{ steps.pr.outputs.pr_title }}
+          USER_INSTRUCTIONS: ${{ steps.pr.outputs.user_instructions }}
+          TRIGGER_MODE: ${{ steps.pr.outputs.trigger_mode }}
         run: |
           set -euo pipefail
 
@@ -60,6 +103,8 @@ jobs:
             echo "claude_md<<EOFCLAUDEMD"
             echo "$CLAUDE_MD"
             echo "EOFCLAUDEMD"
+            echo "user_instructions=$USER_INSTRUCTIONS"
+            echo "trigger_mode=$TRIGGER_MODE"
           } >> "$GITHUB_OUTPUT"
 
       - name: Run Gemini PR Review
@@ -81,9 +126,13 @@ jobs:
 
             ## Review Instructions
 
+            **Trigger Mode:** ${{ steps.collect.outputs.trigger_mode }}
+            ${{ steps.collect.outputs.user_instructions && format('**User Request:** {0}', steps.collect.outputs.user_instructions) || '' }}
+
             1. **Tone:** Professional, concise, and actionable. No fluff.
             2. **Focus:** Identify bugs, security vulnerabilities, performance issues, and breaking changes.
-            3. **Priority:**
+            ${{ steps.collect.outputs.user_instructions && '3. **User Priority:** Address the user request above first, then provide general review.' || '' }}
+            ${{ steps.collect.outputs.user_instructions && '4. **Priority:**' || '3. **Priority:**' }}
                - 🔴 **CRITICAL:** Privacy bypasses, PII leaks, bugs, security exploits, data loss
                - 🟡 **IMPORTANT:** Performance, confusing logic, missing tests, architecture violations
                - 🟢 **MINOR:** Variable naming, style preferences (mention briefly or ignore)
@@ -113,8 +162,8 @@ jobs:
             ## Pull Request Details
 
             - **Repository:** ${{ github.repository }}
-            - **PR #${{ github.event.pull_request.number }}:** ${{ steps.collect.outputs.pr_title || github.event.pull_request.title }}
-            - **Author:** @${{ github.event.pull_request.user.login }}
+            - **PR #${{ steps.pr.outputs.pr_number }}:** ${{ steps.pr.outputs.pr_title }}
+            - **Author:** @${{ steps.pr.outputs.pr_author }}
 
             ## Unified Diff
 
@@ -158,23 +207,30 @@ jobs:
         uses: actions/github-script@v7
         env:
           GEMINI_REVIEW: ${{ steps.gemini.outputs.summary }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+          TRIGGER_MODE: ${{ steps.collect.outputs.trigger_mode }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const review = process.env.GEMINI_REVIEW || "_No review generated._";
+            const prNumber = parseInt(process.env.PR_NUMBER);
+            const triggerMode = process.env.TRIGGER_MODE;
 
-            // Add header with model info
-            const body = `## 🤖 Gemini Code Review
+            // Add header with trigger mode info
+            const triggerEmoji = triggerMode === 'manual' ? '👋' : '🤖';
+            const triggerText = triggerMode === 'manual' ? 'Manual review requested' : 'Automatic review';
+
+            const body = `## ${triggerEmoji} Gemini Code Review
 
             ${review}
 
             ---
-            *Generated by gemini-2.5-pro using official Google GitHub Action*`;
+            *${triggerText} • Generated by gemini-2.5-pro using official Google GitHub Action*`;
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
+              issue_number: prNumber,
               body,
             });
 
