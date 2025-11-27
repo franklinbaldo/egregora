@@ -243,7 +243,9 @@ def register_writer_tools(
     if enable_rag:
 
         @agent.tool
-        async def search_media_tool(ctx: RunContext[WriterDeps], query: str, top_k: int = 5) -> SearchMediaResult:
+        async def search_media_tool(
+            ctx: RunContext[WriterDeps], query: str, top_k: int = 5
+        ) -> SearchMediaResult:
             """Search for relevant media (images, videos, audio) in the knowledge base.
 
             Args:
