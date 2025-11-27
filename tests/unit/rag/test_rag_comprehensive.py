@@ -138,7 +138,7 @@ def test_chunking_large_document():
             if current_words[-j:] == next_words[:j]:
                 overlap_found = True
                 break
-        assert overlap_found, f"No overlap found between chunk {i} and {i+1}"
+        assert overlap_found, f"No overlap found between chunk {i} and {i + 1}"
 
 
 def test_chunking_preserves_metadata():
