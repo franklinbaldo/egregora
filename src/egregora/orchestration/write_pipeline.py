@@ -36,8 +36,6 @@ from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
 from egregora.agents.model_limits import PromptTooLargeError, get_model_context_limit
 from egregora.agents.shared.annotations import AnnotationStore
-
-# VectorStore removed - using new egregora.rag API
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.document import Document, DocumentType
@@ -719,10 +717,6 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
     db_file = site_paths["egregora_dir"] / "app.duckdb"
     storage = DuckDBStorageManager(db_path=db_file)
-
-    # RAG initialization removed - using new egregora.rag API
-    # VectorStore will be replaced with direct calls to egregora.rag functions
-
     annotations_store = AnnotationStore(storage)
 
     quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)

@@ -513,8 +513,16 @@ def _build_writer_context(  # noqa: PLR0913
     messages_table = table_with_str_uuids.to_pyarrow()
     conversation_xml = _build_conversation_xml(messages_table, resources.annotations_store)
 
-    # RAG context disabled - will be re-implemented with new egregora.rag API
-    rag_context = ""
+    # Build RAG context if enabled
+    if resources.retrieval_config.enabled:
+        table_markdown = conversation_xml  # Use XML content for RAG query
+        rag_context = build_rag_context_for_prompt(
+            table_markdown,
+            top_k=resources.retrieval_config.top_k,
+            cache=cache,
+        )
+    else:
+        rag_context = ""
 
     profiles_context = _load_profiles_context(table_with_str_uuids, resources.profiles_dir)
     journal_memory = _load_journal_memory(resources.output)
