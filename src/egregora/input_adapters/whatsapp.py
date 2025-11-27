@@ -607,22 +607,23 @@ def _convert_whatsapp_media_to_markdown(message: str) -> str:
 
 def _convert_whatsapp_mentions_to_markdown(message: str, tenant_id: str, source: str) -> str:
     """Convert WhatsApp unicode-wrapped mentions to profile wikilinks.
-    
+
     Converts WhatsApp's unicode-wrapped mention format to profile links.
     Example: @NAME (wrapped with U+2068/U+2069) becomes [[profile/uuid]]
     where uuid is deterministically generated from the mentioned name.
-    
+
     Args:
         message: Message text containing mentions
         tenant_id: Tenant identifier for UUID generation
         source: Source adapter name (e.g., 'whatsapp')
-    
+
     Returns:
         Message with mentions converted to [[profile/uuid]] wikilinks
+
     """
     if not message:
         return message
-    
+
     def replace_mention(match):
         """Replace a single mention with its profile link."""
         mentioned_name = match.group(1)
@@ -630,7 +631,7 @@ def _convert_whatsapp_mentions_to_markdown(message: str, tenant_id: str, source:
         author_uuid = deterministic_author_uuid(tenant_id, source, mentioned_name)
         # Return wikilink format: [[profile/uuid]]
         return f"[[profile/{author_uuid}]]"
-    
+
     # Replace unicode-wrapped mentions with profile links
     result = WA_MENTION_PATTERN.sub(replace_mention, message)
     return result
@@ -719,6 +720,7 @@ class WhatsAppAdapter(InputAdapter):
             # Convert mentions to profile links
             result = _convert_whatsapp_mentions_to_markdown(result, export.group_slug, "whatsapp")
             return result
+
         # IR v1: use 'text' column instead of 'message'
         messages_table = messages_table.mutate(text=convert_media_to_markdown(messages_table.text))
 
