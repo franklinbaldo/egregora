@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import httpx
 import ibis
 from ibis.expr.types import Table
 from pydantic import BaseModel
@@ -428,8 +429,11 @@ async def _process_url_task(  # noqa: PLR0913
             except QuotaExceededError:
                 logger.warning("LLM quota reached; skipping URL enrichment for %s", url)
                 return None
-            except Exception:
-                logger.exception("URL enrichment failed for %s", url)
+            except httpx.HTTPError as exc:
+                logger.warning("HTTP error during URL enrichment for %s: %s", url, exc)
+                return None
+            except OSError as exc:
+                logger.warning("File/cache error during URL enrichment for %s: %s", url, exc)
                 return None
 
         slug_value = _normalize_slug(cached_slug, url)
@@ -505,8 +509,11 @@ async def _process_media_task(  # noqa: PLR0913
             except QuotaExceededError:
                 logger.warning("LLM quota reached; skipping media enrichment for %s", filename or ref)
                 return None, False, ref, None
-            except Exception:
-                logger.exception("Media enrichment failed for %s", filename or ref)
+            except httpx.HTTPError as exc:
+                logger.warning("HTTP error during media enrichment for %s: %s", filename or ref, exc)
+                return None, False, ref, None
+            except OSError as exc:
+                logger.warning("File/cache error during media enrichment for %s: %s", filename or ref, exc)
                 return None, False, ref, None
 
         pii_detected = False
