@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from egregora.agents.shared.annotations import AnnotationStore
     from egregora.database.protocols import StorageProtocol
 
-from egregora.agents.shared.rag import VectorStore
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.utils.cache import EnrichmentCache, PipelineCache
@@ -131,7 +130,6 @@ class PipelineState:
     cache: PipelineCache
 
     # Stores (Optional)
-    rag_store: VectorStore | None = None
     annotations_store: AnnotationStore | None = None
 
     # Quota tracking
@@ -214,10 +212,6 @@ class PipelineContext:
     def enrichment_cache(self) -> EnrichmentCache:
         """Backward compatibility shim for enrichment cache."""
         return self.state.cache.enrichment
-
-    @property
-    def rag_store(self) -> VectorStore | None:
-        return self.state.rag_store
 
     @property
     def annotations_store(self) -> AnnotationStore | None:

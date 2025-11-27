@@ -15,7 +15,6 @@ import ibis
 from google import genai
 
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.shared.rag import VectorStore
 from egregora.agents.writer import WriterResources
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import UrlContext
@@ -72,12 +71,6 @@ class PipelineFactory:
         db_file = site_paths["egregora_dir"] / "app.duckdb"
         storage = DuckDBStorageManager(db_path=db_file)
 
-        rag_store = None
-        if run_params.config.rag.enabled:
-            rag_dir = site_paths["rag_dir"]
-            rag_dir.mkdir(parents=True, exist_ok=True)
-            rag_store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
-
         annotations_store = AnnotationStore(storage)
 
         quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
@@ -109,7 +102,6 @@ class PipelineFactory:
             client=client_instance,
             storage=storage,
             cache=cache,
-            rag_store=rag_store,
             annotations_store=annotations_store,
             quota_tracker=quota_tracker,
             usage_tracker=UsageTracker(),
@@ -248,7 +240,6 @@ class PipelineFactory:
 
         return WriterResources(
             output=output,
-            rag_store=ctx.rag_store if ctx.enable_rag else None,
             annotations_store=ctx.annotations_store,
             storage=ctx.storage,
             embedding_model=ctx.embedding_model,

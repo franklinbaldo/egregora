@@ -41,7 +41,6 @@ from egregora.agents.model_limits import (
     get_model_context_limit,
     validate_prompt_fits,
 )
-from egregora.agents.shared.rag import VectorStore
 from egregora.config.settings import EgregoraConfig, RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors, read_profile
@@ -160,7 +159,6 @@ class WriterResources:
     output: OutputSink
 
     # Knowledge Stores
-    rag_store: VectorStore | None
     annotations_store: AnnotationStore | None
     storage: Any | None  # StorageProtocol - Required for RAG indexing
 
@@ -241,31 +239,11 @@ def register_writer_tools(  # noqa: C901
         logger.info("Writer agent saved profile (doc_id: %s)", doc.document_id)
         return WriteProfileResult(status="success", path=doc.document_id)
 
-    if enable_rag:
-
-        @agent.tool
-        def search_media_tool(
-            ctx: RunContext[WriterDeps],
-            query: str,
-            media_types: list[str] | None = None,
-            limit: int = 5,
-        ) -> SearchMediaResult:
-            if not ctx.deps.resources.rag_store:
-                return SearchMediaResult(results=[])
-
-            results = ctx.deps.resources.rag_store.query_media(
-                query=query,
-                media_types=media_types,
-                top_k=limit,
-                min_similarity_threshold=0.7,
-                embedding_model=ctx.deps.resources.embedding_model,
-                retrieval_mode=ctx.deps.resources.retrieval_config.mode,
-                retrieval_nprobe=ctx.deps.resources.retrieval_config.nprobe,
-                retrieval_overfetch=ctx.deps.resources.retrieval_config.overfetch,
-            )
-            media_df = results.execute()
-            items = [MediaItem(**row) for row in media_df.to_dict("records")]
-            return SearchMediaResult(results=items)
+    # RAG tool removed - will be re-implemented with new egregora.rag API
+    # if enable_rag:
+    #     @agent.tool
+    #     def search_media_tool(...) -> SearchMediaResult:
+    #         ...
 
     @agent.tool
     def annotate_conversation_tool(
@@ -333,88 +311,22 @@ class RagContext:
 
 
 def build_rag_context_for_prompt(  # noqa: PLR0913
-    table_markdown: str,
-    store: VectorStore,
-    client: genai.Client,
+    table_markdown: str,  # noqa: ARG001
+    store: Any = None,  # noqa: ARG001
+    client: Any = None,  # noqa: ARG001
     *,
-    embedding_model: str,
-    retrieval_mode: str = "ann",
-    retrieval_nprobe: int | None = None,
-    retrieval_overfetch: int | None = None,
-    top_k: int = 5,
-    cache: Any | None = None,  # PipelineCache
+    embedding_model: str = "",  # noqa: ARG001
+    retrieval_mode: str = "ann",  # noqa: ARG001
+    retrieval_nprobe: int | None = None,  # noqa: ARG001
+    retrieval_overfetch: int | None = None,  # noqa: ARG001
+    top_k: int = 5,  # noqa: ARG001
+    cache: Any | None = None,  # noqa: ARG001
 ) -> str:
-    """Build a lightweight RAG context string from the conversation markdown.
+    """Build RAG context - currently disabled, will be reimplemented with new RAG API.
 
-    Uses L2 caching to avoid re-querying vector store for identical inputs.
+    TODO: Reimplement using egregora.rag.search() when ready.
     """
-    if not table_markdown.strip():
-        return ""
-
-    # Check L2 Cache
-    query_text = _truncate_for_embedding(table_markdown)
-    rag_cache_key = None
-
-    if cache and not cache.should_refresh(CacheTier.RAG):
-        import hashlib
-
-        # Key components: Query + Vector Store State (mtime) + Model
-        query_hash = hashlib.sha256(query_text.encode()).hexdigest()
-
-        # Use file modification time as index version proxy
-        index_version = "0"
-        if store.parquet_path.exists():
-            stat = store.parquet_path.stat()
-            index_version = f"{stat.st_mtime_ns}:{stat.st_size}"
-
-        rag_cache_key = f"{query_hash}:{index_version}:{embedding_model}:{top_k}"
-
-        cached_context = cache.rag.get(rag_cache_key)
-        if cached_context is not None:
-            logger.debug("⚡ [L2 Cache Hit] Using cached RAG context")
-            return cached_context
-
-    # Perform Search
-    query_vector = VectorStore.embed_query(query_text, model=embedding_model)
-    search_results = store.search(
-        query_vec=query_vector,
-        top_k=top_k,
-        min_similarity_threshold=0.7,
-        mode=retrieval_mode,
-        nprobe=retrieval_nprobe,
-        overfetch=retrieval_overfetch,
-    )
-    results_df = search_results.execute()
-    if getattr(results_df, "empty", False):
-        logger.info("Writer RAG: no similar posts found for query")
-        return ""
-    records = results_df.to_dict("records")
-    if not records:
-        return ""
-    lines = [
-        "## Related Previous Posts (for continuity and linking):",
-        "You can reference these posts in your writing to maintain conversation continuity.\n",
-    ]
-    for row in records:
-        title = row.get("post_title") or "Untitled"
-        post_date = row.get("post_date") or ""
-        snippet = (row.get("content") or "")[:400]
-        tags = row.get("tags") or []
-        similarity = row.get("similarity")
-        lines.append(f"### [{title}] ({post_date})")
-        lines.append(f"{snippet}...")
-        lines.append(f"- Tags: {(', '.join(tags) if tags else 'none')}")
-        if similarity is not None:
-            lines.append(f"- Similarity: {float(similarity):.2f}")
-        lines.append("")
-
-    final_context = "\n".join(lines).strip()
-
-    # Update Cache
-    if cache and rag_cache_key:
-        cache.rag.set(rag_cache_key, final_context)
-
-    return final_context
+    return ""  # Disabled for now
 
 
 def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
@@ -501,19 +413,8 @@ def _build_writer_context(  # noqa: PLR0913
     messages_table = table_with_str_uuids.to_pyarrow()
     conversation_xml = _build_conversation_xml(messages_table, resources.annotations_store)
 
-    if resources.rag_store and resources.client:
-        rag_context = build_rag_context_for_prompt(
-            conversation_xml,
-            resources.rag_store,
-            resources.client,
-            embedding_model=resources.embedding_model,
-            retrieval_mode=resources.retrieval_config.mode,
-            retrieval_nprobe=resources.retrieval_config.nprobe,
-            retrieval_overfetch=resources.retrieval_config.overfetch,
-            cache=cache.rag,  # Use RAG cache tier from pipeline cache
-        )
-    else:
-        rag_context = ""
+    # RAG context disabled - will be re-implemented with new egregora.rag API
+    rag_context = ""
 
     profiles_context = _load_profiles_context(table_with_str_uuids, resources.profiles_dir)
     journal_memory = _load_journal_memory(resources.output)
@@ -813,7 +714,7 @@ def write_posts_with_pydantic_agent(
     model_name = test_model if test_model is not None else config.models.writer
     agent = Agent[WriterDeps, WriterAgentReturn](model=model_name, deps_type=WriterDeps)
     register_writer_tools(
-        agent, enable_banner=is_banner_generation_available(), enable_rag=VectorStore.is_available()
+        agent, enable_banner=is_banner_generation_available(), enable_rag=False  # RAG disabled temporarily
     )
 
     _validate_prompt_fits(prompt, model_name, config, context.window_label)
@@ -922,9 +823,13 @@ def _check_writer_cache(
 
 
 def _index_new_content_in_rag(
-    resources: WriterResources, saved_posts: list[str], saved_profiles: list[str]
+    resources: WriterResources,  # noqa: ARG001
+    saved_posts: list[str],  # noqa: ARG001
+    saved_profiles: list[str],  # noqa: ARG001
 ) -> None:
     """Index newly created content in RAG system.
+
+    TODO: Re-implement using egregora.rag.index_documents() when ready.
 
     Args:
         resources: Writer resources including RAG configuration
@@ -932,26 +837,8 @@ def _index_new_content_in_rag(
         saved_profiles: List of profile paths that were updated
 
     """
-    if not (
-        resources.retrieval_config.enabled
-        and resources.rag_store
-        and resources.storage
-        and (saved_posts or saved_profiles)
-    ):
-        return
-
-    try:
-        indexed_count = resources.rag_store.index_documents(
-            resources.output,
-            embedding_model=resources.embedding_model,
-        )
-        if indexed_count > 0:
-            logger.info("Indexed %d new/changed documents in RAG after writing", indexed_count)
-    except (ibis.common.exceptions.IbisError, OSError) as e:
-        # Gracefully degrade on RAG failures (Ibis query errors, file I/O issues)
-        # Note: DuckDB errors are handled internally by VectorStore
-        # Post generation should succeed even if RAG indexing fails
-        logger.warning("Failed to update RAG index after writing: %s", e)
+    # Disabled for now - will be re-implemented with new egregora.rag API
+    return
 
 
 def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
