@@ -19,7 +19,7 @@ def test_replace_rows_prevents_duplicate_ratings(tmp_path: Path) -> None:
 
         created_at = datetime.now(UTC)
 
-        store._upsert_rating(  # noqa: SLF001
+        store._upsert_rating(
             post_slug="post-1",
             rating=1500.0,
             comparisons=1,
@@ -30,7 +30,7 @@ def test_replace_rows_prevents_duplicate_ratings(tmp_path: Path) -> None:
             created_at=created_at,
         )
 
-        store._upsert_rating(  # noqa: SLF001
+        store._upsert_rating(
             post_slug="post-1",
             rating=1550.0,
             comparisons=2,
@@ -41,9 +41,7 @@ def test_replace_rows_prevents_duplicate_ratings(tmp_path: Path) -> None:
             created_at=created_at,
         )
 
-        ratings = storage.execute_query(
-            "SELECT rating, comparisons FROM elo_ratings"
-        )
+        ratings = storage.execute_query("SELECT rating, comparisons FROM elo_ratings")
 
         assert len(ratings) == 1
         assert ratings[0][0] == 1550.0
