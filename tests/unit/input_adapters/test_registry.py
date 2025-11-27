@@ -1,11 +1,9 @@
-from unittest.mock import patch
-
 import pytest
 
-from egregora.input_adapters.registry import InputAdapterRegistry
-from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 from egregora.input_adapters.iperon_tjro import IperonTJROAdapter
+from egregora.input_adapters.registry import InputAdapterRegistry
 from egregora.input_adapters.self_reflection import SelfInputAdapter
+from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 
 
 @pytest.mark.usefixtures("monkeypatch")

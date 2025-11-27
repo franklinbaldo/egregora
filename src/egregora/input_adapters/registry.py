@@ -103,7 +103,6 @@ class InputAdapterRegistry:
         distribution. Built-ins are only added when a source identifier has
         not already been registered via plugins.
         """
-
         from egregora.input_adapters import IperonTJROAdapter, SelfInputAdapter, WhatsAppAdapter
 
         builtin_adapters = (
