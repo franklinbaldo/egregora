@@ -409,7 +409,9 @@ async def test_concurrent_requests_under_rate_limits(router):
         # Subsequent calls get rate limited
         return httpx.Response(429, headers={"Retry-After": "0.5"})
 
-    single_route = respx.post(f"{GENAI_API_BASE}/{embedding_model}:embedContent").mock(side_effect=single_side_effect)
+    single_route = respx.post(f"{GENAI_API_BASE}/{embedding_model}:embedContent").mock(
+        side_effect=single_side_effect
+    )
 
     # Batch endpoint always succeeds with single item (since we're submitting one text at a time)
     batch_route = respx.post(f"{GENAI_API_BASE}/{embedding_model}:batchEmbedContents").mock(
