@@ -53,6 +53,10 @@ DEFAULT_CONCURRENCY = 1
 DEFAULT_PIPELINE_DB = "duckdb:///./.egregora/pipeline.duckdb"
 DEFAULT_RUNS_DB = "duckdb:///./.egregora/runs.duckdb"
 
+# Configuration validation warning thresholds
+RAG_TOP_K_WARNING_THRESHOLD = 20
+MAX_PROMPT_TOKENS_WARNING_THRESHOLD = 200_000
+
 # Model naming conventions
 PydanticModelName = Annotated[
     str,
