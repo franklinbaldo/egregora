@@ -1,5 +1,20 @@
 # Privacy Architecture: Granular Column-Level Strategies
 
+## Key Insight: LLM-Native PII Detection
+
+**LLMs don't need regex patterns to identify PII - they just know.**
+
+Instead of maintaining complex pattern libraries, we leverage LLM's natural understanding:
+- ✅ Tell the LLM what we consider PII (declarative)
+- ✅ Or let the LLM decide using its judgment
+- ❌ No regex pattern maintenance
+- ❌ No brittle pattern matching
+
+This applies to **all LLM outputs**:
+- Blog posts (main output)
+- Agent execution journals (thinking logs)
+- Tool call results
+
 ## Two-Level Privacy Model
 
 ### Level 1: Adapter Structural Anonymization (Pre-Pipeline)
@@ -11,14 +26,17 @@
 - Mentions in text → Replace with UUIDs or `[MENTION]`
 - Phone numbers → Redact or keep
 
-### Level 2: Core Content PII Prevention (In-Pipeline)
-**What**: Instruct LLMs to avoid generating PII
-**Where**: Prompt templates (writer, enricher)
-**Configurable**: Global on/off switch
+### Level 2: LLM-Native PII Prevention (In-Pipeline)
+**What**: Instruct LLMs to avoid generating PII using their native understanding
+**Where**: All agent prompts (writer, enricher, banner) + agent journals
+**How**: Declarative specification - tell LLM what we consider PII, or let it decide
+**No regex needed**: LLMs naturally understand what constitutes PII
+**Configurable**: Global on/off switch + optional PII type specification
 **Examples**:
-- "Do not include phone numbers in summaries"
+- "Do not include contact information (phone, email, address)"
 - "Replace specific names with generic references"
-- "Avoid reproducing contact information"
+- "Avoid reproducing personal identifying information"
+- **Critical**: Applies to ALL outputs including execution journals
 
 ## Configuration Schema
 
@@ -27,15 +45,27 @@ privacy:
   # Level 1: Structural anonymization (adapter-level)
   structural:
     enabled: true
-    author_strategy: uuid_mapping  # uuid_mapping, full_redaction, none
-    mention_strategy: uuid_replacement  # uuid_replacement, generic_redaction, none
-    phone_strategy: redact  # redact, none
-    email_strategy: redact  # redact, none
+    author_strategy: uuid_mapping  # uuid_mapping, full_redaction, role_based, none
+    mention_strategy: uuid_replacement  # uuid_replacement, generic_redaction, role_based, none
+    phone_strategy: redact  # redact, hash, none
+    email_strategy: redact  # redact, hash, none
 
-  # Level 2: Content PII prevention (prompt-level)
-  content:
-    enabled: true  # Include PII prevention in prompts
-    instruction_mode: strict  # strict, relaxed, none
+  # Level 2: LLM-native PII prevention (per-agent)
+  pii_prevention:
+    enricher:
+      enabled: true
+      scope: contact_info  # What to protect: contact_info, all_pii, or custom definition
+
+    writer:
+      enabled: true
+      scope: all_pii  # Broader protection for public blog posts
+      apply_to_journals: true  # CRITICAL: Also protect agent execution journals
+
+    banner:
+      enabled: false  # Image generation typically doesn't expose PII
+
+    reader:
+      enabled: false  # Reader only evaluates, doesn't generate new content
 ```
 
 ## Column-Level Privacy Strategies
@@ -114,18 +144,24 @@ def _anonymize_mentions(self, text: str, strategy: MentionPrivacyStrategy) -> st
         return text
 ```
 
-### PII in Text (Phones, Emails)
+### PII in Text (Structural Pre-Processing Only)
+
+**Note**: Structural PII handling uses simple regex for deterministic preprocessing.
+For LLM outputs, we rely on LLM-native understanding (Level 2).
 
 **Strategy Options**:
 
 ```python
 class TextPIIStrategy(str, Enum):
-    """How to handle PII patterns in text content."""
+    """How to handle PII in raw text during structural preprocessing."""
 
-    REDACT = "redact"      # 555-1234 → [PHONE]
-    HASH = "hash"          # 555-1234 → PHONE_a3f8b9
-    NONE = "none"          # 555-1234 → 555-1234
+    REDACT = "redact"      # 555-1234 → [PHONE] (deterministic)
+    HASH = "hash"          # 555-1234 → PHONE_a3f8b9 (deterministic)
+    NONE = "none"          # 555-1234 → 555-1234 (public data)
 ```
+
+**Important**: These strategies are for INPUT preprocessing only. LLM outputs use
+natural language instructions, not regex patterns.
 
 ## Adapter Privacy Configuration
 
@@ -214,21 +250,52 @@ class IperonTjroAdapter(InputAdapter):
         return parse_judicial_records(input_path)
 ```
 
-## Content-Level PII Prevention (Prompts)
+## LLM-Native PII Prevention (No Regex Patterns)
+
+### Core Principle
+
+**LLMs naturally understand PII** - we don't need regex patterns to detect it.
+We just tell the LLM what we consider private, or let it decide based on context.
+
+### Privacy Scopes
+
+```python
+class PIIScope(str, Enum):
+    """What PII to protect in LLM outputs."""
+
+    CONTACT_INFO = "contact_info"  # Phone, email, address, URLs with personal info
+    ALL_PII = "all_pii"            # Contact + names, ages, locations, etc.
+    CUSTOM = "custom"              # User-defined specification
+    LLM_DECIDE = "llm_decide"      # Let LLM use its judgment
+```
 
 ### Dynamic Prompt Instructions
 
-**Current writer prompt (with PII prevention)**:
+**Writer prompt (with journal protection)**:
 ```jinja
 {# writer.jinja #}
 You are a blog post writer...
 
-{% if privacy_content_enabled %}
-IMPORTANT PRIVACY GUIDELINES:
-- Do NOT include specific phone numbers, email addresses, or contact info
-- Replace specific personal details with generic references
-- Avoid reproducing verbatim quotes containing PII
-- If discussing people, use anonymized references or roles
+{% if pii_prevention.enabled %}
+CRITICAL PRIVACY REQUIREMENT:
+You must not include personally identifying information in ANY output:
+- Blog post content (main output)
+- Agent execution journals (thinking logs)
+- Tool call results or intermediate outputs
+
+{% if pii_prevention.scope == "contact_info" %}
+Specifically avoid: phone numbers, email addresses, physical addresses, personal URLs
+{% elif pii_prevention.scope == "all_pii" %}
+Avoid ALL personally identifying information including names, contact details,
+ages, specific locations, or any data that could identify individuals
+{% elif pii_prevention.scope == "custom" %}
+{{ pii_prevention.custom_definition }}
+{% else %}  {# llm_decide #}
+Use your best judgment to avoid exposing personal information that could
+identify or contact individuals
+{% endif %}
+
+Use generic references or anonymized identifiers when discussing people or entities.
 {% endif %}
 
 Your task: Write a blog post from this conversation...
@@ -239,8 +306,14 @@ Your task: Write a blog post from this conversation...
 {# enricher.jinja #}
 Analyze this URL/media and provide a summary...
 
-{% if privacy_content_enabled %}
-PRIVACY: Do not include contact information or personal details in your summary.
+{% if pii_prevention.enabled %}
+PRIVACY: Do not include {% if pii_prevention.scope == "contact_info" %}
+contact information (phone, email, address)
+{% elif pii_prevention.scope == "all_pii" %}
+any personally identifying information
+{% else %}
+personal details that could identify individuals
+{% endif %} in your summary.
 {% endif %}
 ```
 
@@ -254,18 +327,112 @@ def _build_prompt_context(
     config: EgregoraConfig,
 ) -> dict:
     """Build context for writer prompt."""
+    pii_settings = config.privacy.pii_prevention.writer
+
     return {
         "conversation_xml": conversation_xml,
         "custom_instructions": config.writer.custom_instructions,
-        "privacy_content_enabled": config.privacy.content.enabled,
-        "privacy_mode": config.privacy.content.instruction_mode,
+        "pii_prevention": {
+            "enabled": pii_settings.enabled,
+            "scope": pii_settings.scope,
+            "custom_definition": pii_settings.custom_definition if pii_settings.scope == "custom" else None,
+            "apply_to_journals": pii_settings.apply_to_journals,
+        }
+    }
+
+# agents/enricher.py
+
+def _build_enricher_context(
+    content: str,
+    config: EgregoraConfig,
+) -> dict:
+    """Build context for enricher prompt."""
+    pii_settings = config.privacy.pii_prevention.enricher
+
+    return {
+        "content": content,
+        "pii_prevention": {
+            "enabled": pii_settings.enabled,
+            "scope": pii_settings.scope,
+            "custom_definition": pii_settings.custom_definition if pii_settings.scope == "custom" else None,
+        }
     }
 ```
 
-### Configuration
+### Configuration Models
 
 ```python
 # config/settings.py
+
+class PIIScope(str, Enum):
+    """What PII to protect in LLM outputs (LLM-native understanding)."""
+
+    CONTACT_INFO = "contact_info"  # Phone, email, address, personal URLs
+    ALL_PII = "all_pii"            # Contact + names, ages, locations, identifiers
+    CUSTOM = "custom"              # User-defined specification
+    LLM_DECIDE = "llm_decide"      # Let LLM use its judgment
+
+
+class AgentPIISettings(BaseModel):
+    """PII prevention settings for a specific agent (LLM-native)."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable PII prevention for this agent"
+    )
+    scope: PIIScope = Field(
+        default=PIIScope.CONTACT_INFO,
+        description="What PII to protect (LLM understands these categories natively)"
+    )
+    custom_definition: str | None = Field(
+        default=None,
+        description="Custom PII definition (when scope=custom). LLM will interpret this."
+    )
+    apply_to_journals: bool = Field(
+        default=True,
+        description="Also protect agent execution journals (not just main output)"
+    )
+
+
+class PIIPreventionSettings(BaseModel):
+    """LLM-native PII prevention settings for all agents."""
+
+    enricher: AgentPIISettings = Field(
+        default_factory=lambda: AgentPIISettings(
+            enabled=True,
+            scope=PIIScope.CONTACT_INFO,
+            apply_to_journals=False,  # Enricher journals typically internal
+        ),
+        description="Enricher agent PII prevention"
+    )
+
+    writer: AgentPIISettings = Field(
+        default_factory=lambda: AgentPIISettings(
+            enabled=True,
+            scope=PIIScope.ALL_PII,
+            apply_to_journals=True,  # CRITICAL: protect journals too
+        ),
+        description="Writer agent PII prevention"
+    )
+
+    banner: AgentPIISettings = Field(
+        default_factory=lambda: AgentPIISettings(
+            enabled=False,
+            scope=PIIScope.CONTACT_INFO,
+            apply_to_journals=False,
+        ),
+        description="Banner agent PII prevention (image generation)"
+    )
+
+    reader: AgentPIISettings = Field(
+        default_factory=lambda: AgentPIISettings(
+            enabled=False,
+            scope=PIIScope.CONTACT_INFO,
+            apply_to_journals=False,
+        ),
+        description="Reader agent PII prevention (typically disabled)"
+    )
+
 
 class StructuralPrivacySettings(BaseModel):
     """Structural anonymization (adapter-level)."""
@@ -277,36 +444,24 @@ class StructuralPrivacySettings(BaseModel):
     email_strategy: str = Field(default="redact", description="Email handling")
 
 
-class ContentPrivacySettings(BaseModel):
-    """Content PII prevention (prompt-level)."""
-
-    enabled: bool = Field(
-        default=True,
-        description="Include PII prevention instructions in prompts"
-    )
-    instruction_mode: Literal["strict", "relaxed", "none"] = Field(
-        default="strict",
-        description="Strictness of PII prevention instructions"
-    )
-
-
 class PrivacySettings(BaseModel):
     """Privacy configuration (two-level model)."""
 
     structural: StructuralPrivacySettings = Field(
         default_factory=StructuralPrivacySettings,
-        description="Structural anonymization settings"
+        description="Structural anonymization settings (adapter-level)"
     )
-    content: ContentPrivacySettings = Field(
-        default_factory=ContentPrivacySettings,
-        description="Content PII prevention settings"
+
+    pii_prevention: PIIPreventionSettings = Field(
+        default_factory=PIIPreventionSettings,
+        description="PII prevention in LLM outputs (per-agent)"
     )
 
     # Backward compatibility
     @property
     def enabled(self) -> bool:
         """Legacy: overall privacy enabled."""
-        return self.structural.enabled or self.content.enabled
+        return self.structural.enabled
 ```
 
 ## Configuration Examples
@@ -322,9 +477,18 @@ privacy:
     phone_strategy: redact
     email_strategy: redact
 
-  content:
-    enabled: true
-    instruction_mode: strict  # Strong LLM guidance
+  pii_prevention:
+    enricher:
+      enabled: true
+      scope: all_pii  # Comprehensive protection
+    writer:
+      enabled: true
+      scope: all_pii
+      apply_to_journals: true  # Protect journals too
+    banner:
+      enabled: false
+    reader:
+      enabled: false
 ```
 
 ### Moderate Privacy (Semi-Public)
@@ -338,9 +502,18 @@ privacy:
     phone_strategy: redact
     email_strategy: redact
 
-  content:
-    enabled: true
-    instruction_mode: relaxed
+  pii_prevention:
+    enricher:
+      enabled: true
+      scope: contact_info  # Just contact details
+    writer:
+      enabled: true
+      scope: contact_info
+      apply_to_journals: true
+    banner:
+      enabled: false
+    reader:
+      enabled: false
 ```
 
 ### No Privacy (Public Data)
@@ -348,23 +521,91 @@ privacy:
 ```yaml
 privacy:
   structural:
-    enabled: false
+    enabled: false  # No column anonymization
 
-  content:
-    enabled: false  # No PII prevention in prompts
+  pii_prevention:
+    enricher:
+      enabled: false
+    writer:
+      enabled: false
+    banner:
+      enabled: false
+    reader:
+      enabled: false
 ```
 
-### Public Data with Content Protection
+### Public Data with PII Protection
 
 ```yaml
-# Judicial records: public names OK, but don't generate new PII
+# Judicial records: public names OK, but don't generate NEW PII
 privacy:
   structural:
     enabled: false  # Judge names, parties are public
 
-  content:
-    enabled: true  # Still prevent LLM from adding new PII
-    instruction_mode: relaxed
+  pii_prevention:
+    enricher:
+      enabled: true
+      scope: contact_info  # Don't add contact info to descriptions
+    writer:
+      enabled: true
+      scope: contact_info  # Don't add contact info to blog posts
+      apply_to_journals: true
+    banner:
+      enabled: false
+    reader:
+      enabled: false
+```
+
+### Custom PII Definition
+
+```yaml
+# Let LLM decide what's sensitive based on custom guidelines
+privacy:
+  structural:
+    enabled: true
+    author_strategy: uuid_mapping
+
+  pii_prevention:
+    enricher:
+      enabled: true
+      scope: custom
+      custom_definition: |
+        Avoid sharing: case numbers, badge numbers, license plates,
+        medical record numbers, or other government-issued identifiers
+    writer:
+      enabled: true
+      scope: custom
+      custom_definition: |
+        Do not include identifiers like case numbers, badge numbers,
+        or medical records. Names of public officials are OK.
+      apply_to_journals: true
+    banner:
+      enabled: false
+    reader:
+      enabled: false
+```
+
+### Let LLM Decide
+
+```yaml
+# Trust LLM to make judgment calls about what's sensitive
+privacy:
+  structural:
+    enabled: true
+    author_strategy: uuid_mapping
+
+  pii_prevention:
+    enricher:
+      enabled: true
+      scope: llm_decide  # LLM uses its judgment
+    writer:
+      enabled: true
+      scope: llm_decide
+      apply_to_journals: true
+    banner:
+      enabled: false
+    reader:
+      enabled: false
 ```
 
 ## Migration Path
@@ -454,16 +695,30 @@ privacy:
 
 ## Summary
 
-Two-level privacy model:
+Two-level privacy model with **LLM-native PII understanding**:
 
-1. **Structural (Adapter)**: Column-level anonymization strategies
-   - Author: UUID, redaction, roles, or none
-   - Mentions: UUID, redaction, roles, or none
-   - PII patterns: Redact, hash, or keep
+### 1. Structural (Adapter - Deterministic Preprocessing)
+Column-level anonymization strategies using simple regex:
+- Author: UUID, redaction, roles, or none
+- Mentions: UUID, redaction, roles, or none
+- PII patterns: Redact, hash, or keep
+- **Purpose**: Deterministic preprocessing of raw input data
 
-2. **Content (Core)**: Prompt-level PII prevention
-   - Dynamic instructions in prompts
-   - Configurable strictness
-   - Prevents LLM from generating new PII
+### 2. LLM-Native PII Prevention (Agent Prompts - No Regex Needed)
+Natural language instructions that leverage LLM's understanding of PII:
+- **No regex patterns required** - LLMs natively understand what constitutes PII
+- **Scope-based**: Tell LLM what we consider private (`contact_info`, `all_pii`, `custom`, `llm_decide`)
+- **Simple specification**: Declarative instructions in natural language
+- **Journal protection**: CRITICAL - applies to agent execution journals, not just main outputs
+- **Flexible**: Can use custom definitions or let LLM use its judgment
 
-This gives maximum flexibility while keeping concerns properly separated.
+### Key Advantages
+
+✅ **Simpler architecture** - No pattern maintenance, LLM handles understanding
+✅ **More robust** - LLMs recognize PII variants humans might miss
+✅ **Flexible** - Easy to customize what counts as PII
+✅ **Comprehensive** - Protects ALL agent outputs including journals
+✅ **Separation of concerns** - Structural preprocessing vs. LLM output protection
+✅ **Backward compatible** - Defaults match current behavior
+
+This approach leverages LLM capabilities instead of fighting them with regex patterns.
