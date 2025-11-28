@@ -47,7 +47,7 @@ def test_init_directory_structure(tmp_path: Path):
 
     # Verify directory structure (new structure: content at root level)
     expected_dirs = [
-        "docs/blog/posts",
+        "docs/posts",
         "docs/profiles",
         "docs/media",
         "docs/media/images",

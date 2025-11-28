@@ -60,6 +60,7 @@ jobs:
 
             core.setOutput('pr_number', prNumber);
             core.setOutput('base_sha', prData.base.sha);
+            core.setOutput('base_ref', prData.base.ref);
             core.setOutput('head_sha', prData.head.sha);
             core.setOutput('pr_title', prData.title);
             core.setOutput('pr_author', prData.user.login);
@@ -73,6 +74,7 @@ jobs:
         id: collect
         env:
           BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
           PR_TITLE: ${{ steps.pr.outputs.pr_title }}
           USER_INSTRUCTIONS: ${{ steps.pr.outputs.user_instructions }}
@@ -80,11 +82,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Ensure we have the base commit
-          git fetch origin "${BASE_SHA}" --depth=1 || true
+          # Ensure we have the base ref locally (works for forks and shallow clones)
+          git fetch origin "${BASE_REF}" --depth=1
 
           # Get unified diff between base and head
-          git diff --unified=3 "${BASE_SHA}" "${HEAD_SHA}" > pr.diff
+          git diff --unified=3 "origin/${BASE_REF}" "${HEAD_SHA}" > pr.diff
 
           # Trim diff to avoid blowing the context window (90KB ~= 22k tokens)
           head -c 90000 pr.diff > pr-trimmed.diff
