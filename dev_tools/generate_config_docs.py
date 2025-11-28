@@ -9,7 +9,7 @@ Usage:
 """
 
 from pathlib import Path
-from typing import Any, get_args, get_origin
+from typing import get_args, get_origin
 
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
@@ -72,7 +72,7 @@ def get_default_value(field_info: FieldInfo) -> str:
         return "`null`"
     if isinstance(default, str):
         return f'`"{default}"`'
-    if isinstance(default, (int, float, bool)):
+    if isinstance(default, int | float | bool):
         return f"`{default}`"
     if isinstance(default, list):
         return f"`{default}`"
@@ -285,8 +285,6 @@ def generate_config_docs() -> str:
 
 def main() -> None:
     """Generate configuration documentation."""
-    print("Generating configuration documentation...")
-
     # Generate docs
     docs = generate_config_docs()
 
@@ -295,8 +293,6 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(docs)
 
-    print(f"✓ Generated {output_path}")
-    print(f"  {len(docs.splitlines())} lines")
 
 
 if __name__ == "__main__":

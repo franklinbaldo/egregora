@@ -44,7 +44,6 @@ from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.run_store import RunStore
 from egregora.database.views import daily_aggregates_view
-from egregora.input_adapters import get_adapter
 from egregora.input_adapters.base import MediaMapping
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
@@ -554,12 +553,23 @@ def _perform_enrichment(
         Enriched table
 
     """
+    # Build PII prevention context for enricher from config
+    pii_settings = ctx.config.privacy.pii_prevention.enricher
+    pii_prevention = None
+    if pii_settings.enabled:
+        pii_prevention = {
+            "enabled": True,
+            "scope": pii_settings.scope.value,
+            "custom_definition": pii_settings.custom_definition if pii_settings.scope.value == "custom" else None,
+        }
+
     enrichment_context = EnrichmentRuntimeContext(
         cache=ctx.enrichment_cache,
         output_format=ctx.output_format,
         site_root=ctx.site_root,
         quota=ctx.quota_tracker,
         usage_tracker=ctx.usage_tracker,
+        pii_prevention=pii_prevention,
     )
     return enrich_table(
         window_table,
@@ -1346,7 +1356,23 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
 
     """
     logger.info("[bold cyan]🚀 Starting pipeline for source:[/] %s", run_params.source_type)
-    adapter = get_adapter(run_params.source_type)
+
+    # Create adapter with config for privacy settings
+    # Instead of using singleton from registry, instantiate with config
+    from egregora.input_adapters import ADAPTER_REGISTRY
+
+    adapter_cls = ADAPTER_REGISTRY.get(run_params.source_type)
+    if adapter_cls is None:
+        msg = f"Unknown source type: {run_params.source_type}"
+        raise ValueError(msg)
+
+    # Instantiate adapter with config if it supports it (WhatsApp does)
+    try:
+        adapter = adapter_cls(config=run_params.config)
+    except TypeError:
+        # Fallback for adapters that don't accept config parameter
+        adapter = adapter_cls()
+
 
     # Generate run ID and timestamp for tracking
     run_id = run_params.run_id
