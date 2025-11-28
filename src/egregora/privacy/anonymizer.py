@@ -22,8 +22,27 @@ def _sanitize_mentions(text: str, mapping: dict[str, str]) -> str:
     return MENTION_PATTERN.sub(replace, text)
 
 
-def anonymize_table(table: Table, *, redact_token: str = DEFAULT_REDACTED) -> Table:
-    """Redact author_raw values while preserving deterministic author_uuid."""
+def anonymize_table(
+    table: Table,
+    *,
+    redact_token: str = DEFAULT_REDACTED,
+    enabled: bool = True,
+) -> Table:
+    """Redact author_raw values while preserving deterministic author_uuid.
+
+    Args:
+        table: Input table with author_raw and author_uuid columns
+        redact_token: Token to use for redacted values
+        enabled: If False, skip anonymization and return table as-is
+
+    Returns:
+        Table with author_raw anonymized (if enabled)
+
+    """
+    # If anonymization is disabled, return table unchanged
+    if not enabled:
+        return table
+
     required = {"author_raw", "author_uuid"}
     missing = required - set(table.columns)
     if missing:

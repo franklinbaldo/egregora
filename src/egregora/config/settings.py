@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from egregora.config.overrides import ConfigOverrideBuilder
 
@@ -52,6 +52,10 @@ DEFAULT_CONCURRENCY = 1
 # Can be overridden via config.yml or environment variables
 DEFAULT_PIPELINE_DB = "duckdb:///./.egregora/pipeline.duckdb"
 DEFAULT_RUNS_DB = "duckdb:///./.egregora/runs.duckdb"
+
+# Configuration validation warning thresholds
+RAG_TOP_K_WARNING_THRESHOLD = 20
+MAX_PROMPT_TOKENS_WARNING_THRESHOLD = 200_000
 
 # Model naming conventions
 PydanticModelName = Annotated[
@@ -106,6 +110,37 @@ class ModelSettings(BaseModel):
         default=DEFAULT_BANNER_MODEL,
         description="Model for banner/cover image generation (Google GenAI format)",
     )
+
+    @field_validator("writer", "enricher", "enricher_vision", "ranking", "editor", "reader")
+    @classmethod
+    def validate_pydantic_model_format(cls, v: str) -> str:
+        """Validate Pydantic-AI model name format."""
+        if not v.startswith("google-gla:"):
+            msg = (
+                f"Invalid Pydantic-AI model format: {v!r}\n"
+                f"Expected format: 'google-gla:<model-name>'\n"
+                f"Examples:\n"
+                f"  - google-gla:gemini-flash-latest\n"
+                f"  - google-gla:gemini-2.0-flash-exp\n"
+                f"  - google-gla:gemini-1.5-pro"
+            )
+            raise ValueError(msg)
+        return v
+
+    @field_validator("embedding", "banner")
+    @classmethod
+    def validate_google_model_format(cls, v: str) -> str:
+        """Validate Google GenAI SDK model name format."""
+        if not v.startswith("models/"):
+            msg = (
+                f"Invalid Google GenAI model format: {v!r}\n"
+                f"Expected format: 'models/<model-name>'\n"
+                f"Examples:\n"
+                f"  - models/gemini-embedding-001\n"
+                f"  - models/gemini-2.5-flash-image"
+            )
+            raise ValueError(msg)
+        return v
 
 
 class ImageGenerationSettings(BaseModel):
@@ -169,6 +204,17 @@ class RAGSettings(BaseModel):
         description="Maximum consecutive errors before failing (per endpoint)",
     )
 
+    @field_validator("top_k")
+    @classmethod
+    def validate_top_k(cls, v: int) -> int:
+        """Validate top_k is reasonable and warn if too high."""
+        if v > 15:
+            logger.warning(
+                f"RAG top_k={v} is unusually high. "
+                f"Consider values between 5-10 for better performance and relevance."
+            )
+        return v
+
 
 class WriterAgentSettings(BaseModel):
     """Blog post writer configuration."""
@@ -179,25 +225,184 @@ class WriterAgentSettings(BaseModel):
     )
 
 
+# Import privacy enums early for use in privacy settings classes
+from egregora.constants import (  # noqa: E402
+    AuthorPrivacyStrategy,
+    MentionPrivacyStrategy,
+    PIIScope,
+    TextPIIStrategy,
+)
+
+
+class AgentPIISettings(BaseModel):
+    """PII prevention settings for a specific agent (LLM-native).
+
+    LLMs naturally understand what constitutes PII without regex patterns.
+    We just tell them what we consider private using declarative scopes.
+    """
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable PII prevention for this agent",
+    )
+
+    scope: PIIScope = Field(
+        default=PIIScope.CONTACT_INFO,
+        description="What PII to protect (LLM understands these categories natively)",
+    )
+
+    custom_definition: str | None = Field(
+        default=None,
+        description="Custom PII definition (when scope=custom). LLM will interpret this.",
+    )
+
+    apply_to_journals: bool = Field(
+        default=True,
+        description="Also protect agent execution journals (not just main output)",
+    )
+
+
+class PIIPreventionSettings(BaseModel):
+    """LLM-native PII prevention settings for all agents.
+
+    No regex patterns needed - LLMs naturally understand PII.
+    """
+
+    enricher: AgentPIISettings = Field(
+        default_factory=lambda: AgentPIISettings(
+            enabled=True,
+            scope=PIIScope.CONTACT_INFO,
+            apply_to_journals=False,  # Enricher journals typically internal
+        ),
+        description="Enricher agent PII prevention",
+    )
+
+    writer: AgentPIISettings = Field(
+        default_factory=lambda: AgentPIISettings(
+            enabled=True,
+            scope=PIIScope.ALL_PII,
+            apply_to_journals=True,  # CRITICAL: protect journals too
+        ),
+        description="Writer agent PII prevention",
+    )
+
+    banner: AgentPIISettings = Field(
+        default_factory=lambda: AgentPIISettings(
+            enabled=False,
+            scope=PIIScope.CONTACT_INFO,
+            apply_to_journals=False,
+        ),
+        description="Banner agent PII prevention (image generation)",
+    )
+
+    reader: AgentPIISettings = Field(
+        default_factory=lambda: AgentPIISettings(
+            enabled=False,
+            scope=PIIScope.CONTACT_INFO,
+            apply_to_journals=False,
+        ),
+        description="Reader agent PII prevention (typically disabled)",
+    )
+
+
+class StructuralPrivacySettings(BaseModel):
+    """Structural anonymization settings (adapter-level, deterministic preprocessing).
+
+    Uses simple regex patterns for deterministic preprocessing of raw input data.
+    This is separate from LLM-native PII prevention which uses natural language.
+    """
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable structural anonymization",
+    )
+
+    author_strategy: AuthorPrivacyStrategy = Field(
+        default=AuthorPrivacyStrategy.UUID_MAPPING,
+        description="Author anonymization strategy",
+    )
+
+    mention_strategy: MentionPrivacyStrategy = Field(
+        default=MentionPrivacyStrategy.UUID_REPLACEMENT,
+        description="Mention handling strategy",
+    )
+
+    phone_strategy: TextPIIStrategy = Field(
+        default=TextPIIStrategy.REDACT,
+        description="Phone number handling in raw text",
+    )
+
+    email_strategy: TextPIIStrategy = Field(
+        default=TextPIIStrategy.REDACT,
+        description="Email handling in raw text",
+    )
+
+
 class PrivacySettings(BaseModel):
     """Privacy and data protection settings (YAML configuration).
 
-    .. note::
-       Currently all privacy features (anonymization, PII detection) are always enabled.
-       This config section is reserved for future configurable privacy controls.
+    Two-level privacy model:
+    1. **Structural** (Level 1): Deterministic preprocessing of raw input data
+    2. **PII Prevention** (Level 2): LLM-native PII understanding in agent outputs
 
     .. warning::
-       This Pydantic model (for YAML config) has the same name as the dataclass in
-       ``egregora.privacy.config.PrivacySettings`` (for runtime policy). They are NOT
-       duplicates - they serve different purposes:
+       Disabling privacy features should only be done for public datasets
+       (e.g., judicial records, public archives, news articles).
 
-       - **This class**: YAML configuration placeholder (persisted to config.yml)
-       - **privacy.config.PrivacySettings**: Runtime policy with tenant isolation, PII
-         detection settings, and re-identification escrow (never persisted)
+       For private conversations, always keep privacy enabled to protect PII.
 
-       When privacy configuration becomes user-configurable, this class will hold the
-       YAML settings which get mapped to runtime PrivacySettings instances.
+    This Pydantic model (for YAML config) has the same name as the dataclass in
+    ``egregora.privacy.config.PrivacySettings`` (for runtime policy). They serve
+    different purposes:
+
+    - **This class**: YAML configuration (persisted to config.yml)
+    - **privacy.config.PrivacySettings**: Runtime policy with tenant isolation
     """
+
+    structural: StructuralPrivacySettings = Field(
+        default_factory=StructuralPrivacySettings,
+        description="Structural anonymization settings (adapter-level)",
+    )
+
+    pii_prevention: PIIPreventionSettings = Field(
+        default_factory=PIIPreventionSettings,
+        description="PII prevention in LLM outputs (per-agent, LLM-native)",
+    )
+
+    # Backward compatibility properties
+    @property
+    def enabled(self) -> bool:
+        """Legacy: overall privacy enabled (checks structural privacy)."""
+        return self.structural.enabled
+
+    @property
+    def anonymize_authors(self) -> bool:
+        """Legacy: check if authors are being anonymized."""
+        return self.structural.author_strategy != AuthorPrivacyStrategy.NONE
+
+    @model_validator(mode="after")
+    def validate_privacy_settings(self) -> PrivacySettings:
+        """Validate privacy settings and warn if disabled."""
+        if not self.structural.enabled:
+            logger.warning(
+                "⚠️  Structural privacy is DISABLED (privacy.structural.enabled=false). "
+                "Only use for public datasets! Private conversations will NOT be anonymized."
+            )
+
+        if self.structural.author_strategy == AuthorPrivacyStrategy.NONE and self.structural.enabled:
+            logger.warning(
+                "Author anonymization is disabled (strategy=none) but structural privacy is enabled. "
+                "Author names will appear in output."
+            )
+
+        # Warn about journal protection
+        if self.pii_prevention.writer.enabled and not self.pii_prevention.writer.apply_to_journals:
+            logger.warning(
+                "Writer PII prevention is enabled but apply_to_journals=false. "
+                "Agent execution journals may contain PII!"
+            )
+
+        return self
 
 
 class EnrichmentSettings(BaseModel):
@@ -533,6 +738,37 @@ class EgregoraConfig(BaseModel):
         validate_assignment=True,  # Validate on attribute assignment
     )
 
+    @model_validator(mode="after")
+    def validate_cross_field(self) -> EgregoraConfig:
+        """Validate cross-field dependencies and warn about potential issues."""
+        # If RAG is enabled, ensure lancedb_dir is set
+        if self.rag.enabled and not self.paths.lancedb_dir:
+            msg = (
+                "RAG is enabled (rag.enabled=true) but paths.lancedb_dir is not set. "
+                "Set paths.lancedb_dir to a valid directory path."
+            )
+            raise ValueError(msg)
+
+        # Warn about very high max_prompt_tokens
+        if self.pipeline.max_prompt_tokens > 200_000:
+            logger.warning(
+                f"pipeline.max_prompt_tokens={self.pipeline.max_prompt_tokens} exceeds most model limits. "
+                "Consider using pipeline.use_full_context_window=true instead of setting a high token limit."
+            )
+
+        # Warn if use_full_context_window is enabled
+        if self.pipeline.use_full_context_window:
+            logger.info(
+                "pipeline.use_full_context_window=true. Using full model context window "
+                "(overrides max_prompt_tokens setting)."
+            )
+
+        # Check for deprecated feature flags
+        if self.features.ranking_enabled:
+            logger.warning("features.ranking_enabled is deprecated. Use reader.enabled instead.")
+
+        return self
+
     @classmethod
     def from_cli_overrides(cls, base_config: EgregoraConfig, **cli_args: Any) -> EgregoraConfig:
         """Create a new config instance with CLI overrides applied.
@@ -629,8 +865,11 @@ def load_egregora_config(site_root: Path) -> EgregoraConfig:
 
     try:
         return EgregoraConfig(**data)
-    except ValidationError:
-        logger.exception("Validation failed for %s", config_path)
+    except ValidationError as e:
+        logger.error("Configuration validation failed for %s:", config_path)
+        for error in e.errors():
+            loc = " → ".join(str(l) for l in error["loc"])
+            logger.error("  %s: %s", loc, error["msg"])
         logger.warning("Creating default config due to validation error")
         return create_default_config(site_root)
 

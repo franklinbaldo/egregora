@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
 
+from egregora.cli.config import config_app
 from egregora.cli.read import read_app
 from egregora.cli.runs import get_storage, runs_app
 from egregora.config import RuntimeContext, load_egregora_config
@@ -25,6 +26,7 @@ app = typer.Typer(
     help="Ultra-simple WhatsApp to blog pipeline with LLM-powered content generation",
     add_completion=False,
 )
+app.add_typer(config_app)
 app.add_typer(runs_app)
 app.add_typer(read_app)
 

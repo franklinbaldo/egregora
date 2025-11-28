@@ -41,6 +41,25 @@ class RAGQueryRequest(BaseModel):
         top_k: Number of top results to retrieve (default: 5)
         filters: Optional SQL WHERE clause for filtering (e.g., "category = 'programming'")
 
+    Examples:
+        >>> # Basic query
+        >>> request = RAGQueryRequest(text="Python async programming")
+        >>> request.top_k
+        5
+
+        >>> # Query with custom top_k
+        >>> request = RAGQueryRequest(text="machine learning", top_k=10)
+        >>> request.top_k
+        10
+
+        >>> # Query with filters
+        >>> request = RAGQueryRequest(
+        ...     text="database optimization",
+        ...     filters="metadata_json LIKE '%postgres%'"
+        ... )
+        >>> request.filters
+        "metadata_json LIKE '%postgres%'"
+
     """
 
     text: str = Field(..., description="Query text")
