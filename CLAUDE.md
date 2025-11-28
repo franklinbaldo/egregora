@@ -632,75 +632,50 @@ if step == PipelineStep.ENRICHMENT:
 
 ### URL Generation (UrlConvention Protocol)
 
+**See [docs/architecture/protocols.md](docs/architecture/protocols.md#url-generation) for complete documentation.**
+
+Quick summary: `UrlConvention` protocol enables deterministic URL generation for documents.
+
 ```python
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
-from egregora.data_primitives import Document
 
 # UrlContext: frozen dataclass with context for URL generation
-ctx = UrlContext(
-    base_url="https://example.com",
-    site_prefix="/blog",
-    base_path=Path("/output/docs"),
-    locale="en"
-)
+ctx = UrlContext(base_url="https://example.com", site_prefix="/blog")
 
 # UrlConvention: Protocol for deterministic URL generation
 # Pure function pattern: same document → same URL (no I/O, no side effects)
-class MyUrlConvention:
-    @property
-    def name(self) -> str:
-        return "my-convention"
-
-    @property
-    def version(self) -> str:
-        return "v1"  # For compatibility checks
-
-    def canonical_url(self, document: Document, ctx: UrlContext) -> str:
-        # Deterministic URL calculation
-        return f"{ctx.base_url}{ctx.site_prefix}/{document.slug}"
-
 # Pattern ensures stable URLs across rebuilds (critical for SEO/links)
 ```
 
+**Key properties:**
+- Deterministic: same document → same URL
+- Pure: no I/O, no side effects
+- Versioned: `name` and `version` properties for compatibility checks
+
 ## Configuration
+
+**See [docs/configuration.md](docs/configuration.md) for complete auto-generated reference.**
 
 **File:** `.egregora/config.yml`
 
-**Key settings groups** (13 Pydantic V2 classes in `config/settings.py`):
-- `models` - LLM models (writer, enricher, reader, embedding, banner)
-- `rag` - RAG config (enabled, top_k, indexable_types, embedding_*)
-- `writer` - Custom instructions for writer agent
-- `enrichment` - URL/media enrichment settings
-- `pipeline` - Windowing (step_size, step_unit, overlap_ratio), date filtering, checkpointing
-- `paths` - All directory paths (egregora_dir, rag_dir, lancedb_dir, docs_dir, posts_dir, etc.)
-- `database` - DuckDB paths (pipeline_db, runs_db)
-- `output` - Output format (mkdocs/hugo)
-- `reader` - ELO ranking settings
-- `quota` - LLM usage budgets
+**Key settings groups** (13 Pydantic V2 classes):
+- `models`, `rag`, `writer`, `enrichment`, `pipeline`, `paths`, `database`, `output`, `reader`, `quota`
 
-**Example minimal config:**
+**Minimal config:**
 ```yaml
 models:
   writer: google-gla:gemini-flash-latest
   embedding: google-gla:gemini-embedding-001
-
 rag:
   enabled: true
-
 pipeline:
   step_size: 1
   step_unit: days
 ```
 
-**Custom prompts:** Place Jinja2 templates in `.egregora/prompts/` (overrides `src/egregora/prompts/`)
+**Custom prompts:** `.egregora/prompts/` (overrides `src/egregora/prompts/`)
 
-**Programmatic overrides:**
-```python
-from egregora.config.overrides import ConfigOverrideBuilder
-overrides = ConfigOverrideBuilder()
-overrides.set_model("writer", "google-gla:gemini-pro-latest")
-config = overrides.build(base_config)
-```
+**Regenerate docs:** `python dev_tools/generate_config_docs.py`
 
 ## Testing
 
