@@ -314,18 +314,23 @@ class OutputAdapterRegistry:
         return list(self._formats.keys())
 
 
-output_registry = OutputAdapterRegistry()
+def create_output_registry() -> OutputAdapterRegistry:
+    """Create a fresh output adapter registry."""
+    return OutputAdapterRegistry()
 
 
-def create_output_format(site_root: Path, format_type: str = "mkdocs") -> OutputAdapter:
+def create_output_format(
+    site_root: Path,
+    format_type: str = "mkdocs",
+    *,
+    registry: OutputAdapterRegistry | None = None,
+) -> OutputAdapter:
     """Create and initialize an OutputAdapter based on configuration."""
-    # Ensure registry is populated by importing rendering module
-    # This triggers registration in rendering/__init__.py
+    if registry is None:
+        msg = "An OutputAdapterRegistry instance must be provided to create output formats."
+        raise ValueError(msg)
 
-    # Get format class from registry
-    output_format = output_registry.get_format(format_type)
-
-    # Initialize with site_root
+    output_format = registry.get_format(format_type)
     output_format.initialize(site_root)
 
     return output_format

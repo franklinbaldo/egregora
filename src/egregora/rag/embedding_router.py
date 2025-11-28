@@ -13,6 +13,7 @@ Architecture:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from collections.abc import Sequence
@@ -134,10 +135,8 @@ class EndpointQueue:
         """Stop background worker."""
         if self.worker_task and not self.worker_task.done():
             self.worker_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.worker_task
-            except asyncio.CancelledError:
-                pass
             logger.info("Stopped %s endpoint worker", self.endpoint_type.value)
 
     async def submit(self, texts: list[str], task_type: str) -> list[list[float]]:
@@ -338,7 +337,7 @@ class EmbeddingRouter:
         api_key: str | None = None,
         max_batch_size: int = 100,
         timeout: float = 60.0,
-    ):
+    ) -> None:
         """Initialize router with dual queues.
 
         Args:
@@ -439,6 +438,24 @@ _router: EmbeddingRouter | None = None
 _router_lock = asyncio.Lock()
 
 
+async def create_embedding_router(
+    *,
+    model: str,
+    api_key: str | None = None,
+    max_batch_size: int = 100,
+    timeout: float = 60.0,
+) -> EmbeddingRouter:
+    """Create and start a dedicated embedding router instance."""
+    router = EmbeddingRouter(
+        model=model,
+        api_key=api_key,
+        max_batch_size=max_batch_size,
+        timeout=timeout,
+    )
+    await router.start()
+    return router
+
+
 async def get_router(
     *,
     model: str,
@@ -448,26 +465,18 @@ async def get_router(
 ) -> EmbeddingRouter:
     """Get or create global embedding router singleton.
 
-    Args:
-        model: Google embedding model (e.g., "models/gemini-embedding-001")
-        api_key: Google API key (defaults to GOOGLE_API_KEY env var)
-        max_batch_size: Maximum texts per batch request
-        timeout: HTTP timeout in seconds
-
-    Returns:
-        Shared EmbeddingRouter instance
-
+    Prefer :func:`create_embedding_router` when the caller owns lifecycle
+    management. This helper is kept for backwards compatibility.
     """
     global _router
     async with _router_lock:
         if _router is None:
-            _router = EmbeddingRouter(
+            _router = await create_embedding_router(
                 model=model,
                 api_key=api_key,
                 max_batch_size=max_batch_size,
                 timeout=timeout,
             )
-            await _router.start()
     return _router
 
 
@@ -484,6 +493,7 @@ __all__ = [
     "EmbeddingRouter",
     "EndpointType",
     "RateLimitState",
+    "create_embedding_router",
     "get_router",
     "shutdown_router",
 ]

@@ -33,6 +33,10 @@ dependencies = [
     "langchain-core>=0.2.0",
     "tiktoken>=0.12.0",
     "lancedb>=0.4.0",  # Vector database for RAG
+    "mkdocs>=1.6",
+    "mkdocs-material[imaging]>=9.5",
+    "mkdocs-macros-plugin>=1.0.0",
+    "mkdocs-rss-plugin>=1.15",
 ]
 
 [project.optional-dependencies]
@@ -56,7 +60,7 @@ rss = [
 egregora = "egregora.cli:main"
 
 [project.entry-points."egregora.adapters"]
-whatsapp = "egregora.input_adapters.whatsapp:WhatsAppAdapter"
+whatsapp = "egregora.input_adapters.whatsapp.adapter:WhatsAppAdapter"
 iperon-tjro = "egregora.input_adapters.iperon_tjro:IperonTJROAdapter"
 self = "egregora.input_adapters.self_reflection:SelfInputAdapter"
 

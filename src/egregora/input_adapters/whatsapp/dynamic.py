@@ -30,16 +30,25 @@ def generate_dynamic_regex(sample_lines: list[str], config: EgregoraConfig) -> P
 
     agent = Agent(config.models.enricher, system_prompt=system_prompt)
 
-    try:
-        result = agent.run_sync(user_prompt, output_type=ParserDefinition)
+    min_match_ratio = 0.5
 
-        if not result or not result.regex_pattern:
+    try:
+        result = agent.run_sync(user_prompt)
+
+        if hasattr(result, "data"):
+            data = result.data
+        elif hasattr(result, "output"):
+            data = result.output
+        else:
+            data = result
+
+        if not data or not data.regex_pattern:
             return None
 
-        logger.info(f"LLM generated dynamic regex: {result.regex_pattern}")
+        logger.info("LLM generated dynamic regex: %s", data.regex_pattern)
 
         # COMPILATION & VERIFICATION STEP
-        pattern = re.compile(result.regex_pattern)
+        pattern = re.compile(data.regex_pattern)
 
         matches = 0
         for line in sample_lines:
@@ -47,14 +56,18 @@ def generate_dynamic_regex(sample_lines: list[str], config: EgregoraConfig) -> P
                 matches += 1
 
         # If it matches at least 50% of the sample lines, accept it
-        if matches / len(sample_lines) >= 0.5:
+        if matches / len(sample_lines) >= min_match_ratio:
             return pattern
-        logger.warning(f"Generated regex failed validation (matched {matches}/{len(sample_lines)} lines)")
-        return None
+        logger.warning(
+            "Generated regex failed validation (matched %d/%d lines)",
+            matches,
+            len(sample_lines),
+        )
+        return None  # noqa: TRY300
 
-    except AgentRunError as e:
-        logger.exception(f"Agent run failed during dynamic parser generation: {e}")
+    except AgentRunError:
+        logger.exception("Agent run failed during dynamic parser generation")
         return None
-    except Exception as e:
-        logger.exception(f"Failed to generate or validate dynamic parser: {e}")
+    except Exception:
+        logger.exception("Failed to generate or validate dynamic parser")
         return None

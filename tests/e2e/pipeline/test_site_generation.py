@@ -221,7 +221,7 @@ tags:
 
         # Run the pipeline (this will trigger the write pipeline)
         # We need to mock the input adapter to return empty data
-        with patch("egregora.input_adapters.whatsapp.WhatsAppAdapter.parse") as mock_parse:
+        with patch("egregora.input_adapters.whatsapp.adapter.WhatsAppAdapter.parse") as mock_parse:
             mock_parse.return_value = MagicMock()  # Mocked dataframe
             # We also need to mock the enrichment pipeline to return something
             with patch("egregora.agents.enricher.enrich_table") as mock_enrich:

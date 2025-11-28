@@ -8,7 +8,7 @@ MODERN: Updated to use OutputAdapter abstraction instead of direct scaffolding i
 
 from pathlib import Path
 
-from egregora.output_adapters import create_output_format
+from egregora.output_adapters import create_default_output_registry, create_output_format
 from egregora.output_adapters.mkdocs import MkDocsAdapter
 
 
@@ -47,7 +47,7 @@ def test_init_directory_structure(tmp_path: Path):
 
     # Verify directory structure (new structure: content at root level)
     expected_dirs = [
-        "docs/posts",
+        "docs/blog/posts",
         "docs/profiles",
         "docs/media",
         "docs/media/images",
@@ -151,7 +151,8 @@ def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
 def test_prompts_readme_created(tmp_path: Path):
     """Test that .egregora/prompts/README.md is created."""
     # Create and scaffold MkDocs site using OutputAdapter
-    output_format = create_output_format(tmp_path, format_type="mkdocs")
+    registry = create_default_output_registry()
+    output_format = create_output_format(tmp_path, format_type="mkdocs", registry=registry)
     _mkdocs_path, created = output_format.scaffold_site(tmp_path, site_name="Test Site")
 
     # Verify site was created
@@ -171,7 +172,8 @@ def test_prompts_readme_created(tmp_path: Path):
 def test_prompts_directory_populated(tmp_path: Path):
     """Test that .egregora/prompts/ contains the flattened prompt templates."""
     # Create and scaffold MkDocs site using OutputAdapter
-    output_format = create_output_format(tmp_path, format_type="mkdocs")
+    registry = create_default_output_registry()
+    output_format = create_output_format(tmp_path, format_type="mkdocs", registry=registry)
     _mkdocs_path, created = output_format.scaffold_site(tmp_path, site_name="Test Site")
 
     # Verify site was created

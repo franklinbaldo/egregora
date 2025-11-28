@@ -58,7 +58,7 @@ def mock_media_enrichment(path: str | Path, **kwargs: Any) -> dict:
     if hasattr(path, "name") and not isinstance(path, Path):
         # Stub object with .name attribute
         filename = str(path.name) if not isinstance(path.name, str) else path.name
-    elif isinstance(path, (str, Path)):
+    elif isinstance(path, str | Path):
         filename = Path(path).name
     else:
         # Fallback for unknown types
@@ -113,7 +113,7 @@ async def async_mock_media_enrichment(path: str | Path, **kwargs: Any) -> tuple[
     # Extract filename for slug
     if hasattr(path, "name") and not isinstance(path, Path):
         filename = str(path.name) if not isinstance(path.name, str) else path.name
-    elif isinstance(path, (str, Path)):
+    elif isinstance(path, str | Path):
         filename = Path(path).stem
     else:
         filename = "unknown"

@@ -145,17 +145,20 @@ def chunks_from_document(
 
     text = doc.content
 
+    # Compute the document ID once to avoid repeated hashing for large documents
+    doc_id = doc.document_id
+
     # Chunk the text with overlap
     pieces = _simple_chunk_text(text, max_chars=max_chars, overlap=chunk_overlap)
 
     chunks: list[_RAGChunk] = []
 
     for i, piece in enumerate(pieces):
-        chunk_id = f"{doc.document_id}:{i}"
+        chunk_id = f"{doc_id}:{i}"
 
         # Build metadata for this chunk
         metadata = {
-            "document_id": doc.document_id,
+            "document_id": doc_id,
             "type": doc.type.value if hasattr(doc.type, "value") else str(doc.type),
             "suggested_path": doc.suggested_path,
             "created_at": doc.created_at.isoformat(),
@@ -170,7 +173,7 @@ def chunks_from_document(
         chunks.append(
             _RAGChunk(
                 chunk_id=chunk_id,
-                document_id=doc.document_id,
+                document_id=doc_id,
                 text=piece,
                 metadata=metadata,
             )

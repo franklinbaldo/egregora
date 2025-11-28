@@ -30,6 +30,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class ToolRegistryError(Exception):
+    """Raised when tool definitions or profiles cannot be loaded."""
+
+
 @dataclass
 class Tool:
     id: str
@@ -215,17 +219,32 @@ class ToolRegistry:
         for tool_file in self.tools_path.glob("*.yaml"):
             if tool_file.name == "profiles.yaml":
                 continue
-            content = tool_file.read_text(encoding="utf-8")
-            data = yaml.safe_load(content)
+            try:
+                content = tool_file.read_text(encoding="utf-8")
+            except OSError as exc:
+                msg = f"Failed to read tool definition from {tool_file}"
+                raise ToolRegistryError(msg) from exc
+            try:
+                data = yaml.safe_load(content)
+            except yaml.YAMLError as exc:
+                msg = f"Invalid YAML in tool definition {tool_file}"
+                raise ToolRegistryError(msg) from exc
+            if not isinstance(data, dict):
+                msg = f"Tool definition in {tool_file} must be a mapping, got {type(data).__name__}"
+                raise ToolRegistryError(msg)
+
             tool_id = data.get("id")
-            if tool_id:
-                tools[tool_id] = Tool(
-                    id=tool_id,
-                    kind=data.get("kind"),
-                    inputs=data.get("inputs"),
-                    contracts=data.get("contracts"),
-                    content=content,
-                )
+            if not tool_id:
+                msg = f"Tool definition in {tool_file} missing required 'id' field"
+                raise ToolRegistryError(msg)
+
+            tools[tool_id] = Tool(
+                id=tool_id,
+                kind=data.get("kind"),
+                inputs=data.get("inputs"),
+                contracts=data.get("contracts"),
+                content=content,
+            )
         return tools
 
     def _load_profiles(self) -> dict[str, Any]:
@@ -240,7 +259,61 @@ class ToolRegistry:
         """
         profiles_path = self.tools_path / "profiles.yaml"
         if profiles_path.exists():
-            return yaml.safe_load(profiles_path.read_text(encoding="utf-8")).get("profiles", {})
+            try:
+                content = profiles_path.read_text(encoding="utf-8")
+            except OSError as exc:
+                msg = f"Failed to read tool profiles from {profiles_path}"
+                raise ToolRegistryError(msg) from exc
+            try:
+                data = yaml.safe_load(content) or {}
+            except yaml.YAMLError as exc:
+                msg = f"Invalid YAML in tool profiles file {profiles_path}"
+                raise ToolRegistryError(msg) from exc
+            if not isinstance(data, dict):
+                msg = f"Tool profiles in {profiles_path} must be a mapping, got {type(data).__name__}"
+                raise ToolRegistryError(msg)
+            profiles = data.get("profiles", {})
+            if not isinstance(profiles, dict):
+                msg = (
+                    f"'profiles' section in {profiles_path} must be a mapping, got {type(profiles).__name__}"
+                )
+                raise ToolRegistryError(msg)
+            validated_profiles: dict[str, Any] = {}
+            for name, profile in profiles.items():
+                if not isinstance(profile, dict):
+                    msg = (
+                        f"Profile '{name}' in {profiles_path} must be a mapping, got {type(profile).__name__}"
+                    )
+                    raise ToolRegistryError(msg)
+
+                allow = profile.get("allow", []) or []
+                deny = profile.get("deny", []) or []
+
+                if not isinstance(allow, list | tuple):
+                    msg = (
+                        f"'allow' list for profile '{name}' in {profiles_path} must be a sequence of strings, "
+                        f"got {type(allow).__name__}"
+                    )
+                    raise ToolRegistryError(msg)
+                if not isinstance(deny, list | tuple):
+                    msg = (
+                        f"'deny' list for profile '{name}' in {profiles_path} must be a sequence of strings, "
+                        f"got {type(deny).__name__}"
+                    )
+                    raise ToolRegistryError(msg)
+                if not all(isinstance(item, str) for item in allow):
+                    msg = f"All entries in 'allow' for profile '{name}' in {profiles_path} must be strings"
+                    raise ToolRegistryError(msg)
+                if not all(isinstance(item, str) for item in deny):
+                    msg = f"All entries in 'deny' for profile '{name}' in {profiles_path} must be strings"
+                    raise ToolRegistryError(msg)
+
+                normalized_profile = dict(profile)
+                normalized_profile["allow"] = list(allow)
+                normalized_profile["deny"] = list(deny)
+                validated_profiles[name] = normalized_profile
+
+            return validated_profiles
         return {}
 
     def resolve_toolset(self, agent_tools_config: AgentTools) -> set[str]:

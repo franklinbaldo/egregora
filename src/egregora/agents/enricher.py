@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import httpx
 import ibis
 from ibis.expr.types import Table
 from pydantic import BaseModel
@@ -27,7 +28,7 @@ from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
 from ratelimit import limits, sleep_and_retry
 
-from egregora.config.settings import EgregoraConfig
+from egregora.config.settings import EnrichmentSettings, ModelSettings, QuotaSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
@@ -196,7 +197,8 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentDeps, Enrichme
         from egregora.resources.prompts import render_prompt
 
         return render_prompt(
-            "url_detailed.jinja",
+            "enrichment.jinja",
+            mode="url",
             prompts_dir=ctx.deps.prompts_dir,
             url=ctx.deps.url,
             original_message=ctx.deps.original_message,
@@ -223,7 +225,8 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentDeps, Enri
     @agent.system_prompt
     def system_prompt(ctx: RunContext[MediaEnrichmentDeps]) -> str:
         return render_prompt(
-            "media_detailed.jinja",
+            "enrichment.jinja",
+            mode="media",
             prompts_dir=ctx.deps.prompts_dir,
             media_type=ctx.deps.media_type,
             media_filename=ctx.deps.media_filename,
@@ -243,7 +246,7 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentDeps, Enri
 
 
 @sleep_and_retry
-@limits(calls=10, period=60)
+@limits(calls=100, period=60)
 async def _run_url_enrichment_async(
     agent: Agent[UrlEnrichmentDeps, EnrichmentOutput],
     url: str,
@@ -251,15 +254,16 @@ async def _run_url_enrichment_async(
 ) -> EnrichmentOutput:
     """Run URL enrichment asynchronously."""
     url_str = str(url)
-    sanitized_url = _sanitize_prompt_input(url_str, max_length=2000)
+    sanitized_url_raw = _sanitize_prompt_input(url_str, max_length=2000)
+    sanitized_url = "\n".join(line.strip() for line in sanitized_url_raw.splitlines() if line.strip())
 
-    deps = UrlEnrichmentDeps(url=url_str, prompts_dir=prompts_dir)
-    # Note: Prompt construction logic preserved from runners.py run_url_enrichment
-    prompt = (
-        "Fetch and summarize the content at this URL. Include the main topic, key points, and any important metadata "
-        "(author, date, etc.).\n\nURL: {sanitized_url}"
+    deps = UrlEnrichmentDeps(url=sanitized_url, prompts_dir=prompts_dir)
+    prompt = render_prompt(
+        "enrichment.jinja",
+        mode="url_user",
+        prompts_dir=prompts_dir,
+        sanitized_url=sanitized_url,
     )
-    prompt = prompt.format(sanitized_url=sanitized_url)
 
     async def call() -> AgentRunResult[EnrichmentOutput]:
         return await agent.run(prompt, deps=deps)
@@ -271,7 +275,7 @@ async def _run_url_enrichment_async(
 
 
 @sleep_and_retry
-@limits(calls=10, period=60)
+@limits(calls=100, period=60)
 async def _run_media_enrichment_async(  # noqa: PLR0913
     agent: Agent[MediaEnrichmentDeps, EnrichmentOutput],
     *,
@@ -280,18 +284,29 @@ async def _run_media_enrichment_async(  # noqa: PLR0913
     prompts_dir: Path | None,
     binary_content: BinaryContent | None = None,
     file_path: Path | None = None,
+    media_path: str | None = None,
 ) -> EnrichmentOutput:
     """Run media enrichment asynchronously."""
     if binary_content is None and file_path is None:
         msg = "Either binary_content or file_path must be provided."
         raise ValueError(msg)
 
-    deps = MediaEnrichmentDeps(prompts_dir=prompts_dir)
-    desc = "Describe this media file in 2-3 sentences, highlighting what a reader would learn by viewing it."
-    sanitized_filename = _sanitize_prompt_input(filename, max_length=255)
-    sanitized_mime = _sanitize_prompt_input(mime_hint, max_length=50) if mime_hint else None
-    hint_text = f" ({sanitized_mime})" if sanitized_mime else ""
-    prompt = f"{desc}\nFILE: {sanitized_filename}{hint_text}"
+    sanitized_filename_raw = _sanitize_prompt_input(filename, max_length=255)
+    sanitized_filename = sanitized_filename_raw.replace("\\", "").strip()
+    sanitized_mime = _sanitize_prompt_input(mime_hint, max_length=50).strip() if mime_hint else None
+    deps = MediaEnrichmentDeps(
+        prompts_dir=prompts_dir,
+        media_filename=sanitized_filename,
+        media_type=sanitized_mime,
+        media_path=media_path,
+    )
+    prompt = render_prompt(
+        "enrichment.jinja",
+        mode="media_user",
+        prompts_dir=prompts_dir,
+        sanitized_filename=sanitized_filename,
+        sanitized_mime=sanitized_mime,
+    )
 
     payload = binary_content or load_file_as_binary_content(file_path)
     message_content = [prompt, payload]
@@ -428,8 +443,11 @@ async def _process_url_task(  # noqa: PLR0913
             except QuotaExceededError:
                 logger.warning("LLM quota reached; skipping URL enrichment for %s", url)
                 return None
-            except Exception:
-                logger.exception("URL enrichment failed for %s", url)
+            except httpx.HTTPError as exc:
+                logger.warning("HTTP error during URL enrichment for %s: %s", url, exc)
+                return None
+            except OSError as exc:
+                logger.warning("File/cache error during URL enrichment for %s: %s", url, exc)
                 return None
 
         slug_value = _normalize_slug(cached_slug, url)
@@ -496,6 +514,7 @@ async def _process_media_task(  # noqa: PLR0913
                     mime_hint=media_type,
                     prompts_dir=prompts_dir,
                     binary_content=binary,
+                    media_path=media_doc.suggested_path,
                 )
                 if context.usage_tracker:
                     context.usage_tracker.record(usage)
@@ -505,8 +524,11 @@ async def _process_media_task(  # noqa: PLR0913
             except QuotaExceededError:
                 logger.warning("LLM quota reached; skipping media enrichment for %s", filename or ref)
                 return None, False, ref, None
-            except Exception:
-                logger.exception("Media enrichment failed for %s", filename or ref)
+            except httpx.HTTPError as exc:
+                logger.warning("HTTP error during media enrichment for %s: %s", filename or ref, exc)
+                return None, False, ref, None
+            except OSError as exc:
+                logger.warning("File/cache error during media enrichment for %s: %s", filename or ref, exc)
                 return None, False, ref, None
 
         pii_detected = False
@@ -546,29 +568,62 @@ async def _process_media_task(  # noqa: PLR0913
 def enrich_table(
     messages_table: Table,
     media_mapping: MediaMapping,
-    config: EgregoraConfig,
+    models: ModelSettings,
+    enrichment_settings: EnrichmentSettings,
+    quota_settings: QuotaSettings,
     context: EnrichmentRuntimeContext,
 ) -> Table:
-    """Enrich messages table with URL and media context using async agents."""
+    """Enrich messages table with URL and media context using async agents.
+
+    Args:
+        messages_table: Parsed messages to enrich.
+        media_mapping: Mapping from media reference to associated documents.
+        models: Model configuration specific to enrichment.
+        enrichment_settings: Feature toggles and limits for enrichment.
+        quota_settings: Quota controls (e.g., concurrency) used during enrichment.
+        context: Runtime resources and caches needed by enrichment helpers.
+
+    """
     # Use asyncio.run to execute async logic from synchronous context
-    return asyncio.run(_enrich_table_async(messages_table, media_mapping, config, context))
+    return asyncio.run(
+        _enrich_table_async(
+            messages_table,
+            media_mapping,
+            models,
+            enrichment_settings,
+            quota_settings,
+            context,
+        )
+    )
 
 
-async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
+async def _enrich_table_async(
     messages_table: Table,
     media_mapping: MediaMapping,
-    config: EgregoraConfig,
+    models: ModelSettings,
+    enrichment_settings: EnrichmentSettings,
+    quota_settings: QuotaSettings,
     context: EnrichmentRuntimeContext,
 ) -> Table:
-    """Async implementation of enrich_table."""
+    """Async implementation of :func:`enrich_table`.
+
+    Args:
+        messages_table: Parsed messages to enrich.
+        media_mapping: Mapping from media reference to associated documents.
+        models: Model configuration specific to enrichment.
+        enrichment_settings: Feature toggles and limits for enrichment.
+        quota_settings: Quota controls (e.g., concurrency) used during enrichment.
+        context: Runtime resources and caches needed by enrichment helpers.
+
+    """
     if messages_table.count().execute() == 0:
         return messages_table
 
-    url_model = config.models.enricher
-    vision_model = config.models.enricher_vision
-    max_enrichments = config.enrichment.max_enrichments
-    enable_url = config.enrichment.enable_url
-    enable_media = config.enrichment.enable_media
+    url_model = models.enricher
+    vision_model = models.enricher_vision
+    max_enrichments = enrichment_settings.max_enrichments
+    enable_url = enrichment_settings.enable_url
+    enable_media = enrichment_settings.enable_media
     prompts_dir = context.site_root / ".egregora" / "prompts" if context.site_root else None
 
     logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
@@ -579,41 +634,125 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
     pii_media_deleted = False
 
     # Concurrency limit (configurable)
-    concurrency = max(1, config.quota.concurrency)
+    concurrency = max(1, quota_settings.concurrency)
     semaphore = asyncio.Semaphore(concurrency)
 
     tasks = []
 
-    # 1. URL Enrichment
-    if enable_url:
-        url_agent = create_url_enrichment_agent(url_model)
-        url_candidates = _extract_url_candidates(messages_table, max_enrichments)
+    tasks.extend(
+        _schedule_url_tasks(
+            messages_table,
+            enable_url,
+            max_enrichments,
+            url_model,
+            context,
+            prompts_dir,
+            semaphore,
+        )
+    )
 
-        for url, metadata in url_candidates:
-            tasks.append(
-                _process_url_task(url, metadata, url_agent, context.cache, context, prompts_dir, semaphore)
-            )
-
-    # 2. Media Enrichment
-    if enable_media and media_mapping:
-        media_agent = create_media_enrichment_agent(vision_model)
-
-        # NOTE: We deliberately overfetch media candidates because we don't yet know
-        # how many URL tasks will succeed. We filter later.
-        media_candidates = _extract_media_candidates(messages_table, media_mapping, max_enrichments)
-
-        for ref, media_doc, metadata in media_candidates:
-            tasks.append(
-                _process_media_task(
-                    ref, media_doc, metadata, media_agent, context.cache, context, prompts_dir, semaphore
-                )
-            )
+    tasks.extend(
+        _schedule_media_tasks(
+            messages_table,
+            media_mapping,
+            enable_media,
+            max_enrichments,
+            vision_model,
+            context,
+            prompts_dir,
+            semaphore,
+        )
+    )
 
     if not tasks:
         return messages_table
 
     logger.info("Running %d enrichment tasks...", len(tasks))
     results = await asyncio.gather(*tasks)
+
+    (
+        new_rows,
+        pii_detected_count,
+        pii_media_deleted,
+    ) = _process_enrichment_results(results, max_enrichments, media_mapping)
+
+    if pii_media_deleted:
+        messages_table = _replace_pii_media_references(messages_table, media_mapping)
+
+    combined = combine_with_enrichment_rows(messages_table, new_rows, schema=IR_MESSAGE_SCHEMA)
+
+    _persist_enrichments(combined, context)
+
+    if pii_detected_count > 0:
+        logger.info("Privacy summary: %d media file(s) deleted due to PII detection", pii_detected_count)
+
+    return combined
+
+
+def _schedule_url_tasks(
+    messages_table: Table,
+    enable_url: bool,
+    max_enrichments: int,
+    url_model: str,
+    context: EnrichmentRuntimeContext,
+    prompts_dir: Path | None,
+    semaphore: asyncio.Semaphore,
+) -> list[asyncio.Task]:
+    tasks: list[asyncio.Task] = []
+
+    if not enable_url:
+        return tasks
+
+    url_agent = create_url_enrichment_agent(url_model)
+    url_candidates = _extract_url_candidates(messages_table, max_enrichments)
+
+    for url, metadata in url_candidates:
+        tasks.append(
+            _process_url_task(url, metadata, url_agent, context.cache, context, prompts_dir, semaphore)
+        )
+
+    return tasks
+
+
+def _schedule_media_tasks(
+    messages_table: Table,
+    media_mapping: MediaMapping,
+    enable_media: bool,
+    max_enrichments: int,
+    vision_model: str,
+    context: EnrichmentRuntimeContext,
+    prompts_dir: Path | None,
+    semaphore: asyncio.Semaphore,
+) -> list[asyncio.Task]:
+    tasks: list[asyncio.Task] = []
+
+    if not (enable_media and media_mapping):
+        return tasks
+
+    media_agent = create_media_enrichment_agent(vision_model)
+
+    # NOTE: We deliberately overfetch media candidates because we don't yet know
+    # how many URL tasks will succeed. We filter later.
+    media_candidates = _extract_media_candidates(messages_table, media_mapping, max_enrichments)
+
+    for ref, media_doc, metadata in media_candidates:
+        tasks.append(
+            _process_media_task(
+                ref, media_doc, metadata, media_agent, context.cache, context, prompts_dir, semaphore
+            )
+        )
+
+    return tasks
+
+
+def _process_enrichment_results(
+    results: list[dict[str, Any] | tuple[dict[str, Any] | None, bool, str | None, Document | None] | None],
+    max_enrichments: int,
+    media_mapping: MediaMapping,
+) -> tuple[list[dict[str, Any]], int, bool]:
+    new_rows: list[dict[str, Any]] = []
+    pii_detected_count = 0
+    pii_media_deleted = False
 
     url_success_count = 0
     media_results: list[tuple[dict[str, Any] | None, bool, str | None, Document | None]] = []
@@ -644,11 +783,10 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
             new_rows.append(row)
             media_added_count += 1
 
-    if pii_media_deleted:
-        messages_table = _replace_pii_media_references(messages_table, media_mapping)
+    return new_rows, pii_detected_count, pii_media_deleted
 
-    combined = combine_with_enrichment_rows(messages_table, new_rows, schema=IR_MESSAGE_SCHEMA)
 
+def _persist_enrichments(combined: Table, context: EnrichmentRuntimeContext) -> None:
     # Persistence logic copied from runners.py
     duckdb_connection = context.duckdb_connection
     target_table = context.target_table
@@ -666,16 +804,14 @@ async def _enrich_table_async(  # noqa: C901, PLR0912, PLR0915
             logger.exception("Failed to persist enrichments using DuckDBStorageManager")
             raise
 
-    if pii_detected_count > 0:
-        logger.info("Privacy summary: %d media file(s) deleted due to PII detection", pii_detected_count)
-
-    return combined
-
 
 def _extract_url_candidates(  # noqa: C901
     messages_table: Table, max_enrichments: int
 ) -> list[tuple[str, dict[str, Any]]]:
     """Extract unique URL candidates with metadata, up to max_enrichments."""
+    if max_enrichments <= 0:
+        return []
+
     url_metadata: dict[str, dict[str, Any]] = {}
     discovered_count = 0
 

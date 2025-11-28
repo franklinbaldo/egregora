@@ -1,4 +1,4 @@
-"""Test mention conversion"""
+"""Test mention conversion."""
 import re
 
 WA_MENTION_PATTERN = re.compile(r"@\u2068([^\u2069]+)\u2069")
@@ -7,8 +7,7 @@ def _convert_whatsapp_mentions_to_markdown(message: str) -> str:
     """Convert WhatsApp unicode-wrapped mentions to standard markdown."""
     if not message:
         return message
-    result = WA_MENTION_PATTERN.sub(r"@\1", message)
-    return result
+    return WA_MENTION_PATTERN.sub(r"@\1", message)
 
 # Test cases
 test_cases = [
@@ -20,6 +19,3 @@ test_cases = [
 
 for test in test_cases:
     result = _convert_whatsapp_mentions_to_markdown(test)
-    print(f"Input:  {repr(test)}")
-    print(f"Output: {repr(result)}")
-    print()

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import cast
 
 from egregora.data_primitives.protocols import SiteScaffolder
-from egregora.output_adapters import create_output_format
+from egregora.output_adapters import create_default_output_registry, create_output_format
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,8 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
         site_name = site_root.name or "Egregora Archive"
 
     # Create and initialize MkDocs output format
-    output_format = create_output_format(site_root, format_type="mkdocs")
+    registry = create_default_output_registry()
+    output_format = create_output_format(site_root, format_type="mkdocs", registry=registry)
 
     if not isinstance(output_format, SiteScaffolder):
         logger.info("Output format %s does not support scaffolding", output_format)
