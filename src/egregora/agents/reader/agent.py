@@ -19,7 +19,6 @@ from pydantic_ai import Agent
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
 from egregora.config.settings import EgregoraConfig
 from egregora.resources.prompts import render_prompt
-from egregora.utils.retry import retry_async
 
 if TYPE_CHECKING:
     from egregora.agents.reader.models import EvaluationRequest
@@ -95,12 +94,8 @@ Evaluate both posts and determine which is better quality overall.
 
     logger.debug("Comparing posts: %s vs %s", request.post_a_slug, request.post_b_slug)
 
-    async def _run_agent() -> ComparisonResult:
-        result = await agent.run(prompt)
-        return result.data
-
-    # Execute with centralized retry policy
-    comparison_result = await retry_async(_run_agent)
+    result = await agent.run(prompt)
+    comparison_result = result.data
 
     # Convert to PostComparison (includes full Document references)
     return PostComparison(
