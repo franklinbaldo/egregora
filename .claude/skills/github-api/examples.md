@@ -12,8 +12,11 @@ Practical examples of using GitHub's plain text URL transformations.
 1. **Check**: No fragment identifier → Try plain text
 2. **Identify**: This is a pull request URL
 3. **Transform**: Add `.diff` suffix
-4. **Fetch**: `https://github.com/franklinbaldo/egregora/pull/600.diff`
-5. **Handle errors**: If 403 → Fall back to HTML
+4. **Fetch**: Use Bash + curl:
+   ```bash
+   curl -sS https://github.com/franklinbaldo/egregora/pull/600.diff
+   ```
+5. **Handle errors**: If 403 → Fall back to HTML with curl
 6. **Analyze**: Review the unified diff
 7. **Respond**: Provide code review feedback
 
@@ -30,7 +33,10 @@ Practical examples of using GitHub's plain text URL transformations.
 **Claude Workflow:**
 
 1. **Check**: Fragment identifier detected (`#discussion_r2506786717`) → Use HTML
-2. **Fetch**: `https://github.com/franklinbaldo/egregora/pull/628` (HTML page)
+2. **Fetch**: Use Bash + curl to get HTML page:
+   ```bash
+   curl -sS https://github.com/franklinbaldo/egregora/pull/628
+   ```
 3. **Analyze**: Extract PR info, code changes, and specific review comment
 4. **Respond**: Provide context about the comment and related code
 
@@ -68,7 +74,10 @@ Recommendation: Update all callers to use the new URL-only interface.
 2. **Transform**:
    - Original: `github.com/franklinbaldo/egregora/blob/main/src/egregora/privacy/anonymizer.py`
    - Raw: `raw.githubusercontent.com/franklinbaldo/egregora/main/src/egregora/privacy/anonymizer.py`
-3. **Fetch**: The raw Python file
+3. **Fetch**: The raw Python file with curl:
+   ```bash
+   curl -sS https://raw.githubusercontent.com/franklinbaldo/egregora/main/src/egregora/privacy/anonymizer.py
+   ```
 4. **Analyze**: Read and understand the code
 5. **Respond**: Explain the anonymizer's functionality
 
@@ -89,7 +98,10 @@ Recommendation: Update all callers to use the new URL-only interface.
    ```
    https://github.com/franklinbaldo/egregora/compare/main...feature-branch.diff
    ```
-3. **Fetch**: The complete diff
+3. **Fetch**: The complete diff with curl:
+   ```bash
+   curl -sS https://github.com/franklinbaldo/egregora/compare/main...feature-branch.diff
+   ```
 4. **Analyze**: Summarize changes by file
 5. **Respond**: Explain what changed
 
@@ -114,7 +126,10 @@ https://github.com/franklinbaldo/egregora/compare/main...feature-branch.diff?w=1
    ```
    https://github.com/franklinbaldo/egregora/commit/dee113a.patch
    ```
-4. **Fetch**: Patch file with commit message, author, date
+4. **Fetch**: Patch file with curl (includes commit message, author, date):
+   ```bash
+   curl -sS https://github.com/franklinbaldo/egregora/commit/dee113a.patch
+   ```
 5. **Analyze**: Parse the changes
 6. **Respond**: Explain the commit's purpose
 
@@ -138,7 +153,10 @@ https://github.com/franklinbaldo/egregora/compare/main...feature-branch.diff?w=1
    ```
    https://raw.githubusercontent.com/franklinbaldo/egregora/main/pyproject.toml
    ```
-3. **Fetch**: Raw TOML content
+3. **Fetch**: Raw TOML content with curl:
+   ```bash
+   curl -sS https://raw.githubusercontent.com/franklinbaldo/egregora/main/pyproject.toml
+   ```
 4. **Analyze**: Parse configuration
 5. **Respond**: Explain dependencies and settings
 
@@ -158,7 +176,10 @@ https://github.com/franklinbaldo/egregora/compare/main...feature-branch.diff?w=1
    ```
    https://gist.githubusercontent.com/user/abc123/raw/script.py
    ```
-3. **Fetch**: Raw content
+3. **Fetch**: Raw content with curl:
+   ```bash
+   curl -sS https://gist.github.com/user/abc123/raw/
+   ```
 4. **Analyze**: Review the code
 5. **Respond**: Provide feedback
 
@@ -177,7 +198,10 @@ https://github.com/franklinbaldo/egregora/compare/main...feature-branch.diff?w=1
    ```
    https://github.com/franklinbaldo/egregora/blob/main/README.md?plain=1#L40-L45
    ```
-3. **Fetch**: Unrendered markdown around line 42
+3. **Fetch**: HTML page with curl (fragment requires HTML):
+   ```bash
+   curl -sS "https://github.com/franklinbaldo/egregora/blob/main/README.md?plain=1#L40-L45"
+   ```
 4. **Analyze**: Check for typos
 5. **Respond**: Confirm or correct
 
@@ -197,7 +221,10 @@ https://github.com/franklinbaldo/egregora/compare/main...feature-branch.diff?w=1
    ```
    https://github.com/franklinbaldo/egregora/releases.atom
    ```
-2. **Fetch**: Atom XML feed
+2. **Fetch**: Atom XML feed with curl:
+   ```bash
+   curl -sS https://github.com/franklinbaldo/egregora/releases.atom
+   ```
 3. **Parse**: Extract release names, dates, descriptions
 4. **Respond**: Summarize recent releases
 
@@ -218,7 +245,10 @@ https://github.com/franklinbaldo/egregora/compare/main...feature-branch.diff?w=1
    ```
    https://github.com/franklinbaldo/egregora/commits/main.atom
    ```
-2. **Fetch**: Atom XML feed of commits
+2. **Fetch**: Atom XML feed of commits with curl:
+   ```bash
+   curl -sS https://github.com/franklinbaldo/egregora/commits/main.atom
+   ```
 3. **Parse**: Extract commit messages, authors, dates
 4. **Respond**: List recent activity
 
@@ -249,7 +279,10 @@ https://github.com/franklinbaldo/egregora/compare/main...feature-branch.diff?w=1
    ```
    https://github.com/franklinbaldo/egregora/pull/600.diff?w=1
    ```
-3. **Fetch**: Diff without whitespace changes
+3. **Fetch**: Diff without whitespace changes with curl:
+   ```bash
+   curl -sS "https://github.com/franklinbaldo/egregora/pull/600.diff?w=1"
+   ```
 4. **Analyze**: Focus on logic changes only
 5. **Respond**: Explain substantive changes
 
