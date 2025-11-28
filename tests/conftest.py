@@ -25,7 +25,11 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from egregora.config.settings import create_default_config  # noqa: E402
+from egregora.config.settings import (  # noqa: E402
+    ModelSettings,
+    RAGSettings,
+    create_default_config,
+)
 from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file  # noqa: E402
 from egregora.utils.zip import validate_zip_contents  # noqa: E402
 from tests.utils.mock_batch_client import MockGeminiClient  # noqa: E402
@@ -214,9 +218,31 @@ def mock_embedding_model():
 
 
 # =============================================================================
-# Centralized Configuration Fixtures
+# Test Configuration Fixtures - Selection Guide
 # =============================================================================
-# See: docs/testing/config_refactoring_plan.md for design rationale
+#
+# Use these fixtures instead of directly instantiating EgregoraConfig or Settings.
+#
+# RULE 1: Never use production config in tests
+#   ❌ config = EgregoraConfig()  # Uses production defaults!
+#   ✅ config = test_config        # Uses test defaults with tmp_path
+#
+# RULE 2: Pick the right fixture for your test type
+#   - Unit tests (fast, no I/O):     minimal_config
+#   - Integration tests (with mocks): test_config
+#   - E2E tests (full pipeline):     pipeline_test_config
+#   - RAG-specific tests:            test_rag_settings_enabled
+#   - Reader agent tests:            reader_test_config
+#
+# RULE 3: Customize with factory or model_copy()
+#   - Quick customization:  config_factory(rag__enabled=True)
+#   - Full control:         test_config.model_copy(deep=True)
+#
+# RULE 4: Never hardcode infrastructure
+#   ❌ db_path = Path("/var/egregora/db.duckdb")
+#   ✅ db_path = tmp_path / "test.duckdb"
+#
+# =============================================================================
 
 
 @pytest.fixture
@@ -299,3 +325,124 @@ def pipeline_test_config(test_config):
     config.reader.enabled = False  # Disable slow components for faster tests
     # Additional pipeline-specific overrides can be added here
     return config
+
+
+@pytest.fixture
+def test_model_settings():
+    """Model settings optimized for testing.
+
+    Uses fast test models and avoids production API limits.
+
+    Returns:
+        ModelSettings configured for test environment
+    """
+    return ModelSettings(
+        writer="test-writer-model",
+        enricher="test-enricher-model",
+        enricher_vision="test-vision-model",
+        embedding="test-embedding-model",
+        reader="test-reader-model",
+        banner="test-banner-model",
+    )
+
+
+@pytest.fixture
+def test_rag_settings():
+    """RAG settings for unit tests (disabled by default).
+
+    Most unit tests don't need RAG. Enable explicitly in RAG-specific tests.
+
+    Returns:
+        RAGSettings with RAG disabled and test-optimized values
+    """
+    return RAGSettings(
+        enabled=False,
+        top_k=3,  # Smaller for tests
+        min_similarity_threshold=0.7,
+        embedding_max_batch_size=3,  # Faster than default 100
+        embedding_timeout=5.0,  # Shorter than default 60s
+    )
+
+
+@pytest.fixture
+def test_rag_settings_enabled(test_rag_settings):
+    """RAG settings with RAG enabled (for RAG tests).
+
+    Use this fixture for tests that specifically need RAG functionality.
+
+    Args:
+        test_rag_settings: Base RAG settings fixture
+
+    Returns:
+        RAGSettings with RAG enabled
+    """
+    settings = test_rag_settings.model_copy(deep=True)
+    settings.enabled = True
+    return settings
+
+
+@pytest.fixture
+def minimal_config(tmp_path: Path):
+    """Minimal EgregoraConfig for fast unit tests.
+
+    Use this for unit tests that don't need full pipeline infrastructure.
+    Disables slow components (RAG, enrichment, reader) by default.
+
+    Args:
+        tmp_path: pytest's temporary directory fixture
+
+    Returns:
+        EgregoraConfig with minimal settings for unit tests
+    """
+    config = create_default_config(site_root=tmp_path / "site")
+
+    # Disable slow components
+    config.rag.enabled = False
+    config.enrichment.enabled = False
+    config.reader.enabled = False
+
+    # Use test models (fast, no API calls)
+    config.models.writer = "test-model"
+    config.models.embedding = "test-embedding"
+
+    # Fast quotas for tests
+    config.quota.daily_llm_requests = 10
+    config.quota.per_second_limit = 10
+
+    return config
+
+
+@pytest.fixture
+def config_factory(tmp_path: Path):
+    """Factory for creating customized test configs.
+
+    Use this when you need to test specific configuration values.
+
+    Example:
+        def test_custom_timeout(config_factory):
+            config = config_factory(rag__enabled=True, rag__embedding_timeout=0.1)
+            assert config.rag.enabled is True
+            assert config.rag.embedding_timeout == 0.1
+
+    Args:
+        tmp_path: pytest's temporary directory fixture
+
+    Returns:
+        Factory function that creates EgregoraConfig with kwargs
+    """
+
+    def _factory(**overrides):
+        config = create_default_config(site_root=tmp_path / "site")
+
+        # Apply overrides using __ syntax for nested settings
+        # Example: rag__enabled=True -> config.rag.enabled = True
+        for key, value in overrides.items():
+            parts = key.split("__")
+            obj = config
+            for part in parts[:-1]:
+                obj = getattr(obj, part)
+            setattr(obj, parts[-1], value)
+
+        return config
+
+    return _factory

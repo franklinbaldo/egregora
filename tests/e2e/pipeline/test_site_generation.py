@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from egregora.config.settings import EgregoraConfig
 from egregora.constants import SourceType
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration.context import PipelineRunParams
@@ -117,7 +116,7 @@ def _verify_site_output(site_dir):
     assert "POST_SENTINEL" in posts_content, "Post content not injected into index"
 
 
-def test_site_generation_e2e(clean_blog_dir, monkeypatch):
+def test_site_generation_e2e(clean_blog_dir, monkeypatch, pipeline_test_config):
     """
     End-to-end test for site generation.
     1. Runs the write pipeline with a fixture.
@@ -134,11 +133,9 @@ def test_site_generation_e2e(clean_blog_dir, monkeypatch):
     # Initialize site
     ensure_mkdocs_project(clean_blog_dir, site_name="Test Blog")
 
-    # Create config with overrides
-    config = EgregoraConfig()
-    config.pipeline.step_size = 100
-    config.enrichment.enabled = False
-    config.rag.enabled = False
+    # Use pipeline_test_config (already has enrichment/RAG disabled)
+    config = pipeline_test_config.model_copy(deep=True)
+    config.pipeline.step_size = 100  # Only override what's specific to this test
 
     # Mock GenAI client
     # Initialize the project structure
