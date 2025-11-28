@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Iterable
 from typing import Any, TypeVar
 
+from google.api_core import exceptions as google_exceptions
+from google.genai import errors as genai_errors
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from tenacity import AsyncRetrying, Retrying, retry_if_exception, stop_after_attempt, wait_random_exponential
 
@@ -15,7 +17,16 @@ T = TypeVar("T")
 _DEFAULT_MAX_ATTEMPTS = 3
 _DEFAULT_INITIAL_DELAY = 1.0
 _DEFAULT_MAX_DELAY = 10.0
-_DEFAULT_RETRY_EXCEPTIONS: tuple[type[BaseException], ...] = (RetryableException,)
+_DEFAULT_RETRY_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    RetryableException,
+    # Google API Core exceptions (used by google-genai and other Google APIs)
+    google_exceptions.ResourceExhausted,
+    google_exceptions.ServiceUnavailable,
+    google_exceptions.InternalServerError,
+    google_exceptions.GatewayTimeout,
+    # google-genai v1 errors
+    genai_errors.ServerError,
+)
 _DEFAULT_RETRY_STATUSES: tuple[str, ...] = ("RESOURCE_EXHAUSTED",)
 
 
