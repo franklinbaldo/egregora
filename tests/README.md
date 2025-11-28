@@ -165,3 +165,127 @@ uv run pytest tests/e2e/
 # Run with coverage
 uv run pytest --cov=egregora tests/e2e/
 ```
+
+---
+
+## Test Configuration Philosophy
+
+We follow the **Fixture/Override Pattern** for test configuration:
+
+1. **Load base configuration** - Use `create_default_config()`
+2. **Override infrastructure globally** - Fixtures set tmp_path, test models, disabled slow components
+3. **Hardcode specific values only in tests** - Only when testing that specific behavior
+
+### Fixture Selection Guide
+
+| Test Type | Fixture | Use Case |
+|-----------|---------|----------|
+| **Fast unit tests** | `minimal_config` | No RAG, enrichment, or reader; fast models |
+| **Integration tests** | `test_config` | Full config with tmp_path isolation |
+| **Pipeline E2E** | `pipeline_test_config` | Optimized for full pipeline runs |
+| **RAG tests** | `test_rag_settings_enabled` | RAG enabled with test settings |
+| **Reader tests** | `reader_test_config` | Reader agent enabled |
+| **Custom needs** | `config_factory(key=val)` | Quick per-test customization |
+
+### Configuration Examples
+
+#### ✅ Good: Using fixtures
+```python
+def test_something(minimal_config):
+    # Config is isolated, uses tmp_path, safe for unit tests
+    result = do_something(minimal_config)
+    assert result.status == "success"
+```
+
+#### ❌ Bad: Direct instantiation
+```python
+def test_something():
+    config = EgregoraConfig()  # WRONG: Uses production defaults!
+    result = do_something(config)
+```
+
+#### ✅ Good: Customizing via factory
+```python
+def test_custom_timeout(config_factory):
+    config = config_factory(rag__enabled=True, rag__embedding_timeout=0.1)
+    # Only the specific values needed for this test are overridden
+    assert config.rag.embedding_timeout == 0.1
+```
+
+#### ✅ Good: Customizing via model_copy
+```python
+def test_with_custom_setting(test_config):
+    config = test_config.model_copy(deep=True)
+    config.pipeline.step_size = 100  # Test-specific override
+    result = run_pipeline(config)
+```
+
+### Test Configuration Rules
+
+**CRITICAL: Never use production config in tests**
+
+1. **Use fixtures for ALL configuration:**
+   - ❌ `config = EgregoraConfig()` (uses production defaults!)
+   - ✅ `def test_foo(test_config):` (isolated test config)
+
+2. **Pick the right fixture:**
+   - Unit tests: `minimal_config` (fast, RAG/enrichment disabled)
+   - Integration: `test_config` (full config, tmp_path)
+   - E2E: `pipeline_test_config` (optimized for pipeline)
+   - RAG tests: `test_rag_settings_enabled`
+
+3. **Customize via factory or model_copy:**
+   ```python
+   # Factory (quick)
+   config = config_factory(rag__enabled=True, rag__timeout=0.1)
+
+   # model_copy (full control)
+   config = test_config.model_copy(deep=True)
+   config.pipeline.step_size = 100
+   ```
+
+4. **Infrastructure must use tmp_path:**
+   - ❌ `db_path = Path(".egregora/db.duckdb")`
+   - ✅ `db_path = tmp_path / "test.duckdb"`
+
+For complete fixture documentation, see `tests/conftest.py`.
+
+---
+
+## Troubleshooting
+
+### Test fails with "production config" error
+
+You're likely using `EgregoraConfig()` directly. Use a fixture instead:
+
+```python
+# Before
+def test_something():
+    config = EgregoraConfig()  # ❌
+
+# After
+def test_something(minimal_config):  # ✅
+    config = minimal_config
+```
+
+### Test fails with path not found
+
+Ensure you're using `tmp_path` for all file operations:
+
+```python
+# Before
+db_path = Path(".egregora/test.db")  # ❌
+
+# After
+def test_something(tmp_path):
+    db_path = tmp_path / "test.db"  # ✅
+```
+
+### RAG tests fail
+
+Make sure to use `test_rag_settings_enabled` if you need RAG:
+
+```python
+def test_rag_feature(test_rag_settings_enabled):
+    # RAG is now enabled
+```
