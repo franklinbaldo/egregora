@@ -1,4 +1,3 @@
-
 import contextlib
 
 import duckdb
@@ -12,7 +11,9 @@ def check_vss() -> None:
     except Exception:
         return
 
-    result = conn.execute("SELECT function_name FROM duckdb_functions() WHERE function_name LIKE 'vss_%'").fetchall()
+    result = conn.execute(
+        "SELECT function_name FROM duckdb_functions() WHERE function_name LIKE 'vss_%'"
+    ).fetchall()
     for _row in result:
         pass
 
@@ -27,6 +28,7 @@ def check_vss() -> None:
 
     except Exception:
         pass
+
 
 if __name__ == "__main__":
     check_vss()

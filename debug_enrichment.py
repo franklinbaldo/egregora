@@ -1,4 +1,3 @@
-
 from datetime import datetime
 
 import ibis
@@ -17,7 +16,7 @@ data = {
     "thread_id": ["thread1"],
     "author_uuid": ["auth1"],
     "created_at": [datetime.now()],
-    "created_by_run": ["run1"]
+    "created_by_run": ["run1"],
 }
 messages_table = ibis.memtable(pd.DataFrame(data))
 
@@ -26,11 +25,7 @@ media_ref = "VID-20250302-WA0034.mp4"
 media_doc = Document(
     content=b"fake video content",
     type=DocumentType.MEDIA,
-    metadata={
-        "original_filename": media_ref,
-        "filename": "vid-20250302-wa0034.mp4",
-        "media_type": "video"
-    }
+    metadata={"original_filename": media_ref, "filename": "vid-20250302-wa0034.mp4", "media_type": "video"},
 )
 media_mapping = {media_ref: media_doc}
 

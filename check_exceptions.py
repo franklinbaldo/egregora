@@ -1,4 +1,3 @@
-
 from google.api_core import exceptions as core_exceptions
 from google.genai import errors as genai_errors
 
@@ -6,7 +5,6 @@ from google.genai import errors as genai_errors
 def check_inheritance() -> None:
     server_error = genai_errors.ServerError
     internal_error = core_exceptions.InternalServerError
-
 
     issubclass(server_error, internal_error)
 
@@ -17,6 +15,7 @@ def check_inheritance() -> None:
         pass
     except Exception:
         pass
+
 
 if __name__ == "__main__":
     check_inheritance()
