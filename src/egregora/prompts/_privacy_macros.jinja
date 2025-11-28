@@ -1,0 +1,65 @@
+{# Shared privacy prevention macros for prompts
+
+   These macros provide consistent PII prevention instructions across different agent contexts.
+   Prefix with underscore to indicate this is a shared utility template, not a main prompt.
+#}
+
+{% macro pii_prevention_block(pii_prevention, context="general") -%}
+{# Generate privacy prevention instructions for LLM prompts
+
+   Args:
+       pii_prevention: PIIPreventionSettings object with enabled, scope, custom_definition
+       context: "enrichment" | "writer" | "general" - determines instruction specificity
+#}
+{% if pii_prevention and pii_prevention.enabled %}
+{% if context == "enrichment" %}
+## PRIVACY REQUIREMENT
+
+Do not include personally identifying information in your enrichment outputs.
+{% elif context == "writer" %}
+## CRITICAL PRIVACY REQUIREMENT
+
+You must not include personally identifying information in ANY output you generate:
+- Blog post content (main output)
+- Agent execution journals (your continuity journal)
+- Tool call results or intermediate outputs
+{% else %}
+## PRIVACY REQUIREMENT
+
+Do not include personally identifying information in your output.
+{% endif %}
+
+{% if pii_prevention.scope == "contact_info" %}
+Specifically avoid: phone numbers, email addresses, physical addresses, personal URLs, or any contact information{% if context == "enrichment" %} in your descriptions and summaries{% endif %}.
+{% elif pii_prevention.scope == "all_pii" %}
+Avoid ALL personally identifying information{% if context == "writer" %} including{% else %} in your output including{% endif %}:
+- Names of individuals{% if context == "writer" %} (use anonymized references or roles instead){% endif %}
+- Contact details (phone, email, address, URLs with personal info)
+- Ages, specific locations, or identifying characteristics
+- Any data that could identify or contact specific individuals
+{% if context == "writer" %}
+
+Use generic references like "a participant," "someone," or anonymized identifiers when discussing people.
+{% endif %}
+{% elif pii_prevention.scope == "custom" %}
+{{ pii_prevention.custom_definition }}
+{% else %}
+Use your best judgment to avoid exposing personal information that could identify or contact individuals.
+{% if context == "writer" %}
+Consider what information could compromise someone's privacy if this content were made public.
+{% endif %}
+{% endif %}
+
+{% if context == "enrichment" %}
+If you encounter PII in the content you're enriching (media, URLs), describe it generically or redact it from your output.
+{% elif context == "writer" %}
+This protection applies to EVERYTHING you write, including:
+- Post titles, summaries, and content
+- Profile updates
+- Your continuity journal at the end of the session
+- Any annotations or tool call outputs
+
+If you need to reference people, use the anonymized author UUIDs already provided in the conversation XML.
+{% endif %}
+{% endif %}
+{%- endmacro %}

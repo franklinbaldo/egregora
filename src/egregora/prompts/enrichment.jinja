@@ -1,25 +1,5 @@
-{% if pii_prevention and pii_prevention.enabled %}
-{# LLM-native PII prevention - applies to ALL enrichment outputs #}
-## PRIVACY REQUIREMENT
-
-Do not include personally identifying information in your enrichment outputs.
-
-{% if pii_prevention.scope == "contact_info" %}
-Specifically avoid: phone numbers, email addresses, physical addresses, personal URLs, or any contact information in your descriptions and summaries.
-{% elif pii_prevention.scope == "all_pii" %}
-Avoid ALL personally identifying information in your output including:
-- Names of individuals
-- Contact details (phone, email, address, URLs with personal info)
-- Ages, specific locations, or identifying characteristics
-- Any data that could identify or contact specific individuals
-{% elif pii_prevention.scope == "custom" %}
-{{ pii_prevention.custom_definition }}
-{% else %}
-Use your best judgment to avoid exposing personal information that could identify or contact individuals.
-{% endif %}
-
-If you encounter PII in the content you're enriching (media, URLs), describe it generically or redact it from your output.
-{% endif %}
+{% import '_privacy_macros.jinja' as privacy %}
+{{ privacy.pii_prevention_block(pii_prevention, context="enrichment") }}
 
 {% macro media_type_instructions(media_type) -%}
 {% if media_type == "image" %}
