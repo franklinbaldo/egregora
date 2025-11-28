@@ -1095,9 +1095,10 @@ def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
             config=config,
             context=deps,
         )
-    except PromptTooLargeError:
-        raise
     except Exception as exc:
+        # Let PromptTooLargeError propagate unchanged (don't wrap it)
+        if isinstance(exc, PromptTooLargeError):
+            raise
         msg = f"Writer agent failed for {deps.window_label}"
         logger.exception(msg)
         raise RuntimeError(msg) from exc
