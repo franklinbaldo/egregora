@@ -670,9 +670,9 @@ def _create_gemini_client() -> genai.Client:
     """
     http_options = genai.types.HttpOptions(
         retryOptions=genai.types.HttpRetryOptions(
-            attempts=5,
+            attempts=15,
             initialDelay=2.0,
-            maxDelay=15.0,
+            maxDelay=60.0,
             expBase=2.0,
             httpStatusCodes=[429, 503],
         )

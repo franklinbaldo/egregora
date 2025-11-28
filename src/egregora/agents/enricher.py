@@ -197,7 +197,8 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentDeps, Enrichme
         from egregora.resources.prompts import render_prompt
 
         return render_prompt(
-            "url_detailed.jinja",
+            "enrichment.jinja",
+            mode="url",
             prompts_dir=ctx.deps.prompts_dir,
             url=ctx.deps.url,
             original_message=ctx.deps.original_message,
@@ -224,7 +225,8 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentDeps, Enri
     @agent.system_prompt
     def system_prompt(ctx: RunContext[MediaEnrichmentDeps]) -> str:
         return render_prompt(
-            "media_detailed.jinja",
+            "enrichment.jinja",
+            mode="media",
             prompts_dir=ctx.deps.prompts_dir,
             media_type=ctx.deps.media_type,
             media_filename=ctx.deps.media_filename,
@@ -244,7 +246,7 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentDeps, Enri
 
 
 @sleep_and_retry
-@limits(calls=10, period=60)
+@limits(calls=100, period=60)
 async def _run_url_enrichment_async(
     agent: Agent[UrlEnrichmentDeps, EnrichmentOutput],
     url: str,
@@ -257,7 +259,8 @@ async def _run_url_enrichment_async(
 
     deps = UrlEnrichmentDeps(url=sanitized_url, prompts_dir=prompts_dir)
     prompt = render_prompt(
-        "enrichment_url.jinja",
+        "enrichment.jinja",
+        mode="url_user",
         prompts_dir=prompts_dir,
         sanitized_url=sanitized_url,
     )
@@ -272,7 +275,7 @@ async def _run_url_enrichment_async(
 
 
 @sleep_and_retry
-@limits(calls=10, period=60)
+@limits(calls=100, period=60)
 async def _run_media_enrichment_async(  # noqa: PLR0913
     agent: Agent[MediaEnrichmentDeps, EnrichmentOutput],
     *,
@@ -281,6 +284,7 @@ async def _run_media_enrichment_async(  # noqa: PLR0913
     prompts_dir: Path | None,
     binary_content: BinaryContent | None = None,
     file_path: Path | None = None,
+    media_path: str | None = None,
 ) -> EnrichmentOutput:
     """Run media enrichment asynchronously."""
     if binary_content is None and file_path is None:
@@ -294,9 +298,11 @@ async def _run_media_enrichment_async(  # noqa: PLR0913
         prompts_dir=prompts_dir,
         media_filename=sanitized_filename,
         media_type=sanitized_mime,
+        media_path=media_path,
     )
     prompt = render_prompt(
-        "enrichment_media.jinja",
+        "enrichment.jinja",
+        mode="media_user",
         prompts_dir=prompts_dir,
         sanitized_filename=sanitized_filename,
         sanitized_mime=sanitized_mime,
@@ -508,6 +514,7 @@ async def _process_media_task(  # noqa: PLR0913
                     mime_hint=media_type,
                     prompts_dir=prompts_dir,
                     binary_content=binary,
+                    media_path=media_doc.suggested_path,
                 )
                 if context.usage_tracker:
                     context.usage_tracker.record(usage)

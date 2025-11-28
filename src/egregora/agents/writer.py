@@ -813,7 +813,7 @@ def _validate_prompt_fits(
 
 
 @sleep_and_retry
-@limits(calls=10, period=60)
+@limits(calls=100, period=60)
 def write_posts_with_pydantic_agent(
     *,
     prompt: str,
@@ -855,6 +855,14 @@ def write_posts_with_pydantic_agent(
     if not intercalated_log:
         fallback_content = _extract_journal_content(result.all_messages())
         if fallback_content:
+            # Strip frontmatter if present (to avoid double frontmatter)
+            if fallback_content.strip().startswith("---"):
+                try:
+                    _, _, body = fallback_content.strip().split("---", 2)
+                    fallback_content = body.strip()
+                except ValueError:
+                    pass  # Failed to split, keep original
+
             intercalated_log = [JournalEntry("journal", fallback_content, datetime.now(tz=UTC))]
         else:
             intercalated_log = [
