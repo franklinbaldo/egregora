@@ -48,6 +48,7 @@ class WhatsAppAdapter(InputAdapter):
         Args:
             author_namespace: Namespace for deterministic UUID generation
             config: EgregoraConfig for privacy settings (optional)
+
         """
         self._author_namespace = author_namespace
         self._config = config
@@ -130,6 +131,7 @@ class WhatsAppAdapter(InputAdapter):
 
         Returns:
             Table with privacy strategies applied
+
         """
         # Apply author anonymization strategy
         if self._privacy_config.author_strategy != AuthorPrivacyStrategy.NONE:

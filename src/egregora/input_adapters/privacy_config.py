@@ -42,6 +42,7 @@ class AdapterPrivacyConfig:
 
         Returns:
             AdapterPrivacyConfig with strategies from global config
+
         """
         structural = config.privacy.structural
         return cls(
@@ -57,6 +58,7 @@ class AdapterPrivacyConfig:
 
         Returns:
             AdapterPrivacyConfig with all strategies set to NONE
+
         """
         return cls(
             author_strategy=AuthorPrivacyStrategy.NONE,

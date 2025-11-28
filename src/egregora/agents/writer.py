@@ -549,7 +549,9 @@ def _build_writer_context(  # noqa: PLR0913
         pii_prevention = {
             "enabled": True,
             "scope": pii_settings.scope.value,
-            "custom_definition": pii_settings.custom_definition if pii_settings.scope.value == "custom" else None,
+            "custom_definition": pii_settings.custom_definition
+            if pii_settings.scope.value == "custom"
+            else None,
             "apply_to_journals": pii_settings.apply_to_journals,
         }
 
