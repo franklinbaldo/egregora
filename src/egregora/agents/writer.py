@@ -1027,6 +1027,123 @@ def _index_new_content_in_rag(
         logger.warning("Cannot access RAG storage, skipping indexing: %s", exc)
 
 
+def _prepare_writer_dependencies(
+    window_start: datetime,
+    window_end: datetime,
+    resources: WriterResources,
+) -> WriterDeps:
+    """Create WriterDeps from window parameters and resources."""
+    window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
+    return WriterDeps(
+        resources=resources,
+        window_start=window_start,
+        window_end=window_end,
+        window_label=window_label,
+    )
+
+
+def _build_context_and_signature(
+    table: Table,
+    resources: WriterResources,
+    cache: PipelineCache,
+    config: EgregoraConfig,
+    window_label: str,
+    adapter_content_summary: str,
+    adapter_generation_instructions: str,
+    prompts_dir: Path | None,
+) -> tuple[WriterContext, str]:
+    """Build writer context and calculate cache signature.
+
+    Returns:
+        Tuple of (writer_context, cache_signature)
+
+    """
+    table_with_str_uuids = _cast_uuid_columns_to_str(table)
+
+    # Generate context for both prompt and signature
+    writer_context = _build_writer_context(
+        table_with_str_uuids,
+        resources,
+        cache,
+        config,
+        window_label,
+        adapter_content_summary,
+        adapter_generation_instructions,
+    )
+
+    # Get template content for signature calculation
+    template_content = PromptManager.get_template_content("writer.jinja", custom_prompts_dir=prompts_dir)
+
+    # Calculate signature using data (XML) + logic (template) + engine
+    signature = generate_window_signature(
+        table_with_str_uuids, config, template_content, xml_content=writer_context.conversation_xml
+    )
+
+    return writer_context, signature
+
+
+def _execute_writer_with_error_handling(
+    prompt: str,
+    config: EgregoraConfig,
+    deps: WriterDeps,
+) -> tuple[list[str], list[str]]:
+    """Execute writer agent with proper error handling.
+
+    Returns:
+        Tuple of (saved_posts, saved_profiles)
+
+    Raises:
+        PromptTooLargeError: If prompt exceeds model context window (propagated unchanged)
+        RuntimeError: For other agent failures (wrapped with context)
+
+    """
+    try:
+        return write_posts_with_pydantic_agent(
+            prompt=prompt,
+            config=config,
+            context=deps,
+        )
+    except Exception as exc:
+        # Let PromptTooLargeError propagate unchanged (don't wrap it)
+        if isinstance(exc, PromptTooLargeError):
+            raise
+        msg = f"Writer agent failed for {deps.window_label}"
+        logger.exception(msg)
+        raise RuntimeError(msg) from exc
+
+
+def _finalize_writer_results(
+    saved_posts: list[str],
+    saved_profiles: list[str],
+    resources: WriterResources,
+    deps: WriterDeps,
+    cache: PipelineCache,
+    signature: str,
+) -> dict[str, list[str]]:
+    """Finalize window results: output, RAG indexing, and caching.
+
+    Returns:
+        Result payload dict with 'posts' and 'profiles' keys
+
+    """
+    # Finalize output adapter
+    resources.output.finalize_window(
+        window_label=deps.window_label,
+        posts_created=saved_posts,
+        profiles_updated=saved_profiles,
+        metadata=None,
+    )
+
+    # Index newly created content in RAG
+    _index_new_content_in_rag(resources, saved_posts, saved_profiles)
+
+    # Update L3 cache
+    result_payload = {RESULT_KEY_POSTS: saved_posts, RESULT_KEY_PROFILES: saved_profiles}
+    cache.writer.set(signature, result_payload)
+
+    return result_payload
+
+
 def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
     table: Table,
     window_start: datetime,
@@ -1046,79 +1163,34 @@ def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
     if table.count().execute() == 0:
         return {RESULT_KEY_POSTS: [], RESULT_KEY_PROFILES: []}
 
-    # 1. Prepare Dependencies from resources
-    window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
-    deps = WriterDeps(
-        resources=resources,
-        window_start=window_start,
-        window_end=window_end,
-        window_label=window_label,
-    )
+    # 1. Prepare dependencies
+    deps = _prepare_writer_dependencies(window_start, window_end, resources)
 
-    # 2. Build Context & Calculate Signature (L3 Cache Check)
-    table_with_str_uuids = _cast_uuid_columns_to_str(table)
-
-    # Generate context early for both prompt and signature
-    writer_context = _build_writer_context(
-        table_with_str_uuids,
+    # 2. Build context and calculate signature
+    writer_context, signature = _build_context_and_signature(
+        table,
         resources,
         cache,
         config,
-        window_label,
+        deps.window_label,
         adapter_content_summary,
         adapter_generation_instructions,
+        deps.resources.prompts_dir,
     )
 
-    # Use PromptManager to get template content safely
-    template_content = PromptManager.get_template_content(
-        "writer.jinja", custom_prompts_dir=deps.resources.prompts_dir
-    )
-
-    # Calculate signature using data (XML) + logic (template) + engine
-    signature = generate_window_signature(
-        table_with_str_uuids, config, template_content, xml_content=writer_context.conversation_xml
-    )
-
-    # 4. Check L3 Cache
+    # 3. Check L3 cache
     cached_result = _check_writer_cache(cache, signature, deps.window_label, deps.resources.usage)
     if cached_result:
         return cached_result
 
     logger.info("Using Pydantic AI backend for writer")
 
-    # Render prompt
+    # 4. Render prompt and execute agent
     prompt = _render_writer_prompt(writer_context, deps.resources.prompts_dir)
+    saved_posts, saved_profiles = _execute_writer_with_error_handling(prompt, config, deps)
 
-    try:
-        saved_posts, saved_profiles = write_posts_with_pydantic_agent(
-            prompt=prompt,
-            config=config,
-            context=deps,
-        )
-    except Exception as exc:
-        # Let PromptTooLargeError propagate unchanged (don't wrap it)
-        if isinstance(exc, PromptTooLargeError):
-            raise
-        msg = f"Writer agent failed for {deps.window_label}"
-        logger.exception(msg)
-        raise RuntimeError(msg) from exc
-
-    # 6. Finalize Window
-    resources.output.finalize_window(
-        window_label=deps.window_label,
-        posts_created=saved_posts,
-        profiles_updated=saved_profiles,
-        metadata=None,
-    )
-
-    # 7. Index Newly Created Content in RAG
-    _index_new_content_in_rag(resources, saved_posts, saved_profiles)
-
-    # 8. Update L3 Cache
-    result_payload = {RESULT_KEY_POSTS: saved_posts, RESULT_KEY_PROFILES: saved_profiles}
-    cache.writer.set(signature, result_payload)
-
-    return result_payload
+    # 5. Finalize results (output, RAG indexing, caching)
+    return _finalize_writer_results(saved_posts, saved_profiles, resources, deps, cache, signature)
 
 
 def load_format_instructions(site_root: Path | None, *, registry: OutputAdapterRegistry | None = None) -> str:
