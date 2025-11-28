@@ -414,6 +414,36 @@ uv run pytest --retrieval-mode=exact tests/
 
 **VCR:** First run records to `tests/cassettes/`, subsequent runs replay.
 
+### Test Configuration Rules
+
+**CRITICAL: Never use production config in tests**
+
+1. **Use fixtures for ALL configuration:**
+   - ❌ `config = EgregoraConfig()` (uses production defaults!)
+   - ✅ `def test_foo(test_config):` (isolated test config)
+
+2. **Pick the right fixture:**
+   - Unit tests: `minimal_config` (fast, RAG/enrichment disabled)
+   - Integration: `test_config` (full config, tmp_path)
+   - E2E: `pipeline_test_config` (optimized for pipeline)
+   - RAG tests: `test_rag_settings_enabled`
+
+3. **Customize via factory or model_copy:**
+   ```python
+   # Factory (quick)
+   config = config_factory(rag__enabled=True, rag__timeout=0.1)
+
+   # model_copy (full control)
+   config = test_config.model_copy(deep=True)
+   config.pipeline.step_size = 100
+   ```
+
+4. **Infrastructure must use tmp_path:**
+   - ❌ `db_path = Path(".egregora/db.duckdb")`
+   - ✅ `db_path = tmp_path / "test.duckdb"`
+
+See `tests/README.md` for complete guide.
+
 ## Development Workflow
 
 ### Before Starting
@@ -458,6 +488,9 @@ uv run pytest tests/unit/          # Fast sanity check
    - `end-of-file-fixer` - Ensure files end with newline
    - `mixed-line-ending` - Normalize line endings
    - `trailing-whitespace` - Remove trailing whitespace
+
+3. **Custom hooks (local)**
+   - `check-test-config` - Prevent direct config instantiation in tests
 
 **Quality checks** (not in pre-commit, run manually):
 ```bash

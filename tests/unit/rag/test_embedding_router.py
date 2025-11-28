@@ -17,7 +17,6 @@ import pytest
 import pytest_asyncio
 import respx
 
-from egregora.config.settings import ModelSettings, RAGSettings
 from egregora.rag.embedding_router import (
     GENAI_API_BASE,
     EmbeddingRouter,
@@ -27,19 +26,18 @@ from egregora.rag.embedding_router import (
     RateLimitState,
 )
 
-# Get embedding model from settings
-_model_settings = ModelSettings()
-MODEL = _model_settings.embedding  # "models/gemini-embedding-001"
-
-# Default settings from config
-_rag_settings = RAGSettings()
-DEFAULT_MAX_BATCH_SIZE = _rag_settings.embedding_max_batch_size  # 100
-DEFAULT_TIMEOUT = _rag_settings.embedding_timeout  # 60.0
-DEFAULT_MAX_RETRIES = _rag_settings.embedding_max_retries  # 5
-
-# Test overrides (smaller values for faster tests)
+# Test constants (smaller values for faster tests)
 TEST_BATCH_SIZE = 3  # Small batch for testing accumulation behavior
 TEST_TIMEOUT = 10.0  # Shorter timeout for faster test execution
+
+
+@pytest.fixture
+def embedding_model():
+    """Embedding model name for tests.
+
+    Uses a simple test model name instead of loading from production settings.
+    """
+    return "models/test-embedding-001"
 
 
 @pytest.fixture
@@ -49,15 +47,18 @@ def mock_api_key():
 
 
 @pytest_asyncio.fixture
-async def router(mock_api_key):
+async def router(mock_api_key, embedding_model):
     """Create router and clean up after test.
 
-    Uses configured embedding model from settings.
+    Uses configured embedding model from fixture.
     Uses small batch size (3) for testing batch accumulation behavior.
     Uses short timeout (10s) for faster test execution.
     """
     r = EmbeddingRouter(
-        model=MODEL, api_key=mock_api_key, max_batch_size=TEST_BATCH_SIZE, timeout=TEST_TIMEOUT
+        model=embedding_model,
+        api_key=mock_api_key,
+        max_batch_size=TEST_BATCH_SIZE,
+        timeout=TEST_TIMEOUT,
     )
     await r.start()
     yield r
@@ -129,16 +130,16 @@ def test_rate_limiter_mark_success():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_router_prefers_single_endpoint_for_low_latency(router):
+async def test_router_prefers_single_endpoint_for_low_latency(router, embedding_model):
     """Test that router prefers single endpoint for low latency."""
     # Mock successful responses for both endpoints
-    respx.post(f"{GENAI_API_BASE}/{MODEL}:embedContent").mock(
+    respx.post(f"{GENAI_API_BASE}/{embedding_model}:embedContent").mock(
         return_value=httpx.Response(
             200,
             json={"embedding": {"values": [0.1] * 768}},
         )
     )
-    respx.post(f"{GENAI_API_BASE}/{MODEL}:batchEmbedContents").mock(
+    respx.post(f"{GENAI_API_BASE}/{embedding_model}:batchEmbedContents").mock(
         return_value=httpx.Response(
             200,
             json={"embeddings": [{"values": [0.2] * 768}]},
@@ -161,13 +162,13 @@ async def test_router_prefers_single_endpoint_for_low_latency(router):
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_router_falls_back_to_batch_when_single_exhausted(router):
+async def test_router_falls_back_to_batch_when_single_exhausted(router, embedding_model):
     """Test fallback to batch endpoint when single is rate-limited."""
     # Mark single endpoint as rate-limited
     router.single_limiter.mark_rate_limited(retry_after=60.0)
 
     # Mock batch endpoint success
-    respx.post(f"{GENAI_API_BASE}/{MODEL}:batchEmbedContents").mock(
+    respx.post(f"{GENAI_API_BASE}/{embedding_model}:batchEmbedContents").mock(
         return_value=httpx.Response(
             200,
             json={"embeddings": [{"values": [0.1] * 768}, {"values": [0.2] * 768}]},
@@ -184,10 +185,10 @@ async def test_router_falls_back_to_batch_when_single_exhausted(router):
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_router_handles_429_rate_limit(router):
+async def test_router_handles_429_rate_limit(router, embedding_model):
     """Test that router handles 429 rate limit responses."""
     # First request returns 429
-    respx.post(f"{GENAI_API_BASE}/{MODEL}:embedContent").mock(
+    respx.post(f"{GENAI_API_BASE}/{embedding_model}:embedContent").mock(
         return_value=httpx.Response(
             429,
             headers={"Retry-After": "2"},
@@ -195,7 +196,7 @@ async def test_router_handles_429_rate_limit(router):
     )
 
     # Second request (to batch) succeeds
-    respx.post(f"{GENAI_API_BASE}/{MODEL}:batchEmbedContents").mock(
+    respx.post(f"{GENAI_API_BASE}/{embedding_model}:batchEmbedContents").mock(
         return_value=httpx.Response(
             200,
             json={"embeddings": [{"values": [0.1] * 768}]},
@@ -212,14 +213,14 @@ async def test_router_handles_429_rate_limit(router):
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_router_accumulates_requests_during_rate_limit(router):
+async def test_router_accumulates_requests_during_rate_limit(router, embedding_model):
     """Test that router accumulates requests when rate-limited."""
     # Both endpoints start rate-limited
     router.single_limiter.mark_rate_limited(retry_after=0.5)  # Short delay for test
     router.batch_limiter.mark_rate_limited(retry_after=0.5)
 
     # Mock successful response after wait
-    respx.post(f"{GENAI_API_BASE}/{MODEL}:embedContent").mock(
+    respx.post(f"{GENAI_API_BASE}/{embedding_model}:embedContent").mock(
         return_value=httpx.Response(
             200,
             json={"embedding": {"values": [0.1] * 768}},
@@ -246,13 +247,13 @@ async def test_router_accumulates_requests_during_rate_limit(router):
 
 
 @pytest.mark.asyncio
-async def test_endpoint_queue_processes_single_request(mock_api_key):
+async def test_endpoint_queue_processes_single_request(mock_api_key, embedding_model):
     """Test that endpoint queue processes single request."""
     limiter = RateLimiter(EndpointType.SINGLE)
     queue = EndpointQueue(
         endpoint_type=EndpointType.SINGLE,
         rate_limiter=limiter,
-        model=MODEL,
+        model=embedding_model,
         api_key=mock_api_key,
         timeout=TEST_TIMEOUT,
     )
@@ -260,7 +261,7 @@ async def test_endpoint_queue_processes_single_request(mock_api_key):
     await queue.start()
 
     with respx.mock:
-        respx.post(f"{GENAI_API_BASE}/{MODEL}:embedContent").mock(
+        respx.post(f"{GENAI_API_BASE}/{embedding_model}:embedContent").mock(
             return_value=httpx.Response(
                 200,
                 json={"embedding": {"values": [0.1] * 768}},
@@ -277,20 +278,20 @@ async def test_endpoint_queue_processes_single_request(mock_api_key):
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_endpoint_queue_batches_multiple_requests(mock_api_key):
+async def test_endpoint_queue_batches_multiple_requests(mock_api_key, embedding_model):
     """Test that batch endpoint accumulates multiple requests."""
     limiter = RateLimiter(EndpointType.BATCH)
     queue = EndpointQueue(
         endpoint_type=EndpointType.BATCH,
         rate_limiter=limiter,
-        model=MODEL,
+        model=embedding_model,
         max_batch_size=TEST_BATCH_SIZE,  # Use small batch to test accumulation
         api_key=mock_api_key,
         timeout=TEST_TIMEOUT,
     )
 
     # Mock batch endpoint before starting queue
-    respx.post(f"{GENAI_API_BASE}/{MODEL}:batchEmbedContents").mock(
+    respx.post(f"{GENAI_API_BASE}/{embedding_model}:batchEmbedContents").mock(
         return_value=httpx.Response(
             200,
             json={
@@ -323,13 +324,13 @@ async def test_endpoint_queue_batches_multiple_requests(mock_api_key):
 
 
 @pytest.mark.asyncio
-async def test_endpoint_queue_handles_api_error(mock_api_key):
+async def test_endpoint_queue_handles_api_error(mock_api_key, embedding_model):
     """Test that queue handles API errors properly."""
     limiter = RateLimiter(EndpointType.SINGLE)
     queue = EndpointQueue(
         endpoint_type=EndpointType.SINGLE,
         rate_limiter=limiter,
-        model=MODEL,
+        model=embedding_model,
         api_key=mock_api_key,
         timeout=TEST_TIMEOUT,
     )
@@ -337,7 +338,7 @@ async def test_endpoint_queue_handles_api_error(mock_api_key):
     await queue.start()
 
     with respx.mock:
-        respx.post(f"{GENAI_API_BASE}/{MODEL}:embedContent").mock(
+        respx.post(f"{GENAI_API_BASE}/{embedding_model}:embedContent").mock(
             return_value=httpx.Response(400, json={"error": "Bad request"})
         )
 
@@ -354,10 +355,10 @@ async def test_endpoint_queue_handles_api_error(mock_api_key):
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_full_workflow_with_both_endpoints(router):
+async def test_full_workflow_with_both_endpoints(router, embedding_model):
     """Test full workflow using both endpoints."""
     # Mock single endpoint success
-    single_route = respx.post(f"{GENAI_API_BASE}/{MODEL}:embedContent").mock(
+    single_route = respx.post(f"{GENAI_API_BASE}/{embedding_model}:embedContent").mock(
         return_value=httpx.Response(
             200,
             json={"embedding": {"values": [0.1] * 768}},
@@ -365,7 +366,7 @@ async def test_full_workflow_with_both_endpoints(router):
     )
 
     # Mock batch endpoint success
-    batch_route = respx.post(f"{GENAI_API_BASE}/{MODEL}:batchEmbedContents").mock(
+    batch_route = respx.post(f"{GENAI_API_BASE}/{embedding_model}:batchEmbedContents").mock(
         return_value=httpx.Response(
             200,
             json={
@@ -395,7 +396,7 @@ async def test_full_workflow_with_both_endpoints(router):
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_concurrent_requests_under_rate_limits(router):
+async def test_concurrent_requests_under_rate_limits(router, embedding_model):
     """Test handling concurrent requests with rate limit fallback."""
     # Single endpoint: first call succeeds, then gets 429
     single_calls = 0
@@ -408,10 +409,12 @@ async def test_concurrent_requests_under_rate_limits(router):
         # Subsequent calls get rate limited
         return httpx.Response(429, headers={"Retry-After": "0.5"})
 
-    single_route = respx.post(f"{GENAI_API_BASE}/{MODEL}:embedContent").mock(side_effect=single_side_effect)
+    single_route = respx.post(f"{GENAI_API_BASE}/{embedding_model}:embedContent").mock(
+        side_effect=single_side_effect
+    )
 
     # Batch endpoint always succeeds with single item (since we're submitting one text at a time)
-    batch_route = respx.post(f"{GENAI_API_BASE}/{MODEL}:batchEmbedContents").mock(
+    batch_route = respx.post(f"{GENAI_API_BASE}/{embedding_model}:batchEmbedContents").mock(
         return_value=httpx.Response(
             200,
             json={"embeddings": [{"values": [0.3] * 768}]},
