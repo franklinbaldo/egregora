@@ -251,8 +251,7 @@ class PrivacySettings(BaseModel):
     pii_action: Literal["warn", "redact", "skip"] = Field(
         default="warn",
         description=(
-            "Action on PII detection: "
-            "warn=log warning, redact=replace with [REDACTED], skip=skip message"
+            "Action on PII detection: warn=log warning, redact=replace with [REDACTED], skip=skip message"
         ),
     )
 
@@ -277,14 +276,11 @@ class PrivacySettings(BaseModel):
 
         if not self.anonymize_authors and self.enabled:
             logger.warning(
-                "Author anonymization is disabled but privacy is enabled. "
-                "Author names will appear in output."
+                "Author anonymization is disabled but privacy is enabled. Author names will appear in output."
             )
 
         if not self.pii_detection_enabled and self.enabled:
-            logger.info(
-                "PII detection is disabled. No warnings will be shown for potential PII in content."
-            )
+            logger.info("PII detection is disabled. No warnings will be shown for potential PII in content.")
 
         return self
 
@@ -649,9 +645,7 @@ class EgregoraConfig(BaseModel):
 
         # Check for deprecated feature flags
         if self.features.ranking_enabled:
-            logger.warning(
-                "features.ranking_enabled is deprecated. Use reader.enabled instead."
-            )
+            logger.warning("features.ranking_enabled is deprecated. Use reader.enabled instead.")
 
         return self
 

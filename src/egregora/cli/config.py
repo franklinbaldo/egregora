@@ -26,13 +26,14 @@ def validate(
     site_root: Annotated[
         Path,
         typer.Argument(help="Site root directory containing .egregora/config.yml"),
-    ] = Path("."),
+    ] = Path(),
 ) -> None:
     """Validate configuration file and show friendly errors.
 
     Examples:
         egregora config validate
         egregora config validate ./my-blog
+
     """
     site_root = site_root.expanduser().resolve()
     config_path = site_root / ".egregora" / "config.yml"
@@ -150,13 +151,14 @@ def show_config(
     site_root: Annotated[
         Path,
         typer.Argument(help="Site root directory containing .egregora/config.yml"),
-    ] = Path("."),
+    ] = Path(),
 ) -> None:
     """Show current configuration with all settings.
 
     Examples:
         egregora config show
         egregora config show ./my-blog
+
     """
     site_root = site_root.expanduser().resolve()
     config_path = site_root / ".egregora" / "config.yml"
@@ -174,7 +176,7 @@ def show_config(
             for field_name, field_value in model:
                 if isinstance(field_value, BaseModel):
                     result[field_name] = model_to_dict(field_value)
-                elif hasattr(field_value, 'value'):  # Enum
+                elif hasattr(field_value, "value"):  # Enum
                     result[field_name] = field_value.value
                 else:
                     result[field_name] = field_value

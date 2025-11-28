@@ -37,6 +37,7 @@ def anonymize_table(
 
     Returns:
         Table with author_raw anonymized (if enabled)
+
     """
     # If anonymization is disabled, return table unchanged
     if not enabled:
