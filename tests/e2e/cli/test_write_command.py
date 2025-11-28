@@ -19,8 +19,8 @@ from typer.testing import CliRunner
 
 from egregora.cli.main import app
 from tests.e2e.test_config import (
-    TestDates,
-    TestTimezones,
+    DateConfig,
+    TimezoneConfig,
     assert_command_success,
     build_write_command_args,
 )
@@ -237,19 +237,19 @@ class TestWriteCommandConfiguration:
 class TestWriteCommandDateFiltering:
     """Tests for 'egregora write' command with date filtering."""
 
-    def test_write_command_with_from_date(self, test_zip_file, test_output_dir, test_dates: TestDates):
+    def test_write_command_with_from_date(self, test_zip_file, test_output_dir, test_dates: DateConfig):
         """Test write command with --from-date filter."""
         args = build_write_command_args(test_zip_file, test_output_dir, from_date=test_dates.VALID_FROM)
         result = runner.invoke(app, args)
         assert_command_success(result)
 
-    def test_write_command_with_to_date(self, test_zip_file, test_output_dir, test_dates: TestDates):
+    def test_write_command_with_to_date(self, test_zip_file, test_output_dir, test_dates: DateConfig):
         """Test write command with --to-date filter."""
         args = build_write_command_args(test_zip_file, test_output_dir, to_date=test_dates.VALID_TO)
         result = runner.invoke(app, args)
         assert_command_success(result)
 
-    def test_write_command_with_date_range(self, test_zip_file, test_output_dir, test_dates: TestDates):
+    def test_write_command_with_date_range(self, test_zip_file, test_output_dir, test_dates: DateConfig):
         """Test write command with both --from-date and --to-date."""
         args = build_write_command_args(
             test_zip_file, test_output_dir, from_date=test_dates.VALID_FROM, to_date=test_dates.VALID_TO
@@ -277,7 +277,7 @@ class TestWriteCommandDateFiltering:
         )
 
     def test_write_command_invalid_to_date_format(
-        self, test_zip_file, test_output_dir, test_dates: TestDates
+        self, test_zip_file, test_output_dir, test_dates: DateConfig
     ):
         """Test write command with invalid --to-date format."""
         args = build_write_command_args(test_zip_file, test_output_dir, to_date=test_dates.INVALID_FORMAT_2)
@@ -285,14 +285,16 @@ class TestWriteCommandDateFiltering:
 
         assert result.exit_code == 1, "Should fail with invalid date format"
 
-    def test_write_command_with_timezone(self, test_zip_file, test_output_dir, test_timezones: TestTimezones):
+    def test_write_command_with_timezone(
+        self, test_zip_file, test_output_dir, test_timezones: TimezoneConfig
+    ):
         """Test write command with timezone specification."""
         args = build_write_command_args(test_zip_file, test_output_dir, timezone=test_timezones.VALID)
         result = runner.invoke(app, args)
         assert_command_success(result)
 
     def test_write_command_with_invalid_timezone(
-        self, test_zip_file, test_output_dir, test_timezones: TestTimezones
+        self, test_zip_file, test_output_dir, test_timezones: TimezoneConfig
     ):
         """Test write command with invalid timezone."""
         args = build_write_command_args(test_zip_file, test_output_dir, timezone=test_timezones.INVALID)

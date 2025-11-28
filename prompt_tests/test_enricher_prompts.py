@@ -15,17 +15,20 @@ sys.modules.pop("ibis.common.datatypes", None)
 pydantic_ai = types.ModuleType("pydantic_ai")
 messages_mod = types.ModuleType("pydantic_ai.messages")
 
+
 @dataclass
 class _StubBinaryContent:
     data: bytes
     media_type: str
 
+
 class _StubModelRequest:  # pragma: no cover - placeholder
     pass
 
+
 messages_mod.BinaryContent = _StubBinaryContent
 messages_mod.ModelRequest = _StubModelRequest
-messages_mod.ModelResponse = type('ModelResponse', (), {})
+messages_mod.ModelResponse = type("ModelResponse", (), {})
 messages_mod.__getattr__ = lambda name: type(name, (), {})
 
 exceptions_mod = types.ModuleType("pydantic_ai.exceptions")
@@ -159,8 +162,11 @@ sys.modules.setdefault("google.api_core", _google_api_core)
 
 # Stub whatsapp adapter to avoid heavy dependencies during tests.
 whatsapp_adapter_mod = types.ModuleType("egregora.input_adapters.whatsapp.adapter")
+
+
 class _StubWhatsAppAdapter:
     pass
+
 
 whatsapp_adapter_mod.WhatsAppAdapter = _StubWhatsAppAdapter
 whatsapp_pkg_mod = types.ModuleType("egregora.input_adapters.whatsapp")
@@ -175,14 +181,18 @@ _griffe_module = types.ModuleType("_griffe")
 _griffe_enums = types.ModuleType("_griffe.enumerations")
 _griffe_models = types.ModuleType("_griffe.models")
 
+
 class _DocstringSectionKind:  # minimal placeholder
     pass
+
 
 class _DummyDocstring:  # pragma: no cover - placeholder
     pass
 
+
 class _DummyObject:  # pragma: no cover - placeholder
     pass
+
 
 _griffe_enums.DocstringSectionKind = _DocstringSectionKind
 _griffe_models.Docstring = _DummyDocstring

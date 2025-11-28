@@ -46,7 +46,7 @@ def check_file(file_path: Path) -> list[str]:
     return errors
 
 
-def main():
+def main() -> int:
     test_files = Path("tests").rglob("test_*.py")
     all_errors = []
 
@@ -59,13 +59,10 @@ def main():
         all_errors.extend(errors)
 
     if all_errors:
-        print("❌ Test configuration violations found:")
-        for error in all_errors:
-            print(f"  - {error}")
-        print("\nSee tests/README.md for proper fixture usage.")
+        for _error in all_errors:
+            pass
         return 1
 
-    print("✅ All tests use proper configuration fixtures")
     return 0
 
 

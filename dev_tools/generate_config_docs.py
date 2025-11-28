@@ -140,7 +140,9 @@ def generate_config_docs() -> str:
     ]
 
     for cls in settings_classes:
-        lines.append(f"- [`{cls.__name__}`](#{cls.__name__.lower()}) - {cls.__doc__ or 'Configuration settings'}")
+        lines.append(
+            f"- [`{cls.__name__}`](#{cls.__name__.lower()}) - {cls.__doc__ or 'Configuration settings'}"
+        )
 
     lines.extend(
         [
@@ -170,8 +172,8 @@ def generate_config_docs() -> str:
             "```yaml",
             "# Minimal configuration",
             "models:",
-            '  writer: google-gla:gemini-flash-latest',
-            '  embedding: google-gla:gemini-embedding-001',
+            "  writer: google-gla:gemini-flash-latest",
+            "  embedding: google-gla:gemini-embedding-001",
             "",
             "rag:",
             "  enabled: true",
@@ -185,14 +187,14 @@ def generate_config_docs() -> str:
             "```yaml",
             "# Complete configuration with all options",
             "models:",
-            '  writer: google-gla:gemini-flash-latest',
-            '  enricher: google-gla:gemini-flash-latest',
-            '  enricher_vision: google-gla:gemini-flash-latest',
-            '  ranking: google-gla:gemini-flash-latest',
-            '  editor: google-gla:gemini-flash-latest',
-            '  reader: google-gla:gemini-flash-latest',
-            '  embedding: google-gla:gemini-embedding-001',
-            '  banner: google-gla:gemini-imagen-latest',
+            "  writer: google-gla:gemini-flash-latest",
+            "  enricher: google-gla:gemini-flash-latest",
+            "  enricher_vision: google-gla:gemini-flash-latest",
+            "  ranking: google-gla:gemini-flash-latest",
+            "  editor: google-gla:gemini-flash-latest",
+            "  reader: google-gla:gemini-flash-latest",
+            "  embedding: google-gla:gemini-embedding-001",
+            "  banner: google-gla:gemini-imagen-latest",
             "",
             "rag:",
             "  enabled: true",
@@ -292,7 +294,6 @@ def main() -> None:
     output_path = Path("docs/configuration.md")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(docs)
-
 
 
 if __name__ == "__main__":
