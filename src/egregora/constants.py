@@ -187,3 +187,18 @@ class PIIScope(str, Enum):
     ALL_PII = "all_pii"  # Contact + names, ages, locations, identifiers
     CUSTOM = "custom"  # User-defined specification (LLM interprets)
     LLM_DECIDE = "llm_decide"  # Let LLM use its judgment
+
+
+class PrivacyMarkers:
+    """Special markers used in privacy-related processing.
+
+    These are sentinel values that appear in LLM outputs or internal processing
+    to signal privacy-related states.
+    """
+
+    # Marker that enrichment agent outputs when it detects PII in media
+    # (defined in enrichment.jinja prompt, detected in enricher.py)
+    PII_DETECTED = "PII_DETECTED"
+
+    # Default redaction token used in structural anonymization
+    REDACTED = "[redacted]"

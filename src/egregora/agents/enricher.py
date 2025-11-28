@@ -29,6 +29,7 @@ from pydantic_ai.models.google import GoogleModelSettings
 from ratelimit import limits, sleep_and_retry
 
 from egregora.config.settings import EnrichmentSettings, ModelSettings, QuotaSettings
+from egregora.constants import PrivacyMarkers
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
@@ -540,9 +541,9 @@ async def _process_media_task(  # noqa: PLR0913
                 return None, False, ref, None
 
         pii_detected = False
-        if "PII_DETECTED" in markdown:
+        if PrivacyMarkers.PII_DETECTED in markdown:
             logger.warning("PII detected in media: %s. Media will not be published.", filename or ref)
-            markdown = markdown.replace("PII_DETECTED", "").strip()
+            markdown = markdown.replace(PrivacyMarkers.PII_DETECTED, "").strip()
             media_doc.metadata["pii_deleted"] = True
             media_doc.metadata["public_url"] = None
             pii_detected = True

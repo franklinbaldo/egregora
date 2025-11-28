@@ -1,4 +1,16 @@
-"""Privacy utilities to guard against personal data leaks."""
+"""Privacy utilities to guard against personal data leaks.
+
+TODO: This module contains regex-based PII detection (validate_text_privacy) that is
+currently UNUSED in the pipeline. The system uses a layered approach instead:
+1. Structural anonymization (privacy/anonymizer.py) - runs BEFORE LLMs
+2. LLM-native prevention (prompt templates) - instructs LLMs to avoid PII
+3. Post-generation detection (agents/enricher.py) - checks for PII_DETECTED marker
+
+Consider either:
+- Integrating validate_text_privacy() into post-generation validation
+- Removing this module if regex-based detection is not needed
+- Documenting this as a fallback/defense-in-depth mechanism
+"""
 
 from __future__ import annotations
 
