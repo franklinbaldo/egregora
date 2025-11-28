@@ -47,6 +47,8 @@ cd output && uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs ser
 
 ## Breaking Changes
 
+**Recent (last 60 days)** - See [CHANGELOG.md](CHANGELOG.md) for full history
+
 ### 2025-11-27 (PR #TBD - Async RAG Migration with Dual-Queue Embedding Router)
 
 **Complete Async Migration of RAG Backend**
@@ -323,15 +325,6 @@ cd output && uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs ser
 - Auto-detects non-TTY (CI/CD) and disables prompts
 - Use `--no-interactive` to explicitly disable
 
-### 2025-11-17 (Infrastructure Simplification)
-
-**~1,500 LOC removed:**
-- Event-sourced `run_events` → simple `runs` table (INSERT + UPDATE pattern)
-- IR schema: Python single source of truth (no SQL/JSON lockfiles)
-- Validation: Manual `validate_ir_schema()` calls (decorator removed)
-- Fingerprinting: Removed (file existence checks only)
-- Checkpointing: Opt-in via `--resume` (default: full rebuild)
-
 ## Architecture
 
 ### Pipeline Stages
@@ -491,219 +484,28 @@ src/egregora/
 ✅ **Simple Default:** Full rebuild (--resume for incremental)
 ✅ **Alpha Mindset:** Clean breaks, no backward compatibility
 
-## CLI Commands
-
-### Main Commands
-
-**`egregora write`** - Generate blog posts from chat exports
-```bash
-egregora write <input_file> [OPTIONS]
-
-# Core options:
-  --source-type, -s TEXT         Input adapter (whatsapp, iperon-tjro, self)
-  --output-dir, -o PATH          Output directory (default: current dir)
-
-# Windowing:
-  --step-size INTEGER            Window step size (default: 1)
-  --step-unit TEXT               Window unit: days, hours, messages (default: days)
-  --overlap FLOAT                Overlap ratio between windows (default: 0.0)
-
-# Enrichment:
-  --enable-enrichment            Enable LLM enrichment (URL/media)
-  --no-enrichment                Disable LLM enrichment
-
-# Date filtering:
-  --from-date TEXT               Start date (YYYY-MM-DD)
-  --to-date TEXT                 End date (YYYY-MM-DD)
-  --timezone TEXT                Timezone for date parsing (default: UTC)
-
-# Model configuration:
-  --model TEXT                   Model override (e.g., google-gla:gemini-flash-latest)
-  --max-prompt-tokens INTEGER    Max prompt tokens
-  --use-full-context-window      Use full model context window
-
-# Pipeline control:
-  --max-windows INTEGER          Maximum windows to process
-  --resume                       Enable incremental processing (opt-in)
-  --refresh TEXT                 Cache tier to invalidate: enrichment, rag, writer, all
-  --force, -f                    Force full regeneration
-
-# Debugging:
-  --debug                        Enable debug logging
-
-# Examples:
-egregora write export.zip --source-type=whatsapp --output-dir=./output
-egregora write export.zip --resume  # Incremental run
-egregora write export.zip --refresh=writer  # Invalidate writer cache
-egregora write data/ --source-type=self --from-date=2025-01-01
-```
-
-**`egregora init`** - Initialize new MkDocs site scaffold
-```bash
-egregora init <output_dir> [OPTIONS]
-
-# Options:
-  --no-interactive              Disable interactive prompts (for CI/CD)
-  --force                       Overwrite existing files
-
-# Examples:
-egregora init ./my-site
-egregora init ./output --no-interactive
-```
-
-**`egregora top`** - Show top-ranked posts from reader database
-```bash
-egregora top [OPTIONS]
-
-# Options:
-  --limit INTEGER               Number of posts to show (default: 10)
-  --database PATH               Reader database path (default from config)
-
-# Examples:
-egregora top
-egregora top --limit=20
-```
-
-**`egregora doctor`** - Run diagnostic health checks
-```bash
-egregora doctor [OPTIONS]
-
-# Checks:
-  - Configuration validity
-  - Database connectivity
-  - Model availability
-  - Dependencies
-  - File permissions
-
-# Examples:
-egregora doctor
-```
-
-### Sub-Commands
-
-**`egregora runs`** - Run tracking commands
-```bash
-egregora runs list                  # List all pipeline runs
-egregora runs show <run_id>         # Show details for a specific run
-egregora runs clean                 # Clean old run records
-```
-
-**`egregora read`** - Reader agent commands
-```bash
-egregora read run <posts_dir>       # Run reader agent on posts
-egregora read compare <post1> <post2>  # Compare two posts
-egregora read rank <posts_dir>      # Rank all posts by ELO
-```
-
-**`egregora show reader-history`** - Show comparison history
-```bash
-egregora show reader-history [OPTIONS]
-
-# Options:
-  --limit INTEGER               Number of comparisons to show
-  --database PATH               Reader database path
-```
-
 ## Agents
 
-Egregora uses four specialized Pydantic-AI agents:
+Four specialized Pydantic-AI agents handle different pipeline stages:
 
-### Writer Agent
-- **Module:** `agents/writer.py`
-- **Purpose:** Generate coherent blog posts from conversation windows
-- **Model:** Configurable via `models.writer` (default: `gemini-flash-latest`)
-- **Prompt:** `.egregora/prompts/writer.jinja` or `src/egregora/prompts/writer.jinja`
-- **Input:** Conversation window as XML (via `conversation.xml.jinja` template)
-- **Output:** Markdown blog post with frontmatter
-- **Tools:** RAG search for retrieving similar past content
-- **Caching:** L3 cache with semantic hashing (zero-cost re-runs for unchanged windows)
+1. **Writer** (`agents/writer.py`) - Generate blog posts from conversation windows
+   - Input: XML conversation window, Output: Markdown with frontmatter
+   - Tools: RAG search for past content, L3 cache for zero-cost re-runs
+   - Config: `models.writer`, `writer.custom_instructions`
 
-**Configuration:**
-```yaml
-models:
-  writer: google-gla:gemini-flash-latest
+2. **Enricher** (`agents/enricher.py`) - Extract and enrich URLs/media/text
+   - URL: title/description extraction, Media: captions/descriptions, Text: key points
+   - L1 cache for asset-level caching
+   - Config: `models.enricher`, `models.enricher_vision`, `enrichment.*`
 
-writer:
-  custom_instructions: |
-    Additional instructions for the writer agent.
-    Use this to customize writing style, tone, etc.
-```
+3. **Reader** (`agents/reader/`) - Post quality evaluation via ELO ranking
+   - Pairwise comparison (A vs B), SQLite persistence, comparison history
+   - Use: `egregora read rank`, `egregora top`, `egregora show reader-history`
+   - Config: `models.reader`, `reader.comparisons_per_post`, `reader.k_factor`
 
-### Enricher Agent
-- **Module:** `agents/enricher.py`
-- **Purpose:** Extract and enrich URLs and media from messages
-- **Model:** Configurable via `models.enricher` and `models.enricher_vision`
-- **Capabilities:**
-  - URL enrichment: Extract title, description, and context
-  - Media enrichment: Generate captions and descriptions for images/videos
-  - Text enrichment: Extract key points and context from long text
-- **Caching:** L1 cache for enrichment results (asset-level caching)
-
-**Configuration:**
-```yaml
-models:
-  enricher: google-gla:gemini-flash-latest
-  enricher_vision: google-gla:gemini-flash-latest
-
-enrichment:
-  enabled: true
-  enable_url: true
-  enable_media: true
-  max_enrichments: 100
-```
-
-### Reader Agent
-- **Module:** `agents/reader/`
-- **Purpose:** Post quality evaluation and ranking using ELO system
-- **Model:** Configurable via `models.reader` or `models.ranking`
-- **Architecture:**
-  - Pairwise post comparison (A vs B)
-  - ELO rating updates based on comparison outcomes
-  - Persistent ratings in SQLite database
-  - Comparison history tracking
-- **Use Cases:**
-  - Identify best posts for highlighting
-  - Track content quality over time
-  - Generate "top posts" lists
-
-**Configuration:**
-```yaml
-models:
-  reader: google-gla:gemini-flash-latest
-  ranking: google-gla:gemini-flash-latest
-
-reader:
-  enabled: true
-  comparisons_per_post: 5
-  k_factor: 32
-  database_path: .egregora/reader.db
-```
-
-**Usage:**
-```bash
-# Rank all posts
-egregora read rank ./output/docs/posts
-
-# Show top-ranked posts
-egregora top --limit=10
-
-# Show comparison history
-egregora show reader-history --limit=20
-```
-
-### Banner Agent
-- **Module:** `agents/banner/`
-- **Purpose:** Generate cover images for blog posts using Gemini Imagen
-- **Model:** Configurable via `models.banner`
-- **Input:** Post title, summary, and optional style instructions
-- **Output:** PNG image saved to `docs/assets/banners/`
-- **Fallback:** Uses placeholder or gradient banners if generation fails
-
-**Configuration:**
-```yaml
-models:
-  banner: google-gla:gemini-imagen-latest
-```
+4. **Banner** (`agents/banner/`) - Generate cover images with Gemini Imagen
+   - Input: post title/summary, Output: PNG to `docs/assets/banners/`
+   - Config: `models.banner`
 
 ## Naming Conventions
 
@@ -828,161 +630,52 @@ if step == PipelineStep.ENRICHMENT:
     max_tokens = KNOWN_MODEL_LIMITS["gemini-flash"]
 ```
 
+### URL Generation (UrlConvention Protocol)
+
+**See [docs/architecture/protocols.md](docs/architecture/protocols.md#url-generation) for complete documentation.**
+
+Quick summary: `UrlConvention` protocol enables deterministic URL generation for documents.
+
+```python
+from egregora.data_primitives.protocols import UrlContext, UrlConvention
+
+# UrlContext: frozen dataclass with context for URL generation
+ctx = UrlContext(base_url="https://example.com", site_prefix="/blog")
+
+# UrlConvention: Protocol for deterministic URL generation
+# Pure function pattern: same document → same URL (no I/O, no side effects)
+# Pattern ensures stable URLs across rebuilds (critical for SEO/links)
+```
+
+**Key properties:**
+- Deterministic: same document → same URL
+- Pure: no I/O, no side effects
+- Versioned: `name` and `version` properties for compatibility checks
+
 ## Configuration
+
+**See [docs/configuration.md](docs/configuration.md) for complete auto-generated reference.**
 
 **File:** `.egregora/config.yml`
 
-### Complete Configuration Reference
+**Key settings groups** (13 Pydantic V2 classes):
+- `models`, `rag`, `writer`, `enrichment`, `pipeline`, `paths`, `database`, `output`, `reader`, `quota`
 
+**Minimal config:**
 ```yaml
-# Model Configuration (Pydantic-AI and Google GenAI formats)
 models:
   writer: google-gla:gemini-flash-latest
-  enricher: google-gla:gemini-flash-latest
-  enricher_vision: google-gla:gemini-flash-latest
-  ranking: google-gla:gemini-flash-latest
-  editor: google-gla:gemini-flash-latest
-  reader: google-gla:gemini-flash-latest
   embedding: google-gla:gemini-embedding-001
-  banner: google-gla:gemini-imagen-latest
-
-# RAG Configuration
 rag:
   enabled: true
-  top_k: 5
-  min_similarity_threshold: 0.7
-  indexable_types: ["POST"]  # Document types to index
-  embedding_max_batch_size: 100  # Max texts per batch request
-  embedding_timeout: 60.0  # Timeout for embedding requests (seconds)
-  embedding_max_retries: 3  # Max retries for embedding requests
-
-# Writer Agent Configuration
-writer:
-  custom_instructions: |
-    Additional instructions for the writer agent.
-    Use this to customize writing style, tone, etc.
-
-# Privacy Configuration (placeholder)
-privacy: {}
-
-# Enrichment Configuration
-enrichment:
-  enabled: true
-  enable_url: true
-  enable_media: true
-  max_enrichments: 100
-
-# Pipeline Execution Configuration
 pipeline:
-  # Windowing
   step_size: 1
-  step_unit: days  # "days", "hours", "messages"
-  overlap_ratio: 0.0  # Overlap between windows (0.0-1.0)
-  max_window_time: null  # Max window duration (seconds)
-  timezone: UTC  # Timezone for date parsing
-
-  # Batching
-  batch_threshold: 10  # Minimum messages to form a batch
-
-  # Date filtering
-  from_date: null  # Start date (YYYY-MM-DD)
-  to_date: null    # End date (YYYY-MM-DD)
-
-  # Context window management
-  max_prompt_tokens: null  # Max prompt tokens (overrides model default)
-  use_full_context_window: false  # Use full model context window
-  max_windows: null  # Maximum windows to process
-
-  # Checkpointing
-  checkpoint_enabled: false  # Enable incremental processing (opt-in)
-
-# Path Configuration
-paths:
-  # Internal paths (relative to output_dir/.egregora/)
-  egregora_dir: .egregora
-  rag_dir: .egregora/rag
-  lancedb_dir: .egregora/lancedb
-  cache_dir: .egregora/cache
-  prompts_dir: .egregora/prompts
-
-  # Content paths (relative to output_dir/)
-  docs_dir: docs
-  posts_dir: docs/posts
-  profiles_dir: docs/profiles
-  media_dir: docs/assets/media
-  journal_dir: .egregora/journals
-
-# Database Configuration
-database:
-  pipeline_db: .egregora/pipeline.duckdb
-  runs_db: .egregora/runs.duckdb
-
-# Output Format Configuration
-output:
-  format: mkdocs  # "mkdocs" or "hugo"
-  mkdocs_config_path: mkdocs.yml
-
-# Reader Agent Configuration
-reader:
-  enabled: true
-  comparisons_per_post: 5
-  k_factor: 32
-  database_path: .egregora/reader.db
-
-# Feature Flags
-features:
-  ranking_enabled: false  # Deprecated, use reader.enabled
-  annotations_enabled: true
-
-# Quota Configuration (LLM usage budgets)
-quota:
-  daily_llm_requests: null  # Max LLM requests per day (null = unlimited)
-  per_second_limit: 1.0     # Max requests per second
-  concurrency: 5            # Max concurrent requests
+  step_unit: days
 ```
 
-### Configuration Classes
+**Custom prompts:** `.egregora/prompts/` (overrides `src/egregora/prompts/`)
 
-All configuration is defined using Pydantic V2 in `config/settings.py`:
-
-- **`EgregoraConfig`** - Root configuration class
-- **`ModelSettings`** - LLM model configuration
-- **`RAGSettings`** - RAG and embedding configuration
-- **`WriterAgentSettings`** - Writer agent customization
-- **`PrivacySettings`** - Privacy settings (placeholder)
-- **`EnrichmentSettings`** - Enrichment behavior
-- **`PipelineSettings`** - Pipeline execution parameters
-- **`PathsSettings`** - File and directory paths
-- **`DatabaseSettings`** - Database paths
-- **`OutputSettings`** - Output format settings
-- **`ReaderSettings`** - Reader agent configuration
-- **`FeaturesSettings`** - Feature flags
-- **`QuotaSettings`** - LLM usage quotas
-
-### Configuration Overrides
-
-Use `ConfigOverrideBuilder` for programmatic config modification:
-
-```python
-from egregora.config.overrides import ConfigOverrideBuilder
-
-overrides = ConfigOverrideBuilder()
-overrides.set_model("writer", "google-gla:gemini-pro-latest")
-overrides.set_rag_enabled(False)
-config = overrides.build(base_config)
-```
-
-### Custom Prompts
-
-Place custom Jinja2 templates in `.egregora/prompts/` to override defaults:
-
-- `writer.jinja` - Writer agent prompt
-- `banner.jinja` - Banner agent prompt
-- `reader_system.jinja` - Reader system prompt
-- `media_detailed.jinja` - Media enrichment prompt
-- `url_detailed.jinja` - URL enrichment prompt
-
-**Template variables:** Check `src/egregora/prompts/` for available variables per template.
+**Regenerate docs:** `python dev_tools/generate_config_docs.py`
 
 ## Testing
 
