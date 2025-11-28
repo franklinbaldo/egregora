@@ -1,254 +1,423 @@
 # Architecture Overview
 
-Egregora uses a **staged pipeline architecture** that processes conversations through distinct phases. This design provides clear separation of concerns and better maintainability compared to traditional ETL pipelines.
+Egregora uses a **functional pipeline architecture** that processes conversations through pure transformations. This design provides clear separation of concerns and better maintainability.
 
-## Pipeline Stages
+## Pipeline Flow
 
 ```mermaid
-graph TD
-    A[Ingestion] -->|Parsed DataFrame| B[Privacy]
-    B -->|Anonymized Data| C[Augmentation]
-    C -->|Enriched Context| D[Knowledge]
-    D -->|RAG Index| E[Generation]
-    E -->|Blog Posts| F[Publication]
-    F -.->|Feedback Loop| D
-
-    subgraph "Ingestion Stage"
-    A1[Parse ZIP] --> A2[Extract Messages] --> A3[Structure Data]
-    end
-
-    subgraph "Privacy Stage"
-    B1[Anonymize Names] --> B2[Detect PII] --> B3[Opt-out Check]
-    end
-
-    subgraph "Knowledge Stage"
-    D1[Embed Messages] --> D2[Store Vectors] --> D3[Annotations]
-    end
-
-    subgraph "Generation Stage"
-    E1[RAG Query] --> E2[LLM Writer] --> E3[Tool Calling]
-    end
+graph LR
+    A[Ingestion] --> B[Privacy]
+    B --> C[Enrichment]
+    C --> D[Generation]
+    D --> E[Publication]
+    C -.-> F[RAG Index]
+    F -.-> D
 ```
 
-## 1. Ingestion
+Egregora processes conversations through these stages:
 
-**Module**: `egregora.ingestion`
+1. **Ingestion**: Input adapters parse exports into structured IR (Intermediate Representation)
+2. **Privacy**: Anonymize names with deterministic UUIDs
+3. **Enrichment**: Optionally enrich URLs and media with LLM descriptions
+4. **Generation**: Writer agent generates blog posts with RAG retrieval
+5. **Publication**: Output adapters persist to MkDocs site
 
-Converts WhatsApp exports into structured Ibis DataFrames.
+**Critical Invariant:** Privacy stage runs BEFORE any LLM processing.
+
+## Three-Layer Functional Architecture
+
+```
+Layer 3: orchestration/        # High-level workflows (write_pipeline.run)
+Layer 2: transformations/      # Pure functional (Table → Table)
+         input_adapters/       # Bring data IN
+         output_adapters/      # Take data OUT
+         database/             # Persistence, views, tracking
+Layer 1: data_primitives/      # Foundation models (Document, etc.)
+```
+
+**Key Pattern:** No `PipelineStage` abstraction—all transforms are pure functions.
+
+## Code Structure
+
+```
+src/egregora/
+├── cli/                      # Typer commands
+│   ├── main.py              # Main app (write, init, top, doctor)
+│   ├── read.py              # Reader agent commands
+│   └── runs.py              # Run tracking commands
+├── orchestration/            # Workflows (Layer 3)
+│   ├── write_pipeline.py    # Main pipeline coordination
+│   ├── context.py           # PipelineContext, PipelineRunParams
+│   └── factory.py           # Factory for creating pipeline components
+├── transformations/          # Pure functional (Layer 2)
+│   ├── windowing.py         # Window creation, checkpointing
+│   └── enrichment.py        # Enrichment transformations
+├── input_adapters/          # Layer 2
+│   ├── whatsapp/            # WhatsApp adapter package
+│   ├── iperon_tjro.py       # Brazilian judicial API adapter
+│   ├── self_reflection.py   # Re-ingest past posts adapter
+│   └── registry.py          # InputAdapterRegistry
+├── output_adapters/         # Layer 2
+│   ├── mkdocs/              # MkDocs output adapter
+│   ├── parquet/             # Parquet output adapter
+│   └── conventions.py       # Output conventions
+├── database/                # Layer 2
+│   ├── ir_schema.py         # All schema definitions (IR_MESSAGE_SCHEMA, etc.)
+│   ├── duckdb_manager.py    # DuckDBStorageManager
+│   ├── views.py             # View registry (daily_aggregates, etc.)
+│   ├── tracking.py          # Run tracking (INSERT+UPDATE)
+│   ├── sql.py               # SQLManager (Jinja2 templates)
+│   └── init.py              # Database initialization
+├── rag/                     # RAG implementation (Layer 2)
+│   ├── lancedb_backend.py   # LanceDB backend (async)
+│   ├── embedding_router.py  # Dual-queue embedding router
+│   ├── embeddings_async.py  # Async embedding API
+│   ├── backend.py           # RAGBackend protocol
+│   └── models.py            # Pydantic models (RAGQueryRequest, etc.)
+├── data_primitives/         # Layer 1
+│   ├── document.py          # Document, DocumentType, MediaAsset
+│   └── protocols.py         # OutputAdapter, InputAdapter protocols
+├── agents/                  # Pydantic-AI agents
+│   ├── writer.py            # Post generation agent
+│   ├── enricher.py          # URL/media enrichment agent
+│   ├── reader/              # Reader agent package
+│   ├── banner/              # Banner generation agent
+│   ├── tools/               # Agent tools
+│   └── registry.py          # AgentResolver, ToolRegistry
+├── privacy/                 # Anonymization
+│   ├── anonymizer.py        # Anonymization logic
+│   ├── detector.py          # PII detection
+│   ├── patterns.py          # Regex patterns for PII
+│   └── uuid_namespaces.py   # UUID namespace management
+├── config/                  # Pydantic V2 settings
+│   ├── settings.py          # EgregoraConfig (all settings classes)
+│   ├── config_validation.py # Date/timezone validation
+│   └── overrides.py         # ConfigOverrideBuilder
+└── utils/                   # Utility functions
+    ├── batch.py             # Batching utilities
+    ├── cache.py             # Caching utilities
+    └── ...                  # Many more utilities
+```
+
+## Input Adapters
+
+**Purpose**: Convert external data sources into the IR (Intermediate Representation) schema.
+
+**Available adapters:**
+
+- `WhatsAppAdapter`: Parse WhatsApp `.zip` exports
+- `IperonTJROAdapter`: Ingest Brazilian judicial records
+- `SelfReflectionAdapter`: Re-ingest past blog posts
+
+**Protocol:**
 
 ```python
-from egregora.ingestion import parse_whatsapp_export
+class InputAdapter(Protocol):
+    def read_messages(self) -> Iterator[dict[str, Any]]:
+        """Yield raw message dictionaries."""
+        ...
 
-df = parse_whatsapp_export("whatsapp-export.zip")
-# Columns: timestamp, author, message, media_type, media_path
+    def get_metadata(self) -> InputAdapterMetadata:
+        """Return adapter metadata."""
+        ...
 ```
 
-**Key Operations**:
+All adapters produce data conforming to `IR_MESSAGE_SCHEMA`.
 
-- Unzip WhatsApp export
-- Parse text format (handles multiple formats)
-- Extract timestamps, authors, messages
-- Detect media references
-- Convert to Ibis DataFrame
+## Privacy Layer
 
-## 2. Privacy
-
-**Module**: `egregora.privacy`
+**Module:** `egregora.privacy`
 
 Ensures real names never reach the LLM.
 
-```python
-from egregora.privacy import anonymize_dataframe, detect_pii
+**Key components:**
 
-# Convert names to deterministic UUIDs
-df_anon = anonymize_dataframe(df)
+- `deterministic_author_uuid()`: Convert names to UUIDs
+- `detect_pii()`: Scan for phone numbers, emails, addresses
+- Namespace management: Scoped anonymity per chat/tenant
 
-# Scan for phone numbers, emails, addresses
-pii_results = detect_pii(df_anon)
-```
+**Process:**
 
-**Key Features**:
+1. Input adapter calls `deterministic_author_uuid()` during parsing
+2. Core pipeline validates anonymized IR
+3. LLM only sees UUIDs, never real names
+4. Reverse mapping stored locally (never sent to API)
 
-- **Deterministic UUIDs**: Same person always gets the same pseudonym
-- **PII Detection**: Scans for phone numbers, emails, addresses, etc.
-- **Opt-out Management**: Respects user privacy preferences
-- **Reversible**: Original names stored separately for local display
+## Transformations
 
-## 3. Augmentation
+**Module:** `egregora.transformations`
 
-**Module**: `egregora.augmentation`
+Pure functional transformations on Ibis tables.
 
-Adds context to conversations using LLMs.
+**Key functions:**
 
-```python
-from egregora.augmentation import enrich_urls, create_author_profiles
+- `create_windows()`: Group messages into time/count-based windows
+- `enrich_window()`: Add URL/media enrichments
+- `apply_privacy()`: Validate anonymization
 
-# Add descriptions for URLs and media
-df_enriched = enrich_urls(df_anon, gemini_client)
-
-# Generate author bios from conversations
-profiles = create_author_profiles(df_anon, gemini_client)
-```
-
-**Key Operations**:
-
-- **URL Enrichment**: LLM fetches and summarizes linked content
-- **Media Enrichment**: Describes images, videos, documents
-- **Author Profiling**: Generates bios from conversation patterns
-
-## 4. Knowledge
-
-**Module**: `egregora.knowledge`
-
-Builds persistent indexes for retrieval and analysis.
+**Pattern:**
 
 ```python
-from egregora.knowledge import embed_and_store, annotate_conversations
-
-# Embed messages and store in DuckDB vector store
-embed_and_store(df_enriched, gemini_client, db_conn)
-
-# Add metadata and threading information
-annotations = annotate_conversations(df_enriched)
+def transform(data: ibis.Table) -> ibis.Table:
+    """Pure function: Table → Table"""
+    return data.filter(...).mutate(...)
 ```
 
-**Components**:
+## RAG (Retrieval-Augmented Generation)
 
-- **RAG Store**: Vector embeddings in DuckDB with VSS extension
-- **Annotations**: Conversation metadata, threading, topics
-- **Rankings**: Elo-based content quality scoring
+**Module:** `egregora.rag`
 
-## 5. Generation
+LanceDB-based vector storage with dual-queue embedding router.
 
-**Module**: `egregora.generation`
+**Architecture:**
 
-LLM generates blog posts using tool calling.
+```mermaid
+graph LR
+    A[Documents] --> B[Embedding Router]
+    B --> C{Route}
+    C -->|Single Query| D[Single Endpoint]
+    C -->|Bulk Index| E[Batch Endpoint]
+    D --> F[LanceDB]
+    E --> F
+    F --> G[Vector Search]
+```
+
+**Key features:**
+
+- Async API (`async def index_documents`, `async def search`)
+- Dual-queue router: single endpoint (low-latency) + batch endpoint (high-throughput)
+- Automatic rate limit handling with exponential backoff
+- Asymmetric embeddings: `RETRIEVAL_DOCUMENT` vs `RETRIEVAL_QUERY`
+- Configurable indexable document types
+
+**Configuration:**
+
+```yaml
+rag:
+  enabled: true
+  top_k: 5
+  min_similarity_threshold: 0.7
+  indexable_types: ["POST"]
+  embedding_max_batch_size: 100
+  embedding_timeout: 60.0
+```
+
+**API:**
 
 ```python
-from egregora.generation import generate_posts
+from egregora.rag import index_documents, search, RAGQueryRequest
 
-posts = generate_posts(
-    df_enriched,
-    gemini_client,
-    rag_store,
-    period="weekly"
-)
-# Returns 0-N posts per period
+# Index documents (async)
+await index_documents([doc1, doc2])
+
+# Search (async)
+request = RAGQueryRequest(text="search query", top_k=5)
+response = await search(request)
 ```
 
-**Key Features**:
+## Agents
 
-- **Tool Calling**: LLM uses `write_post()` function to create articles
-- **RAG Context**: Retrieves similar past posts for consistency
-- **Editorial Freedom**: LLM decides how many posts and what to write
-- **Structured Output**: Pydantic models ensure valid frontmatter
+Egregora uses Pydantic-AI agents for LLM interactions.
 
-## 6. Initialization
+### Writer Agent
 
-**Module**: `egregora.init`
+**Module:** `egregora.agents.writer`
 
-Creates the MkDocs site structure used to publish generated content.
+Generates blog posts from conversation windows.
+
+**Input:** Conversation window as XML (via `conversation.xml.jinja`)
+
+**Output:** Markdown blog post with frontmatter
+
+**Tools:** RAG search for retrieving similar past content
+
+**Caching:** L3 cache with semantic hashing (zero-cost re-runs for unchanged windows)
+
+### Enricher Agent
+
+**Module:** `egregora.agents.enricher`
+
+Extracts and enriches URLs and media from messages.
+
+**Capabilities:**
+
+- URL enrichment: Extract title, description, context
+- Media enrichment: Generate captions for images/videos
+- Text enrichment: Extract key points from long text
+
+**Caching:** L1 cache for enrichment results (asset-level)
+
+### Reader Agent
+
+**Module:** `egregora.agents.reader`
+
+Post quality evaluation and ranking using ELO system.
+
+**Architecture:**
+
+- Pairwise post comparison (A vs B)
+- ELO rating updates based on comparison outcomes
+- Persistent ratings in SQLite database
+- Comparison history tracking
+
+**Usage:**
+
+```bash
+egregora read rank ./docs/posts
+egregora top --limit=10
+```
+
+### Banner Agent
+
+**Module:** `egregora.agents.banner`
+
+Generates cover images for blog posts using Gemini Imagen.
+
+**Input:** Post title, summary, style instructions
+
+**Output:** PNG image saved to `docs/assets/banners/`
+
+## Output Adapters
+
+**Purpose**: Persist generated documents to various formats.
+
+**Available adapters:**
+
+- `MkDocsAdapter`: Create MkDocs site structure
+- `ParquetAdapter`: Export to Parquet files
+
+**Protocol:**
 
 ```python
-from pathlib import Path
+class OutputAdapter(Protocol):
+    def persist(self, document: Document) -> None:
+        """Persist document (idempotent overwrites)."""
+        ...
 
-from egregora.init import ensure_mkdocs_project
-
-# Ensure site scaffolding exists and receive docs directory path
-docs_dir, created = ensure_mkdocs_project(Path("my-blog/"))
+    def documents(self) -> Iterator[Document]:
+        """Lazy iteration for memory efficiency."""
+        ...
 ```
 
-**Scaffold Output**:
+## Database Management
 
+**Module:** `egregora.database`
+
+DuckDB for analytics and persistence.
+
+**Key components:**
+
+- `DuckDBStorageManager`: Context manager for database access
+- `SQLManager`: Jinja2-based SQL template rendering
+- View Registry: Reusable DuckDB views (e.g., `daily_aggregates_view`)
+- Run Tracking: INSERT+UPDATE pattern for pipeline runs
+
+**Views:**
+
+```python
+from egregora.database.views import views, daily_aggregates_view
+
+# Get view
+stats = daily_aggregates_view(messages_table)
+
+# Register custom view
+@views.register("my_view")
+def my_view_builder(table: Table) -> Table:
+    return table.filter(...)
 ```
-my-blog/
-├── mkdocs.yml
-├── docs/
-│   ├── index.md
-│   ├── about.md
-│   └── posts/
-│       ├── 2025-01-15-first-post.md
-│       └── 2025-01-22-second-post.md
-└── .egregora/
-    ├── egregora.db      # RAG vectors, annotations
-    └── cache/           # LLM response cache
+
+## Tiered Caching
+
+Three-tier cache system for cost reduction:
+
+- **L1 Cache**: Asset enrichment results (URLs, media)
+- **L2 Cache**: RAG search results with index metadata invalidation
+- **L3 Cache**: Writer output with semantic hashing
+
+**CLI:**
+
+```bash
+egregora write export.zip --refresh=writer  # Invalidate L3
+egregora write export.zip --refresh=all     # Full rebuild
 ```
 
 ## Data Flow
 
-### Ibis DataFrames
+### Ibis Everywhere
 
 All data flows through Ibis DataFrames:
 
 ```python
-from egregora.core.schema import CONVERSATION_SCHEMA
+# Input adapter → Ibis Table
+messages = adapter.read_messages()
 
-# All DataFrames follow defined schemas
-df: ibis.Table = ibis.memtable(data, schema=CONVERSATION_SCHEMA)
+# Transformations → Ibis Table
+windows = create_windows(messages)
 
 # DuckDB backend for analytics
-connection = ibis.duckdb.connect("egregora.db")
+with DuckDBStorageManager() as storage:
+    storage.write_table(windows, "windows")
 ```
 
-### Schemas
+### Schema Validation
 
-**Ephemeral** (in-memory transformations):
+**Central schema:** `database/ir_schema.py`
 
-- `CONVERSATION_SCHEMA`: Messages with timestamps, authors, content
-- `ENRICHMENT_SCHEMA`: URL/media descriptions
+All stages preserve `IR_MESSAGE_SCHEMA` core columns:
 
-**Persistent** (DuckDB tables):
+- `message_id`: Unique identifier
+- `window_id`: Window assignment
+- `timestamp`: UTC timestamp
+- `author_uuid`: Anonymized author
+- `content`: Message text
+- `media_type`: Media type (if any)
+- `media_path`: Media path (if any)
 
-- `RAG_CHUNKS_SCHEMA`: Embedded message chunks with vectors
-- `ANNOTATIONS_SCHEMA`: Conversation metadata
-- `ELO_RATINGS_SCHEMA`: Content quality scores
+**Validation:**
 
-## Feedback Loop
+```python
+from egregora.database.validation import validate_ir_schema
 
-The knowledge stage creates a feedback loop:
+def transform(data: Table) -> Table:
+    validate_ir_schema(data)  # Manual validation
+    result = data.filter(...)
+    return result
+```
 
-1. Generate initial posts
-2. Embed posts into RAG store
-3. Future generations retrieve similar posts
-4. Ensures consistency and evolution
+## Design Principles
 
-## Why Staged Pipeline?
-
-Traditional ETL (Extract-Transform-Load) doesn't fit because:
-
-- **Feedback Loops**: RAG indexes posts for future use
-- **Stateful Operations**: Knowledge stage persists data
-- **Multiple Outputs**: Not just "loading" data somewhere
-
-Staged pipeline better represents:
-
-- Clear separation of concerns
-- Explicit dependencies between stages
-- Feedback and iteration
-- Mixed ephemeral/persistent data
+✅ **Privacy-First:** Anonymize BEFORE LLM (critical invariant)
+✅ **Ibis Everywhere:** DuckDB tables, pandas only at boundaries
+✅ **Functional Transforms:** `Table → Table` (no classes)
+✅ **Schemas as Contracts:** All stages preserve `IR_MESSAGE_SCHEMA`
+✅ **Simple Default:** Full rebuild (`--resume` for incremental)
+✅ **Alpha Mindset:** Clean breaks, no backward compatibility
 
 ## Technology Stack
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
 | DataFrames | Ibis | Unified data manipulation API |
-| Database | DuckDB | Analytics + vector search (VSS) |
+| Database | DuckDB | Analytics + storage |
+| Vector Store | LanceDB | RAG vector search |
 | LLM | Google Gemini | Content generation |
 | Embeddings | Gemini Embeddings | Vector search |
-| Site | MkDocs | Static site generation |
-| Cache | diskcache | Response caching |
+| Site Generator | MkDocs | Static site generation |
 | CLI | Typer | Command-line interface |
+| Package Manager | uv | Modern Python tooling |
 
 ## Performance Characteristics
 
-- **Stateless**: Each run is independent (except RAG/annotations)
+- **Stateless Runs**: Each run is independent (except RAG/annotations)
 - **Lazy Evaluation**: Ibis defers execution until needed
 - **Batching**: Embeddings and enrichments are batched
-- **Caching**: LLM responses cached on disk
+- **Caching**: Three-tier cache (L1: enrichment, L2: RAG, L3: writer)
 - **Vectorized**: DuckDB enables fast analytics
+- **Async RAG**: Full async API for embedding and search
 
 ## Next Steps
 
 - [Privacy Model](privacy.md) - Deep dive on anonymization
 - [Knowledge Base](knowledge.md) - RAG and vector search
 - [Content Generation](generation.md) - LLM writer internals
+- [Project Structure](../development/structure.md) - Detailed code organization

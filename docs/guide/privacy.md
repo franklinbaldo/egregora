@@ -124,23 +124,17 @@ Re-enable participation:
 Configure privacy strictness:
 
 ```bash
-# Maximum privacy (no enrichment, exact UUIDs)
-egregora process export.zip \
-  --anonymize \
-  --detect-pii \
-  --no-enrich \
-  --no-profile
+# Maximum privacy (no enrichment)
+egregora write export.zip \
+  --no-enrichment
 
-# Balanced (anonymous but enriched context)
-egregora process export.zip \
-  --anonymize \
-  --enrich
+# Balanced (anonymous with enrichment enabled)
+egregora write export.zip \
+  --enable-enrichment
 
-# Minimal anonymization (use aliases, enrich all)
-egregora process export.zip \
-  --no-anonymize \
-  --enrich \
-  --profile
+# With custom timezone
+egregora write export.zip \
+  --timezone='America/New_York'
 ```
 
 ## Data Storage
