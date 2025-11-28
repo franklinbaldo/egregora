@@ -49,9 +49,9 @@ export GOOGLE_API_KEY="your-api-key-here"
 ## Step 4: Process the Export
 
 ```bash
-uvx --from git+https://github.com/franklinbaldo/egregora egregora process \
+uvx --from git+https://github.com/franklinbaldo/egregora egregora write \
   whatsapp-export.zip \
-  --output=. \
+  --output-dir=. \
   --timezone='America/New_York'
 ```
 
@@ -59,14 +59,14 @@ This will:
 
 1. Parse the WhatsApp export
 2. Anonymize all names (real names never reach the AI)
-3. Group messages into windows (default: 100 messages per window)
+3. Create conversation windows (default: 1 day per window)
 4. Generate blog posts using Gemini
 
 !!! info
     The first run may take a few minutes as it:
 
-    - Downloads DuckDB VSS extension (for vector search)
-    - Embeds all messages for RAG retrieval
+    - Builds the LanceDB vector index (for RAG retrieval)
+    - Embeds all messages for semantic search
     - Generates multiple blog posts
 
 ## Step 5: Preview Your Blog
@@ -83,10 +83,10 @@ Open [http://localhost:8000](http://localhost:8000) in your browser. 🎉
 
 Egregora processed your chat through multiple stages:
 
-1. **Ingestion**: Parsed WhatsApp `.zip` → structured DataFrame
+1. **Ingestion**: Parsed WhatsApp `.zip` → structured data in DuckDB
 2. **Privacy**: Replaced names with UUIDs (e.g., `john` → `a3f2b91c`)
-3. **Augmentation**: (Optional) Enriched URLs/media with descriptions
-4. **Knowledge**: Built RAG index for retrieving similar past posts
+3. **Enrichment**: (Optional) Enriched URLs/media with descriptions
+4. **Knowledge**: Built LanceDB RAG index for retrieving similar past posts
 5. **Generation**: Gemini generated 0-N blog posts per window
 6. **Publication**: Created markdown files in `docs/posts/`
 
@@ -98,7 +98,13 @@ Edit `mkdocs.yml` to change:
 
 - Site name, description, theme
 - Navigation structure
-- Egregora models and parameters
+
+Edit `.egregora/config.yml` to customize:
+
+- Models and parameters
+- RAG settings
+- Enrichment behavior
+- Pipeline configuration
 
 See [Configuration Guide](configuration.md) for details.
 
@@ -107,71 +113,93 @@ See [Configuration Guide](configuration.md) for details.
 Process another export or adjust windowing:
 
 ```bash
-egregora process another-export.zip --output=. --step-size=1 --step-unit=days
+# Daily windowing (default)
+egregora write another-export.zip --output-dir=. --step-size=1 --step-unit=days
+
+# Hourly windowing for active chats
+egregora write export.zip --step-size=4 --step-unit=hours
+
+# Message-based windowing
+egregora write export.zip --step-size=100 --step-unit=messages
 ```
 
-### Improve Existing Posts
+### Enable Enrichment
 
-Use the AI editor to refine posts:
+Use LLM to enrich URLs and media:
 
 ```bash
-egregora edit docs/posts/2025-01-15-my-post.md
+egregora write export.zip --enable-enrichment
 ```
 
 ### Rank Your Content
 
-Use Elo comparisons to identify your best posts:
+Use ELO comparisons to identify your best posts:
 
 ```bash
-egregora rank --site-dir=. --comparisons=50
+egregora read rank docs/posts/
+egregora top --limit=10
+```
+
+### Check Pipeline Runs
+
+View pipeline execution history:
+
+```bash
+egregora runs list
+egregora runs show <run_id>
 ```
 
 ## Common Options
 
 ```bash
-# Daily windowing instead of 100-message windows
-egregora process export.zip --step-size=1 --step-unit=days
+# Daily windowing instead of default
+egregora write export.zip --step-size=1 --step-unit=days
 
 # Enable URL/media enrichment
-egregora process export.zip --enrich
-
-# Use exact search (no VSS extension needed)
-egregora process export.zip --retrieval-mode=exact
+egregora write export.zip --enable-enrichment
 
 # Custom date range
-egregora process export.zip --start-date=2025-01-01 --end-date=2025-01-31
+egregora write export.zip --from-date=2025-01-01 --to-date=2025-01-31
 
 # Different model
-egregora process export.zip --model=models/gemini-flash-latest
+egregora write export.zip --model=google-gla:gemini-pro-latest
+
+# Incremental processing (resume previous run)
+egregora write export.zip --resume
+
+# Invalidate cache tiers
+egregora write export.zip --refresh=writer  # Regenerate posts
+egregora write export.zip --refresh=all     # Full rebuild
 ```
 
 ## Troubleshooting
-
-### "DuckDB VSS extension failed to load"
-
-In restricted environments, use exact search mode:
-
-```bash
-egregora process export.zip --retrieval-mode=exact
-```
-
-Or pre-install the VSS extension:
-
-```bash
-python -c "import duckdb; conn = duckdb.connect(); conn.execute('INSTALL vss'); conn.execute('LOAD vss')"
-```
 
 ### "No posts were generated"
 
 Check that:
 
-1. Your chat has enough messages (minimum varies by period)
+1. Your chat has enough messages (minimum varies by window size)
 2. The date range includes your messages
-3. Privacy settings allow content generation
+3. The window parameters are appropriate for your chat volume
 
 ### Rate Limiting
 
-If you hit API rate limits, Egregora will automatically retry with exponential backoff. You can also reduce batch sizes in the configuration.
+If you hit API rate limits, Egregora will automatically retry with exponential backoff. You can also configure quota limits in `.egregora/config.yml`:
+
+```yaml
+quota:
+  daily_llm_requests: 1000
+  per_second_limit: 1.0
+  concurrency: 5
+```
+
+### LanceDB Permission Issues
+
+In restricted environments, ensure `.egregora/lancedb/` is writable:
+
+```bash
+chmod -R u+w .egregora/lancedb/
+```
 
 ## Learn More
 
