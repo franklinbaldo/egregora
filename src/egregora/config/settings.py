@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from egregora.config.overrides import ConfigOverrideBuilder
 
@@ -107,6 +107,37 @@ class ModelSettings(BaseModel):
         description="Model for banner/cover image generation (Google GenAI format)",
     )
 
+    @field_validator("writer", "enricher", "enricher_vision", "ranking", "editor", "reader")
+    @classmethod
+    def validate_pydantic_model_format(cls, v: str) -> str:
+        """Validate Pydantic-AI model name format."""
+        if not v.startswith("google-gla:"):
+            msg = (
+                f"Invalid Pydantic-AI model format: {v!r}\n"
+                f"Expected format: 'google-gla:<model-name>'\n"
+                f"Examples:\n"
+                f"  - google-gla:gemini-flash-latest\n"
+                f"  - google-gla:gemini-2.0-flash-exp\n"
+                f"  - google-gla:gemini-1.5-pro"
+            )
+            raise ValueError(msg)
+        return v
+
+    @field_validator("embedding", "banner")
+    @classmethod
+    def validate_google_model_format(cls, v: str) -> str:
+        """Validate Google GenAI SDK model name format."""
+        if not v.startswith("models/"):
+            msg = (
+                f"Invalid Google GenAI model format: {v!r}\n"
+                f"Expected format: 'models/<model-name>'\n"
+                f"Examples:\n"
+                f"  - models/gemini-embedding-001\n"
+                f"  - models/gemini-2.5-flash-image"
+            )
+            raise ValueError(msg)
+        return v
+
 
 class RAGSettings(BaseModel):
     """Retrieval-Augmented Generation (RAG) configuration.
@@ -156,6 +187,17 @@ class RAGSettings(BaseModel):
         description="Maximum consecutive errors before failing (per endpoint)",
     )
 
+    @field_validator("top_k")
+    @classmethod
+    def validate_top_k(cls, v: int) -> int:
+        """Validate top_k is reasonable and warn if too high."""
+        if v > 15:
+            logger.warning(
+                f"RAG top_k={v} is unusually high. "
+                f"Consider values between 5-10 for better performance and relevance."
+            )
+        return v
+
 
 class WriterAgentSettings(BaseModel):
     """Blog post writer configuration."""
@@ -169,22 +211,69 @@ class WriterAgentSettings(BaseModel):
 class PrivacySettings(BaseModel):
     """Privacy and data protection settings (YAML configuration).
 
-    .. note::
-       Currently all privacy features (anonymization, PII detection) are always enabled.
-       This config section is reserved for future configurable privacy controls.
-
     .. warning::
-       This Pydantic model (for YAML config) has the same name as the dataclass in
-       ``egregora.privacy.config.PrivacySettings`` (for runtime policy). They are NOT
-       duplicates - they serve different purposes:
+       Disabling privacy features should only be done for public datasets
+       (e.g., judicial records, public archives, news articles).
 
-       - **This class**: YAML configuration placeholder (persisted to config.yml)
-       - **privacy.config.PrivacySettings**: Runtime policy with tenant isolation, PII
-         detection settings, and re-identification escrow (never persisted)
+       For private conversations, always keep privacy enabled to protect PII.
 
-       When privacy configuration becomes user-configurable, this class will hold the
-       YAML settings which get mapped to runtime PrivacySettings instances.
+    This Pydantic model (for YAML config) has the same name as the dataclass in
+    ``egregora.privacy.config.PrivacySettings`` (for runtime policy). They serve
+    different purposes:
+
+    - **This class**: YAML configuration (persisted to config.yml)
+    - **privacy.config.PrivacySettings**: Runtime policy with tenant isolation
     """
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable privacy features (anonymization, PII detection)",
+    )
+
+    pii_detection_enabled: bool = Field(
+        default=True,
+        description="Enable PII detection and warnings",
+    )
+
+    pii_action: Literal["warn", "redact", "skip"] = Field(
+        default="warn",
+        description=(
+            "Action on PII detection: "
+            "warn=log warning, redact=replace with [REDACTED], skip=skip message"
+        ),
+    )
+
+    anonymize_authors: bool = Field(
+        default=True,
+        description="Anonymize author names with deterministic UUIDs",
+    )
+
+    custom_pii_patterns: list[str] = Field(
+        default_factory=list,
+        description="Additional regex patterns for PII detection",
+    )
+
+    @model_validator(mode="after")
+    def validate_privacy_settings(self) -> PrivacySettings:
+        """Validate privacy settings and warn if disabled."""
+        if not self.enabled:
+            logger.warning(
+                "⚠️  Privacy features are DISABLED (privacy.enabled=false). "
+                "Only use for public datasets! Private conversations will NOT be anonymized."
+            )
+
+        if not self.anonymize_authors and self.enabled:
+            logger.warning(
+                "Author anonymization is disabled but privacy is enabled. "
+                "Author names will appear in output."
+            )
+
+        if not self.pii_detection_enabled and self.enabled:
+            logger.info(
+                "PII detection is disabled. No warnings will be shown for potential PII in content."
+            )
+
+        return self
 
 
 class EnrichmentSettings(BaseModel):
@@ -516,6 +605,39 @@ class EgregoraConfig(BaseModel):
         validate_assignment=True,  # Validate on attribute assignment
     )
 
+    @model_validator(mode="after")
+    def validate_cross_field(self) -> EgregoraConfig:
+        """Validate cross-field dependencies and warn about potential issues."""
+        # If RAG is enabled, ensure lancedb_dir is set
+        if self.rag.enabled and not self.paths.lancedb_dir:
+            msg = (
+                "RAG is enabled (rag.enabled=true) but paths.lancedb_dir is not set. "
+                "Set paths.lancedb_dir to a valid directory path."
+            )
+            raise ValueError(msg)
+
+        # Warn about very high max_prompt_tokens
+        if self.pipeline.max_prompt_tokens > 200_000:
+            logger.warning(
+                f"pipeline.max_prompt_tokens={self.pipeline.max_prompt_tokens} exceeds most model limits. "
+                "Consider using pipeline.use_full_context_window=true instead of setting a high token limit."
+            )
+
+        # Warn if use_full_context_window is enabled
+        if self.pipeline.use_full_context_window:
+            logger.info(
+                "pipeline.use_full_context_window=true. Using full model context window "
+                "(overrides max_prompt_tokens setting)."
+            )
+
+        # Check for deprecated feature flags
+        if self.features.ranking_enabled:
+            logger.warning(
+                "features.ranking_enabled is deprecated. Use reader.enabled instead."
+            )
+
+        return self
+
     @classmethod
     def from_cli_overrides(cls, base_config: EgregoraConfig, **cli_args: Any) -> EgregoraConfig:
         """Create a new config instance with CLI overrides applied.
@@ -612,8 +734,11 @@ def load_egregora_config(site_root: Path) -> EgregoraConfig:
 
     try:
         return EgregoraConfig(**data)
-    except ValidationError:
-        logger.exception("Validation failed for %s", config_path)
+    except ValidationError as e:
+        logger.error("Configuration validation failed for %s:", config_path)
+        for error in e.errors():
+            loc = " → ".join(str(l) for l in error["loc"])
+            logger.error("  %s: %s", loc, error["msg"])
         logger.warning("Creating default config due to validation error")
         return create_default_config(site_root)
 

@@ -604,6 +604,17 @@ egregora show reader-history [OPTIONS]
   --database PATH               Reader database path
 ```
 
+**`egregora config`** - Configuration management commands
+```bash
+egregora config validate [SITE_ROOT]   # Validate configuration file
+egregora config show [SITE_ROOT]       # Show current configuration
+
+# Examples:
+egregora config validate                    # Validate ./.egregora/config.yml
+egregora config validate ./my-blog          # Validate specific site
+egregora config show                        # Show current config as YAML
+```
+
 ## Agents
 
 Egregora uses four specialized Pydantic-AI agents:
@@ -862,8 +873,13 @@ writer:
     Additional instructions for the writer agent.
     Use this to customize writing style, tone, etc.
 
-# Privacy Configuration (placeholder)
-privacy: {}
+# Privacy Configuration
+privacy:
+  enabled: true                     # Enable privacy features (anonymization, PII detection)
+  pii_detection_enabled: true       # Enable PII detection and warnings
+  pii_action: warn                  # Action on PII: "warn", "redact", "skip"
+  anonymize_authors: true           # Anonymize author names with UUIDs
+  custom_pii_patterns: []           # Additional regex patterns for PII detection
 
 # Enrichment Configuration
 enrichment:
@@ -949,7 +965,7 @@ All configuration is defined using Pydantic V2 in `config/settings.py`:
 - **`ModelSettings`** - LLM model configuration
 - **`RAGSettings`** - RAG and embedding configuration
 - **`WriterAgentSettings`** - Writer agent customization
-- **`PrivacySettings`** - Privacy settings (placeholder)
+- **`PrivacySettings`** - Privacy and data protection settings
 - **`EnrichmentSettings`** - Enrichment behavior
 - **`PipelineSettings`** - Pipeline execution parameters
 - **`PathsSettings`** - File and directory paths
@@ -958,6 +974,24 @@ All configuration is defined using Pydantic V2 in `config/settings.py`:
 - **`ReaderSettings`** - Reader agent configuration
 - **`FeaturesSettings`** - Feature flags
 - **`QuotaSettings`** - LLM usage quotas
+
+### Configuration Validation
+
+Use `egregora config validate` to check your configuration:
+
+```bash
+# Validate configuration
+egregora config validate
+
+# Shows friendly error messages:
+❌ Configuration errors found:
+  models → writer: Invalid Pydantic-AI model format: 'gemini-flash'
+    Expected format: 'google-gla:<model-name>'
+
+# Shows warnings:
+⚠️  Warnings:
+  • RAG top_k=20 is high. Consider 5-10 for better performance.
+```
 
 ### Configuration Overrides
 
