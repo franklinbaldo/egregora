@@ -4,7 +4,7 @@ import ibis
 import pytest
 
 from egregora.privacy.anonymizer import anonymize_table
-from egregora.privacy.detector import PrivacyViolationError, validate_text_privacy
+from egregora.privacy.detector import validate_text_privacy
 
 
 def test_anonymize_table_disabled():
