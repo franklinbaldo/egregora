@@ -1,4 +1,5 @@
 """Test unicode marker detection improvements."""
+
 import re
 
 # Test media detection with unicode marker

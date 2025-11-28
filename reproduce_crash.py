@@ -1,4 +1,3 @@
-
 import contextlib
 
 import duckdb
@@ -20,9 +19,9 @@ def test_create_full_table() -> None:
     columns_sql = ", ".join(column_defs)
     create_sql = f"CREATE TABLE IF NOT EXISTS {quote_identifier(table_name)} ({columns_sql})"
 
-
     with contextlib.suppress(Exception):
         conn.execute(create_sql)
+
 
 if __name__ == "__main__":
     test_create_full_table()

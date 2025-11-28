@@ -1,4 +1,3 @@
-
 import re
 
 # Original regex
@@ -11,5 +10,3 @@ markdown_re_new = re.compile(r"(?:!\[|\[)[^\]]*\]\([^)]*?([^/)]+\.\w+)\)")
 text_image = "![Image](media/images/img-123.jpg)"
 text_video = "[Video](media/videos/vid-123.mp4)"
 text_link = "[Link](http://example.com/foo.html)"
-
-

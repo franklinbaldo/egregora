@@ -145,7 +145,7 @@ jobs:
                - 🟢 **MINOR:** Variable naming, style preferences (mention briefly or ignore)
 
             ## Egregora-Specific Checks
-            
+
             <claude_md>
             ${{ steps.collect.outputs.claude_md }}
             </claude_md>

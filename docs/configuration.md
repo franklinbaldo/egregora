@@ -13,12 +13,12 @@ Egregora uses Pydantic V2 for configuration with 13 settings classes:
 
     - Pydantic-AI agents expect provider-prefixed IDs like ``google-gla:gemini-flash-latest``
     - Direct Google GenAI SDK calls expect ``models/<name>`` identifiers
-    
+
 - [`RAGSettings`](#ragsettings) - Retrieval-Augmented Generation (RAG) configuration.
 
     Uses LanceDB for vector storage and similarity search.
     Embedding API uses dual-queue router for optimal throughput.
-    
+
 - [`WriterAgentSettings`](#writeragentsettings) - Blog post writer configuration.
 - [`PrivacySettings`](#privacysettings) - Privacy and data protection settings (YAML configuration).
 
@@ -37,22 +37,22 @@ Egregora uses Pydantic V2 for configuration with 13 settings classes:
 
        When privacy configuration becomes user-configurable, this class will hold the
        YAML settings which get mapped to runtime PrivacySettings instances.
-    
+
 - [`EnrichmentSettings`](#enrichmentsettings) - Enrichment settings for URLs and media.
 - [`PipelineSettings`](#pipelinesettings) - Pipeline execution settings.
 - [`PathsSettings`](#pathssettings) - Site directory paths configuration.
 
     All paths are relative to site_root (output directory).
     Provides defaults that match the standard .egregora/ structure.
-    
+
 - [`DatabaseSettings`](#databasesettings) - Database configuration for pipeline and observability.
 
     All values must be valid Ibis connection URIs (e.g. DuckDB, Postgres, SQLite).
-    
+
 - [`OutputSettings`](#outputsettings) - Output format configuration.
 
     Specifies which output format to use for generated content.
-    
+
 - [`ReaderSettings`](#readersettings) - Reader agent configuration for post evaluation and ranking.
 - [`FeaturesSettings`](#featuressettings) - Feature flags for experimental or optional functionality.
 - [`QuotaSettings`](#quotasettings) - Configuration for LLM usage budgets and concurrency.

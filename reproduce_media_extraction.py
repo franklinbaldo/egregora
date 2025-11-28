@@ -1,4 +1,3 @@
-
 import re
 
 from egregora.ops.media import WA_MEDIA_PATTERN, find_media_references

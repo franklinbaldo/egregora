@@ -1,9 +1,11 @@
 """Test profile link generation for mentions."""
+
 import re
 
 from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 
 WA_MENTION_PATTERN = re.compile(r"@\u2068([^\u2069]+)\u2069")
+
 
 def _convert_whatsapp_mentions_to_markdown(message: str, tenant_id: str, source: str) -> str:
     """Convert WhatsApp unicode-wrapped mentions to profile wikilinks."""
@@ -20,6 +22,7 @@ def _convert_whatsapp_mentions_to_markdown(message: str, tenant_id: str, source:
 
     # Replace unicode-wrapped mentions with profile links
     return WA_MENTION_PATTERN.sub(replace_mention, message)
+
 
 # Test cases
 tenant_id = "test-group"
