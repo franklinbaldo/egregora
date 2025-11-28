@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 2025-11-27 - MkDocs Scaffold Defaults
+
+#### Changed
+- **BREAKING:** Default posts directory created by `egregora init` moved from `docs/blog/posts` to `docs/posts`
+  - Existing sites remain valid; no migration is needed unless your automation assumes the old path
+  - New scaffolds use the flatter structure to match current MkDocs defaults
+
 ### 2025-11-27 - Async RAG Migration with Dual-Queue Embedding Router
 
 #### Changed
