@@ -275,7 +275,8 @@ User: "Can you review this PR? https://github.com/franklinbaldo/egregora/pull/60
 
 Claude workflow:
 1. Transform URL: https://github.com/franklinbaldo/egregora/pull/600.diff
-2. Fetch the diff using WebFetch
+2. Fetch the diff using Bash + curl:
+   curl -s https://github.com/franklinbaldo/egregora/pull/600.diff
 3. Analyze changes in plain text
 4. Provide code review feedback
 ```
@@ -289,7 +290,8 @@ User: "What does this file do? https://github.com/franklinbaldo/egregora/blob/ma
 
 Claude workflow:
 1. Transform to raw: https://raw.githubusercontent.com/franklinbaldo/egregora/main/src/egregora/privacy/anonymizer.py
-2. Fetch raw content
+2. Fetch raw content with curl:
+   curl -s https://raw.githubusercontent.com/franklinbaldo/egregora/main/src/egregora/privacy/anonymizer.py
 3. Analyze code structure
 4. Explain functionality
 ```
@@ -303,7 +305,8 @@ User: "What changed between main and this feature branch?"
 
 Claude workflow:
 1. Create compare URL: https://github.com/franklinbaldo/egregora/compare/main...feature-branch.diff
-2. Fetch diff
+2. Fetch diff with curl:
+   curl -s https://github.com/franklinbaldo/egregora/compare/main...feature-branch.diff
 3. Summarize changes by file
 4. Highlight key modifications
 ```
@@ -317,7 +320,8 @@ User: "What did commit dee113a change?"
 
 Claude workflow:
 1. Transform: https://github.com/franklinbaldo/egregora/commit/dee113a.patch
-2. Fetch patch (includes commit message + author)
+2. Fetch patch with curl (includes commit message + author):
+   curl -s https://github.com/franklinbaldo/egregora/commit/dee113a.patch
 3. Parse changes
 4. Explain purpose and impact
 ```
@@ -406,8 +410,8 @@ When a user shares a GitHub URL, use this strategy:
 2. **For plain text attempts:**
    - Identify URL type (PR, commit, file, etc.)
    - Transform to appropriate format (.diff, .patch, raw)
-   - Fetch the content
-   - If 403/error: Fall back to HTML
+   - Fetch the content with curl
+   - If 403/error: Fall back to HTML (curl the HTML page)
 
 3. **Analyze and respond**
 
@@ -418,8 +422,10 @@ User: "Check this PR: https://github.com/owner/repo/pull/42"
 Strategy:
 1. No fragment identifier → Try plain text
 2. Transform: https://github.com/owner/repo/pull/42.diff
-3. Fetch diff
-4. If 403: Fall back to https://github.com/owner/repo/pull/42 (HTML)
+3. Fetch diff with curl:
+   curl -sS https://github.com/owner/repo/pull/42.diff
+4. If 403: Fall back to HTML:
+   curl -sS https://github.com/owner/repo/pull/42
 5. Analyze and provide insights
 ```
 
@@ -429,7 +435,8 @@ User: "Look at this comment: https://github.com/owner/repo/pull/42#discussion_r1
 
 Strategy:
 1. Fragment identifier detected (#discussion_r12345) → Use HTML
-2. Fetch: https://github.com/owner/repo/pull/42
+2. Fetch with curl:
+   curl -sS https://github.com/owner/repo/pull/42
 3. Locate the specific review comment in HTML
 4. Provide context and analysis
 ```
@@ -507,8 +514,8 @@ Large PRs/commits may have truncated diffs:
 
 When plain text formats fail (403, 404, or other errors):
 
-1. **Try plain text first**: `{url}.diff` or `{url}.patch`
-2. **If 403/error occurs**: Fall back to HTML page fetch
+1. **Try plain text first**: Use curl to fetch `{url}.diff` or `{url}.patch`
+2. **If 403/error occurs**: Fall back to HTML page with curl
 3. **HTML advantages**:
    - Works for private repos you have access to
    - Includes review comments and discussion threads
@@ -519,39 +526,71 @@ When plain text formats fail (403, 404, or other errors):
    - May include UI elements
 
 **Example workflow:**
+```bash
+# User shares: https://github.com/owner/repo/pull/123
+
+# Attempt 1: Try .diff format
+curl -sS -f https://github.com/owner/repo/pull/123.diff
+# Result: 403 Forbidden (exits with error due to -f flag)
+
+# Attempt 2: Fallback to HTML
+curl -sS https://github.com/owner/repo/pull/123
+# Result: Success - includes code changes, comments, and discussion
 ```
-User shares: https://github.com/owner/repo/pull/123
 
-Attempt 1: https://github.com/owner/repo/pull/123.diff
-Result: 403 Forbidden
-
-Attempt 2: https://github.com/owner/repo/pull/123 (HTML)
-Result: Success - includes code changes, comments, and discussion
+**curl error handling pattern:**
+```bash
+# Try .diff, fallback to HTML on error
+curl -sS -f https://github.com/owner/repo/pull/123.diff || \
+  curl -sS https://github.com/owner/repo/pull/123
 ```
 
 ## Integration with Claude Code Tools
 
-### Use WebFetch for Content
+### Use Bash + curl for Content Fetching
+
+**IMPORTANT:** In this environment, use the Bash tool with `curl` instead of WebFetch.
 
 ```markdown
 Claude workflow:
 1. User shares: https://github.com/owner/repo/pull/123
 2. Transform: https://github.com/owner/repo/pull/123.diff
-3. WebFetch with prompt: "Extract the code changes"
+3. Fetch with Bash: curl -s https://github.com/owner/repo/pull/123.diff
 4. Analyze fetched diff
 5. Respond with insights
 ```
 
+**Example Bash commands:**
+```bash
+# Fetch PR diff
+curl -s https://github.com/owner/repo/pull/123.diff
+
+# Fetch commit patch
+curl -s https://github.com/owner/repo/commit/abc123.patch
+
+# Fetch raw file
+curl -s https://raw.githubusercontent.com/owner/repo/main/README.md
+
+# Fetch with error handling
+curl -sS -f https://github.com/owner/repo/pull/123.diff || echo "Failed to fetch"
+```
+
+**curl options:**
+- `-s` : Silent mode (no progress bar)
+- `-S` : Show errors even in silent mode
+- `-f` : Fail silently on HTTP errors (404, 403, etc.)
+- `-L` : Follow redirects
+
 ### Combine with Other Skills
 
 **With code review:**
-- Fetch `.diff` → analyze changes → provide feedback
+- Fetch `.diff` with curl → analyze changes → provide feedback
 
 **With documentation:**
-- Fetch raw markdown → check formatting → suggest improvements
+- Fetch raw markdown with curl → check formatting → suggest improvements
 
 **With testing:**
-- Fetch `.patch` → identify test coverage gaps → recommend tests
+- Fetch `.patch` with curl → identify test coverage gaps → recommend tests
 
 ## Quick Reference
 
@@ -597,8 +636,9 @@ When users share GitHub URLs:
 
 3. **Transform** to appropriate plain text format (.diff, .patch, raw)
 
-4. **Fetch** the content using WebFetch
-   - If 403/error → Fall back to HTML page
+4. **Fetch** the content using Bash + curl
+   - Use: `curl -sS {transformed_url}`
+   - If 403/error → Fall back to HTML page with curl
 
 5. **Analyze** the content and **respond** with insights
 

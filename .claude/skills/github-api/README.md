@@ -91,10 +91,12 @@ When a user shares a GitHub URL:
 1. **Check** for fragment identifiers (`#discussion_...`) → Use HTML if present
 2. **Identify** the URL type (PR, commit, file, etc.)
 3. **Transform** to plain text format (.diff, .patch, raw)
-4. **Fetch** using WebFetch tool
-5. **Handle errors** - If 403: Fall back to HTML
+4. **Fetch** using Bash + curl (e.g., `curl -sS {url}`)
+5. **Handle errors** - If 403: Fall back to HTML with curl
 6. **Analyze** the content
 7. **Respond** with insights
+
+**Important:** This skill uses the Bash tool with `curl` for fetching content, not WebFetch. This works reliably in restricted environments.
 
 ## Documentation
 
