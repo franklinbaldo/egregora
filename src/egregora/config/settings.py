@@ -221,6 +221,15 @@ class WriterAgentSettings(BaseModel):
     )
 
 
+# Import privacy enums early for use in privacy settings classes
+from egregora.constants import (  # noqa: E402
+    AuthorPrivacyStrategy,
+    MentionPrivacyStrategy,
+    PIIScope,
+    TextPIIStrategy,
+)
+
+
 class AgentPIISettings(BaseModel):
     """PII prevention settings for a specific agent (LLM-native).
 
@@ -415,13 +424,7 @@ class EnrichmentSettings(BaseModel):
     )
 
 
-from egregora.constants import (  # noqa: E402
-    AuthorPrivacyStrategy,
-    MentionPrivacyStrategy,
-    PIIScope,
-    TextPIIStrategy,
-    WindowUnit,
-)
+from egregora.constants import WindowUnit  # noqa: E402
 
 
 class PipelineSettings(BaseModel):

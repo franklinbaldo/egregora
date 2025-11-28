@@ -94,30 +94,45 @@ def test_config_privacy_settings_defaults():
     """Test privacy settings have secure defaults."""
     config = EgregoraConfig()
 
-    assert config.privacy.enabled is True
-    assert config.privacy.pii_detection_enabled is True
-    assert config.privacy.pii_action == "warn"
-    assert config.privacy.anonymize_authors is True
-    assert config.privacy.custom_pii_patterns == []
+    # Test new two-level privacy structure
+    assert config.privacy.structural.enabled is True
+    assert config.privacy.structural.author_strategy.value == "uuid_mapping"
+    assert config.privacy.pii_prevention.writer.enabled is True
+    assert config.privacy.pii_prevention.writer.scope.value == "all_pii"
+    assert config.privacy.pii_prevention.enricher.enabled is True
+
+    # Test backward compatibility
+    assert config.privacy.enabled is True  # Maps to structural.enabled
+    assert config.privacy.anonymize_authors is True  # Author strategy != NONE
 
 
 def test_config_privacy_settings_configurable():
     """Test privacy settings can be configured."""
     config = EgregoraConfig(
         privacy={
-            "enabled": False,
-            "pii_detection_enabled": False,
-            "pii_action": "redact",
-            "anonymize_authors": False,
-            "custom_pii_patterns": [r"\bCPF\b"],
+            "structural": {
+                "enabled": False,
+                "author_strategy": "none",
+            },
+            "pii_prevention": {
+                "writer": {
+                    "enabled": False,
+                },
+                "enricher": {
+                    "enabled": False,
+                },
+            },
         }
     )
 
-    assert config.privacy.enabled is False
-    assert config.privacy.pii_detection_enabled is False
-    assert config.privacy.pii_action == "redact"
-    assert config.privacy.anonymize_authors is False
-    assert len(config.privacy.custom_pii_patterns) == 1
+    assert config.privacy.structural.enabled is False
+    assert config.privacy.structural.author_strategy.value == "none"
+    assert config.privacy.pii_prevention.writer.enabled is False
+    assert config.privacy.pii_prevention.enricher.enabled is False
+
+    # Test backward compatibility
+    assert config.privacy.enabled is False  # Maps to structural.enabled
+    assert config.privacy.anonymize_authors is False  # Author strategy == NONE
 
 
 def test_config_rag_top_k_bounds():
@@ -163,7 +178,7 @@ def test_config_yaml_roundtrip(tmp_path: Path):
     config = EgregoraConfig(
         models={"writer": custom_model},
         rag={"enabled": False, "top_k": 10},
-        privacy={"enabled": False},
+        privacy={"structural": {"enabled": False}},
     )
 
     # Save to file
@@ -175,4 +190,5 @@ def test_config_yaml_roundtrip(tmp_path: Path):
     assert loaded.models.writer == custom_model
     assert loaded.rag.enabled is False
     assert loaded.rag.top_k == 10
-    assert loaded.privacy.enabled is False
+    assert loaded.privacy.structural.enabled is False
+    assert loaded.privacy.enabled is False  # Backward compat property
