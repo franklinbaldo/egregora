@@ -19,6 +19,7 @@ import ibis
 import ibis.common.exceptions
 from ibis.expr.types import Table
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2.exceptions import TemplateError, TemplateNotFound
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import (
@@ -290,8 +291,14 @@ def register_writer_tools(
                 )
                 return SearchMediaResult(results=media_items)
 
-            except Exception:
-                logger.exception("Failed to search media via RAG")
+            except (ConnectionError, TimeoutError) as exc:
+                logger.warning("RAG backend unavailable for media search: %s", exc)
+                return SearchMediaResult(results=[])
+            except ValueError as exc:
+                logger.warning("Invalid query for media search: %s", exc)
+                return SearchMediaResult(results=[])
+            except (AttributeError, KeyError) as exc:
+                logger.error("Malformed response from RAG media search: %s", exc)
                 return SearchMediaResult(results=[])
 
     @agent.tool
@@ -429,9 +436,15 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
         logger.info("Built RAG context with %d similar posts", len(response.hits))
         return context
 
-    except Exception:
-        logger.exception("Failed to build RAG context (non-critical)")
-        return ""  # Return empty string on error, don't fail the pipeline
+    except (ConnectionError, TimeoutError) as exc:
+        logger.warning("RAG backend unavailable, continuing without context: %s", exc)
+        return ""  # Non-critical: pipeline continues without RAG context
+    except ValueError as exc:
+        logger.warning("Invalid RAG query, continuing without context: %s", exc)
+        return ""
+    except (AttributeError, KeyError, TypeError) as exc:
+        logger.error("Malformed RAG response, continuing without context: %s", exc)
+        return ""
 
 
 def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
@@ -678,8 +691,11 @@ def _save_journal_to_file(  # noqa: PLR0913
             loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape(enabled_extensions=())
         )
         template = env.get_template(JOURNAL_TEMPLATE_NAME)
-    except Exception:
-        logger.exception("Failed to load journal template")
+    except TemplateNotFound as exc:
+        logger.error("Journal template not found: %s", exc)
+        return None
+    except (OSError, PermissionError) as exc:
+        logger.error("Cannot access template directory: %s", exc)
         return None
 
     now_utc = datetime.now(tz=UTC)
@@ -699,8 +715,11 @@ def _save_journal_to_file(  # noqa: PLR0913
             window_end=window_end_iso,
             total_tokens=total_tokens,
         )
-    except Exception:
-        logger.exception("Failed to render journal template")
+    except TemplateError as exc:
+        logger.error("Journal template rendering failed: %s", exc)
+        return None
+    except (TypeError, AttributeError) as exc:
+        logger.error("Invalid template data for journal: %s", exc)
         return None
     journal_content = journal_content.replace("../media/", "/media/")
 
@@ -721,8 +740,11 @@ def _save_journal_to_file(  # noqa: PLR0913
             source_window=window_label,
         )
         output_format.persist(doc)
-    except Exception:
-        logger.exception("Failed to write journal")
+    except (OSError, IOError, PermissionError) as exc:
+        logger.error("Failed to write journal to disk: %s", exc)
+        return None
+    except ValueError as exc:
+        logger.error("Invalid journal document: %s", exc)
         return None
     logger.info("Saved journal entry: %s", doc.document_id)
     return doc.document_id
@@ -1000,9 +1022,13 @@ def _index_new_content_in_rag(
         else:
             logger.debug("No new documents to index in RAG")
 
-    except Exception:
-        # Don't fail the pipeline if RAG indexing fails
-        logger.exception("Failed to index new content in RAG (non-critical)")
+    except (ConnectionError, TimeoutError, RuntimeError) as exc:
+        # Non-critical: Pipeline continues even if RAG indexing fails
+        logger.warning("RAG backend unavailable for indexing, skipping: %s", exc)
+    except (ValueError, TypeError) as exc:
+        logger.warning("Invalid document data for RAG indexing, skipping: %s", exc)
+    except (OSError, PermissionError) as exc:
+        logger.warning("Cannot access RAG storage, skipping indexing: %s", exc)
 
 
 def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function

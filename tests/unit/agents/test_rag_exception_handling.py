@@ -133,8 +133,8 @@ class TestPipelineRAGExceptionHandling:
         from egregora.orchestration.write_pipeline import _prepare_pipeline_data
 
         source = inspect.getsource(_prepare_pipeline_data)
-        # Should use broad exception handling (non-critical path)
-        assert "except Exception:" in source
+        # Should use exception handling for non-critical RAG indexing
+        assert "except (ConnectionError, TimeoutError)" in source or "except Exception:" in source
         # Should have RAG indexing code
         assert "from egregora.rag import index_documents" in source
         assert "index_documents(existing_docs)" in source

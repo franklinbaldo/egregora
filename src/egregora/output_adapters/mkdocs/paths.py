@@ -6,21 +6,10 @@ import logging
 from pathlib import Path
 from typing import Any
 
-# Legacy constants for backward compatibility
-DEFAULT_DOCS_DIR = "docs"
-DEFAULT_BLOG_DIR = "."
-PROFILES_DIR_NAME = "profiles"
-MEDIA_DIR_NAME = "media"
-
-
 logger = logging.getLogger(__name__)
 
 
 __all__ = [
-    "DEFAULT_BLOG_DIR",
-    "DEFAULT_DOCS_DIR",
-    "MEDIA_DIR_NAME",
-    "PROFILES_DIR_NAME",
     "compute_site_prefix",
     "derive_mkdocs_paths",
 ]

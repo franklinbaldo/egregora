@@ -180,8 +180,8 @@ def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
         summary = getattr(adapter, "content_summary", "")
         if callable(summary):
             summary = summary()
-    except Exception:  # noqa: BLE001
-        logger.debug("Adapter %s failed to provide content_summary", adapter)
+    except (AttributeError, TypeError) as exc:
+        logger.debug("Adapter %s failed to provide content_summary: %s", adapter, exc)
         summary = ""
 
     instructions: str | None = ""
@@ -189,8 +189,8 @@ def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
         instructions = getattr(adapter, "generation_instructions", "")
         if callable(instructions):
             instructions = instructions()
-    except Exception:
-        logger.exception("Failed to evaluate adapter generation instructions")
+    except (AttributeError, TypeError) as exc:
+        logger.warning("Failed to evaluate adapter generation instructions: %s", exc)
         instructions = ""
 
     return (summary or "").strip(), (instructions or "").strip()
@@ -245,8 +245,10 @@ def _process_single_window(
                 continue
             try:
                 output_sink.persist(media_doc)
-            except Exception:  # pragma: no cover - defensive
-                logger.exception("Failed to serve media document %s", media_doc.metadata.get("filename"))
+            except (OSError, IOError, PermissionError) as exc:  # pragma: no cover - defensive
+                logger.error("Failed to write media file %s: %s", media_doc.metadata.get("filename"), exc)
+            except ValueError as exc:  # pragma: no cover - defensive
+                logger.error("Invalid media document %s: %s", media_doc.metadata.get("filename"), exc)
 
     # Write posts
     resources = PipelineFactory.create_writer_resources(ctx)
@@ -1005,8 +1007,12 @@ def _prepare_pipeline_data(
                 logger.info("[green]✓ Indexed %d existing documents into RAG[/]", len(existing_docs))
             else:
                 logger.info("[dim]No existing documents to index[/]")
-        except Exception:
-            logger.exception("[yellow]⚠️ Failed to index existing documents into RAG (non-critical)[/]")
+        except (ConnectionError, TimeoutError) as exc:
+            logger.warning("[yellow]⚠️ RAG backend unavailable for indexing (non-critical): %s[/]", exc)
+        except (ValueError, TypeError) as exc:
+            logger.warning("[yellow]⚠️ Invalid document data for RAG indexing (non-critical): %s[/]", exc)
+        except (OSError, PermissionError) as exc:
+            logger.warning("[yellow]⚠️ Cannot access RAG storage for indexing (non-critical): %s[/]", exc)
 
     return PreparedPipelineData(
         messages_table=messages_table,
@@ -1137,8 +1143,10 @@ def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) ->
             logger.info("[green]✓ Statistics page generated[/]")
         else:
             logger.warning("Output format not initialized - cannot save statistics page")
-    except Exception:
-        logger.exception("[red]Failed to generate statistics page[/]")
+    except (OSError, IOError, PermissionError) as exc:
+        logger.error("[red]Failed to write statistics page: %s[/]", exc)
+    except ValueError as exc:
+        logger.error("[red]Invalid statistics page data: %s[/]", exc)
 
 
 def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, checkpoint_path: Path) -> None:
@@ -1270,8 +1278,10 @@ def _record_run_start(run_store: RunStore | None, run_id: uuid.UUID, started_at:
             stage="write",
             started_at=started_at,
         )
-    except Exception as exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
-        logger.debug("Failed to record run start: %s", exc)
+    except (OSError, PermissionError) as exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
+        logger.debug("Failed to record run start (database unavailable): %s", exc)
+    except ValueError as exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
+        logger.debug("Failed to record run start (invalid data): %s", exc)
 
 
 def _record_run_completion(
@@ -1313,8 +1323,10 @@ def _record_run_completion(
             total_profiles,
             num_windows,
         )
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("Failed to record run completion: %s", exc)
+    except (OSError, PermissionError) as exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
+        logger.debug("Failed to record run completion (database unavailable): %s", exc)
+    except ValueError as exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
+        logger.debug("Failed to record run completion (invalid data): %s", exc)
 
 
 def _record_run_failure(
@@ -1343,8 +1355,10 @@ def _record_run_failure(
             duration_seconds=duration_seconds,
             error=error_msg[:500],
         )
-    except Exception as tracking_exc:  # noqa: BLE001
-        logger.debug("Failed to record run failure: %s", tracking_exc)
+    except (OSError, PermissionError) as tracking_exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
+        logger.debug("Failed to record run failure (database unavailable): %s", tracking_exc)
+    except ValueError as tracking_exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
+        logger.debug("Failed to record run failure (invalid data): %s", tracking_exc)
 
 
 def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
@@ -1408,8 +1422,10 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             # Generate statistics page (non-critical, isolated)
             try:
                 _generate_statistics_page(dataset.messages_table, dataset.context)
-            except Exception:
-                logger.exception("[red]Failed to generate statistics page (non-critical)[/]")
+            except (OSError, IOError, PermissionError) as exc:
+                logger.warning("[red]Failed to write statistics page (non-critical): %s[/]", exc)
+            except ValueError as exc:
+                logger.warning("[red]Invalid statistics data (non-critical): %s[/]", exc)
 
             # Update run to completed
             _record_run_completion(run_store, run_id, started_at, results)
@@ -1417,8 +1433,8 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             logger.info("[bold green]🎉 Pipeline completed successfully![/]")
 
         except Exception as exc:
-            # Update run to failed
+            # Broad catch is intentional: record failure for any exception, then re-raise
             _record_run_failure(run_store, run_id, started_at, exc)
-            raise  # Re-raise original exception
+            raise  # Re-raise original exception to preserve error context
 
         return results
