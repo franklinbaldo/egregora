@@ -11,11 +11,14 @@ from typing import Any, TypedDict, Unpack
 
 import ibis
 
+from egregora.constants import AuthorPrivacyStrategy
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
+from egregora.input_adapters.privacy_config import AdapterPrivacyConfig
 from egregora.input_adapters.whatsapp.commands import EGREGORA_COMMAND_PATTERN
 from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
 from egregora.input_adapters.whatsapp.utils import convert_media_to_markdown, discover_chat_file
+from egregora.privacy.anonymizer import anonymize_table
 from egregora.utils.paths import slugify
 
 logger = logging.getLogger(__name__)
@@ -32,10 +35,29 @@ class DeliverMediaKwargs(TypedDict, total=False):
 
 
 class WhatsAppAdapter(InputAdapter):
-    """Source adapter for WhatsApp ZIP exports."""
+    """Source adapter for WhatsApp ZIP exports with granular privacy support."""
 
-    def __init__(self, *, author_namespace: uuid.UUID | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        author_namespace: uuid.UUID | None = None,
+        config: Any | None = None,
+    ) -> None:
+        """Initialize WhatsApp adapter with optional privacy configuration.
+
+        Args:
+            author_namespace: Namespace for deterministic UUID generation
+            config: EgregoraConfig for privacy settings (optional)
+        """
         self._author_namespace = author_namespace
+        self._config = config
+
+        # Build adapter-specific privacy config
+        if config is not None and config.privacy.structural.enabled:
+            self._privacy_config = AdapterPrivacyConfig.from_egregora_config(config)
+        else:
+            # Privacy disabled or no config - use NONE strategies
+            self._privacy_config = AdapterPrivacyConfig.disabled()
 
     @property
     def source_name(self) -> str:
@@ -84,7 +106,7 @@ class WhatsAppAdapter(InputAdapter):
         messages_table = parse_source(
             export,
             timezone=timezone,
-            expose_raw_author=True,
+            expose_raw_author=True,  # Always expose raw initially
         )
 
         @ibis.udf.scalar.python
@@ -93,8 +115,39 @@ class WhatsAppAdapter(InputAdapter):
 
         messages_table = messages_table.mutate(text=convert_media(messages_table.text))
 
+        # Apply privacy strategies based on configuration
+        if self._config is not None and self._config.privacy.structural.enabled:
+            messages_table = self._apply_privacy(messages_table)
+
         logger.debug("Parsed WhatsApp export with %s messages", messages_table.count().execute())
         return messages_table
+
+    def _apply_privacy(self, table: ibis.Table) -> ibis.Table:
+        """Apply granular privacy strategies to messages table.
+
+        Args:
+            table: Messages table with raw author data
+
+        Returns:
+            Table with privacy strategies applied
+        """
+        # Apply author anonymization strategy
+        if self._privacy_config.author_strategy != AuthorPrivacyStrategy.NONE:
+            # For now, use existing anonymize_table for UUID_MAPPING
+            # TODO: Implement other strategies (FULL_REDACTION, ROLE_BASED)
+            if self._privacy_config.author_strategy == AuthorPrivacyStrategy.UUID_MAPPING:
+                table = anonymize_table(table, enabled=True)
+            else:
+                logger.warning(
+                    "Author strategy %s not yet implemented, falling back to UUID_MAPPING",
+                    self._privacy_config.author_strategy,
+                )
+                table = anonymize_table(table, enabled=True)
+
+        # TODO: Apply mention strategy
+        # TODO: Apply phone/email PII strategies
+
+        return table
 
     def deliver_media(self, media_reference: str, **kwargs: Unpack[DeliverMediaKwargs]) -> Document | None:
         """Deliver media file from WhatsApp ZIP as a Document."""
