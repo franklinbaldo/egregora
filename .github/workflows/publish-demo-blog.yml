@@ -37,14 +37,11 @@ jobs:
         run: uv sync --all-extras --dev
 
       # ──────────────────────────────────────────────────────────────
-      # 1. Download your latest WhatsApp export (CHANGE THIS URL!)
+      # 1. Use test fixture WhatsApp export (for demo)
       # ──────────────────────────────────────────────────────────────
-      - name: Download latest chat export
+      - name: Prepare chat export
         run: |
-          curl -fsSL -o chat.zip \
-            "https://your-real-secure-link.com/whatsapp/latest.zip"
-        env:
-          DOWNLOAD_TOKEN: ${{ secrets.CHAT_DOWNLOAD_TOKEN }}  # optional
+          cp "tests/fixtures/Conversa do WhatsApp com Teste.zip" chat.zip
 
       # ──────────────────────────────────────────────────────────────
       # 2. FULL CACHING – this makes daily runs almost free
@@ -92,7 +89,7 @@ jobs:
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: |
-          uv run egregora warm-cache chat.zip || true
+          uv run egregora warm-cache chat.zip 2>/dev/null || true
 
       # ──────────────────────────────────────────────────────────────
       # 4. Save caches for next run
