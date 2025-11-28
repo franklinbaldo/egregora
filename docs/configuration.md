@@ -226,7 +226,7 @@ Site directory paths configuration.
 | `cache_dir` | `str` | `".egregora/.cache"` | API response cache |
 | `prompts_dir` | `str` | `".egregora/prompts"` | Custom prompt overrides |
 | `docs_dir` | `str` | `"docs"` | Documentation/content directory |
-| `posts_dir` | `str` | `"blog/posts"` | Blog posts directory |
+| `posts_dir` | `str` | `"posts"` | Blog posts directory |
 | `profiles_dir` | `str` | `"profiles"` | Author profiles directory |
 | `media_dir` | `str` | `"media"` | Media files (images, videos) directory |
 | `journal_dir` | `str` | `"journal"` | Agent execution journals directory |
