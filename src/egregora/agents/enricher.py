@@ -147,6 +147,7 @@ class EnrichmentRuntimeContext:
     target_table: str | None = None
     quota: QuotaTracker | None = None
     usage_tracker: UsageTracker | None = None
+    pii_prevention: dict[str, Any] | None = None  # LLM-native PII prevention settings
 
 
 # ---------------------------------------------------------------------------
@@ -251,6 +252,7 @@ async def _run_url_enrichment_async(
     agent: Agent[UrlEnrichmentDeps, EnrichmentOutput],
     url: str,
     prompts_dir: Path | None,
+    pii_prevention: dict[str, Any] | None = None,
 ) -> EnrichmentOutput:
     """Run URL enrichment asynchronously."""
     url_str = str(url)
@@ -263,6 +265,7 @@ async def _run_url_enrichment_async(
         mode="url_user",
         prompts_dir=prompts_dir,
         sanitized_url=sanitized_url,
+        pii_prevention=pii_prevention,
     )
 
     async def call() -> AgentRunResult[EnrichmentOutput]:
@@ -285,6 +288,7 @@ async def _run_media_enrichment_async(  # noqa: PLR0913
     binary_content: BinaryContent | None = None,
     file_path: Path | None = None,
     media_path: str | None = None,
+    pii_prevention: dict[str, Any] | None = None,
 ) -> EnrichmentOutput:
     """Run media enrichment asynchronously."""
     if binary_content is None and file_path is None:
@@ -306,6 +310,7 @@ async def _run_media_enrichment_async(  # noqa: PLR0913
         prompts_dir=prompts_dir,
         sanitized_filename=sanitized_filename,
         sanitized_mime=sanitized_mime,
+        pii_prevention=pii_prevention,
     )
 
     payload = binary_content or load_file_as_binary_content(file_path)
@@ -434,7 +439,9 @@ async def _process_url_task(  # noqa: PLR0913
             try:
                 if context.quota:
                     context.quota.reserve(1)
-                output_data, usage = await _run_url_enrichment_async(agent, url, prompts_dir)
+                output_data, usage = await _run_url_enrichment_async(
+                    agent, url, prompts_dir, pii_prevention=context.pii_prevention
+                )
                 if context.usage_tracker:
                     context.usage_tracker.record(usage)
                 markdown = output_data.markdown
@@ -515,6 +522,7 @@ async def _process_media_task(  # noqa: PLR0913
                     prompts_dir=prompts_dir,
                     binary_content=binary,
                     media_path=media_doc.suggested_path,
+                    pii_prevention=context.pii_prevention,
                 )
                 if context.usage_tracker:
                     context.usage_tracker.record(usage)

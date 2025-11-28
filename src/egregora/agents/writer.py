@@ -472,6 +472,7 @@ class WriterContext:
     custom_instructions: str
     source_context: str
     date_label: str
+    pii_prevention: dict[str, Any] | None = None  # LLM-native PII prevention settings
 
     @property
     def template_context(self) -> dict[str, Any]:
@@ -487,6 +488,7 @@ class WriterContext:
             "source_context": self.source_context,
             "date": self.date_label,
             "enable_memes": False,
+            "pii_prevention": self.pii_prevention,
         }
 
 
@@ -540,6 +542,17 @@ def _build_writer_context(  # noqa: PLR0913
             filter(None, [custom_instructions, adapter_generation_instructions])
         )
 
+    # Build PII prevention context for LLM-native privacy protection
+    pii_settings = config.privacy.pii_prevention.writer
+    pii_prevention = None
+    if pii_settings.enabled:
+        pii_prevention = {
+            "enabled": True,
+            "scope": pii_settings.scope.value,
+            "custom_definition": pii_settings.custom_definition if pii_settings.scope.value == "custom" else None,
+            "apply_to_journals": pii_settings.apply_to_journals,
+        }
+
     return WriterContext(
         conversation_xml=conversation_xml,
         rag_context=rag_context,
@@ -550,6 +563,7 @@ def _build_writer_context(  # noqa: PLR0913
         custom_instructions=custom_instructions,
         source_context=adapter_content_summary,
         date_label=window_label,
+        pii_prevention=pii_prevention,
     )
 
 
