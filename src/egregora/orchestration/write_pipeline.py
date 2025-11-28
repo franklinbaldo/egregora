@@ -560,7 +560,9 @@ def _perform_enrichment(
         pii_prevention = {
             "enabled": True,
             "scope": pii_settings.scope.value,
-            "custom_definition": pii_settings.custom_definition if pii_settings.scope.value == "custom" else None,
+            "custom_definition": pii_settings.custom_definition
+            if pii_settings.scope.value == "custom"
+            else None,
         }
 
     enrichment_context = EnrichmentRuntimeContext(
@@ -1372,7 +1374,6 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
     except TypeError:
         # Fallback for adapters that don't accept config parameter
         adapter = adapter_cls()
-
 
     # Generate run ID and timestamp for tracking
     run_id = run_params.run_id
