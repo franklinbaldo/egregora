@@ -8,42 +8,16 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from google.api_core import exceptions as google_exceptions
-from google.genai import errors as genai_errors
 from google.genai import types as genai_types
-from tenacity import (
-    RetryCallState,
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_random_exponential,
-)
+from tenacity import RetryCallState, retry
 from tqdm import tqdm
 
 from egregora.config import EMBEDDING_DIM
-
-# utils/genai.py was removed; logic should be migrated or referenced from correct location
-# Assuming simple sleep/retry are acceptable replacements here, or they should be in utils
+from egregora.utils.retry import BATCH_RETRY_KWARGS
 
 T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
-
-
-# New retry implementation using tenacity
-_RETRYABLE_ERRORS = (
-    google_exceptions.ResourceExhausted,
-    google_exceptions.ServiceUnavailable,
-    google_exceptions.InternalServerError,
-    google_exceptions.GatewayTimeout,
-    # google-genai v1 errors
-    genai_errors.ServerError,
-    # Note: ClientError covers 429 but also 400, so we might want to be more specific later
-    # For now, we only retry ServerError (5xx) from the new SDK
-)
-_MAX_RETRIES = 5
-_INITIAL_WAIT_SECONDS = 2.0
-_MAX_WAIT_SECONDS = 60.0
 
 
 def _log_before_retry(retry_state: RetryCallState) -> None:
@@ -56,12 +30,7 @@ def _log_before_retry(retry_state: RetryCallState) -> None:
     )
 
 
-@retry(
-    stop=stop_after_attempt(_MAX_RETRIES),
-    wait=wait_random_exponential(min=_INITIAL_WAIT_SECONDS, max=_MAX_WAIT_SECONDS),
-    before_sleep=_log_before_retry,
-    retry=retry_if_exception_type(_RETRYABLE_ERRORS),
-)
+@retry(**BATCH_RETRY_KWARGS, before_sleep=_log_before_retry)
 def call_with_retries_sync[T](func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
     """Execute a synchronous function with exponential backoff and jitter.
 

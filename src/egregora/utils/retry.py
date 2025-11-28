@@ -1,24 +1,28 @@
 from __future__ import annotations
 
-"""Lightweight tenacity-backed retry helpers."""
+"""Shared retry configuration for tenacity-based retries.
 
-from collections.abc import Awaitable, Callable, Iterable
-from typing import Any, TypeVar
+This module exports configuration constants for consistent retry behavior across the codebase.
+Use tenacity decorators directly with these constants instead of wrapper functions.
+
+Example:
+    from egregora.utils.retry import RETRYABLE_EXCEPTIONS, DEFAULT_RETRY_KWARGS
+    from tenacity import retry
+
+    @retry(**DEFAULT_RETRY_KWARGS)
+    def my_function():
+        ...
+"""
 
 from google.api_core import exceptions as google_exceptions
 from google.genai import errors as genai_errors
 from pydantic_ai.exceptions import UnexpectedModelBehavior
-from tenacity import AsyncRetrying, Retrying, retry_if_exception, stop_after_attempt, wait_random_exponential
+from tenacity import retry_if_exception_type, stop_after_attempt, wait_random_exponential
 
-RetryableException = UnexpectedModelBehavior
-
-T = TypeVar("T")
-
-_DEFAULT_MAX_ATTEMPTS = 3
-_DEFAULT_INITIAL_DELAY = 1.0
-_DEFAULT_MAX_DELAY = 10.0
-_DEFAULT_RETRY_EXCEPTIONS: tuple[type[BaseException], ...] = (
-    RetryableException,
+# Exceptions that should trigger a retry
+RETRYABLE_EXCEPTIONS = (
+    # PydanticAI exceptions
+    UnexpectedModelBehavior,
     # Google API Core exceptions (used by google-genai and other Google APIs)
     google_exceptions.ResourceExhausted,
     google_exceptions.ServiceUnavailable,
@@ -27,88 +31,33 @@ _DEFAULT_RETRY_EXCEPTIONS: tuple[type[BaseException], ...] = (
     # google-genai v1 errors
     genai_errors.ServerError,
 )
-_DEFAULT_RETRY_STATUSES: tuple[str, ...] = ("RESOURCE_EXHAUSTED",)
 
+# Default retry configuration
+DEFAULT_MAX_ATTEMPTS = 3
+DEFAULT_INITIAL_DELAY = 1.0
+DEFAULT_MAX_DELAY = 10.0
 
-def _build_retry_predicate(
-    retry_on: Iterable[type[BaseException]] = _DEFAULT_RETRY_EXCEPTIONS,
-    retry_on_statuses: Iterable[str] = _DEFAULT_RETRY_STATUSES,
-):
-    status_allow_list = {status.upper() for status in retry_on_statuses}
+# Pre-configured retry kwargs for common use cases
+DEFAULT_RETRY_KWARGS = {
+    "stop": stop_after_attempt(DEFAULT_MAX_ATTEMPTS),
+    "wait": wait_random_exponential(multiplier=DEFAULT_INITIAL_DELAY, max=DEFAULT_MAX_DELAY),
+    "retry": retry_if_exception_type(RETRYABLE_EXCEPTIONS),
+    "reraise": True,
+}
 
-    def _predicate(exc: BaseException) -> bool:
-        status = getattr(exc, "status", None)
-        if isinstance(status, str) and status.upper() in status_allow_list:
-            return True
+# Aggressive retry for batch operations
+BATCH_RETRY_KWARGS = {
+    "stop": stop_after_attempt(5),
+    "wait": wait_random_exponential(min=2.0, max=60.0),
+    "retry": retry_if_exception_type(RETRYABLE_EXCEPTIONS),
+    "reraise": True,
+}
 
-        return any(isinstance(exc, exc_type) for exc_type in retry_on)
-
-    return retry_if_exception(_predicate)
-
-
-def _build_retry_kwargs(
-    *,
-    max_attempts: int = _DEFAULT_MAX_ATTEMPTS,
-    initial_delay: float = _DEFAULT_INITIAL_DELAY,
-    max_delay: float = _DEFAULT_MAX_DELAY,
-    retry_on: Iterable[type[BaseException]] = _DEFAULT_RETRY_EXCEPTIONS,
-    retry_on_statuses: Iterable[str] = _DEFAULT_RETRY_STATUSES,
-) -> dict[str, Any]:
-    return {
-        "stop": stop_after_attempt(max_attempts),
-        "wait": wait_random_exponential(multiplier=initial_delay, max=max_delay),
-        "retry": _build_retry_predicate(retry_on, retry_on_statuses),
-        "reraise": True,
-    }
-
-
-def retry_sync[T](
-    func: Callable[[], T],
-    *,
-    max_attempts: int = _DEFAULT_MAX_ATTEMPTS,
-    initial_delay: float = _DEFAULT_INITIAL_DELAY,
-    max_delay: float = _DEFAULT_MAX_DELAY,
-    retry_on: Iterable[type[BaseException]] = _DEFAULT_RETRY_EXCEPTIONS,
-    retry_on_statuses: Iterable[str] = _DEFAULT_RETRY_STATUSES,
-) -> T:
-    """Execute ``func`` with retries using tenacity."""
-    for attempt in Retrying(
-        **_build_retry_kwargs(
-            max_attempts=max_attempts,
-            initial_delay=initial_delay,
-            max_delay=max_delay,
-            retry_on=retry_on,
-            retry_on_statuses=retry_on_statuses,
-        )
-    ):
-        with attempt:
-            return func()
-
-    msg = "Retrying yielded no attempts; this should be unreachable"
-    raise RuntimeError(msg)
-
-
-async def retry_async[T](
-    func: Callable[[], Awaitable[T]],
-    *,
-    max_attempts: int = _DEFAULT_MAX_ATTEMPTS,
-    initial_delay: float = _DEFAULT_INITIAL_DELAY,
-    max_delay: float = _DEFAULT_MAX_DELAY,
-    retry_on: Iterable[type[BaseException]] = _DEFAULT_RETRY_EXCEPTIONS,
-    retry_on_statuses: Iterable[str] = _DEFAULT_RETRY_STATUSES,
-) -> T:
-    """Await ``func`` with retries using tenacity."""
-    async for attempt in AsyncRetrying(
-        **_build_retry_kwargs(
-            max_attempts=max_attempts,
-            initial_delay=initial_delay,
-            max_delay=max_delay,
-            retry_on=retry_on,
-            retry_on_statuses=retry_on_statuses,
-        )
-    ):
-        with attempt:
-            return await func()
-
-    msg = "Async retry yielded no attempts; this should be unreachable"
-    raise RuntimeError(msg)
+__all__ = [
+    "RETRYABLE_EXCEPTIONS",
+    "DEFAULT_MAX_ATTEMPTS",
+    "DEFAULT_INITIAL_DELAY",
+    "DEFAULT_MAX_DELAY",
+    "DEFAULT_RETRY_KWARGS",
+    "BATCH_RETRY_KWARGS",
+]
