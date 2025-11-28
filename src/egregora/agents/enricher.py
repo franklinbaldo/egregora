@@ -47,7 +47,6 @@ from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.paths import slugify
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
-from egregora.utils.retry import retry_async
 from egregora.utils.text import sanitize_prompt_input as _sanitize_prompt_input
 
 if TYPE_CHECKING:
@@ -269,10 +268,7 @@ async def _run_url_enrichment_async(
         pii_prevention=pii_prevention,
     )
 
-    async def call() -> AgentRunResult[EnrichmentOutput]:
-        return await agent.run(prompt, deps=deps)
-
-    result = await retry_async(call)
+    result = await agent.run(prompt, deps=deps)
     output = getattr(result, "data", getattr(result, "output", result))
     output.markdown = output.markdown.strip()
     return output, result.usage()

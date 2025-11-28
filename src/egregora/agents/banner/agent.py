@@ -19,7 +19,6 @@ from egregora.agents.banner.image_generation import ImageGenerationRequest
 from egregora.config import EgregoraConfig, google_api_key_status
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.resources.prompts import render_prompt
-from egregora.utils.retry import retry_sync
 
 logger = logging.getLogger(__name__)
 
@@ -147,19 +146,16 @@ def generate_banner(
     )
     prompt = _build_image_prompt(input_data)
 
-    def _generate() -> BannerOutput:
+    try:
         generation_request = ImageGenerationRequest(
             prompt=prompt,
             response_modalities=config.image_generation.response_modalities,
             aspect_ratio=config.image_generation.aspect_ratio,
         )
         return _generate_banner_image(client, input_data, image_model, generation_request)
-
-    try:
-        return retry_sync(_generate)
     except Exception as e:
-        logger.exception("Banner generation failed after retries")
-        return BannerOutput(error=type(e).__name__, error_code="RETRY_FAILED")
+        logger.exception("Banner generation failed")
+        return BannerOutput(error=type(e).__name__, error_code="GENERATION_FAILED")
 
 
 def is_banner_generation_available() -> bool:

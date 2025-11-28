@@ -53,7 +53,6 @@ from egregora.utils.batch import call_with_retries_sync
 from egregora.utils.cache import CacheTier, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
-from egregora.utils.retry import retry_sync
 
 if TYPE_CHECKING:
     from google import genai
@@ -870,13 +869,10 @@ def write_posts_with_pydantic_agent(
 
     _validate_prompt_fits(prompt, model_name, config, context.window_label)
 
-    def _invoke_agent() -> Any:
+    try:
         if context.resources.quota:
             context.resources.quota.reserve(1)
-        return call_with_retries_sync(agent.run_sync, prompt, deps=context)
-
-    try:
-        result = retry_sync(_invoke_agent)
+        result = call_with_retries_sync(agent.run_sync, prompt, deps=context)
     except QuotaExceededError as exc:
         msg = (
             "LLM quota exceeded for this day. No additional posts can be generated "

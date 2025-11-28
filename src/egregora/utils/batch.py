@@ -8,16 +8,34 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from google.api_core import exceptions as google_exceptions
+from google.genai import errors as genai_errors
 from google.genai import types as genai_types
-from tenacity import RetryCallState, retry
+from pydantic_ai.exceptions import UnexpectedModelBehavior
+from tenacity import (
+    RetryCallState,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_random_exponential,
+)
 from tqdm import tqdm
 
 from egregora.config import EMBEDDING_DIM
-from egregora.utils.retry import BATCH_RETRY_KWARGS
 
 T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
+
+# Exceptions that should trigger retries
+_RETRYABLE_EXCEPTIONS = (
+    UnexpectedModelBehavior,
+    google_exceptions.ResourceExhausted,
+    google_exceptions.ServiceUnavailable,
+    google_exceptions.InternalServerError,
+    google_exceptions.GatewayTimeout,
+    genai_errors.ServerError,
+)
 
 
 def _log_before_retry(retry_state: RetryCallState) -> None:
@@ -30,7 +48,13 @@ def _log_before_retry(retry_state: RetryCallState) -> None:
     )
 
 
-@retry(**BATCH_RETRY_KWARGS, before_sleep=_log_before_retry)
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_random_exponential(min=2.0, max=60.0),
+    retry=retry_if_exception_type(_RETRYABLE_EXCEPTIONS),
+    before_sleep=_log_before_retry,
+    reraise=True,
+)
 def call_with_retries_sync[T](func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
     """Execute a synchronous function with exponential backoff and jitter.
 
