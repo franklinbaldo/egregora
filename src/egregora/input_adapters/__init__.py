@@ -8,14 +8,22 @@ Available Adapters:
 - IperonTJROAdapter: For TJRO workflow imports
 - SelfInputAdapter: Experimental self-reflection adapter
 
-Plugin System:
-- InputAdapterRegistry: Automatically discovers and loads adapters
-- get_global_registry(): Access the global adapter registry
+Adapter Access Patterns:
 
-Example:
+1. **ADAPTER_REGISTRY** - For stateful adapters requiring custom configuration:
+    >>> from egregora.input_adapters import ADAPTER_REGISTRY
+    >>> adapter_cls = ADAPTER_REGISTRY["whatsapp"]
+    >>> adapter = adapter_cls(config=my_config)  # Pass config at instantiation
+    >>> table = adapter.parse(input_path)
+
+2. **InputAdapterRegistry** - For stateless singleton adapters:
     >>> from egregora.input_adapters import get_global_registry
-    >>> registry = get_global_registry()
-    >>> adapter = registry.get("whatsapp")
+    >>> adapter = get_global_registry().get("whatsapp")  # Pre-instantiated
+    >>> table = adapter.parse(input_path)
+
+Note: ADAPTER_REGISTRY is used by the main pipeline for adapters that need
+config-based privacy settings. InputAdapterRegistry is used for diagnostics
+and simple adapter discovery.
 
 """
 
@@ -25,7 +33,10 @@ from egregora.input_adapters.registry import InputAdapterRegistry, get_global_re
 from egregora.input_adapters.self_reflection import SelfInputAdapter
 from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 
-# Legacy registry (deprecated in favor of InputAdapterRegistry)
+# Adapter class registry for stateful adapter instantiation
+# Note: InputAdapterRegistry creates singleton instances, but adapters like WhatsApp
+# need config at instantiation time. This registry provides adapter classes for
+# manual instantiation with custom configuration.
 ADAPTER_REGISTRY: dict[str, type] = {
     "whatsapp": WhatsAppAdapter,
     "iperon-tjro": IperonTJROAdapter,
@@ -33,31 +44,6 @@ ADAPTER_REGISTRY: dict[str, type] = {
 }
 
 
-def get_adapter(source_identifier: str) -> InputAdapter:
-    """Get an adapter instance by source identifier.
-
-    DEPRECATED: Use get_global_registry().get() instead.
-
-    Args:
-        source_identifier: Source identifier (e.g., "whatsapp")
-
-    Returns:
-        Adapter instance
-
-    Raises:
-        KeyError: If source identifier is not recognized
-
-    Example:
-        >>> # New way (recommended)
-        >>> from egregora.input_adapters import get_global_registry
-        >>> adapter = get_global_registry().get("whatsapp")
-        >>>
-        >>> # Old way (still works)
-        >>> from egregora.input_adapters import get_adapter
-        >>> adapter = get_adapter("whatsapp")
-
-    """
-    return get_global_registry().get(source_identifier)
 
 
 def list_adapters() -> list[str]:
@@ -78,12 +64,12 @@ def list_adapters() -> list[str]:
 
 
 __all__ = [
+    "ADAPTER_REGISTRY",
     "InputAdapter",
     "InputAdapterRegistry",
     "IperonTJROAdapter",
     "SelfInputAdapter",
     "WhatsAppAdapter",
-    "get_adapter",
     "get_global_registry",
     "list_adapters",
 ]

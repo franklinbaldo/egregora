@@ -248,8 +248,14 @@ def process_media_for_window(
     for media_ref in media_refs:
         try:
             document = adapter.deliver_media(media_reference=media_ref, **adapter_kwargs)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Failed to deliver media '%s': %s", media_ref, exc)
+        except FileNotFoundError as exc:
+            logger.warning("Media file not found: '%s': %s", media_ref, exc)
+            continue
+        except (OSError, PermissionError) as exc:
+            logger.warning("Cannot access media file '%s': %s", media_ref, exc)
+            continue
+        except ValueError as exc:
+            logger.warning("Invalid media reference '%s': %s", media_ref, exc)
             continue
 
         if not document:
@@ -257,8 +263,11 @@ def process_media_for_window(
 
         try:
             media_doc = _prepare_media_document(document, media_ref)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Failed to normalize media '%s': %s", media_ref, exc)
+        except (ValueError, TypeError) as exc:
+            logger.warning("Invalid document structure for '%s': %s", media_ref, exc)
+            continue
+        except AttributeError as exc:
+            logger.warning("Missing required attributes for media '%s': %s", media_ref, exc)
             continue
 
         public_url = url_convention.canonical_url(media_doc, url_context)
