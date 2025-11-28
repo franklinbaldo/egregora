@@ -170,9 +170,10 @@ def _validate_image_dimensions(content: bytes) -> None:
         width, height = img.size
         _check_dimensions(width, height)
         logger.debug("Image dimensions validated: %sx%s pixels", width, height)
-    except AvatarProcessingError:
-        raise
     except Exception as e:
+        # Let AvatarProcessingError propagate unchanged (don't wrap it)
+        if isinstance(e, AvatarProcessingError):
+            raise
         msg = f"Failed to validate image dimensions: {e}"
         raise AvatarProcessingError(msg) from e
 
