@@ -34,16 +34,20 @@ if "lancedb" not in sys.modules:
     sys.modules["lancedb"] = lancedb_module
 
 from egregora import rag
-from egregora.config.settings import EgregoraConfig
 
 
-def test_embed_fn_uses_rag_settings_for_router(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_embed_fn_uses_rag_settings_for_router(
+    monkeypatch: pytest.MonkeyPatch,
+    config_factory,  # Use factory fixture
+) -> None:
     """Embedding router should be constructed with configured RAG settings."""
 
-    config = EgregoraConfig()
-    config.rag.embedding_max_batch_size = 7
-    config.rag.embedding_timeout = 3.5
-    config.models.embedding = "models/test-embedding"
+    # Use factory to create config with specific test values
+    config = config_factory(
+        rag__embedding_max_batch_size=7,
+        rag__embedding_timeout=3.5,
+        models__embedding="models/test-embedding",
+    )
 
     monkeypatch.setattr(rag, "load_egregora_config", lambda _path: config)
 

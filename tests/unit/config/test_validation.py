@@ -90,9 +90,9 @@ def test_config_validate_cross_field_rag_requires_lancedb():
     assert "lancedb_dir is not set" in str(exc.value)
 
 
-def test_config_privacy_settings_defaults():
+def test_config_privacy_settings_defaults(minimal_config):
     """Test privacy settings have secure defaults."""
-    config = EgregoraConfig()
+    config = minimal_config
 
     # Test new two-level privacy structure
     assert config.privacy.structural.enabled is True

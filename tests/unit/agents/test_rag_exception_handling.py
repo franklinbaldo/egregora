@@ -4,20 +4,35 @@ from __future__ import annotations
 
 from unittest.mock import Mock, patch
 
+import pytest
+
 from egregora.config.settings import RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
+
+
+@pytest.fixture
+def rag_settings_factory():
+    """Factory for creating RAG settings with overrides.
+
+    Use this fixture to create RAG settings with specific test values.
+    """
+
+    def _create(enabled=True, **kwargs):
+        return RAGSettings(enabled=enabled, **kwargs)
+
+    return _create
 
 
 class TestRAGExceptionHandling:
     """Tests verifying graceful degradation on RAG failures at caller level."""
 
-    def test_exception_during_indexing_is_caught(self):
+    def test_exception_during_indexing_is_caught(self, rag_settings_factory):
         """Verify exceptions during RAG indexing don't crash post generation."""
         from egregora.agents.writer import _index_new_content_in_rag
 
-        # Use real RAGSettings with defaults
+        # Use factory to create RAG settings
         mock_resources = Mock()
-        mock_resources.retrieval_config = RAGSettings()  # Uses default enabled=True
+        mock_resources.retrieval_config = rag_settings_factory(enabled=True)
         mock_resources.output = Mock()
 
         # Use real Document instances
@@ -38,13 +53,13 @@ class TestRAGExceptionHandling:
             # Verify index_documents was called
             mock_index.assert_called_once()
 
-    def test_successful_indexing_logs_count(self, caplog):
+    def test_successful_indexing_logs_count(self, caplog, rag_settings_factory):
         """Verify successful indexing logs the indexed document count."""
         from egregora.agents.writer import _index_new_content_in_rag
 
-        # Use real RAGSettings with defaults
+        # Use factory to create RAG settings
         mock_resources = Mock()
-        mock_resources.retrieval_config = RAGSettings()
+        mock_resources.retrieval_config = rag_settings_factory(enabled=True)
         mock_resources.output = Mock()
 
         # Use real Document instances
@@ -71,13 +86,13 @@ class TestRAGExceptionHandling:
             # Verify log message
             assert "Indexed 3 new posts in RAG" in caplog.text
 
-    def test_no_indexing_when_rag_disabled(self):
+    def test_no_indexing_when_rag_disabled(self, rag_settings_factory):
         """Verify indexing is skipped when RAG is disabled."""
         from egregora.agents.writer import _index_new_content_in_rag
 
-        # Use real RAGSettings with disabled RAG
+        # Use factory to create RAG settings with RAG disabled
         mock_resources = Mock()
-        mock_resources.retrieval_config = RAGSettings(enabled=False)
+        mock_resources.retrieval_config = rag_settings_factory(enabled=False)
         mock_resources.output = Mock()
 
         with patch("egregora.rag.index_documents") as mock_index:
@@ -86,13 +101,13 @@ class TestRAGExceptionHandling:
             # Should not attempt indexing when disabled
             mock_index.assert_not_called()
 
-    def test_no_indexing_when_no_posts_saved(self):
+    def test_no_indexing_when_no_posts_saved(self, rag_settings_factory):
         """Verify indexing is skipped when no posts were saved."""
         from egregora.agents.writer import _index_new_content_in_rag
 
-        # Use real RAGSettings with defaults
+        # Use factory to create RAG settings
         mock_resources = Mock()
-        mock_resources.retrieval_config = RAGSettings()
+        mock_resources.retrieval_config = rag_settings_factory(enabled=True)
         mock_resources.output = Mock()
 
         with patch("egregora.rag.index_documents") as mock_index:
@@ -102,9 +117,9 @@ class TestRAGExceptionHandling:
             # Should not attempt indexing
             mock_index.assert_not_called()
 
-    def test_rag_enabled_by_default(self):
+    def test_rag_enabled_by_default(self, rag_settings_factory):
         """Verify RAG is enabled by default in settings."""
-        settings = RAGSettings()
+        settings = rag_settings_factory(enabled=True)
         assert settings.enabled is True, "RAG should be enabled by default"
 
 

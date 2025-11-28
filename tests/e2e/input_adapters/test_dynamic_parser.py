@@ -4,7 +4,6 @@ from unittest.mock import patch
 import pytest
 from conftest import WhatsAppFixture
 
-from egregora.config import EgregoraConfig
 from egregora.input_adapters.whatsapp.dynamic import (
     ParserDefinition,
     generate_dynamic_regex,
@@ -21,7 +20,7 @@ def mock_agent_run(monkeypatch):
         yield mock
 
 
-def test_dynamic_regex_generator_success(mock_agent_run):
+def test_dynamic_regex_generator_success(mock_agent_run, minimal_config):
     """Test that the dynamic regex generator can parse a sample and return a valid regex."""
     mock_agent_run.return_value = ParserDefinition(
         regex_pattern=r"^(\d{1,2}/\d{1,2}/\d{4}),\s(\d{1,2}:\d{2})\s-\s([^:]+):\s(.*)$"
@@ -31,7 +30,7 @@ def test_dynamic_regex_generator_success(mock_agent_run):
         "28/10/2025, 15:00 - Franklin: this is a test",
         "28/10/2025, 15:01 - Eurico Max: this is another test",
     ]
-    pattern = generate_dynamic_regex(sample_lines, EgregoraConfig())
+    pattern = generate_dynamic_regex(sample_lines, minimal_config)
 
     assert pattern is not None
     assert pattern.pattern == r"^(\d{1,2}/\d{1,2}/\d{4}),\s(\d{1,2}:\d{2})\s-\s([^:]+):\s(.*)$"
@@ -39,12 +38,12 @@ def test_dynamic_regex_generator_success(mock_agent_run):
     mock_agent_run.assert_called_once()
 
 
-def test_dynamic_regex_generator_failure(mock_agent_run):
+def test_dynamic_regex_generator_failure(mock_agent_run, minimal_config):
     """Test that the dynamic regex generator returns None if the LLM fails."""
     mock_agent_run.side_effect = Exception("API error")
 
     sample_lines = ["28/10/2025, 15:00 - Franklin: this is a test"]
-    pattern = generate_dynamic_regex(sample_lines, EgregoraConfig())
+    pattern = generate_dynamic_regex(sample_lines, minimal_config)
 
     assert pattern is None
     mock_agent_run.assert_called_once()
