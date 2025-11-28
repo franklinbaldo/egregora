@@ -740,7 +740,7 @@ def _save_journal_to_file(  # noqa: PLR0913
             source_window=window_label,
         )
         output_format.persist(doc)
-    except (OSError, IOError, PermissionError) as exc:
+    except (OSError, PermissionError) as exc:
         logger.error("Failed to write journal to disk: %s", exc)
         return None
     except ValueError as exc:

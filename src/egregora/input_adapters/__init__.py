@@ -44,8 +44,6 @@ ADAPTER_REGISTRY: dict[str, type] = {
 }
 
 
-
-
 def list_adapters() -> list[str]:
     """List all registered adapter identifiers.
 

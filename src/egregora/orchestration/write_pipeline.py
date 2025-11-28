@@ -245,7 +245,7 @@ def _process_single_window(
                 continue
             try:
                 output_sink.persist(media_doc)
-            except (OSError, IOError, PermissionError) as exc:  # pragma: no cover - defensive
+            except (OSError, PermissionError) as exc:  # pragma: no cover - defensive
                 logger.error("Failed to write media file %s: %s", media_doc.metadata.get("filename"), exc)
             except ValueError as exc:  # pragma: no cover - defensive
                 logger.error("Invalid media document %s: %s", media_doc.metadata.get("filename"), exc)
@@ -1143,7 +1143,7 @@ def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) ->
             logger.info("[green]✓ Statistics page generated[/]")
         else:
             logger.warning("Output format not initialized - cannot save statistics page")
-    except (OSError, IOError, PermissionError) as exc:
+    except (OSError, PermissionError) as exc:
         logger.error("[red]Failed to write statistics page: %s[/]", exc)
     except ValueError as exc:
         logger.error("[red]Invalid statistics page data: %s[/]", exc)
@@ -1278,9 +1278,9 @@ def _record_run_start(run_store: RunStore | None, run_id: uuid.UUID, started_at:
             stage="write",
             started_at=started_at,
         )
-    except (OSError, PermissionError) as exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
+    except (OSError, PermissionError) as exc:
         logger.debug("Failed to record run start (database unavailable): %s", exc)
-    except ValueError as exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
+    except ValueError as exc:
         logger.debug("Failed to record run start (invalid data): %s", exc)
 
 
@@ -1323,9 +1323,9 @@ def _record_run_completion(
             total_profiles,
             num_windows,
         )
-    except (OSError, PermissionError) as exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
+    except (OSError, PermissionError) as exc:
         logger.debug("Failed to record run completion (database unavailable): %s", exc)
-    except ValueError as exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
+    except ValueError as exc:
         logger.debug("Failed to record run completion (invalid data): %s", exc)
 
 
@@ -1355,9 +1355,9 @@ def _record_run_failure(
             duration_seconds=duration_seconds,
             error=error_msg[:500],
         )
-    except (OSError, PermissionError) as tracking_exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
+    except (OSError, PermissionError) as tracking_exc:
         logger.debug("Failed to record run failure (database unavailable): %s", tracking_exc)
-    except ValueError as tracking_exc:  # noqa: BLE001 - Don't break pipeline for tracking failures
+    except ValueError as tracking_exc:
         logger.debug("Failed to record run failure (invalid data): %s", tracking_exc)
 
 
@@ -1422,7 +1422,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             # Generate statistics page (non-critical, isolated)
             try:
                 _generate_statistics_page(dataset.messages_table, dataset.context)
-            except (OSError, IOError, PermissionError) as exc:
+            except (OSError, PermissionError) as exc:
                 logger.warning("[red]Failed to write statistics page (non-critical): %s[/]", exc)
             except ValueError as exc:
                 logger.warning("[red]Invalid statistics data (non-critical): %s[/]", exc)
