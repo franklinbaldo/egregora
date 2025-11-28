@@ -130,7 +130,7 @@ def test_rate_limiter_mark_success():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_router_prefers_single_endpoint_for_low_latency(router):
+async def test_router_prefers_single_endpoint_for_low_latency(router, embedding_model):
     """Test that router prefers single endpoint for low latency."""
     # Mock successful responses for both endpoints
     respx.post(f"{GENAI_API_BASE}/{embedding_model}:embedContent").mock(
@@ -162,7 +162,7 @@ async def test_router_prefers_single_endpoint_for_low_latency(router):
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_router_falls_back_to_batch_when_single_exhausted(router):
+async def test_router_falls_back_to_batch_when_single_exhausted(router, embedding_model):
     """Test fallback to batch endpoint when single is rate-limited."""
     # Mark single endpoint as rate-limited
     router.single_limiter.mark_rate_limited(retry_after=60.0)
@@ -185,7 +185,7 @@ async def test_router_falls_back_to_batch_when_single_exhausted(router):
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_router_handles_429_rate_limit(router):
+async def test_router_handles_429_rate_limit(router, embedding_model):
     """Test that router handles 429 rate limit responses."""
     # First request returns 429
     respx.post(f"{GENAI_API_BASE}/{embedding_model}:embedContent").mock(
@@ -213,7 +213,7 @@ async def test_router_handles_429_rate_limit(router):
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_router_accumulates_requests_during_rate_limit(router):
+async def test_router_accumulates_requests_during_rate_limit(router, embedding_model):
     """Test that router accumulates requests when rate-limited."""
     # Both endpoints start rate-limited
     router.single_limiter.mark_rate_limited(retry_after=0.5)  # Short delay for test
@@ -355,7 +355,7 @@ async def test_endpoint_queue_handles_api_error(mock_api_key, embedding_model):
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_full_workflow_with_both_endpoints(router):
+async def test_full_workflow_with_both_endpoints(router, embedding_model):
     """Test full workflow using both endpoints."""
     # Mock single endpoint success
     single_route = respx.post(f"{GENAI_API_BASE}/{embedding_model}:embedContent").mock(
@@ -396,7 +396,7 @@ async def test_full_workflow_with_both_endpoints(router):
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_concurrent_requests_under_rate_limits(router):
+async def test_concurrent_requests_under_rate_limits(router, embedding_model):
     """Test handling concurrent requests with rate limit fallback."""
     # Single endpoint: first call succeeds, then gets 429
     single_calls = 0
