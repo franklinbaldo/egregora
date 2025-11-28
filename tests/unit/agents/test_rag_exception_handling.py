@@ -135,8 +135,9 @@ class TestPipelineRAGExceptionHandling:
         source = inspect.getsource(_prepare_pipeline_data)
         # Should use specific exception handling for non-critical RAG indexing
         # (not broad except Exception to prevent masking errors)
-        assert "except (ConnectionError, TimeoutError)" in source, \
+        assert "except (ConnectionError, TimeoutError)" in source, (
             "RAG indexing should catch specific exceptions (ConnectionError, TimeoutError), not broad Exception"
+        )
         # Should have RAG indexing code
         assert "from egregora.rag import index_documents" in source
         assert "index_documents(existing_docs)" in source
