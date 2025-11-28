@@ -17,7 +17,7 @@ import pytest
 
 
 @dataclass(frozen=True)
-class TestTimeouts:
+class TimeoutConfig:
     """Timeout values for different test types."""
 
     DEFAULT: float = 60.0  # Default timeout for e2e tests
@@ -26,7 +26,7 @@ class TestTimeouts:
 
 
 @dataclass(frozen=True)
-class TestDates:
+class DateConfig:
     """Common test dates in YYYY-MM-DD format."""
 
     VALID_FROM: str = "2025-10-01"
@@ -46,7 +46,7 @@ class WindowConfig:
 
 
 @dataclass(frozen=True)
-class TestTimezones:
+class TimezoneConfig:
     """Common timezones for testing."""
 
     VALID: str = "America/New_York"
@@ -74,15 +74,15 @@ def default_write_args() -> dict[str, Any]:
 
 
 @pytest.fixture
-def test_timeouts() -> TestTimeouts:
+def test_timeouts() -> TimeoutConfig:
     """Provide timeout constants for tests."""
-    return TestTimeouts()
+    return TimeoutConfig()
 
 
 @pytest.fixture
-def test_dates() -> TestDates:
+def test_dates() -> DateConfig:
     """Provide test date constants."""
-    return TestDates()
+    return DateConfig()
 
 
 @pytest.fixture
@@ -92,9 +92,9 @@ def window_configs() -> WindowConfig:
 
 
 @pytest.fixture
-def test_timezones() -> TestTimezones:
+def test_timezones() -> TimezoneConfig:
     """Provide timezone constants."""
-    return TestTimezones()
+    return TimezoneConfig()
 
 
 # =============================================================================

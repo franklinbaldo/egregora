@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.e2e.test_config import TestDates, TestTimeouts, TestTimezones, WindowConfig
+from tests.e2e.test_config import DateConfig, TimeoutConfig, TimezoneConfig, WindowConfig
 
 
 @pytest.fixture(autouse=True)
@@ -101,15 +101,15 @@ def clean_duckdb_path(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def test_timeouts() -> TestTimeouts:
+def test_timeouts() -> TimeoutConfig:
     """Provide timeout constants for tests."""
-    return TestTimeouts()
+    return TimeoutConfig()
 
 
 @pytest.fixture
-def test_dates() -> TestDates:
+def test_dates() -> DateConfig:
     """Provide test date constants."""
-    return TestDates()
+    return DateConfig()
 
 
 @pytest.fixture
@@ -119,9 +119,9 @@ def window_configs() -> WindowConfig:
 
 
 @pytest.fixture
-def test_timezones() -> TestTimezones:
+def test_timezones() -> TimezoneConfig:
     """Provide timezone constants."""
-    return TestTimezones()
+    return TimezoneConfig()
 
 
 # =============================================================================
