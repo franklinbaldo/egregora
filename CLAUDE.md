@@ -49,6 +49,13 @@ cd output && uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs ser
 
 **Recent (last 60 days)** - See [CHANGELOG.md](CHANGELOG.md) for full history
 
+### 2025-11-27 (PR #TBD - MkDocs Scaffold Defaults)
+
+**Default posts directory changed for new scaffolds**
+- **Changed:** `egregora init` now creates posts at `docs/posts` instead of `docs/blog/posts`
+- **Impact:** Existing sites continue to work; update CI jobs or scripts that assumed `docs/blog/posts`
+- **Rationale:** Aligns the scaffold with the simplified MkDocs layout and the new prompt templates
+
 ### 2025-11-27 (PR #TBD - Async RAG Migration with Dual-Queue Embedding Router)
 
 **Complete Async Migration of RAG Backend**
