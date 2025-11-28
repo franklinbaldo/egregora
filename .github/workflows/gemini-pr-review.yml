@@ -60,6 +60,7 @@ jobs:
 
             core.setOutput('pr_number', prNumber);
             core.setOutput('base_sha', prData.base.sha);
+            core.setOutput('base_ref', prData.base.ref);
             core.setOutput('head_sha', prData.head.sha);
             core.setOutput('pr_title', prData.title);
             core.setOutput('pr_author', prData.user.login);
@@ -73,6 +74,7 @@ jobs:
         id: collect
         env:
           BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
           PR_TITLE: ${{ steps.pr.outputs.pr_title }}
           USER_INSTRUCTIONS: ${{ steps.pr.outputs.user_instructions }}
@@ -80,11 +82,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Ensure we have the base commit
-          git fetch origin "${BASE_SHA}" --depth=1 || true
+          # Ensure we have the base ref locally (works for forks and shallow clones)
+          git fetch origin "${BASE_REF}" --depth=1
 
           # Get unified diff between base and head
-          git diff --unified=3 "${BASE_SHA}" "${HEAD_SHA}" > pr.diff
+          git diff --unified=3 "origin/${BASE_REF}" "${HEAD_SHA}" > pr.diff
 
           # Trim diff to avoid blowing the context window (90KB ~= 22k tokens)
           head -c 90000 pr.diff > pr-trimmed.diff
@@ -113,10 +115,11 @@ jobs:
 
       - name: Run Gemini PR Review
         id: gemini
+        continue-on-error: true
         uses: google-github-actions/run-gemini-cli@v0
         with:
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-          gemini_model: "gemini-3-pro-preview"
+          gemini_model: "gemini-2.5-pro"
           prompt: |
             You are a senior software engineer and code reviewer for the **egregora** repository.
 
@@ -191,29 +194,79 @@ jobs:
 
             Keep the entire review under 1000 words. Be concise and actionable.
 
+      - name: Check Gemini step result
+        if: always()
+        run: |
+          echo "Gemini step outcome: ${{ steps.gemini.outcome }}"
+          echo "Gemini step conclusion: ${{ steps.gemini.conclusion }}"
+          if [ "${{ steps.gemini.outcome }}" != "success" ]; then
+            echo "::warning::Gemini CLI failed or was skipped"
+            echo "::group::Debugging Information"
+            echo "Job status: ${{ job.status }}"
+            echo "Step outputs available: ${{ toJSON(steps.gemini.outputs) }}"
+            echo "::endgroup::"
+            # Check if API key is set (without exposing it)
+            if [ -z "${{ secrets.GEMINI_API_KEY }}" ]; then
+              echo "::error::GEMINI_API_KEY secret is not set!"
+            else
+              echo "GEMINI_API_KEY is set (length: ${#GEMINI_API_KEY})"
+            fi
+          fi
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
       - name: Post review as PR comment
+        if: always()
         uses: actions/github-script@v8
         env:
           GEMINI_REVIEW: ${{ steps.gemini.outputs.summary }}
+          GEMINI_OUTCOME: ${{ steps.gemini.outcome }}
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
           TRIGGER_MODE: ${{ steps.collect.outputs.trigger_mode }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const review = process.env.GEMINI_REVIEW || "_No review generated._";
             const prNumber = parseInt(process.env.PR_NUMBER);
             const triggerMode = process.env.TRIGGER_MODE;
+            const geminiOutcome = process.env.GEMINI_OUTCOME;
+
+            let review = process.env.GEMINI_REVIEW;
+            let body;
 
             // Add header with trigger mode info
             const triggerEmoji = triggerMode === 'manual' ? '👋' : '🤖';
             const triggerText = triggerMode === 'manual' ? 'Manual review requested' : 'Automatic review';
 
-            const body = `## ${triggerEmoji} Gemini Code Review
+            if (geminiOutcome !== 'success' || !review) {
+              // Gemini step failed - provide diagnostic info
+              body = `## ⚠️ Gemini Code Review Failed
+
+            The Gemini CLI review failed to complete. This may be due to:
+
+            - **API Key Issues:** The \`GEMINI_API_KEY\` secret may be missing or invalid
+            - **Model Availability:** The \`gemini-3-pro-preview\` model may be unavailable or deprecated
+            - **Rate Limiting:** The Gemini API may be rate-limited
+            - **Timeout:** The review took longer than the 10-minute job timeout
+            - **Context Window:** The PR diff may exceed the model's context window
+
+            ### Debugging Steps
+
+            1. **Check Secrets:** Verify that \`GEMINI_API_KEY\` is set in repository secrets
+            2. **Review Logs:** Check the [workflow run logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for detailed error messages
+            3. **Manual Trigger:** Try commenting \`@gemini\` on this PR to re-trigger the review
+            4. **Model Status:** Check [Google AI Studio](https://aistudio.google.com/) for model availability
+
+            ---
+            *${triggerText} • Step outcome: ${geminiOutcome}*`;
+            } else {
+              // Gemini step succeeded
+              body = `## ${triggerEmoji} Gemini Code Review
 
             ${review}
 
             ---
-            *${triggerText} • Generated by gemini-3-pro-preview using official Google GitHub Action*`;
+            *${triggerText} • Generated by gemini-2.5-pro using official Google GitHub Action*`;
+            }
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
@@ -222,4 +275,8 @@ jobs:
               body,
             });
 
-            console.log("✅ Review posted successfully!");
+            if (geminiOutcome === 'success') {
+              console.log("✅ Review posted successfully!");
+            } else {
+              console.log("⚠️ Diagnostic comment posted due to Gemini step failure");
+            }

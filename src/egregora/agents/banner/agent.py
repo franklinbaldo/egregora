@@ -12,20 +12,16 @@ from __future__ import annotations
 import logging
 
 from google import genai
-from google.genai import types
 from pydantic import BaseModel, ConfigDict, Field
 
+from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
+from egregora.agents.banner.image_generation import ImageGenerationRequest
 from egregora.config import EgregoraConfig, google_api_key_status
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.resources.prompts import render_prompt
 from egregora.utils.retry import retry_sync
 
 logger = logging.getLogger(__name__)
-
-# Constants
-_BANNER_ASPECT_RATIO = "16:9"
-_RESPONSE_MODALITIES_IMAGE = "IMAGE"
-_RESPONSE_MODALITIES_TEXT = "TEXT"
 
 
 class BannerInput(BaseModel):
@@ -73,80 +69,36 @@ def _generate_banner_image(
     client: genai.Client,
     input_data: BannerInput,
     image_model: str,
+    generation_request: ImageGenerationRequest,
 ) -> BannerOutput:
-    """Generate banner image using Gemini multimodal image model.
-
-    Args:
-        client: Gemini API client
-        input_data: Banner generation parameters
-        image_model: Model name
-
-    Returns:
-        BannerOutput with Document containing binary image data
-
-    """
-    prompt = _build_image_prompt(input_data)
+    """Generate banner image using Gemini multimodal image model."""
     logger.info("Generating banner with %s for: %s", image_model, input_data.post_title)
 
     try:
-        contents = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
-        generate_content_config = types.GenerateContentConfig(
-            response_modalities=[_RESPONSE_MODALITIES_IMAGE, _RESPONSE_MODALITIES_TEXT],
-            image_config=types.ImageConfig(aspect_ratio=_BANNER_ASPECT_RATIO),
-        )
+        provider = GeminiImageGenerationProvider(client=client, model=image_model)
+        result = provider.generate(generation_request)
 
-        # Call the image model
-        stream = client.models.generate_content_stream(
-            model=image_model, contents=contents, config=generate_content_config
-        )
-
-        # Extract image and optional debug text
-        image_bytes: bytes | None = None
-        mime_type: str = "image/png"
-        debug_text_parts: list[str] = []
-
-        for chunk in stream:
-            if not chunk.candidates:
-                continue
-
-            for candidate in chunk.candidates:
-                if not (candidate.content and candidate.content.parts):
-                    continue
-
-                for part in candidate.content.parts:
-                    # Collect any text responses for debugging
-                    text_part = getattr(part, "text", None)
-                    if text_part:
-                        debug_text_parts.append(text_part)
-
-                    # Extract image data (first hit wins)
-                    inline_data = getattr(part, "inline_data", None)
-                    if inline_data and inline_data.data and image_bytes is None:
-                        image_bytes = inline_data.data
-                        mime_type = inline_data.mime_type
-
-        if image_bytes is None:
-            error_msg = "No image data received from API"
-            logger.error("%s for post '%s'", error_msg, input_data.post_title)
-            return BannerOutput(error=error_msg, error_code="NO_IMAGE_DATA")
+        if not result.has_image:
+            error_message = result.error or "Image generation returned no data"
+            logger.error("%s for post '%s'", error_message, input_data.post_title)
+            return BannerOutput(error=error_message, error_code=result.error_code)
 
         # Create Document with binary content
         document = Document(
-            content=image_bytes,
+            content=result.image_bytes,
             type=DocumentType.MEDIA,
             metadata={
-                "mime_type": mime_type,
+                "mime_type": result.mime_type,
                 "source": image_model,
                 "slug": input_data.slug,
                 "language": input_data.language,
             },
         )
 
-        debug_text = "\n".join(debug_text_parts) if debug_text_parts else None
-        if debug_text:
-            logger.debug("Banner generation debug text: %s", debug_text)
+        if result.debug_text:
+            logger.debug("Banner generation debug text: %s", result.debug_text)
 
-        return BannerOutput(document=document, debug_text=debug_text)
+        return BannerOutput(document=document, debug_text=result.debug_text)
 
     except Exception as e:
         logger.exception("Banner image generation failed for post '%s'", input_data.post_title)
@@ -193,9 +145,15 @@ def generate_banner(
         slug=slug,
         language=language,
     )
+    prompt = _build_image_prompt(input_data)
 
     def _generate() -> BannerOutput:
-        return _generate_banner_image(client, input_data, image_model)
+        generation_request = ImageGenerationRequest(
+            prompt=prompt,
+            response_modalities=config.image_generation.response_modalities,
+            aspect_ratio=config.image_generation.aspect_ratio,
+        )
+        return _generate_banner_image(client, input_data, image_model, generation_request)
 
     try:
         return retry_sync(_generate)

@@ -1,9 +1,11 @@
 
+from datetime import datetime
+
 import ibis
 import pandas as pd
-from datetime import datetime
-from egregora.data_primitives.document import Document, DocumentType
+
 from egregora.agents.enricher import _extract_media_candidates
+from egregora.data_primitives.document import Document, DocumentType
 
 # Mock messages table
 data = {
@@ -33,9 +35,6 @@ media_doc = Document(
 media_mapping = {media_ref: media_doc}
 
 # Run extraction
-print("Running extraction...")
 candidates = _extract_media_candidates(messages_table, media_mapping, limit=50)
-print(f"Candidates found: {len(candidates)}")
-for ref, doc, meta in candidates:
-    print(f"Ref: {ref}")
-    print(f"Doc filename: {doc.metadata.get('filename')}")
+for _ref, _doc, _meta in candidates:
+    pass

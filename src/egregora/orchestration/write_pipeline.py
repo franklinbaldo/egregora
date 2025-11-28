@@ -51,6 +51,7 @@ from egregora.knowledge.profiles import filter_opted_out_authors, process_comman
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
+from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.transformations import (
@@ -563,7 +564,9 @@ def _perform_enrichment(
     return enrich_table(
         window_table,
         media_mapping,
-        ctx.config,
+        ctx.config.models,
+        ctx.config.enrichment,
+        ctx.config.quota,
         enrichment_context,
     )
 
@@ -667,9 +670,9 @@ def _create_gemini_client() -> genai.Client:
     """
     http_options = genai.types.HttpOptions(
         retryOptions=genai.types.HttpRetryOptions(
-            attempts=5,
+            attempts=15,
             initialDelay=2.0,
-            maxDelay=15.0,
+            maxDelay=60.0,
             expBase=2.0,
             httpStatusCodes=[429, 503],
         )
@@ -709,6 +712,8 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
     quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
 
+    output_registry = create_default_output_registry()
+
     url_ctx = UrlContext(
         base_url="",
         site_prefix=compute_site_prefix(site_paths["site_root"], site_paths["docs_dir"]),
@@ -737,6 +742,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         annotations_store=annotations_store,
         quota_tracker=quota_tracker,
         usage_tracker=UsageTracker(),
+        output_registry=output_registry,
     )
 
     ctx = PipelineContext(config_obj, state)
@@ -936,7 +942,11 @@ def _prepare_pipeline_data(
     embedding_model = config.models.embedding
 
     output_format = PipelineFactory.create_output_adapter(
-        config, run_params.output_dir, site_root=ctx.site_root, url_context=ctx.url_context
+        config,
+        run_params.output_dir,
+        site_root=ctx.site_root,
+        registry=ctx.output_registry,
+        url_context=ctx.url_context,
     )
     ctx = ctx.with_output_format(output_format)
 
@@ -972,9 +982,9 @@ def _prepare_pipeline_data(
     if config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
-            import asyncio  # noqa: PLC0415
+            import asyncio
 
-            from egregora.rag import index_documents  # noqa: PLC0415
+            from egregora.rag import index_documents
 
             # Get existing documents from output format
             existing_docs = list(output_format.documents())

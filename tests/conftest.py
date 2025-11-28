@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import duckdb
+import duckdb.functional
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

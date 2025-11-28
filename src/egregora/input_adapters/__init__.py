@@ -5,9 +5,8 @@ converting their specific export formats into the standardized IR schema.
 
 Available Adapters:
 - WhatsAppAdapter: For WhatsApp ZIP exports (production-ready)
-
-Unavailable / Placeholder:
-- Slack: Disabled; not registered as an input adapter
+- IperonTJROAdapter: For TJRO workflow imports
+- SelfInputAdapter: Experimental self-reflection adapter
 
 Plugin System:
 - InputAdapterRegistry: Automatically discovers and loads adapters
@@ -81,6 +80,8 @@ def list_adapters() -> list[str]:
 __all__ = [
     "InputAdapter",
     "InputAdapterRegistry",
+    "IperonTJROAdapter",
+    "SelfInputAdapter",
     "WhatsAppAdapter",
     "get_adapter",
     "get_global_registry",

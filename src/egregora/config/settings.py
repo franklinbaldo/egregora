@@ -139,6 +139,19 @@ class ModelSettings(BaseModel):
         return v
 
 
+class ImageGenerationSettings(BaseModel):
+    """Configuration for image generation requests."""
+
+    response_modalities: list[str] = Field(
+        default_factory=lambda: ["IMAGE", "TEXT"],
+        description="Modalities requested from image generation APIs",
+    )
+    aspect_ratio: str = Field(
+        default="16:9",
+        description="Aspect ratio hint for generated banner images",
+    )
+
+
 class RAGSettings(BaseModel):
     """Retrieval-Augmented Generation (RAG) configuration.
 
@@ -397,7 +410,7 @@ class PathsSettings(BaseModel):
         description="Documentation/content directory",
     )
     posts_dir: str = Field(
-        default="blog/posts",
+        default="posts",
         description="Blog posts directory",
     )
     profiles_dir: str = Field(
@@ -554,6 +567,10 @@ class EgregoraConfig(BaseModel):
     models: ModelSettings = Field(
         default_factory=ModelSettings,
         description="LLM model configuration",
+    )
+    image_generation: ImageGenerationSettings = Field(
+        default_factory=ImageGenerationSettings,
+        description="Image generation request settings",
     )
     rag: RAGSettings = Field(
         default_factory=RAGSettings,

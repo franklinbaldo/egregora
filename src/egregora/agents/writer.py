@@ -45,7 +45,7 @@ from egregora.config.settings import EgregoraConfig, RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors, read_profile
 from egregora.ops.media import save_media_asset
-from egregora.output_adapters import output_registry
+from egregora.output_adapters import OutputAdapterRegistry, create_default_output_registry
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.batch import call_with_retries_sync
@@ -176,6 +176,7 @@ class WriterResources:
     client: genai.Client | None
     quota: QuotaTracker | None
     usage: UsageTracker | None
+    output_registry: OutputAdapterRegistry | None = None
 
 
 @dataclass(frozen=True)
@@ -257,7 +258,7 @@ def register_writer_tools(
 
             """
             try:
-                from egregora.rag import RAGQueryRequest, search  # noqa: PLC0415
+                from egregora.rag import RAGQueryRequest, search
 
                 # Execute RAG search
                 request = RAGQueryRequest(text=query, top_k=top_k)
@@ -386,7 +387,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
         return ""
 
     try:
-        from egregora.rag import RAGQueryRequest, search  # noqa: PLC0415
+        from egregora.rag import RAGQueryRequest, search
 
         # Use conversation content as search query (truncate if too long)
         query_text = table_markdown[:500]  # Use first 500 chars as query
@@ -400,7 +401,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
                 return cached
 
         # Execute RAG search
-        import asyncio  # noqa: PLC0415
+        import asyncio
 
         request = RAGQueryRequest(text=query_text, top_k=top_k)
         response = asyncio.run(search(request))
@@ -812,7 +813,7 @@ def _validate_prompt_fits(
 
 
 @sleep_and_retry
-@limits(calls=10, period=60)
+@limits(calls=100, period=60)
 def write_posts_with_pydantic_agent(
     *,
     prompt: str,
@@ -854,6 +855,14 @@ def write_posts_with_pydantic_agent(
     if not intercalated_log:
         fallback_content = _extract_journal_content(result.all_messages())
         if fallback_content:
+            # Strip frontmatter if present (to avoid double frontmatter)
+            if fallback_content.strip().startswith("---"):
+                try:
+                    _, _, body = fallback_content.strip().split("---", 2)
+                    fallback_content = body.strip()
+                except ValueError:
+                    pass  # Failed to split, keep original
+
             intercalated_log = [JournalEntry("journal", fallback_content, datetime.now(tz=UTC))]
         else:
             intercalated_log = [
@@ -952,8 +961,8 @@ def _index_new_content_in_rag(
         return
 
     try:
-        from egregora.data_primitives.document import DocumentType  # noqa: PLC0415
-        from egregora.rag import index_documents  # noqa: PLC0415
+        from egregora.data_primitives.document import DocumentType
+        from egregora.rag import index_documents
 
         # Read the newly saved post documents
         docs: list[Document] = []
@@ -968,7 +977,7 @@ def _index_new_content_in_rag(
                         break
 
         if docs:
-            import asyncio  # noqa: PLC0415
+            import asyncio
 
             asyncio.run(index_documents(docs))
             logger.info("Indexed %d new posts in RAG", len(docs))
@@ -1073,15 +1082,17 @@ def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
     return result_payload
 
 
-def load_format_instructions(site_root: Path | None) -> str:
+def load_format_instructions(site_root: Path | None, *, registry: OutputAdapterRegistry | None = None) -> str:
     """Load output format instructions for the writer agent."""
+    registry = registry or create_default_output_registry()
+
     if site_root:
-        detected_format = output_registry.detect_format(site_root)
+        detected_format = registry.detect_format(site_root)
         if detected_format:
             return detected_format.get_format_instructions()
 
     try:
-        default_format = output_registry.get_format("mkdocs")
+        default_format = registry.get_format("mkdocs")
         return default_format.get_format_instructions()
     except KeyError:
         return ""

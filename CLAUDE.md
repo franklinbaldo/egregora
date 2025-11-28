@@ -44,294 +44,6 @@ uv run egregora show reader-history --limit=20
 # Serve
 cd output && uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
 ```
-
-## Breaking Changes
-
-### 2025-11-27 (PR #TBD - Async RAG Migration with Dual-Queue Embedding Router)
-
-**Complete Async Migration of RAG Backend**
-- **Changed:** All RAG APIs are now fully async
-- **Before:** Sync API with blocking calls
-  ```python
-  # Old sync API (no longer supported)
-  from egregora.rag import index_documents, search
-  index_documents([doc])  # Blocking call
-  response = search(request)  # Blocking call
-  ```
-- **After:** Async API with proper await
-  ```python
-  # New async API (required)
-  from egregora.rag import index_documents, search
-  await index_documents([doc])  # Async call
-  response = await search(request)  # Async call
-  ```
-- **Migration for Sync Callers:** Use `asyncio.run()` wrapper
-  ```python
-  import asyncio
-  asyncio.run(index_documents([doc]))
-  response = asyncio.run(search(request))
-  ```
-
-**Dual-Queue Embedding Router**
-- **Added:** New `egregora.rag.embedding_router` module with intelligent routing
-- **Architecture:** Dual-queue system routes requests to optimal endpoint
-  - **Single endpoint:** Low-latency, preferred for queries (1 request/sec)
-  - **Batch endpoint:** High-throughput, used for bulk indexing (1000 embeddings/min)
-- **Features:**
-  - Independent rate limit tracking per endpoint
-  - Automatic 429 fallback and retry with exponential backoff
-  - Request accumulation during rate limits
-  - Intelligent routing based on request size and endpoint availability
-- **Configuration:** New settings in `.egregora/config.yml`:
-  ```yaml
-  rag:
-    embedding_max_batch_size: 100  # Max texts per batch request
-    embedding_timeout: 60.0  # Timeout for embedding requests
-  ```
-- **Performance:** Significantly improved throughput for bulk indexing operations
-- **Asymmetric Embeddings:** Proper support for Google Gemini's asymmetric embeddings
-  - Documents: `RETRIEVAL_DOCUMENT` task type
-  - Queries: `RETRIEVAL_QUERY` task type
-  - Better retrieval quality through task-specific embeddings
-
-**Breaking Changes:**
-- **API Surface:** All `index_documents()` and `search()` calls must use `await`
-- **Sync Integration:** Sync code must wrap calls in `asyncio.run()`
-- **Test Updates:** All RAG tests converted to async (`@pytest.mark.asyncio`)
-- **Impact:** Any code calling RAG functions must be updated to handle async
-
-**Performance Improvements:**
-- **Chunking:** Fixed O(n²) performance issue in text chunking
-- **Embedding Router:**
-  - Dual-queue architecture maximizes API quota utilization
-  - Automatic fallback prevents cascading failures
-  - Request batching reduces API calls by up to 100x
-
-**Migration Guide:**
-1. **Async Context (Pydantic-AI tools):** Already async, just add `await`
-2. **Sync Context (pipeline orchestration):** Wrap in `asyncio.run()`
-3. **Tests:** Add `@pytest.mark.asyncio` decorator and `await` calls
-4. **Custom Embedding Functions:** Must now be async with signature:
-   ```python
-   async def embed_fn(texts: Sequence[str], task_type: str) -> list[list[float]]
-   ```
-
-**Files Changed:**
-- `src/egregora/rag/__init__.py`: Async API signatures
-- `src/egregora/rag/lancedb_backend.py`: Async backend methods
-- `src/egregora/rag/embedding_router.py`: New dual-queue router
-- `src/egregora/rag/embeddings_async.py`: New async embedding API
-- `src/egregora/agents/writer.py`: Tool updated with `await`
-- `src/egregora/orchestration/write_pipeline.py`: Wrapped in `asyncio.run()`
-- `tests/unit/rag/*.py`: All tests converted to async
-
-### 2025-11-27 (PR #981 - LanceDB RAG Backend)
-
-**New RAG Backend with LanceDB**
-- **Added:** New `egregora.rag` package with LanceDB-based vector storage
-- **Architecture:** Clean protocol-based design with `RAGBackend` interface
-- **API:** Simplified API compared to legacy `VectorStore`:
-  ```python
-  # New API (egregora.rag)
-  from egregora.rag import index_documents, search, RAGQueryRequest
-  from egregora.data_primitives import Document, DocumentType
-
-  # Index documents
-  doc = Document(content="# Post\n\nContent", type=DocumentType.POST)
-  index_documents([doc])
-
-  # Search
-  request = RAGQueryRequest(text="search query", top_k=5)
-  response = search(request)
-  for hit in response.hits:
-      print(f"{hit.score:.2f}: {hit.text[:50]}")
-  ```
-- **Configuration:** New settings in `.egregora/config.yml`:
-  ```yaml
-  paths:
-    lancedb_dir: .egregora/lancedb  # LanceDB storage location
-
-  rag:
-    enabled: true
-    top_k: 5
-    min_similarity_threshold: 0.7
-    indexable_types: ["POST"]  # Document types to index (configurable)
-  ```
-- **Dependencies:** Replaced `langchain-text-splitters` and `langchain-core` with `lancedb>=0.4.0`
-- **Chunking:** Simple whitespace-based chunking (no LangChain dependency)
-- **Status:** The legacy `VectorStore` in `egregora.agents.shared.rag` is now deprecated
-- **Migration:** Legacy VectorStore will be removed in a future PR. New code should use `egregora.rag` package.
-- **Security:** Fixed potential SQL injection in delete operations with proper string escaping
-- **Flexibility:**
-  - Indexable document types are now configurable via `rag.indexable_types` setting
-  - Embedding function is dependency-injected for easier testing and alternative models
-
-**Key Improvements Over Legacy RAG:**
-1. **Cleaner Architecture:** Protocol-based design with `RAGBackend` interface
-2. **Better Performance:** LanceDB provides faster vector search than DuckDB VSS
-3. **Simpler API:** Direct document indexing without adapter coupling
-4. **More Configurable:** Indexable types, storage paths, and search parameters are all configurable
-5. **Better Error Handling:** More specific exception handling with clear error messages
-
-**Breaking Changes (Fixed in Follow-up):**
-- **Similarity Scores:** Now use cosine metric instead of L2 distance (default)
-  - Previous implementation: Scores could be negative due to L2 distance
-  - Current implementation: Scores in [-1, 1] range using `.metric("cosine")`
-  - Impact: Scores will differ from earlier versions; re-index recommended
-- **Filters API:** Changed from `dict[str, Any]` to `str`
-  - Before: `filters={"category": "programming"}` (not actually supported)
-  - After: `filters="category = 'programming'"` (SQL WHERE clause)
-  - Rationale: Exposes LanceDB's native filtering without abstraction layer
-  - Example:
-    ```python
-    # Search with SQL filtering
-    request = RAGQueryRequest(
-        text="search query",
-        top_k=5,
-        filters="metadata_json LIKE '%programming%'"  # SQL WHERE clause
-    )
-    response = search(request)
-    ```
-- **Backend Initialization:** Removed unused `top_k_default` parameter
-  - Before: `LanceDBRAGBackend(..., top_k_default=5)`
-  - After: `LanceDBRAGBackend(...)` (use `RAGQueryRequest.top_k` instead)
-- **Query Limits:** Increased `top_k` maximum from 20 to 100
-  - Allows more flexible retrieval for analytics and batch processing
-
-### 2025-11-26 (PR #975 - Resumability & Fixes)
-
-**MkDocs Plugin Rename**
-- **Changed:** `mkdocs-blogging-plugin` renamed to `blog` in `mkdocs.yml` templates
-- **Impact:** Custom `mkdocs.yml` files using the old plugin name will fail to build
-- **Migration:** Update `plugins:` section in `mkdocs.yml`:
-  ```yaml
-  plugins:
-    - blog  # was 'blogging'
-  ```
-
-### 2025-11-25 (PR #926 - RAG Indexing Optimization)
-
-**VectorStore Facade Pattern**
-- **Changed:** RAG operations centralized as VectorStore methods
-- **Before:** Direct function calls: `index_documents_for_rag(output, rag_dir, storage, ...)`
-- **After:** Method calls: `store.index_documents(output, embedding_model=...)`
-- **New Methods:**
-  - `VectorStore.index_documents(output_format, *, embedding_model)` - Index documents from adapter
-  - `VectorStore.index_media(docs_dir, *, embedding_model)` - Index media enrichments
-  - `VectorStore.query_media(query, ...)` - Search for relevant media
-  - `VectorStore.query_similar_posts(table, ...)` - Find similar blog posts
-  - `VectorStore.is_available()` - Check if RAG is available (static)
-  - `VectorStore.embed_query(query_text, *, model)` - Embed query text (static)
-- **Migration:**
-  ```python
-  # Before
-  from egregora.agents.shared.rag import index_documents_for_rag, query_media
-  indexed = index_documents_for_rag(output, rag_dir, storage, embedding_model=model)
-  results = query_media(query, store, media_types=types, ...)
-
-  # After
-  from egregora.agents.shared.rag import VectorStore
-  store = VectorStore(rag_dir / "chunks.parquet", storage=storage)
-  indexed = store.index_documents(output, embedding_model=model)
-  results = store.query_media(query, media_types=types, ...)
-  ```
-
-**Reduced RAG Export Surface**
-- **Removed from `egregora.agents.shared.rag` exports:** All internal functions
-- **Now exported:** Only `VectorStore` and `DatasetMetadata`
-- **Rationale:** VectorStore is the single public API; internal functions are implementation details
-- **Impact:** Code importing individual RAG functions will break
-- **Migration:** Use VectorStore methods instead of direct function imports
-
-**OutputSink Protocol Cleanup**
-- **Removed:** `resolve_document_path()` from OutputSink protocol
-- **Rationale:** Filesystem-specific method didn't belong in general output protocol
-- **Impact:** Code relying on OutputSink having this method will break
-- **Migration:** Check for method existence with `hasattr()` or use concrete adapter types
-
-**Deterministic File Locations**
-- **Changed:** RAG directory now uses settings instead of hardcoded paths
-- **Before:** `site_root / ".egregora" / "rag"` hardcoded in multiple locations
-- **After:** `config.paths.rag_dir` from settings (default: `.egregora/rag`)
-- **Configuration:** Set `paths.rag_dir` in `.egregora/config.yml` to customize
-- **Rationale:** All file locations should be configurable, not scattered throughout code
-
-**Improved Exception Handling**
-- **Changed:** `_index_new_documents` now catches specific exceptions
-- **Before:** `except Exception: # noqa: BLE001`
-- **After:** Catches `OSError`, `ValueError`, `PromptTooLargeError` explicitly
-- **Impact:** Unexpected errors now propagate with full stack traces for debugging
-- **Rationale:** Blanket exception catching hides bugs; be explicit about expected errors
-
-### 2025-11-23 (Multi-PR Merge)
-
-**Tiered Caching Architecture (PR #890)**
-- **New Feature:** Three-tier cache system (L1: Enrichment, L2: RAG, L3: Writer)
-- **CLI Addition:** `--refresh` flag to invalidate cache tiers
-- **Cache Tiers:**
-  - L1: Asset enrichment results (URLs, media)
-  - L2: Vector search results with index metadata invalidation
-  - L3: Writer output with semantic hashing (zero-cost re-runs)
-- **Usage:** `egregora write export.zip --refresh=writer` or `--refresh=all`
-- **Rationale:** Massive cost reduction for unchanged windows
-
-**Writer Input Format: Markdown → XML (PR #889)**
-- **Before:** Conversation passed as Markdown table
-- **After:** Compact XML format via `_build_conversation_xml()`
-- **Breaking:** Custom prompt templates must use `conversation_xml` (not `markdown_table`)
-- **Template:** Uses `src/egregora/templates/conversation.xml.jinja`
-- **Rationale:** ~40% token reduction, better structure preservation
-
-**VSS Extension & Avatar Fallbacks (PR #893)**
-- VSS extension now loaded explicitly before HNSW operations
-- Fallback avatar generation using getavataaars.com (deterministic from UUID hash)
-- Banner path conversion to web-friendly relative URLs
-- Idempotent scaffold (detects existing mkdocs.yml)
-
-**WhatsApp Parser Refactor (PR #894)**
-- **Removed:** Hybrid DuckDB+Python `_parse_messages_duckdb()`
-- **Added:** Pure Python `_parse_whatsapp_lines()` generator
-- **Migration:** No API changes, internal refactor only
-- **Rationale:** Eliminates serialization overhead, single-pass processing
-
-**Privacy Validation Moved to Input Adapters (PR #892)**
-- **Removed:** Mandatory `validate_text_privacy()` from `AnnotationStore.save_annotation()`
-- **Rationale:** Allow public datasets (judicial records) with legitimate PII
-- **Impact:** Privacy validation is now optional, use at input adapter level (e.g., WhatsApp)
-
-**Circular Import Cleanup (PR #891)**
-- **Removed:** Lazy `__getattr__` shim in `agents/__init__.py`
-- **Changed:** Writer agent expects `output_format` in execution context (not direct import)
-- **Migration:** Ensure `PipelineContext.output_format` is set before writer execution
-- **Rationale:** Cleaner architecture, no import-time side effects
-
-### 2025-11-22 (PR #855)
-
-**OutputAdapter.documents() → Iterator[Document]**
-- **Before:** `def documents(self) -> list[Document]`
-- **After:** `def documents(self) -> Iterator[Document]`
-- **Migration:** Use `list(adapter.documents())` if you need random access
-- **Rationale:** Memory efficiency for sites with 1000s of documents
-
-**Statistics Page Auto-generation**
-- Generates `posts/{date}-statistics.md` after pipeline runs
-- Uses `daily_aggregates_view` (View Registry pattern)
-- Non-critical path: errors don't block completion
-
-**Interactive Init**
-- `egregora init` now prompts for site name
-- Auto-detects non-TTY (CI/CD) and disables prompts
-- Use `--no-interactive` to explicitly disable
-
-### 2025-11-17 (Infrastructure Simplification)
-
-**~1,500 LOC removed:**
-- Event-sourced `run_events` → simple `runs` table (INSERT + UPDATE pattern)
-- IR schema: Python single source of truth (no SQL/JSON lockfiles)
-- Validation: Manual `validate_ir_schema()` calls (decorator removed)
-- Fingerprinting: Removed (file existence checks only)
-- Checkpointing: Opt-in via `--resume` (default: full rebuild)
-
 ## Architecture
 
 ### Pipeline Stages
@@ -491,230 +203,28 @@ src/egregora/
 ✅ **Simple Default:** Full rebuild (--resume for incremental)
 ✅ **Alpha Mindset:** Clean breaks, no backward compatibility
 
-## CLI Commands
-
-### Main Commands
-
-**`egregora write`** - Generate blog posts from chat exports
-```bash
-egregora write <input_file> [OPTIONS]
-
-# Core options:
-  --source-type, -s TEXT         Input adapter (whatsapp, iperon-tjro, self)
-  --output-dir, -o PATH          Output directory (default: current dir)
-
-# Windowing:
-  --step-size INTEGER            Window step size (default: 1)
-  --step-unit TEXT               Window unit: days, hours, messages (default: days)
-  --overlap FLOAT                Overlap ratio between windows (default: 0.0)
-
-# Enrichment:
-  --enable-enrichment            Enable LLM enrichment (URL/media)
-  --no-enrichment                Disable LLM enrichment
-
-# Date filtering:
-  --from-date TEXT               Start date (YYYY-MM-DD)
-  --to-date TEXT                 End date (YYYY-MM-DD)
-  --timezone TEXT                Timezone for date parsing (default: UTC)
-
-# Model configuration:
-  --model TEXT                   Model override (e.g., google-gla:gemini-flash-latest)
-  --max-prompt-tokens INTEGER    Max prompt tokens
-  --use-full-context-window      Use full model context window
-
-# Pipeline control:
-  --max-windows INTEGER          Maximum windows to process
-  --resume                       Enable incremental processing (opt-in)
-  --refresh TEXT                 Cache tier to invalidate: enrichment, rag, writer, all
-  --force, -f                    Force full regeneration
-
-# Debugging:
-  --debug                        Enable debug logging
-
-# Examples:
-egregora write export.zip --source-type=whatsapp --output-dir=./output
-egregora write export.zip --resume  # Incremental run
-egregora write export.zip --refresh=writer  # Invalidate writer cache
-egregora write data/ --source-type=self --from-date=2025-01-01
-```
-
-**`egregora init`** - Initialize new MkDocs site scaffold
-```bash
-egregora init <output_dir> [OPTIONS]
-
-# Options:
-  --no-interactive              Disable interactive prompts (for CI/CD)
-  --force                       Overwrite existing files
-
-# Examples:
-egregora init ./my-site
-egregora init ./output --no-interactive
-```
-
-**`egregora top`** - Show top-ranked posts from reader database
-```bash
-egregora top [OPTIONS]
-
-# Options:
-  --limit INTEGER               Number of posts to show (default: 10)
-  --database PATH               Reader database path (default from config)
-
-# Examples:
-egregora top
-egregora top --limit=20
-```
-
-**`egregora doctor`** - Run diagnostic health checks
-```bash
-egregora doctor [OPTIONS]
-
-# Checks:
-  - Configuration validity
-  - Database connectivity
-  - Model availability
-  - Dependencies
-  - File permissions
-
-# Examples:
-egregora doctor
-```
-
-### Sub-Commands
-
-**`egregora runs`** - Run tracking commands
-```bash
-egregora runs list                  # List all pipeline runs
-egregora runs show <run_id>         # Show details for a specific run
-egregora runs clean                 # Clean old run records
-```
-
-**`egregora read`** - Reader agent commands
-```bash
-egregora read run <posts_dir>       # Run reader agent on posts
-egregora read compare <post1> <post2>  # Compare two posts
-egregora read rank <posts_dir>      # Rank all posts by ELO
-```
-
-**`egregora show reader-history`** - Show comparison history
-```bash
-egregora show reader-history [OPTIONS]
-
-# Options:
-  --limit INTEGER               Number of comparisons to show
-  --database PATH               Reader database path
-```
-
-**`egregora config`** - Configuration management commands
-```bash
-egregora config validate [SITE_ROOT]   # Validate configuration file
-egregora config show [SITE_ROOT]       # Show current configuration
-
-# Examples:
-egregora config validate                    # Validate ./.egregora/config.yml
-egregora config validate ./my-blog          # Validate specific site
-egregora config show                        # Show current config as YAML
-```
-
 ## Agents
 
-Egregora uses four specialized Pydantic-AI agents:
+Four specialized Pydantic-AI agents handle different pipeline stages:
 
-### Writer Agent
-- **Module:** `agents/writer.py`
-- **Purpose:** Generate coherent blog posts from conversation windows
-- **Model:** Configurable via `models.writer` (default: `gemini-flash-latest`)
-- **Prompt:** `.egregora/prompts/writer.jinja` or `src/egregora/prompts/writer.jinja`
-- **Input:** Conversation window as XML (via `conversation.xml.jinja` template)
-- **Output:** Markdown blog post with frontmatter
-- **Tools:** RAG search for retrieving similar past content
-- **Caching:** L3 cache with semantic hashing (zero-cost re-runs for unchanged windows)
+1. **Writer** (`agents/writer.py`) - Generate blog posts from conversation windows
+   - Input: XML conversation window, Output: Markdown with frontmatter
+   - Tools: RAG search for past content, L3 cache for zero-cost re-runs
+   - Config: `models.writer`, `writer.custom_instructions`
 
-**Configuration:**
-```yaml
-models:
-  writer: google-gla:gemini-flash-latest
+2. **Enricher** (`agents/enricher.py`) - Extract and enrich URLs/media/text
+   - URL: title/description extraction, Media: captions/descriptions, Text: key points
+   - L1 cache for asset-level caching
+   - Config: `models.enricher`, `models.enricher_vision`, `enrichment.*`
 
-writer:
-  custom_instructions: |
-    Additional instructions for the writer agent.
-    Use this to customize writing style, tone, etc.
-```
+3. **Reader** (`agents/reader/`) - Post quality evaluation via ELO ranking
+   - Pairwise comparison (A vs B), SQLite persistence, comparison history
+   - Use: `egregora read rank`, `egregora top`, `egregora show reader-history`
+   - Config: `models.reader`, `reader.comparisons_per_post`, `reader.k_factor`
 
-### Enricher Agent
-- **Module:** `agents/enricher.py`
-- **Purpose:** Extract and enrich URLs and media from messages
-- **Model:** Configurable via `models.enricher` and `models.enricher_vision`
-- **Capabilities:**
-  - URL enrichment: Extract title, description, and context
-  - Media enrichment: Generate captions and descriptions for images/videos
-  - Text enrichment: Extract key points and context from long text
-- **Caching:** L1 cache for enrichment results (asset-level caching)
-
-**Configuration:**
-```yaml
-models:
-  enricher: google-gla:gemini-flash-latest
-  enricher_vision: google-gla:gemini-flash-latest
-
-enrichment:
-  enabled: true
-  enable_url: true
-  enable_media: true
-  max_enrichments: 100
-```
-
-### Reader Agent
-- **Module:** `agents/reader/`
-- **Purpose:** Post quality evaluation and ranking using ELO system
-- **Model:** Configurable via `models.reader` or `models.ranking`
-- **Architecture:**
-  - Pairwise post comparison (A vs B)
-  - ELO rating updates based on comparison outcomes
-  - Persistent ratings in SQLite database
-  - Comparison history tracking
-- **Use Cases:**
-  - Identify best posts for highlighting
-  - Track content quality over time
-  - Generate "top posts" lists
-
-**Configuration:**
-```yaml
-models:
-  reader: google-gla:gemini-flash-latest
-  ranking: google-gla:gemini-flash-latest
-
-reader:
-  enabled: true
-  comparisons_per_post: 5
-  k_factor: 32
-  database_path: .egregora/reader.db
-```
-
-**Usage:**
-```bash
-# Rank all posts
-egregora read rank ./output/docs/posts
-
-# Show top-ranked posts
-egregora top --limit=10
-
-# Show comparison history
-egregora show reader-history --limit=20
-```
-
-### Banner Agent
-- **Module:** `agents/banner/`
-- **Purpose:** Generate cover images for blog posts using Gemini Imagen
-- **Model:** Configurable via `models.banner`
-- **Input:** Post title, summary, and optional style instructions
-- **Output:** PNG image saved to `docs/assets/banners/`
-- **Fallback:** Uses placeholder or gradient banners if generation fails
-
-**Configuration:**
-```yaml
-models:
-  banner: google-gla:gemini-imagen-latest
-```
+4. **Banner** (`agents/banner/`) - Generate cover images with Gemini Imagen
+   - Input: post title/summary, Output: PNG to `docs/assets/banners/`
+   - Config: `models.banner`
 
 ## Naming Conventions
 
@@ -839,184 +349,52 @@ if step == PipelineStep.ENRICHMENT:
     max_tokens = KNOWN_MODEL_LIMITS["gemini-flash"]
 ```
 
+### URL Generation (UrlConvention Protocol)
+
+**See [docs/architecture/protocols.md](docs/architecture/protocols.md#url-generation) for complete documentation.**
+
+Quick summary: `UrlConvention` protocol enables deterministic URL generation for documents.
+
+```python
+from egregora.data_primitives.protocols import UrlContext, UrlConvention
+
+# UrlContext: frozen dataclass with context for URL generation
+ctx = UrlContext(base_url="https://example.com", site_prefix="/blog")
+
+# UrlConvention: Protocol for deterministic URL generation
+# Pure function pattern: same document → same URL (no I/O, no side effects)
+# Pattern ensures stable URLs across rebuilds (critical for SEO/links)
+```
+
+**Key properties:**
+- Deterministic: same document → same URL
+- Pure: no I/O, no side effects
+- Versioned: `name` and `version` properties for compatibility checks
+
 ## Configuration
+
+**See [docs/configuration.md](docs/configuration.md) for complete auto-generated reference.**
 
 **File:** `.egregora/config.yml`
 
-### Complete Configuration Reference
+**Key settings groups** (13 Pydantic V2 classes):
+- `models`, `rag`, `writer`, `enrichment`, `pipeline`, `paths`, `database`, `output`, `reader`, `quota`
 
+**Minimal config:**
 ```yaml
-# Model Configuration (Pydantic-AI and Google GenAI formats)
 models:
   writer: google-gla:gemini-flash-latest
-  enricher: google-gla:gemini-flash-latest
-  enricher_vision: google-gla:gemini-flash-latest
-  ranking: google-gla:gemini-flash-latest
-  editor: google-gla:gemini-flash-latest
-  reader: google-gla:gemini-flash-latest
   embedding: google-gla:gemini-embedding-001
-  banner: google-gla:gemini-imagen-latest
-
-# RAG Configuration
 rag:
   enabled: true
-  top_k: 5
-  min_similarity_threshold: 0.7
-  indexable_types: ["POST"]  # Document types to index
-  embedding_max_batch_size: 100  # Max texts per batch request
-  embedding_timeout: 60.0  # Timeout for embedding requests (seconds)
-  embedding_max_retries: 3  # Max retries for embedding requests
-
-# Writer Agent Configuration
-writer:
-  custom_instructions: |
-    Additional instructions for the writer agent.
-    Use this to customize writing style, tone, etc.
-
-# Privacy Configuration
-privacy:
-  enabled: true                     # Enable privacy features (anonymization, PII detection)
-  pii_detection_enabled: true       # Enable PII detection and warnings
-  pii_action: warn                  # Action on PII: "warn", "redact", "skip"
-  anonymize_authors: true           # Anonymize author names with UUIDs
-  custom_pii_patterns: []           # Additional regex patterns for PII detection
-
-# Enrichment Configuration
-enrichment:
-  enabled: true
-  enable_url: true
-  enable_media: true
-  max_enrichments: 100
-
-# Pipeline Execution Configuration
 pipeline:
-  # Windowing
   step_size: 1
-  step_unit: days  # "days", "hours", "messages"
-  overlap_ratio: 0.0  # Overlap between windows (0.0-1.0)
-  max_window_time: null  # Max window duration (seconds)
-  timezone: UTC  # Timezone for date parsing
-
-  # Batching
-  batch_threshold: 10  # Minimum messages to form a batch
-
-  # Date filtering
-  from_date: null  # Start date (YYYY-MM-DD)
-  to_date: null    # End date (YYYY-MM-DD)
-
-  # Context window management
-  max_prompt_tokens: null  # Max prompt tokens (overrides model default)
-  use_full_context_window: false  # Use full model context window
-  max_windows: null  # Maximum windows to process
-
-  # Checkpointing
-  checkpoint_enabled: false  # Enable incremental processing (opt-in)
-
-# Path Configuration
-paths:
-  # Internal paths (relative to output_dir/.egregora/)
-  egregora_dir: .egregora
-  rag_dir: .egregora/rag
-  lancedb_dir: .egregora/lancedb
-  cache_dir: .egregora/cache
-  prompts_dir: .egregora/prompts
-
-  # Content paths (relative to output_dir/)
-  docs_dir: docs
-  posts_dir: docs/posts
-  profiles_dir: docs/profiles
-  media_dir: docs/assets/media
-  journal_dir: .egregora/journals
-
-# Database Configuration
-database:
-  pipeline_db: .egregora/pipeline.duckdb
-  runs_db: .egregora/runs.duckdb
-
-# Output Format Configuration
-output:
-  format: mkdocs  # "mkdocs" or "hugo"
-  mkdocs_config_path: mkdocs.yml
-
-# Reader Agent Configuration
-reader:
-  enabled: true
-  comparisons_per_post: 5
-  k_factor: 32
-  database_path: .egregora/reader.db
-
-# Feature Flags
-features:
-  ranking_enabled: false  # Deprecated, use reader.enabled
-  annotations_enabled: true
-
-# Quota Configuration (LLM usage budgets)
-quota:
-  daily_llm_requests: null  # Max LLM requests per day (null = unlimited)
-  per_second_limit: 1.0     # Max requests per second
-  concurrency: 5            # Max concurrent requests
+  step_unit: days
 ```
 
-### Configuration Classes
+**Custom prompts:** `.egregora/prompts/` (overrides `src/egregora/prompts/`)
 
-All configuration is defined using Pydantic V2 in `config/settings.py`:
-
-- **`EgregoraConfig`** - Root configuration class
-- **`ModelSettings`** - LLM model configuration
-- **`RAGSettings`** - RAG and embedding configuration
-- **`WriterAgentSettings`** - Writer agent customization
-- **`PrivacySettings`** - Privacy and data protection settings
-- **`EnrichmentSettings`** - Enrichment behavior
-- **`PipelineSettings`** - Pipeline execution parameters
-- **`PathsSettings`** - File and directory paths
-- **`DatabaseSettings`** - Database paths
-- **`OutputSettings`** - Output format settings
-- **`ReaderSettings`** - Reader agent configuration
-- **`FeaturesSettings`** - Feature flags
-- **`QuotaSettings`** - LLM usage quotas
-
-### Configuration Validation
-
-Use `egregora config validate` to check your configuration:
-
-```bash
-# Validate configuration
-egregora config validate
-
-# Shows friendly error messages:
-❌ Configuration errors found:
-  models → writer: Invalid Pydantic-AI model format: 'gemini-flash'
-    Expected format: 'google-gla:<model-name>'
-
-# Shows warnings:
-⚠️  Warnings:
-  • RAG top_k=20 is high. Consider 5-10 for better performance.
-```
-
-### Configuration Overrides
-
-Use `ConfigOverrideBuilder` for programmatic config modification:
-
-```python
-from egregora.config.overrides import ConfigOverrideBuilder
-
-overrides = ConfigOverrideBuilder()
-overrides.set_model("writer", "google-gla:gemini-pro-latest")
-overrides.set_rag_enabled(False)
-config = overrides.build(base_config)
-```
-
-### Custom Prompts
-
-Place custom Jinja2 templates in `.egregora/prompts/` to override defaults:
-
-- `writer.jinja` - Writer agent prompt
-- `banner.jinja` - Banner agent prompt
-- `reader_system.jinja` - Reader system prompt
-- `media_detailed.jinja` - Media enrichment prompt
-- `url_detailed.jinja` - URL enrichment prompt
-
-**Template variables:** Check `src/egregora/prompts/` for available variables per template.
+**Regenerate docs:** `python dev_tools/generate_config_docs.py`
 
 ## Testing
 
@@ -1188,12 +566,9 @@ conn.execute("SELECT * FROM duckdb_extensions() WHERE extension_name = 'vss'")
 ```
 
 ## Common Pitfalls
-
-1. ❌ Never bypass privacy stage
 2. ❌ Don't use pandas (use Ibis, convert only at boundaries)
 3. ❌ Don't modify `IR_MESSAGE_SCHEMA` without migration plan
-4. ✅ Commit VCR cassettes to repo
-5. ✅ Use `--retrieval-mode=exact` in CI without VSS
+
 
 ## Post-Commit Reflection
 
@@ -1284,9 +659,6 @@ Ask permission to update CLAUDE.md with valuable insights.
 - Users must install dependencies manually
 - **Consider:** Add Dockerfile for containerized deployment
 
-### Known Bugs
-
-**None currently tracked** - File issues at https://github.com/franklinbaldo/egregora/issues
 
 ## Resources
 

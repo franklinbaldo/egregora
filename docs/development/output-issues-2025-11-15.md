@@ -35,13 +35,13 @@ Content quality appears good - rich, well-formatted Markdown with proper frontma
 
 ### 1. Journal Entries Not Created
 
-**Location**: `/home/frank/workspace/blog/posts/journal/`
+**Location**: `/home/frank/workspace/docs/posts/journal/`
 **Current State**: Empty (only `.gitkeep` file)
 **Expected**: Journal entries from writer agent execution
 
 **Evidence**:
 ```bash
-$ ls -la /home/frank/workspace/blog/posts/journal/
+$ ls -la /home/frank/workspace/docs/posts/journal/
 total 8
 drwxr-xr-x 2 frank frank 4096 Nov 15 16:00 .
 drwxr-xr-x 3 frank frank 4096 Nov 15 16:05 ..

@@ -35,7 +35,7 @@ This will install and run Egregora without any local installation. Use `uvx` for
 uvx --from git+https://github.com/franklinbaldo/egregora egregora init my-blog
 
 # Process WhatsApp export
-uvx --from git+https://github.com/franklinbaldo/egregora egregora process export.zip
+uvx --from git+https://github.com/franklinbaldo/egregora egregora write export.zip
 ```
 
 ### From PyPI

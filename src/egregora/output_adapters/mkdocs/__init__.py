@@ -15,9 +15,11 @@ from egregora.output_adapters.mkdocs.adapter import (
 from egregora.output_adapters.mkdocs.paths import (
     derive_mkdocs_paths,
 )
+from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
 
 __all__ = [
     "MkDocsAdapter",
+    "MkDocsSiteScaffolder",
     "derive_mkdocs_paths",
     "secure_path_join",
 ]

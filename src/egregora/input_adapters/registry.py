@@ -50,6 +50,10 @@ class InputAdapterRegistry:
         self._adapters: dict[str, InputAdapter] = {}
         self._load_plugins()
 
+        if not self._adapters:
+            logger.info("No adapters discovered via entry points; registering built-in adapters")
+            self._register_builtin_adapters()
+
     def _load_plugins(self) -> None:
         """Load adapters from entry points.
 
@@ -90,6 +94,36 @@ class InputAdapterRegistry:
 
             except Exception:
                 logger.exception("Failed to load plugin adapter: %s", ep.name)
+
+    def _register_builtin_adapters(self) -> None:
+        """Register adapters bundled with the application.
+
+        This acts as a fallback when entry point discovery is unavailable,
+        such as when running from a source checkout without an installed
+        distribution. Built-ins are only added when a source identifier has
+        not already been registered via plugins.
+        """
+        from egregora.input_adapters import IperonTJROAdapter, SelfInputAdapter, WhatsAppAdapter
+
+        builtin_adapters = (
+            WhatsAppAdapter,
+            IperonTJROAdapter,
+            SelfInputAdapter,
+        )
+
+        for adapter_cls in builtin_adapters:
+            try:
+                adapter = adapter_cls()
+                meta = adapter.get_adapter_metadata()
+            except Exception:
+                logger.exception("Failed to initialize built-in adapter: %s", adapter_cls.__name__)
+                continue
+
+            if meta["source"] in self._adapters:
+                continue
+
+            self._adapters[meta["source"]] = adapter
+            logger.info("Registered built-in adapter: %s v%s", meta["name"], meta["version"])
 
     def get(self, source_identifier: str) -> InputAdapter:
         """Get adapter by source identifier.

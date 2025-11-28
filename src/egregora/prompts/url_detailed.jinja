@@ -1,56 +1,14 @@
-Generate a complete markdown enrichment file for this URL shared in a group conversation.
+{#
+Detailed enrichment prompt for public URLs shared inside private group conversations.
+This template is intentionally verbose to capture metadata for downstream retrieval and RAG.
+#}
 
-## URL to Analyze
-{{ url }}
+URL: {{ url }}
 
-## Context
-This link was shared in a private group conversation. The sharer's identity, original wording, and share timestamp must remain confidential.
+Write a markdown document with these sections:
+- **Summary**: two paragraphs that describe the content in plain language.
+- **Context**: explain why this link might matter to the conversation without revealing private chat details.
+- **Key Points**: 3-5 bullet points with concrete facts or claims from the page.
+- **Source Metadata**: title, author (if available), publish date, and canonical domain.
 
-Return JSON with `{ "slug": string, "markdown": string }`:
-
-- `slug`: kebab-case identifier (≤ 60 characters) capturing the topic/source (e.g., `alignment-forum-mesa-optimizers`).
-- `markdown`: the document described below.
-
-## Output Format
-
-Generate a complete markdown document following this structure:
-
-```markdown
-# Enrichment: [URL]
-
-## Metadata
-- **URL:** {{ url }}
-
-## Content
-
-### URL Preview
-<iframe src="{{ url }}" width="100%" height="500" frameborder="0" loading="lazy"></iframe>
-
-[Open in new tab]({{ url }})
-
-## Analysis
-
----
-
-## Summary
-[2-3 paragraph comprehensive summary of the URL's content]
-
----
-
-## Context
-[Explain why this public content is relevant to ongoing themes without quoting or referencing the private message, sender, or share timestamp.]
-
----
-
-## Key Takeaways
-[Markdown bullet list of 3-5 key insights]
-
----
-
-## Metadata
-[Markdown bullet list: title, author, publication date, source, etc.]
-```
-
-Output ONLY the markdown. No preamble. No code fences. Raw markdown that can be saved directly to a .md file.
-
-Do not reveal or quote the original sender, private message, or share timestamp; focus solely on the public content and inferred relevance.
+Do not quote or mention the original sender or message text. Keep everything framed as an analysis of the public page only.
