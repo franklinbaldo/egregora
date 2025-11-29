@@ -36,6 +36,14 @@ class TestUrlExtensionRemoval:
         assert _remove_url_extension("archive.tar.gz") == "archive.tar"
         assert _remove_url_extension("path/to/file.backup.md") == "path/to/file.backup"
 
+    def test_preserves_dotfiles(self):
+        """Dotfiles (starting with .) should be preserved, not treated as extensions."""
+        assert _remove_url_extension(".config") == ".config"
+        assert _remove_url_extension(".gitignore") == ".gitignore"
+        assert _remove_url_extension("path/.config") == "path/.config"
+        assert _remove_url_extension("path/.gitignore") == "path/.gitignore"
+        assert _remove_url_extension("media/.htaccess") == "media/.htaccess"
+
 
 class TestStandardUrlConventionPurity:
     """Verify StandardUrlConvention uses only strings, no Path operations."""
