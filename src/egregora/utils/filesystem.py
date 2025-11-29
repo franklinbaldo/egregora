@@ -52,7 +52,7 @@ def _extract_clean_date(date_str: str) -> str:
     return date_str
 
 
-def _format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
+def format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
     """Normalize a metadata date into the RSS-friendly ``YYYY-MM-DD HH:MM`` string."""
     if raw_date is None:
         return ""
@@ -64,7 +64,7 @@ def _format_frontmatter_datetime(raw_date: str | date | datetime) -> str:
     return dt.strftime("%Y-%m-%d %H:%M")
 
 
-def _ensure_author_entries(output_dir: Path, author_ids: list[str] | None) -> None:
+def ensure_author_entries(output_dir: Path, author_ids: list[str] | None) -> None:
     """Ensure every referenced author has an entry in `.authors.yml`.
 
     This logic is specific to MkDocs/Material theme but stored here for reuse
@@ -140,10 +140,10 @@ def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path
         "slug": slug_candidate,
     }
 
-    front_matter["date"] = _format_frontmatter_datetime(raw_date)
+    front_matter["date"] = format_frontmatter_datetime(raw_date)
 
     if "authors" in metadata:
-        _ensure_author_entries(output_dir, metadata.get("authors"))
+        ensure_author_entries(output_dir, metadata.get("authors"))
 
     if "tags" in metadata:
         front_matter["tags"] = metadata["tags"]
