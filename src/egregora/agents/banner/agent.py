@@ -13,12 +13,14 @@ import logging
 
 from google import genai
 from pydantic import BaseModel, ConfigDict, Field
+from tenacity import Retrying
 
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
 from egregora.agents.banner.image_generation import ImageGenerationRequest
 from egregora.config import EgregoraConfig, google_api_key_status
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.resources.prompts import render_prompt
+from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +154,9 @@ def generate_banner(
             response_modalities=config.image_generation.response_modalities,
             aspect_ratio=config.image_generation.aspect_ratio,
         )
-        return _generate_banner_image(client, input_data, image_model, generation_request)
+        for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
+            with attempt:
+                return _generate_banner_image(client, input_data, image_model, generation_request)
     except Exception as e:
         logger.exception("Banner generation failed")
         return BannerOutput(error=type(e).__name__, error_code="GENERATION_FAILED")

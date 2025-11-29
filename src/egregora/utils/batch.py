@@ -14,7 +14,7 @@ from google.genai import types as genai_types
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from tenacity import (
     RetryCallState,
-    retry,
+    Retrying,
     retry_if_exception_type,
     stop_after_attempt,
     wait_random_exponential,
@@ -27,8 +27,8 @@ T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
 
-# Exceptions that should trigger retries
-_RETRYABLE_EXCEPTIONS = (
+# Shared retry configuration - use tenacity directly with these constants
+RETRYABLE_EXCEPTIONS = (
     UnexpectedModelBehavior,
     google_exceptions.ResourceExhausted,
     google_exceptions.ServiceUnavailable,
@@ -36,6 +36,10 @@ _RETRYABLE_EXCEPTIONS = (
     google_exceptions.GatewayTimeout,
     genai_errors.ServerError,
 )
+
+RETRY_STOP = stop_after_attempt(5)
+RETRY_WAIT = wait_random_exponential(min=2.0, max=60.0)
+RETRY_IF = retry_if_exception_type(RETRYABLE_EXCEPTIONS)
 
 
 def _log_before_retry(retry_state: RetryCallState) -> None:
@@ -46,31 +50,6 @@ def _log_before_retry(retry_state: RetryCallState) -> None:
         retry_state.attempt_number,
         retry_state.next_action.sleep,
     )
-
-
-@retry(
-    stop=stop_after_attempt(5),
-    wait=wait_random_exponential(min=2.0, max=60.0),
-    retry=retry_if_exception_type(_RETRYABLE_EXCEPTIONS),
-    before_sleep=_log_before_retry,
-    reraise=True,
-)
-def call_with_retries_sync[T](func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
-    """Execute a synchronous function with exponential backoff and jitter.
-
-    Args:
-        func: The function to execute.
-        *args: Positional arguments for the function.
-        **kwargs: Keyword arguments for the function.
-
-    Returns:
-        The result of the function.
-
-    Raises:
-        Exception: If the function fails after all retry attempts.
-
-    """
-    return func(*args, **kwargs)
 
 
 def sleep_with_progress_sync(duration: float, message: str = "Sleeping") -> None:
@@ -175,7 +154,9 @@ class GeminiBatchClient:
         logger.debug("Uploading media for batch processing: %s", path)
         # Newer google-genai clients accept only the file path/handle; display
         # names are deprecated, so we ignore them here for compatibility.
-        uploaded_file = call_with_retries_sync(self._client.files.upload, file=path)
+        for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry):
+            with attempt:
+                uploaded_file = self._client.files.upload(file=path)
 
         # Wait for file to become ACTIVE (required before use)
         max_wait = 60  # seconds
@@ -192,7 +173,9 @@ class GeminiBatchClient:
                 break
             time.sleep(poll_interval)
             elapsed += poll_interval
-            uploaded_file = call_with_retries_sync(self._client.files.get, name=uploaded_file.name)
+            for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry):
+                with attempt:
+                    uploaded_file = self._client.files.get(name=uploaded_file.name)
             logger.debug(
                 "Waiting for file %s to become ACTIVE (current: %s, elapsed: %ds)",
                 path,
@@ -240,11 +223,12 @@ class GeminiBatchClient:
             len(inlined_requests),
         )
 
-        job = call_with_retries_sync(
-            self._client.batches.create,
-            model=self._default_model,
-            src=genai_types.BatchJobSource(inlined_requests=inlined_requests),
-        )
+        for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry):
+            with attempt:
+                job = self._client.batches.create(
+                    model=self._default_model,
+                    src=genai_types.BatchJobSource(inlined_requests=inlined_requests),
+                )
 
         logger.info("[cyan]🚀 Batch job created:[/] %s", job.name or "<unknown>")
         completed_job = self._poll_until_done(
@@ -328,11 +312,12 @@ class GeminiBatchClient:
 
         logger.info("[blue]📚 Embedding model:[/] %s — %d item(s)", model_name, len(contents))
 
-        job = call_with_retries_sync(
-            self._client.batches.create_embeddings,
-            model=model_name,
-            src=source,
-        )
+        for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry):
+            with attempt:
+                job = self._client.batches.create_embeddings(
+                    model=model_name,
+                    src=source,
+                )
 
         logger.info("[cyan]🚀 Embedding job created:[/] %s", job.name or "<unknown>")
         completed_job = self._poll_until_done(
@@ -386,7 +371,9 @@ class GeminiBatchClient:
         last_state = None
 
         while True:
-            job = call_with_retries_sync(self._client.batches.get, name=job_name)
+            for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry):
+                with attempt:
+                    job = self._client.batches.get(name=job_name)
             state = job.state.name if job.state else "JOB_STATE_UNSPECIFIED"
 
             if state != last_state:
