@@ -109,7 +109,12 @@ class StandardUrlConvention(UrlConvention):
 
         # 3. Journals (Agent Memory)
         if document.type == DocumentType.JOURNAL:
-            safe_label = document.slug or slugify(document.metadata.get("window_label", "journal"))
+            window_label = document.metadata.get("window_label")
+            if window_label:
+                safe_label = slugify(window_label)
+            else:
+                slug_value = document.metadata.get("slug")
+                safe_label = slugify(slug_value) if slug_value else self.routes.journal_prefix
             return self._join(ctx, self.routes.journal_prefix, safe_label)
 
         if document.type == DocumentType.MEDIA:
