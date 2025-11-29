@@ -1,10 +1,36 @@
-"""Standard URL conventions for Egregora output adapters."""
+"""Standard URL conventions for Egregora output adapters.
+
+SEPARATION OF CONCERNS (2025-11-29):
+=====================================
+
+This module implements UrlConvention protocol - PURELY LOGICAL URL GENERATION.
+
+What UrlConvention does:
+- Given a Document, return what URL readers should use
+- Pure string manipulation only
+- No filesystem knowledge (no Path, no docs_dir, no file extensions as filesystem concept)
+- Uses only doc.type, slug, tags, date metadata
+
+What UrlConvention does NOT do:
+- Filesystem path resolution (that's OutputAdapter's job)
+- File layout decisions (index.md vs foo.md)
+- Directory structure (docs/, media/, etc.)
+
+Examples:
+    >>> convention = StandardUrlConvention()
+    >>> ctx = UrlContext(base_url="https://example.com", site_prefix="blog")
+    >>> doc = Document(type=DocumentType.POST, metadata={"slug": "hello", "date": "2025-01-10"})
+    >>> convention.canonical_url(doc, ctx)
+    'https://example.com/blog/posts/2025-01-10-hello/'
+
+The OutputAdapter then converts this URL to a filesystem path:
+    >>> adapter.persist(doc)  # Internally: URL -> Path("docs/posts/2025-01-10-hello.md")
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from egregora.data_primitives.document import Document, DocumentType
@@ -13,6 +39,45 @@ from egregora.utils.paths import slugify
 
 if TYPE_CHECKING:
     from egregora.data_primitives.protocols import UrlContext
+
+
+def _remove_url_extension(url_path: str) -> str:
+    """Remove file extension from URL path segment.
+
+    This is URL logic (removing trailing .html, .md, etc. from URLs),
+    not filesystem logic (Path.with_suffix). URLs may contain dots
+    that aren't extensions, so we only remove extensions from the
+    last path segment.
+
+    Args:
+        url_path: URL path like 'media/images/foo.png' or 'posts/bar'
+
+    Returns:
+        URL path without extension: 'media/images/foo' or 'posts/bar'
+
+    Examples:
+        >>> _remove_url_extension("media/images/foo.png")
+        'media/images/foo'
+        >>> _remove_url_extension("posts/bar")
+        'posts/bar'
+        >>> _remove_url_extension("some.dir/file.md")
+        'some.dir/file'
+    """
+    if "." not in url_path:
+        return url_path
+
+    # Split on last slash to get the last segment
+    parts = url_path.rsplit("/", 1)
+
+    if len(parts) == 2 and "." in parts[1]:
+        # Has a path and a filename with extension
+        # Remove extension from the filename only
+        return f"{parts[0]}/{parts[1].rsplit('.', 1)[0]}"
+    elif "." in parts[0]:
+        # Just a filename with extension (no slashes)
+        return parts[0].rsplit(".", 1)[0]
+
+    return url_path
 
 
 @dataclass
@@ -91,7 +156,8 @@ class StandardUrlConvention(UrlConvention):
 
         if document.type == DocumentType.ENRICHMENT_URL:
             if document.suggested_path:
-                clean_path = Path(document.suggested_path.strip("/")).with_suffix("").as_posix()
+                # Pure string manipulation - no Path operations
+                clean_path = _remove_url_extension(document.suggested_path.strip("/"))
                 return self._join(ctx, clean_path, trailing_slash=True)
             url_slug = self._slug_with_identifier(document)
             return self._join(
@@ -135,11 +201,13 @@ class StandardUrlConvention(UrlConvention):
             parent_path = document.metadata["parent_path"]
 
         if parent_path:
-            enrichment_path = Path(parent_path).with_suffix("").as_posix()
-            return self._join(ctx, enrichment_path.strip("/"), trailing_slash=True)
+            # Pure string manipulation - no Path operations
+            enrichment_path = _remove_url_extension(parent_path.strip("/"))
+            return self._join(ctx, enrichment_path, trailing_slash=True)
 
         if document.suggested_path:
-            clean_path = Path(document.suggested_path.strip("/")).with_suffix("").as_posix()
+            # Pure string manipulation - no Path operations
+            clean_path = _remove_url_extension(document.suggested_path.strip("/"))
             return self._join(ctx, clean_path, trailing_slash=True)
 
         fallback = f"{self._slug_with_identifier(document)}"
