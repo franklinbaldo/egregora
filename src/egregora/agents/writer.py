@@ -33,7 +33,7 @@ from pydantic_ai.messages import (
 from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
-from egregora.agents.banner.agent import generate_banner, is_banner_generation_available
+from egregora.agents.banner.agent import is_banner_generation_available
 from egregora.agents.formatting import (
     _build_conversation_xml,
     _load_journal_memory,
@@ -43,10 +43,32 @@ from egregora.agents.model_limits import (
     get_model_context_limit,
     validate_prompt_fits,
 )
+from egregora.agents.writer_tools import (
+    AnnotationContext,
+    AnnotationResult,
+    BannerContext,
+    BannerResult,
+    ReadProfileResult,
+    SearchMediaResult,
+    ToolContext,
+    WritePostResult,
+    WriteProfileResult,
+    annotate_conversation,
+    search_media,
+    write_post,
+)
+from egregora.agents.writer_tools import (
+    generate_banner as generate_banner_impl,
+)
+from egregora.agents.writer_tools import (
+    read_profile as read_profile_impl,
+)
+from egregora.agents.writer_tools import (
+    write_profile as write_profile_impl,
+)
 from egregora.config.settings import EgregoraConfig, RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors, read_profile
-from egregora.ops.media import save_media_asset
 from egregora.output_adapters import OutputAdapterRegistry, create_default_output_registry
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
@@ -108,42 +130,9 @@ class PostMetadata(BaseModel):
     category: str | None = None
 
 
-class WritePostResult(BaseModel):
-    status: str
-    path: str
-
-
-class WriteProfileResult(BaseModel):
-    status: str
-    path: str
-
-
-class ReadProfileResult(BaseModel):
-    content: str
-
-
-class MediaItem(BaseModel):
-    media_type: str | None = None
-    media_path: str | None = None
-    original_filename: str | None = None
-    description: str | None = None
-    similarity: float | None = None
-
-
-class SearchMediaResult(BaseModel):
-    results: list[MediaItem]
-
-
-class AnnotationResult(BaseModel):
-    status: str
-    annotation_id: str | None = None
-    parent_id: str | None = None
-    parent_type: str | None = None
-
-
-class BannerResult(BaseModel):
-    status: str
-    path: str | None = None
+# Result models imported from writer_tools
+# (WritePostResult, WriteProfileResult, ReadProfileResult, MediaItem,
+#  SearchMediaResult, AnnotationResult, BannerResult)
 
 
 class WriterAgentReturn(BaseModel):
@@ -209,38 +198,38 @@ def register_writer_tools(
     enable_banner: bool = False,
     enable_rag: bool = False,
 ) -> None:
-    """Attach tool implementations to the agent."""
+    """Attach tool implementations to the agent.
+
+    Tools are thin wrappers around pure functions from writer_tools module,
+    making them easy to test and reuse.
+    """
 
     @agent.tool
     def write_post_tool(ctx: RunContext[WriterDeps], metadata: PostMetadata, content: str) -> WritePostResult:
-        doc = Document(
-            content=content,
-            type=DocumentType.POST,
-            metadata=metadata.model_dump(exclude_none=True),
-            source_window=ctx.deps.window_label,
+        """Write a blog post document."""
+        tool_ctx = ToolContext(
+            output_sink=ctx.deps.resources.output,
+            window_label=ctx.deps.window_label,
         )
-
-        ctx.deps.resources.output.persist(doc)
-        logger.info("Writer agent saved post (doc_id: %s)", doc.document_id)
-        return WritePostResult(status="success", path=doc.document_id)
+        return write_post(tool_ctx, metadata.model_dump(exclude_none=True), content)
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str) -> ReadProfileResult:
-        doc = ctx.deps.resources.output.read_document(DocumentType.PROFILE, author_uuid)
-        content = doc.content if doc else "No profile exists yet."
-        return ReadProfileResult(content=content)
+        """Read an author profile."""
+        tool_ctx = ToolContext(
+            output_sink=ctx.deps.resources.output,
+            window_label=ctx.deps.window_label,
+        )
+        return read_profile_impl(tool_ctx, author_uuid)
 
     @agent.tool
     def write_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str, content: str) -> WriteProfileResult:
-        doc = Document(
-            content=content,
-            type=DocumentType.PROFILE,
-            metadata={"uuid": author_uuid},
-            source_window=ctx.deps.window_label,
+        """Write an author profile."""
+        tool_ctx = ToolContext(
+            output_sink=ctx.deps.resources.output,
+            window_label=ctx.deps.window_label,
         )
-        ctx.deps.resources.output.persist(doc)
-        logger.info("Writer agent saved profile (doc_id: %s)", doc.document_id)
-        return WriteProfileResult(status="success", path=doc.document_id)
+        return write_profile_impl(tool_ctx, author_uuid, content)
 
     if enable_rag:
 
@@ -258,48 +247,7 @@ def register_writer_tools(
                 SearchMediaResult with matching media items
 
             """
-            try:
-                from egregora.rag import RAGQueryRequest, search
-
-                # Execute RAG search
-                request = RAGQueryRequest(text=query, top_k=top_k)
-                response = await search(request)
-
-                # Convert RAGHit results to MediaItem format
-                media_items: list[MediaItem] = []
-                for hit in response.hits:
-                    # Extract media-specific metadata
-                    metadata = hit.metadata or {}
-                    media_type = metadata.get("media_type")
-                    media_path = metadata.get("media_path")
-                    original_filename = metadata.get("original_filename")
-
-                    # Only include media documents
-                    if media_type:
-                        media_items.append(
-                            MediaItem(
-                                media_type=media_type,
-                                media_path=media_path,
-                                original_filename=original_filename,
-                                description=hit.text[:500] if hit.text else None,
-                                similarity=hit.score,
-                            )
-                        )
-
-                logger.info(
-                    "RAG media search returned %d results for query: %s", len(media_items), query[:50]
-                )
-                return SearchMediaResult(results=media_items)
-
-            except (ConnectionError, TimeoutError) as exc:
-                logger.warning("RAG backend unavailable for media search: %s", exc)
-                return SearchMediaResult(results=[])
-            except ValueError as exc:
-                logger.warning("Invalid query for media search: %s", exc)
-                return SearchMediaResult(results=[])
-            except (AttributeError, KeyError) as exc:
-                logger.error("Malformed response from RAG media search: %s", exc)
-                return SearchMediaResult(results=[])
+            return await search_media(query, top_k)
 
     @agent.tool
     def annotate_conversation_tool(
@@ -316,15 +264,12 @@ def register_writer_tools(
         if ctx.deps.resources.annotations_store is None:
             msg = "Annotation store is not configured"
             raise RuntimeError(msg)
-        annotation = ctx.deps.resources.annotations_store.save_annotation(
-            parent_id=parent_id, parent_type=parent_type, commentary=commentary
+
+        annotation_ctx = AnnotationContext(
+            annotations_store=ctx.deps.resources.annotations_store,
+            window_label=ctx.deps.window_label,
         )
-        return AnnotationResult(
-            status="success",
-            annotation_id=annotation.id,
-            parent_id=annotation.parent_id,
-            parent_type=annotation.parent_type,
-        )
+        return annotate_conversation(annotation_ctx, parent_id, parent_type, commentary)
 
     if enable_banner:
 
@@ -332,24 +277,12 @@ def register_writer_tools(
         def generate_banner_tool(
             ctx: RunContext[WriterDeps], post_slug: str, title: str, summary: str
         ) -> BannerResult:
-            # media_dir is not part of OutputSink, so we use output_format here
-            banner_output_dir = ctx.deps.resources.output.media_dir / "images"
-
-            result = generate_banner(post_title=title, post_summary=summary, slug=post_slug)
-
-            if result.success and result.document:
-                banner_path = save_media_asset(result.document, banner_output_dir)
-
-                # Convert absolute path to web-friendly path
-                # If using MkDocsAdapter, use its helper
-                if hasattr(ctx.deps.output_sink, "get_media_url_path") and ctx.deps.ctx.site_root:
-                    web_path = ctx.deps.output_sink.get_media_url_path(banner_path, ctx.deps.ctx.site_root)
-                else:
-                    # Fallback: assume standard structure /media/images/filename
-                    web_path = f"/media/images/{banner_path.name}"
-
-                return BannerResult(status="success", path=web_path)
-            return BannerResult(status="failed", path=result.error)
+            """Generate a banner image for a post."""
+            banner_ctx = BannerContext(
+                output_sink=ctx.deps.resources.output,
+                window_label=ctx.deps.window_label,
+            )
+            return generate_banner_impl(banner_ctx, post_slug, title, summary)
 
 
 # ============================================================================
@@ -443,7 +376,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
         logger.warning("Invalid RAG query, continuing without context: %s", exc)
         return ""
     except (AttributeError, KeyError, TypeError) as exc:
-        logger.error("Malformed RAG response, continuing without context: %s", exc)
+        logger.exception("Malformed RAG response, continuing without context: %s", exc)
         return ""
 
 
@@ -456,7 +389,8 @@ def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
 
     parts = [
         "\n\n## Active Participants (Profiles):\n",
-        "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n",
+        "Understanding the participants helps you write posts that match their style, voice, and "
+        "interests.\n\n",
     ]
 
     for author_uuid in top_authors:
@@ -692,10 +626,10 @@ def _save_journal_to_file(  # noqa: PLR0913
         )
         template = env.get_template(JOURNAL_TEMPLATE_NAME)
     except TemplateNotFound as exc:
-        logger.error("Journal template not found: %s", exc)
+        logger.exception("Journal template not found: %s", exc)
         return None
     except (OSError, PermissionError) as exc:
-        logger.error("Cannot access template directory: %s", exc)
+        logger.exception("Cannot access template directory: %s", exc)
         return None
 
     now_utc = datetime.now(tz=UTC)
@@ -716,10 +650,10 @@ def _save_journal_to_file(  # noqa: PLR0913
             total_tokens=total_tokens,
         )
     except TemplateError as exc:
-        logger.error("Journal template rendering failed: %s", exc)
+        logger.exception("Journal template rendering failed: %s", exc)
         return None
     except (TypeError, AttributeError) as exc:
-        logger.error("Invalid template data for journal: %s", exc)
+        logger.exception("Invalid template data for journal: %s", exc)
         return None
     journal_content = journal_content.replace("../media/", "/media/")
 
@@ -741,10 +675,10 @@ def _save_journal_to_file(  # noqa: PLR0913
         )
         output_format.persist(doc)
     except (OSError, PermissionError) as exc:
-        logger.error("Failed to write journal to disk: %s", exc)
+        logger.exception("Failed to write journal to disk: %s", exc)
         return None
     except ValueError as exc:
-        logger.error("Invalid journal document: %s", exc)
+        logger.exception("Invalid journal document: %s", exc)
         return None
     logger.info("Saved journal entry: %s", doc.document_id)
     return doc.document_id
