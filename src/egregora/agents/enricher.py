@@ -472,6 +472,147 @@ async def _process_url_task(  # noqa: PLR0913
         return _create_enrichment_row(metadata, "URL", url, doc.document_id)
 
 
+def _prepare_media_binary(
+    media_doc: Document,
+    ref: str,
+) -> tuple[str, str | None, BinaryContent] | None:
+    """Prepare media file information and binary content for enrichment.
+
+    Returns:
+        tuple[filename, media_type, binary_content] or None if unsupported
+
+    """
+    filename = media_doc.metadata.get("filename") or media_doc.metadata.get("original_filename") or ref
+    media_type = media_doc.metadata.get("media_type")
+    if not media_type and filename:
+        media_type = detect_media_type(Path(filename))
+    if not media_type:
+        logger.warning("Unsupported media type for enrichment: %s", filename or ref)
+        return None
+
+    raw_content = media_doc.content
+    payload = raw_content if isinstance(raw_content, bytes) else str(raw_content).encode("utf-8")
+    binary = BinaryContent(
+        data=payload,
+        media_type=mimetypes.guess_type(filename or "")[0] or "application/octet-stream",
+    )
+    return filename, media_type, binary
+
+
+async def _get_or_generate_media_enrichment(
+    agent: Agent[MediaEnrichmentDeps, EnrichmentOutput],
+    cache: EnrichmentCache,
+    cache_key: str,
+    filename: str,
+    media_type: str | None,
+    binary: BinaryContent,
+    media_path: str | None,
+    prompts_dir: Path | None,
+    context: EnrichmentRuntimeContext,
+) -> tuple[str, str] | None:
+    """Get enrichment from cache or generate new one via LLM.
+
+    Returns:
+        tuple[markdown, slug] or None if error occurred
+
+    """
+    cache_entry = cache.load(cache_key)
+    if cache_entry:
+        logger.debug("⚡ [L1 Cache Hit] Media: %s", filename)
+        markdown = cache_entry.get("markdown", "")
+        cached_slug = cache_entry.get("slug")
+        return markdown, cached_slug
+
+    try:
+        if context.quota:
+            context.quota.reserve(1)
+        output_data, usage = await _run_media_enrichment_async(
+            agent,
+            filename=filename,
+            mime_hint=media_type,
+            prompts_dir=prompts_dir,
+            binary_content=binary,
+            media_path=media_path,
+            pii_prevention=context.pii_prevention,
+        )
+        if context.usage_tracker:
+            context.usage_tracker.record(usage)
+        markdown = output_data.markdown
+        cached_slug = output_data.slug
+        cache.store(cache_key, {"markdown": markdown, "slug": cached_slug, "type": "media"})
+        return markdown, cached_slug
+    except QuotaExceededError:
+        logger.warning("LLM quota reached; skipping media enrichment for %s", filename)
+        return None
+    except httpx.HTTPError as exc:
+        logger.warning("HTTP error during media enrichment for %s: %s", filename, exc)
+        return None
+    except OSError as exc:
+        logger.warning("File/cache error during media enrichment for %s: %s", filename, exc)
+        return None
+
+
+def _handle_pii_in_media_enrichment(
+    markdown: str,
+    media_doc: Document,
+    filename: str,
+) -> tuple[str, bool]:
+    """Check for PII in enrichment and update media document if found.
+
+    Returns:
+        tuple[cleaned_markdown, pii_detected]
+
+    """
+    pii_detected = False
+    if PrivacyMarkers.PII_DETECTED in markdown:
+        logger.warning("PII detected in media: %s. Media will not be published.", filename)
+        markdown = markdown.replace(PrivacyMarkers.PII_DETECTED, "").strip()
+        media_doc.metadata["pii_deleted"] = True
+        media_doc.metadata["public_url"] = None
+        pii_detected = True
+
+    if not markdown:
+        markdown = f"[No enrichment generated for media: {filename}]"
+
+    return markdown, pii_detected
+
+
+def _build_enriched_media_document(
+    markdown: str,
+    cached_slug: str,
+    filename: str,
+    media_type: str | None,
+    media_doc: Document,
+    context: EnrichmentRuntimeContext,
+) -> Document:
+    """Build and persist the enriched media document.
+
+    Returns:
+        Updated media document with slug metadata
+
+    """
+    slug_value = _normalize_slug(cached_slug, filename)
+    updated_media_doc = media_doc.with_metadata(slug=slug_value)
+    parent_path = updated_media_doc.suggested_path
+
+    enrichment_metadata = {
+        "filename": filename,
+        "media_type": media_type,
+        "parent_path": parent_path,
+        "slug": slug_value,
+        "nav_exclude": True,
+        "hide": ["navigation"],
+    }
+
+    doc = Document(
+        content=markdown,
+        type=DocumentType.ENRICHMENT_MEDIA,
+        metadata=enrichment_metadata,
+    ).with_parent(updated_media_doc)
+    context.output_format.persist(doc)
+    return updated_media_doc
+
+
 async def _process_media_task(  # noqa: PLR0913
     ref: str,
     media_doc: Document,
@@ -489,87 +630,44 @@ async def _process_media_task(  # noqa: PLR0913
 
     """
     async with semaphore:
-        cache_key = make_enrichment_cache_key(kind="media", identifier=media_doc.document_id)
-
-        filename = media_doc.metadata.get("filename") or media_doc.metadata.get("original_filename") or ref
-        media_type = media_doc.metadata.get("media_type")
-        if not media_type and filename:
-            media_type = detect_media_type(Path(filename))
-        if not media_type:
-            logger.warning("Unsupported media type for enrichment: %s", filename or ref)
+        # Prepare binary content
+        prepared = _prepare_media_binary(media_doc, ref)
+        if not prepared:
             return None, False, ref, None
+        filename, media_type, binary = prepared
 
-        raw_content = media_doc.content
-        payload = raw_content if isinstance(raw_content, bytes) else str(raw_content).encode("utf-8")
-        binary = BinaryContent(
-            data=payload,
-            media_type=mimetypes.guess_type(filename or "")[0] or "application/octet-stream",
+        # Get or generate enrichment
+        cache_key = make_enrichment_cache_key(kind="media", identifier=media_doc.document_id)
+        result = await _get_or_generate_media_enrichment(
+            agent,
+            cache,
+            cache_key,
+            filename,
+            media_type,
+            binary,
+            media_doc.suggested_path,
+            prompts_dir,
+            context,
+        )
+        if not result:
+            return None, False, ref, None
+        markdown, cached_slug = result
+
+        # Handle PII detection
+        markdown, pii_detected = _handle_pii_in_media_enrichment(markdown, media_doc, filename)
+
+        # Build and persist enriched document
+        updated_media_doc = _build_enriched_media_document(
+            markdown,
+            cached_slug,
+            filename,
+            media_type,
+            media_doc,
+            context,
         )
 
-        cache_entry = cache.load(cache_key)
-        if cache_entry:
-            logger.debug("⚡ [L1 Cache Hit] Media: %s", filename or ref)
-            markdown = cache_entry.get("markdown", "")
-            cached_slug = cache_entry.get("slug")
-        else:
-            try:
-                if context.quota:
-                    context.quota.reserve(1)
-                output_data, usage = await _run_media_enrichment_async(
-                    agent,
-                    filename=filename or ref,
-                    mime_hint=media_type,
-                    prompts_dir=prompts_dir,
-                    binary_content=binary,
-                    media_path=media_doc.suggested_path,
-                    pii_prevention=context.pii_prevention,
-                )
-                if context.usage_tracker:
-                    context.usage_tracker.record(usage)
-                markdown = output_data.markdown
-                cached_slug = output_data.slug
-                cache.store(cache_key, {"markdown": markdown, "slug": cached_slug, "type": "media"})
-            except QuotaExceededError:
-                logger.warning("LLM quota reached; skipping media enrichment for %s", filename or ref)
-                return None, False, ref, None
-            except httpx.HTTPError as exc:
-                logger.warning("HTTP error during media enrichment for %s: %s", filename or ref, exc)
-                return None, False, ref, None
-            except OSError as exc:
-                logger.warning("File/cache error during media enrichment for %s: %s", filename or ref, exc)
-                return None, False, ref, None
-
-        pii_detected = False
-        if PrivacyMarkers.PII_DETECTED in markdown:
-            logger.warning("PII detected in media: %s. Media will not be published.", filename or ref)
-            markdown = markdown.replace(PrivacyMarkers.PII_DETECTED, "").strip()
-            media_doc.metadata["pii_deleted"] = True
-            media_doc.metadata["public_url"] = None
-            pii_detected = True
-
-        if not markdown:
-            markdown = f"[No enrichment generated for media: {filename or ref}]"
-
-        slug_value = _normalize_slug(cached_slug, filename or ref)
-        updated_media_doc = media_doc.with_metadata(slug=slug_value)
-        parent_path = updated_media_doc.suggested_path
-
-        enrichment_metadata = {
-            "filename": filename or ref,
-            "media_type": media_type,
-            "parent_path": parent_path,
-            "slug": slug_value,
-            "nav_exclude": True,
-            "hide": ["navigation"],
-        }
-
-        doc = Document(
-            content=markdown,
-            type=DocumentType.ENRICHMENT_MEDIA,
-            metadata=enrichment_metadata,
-        ).with_parent(updated_media_doc)
-        context.output_format.persist(doc)
-        row = _create_enrichment_row(metadata, "Media", filename or ref, doc.document_id)
+        # Create enrichment row for database
+        row = _create_enrichment_row(metadata, "Media", filename, updated_media_doc.document_id)
         return row, pii_detected, ref, updated_media_doc
 
 

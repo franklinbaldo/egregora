@@ -130,12 +130,12 @@ def stub_enrichment_agents(monkeypatch):
 
     monkeypatch.setattr(
         "egregora.agents.enricher.create_url_enrichment_agent",
-        lambda model, simple=True: _stub_url_agent(model),
+        lambda model, _simple=True: _stub_url_agent(model),
         raising=False,
     )
     monkeypatch.setattr(
         "egregora.agents.enricher.create_media_enrichment_agent",
-        lambda model, simple=False: _stub_media_agent(model),
+        lambda model, _simple=False: _stub_media_agent(model),
         raising=False,
     )
 
@@ -169,7 +169,7 @@ def stub_enrichment_agents(monkeypatch):
 
     monkeypatch.setattr(
         "egregora.agents.enricher.create_media_enrichment_agent",
-        lambda model, simple=False: _avatar_agent(model),
+        lambda model, _simple=False: _avatar_agent(model),
         raising=False,
     )
 
