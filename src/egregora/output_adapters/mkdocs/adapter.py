@@ -114,20 +114,9 @@ class MkDocsAdapter(OutputAdapter):
     def url_convention(self) -> UrlConvention:
         return self._url_convention
 
-    def get_media_url_path(self, media_file: Path, site_root: Path) -> str:
-        """Get the relative URL path for a media file in the generated site.
-
-        Args:
-            media_file: Absolute path to the media file
-            site_root: Root directory of the site
-
-        Returns:
-            Relative path string for use in HTML/markdown links
-            Example: "media/images/abc123.jpg"
-
-        """
-        site_config = self.resolve_paths(site_root)
-        return str(media_file.relative_to(site_config.docs_dir))
+    @property
+    def url_context(self) -> UrlContext:
+        return self._ctx
 
     def persist(self, document: Document) -> None:
         doc_id = document.document_id

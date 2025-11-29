@@ -47,7 +47,6 @@ from egregora.agents.model_limits import (
 from egregora.config.settings import EgregoraConfig, RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors, read_profile
-from egregora.ops.media import save_media_asset
 from egregora.output_adapters import OutputAdapterRegistry, create_default_output_registry
 from egregora.rag import RAGQueryRequest, index_documents, reset_backend, search
 from egregora.resources.prompts import PromptManager, render_prompt
@@ -332,21 +331,18 @@ def register_writer_tools(
         def generate_banner_tool(
             ctx: RunContext[WriterDeps], post_slug: str, title: str, summary: str
         ) -> BannerResult:
-            # media_dir is not part of OutputSink, so we use output_format here
-            banner_output_dir = ctx.deps.resources.output.media_dir / "images"
-
             result = generate_banner(post_title=title, post_summary=summary, slug=post_slug)
 
             if result.success and result.document:
-                banner_path = save_media_asset(result.document, banner_output_dir)
+                banner_doc = result.document
 
-                # Convert absolute path to web-friendly path
-                # If using MkDocsAdapter, use its helper
-                if hasattr(ctx.deps.output_sink, "get_media_url_path") and ctx.deps.ctx.site_root:
-                    web_path = ctx.deps.output_sink.get_media_url_path(banner_path, ctx.deps.ctx.site_root)
-                else:
-                    # Fallback: assume standard structure /media/images/filename
-                    web_path = f"/media/images/{banner_path.name}"
+                # Generate canonical URL via UrlConvention
+                url_convention = ctx.deps.output_sink.url_convention
+                url_context = ctx.deps.output_sink.url_context
+                web_path = url_convention.canonical_url(banner_doc, url_context)
+
+                # Persist the banner through the output adapter
+                ctx.deps.output_sink.persist(banner_doc)
 
                 return BannerResult(status="success", path=web_path)
             return BannerResult(status="failed", path=result.error)
