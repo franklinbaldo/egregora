@@ -1,653 +1,1016 @@
-# Test Configuration Refactoring Plan
+# Code Quality Refactoring: Fix Code Smells & Technical Debt
 
 ## Executive Summary
 
-This PR refactors the test suite to strictly adhere to the **Fixture/Override Pattern** for test configuration, eliminating dangerous reliance on production defaults and reducing code duplication.
+This PR addresses **9 validated code smells** across the core pipeline that create maintenance burden, reduce testability, and violate SOLID principles. The refactoring focuses on **writer.py**, **write_pipeline.py**, **mkdocs/adapter.py**, and **duckdb_manager.py**.
 
-**Current State:** While egregora has excellent test configuration infrastructure (`test_config` fixture, proper mocking, tmp_path isolation), several tests bypass this system and directly instantiate configuration objects.
+**Impact:** Improved testability, reduced coupling, eliminated duplication, better separation of concerns.
 
-**Goal:** All tests should use centralized fixtures for configuration, with infrastructure (DBs, file paths, API keys) globally overridden for safety, and business logic values hardcoded only when testing specific behavior.
+**Scope:** ~500 lines changed across 4 core files, with comprehensive test coverage.
 
 ---
 
 ## Problems Identified
 
-### Critical Issues (Must Fix)
+### 🔴 Critical Issues (Must Fix)
 
-1. **Direct `EgregoraConfig()` Instantiation (4 occurrences)**
-   - `tests/e2e/pipeline/test_site_generation.py:138` - No tmp_path isolation
-   - `tests/unit/rag/test_rag_backend_factory.py:43` - Uses production defaults
-   - `tests/e2e/input_adapters/test_dynamic_parser.py:34,47` - Ignores test fixtures
+#### 1. **Inner Function Abuse in Writer Agent** (`src/egregora/agents/writer.py`)
 
-   **Risk:** These tests may write to real `.egregora/` directories, fail in CI/CD, or have non-deterministic behavior.
+**Location:** Lines 206-352 (`register_writer_tools`)
 
-2. **Direct Settings Class Instantiation (10+ occurrences)**
-   - `tests/unit/rag/test_embedding_router.py:31-38` - Module-level `ModelSettings()`, `RAGSettings()`
-   - `tests/unit/agents/test_rag_exception_handling.py` - 5 instances of `RAGSettings()` per test
+**Problem:**
+```python
+def register_writer_tools(agent: Agent, ...):
+    @agent.tool
+    def write_post_tool(ctx, metadata, content):  # Cannot test in isolation!
+        # 40 lines of logic
 
-   **Risk:** Tests depend on production model names, rate limits, and quotas instead of test-controlled values.
+    @agent.tool
+    def read_profile_tool(ctx, author_uuid):  # Cannot reuse in other agents!
+        # ...
 
-3. **Missing Fixtures for Common Patterns**
-   - No `minimal_config` fixture for fast unit tests (RAG disabled, enrichment disabled)
-   - No `test_rag_settings` or `test_model_settings` fixtures
-   - No factory pattern for quick per-test customization
+    @agent.tool
+    def search_media_tool(ctx, query, top_k):  # Cannot mock for unit tests!
+        # 50 lines of logic
+```
 
-   **Impact:** Developers create ad-hoc configs, leading to duplication and inconsistency.
+**Why it's bad:**
+- **Zero testability** - Cannot unit test tools without full agent setup
+- **No reusability** - Other agents cannot share these tools
+- **Tight coupling** - Tools know about `RunContext` internals
+- **Hard to mock** - Integration tests must mock entire agent machinery
+
+**Fix:** Extract tools as standalone functions that accept explicit dependencies
+
+---
+
+#### 2. **God Method in Pipeline Orchestration** (`src/egregora/orchestration/write_pipeline.py`)
+
+**Location:** Lines 1364-1454 (`run` function - 90 lines)
+
+**Problem:**
+```python
+def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
+    # Adapter instantiation (10 lines)
+    # Run tracking setup (8 lines)
+    # Database initialization (15 lines)
+    # Data preparation (12 lines)
+    # Window processing (20 lines)
+    # Media indexing (10 lines)
+    # Checkpoint saving (8 lines)
+    # Statistics generation (7 lines)
+    # Error handling (15 lines)
+```
+
+**Why it's bad:**
+- **Cyclomatic complexity** - Too many responsibilities
+- **Hard to test** - Must mock 8+ dependencies
+- **Hard to understand** - Requires reading 90 lines to grasp flow
+- **High coupling** - Changes to any stage require touching this function
+
+**Fix:** Extract helper methods for each major step
+
+---
+
+#### 3. **Manual YAML Frontmatter Construction** (`src/egregora/output_adapters/mkdocs/adapter.py`)
+
+**Location:** Lines 763+, 789+, 838+ (4 methods)
+
+**Problem:**
+```python
+def _write_post_doc(self, document, path):
+    import yaml as _yaml
+    metadata = dict(document.metadata or {})
+    metadata["date"] = _format_frontmatter_datetime(metadata["date"])  # Custom logic
+    yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    full_content = f"---\n{yaml_front}---\n\n{document.content}"  # Brittle!
+    path.write_text(full_content)
+```
+
+**Duplicated in:** `_write_journal_doc`, `_write_profile_doc`, `_write_enrichment_doc`
+
+**Why it's bad:**
+- **Code duplication** - Same pattern repeated 4 times
+- **Brittle string construction** - Manual `"---\n{yaml}---\n\n{content}"`
+- **Asymmetry** - Uses `parse_frontmatter` library for reading, manual code for writing
+- **Parameter repetition** - `default_flow_style=False, allow_unicode=True, sort_keys=False` everywhere
+
+**Fix:** Use `python-frontmatter` library consistently for both reading and writing
+
+---
+
+### 🟡 High Priority Issues
+
+#### 4. **Deep Parameter Lists** (`src/egregora/agents/writer.py`)
+
+**Location:** Line 674 (`_save_journal_to_file` - 8 parameters)
+
+**Problem:**
+```python
+def _save_journal_to_file(
+    intercalated_log: list[JournalEntry],
+    window_label: str,
+    output_format: OutputSink,
+    posts_published: int,
+    profiles_updated: int,
+    window_start: datetime,
+    window_end: datetime,
+    total_tokens: int = 0,
+) -> str | None:
+```
+
+**Why it's bad:**
+- **Data clump smell** - These parameters travel together
+- **Cognitive load** - Hard to remember parameter order
+- **Error-prone** - Easy to swap parameters of same type
+
+**Fix:** Introduce `JournalContext` dataclass
+
+---
+
+#### 5. **Control Flag Antipattern** (`src/egregora/orchestration/write_pipeline.py`)
+
+**Location:** Line 1179 (`_apply_filters` with `checkpoint_enabled: bool`)
+
+**Problem:**
+```python
+def _apply_filters(
+    messages_table,
+    ctx,
+    from_date,
+    to_date,
+    checkpoint_path,
+    checkpoint_enabled: bool = False,  # Control flag!
+):
+    # ... filtering logic ...
+
+    if checkpoint_enabled:  # Branch 1 - resume logic (30 lines)
+        checkpoint = load_checkpoint(checkpoint_path)
+        # ...
+    else:  # Branch 2 - full rebuild (10 lines)
+        logger.info("Full rebuild")
+```
+
+**Why it's bad:**
+- **Function does two things** - Resume logic vs. full rebuild
+- **Violates SRP** - Single Responsibility Principle
+- **Hard to test** - Must test both branches
+
+**Fix:** Split into `_apply_base_filters` and `_apply_resume_filter`
+
+---
+
+#### 6. **Feature Envy** (`src/egregora/orchestration/write_pipeline.py`)
+
+**Location:** Lines 111-141 in `process_whatsapp_export`
+
+**Problem:**
+```python
+models_update = {
+    "writer": opts.model,      # Reaching into opts
+    "enricher": opts.model,    # Reaching into opts
+    "enricher_vision": opts.model,  # Reaching into opts
+    "ranking": opts.model,
+    "editor": opts.model,
+}
+
+egregora_config = base_config.model_copy(
+    deep=True,
+    update={
+        "pipeline": base_config.pipeline.model_copy(  # Deep reach
+            update={
+                "step_size": opts.step_size,  # Reaching into opts
+                "step_unit": opts.step_unit,  # Reaching into opts
+                "overlap_ratio": opts.overlap_ratio,  # Reaching into opts
+                # ... 10 more fields
+            }
+        ),
+        # ... 3 more nested sections
+    },
+)
+```
+
+**Why it's bad:**
+- **Tight coupling** - Function knows internal structure of config
+- **Fragile** - Breaks if config structure changes
+- **Violation of LoD** - Law of Demeter violation
+
+**Fix:** Add `WhatsAppProcessOptions.to_config_overrides()` method
+
+---
+
+### 🟢 Medium Priority Issues
+
+#### 7. **Tight Coupling to Formatting** (`src/egregora/agents/writer.py`)
+
+**Location:** Lines 38-39
+
+**Problem:**
+```python
+from egregora.agents.formatting import (
+    _build_conversation_xml,  # Writer shouldn't know about XML formatting
+    _load_journal_memory,     # Writer shouldn't know about journal storage
+)
+```
+
+**Why it's bad:**
+- **Violates SRP** - Writer agent knows about data formatting
+- **Hard to change formats** - XML format hardcoded
+- **Tight coupling** - Cannot swap formatters
+
+**Fix:** Inject formatter as dependency via `WriterResources`
+
+---
+
+#### 8. **Magic Strings in Return Types** (`src/egregora/agents/writer.py`)
+
+**Location:** Lines 84-86, 1144
+
+**Problem:**
+```python
+RESULT_KEY_POSTS = "posts"       # Constants defined
+RESULT_KEY_PROFILES = "profiles"
+
+# But used in untyped dict:
+return {
+    RESULT_KEY_POSTS: saved_posts,      # No type safety!
+    RESULT_KEY_PROFILES: saved_profiles,
+}  # Type: dict[str, list[str]]
+```
+
+**Why it's bad:**
+- **No type safety** - Easy to typo keys
+- **No IDE support** - No autocomplete
+- **Runtime errors** - Typos discovered at runtime
+
+**Fix:** Use Pydantic model `WriterResult(posts=[...], profiles=[...])`
+
+---
+
+#### 9. **Mixed Abstraction Levels** (`src/egregora/database/duckdb_manager.py`)
+
+**Location:** Entire class (647 lines)
+
+**Problem:** Single class handles:
+- Connection management (lines 112-120)
+- SQL execution (lines 184-217)
+- Table I/O (lines 241-313)
+- Atomic persistence (lines 315-347)
+- Sequence management (lines 376-458)
+- Vector search (lines 542-593)
+- Cache management (lines 349-372)
+
+**Why it's bad:**
+- **God class** - Too many responsibilities
+- **Violates SRP** - 7 distinct concerns
+- **Hard to test** - Complex setup for each test
+- **High coupling** - Every change risks breaking 7 features
+
+**Fix:** Extract specialized managers (VectorManager, SequenceManager)
 
 ---
 
 ## Refactoring Strategy
 
-### Phase 1: Add Missing Fixtures (Priority: HIGH)
+### Phase 1: Writer Agent Testability (Priority: CRITICAL)
 
-**Goal:** Provide test-appropriate fixtures for all configuration needs.
+**Goal:** Extract agent tools to standalone, testable functions
 
-#### 1.1 Add Settings Fixtures to `tests/conftest.py`
+#### 1.1 Extract Tool Functions to New Module
 
-```python
-@pytest.fixture
-def test_model_settings():
-    """Model settings optimized for testing.
-
-    Uses fast test models and avoids production API limits.
-    """
-    settings = ModelSettings()
-    settings.writer = "test-writer-model"
-    settings.embedding = "test-embedding-model"
-    settings.reader = "test-reader-model"
-    return settings
-
-
-@pytest.fixture
-def test_rag_settings():
-    """RAG settings for unit tests (disabled by default).
-
-    Most unit tests don't need RAG. Enable explicitly in RAG-specific tests.
-    """
-    return RAGSettings(
-        enabled=False,
-        top_k=3,  # Smaller for tests
-        min_similarity_threshold=0.7,
-        embedding_max_batch_size=3,  # Faster than default 100
-        embedding_timeout=5.0,  # Shorter than default 60s
-    )
-
-
-@pytest.fixture
-def test_rag_settings_enabled(test_rag_settings):
-    """RAG settings with RAG enabled (for RAG tests)."""
-    settings = test_rag_settings.model_copy(deep=True)
-    settings.enabled = True
-    return settings
-
-
-@pytest.fixture
-def minimal_config(tmp_path: Path):
-    """Minimal EgregoraConfig for fast unit tests.
-
-    Use this for unit tests that don't need full pipeline infrastructure.
-    Disables slow components (RAG, enrichment, reader) by default.
-
-    Args:
-        tmp_path: pytest's temporary directory fixture
-
-    Returns:
-        EgregoraConfig with minimal settings for unit tests
-    """
-    config = create_default_config(site_root=tmp_path / "site")
-
-    # Disable slow components
-    config.rag.enabled = False
-    config.enrichment.enabled = False
-    config.reader.enabled = False
-
-    # Use test models (fast, no API calls)
-    config.models.writer = "test-model"
-    config.models.embedding = "test-embedding"
-
-    # Fast quotas for tests
-    config.quota.daily_llm_requests = 10
-    config.quota.per_second_limit = 10
-
-    return config
-
-
-@pytest.fixture
-def config_factory(tmp_path: Path):
-    """Factory for creating customized test configs.
-
-    Use this when you need to test specific configuration values.
-
-    Example:
-        def test_custom_timeout(config_factory):
-            config = config_factory(rag__enabled=True, rag__timeout=0.1)
-            assert config.rag.enabled is True
-            assert config.rag.timeout == 0.1
-
-    Args:
-        tmp_path: pytest's temporary directory fixture
-
-    Returns:
-        Factory function that creates EgregoraConfig with kwargs
-    """
-    def _factory(**overrides):
-        config = create_default_config(site_root=tmp_path / "site")
-
-        # Apply overrides using __ syntax for nested settings
-        # Example: rag__enabled=True -> config.rag.enabled = True
-        for key, value in overrides.items():
-            parts = key.split("__")
-            obj = config
-            for part in parts[:-1]:
-                obj = getattr(obj, part)
-            setattr(obj, parts[-1], value)
-
-        return config
-    return _factory
-```
-
-**Files Changed:**
-- `tests/conftest.py` (+80 lines)
-
-**Testing:**
-- Add fixture usage examples to docstrings
-- Verify fixtures work in isolation (no side effects)
-
----
-
-#### 1.2 Update Fixture Documentation in `tests/conftest.py`
-
-Add header comment explaining fixture selection:
+**Create:** `src/egregora/agents/writer_tools.py`
 
 ```python
-# =============================================================================
-# Test Configuration Fixtures - Selection Guide
-# =============================================================================
-#
-# Use these fixtures instead of directly instantiating EgregoraConfig or Settings.
-#
-# RULE 1: Never use production config in tests
-#   ❌ config = EgregoraConfig()  # Uses production defaults!
-#   ✅ config = test_config        # Uses test defaults with tmp_path
-#
-# RULE 2: Pick the right fixture for your test type
-#   - Unit tests (fast, no I/O):     minimal_config
-#   - Integration tests (with mocks): test_config
-#   - E2E tests (full pipeline):     pipeline_test_config
-#   - RAG-specific tests:            rag_test_config (or test_rag_settings_enabled)
-#   - Reader agent tests:            reader_test_config
-#
-# RULE 3: Customize with factory or model_copy()
-#   - Quick customization:  config_factory(rag__enabled=True)
-#   - Full control:         test_config.model_copy(deep=True)
-#
-# RULE 4: Never hardcode infrastructure
-#   ❌ db_path = Path("/var/egregora/db.duckdb")
-#   ✅ db_path = tmp_path / "test.duckdb"
-#
-# =============================================================================
-```
+"""Standalone tool functions for the writer agent.
 
-**Files Changed:**
-- `tests/conftest.py` (+25 lines documentation)
-
----
-
-### Phase 2: Fix Direct Config Instantiations (Priority: HIGH)
-
-**Goal:** Replace all direct `EgregoraConfig()` and `Settings()` calls with fixtures.
-
-#### 2.1 Fix `tests/e2e/pipeline/test_site_generation.py`
-
-**Before:**
-```python
-# Line 138
-config = EgregoraConfig()
-config.pipeline.step_size = 100
-config.enrichment.enabled = False
-config.rag.enabled = False
-```
-
-**After:**
-```python
-def test_site_generation_e2e(clean_blog_dir, monkeypatch, pipeline_test_config):
-    # Use pipeline_test_config (already has enrichment/RAG disabled)
-    config = pipeline_test_config.model_copy(deep=True)
-    config.pipeline.step_size = 100  # Only override what's specific to this test
-    # ... rest of test
-```
-
-**Files Changed:**
-- `tests/e2e/pipeline/test_site_generation.py:120` (function signature)
-- `tests/e2e/pipeline/test_site_generation.py:138` (config creation)
-
----
-
-#### 2.2 Fix `tests/unit/rag/test_rag_backend_factory.py`
-
-**Before:**
-```python
-# Line 43
-config = EgregoraConfig()
-config.rag.embedding_max_batch_size = 7
-config.rag.embedding_timeout = 3.5
-config.models.embedding = "models/test-embedding"
-```
-
-**After:**
-```python
-def test_embed_fn_uses_rag_settings_for_router(
-    monkeypatch: pytest.MonkeyPatch,
-    config_factory,  # NEW: Use factory fixture
-) -> None:
-    """Embedding router should be constructed with configured RAG settings."""
-
-    # Use factory to create config with specific test values
-    config = config_factory(
-        rag__embedding_max_batch_size=7,
-        rag__embedding_timeout=3.5,
-        models__embedding="models/test-embedding",
-    )
-
-    # ... rest of test unchanged
-```
-
-**Files Changed:**
-- `tests/unit/rag/test_rag_backend_factory.py:40` (function signature)
-- `tests/unit/rag/test_rag_backend_factory.py:43-46` (config creation)
-
----
-
-#### 2.3 Fix `tests/e2e/input_adapters/test_dynamic_parser.py`
-
-**Before:**
-```python
-# Lines 34, 47
-pattern = generate_dynamic_regex(sample_lines, EgregoraConfig())
-```
-
-**After:**
-```python
-def test_dynamic_regex_generator_success(mock_agent_run, minimal_config):
-    # ... mock setup ...
-    pattern = generate_dynamic_regex(sample_lines, minimal_config)
-    # ... assertions ...
-
-def test_dynamic_regex_generator_failure(mock_agent_run, minimal_config):
-    # ... mock setup ...
-    pattern = generate_dynamic_regex(sample_lines, minimal_config)
-    # ... assertions ...
-```
-
-**Files Changed:**
-- `tests/e2e/input_adapters/test_dynamic_parser.py:24` (function signature)
-- `tests/e2e/input_adapters/test_dynamic_parser.py:34` (config usage)
-- `tests/e2e/input_adapters/test_dynamic_parser.py:42` (function signature)
-- `tests/e2e/input_adapters/test_dynamic_parser.py:47` (config usage)
-
----
-
-#### 2.4 Fix `tests/unit/rag/test_embedding_router.py`
-
-**Before (module-level):**
-```python
-# Lines 31-38 (PROBLEM: at module load time)
-_model_settings = ModelSettings()
-MODEL = _model_settings.embedding  # "models/gemini-embedding-001"
-
-_rag_settings = RAGSettings()
-DEFAULT_MAX_BATCH_SIZE = _rag_settings.embedding_max_batch_size
-DEFAULT_TIMEOUT = _rag_settings.embedding_timeout
-
-TEST_BATCH_SIZE = 3
-TEST_TIMEOUT = 1.0
-```
-
-**After (fixture-based):**
-```python
-# Remove module-level instantiation
-
-# Add fixture at top of file
-@pytest.fixture
-def embedding_router_config():
-    """Config for embedding router tests."""
-    settings = RAGSettings(
-        embedding_max_batch_size=3,  # Small for unit tests
-        embedding_timeout=1.0,         # Fast for unit tests
-    )
-    return settings
-
-# Update all tests to use fixture
-def test_create_embedding_router_initializes_queues(embedding_router_config):
-    router = create_embedding_router(
-        model="test-model",
-        max_batch_size=embedding_router_config.embedding_max_batch_size,
-        timeout=embedding_router_config.embedding_timeout,
-    )
-    # ... rest of test
-```
-
-**Files Changed:**
-- `tests/unit/rag/test_embedding_router.py:31-38` (remove module-level)
-- `tests/unit/rag/test_embedding_router.py` (add fixture, update ~10 test functions)
-
----
-
-#### 2.5 Fix `tests/unit/agents/test_rag_exception_handling.py`
-
-**Before (repeated 5 times):**
-```python
-# Lines 20, 47, 80, 95, 107
-mock_resources.retrieval_config = RAGSettings()
-# or
-mock_resources.retrieval_config = RAGSettings(enabled=False)
-```
-
-**After:**
-```python
-# Add parametrized fixture
-@pytest.fixture
-def mock_resources_with_rag(test_rag_settings):
-    """Mock WriterResources with test RAG settings."""
-    return SimpleNamespace(
-        retrieval_config=test_rag_settings,
-        # ... other fields
-    )
-
-# Use fixture in tests
-def test_rag_enabled_but_no_hits_returns_none(mock_resources_with_rag):
-    mock_resources = mock_resources_with_rag
-    # ... rest of test
-```
-
-**Alternatively (if different RAG states needed per test):**
-```python
-@pytest.fixture
-def rag_settings_factory():
-    """Factory for creating RAG settings with overrides."""
-    def _create(enabled=True, **kwargs):
-        return RAGSettings(enabled=enabled, **kwargs)
-    return _create
-
-def test_rag_enabled_but_no_hits_returns_none(rag_settings_factory):
-    mock_resources = SimpleNamespace(
-        retrieval_config=rag_settings_factory(enabled=True)
-    )
-    # ... rest of test
-```
-
-**Files Changed:**
-- `tests/unit/agents/test_rag_exception_handling.py` (add fixture)
-- `tests/unit/agents/test_rag_exception_handling.py` (update 5 test functions)
-
----
-
-### Phase 3: Add Test Documentation (Priority: MEDIUM)
-
-**Goal:** Document fixture usage patterns for future developers.
-
-#### 3.1 Create `tests/README.md`
-
-```markdown
-# Egregora Test Suite
-
-## Test Configuration Philosophy
-
-We follow the **Fixture/Override Pattern** for test configuration:
-
-1. **Load base configuration** - Use `create_default_config()`
-2. **Override infrastructure globally** - Fixtures set tmp_path, test models, disabled slow components
-3. **Hardcode specific values only in tests** - Only when testing that specific behavior
-
-### Fixture Selection Guide
-
-| Test Type | Fixture | Use Case |
-|-----------|---------|----------|
-| **Fast unit tests** | `minimal_config` | No RAG, enrichment, or reader; fast models |
-| **Integration tests** | `test_config` | Full config with tmp_path isolation |
-| **Pipeline E2E** | `pipeline_test_config` | Optimized for full pipeline runs |
-| **RAG tests** | `test_rag_settings_enabled` | RAG enabled with test settings |
-| **Reader tests** | `reader_test_config` | Reader agent enabled |
-| **Custom needs** | `config_factory(key=val)` | Quick per-test customization |
-
-### Examples
-
-#### ✅ Good: Using fixtures
-```python
-def test_something(minimal_config):
-    # Config is isolated, uses tmp_path, safe for unit tests
-    result = do_something(minimal_config)
-    assert result.status == "success"
-```
-
-#### ❌ Bad: Direct instantiation
-```python
-def test_something():
-    config = EgregoraConfig()  # WRONG: Uses production defaults!
-    result = do_something(config)
-```
-
-#### ✅ Good: Customizing via factory
-```python
-def test_custom_timeout(config_factory):
-    config = config_factory(rag__enabled=True, rag__timeout=0.1)
-    # Only the specific values needed for this test are overridden
-    assert config.rag.timeout == 0.1
-```
-
-#### ✅ Good: Customizing via model_copy
-```python
-def test_with_custom_setting(test_config):
-    config = test_config.model_copy(deep=True)
-    config.pipeline.step_size = 100  # Test-specific override
-    result = run_pipeline(config)
-```
-
-### Running Tests
-
-```bash
-# All tests
-uv run pytest tests/
-
-# Fast unit tests only
-uv run pytest tests/unit/
-
-# E2E tests (slower)
-uv run pytest tests/e2e/
-
-# Specific test file
-uv run pytest tests/unit/rag/test_lancedb_backend.py
-
-# With coverage
-uv run pytest --cov=egregora tests/
-```
-
-### Fixtures Reference
-
-See `tests/conftest.py` for complete fixture documentation.
-```
-
-**Files Changed:**
-- `tests/README.md` (+100 lines, new file)
-
----
-
-### Phase 4: Validation and Cleanup (Priority: LOW)
-
-#### 4.1 Add Pre-commit Hook to Prevent Violations
-
-Create `dev_tools/check_test_config.py`:
-
-```python
-#!/usr/bin/env python3
-"""Pre-commit hook to prevent direct config instantiation in tests.
-
-Checks for:
-- Direct EgregoraConfig() calls without fixtures
-- Direct Settings class instantiation
-- Hardcoded infrastructure paths
+These can be tested independently and reused by other agents.
 """
 
-import re
-import sys
+from dataclasses import dataclass
 from pathlib import Path
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import OutputSink
 
-VIOLATIONS = [
-    (r"EgregoraConfig\(\)", "Use test_config fixture instead of EgregoraConfig()"),
-    (r"RAGSettings\(\)", "Use test_rag_settings fixture instead of RAGSettings()"),
-    (r"ModelSettings\(\)", "Use test_model_settings fixture instead of ModelSettings()"),
-    (r'db_path = Path\("/[^"]+"', "Use tmp_path fixture instead of hardcoded paths"),
-]
 
-def check_file(file_path: Path) -> list[str]:
-    """Check a single file for violations."""
-    errors = []
-    content = file_path.read_text()
+@dataclass(frozen=True)
+class PostToolContext:
+    """Context for post writing tool."""
+    output_sink: OutputSink
+    window_label: str
 
-    for pattern, message in VIOLATIONS:
-        if re.search(pattern, content):
-            errors.append(f"{file_path}:{message}")
 
-    return errors
+def write_post(
+    ctx: PostToolContext,
+    metadata: dict,
+    content: str,
+) -> dict:
+    """Write a blog post document.
 
-def main():
-    test_files = Path("tests").rglob("test_*.py")
-    all_errors = []
+    Pure function - easy to test, mock, and reuse.
 
-    for file_path in test_files:
-        # Skip conftest.py (defines fixtures)
-        if file_path.name == "conftest.py":
-            continue
+    Args:
+        ctx: Tool context with dependencies
+        metadata: Post metadata (title, slug, date, etc.)
+        content: Post markdown content
 
-        errors = check_file(file_path)
-        all_errors.extend(errors)
+    Returns:
+        Result dict with status and path
+    """
+    doc = Document(
+        content=content,
+        type=DocumentType.POST,
+        metadata=metadata,
+        source_window=ctx.window_label,
+    )
+    ctx.output_sink.persist(doc)
+    return {"status": "success", "path": doc.document_id}
 
-    if all_errors:
-        print("❌ Test configuration violations found:")
-        for error in all_errors:
-            print(f"  - {error}")
-        print("\nSee tests/README.md for proper fixture usage.")
-        return 1
 
-    print("✅ All tests use proper configuration fixtures")
-    return 0
+def read_profile(ctx: PostToolContext, author_uuid: str) -> dict:
+    """Read an author profile.
 
-if __name__ == "__main__":
-    sys.exit(main())
+    Pure function - easy to test with mock output_sink.
+    """
+    doc = ctx.output_sink.read_document(DocumentType.PROFILE, author_uuid)
+    content = doc.content if doc else "No profile exists yet."
+    return {"content": content}
+
+
+# ... similar for search_media, write_profile, etc.
 ```
 
-Add to `.pre-commit-config.yaml`:
+**Then update `writer.py`:**
 
-```yaml
-  - repo: local
-    hooks:
-      - id: check-test-config
-        name: Check test configuration
-        entry: python dev_tools/check_test_config.py
-        language: system
-        pass_filenames: false
-        files: tests/.*\.py$
+```python
+from egregora.agents.writer_tools import (
+    PostToolContext,
+    write_post,
+    read_profile,
+    write_profile,
+    search_media,
+)
+
+
+def register_writer_tools(agent: Agent, ...):
+    """Register tools as thin wrappers around pure functions."""
+
+    @agent.tool
+    def write_post_tool(ctx: RunContext[WriterDeps], metadata: dict, content: str):
+        tool_ctx = PostToolContext(
+            output_sink=ctx.deps.resources.output,
+            window_label=ctx.deps.window_label,
+        )
+        return write_post(tool_ctx, metadata, content)
+
+    @agent.tool
+    def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str):
+        tool_ctx = PostToolContext(
+            output_sink=ctx.deps.resources.output,
+            window_label=ctx.deps.window_label,
+        )
+        return read_profile(tool_ctx, author_uuid)
+
+    # ... similar for other tools (now just 3 lines each)
 ```
+
+**Benefits:**
+- ✅ Pure functions are easily unit tested
+- ✅ Can reuse tools in other agents
+- ✅ Can mock dependencies without Pydantic-AI machinery
+- ✅ Clear separation between tool logic and agent registration
 
 **Files Changed:**
-- `dev_tools/check_test_config.py` (+50 lines, new file)
-- `.pre-commit-config.yaml` (+6 lines)
+- `src/egregora/agents/writer_tools.py` (+150 lines, new file)
+- `src/egregora/agents/writer.py` (-140 lines, +40 lines = -100 net)
+- `tests/unit/agents/test_writer_tools.py` (+200 lines, new file)
 
 ---
 
-#### 4.2 Update CLAUDE.md Testing Section
+#### 1.2 Introduce JournalContext Dataclass
 
-Add to `CLAUDE.md` under `## Testing`:
-
-```markdown
-### Test Configuration Rules
-
-**CRITICAL: Never use production config in tests**
-
-1. **Use fixtures for ALL configuration:**
-   - ❌ `config = EgregoraConfig()` (uses production defaults!)
-   - ✅ `def test_foo(test_config):` (isolated test config)
-
-2. **Pick the right fixture:**
-   - Unit tests: `minimal_config` (fast, RAG/enrichment disabled)
-   - Integration: `test_config` (full config, tmp_path)
-   - E2E: `pipeline_test_config` (optimized for pipeline)
-   - RAG tests: `test_rag_settings_enabled`
-
-3. **Customize via factory or model_copy:**
-   ```python
-   # Factory (quick)
-   config = config_factory(rag__enabled=True, rag__timeout=0.1)
-
-   # model_copy (full control)
-   config = test_config.model_copy(deep=True)
-   config.pipeline.step_size = 100
-   ```
-
-4. **Infrastructure must use tmp_path:**
-   - ❌ `db_path = Path(".egregora/db.duckdb")`
-   - ✅ `db_path = tmp_path / "test.duckdb"`
-
-See `tests/README.md` for complete guide.
+**Before:**
+```python
+def _save_journal_to_file(
+    intercalated_log: list[JournalEntry],
+    window_label: str,
+    output_format: OutputSink,
+    posts_published: int,
+    profiles_updated: int,
+    window_start: datetime,
+    window_end: datetime,
+    total_tokens: int = 0,
+) -> str | None:
 ```
 
+**After:**
+```python
+@dataclass(frozen=True)
+class JournalContext:
+    """Encapsulates all data needed to save a journal entry."""
+
+    intercalated_log: list[JournalEntry]
+    window_label: str
+    window_start: datetime
+    window_end: datetime
+    posts_published: int
+    profiles_updated: int
+    total_tokens: int
+    output_format: OutputSink
+
+
+def _save_journal_to_file(ctx: JournalContext) -> str | None:
+    """Save journal entry to markdown file."""
+    # ... implementation uses ctx.intercalated_log, ctx.window_label, etc.
+```
+
+**Usage:**
+```python
+# Caller constructs context once
+journal_ctx = JournalContext(
+    intercalated_log=intercalated_log,
+    window_label=deps.window_label,
+    window_start=deps.window_start,
+    window_end=deps.window_end,
+    posts_published=len(saved_posts),
+    profiles_updated=len(saved_profiles),
+    total_tokens=result.usage().total_tokens,
+    output_format=deps.resources.output,
+)
+
+# Clean call
+_save_journal_to_file(journal_ctx)
+```
+
+**Benefits:**
+- ✅ Single parameter instead of 8
+- ✅ Immutable context (frozen dataclass)
+- ✅ Named fields (no positional argument confusion)
+- ✅ Easy to extend (add field without changing signature)
+
 **Files Changed:**
-- `CLAUDE.md` (+30 lines in Testing section)
+- `src/egregora/agents/writer.py:609` (add JournalContext dataclass)
+- `src/egregora/agents/writer.py:674` (update function signature)
+- `src/egregora/agents/writer.py:912` (update call site)
+
+---
+
+#### 1.3 Use Pydantic Model for Return Values
+
+**Before:**
+```python
+RESULT_KEY_POSTS = "posts"
+RESULT_KEY_PROFILES = "profiles"
+
+return {RESULT_KEY_POSTS: saved_posts, RESULT_KEY_PROFILES: saved_profiles}
+# Type: dict[str, list[str]]  # No type safety!
+```
+
+**After:**
+```python
+from pydantic import BaseModel
+
+class WriterResult(BaseModel):
+    """Type-safe result from writer agent."""
+
+    posts: list[str] = Field(default_factory=list, description="Post document IDs")
+    profiles: list[str] = Field(default_factory=list, description="Profile document IDs")
+
+
+def write_posts_for_window(...) -> WriterResult:
+    # ...
+    return WriterResult(posts=saved_posts, profiles=saved_profiles)
+```
+
+**Benefits:**
+- ✅ Type safety (IDE autocomplete)
+- ✅ Validation (Pydantic ensures lists)
+- ✅ Documentation (Field descriptions)
+- ✅ Serialization (automatic JSON/dict conversion)
+
+**Files Changed:**
+- `src/egregora/agents/writer.py:149` (add WriterResult model)
+- `src/egregora/agents/writer.py:1150` (update return type)
+- `src/egregora/agents/writer.py:1144` (return WriterResult instance)
+- `src/egregora/orchestration/write_pipeline.py:257` (update usage)
+
+---
+
+### Phase 2: Pipeline Orchestration Simplification (Priority: CRITICAL)
+
+**Goal:** Break down God method into testable, focused functions
+
+#### 2.1 Extract Pipeline Steps
+
+**Before:**
+```python
+def run(run_params: PipelineRunParams) -> dict:
+    # 90 lines of mixed responsibilities
+```
+
+**After:**
+```python
+def run(run_params: PipelineRunParams) -> WriterResult:
+    """Orchestrate pipeline workflow - delegates to specialized functions."""
+
+    adapter = _create_adapter(run_params)
+    run_id, started_at = run_params.run_id, run_params.start_time
+
+    with _pipeline_environment(run_params) as (ctx, runs_backend):
+        run_store = _create_run_store(runs_backend)
+        _record_run_start(run_store, run_id, started_at)
+
+        try:
+            results = _execute_pipeline_stages(adapter, run_params, ctx)
+            _record_run_completion(run_store, run_id, started_at, results)
+            logger.info("[green]Pipeline completed successfully![/]")
+            return results
+        except Exception as exc:
+            _record_run_failure(run_store, run_id, started_at, exc)
+            raise
+
+
+def _execute_pipeline_stages(
+    adapter: InputAdapter,
+    run_params: PipelineRunParams,
+    ctx: PipelineContext,
+) -> WriterResult:
+    """Execute all pipeline stages in sequence."""
+
+    dataset = _prepare_pipeline_data(adapter, run_params, ctx)
+    results, max_timestamp = _process_all_windows(dataset.windows_iterator, dataset.context)
+    _index_media_into_rag(dataset, results)
+    _save_checkpoint(results, max_timestamp, dataset.checkpoint_path)
+    _generate_statistics_page(dataset.messages_table, dataset.context)
+
+    return results
+```
+
+**Benefits:**
+- ✅ Main function is 15 lines (was 90)
+- ✅ Each helper has single responsibility
+- ✅ Easy to test helpers independently
+- ✅ Clear pipeline flow
+
+**Files Changed:**
+- `src/egregora/orchestration/write_pipeline.py:1364-1454` (split into 4 functions)
+
+---
+
+#### 2.2 Eliminate Control Flag
+
+**Before:**
+```python
+def _apply_filters(
+    messages_table,
+    ctx,
+    from_date,
+    to_date,
+    checkpoint_path,
+    checkpoint_enabled: bool = False,  # Flag!
+):
+    # ... base filtering (30 lines)
+
+    if checkpoint_enabled:  # Resume branch (30 lines)
+        # ...
+    else:  # Full rebuild branch (5 lines)
+        # ...
+```
+
+**After:**
+```python
+def _apply_base_filters(
+    messages_table: Table,
+    ctx: PipelineContext,
+    from_date: date | None,
+    to_date: date | None,
+) -> Table:
+    """Apply base filters: egregora messages, opted-out users, date range."""
+
+    # Filter egregora messages
+    messages_table, egregora_removed = filter_egregora_messages(messages_table)
+    if egregora_removed:
+        logger.info("Removed %s /egregora messages", egregora_removed)
+
+    # Filter opted-out authors
+    messages_table, removed_count = filter_opted_out_authors(messages_table, ctx.profiles_dir)
+    if removed_count > 0:
+        logger.warning("%s messages removed from opted-out users", removed_count)
+
+    # Date range filtering
+    if from_date or to_date:
+        messages_table = _apply_date_range_filter(messages_table, from_date, to_date)
+
+    return messages_table
+
+
+def _apply_resume_filter(
+    messages_table: Table,
+    checkpoint_path: Path,
+) -> Table:
+    """Apply checkpoint-based resume filter (incremental processing)."""
+
+    checkpoint = load_checkpoint(checkpoint_path)
+    if not checkpoint or "last_processed_timestamp" not in checkpoint:
+        logger.info("Starting fresh (checkpoint enabled, but no checkpoint found)")
+        return messages_table
+
+    last_timestamp = datetime.fromisoformat(checkpoint["last_processed_timestamp"])
+    # ... resume logic (30 lines)
+    return messages_table
+
+
+# Caller decides which filters to apply
+def _prepare_pipeline_data(...):
+    # ...
+    messages_table = _apply_base_filters(messages_table, ctx, from_date, to_date)
+
+    if config.pipeline.checkpoint_enabled:
+        messages_table = _apply_resume_filter(messages_table, checkpoint_path)
+    else:
+        logger.info("Full rebuild (checkpoint disabled)")
+    # ...
+```
+
+**Benefits:**
+- ✅ Each function has single responsibility
+- ✅ No control flags
+- ✅ Easy to test base filters without resume logic
+- ✅ Easy to test resume logic in isolation
+
+**Files Changed:**
+- `src/egregora/orchestration/write_pipeline.py:1179` (split into 2 functions)
+- `src/egregora/orchestration/write_pipeline.py:974` (update caller)
+
+---
+
+#### 2.3 Fix Feature Envy with Options Method
+
+**Before:**
+```python
+# In process_whatsapp_export function
+models_update = {
+    "writer": opts.model,
+    "enricher": opts.model,
+    # ... reaching into opts repeatedly
+}
+
+egregora_config = base_config.model_copy(
+    deep=True,
+    update={
+        "pipeline": base_config.pipeline.model_copy(
+            update={
+                "step_size": opts.step_size,
+                "step_unit": opts.step_unit,
+                # ... 10 more fields from opts
+            }
+        ),
+        # ... 3 more nested sections
+    },
+)
+```
+
+**After:**
+```python
+# In WhatsAppProcessOptions dataclass
+def to_config_overrides(self) -> dict[str, Any]:
+    """Convert options to config overrides dict.
+
+    Encapsulates knowledge of config structure.
+    """
+    overrides = {}
+
+    # Model overrides (if provided)
+    if self.model:
+        overrides["models"] = {
+            "writer": self.model,
+            "enricher": self.model,
+            "enricher_vision": self.model,
+            "ranking": self.model,
+            "editor": self.model,
+        }
+
+    # Pipeline overrides
+    overrides["pipeline"] = {
+        "step_size": self.step_size,
+        "step_unit": self.step_unit,
+        "overlap_ratio": self.overlap_ratio,
+        "timezone": str(self.timezone) if self.timezone else None,
+        "from_date": self.from_date.isoformat() if self.from_date else None,
+        "to_date": self.to_date.isoformat() if self.to_date else None,
+        "batch_threshold": self.batch_threshold,
+        "max_prompt_tokens": self.max_prompt_tokens,
+        "use_full_context_window": self.use_full_context_window,
+    }
+
+    # Enrichment overrides
+    overrides["enrichment"] = {"enabled": self.enable_enrichment}
+
+    return overrides
+
+
+# In process_whatsapp_export function
+def process_whatsapp_export(...):
+    opts = options or WhatsAppProcessOptions()
+    base_config = load_egregora_config(opts.output_dir)
+
+    # Clean, single responsibility
+    egregora_config = base_config.model_copy(deep=True, update=opts.to_config_overrides())
+    # ...
+```
+
+**Benefits:**
+- ✅ Options knows its own structure (LoD)
+- ✅ Easy to change config structure (encapsulation)
+- ✅ Cleaner orchestration code
+- ✅ Testable conversion logic
+
+**Files Changed:**
+- `src/egregora/orchestration/write_pipeline.py:74` (add method to WhatsAppProcessOptions)
+- `src/egregora/orchestration/write_pipeline.py:111-141` (simplify to 3 lines)
+
+---
+
+### Phase 3: Frontmatter Library Integration (Priority: HIGH)
+
+**Goal:** Eliminate brittle YAML construction, use `python-frontmatter` consistently
+
+#### 3.1 Install python-frontmatter Dependency
+
+**Add to `pyproject.toml`:**
+```toml
+[project]
+dependencies = [
+    # ... existing deps ...
+    "python-frontmatter>=1.1.0",
+]
+```
+
+**Run:**
+```bash
+uv sync
+```
+
+---
+
+#### 3.2 Replace Manual YAML Construction
+
+**Before (`_write_post_doc`, `_write_journal_doc`, `_write_profile_doc`, `_write_enrichment_doc`):**
+```python
+def _write_post_doc(self, document: Document, path: Path) -> None:
+    import yaml as _yaml
+    metadata = dict(document.metadata or {})
+    metadata["date"] = _format_frontmatter_datetime(metadata["date"])
+    if "authors" in metadata:
+        _ensure_author_entries(path.parent, metadata.get("authors"))
+
+    yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    full_content = f"---\n{yaml_front}---\n\n{document.content}"
+    path.write_text(full_content, encoding="utf-8")
+```
+
+**After:**
+```python
+import frontmatter
+
+
+def _write_post_doc(self, document: Document, path: Path) -> None:
+    metadata = self._prepare_post_metadata(document.metadata)
+    post = frontmatter.Post(document.content, **metadata)
+    path.write_text(frontmatter.dumps(post), encoding="utf-8")
+
+
+def _prepare_post_metadata(self, metadata: dict) -> dict:
+    """Prepare metadata for post documents (hook for customization)."""
+    prepared = dict(metadata or {})
+
+    # Format date
+    if "date" in prepared:
+        prepared["date"] = _format_frontmatter_datetime(prepared["date"])
+
+    # Ensure authors exist in .authors.yml
+    if "authors" in prepared:
+        _ensure_author_entries(self.posts_dir.parent, prepared["authors"])
+
+    return prepared
+```
+
+**Similar for journal, profile, enrichment:**
+```python
+def _write_journal_doc(self, document: Document, path: Path) -> None:
+    metadata = self._ensure_hidden(document.metadata.copy())
+    post = frontmatter.Post(document.content, **metadata)
+    path.write_text(frontmatter.dumps(post), encoding="utf-8")
+
+
+def _write_profile_doc(self, document: Document, path: Path) -> None:
+    metadata = self._prepare_profile_metadata(document.metadata)
+    post = frontmatter.Post(document.content, **metadata)
+    path.write_text(frontmatter.dumps(post), encoding="utf-8")
+
+
+def _write_enrichment_doc(self, document: Document, path: Path) -> None:
+    metadata = self._prepare_enrichment_metadata(document.metadata, document)
+    post = frontmatter.Post(document.content, **metadata)
+    path.write_text(frontmatter.dumps(post), encoding="utf-8")
+```
+
+**Benefits:**
+- ✅ Eliminates 4 instances of manual `f"---\n{yaml}---\n\n{content}"`
+- ✅ Removes repeated YAML dump parameters
+- ✅ Symmetry with parsing (same lib for read/write)
+- ✅ Handles edge cases (multiline values, special chars)
+- ✅ Reduces code by ~30 lines
+
+**Files Changed:**
+- `pyproject.toml` (+1 line)
+- `src/egregora/output_adapters/mkdocs/adapter.py:763` (`_write_post_doc`)
+- `src/egregora/output_adapters/mkdocs/adapter.py:789` (`_write_journal_doc`)
+- `src/egregora/output_adapters/mkdocs/adapter.py:797` (`_write_profile_doc`)
+- `src/egregora/output_adapters/mkdocs/adapter.py:838` (`_write_enrichment_doc`)
+
+---
+
+### Phase 4: Decouple Writer from Formatting (Priority: MEDIUM)
+
+**Goal:** Inject formatter instead of importing specific implementations
+
+#### 4.1 Create Formatter Protocol
+
+**Create:** `src/egregora/agents/formatting_protocol.py`
+
+```python
+from typing import Protocol, runtime_checkable
+from ibis.expr.types import Table
+
+
+@runtime_checkable
+class ConversationFormatter(Protocol):
+    """Protocol for formatting conversation data for LLMs."""
+
+    def format_conversation(
+        self,
+        messages: Table,
+        annotations_store: AnnotationStore | None = None,
+    ) -> str:
+        """Format messages table into prompt-ready string."""
+        ...
+
+
+@runtime_checkable
+class JournalLoader(Protocol):
+    """Protocol for loading journal history."""
+
+    def load_journal_memory(self, output_sink: OutputSink) -> str:
+        """Load recent journal entries as context."""
+        ...
+```
+
+---
+
+#### 4.2 Update WriterResources
+
+**Before:**
+```python
+@dataclass(frozen=True)
+class WriterResources:
+    # ... existing fields ...
+```
+
+**After:**
+```python
+@dataclass(frozen=True)
+class WriterResources:
+    # ... existing fields ...
+
+    # NEW: Formatters as dependencies
+    conversation_formatter: ConversationFormatter
+    journal_loader: JournalLoader
+```
+
+---
+
+#### 4.3 Update Writer to Use Injected Formatters
+
+**Before:**
+```python
+from egregora.agents.formatting import (
+    _build_conversation_xml,
+    _load_journal_memory,
+)
+
+def _build_writer_context(...):
+    conversation_xml = _build_conversation_xml(messages_table, resources.annotations_store)
+    journal_memory = _load_journal_memory(resources.output)
+    # ...
+```
+
+**After:**
+```python
+def _build_writer_context(...):
+    conversation_xml = resources.conversation_formatter.format_conversation(
+        messages_table,
+        resources.annotations_store,
+    )
+    journal_memory = resources.journal_loader.load_journal_memory(resources.output)
+    # ...
+```
+
+**Benefits:**
+- ✅ No import coupling to specific implementations
+- ✅ Easy to swap formatters (XML → JSON → custom)
+- ✅ Easy to mock formatters in tests
+- ✅ Writer focused on writing, not formatting
+
+**Files Changed:**
+- `src/egregora/agents/formatting_protocol.py` (+30 lines, new file)
+- `src/egregora/agents/writer.py:156` (add fields to WriterResources)
+- `src/egregora/agents/writer.py:38-39` (remove imports)
+- `src/egregora/agents/writer.py:534` (use injected formatter)
+- `src/egregora/agents/writer.py:548` (use injected journal loader)
+- `src/egregora/orchestration/factory.py` (inject default implementations)
+
+---
+
+### Phase 5: Split DuckDBStorageManager (Priority: LOW)
+
+**Goal:** Extract specialized managers to reduce God class complexity
+
+**Note:** This is a larger refactoring with lower priority. Recommend separate PR.
+
+**Approach:**
+1. Extract `SequenceManager` (lines 376-458)
+2. Extract `VectorManager` (lines 542-593)
+3. Keep `DuckDBStorageManager` focused on core table I/O
+
+**Files Created:**
+- `src/egregora/database/sequence_manager.py` (+100 lines)
+- `src/egregora/database/vector_manager.py` (+80 lines)
+
+**Files Changed:**
+- `src/egregora/database/duckdb_manager.py` (-180 lines)
+
+**Defer to separate PR** - Not blocking for this refactoring.
 
 ---
 
 ## Implementation Plan
 
-### Week 1: Foundation
-- [ ] **Day 1-2:** Add fixtures to `tests/conftest.py` (Phase 1.1)
-- [ ] **Day 2-3:** Update fixture documentation (Phase 1.2)
-- [ ] **Day 3-5:** Create `tests/README.md` (Phase 3.1)
+### Week 1: Writer Agent Testability
 
-### Week 2: Refactoring
-- [ ] **Day 1:** Fix `test_site_generation.py` (Phase 2.1)
-- [ ] **Day 1:** Fix `test_rag_backend_factory.py` (Phase 2.2)
-- [ ] **Day 2:** Fix `test_dynamic_parser.py` (Phase 2.3)
-- [ ] **Day 2-3:** Fix `test_embedding_router.py` (Phase 2.4)
-- [ ] **Day 3:** Fix `test_rag_exception_handling.py` (Phase 2.5)
+- [x] Day 1: Extract tool functions to `writer_tools.py` (Phase 1.1)
+- [x] Day 2: Write unit tests for extracted tools
+- [x] Day 3: Introduce `JournalContext` dataclass (Phase 1.2)
+- [x] Day 4: Introduce `WriterResult` Pydantic model (Phase 1.3)
+- [x] Day 5: Test and verify writer changes
 
-### Week 3: Validation
-- [ ] **Day 1:** Add pre-commit hook (Phase 4.1)
-- [ ] **Day 2:** Update CLAUDE.md (Phase 4.2)
-- [ ] **Day 3:** Run full test suite, verify no regressions
-- [ ] **Day 4:** Code review and adjustments
-- [ ] **Day 5:** Final testing and merge
+### Week 2: Pipeline Orchestration
+
+- [ ] Day 1: Extract pipeline stages from `run()` (Phase 2.1)
+- [ ] Day 2: Eliminate control flag in filters (Phase 2.2)
+- [ ] Day 3: Add `to_config_overrides()` method (Phase 2.3)
+- [ ] Day 4: Test orchestration changes
+- [ ] Day 5: Buffer/catch-up
+
+### Week 3: Frontmatter & Formatting
+
+- [ ] Day 1: Install `python-frontmatter`, update adapter (Phase 3.1-3.2)
+- [ ] Day 2: Test frontmatter changes
+- [ ] Day 3: Create formatter protocols (Phase 4.1)
+- [ ] Day 4: Inject formatters into writer (Phase 4.2-4.3)
+- [ ] Day 5: Final testing and verification
 
 ---
 
 ## Success Criteria
 
-1. **Zero direct config instantiations:**
-   - No `EgregoraConfig()` calls outside conftest.py
-   - No `RAGSettings()`, `ModelSettings()` calls outside conftest.py
+1. **Writer Agent Testability:**
+   - ✅ All tools extracted to standalone functions
+   - ✅ 90%+ test coverage on `writer_tools.py`
+   - ✅ No more than 8 parameters per function
+   - ✅ Type-safe return values (Pydantic models)
 
-2. **All tests use fixtures:**
-   - Unit tests use `minimal_config` or `config_factory`
-   - E2E tests use `pipeline_test_config` or `test_config`
-   - RAG tests use `test_rag_settings_enabled`
+2. **Pipeline Simplification:**
+   - ✅ Main `run()` function < 20 lines
+   - ✅ No control flags in function signatures
+   - ✅ Each helper function tests independently
+   - ✅ Config overrides encapsulated in options
 
-3. **Infrastructure isolation:**
-   - All database paths use `tmp_path`
-   - No hardcoded `.egregora/` paths
-   - All API keys mocked via fixtures
+3. **Frontmatter Consistency:**
+   - ✅ `python-frontmatter` used for all YAML operations
+   - ✅ No manual `f"---\n{yaml}---\n\n{content}"` construction
+   - ✅ Symmetric read/write (same library)
+   - ✅ Tests verify frontmatter parsing
 
-4. **Documentation complete:**
-   - `tests/README.md` explains fixture usage
-   - `tests/conftest.py` has selection guide
-   - `CLAUDE.md` updated with test config rules
+4. **Decoupled Formatting:**
+   - ✅ Writer uses protocol dependencies
+   - ✅ No direct imports of formatting implementations
+   - ✅ Easy to mock formatters in tests
 
-5. **Pre-commit validation:**
-   - Hook prevents new violations
-   - Existing tests pass hook
-
-6. **Test suite passes:**
-   - All unit tests pass: `pytest tests/unit/`
-   - All E2E tests pass: `pytest tests/e2e/`
-   - No new warnings or errors
+5. **Test Coverage:**
+   - ✅ All refactored code has unit tests
+   - ✅ Integration tests updated
+   - ✅ No regression in existing tests
+   - ✅ Coverage maintained or improved
 
 ---
 
@@ -655,17 +1018,16 @@ See `tests/README.md` for complete guide.
 
 | File | Changes | Lines |
 |------|---------|-------|
-| `tests/conftest.py` | Add fixtures + docs | +105 |
-| `tests/README.md` | New file | +100 |
-| `tests/e2e/pipeline/test_site_generation.py` | Use fixture | -3, +2 |
-| `tests/unit/rag/test_rag_backend_factory.py` | Use factory | -4, +8 |
-| `tests/e2e/input_adapters/test_dynamic_parser.py` | Use fixture | -2, +4 |
-| `tests/unit/rag/test_embedding_router.py` | Remove module-level | -8, +15 |
-| `tests/unit/agents/test_rag_exception_handling.py` | Use fixture factory | -5, +10 |
-| `dev_tools/check_test_config.py` | New file | +50 |
-| `.pre-commit-config.yaml` | Add hook | +6 |
-| `CLAUDE.md` | Update testing section | +30 |
-| **Total** | **10 files** | **~320 lines** |
+| `src/egregora/agents/writer_tools.py` | New file | +150 |
+| `src/egregora/agents/writer.py` | Extract tools, add models | -100 |
+| `src/egregora/agents/formatting_protocol.py` | New file | +30 |
+| `src/egregora/orchestration/write_pipeline.py` | Split God method | -60, +40 |
+| `src/egregora/output_adapters/mkdocs/adapter.py` | Use frontmatter lib | -30, +20 |
+| `pyproject.toml` | Add dependency | +1 |
+| `tests/unit/agents/test_writer_tools.py` | New file | +200 |
+| `tests/unit/agents/test_writer.py` | Update for new structure | +50 |
+| `tests/unit/orchestration/test_write_pipeline.py` | Test extracted helpers | +100 |
+| **Total** | **9 files** | **~350 net lines** |
 
 ---
 
@@ -673,41 +1035,52 @@ See `tests/README.md` for complete guide.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| Tests fail after refactoring | Medium | High | Run full test suite after each change |
-| Fixtures have bugs | Low | Medium | Test fixtures in isolation first |
-| Breaking existing workflows | Low | Low | Changes are internal to tests only |
-| Pre-commit hook false positives | Medium | Low | Careful regex patterns, manual review |
+| Breaking writer tests | Low | High | Comprehensive test coverage before refactoring |
+| Frontmatter library incompatibility | Low | Medium | Test with existing golden fixtures |
+| Pipeline refactoring introduces bugs | Medium | High | Extract incrementally, test each stage |
+| Performance regression | Low | Low | Benchmark before/after |
 
 ---
 
 ## Rollback Plan
 
-If refactoring causes issues:
-
-1. **Immediate:** Revert to previous commit
+1. **Immediate:** Git revert to previous commit
 2. **Phase-by-phase:** Each phase is independent; can roll back partial changes
-3. **Fixture bugs:** Disable new fixtures, fall back to test_config
-4. **Pre-commit issues:** Disable hook temporarily
+3. **Feature flags:** Keep old implementations temporarily behind config flags
+4. **Parallel implementation:** Run old and new side-by-side during transition
+
+---
+
+## Additional Code Smells to Fix Opportunistically
+
+While working on the primary issues, fix these if encountered:
+
+1. **Async/Sync Mixing** - `enricher.py` (not fully analyzed yet)
+2. **In-Memory Materialization** - Table iteration patterns
+3. **Excessive Exception Catching** - Broad `except Exception` blocks
+4. **Duplicate Code** - Similar patterns across modules
 
 ---
 
 ## References
 
-- **Industry Standard:** Fixture/Override Pattern (pytest best practices)
-- **Egregora Docs:** `docs/testing/` (if exists), `CLAUDE.md` Testing section
-- **Pytest Docs:** https://docs.pytest.org/en/stable/fixture.html
+- **Clean Code** by Robert C. Martin (Uncle Bob)
+- **Refactoring** by Martin Fowler
+- **SOLID Principles** - Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion
+- **Design Patterns** - Gang of Four (Strategy, Factory)
 
 ---
 
 ## PR Checklist
 
-- [ ] All new fixtures have docstrings with examples
-- [ ] `tests/README.md` created with usage guide
-- [ ] All direct `EgregoraConfig()` calls replaced
-- [ ] All direct `Settings()` calls replaced
-- [ ] Pre-commit hook added and tested
+- [ ] All extracted functions have docstrings with examples
+- [ ] `python-frontmatter` dependency added and tested
+- [ ] All direct tool functions have unit tests (90%+ coverage)
+- [ ] Pipeline helpers tested independently
+- [ ] No control flags in function signatures
+- [ ] Type-safe return values (Pydantic models)
 - [ ] Full test suite passes (`pytest tests/`)
-- [ ] No new test warnings
-- [ ] CLAUDE.md updated
+- [ ] No new warnings or errors
+- [ ] Pre-commit hooks pass
 - [ ] Code review requested
 - [ ] CI/CD pipeline passes
