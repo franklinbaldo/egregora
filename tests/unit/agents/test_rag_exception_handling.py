@@ -44,7 +44,7 @@ class TestRAGExceptionHandling:
         mock_resources.output.documents = Mock(return_value=[test_doc])
 
         # Mock only the external dependency
-        with patch("egregora.rag.index_documents") as mock_index:
+        with patch("egregora.agents.writer.index_documents") as mock_index:
             mock_index.side_effect = RuntimeError("Database connection failed")
 
             # Should not raise - error is caught and logged
@@ -73,7 +73,7 @@ class TestRAGExceptionHandling:
         ]
         mock_resources.output.documents = Mock(return_value=test_docs)
 
-        with patch("egregora.rag.index_documents") as mock_index:
+        with patch("egregora.agents.writer.index_documents") as mock_index:
             with caplog.at_level("INFO"):
                 _index_new_content_in_rag(
                     mock_resources,
@@ -139,7 +139,6 @@ class TestPipelineRAGExceptionHandling:
             "except (ConnectionError, TimeoutError)" in source
         ), "RAG indexing should catch specific exceptions (ConnectionError, TimeoutError), not broad Exception"
         # Should have RAG indexing code
-        assert "from egregora.rag import index_documents" in source
         assert "index_documents(existing_docs)" in source
 
     def test_index_media_is_disabled(self):
