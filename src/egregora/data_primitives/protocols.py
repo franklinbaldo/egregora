@@ -103,6 +103,10 @@ class OutputSink(Protocol):
     def url_convention(self) -> UrlConvention:
         """Return the URL convention adopted by this sink."""
 
+    @property
+    def url_context(self) -> UrlContext:
+        """Return the URL context for canonical URL generation."""
+
     def persist(self, document: Document) -> None:
         """Persist ``document`` so that it becomes available at its canonical URL.
 

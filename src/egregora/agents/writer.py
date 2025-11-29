@@ -7,6 +7,7 @@ It exposes ``write_posts_for_window`` which routes the LLM conversation through 
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import Sequence
@@ -46,8 +47,8 @@ from egregora.agents.model_limits import (
 from egregora.config.settings import EgregoraConfig, RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors, read_profile
-from egregora.ops.media import save_media_asset
 from egregora.output_adapters import OutputAdapterRegistry, create_default_output_registry
+from egregora.rag import RAGQueryRequest, index_documents, reset_backend, search
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
@@ -259,8 +260,6 @@ def register_writer_tools(
 
             """
             try:
-                from egregora.rag import RAGQueryRequest, search
-
                 # Execute RAG search
                 request = RAGQueryRequest(text=query, top_k=top_k)
                 response = await search(request)
@@ -298,7 +297,7 @@ def register_writer_tools(
                 logger.warning("Invalid query for media search: %s", exc)
                 return SearchMediaResult(results=[])
             except (AttributeError, KeyError) as exc:
-                logger.error("Malformed response from RAG media search: %s", exc)
+                logger.exception("Malformed response from RAG media search: %s", exc)
                 return SearchMediaResult(results=[])
 
     @agent.tool
@@ -332,21 +331,18 @@ def register_writer_tools(
         def generate_banner_tool(
             ctx: RunContext[WriterDeps], post_slug: str, title: str, summary: str
         ) -> BannerResult:
-            # media_dir is not part of OutputSink, so we use output_format here
-            banner_output_dir = ctx.deps.resources.output.media_dir / "images"
-
             result = generate_banner(post_title=title, post_summary=summary, slug=post_slug)
 
             if result.success and result.document:
-                banner_path = save_media_asset(result.document, banner_output_dir)
+                banner_doc = result.document
 
-                # Convert absolute path to web-friendly path
-                # If using MkDocsAdapter, use its helper
-                if hasattr(ctx.deps.output_sink, "get_media_url_path") and ctx.deps.ctx.site_root:
-                    web_path = ctx.deps.output_sink.get_media_url_path(banner_path, ctx.deps.ctx.site_root)
-                else:
-                    # Fallback: assume standard structure /media/images/filename
-                    web_path = f"/media/images/{banner_path.name}"
+                # Generate canonical URL via UrlConvention
+                url_convention = ctx.deps.output_sink.url_convention
+                url_context = ctx.deps.output_sink.url_context
+                web_path = url_convention.canonical_url(banner_doc, url_context)
+
+                # Persist the banner through the output adapter
+                ctx.deps.output_sink.persist(banner_doc)
 
                 return BannerResult(status="success", path=web_path)
             return BannerResult(status="failed", path=result.error)
@@ -408,7 +404,8 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
                 return cached
 
         # Execute RAG search
-        import asyncio
+        # Reset backend to ensure it attaches to the new event loop created by asyncio.run
+        reset_backend()
 
         request = RAGQueryRequest(text=query_text, top_k=top_k)
         response = asyncio.run(search(request))
@@ -443,7 +440,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
         logger.warning("Invalid RAG query, continuing without context: %s", exc)
         return ""
     except (AttributeError, KeyError, TypeError) as exc:
-        logger.error("Malformed RAG response, continuing without context: %s", exc)
+        logger.exception("Malformed RAG response, continuing without context: %s", exc)
         return ""
 
 
@@ -692,10 +689,10 @@ def _save_journal_to_file(  # noqa: PLR0913
         )
         template = env.get_template(JOURNAL_TEMPLATE_NAME)
     except TemplateNotFound as exc:
-        logger.error("Journal template not found: %s", exc)
+        logger.exception("Journal template not found: %s", exc)
         return None
     except (OSError, PermissionError) as exc:
-        logger.error("Cannot access template directory: %s", exc)
+        logger.exception("Cannot access template directory: %s", exc)
         return None
 
     now_utc = datetime.now(tz=UTC)
@@ -716,10 +713,10 @@ def _save_journal_to_file(  # noqa: PLR0913
             total_tokens=total_tokens,
         )
     except TemplateError as exc:
-        logger.error("Journal template rendering failed: %s", exc)
+        logger.exception("Journal template rendering failed: %s", exc)
         return None
     except (TypeError, AttributeError) as exc:
-        logger.error("Invalid template data for journal: %s", exc)
+        logger.exception("Invalid template data for journal: %s", exc)
         return None
     journal_content = journal_content.replace("../media/", "/media/")
 
@@ -741,10 +738,10 @@ def _save_journal_to_file(  # noqa: PLR0913
         )
         output_format.persist(doc)
     except (OSError, PermissionError) as exc:
-        logger.error("Failed to write journal to disk: %s", exc)
+        logger.exception("Failed to write journal to disk: %s", exc)
         return None
     except ValueError as exc:
-        logger.error("Invalid journal document: %s", exc)
+        logger.exception("Invalid journal document: %s", exc)
         return None
     logger.info("Saved journal entry: %s", doc.document_id)
     return doc.document_id
@@ -870,6 +867,7 @@ def write_posts_with_pydantic_agent(
 
     _validate_prompt_fits(prompt, model_name, config, context.window_label)
 
+    reset_backend()
     try:
         if context.resources.quota:
             context.resources.quota.reserve(1)
@@ -998,9 +996,6 @@ def _index_new_content_in_rag(
         return
 
     try:
-        from egregora.data_primitives.document import DocumentType
-        from egregora.rag import index_documents
-
         # Read the newly saved post documents
         docs: list[Document] = []
         for post_id in saved_posts:
@@ -1014,8 +1009,6 @@ def _index_new_content_in_rag(
                         break
 
         if docs:
-            import asyncio
-
             asyncio.run(index_documents(docs))
             logger.info("Indexed %d new posts in RAG", len(docs))
         else:

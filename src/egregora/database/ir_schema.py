@@ -741,6 +741,7 @@ __all__ = [
     # General utilities
     "add_primary_key",
     "conversation_schema_dict",
+    "conversation_schema_dict",
     "create_index",
     # Runs utilities
     "create_runs_table",

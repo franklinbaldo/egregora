@@ -30,9 +30,38 @@ class RouteConfig:
 class StandardUrlConvention(UrlConvention):
     """The default, opinionated URL scheme for Egregora sites.
 
-    Generates deterministic, canonical URLs based on document content and metadata.
-    Adapters can configure prefixes (e.g. 'blog' instead of 'posts') or subclass
-    this to change the logic entirely.
+    **Role: Single Source of Truth for Document Persistence**
+
+    This class is the **authoritative source** for how documents are addressed
+    and persisted to the filesystem. All document writes flow through the
+    `canonical_url()` method, which generates deterministic URLs based on
+    document type and metadata.
+
+    **Document Flow:**
+    ```
+    Document → canonical_url() → URL → adapter._url_to_path() → filesystem
+    ```
+
+    **Per-Type URL Rules:**
+    - PROFILE: /profiles/{uuid} (uses full UUID from metadata)
+    - POST: /posts/{slug} (filename includes date prefix: {date}-{slug}.md)
+    - JOURNAL: /journal/{label} (slugified window label)
+    - MEDIA: /media/{type}/{hash}.{ext} (hash-based naming)
+    - ENRICHMENT_MEDIA: /media/{type}/{parent_slug} (paired with media file)
+    - ENRICHMENT_URL: /media/urls/{identifier}/ (uses suggested_path if available)
+
+    **Contract with Adapters:**
+    - Adapters **must** use `canonical_url()` to generate URLs
+    - Adapters **must not** manually construct file paths
+    - URL → path translation is adapter-specific (_url_to_path())
+    - This ensures consistency across all document references
+
+    **Configuration:**
+    - Route prefixes can be customized via `RouteConfig`
+    - Subclass to implement entirely different URL schemes
+    - Version tracked for migration/compatibility
+
+    See: ``docs/architecture/url-conventions.md`` for complete documentation.
     """
 
     def __init__(self, routes: RouteConfig | None = None) -> None:
@@ -80,8 +109,16 @@ class StandardUrlConvention(UrlConvention):
 
         # 3. Journals (Agent Memory)
         if document.type == DocumentType.JOURNAL:
-            safe_label = document.slug or slugify(document.metadata.get("window_label", "journal"))
-            return self._join(ctx, self.routes.journal_prefix, safe_label)
+            window_label = document.metadata.get("window_label")
+            if window_label:
+                safe_label = slugify(window_label)
+                return self._join(ctx, self.routes.journal_prefix, safe_label)
+            slug_value = document.metadata.get("slug")
+            if slug_value:
+                safe_label = slugify(slug_value)
+                return self._join(ctx, self.routes.journal_prefix, safe_label)
+            # Fallback: no window_label or slug, return journal root
+            return self._join(ctx, self.routes.journal_prefix)
 
         if document.type == DocumentType.MEDIA:
             return self._format_media_url(ctx, document)

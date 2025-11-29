@@ -175,15 +175,6 @@ def _normalize_public_url(value: str | None) -> str | None:
     return "/" + value.lstrip("/")
 
 
-def _media_public_url(media_doc: Document) -> str | None:
-    url = media_doc.metadata.get("public_url")
-    if url:
-        return _normalize_public_url(url)
-    if media_doc.suggested_path:
-        return _normalize_public_url(media_doc.suggested_path.strip("/"))
-    return None
-
-
 def replace_media_mentions(
     text: str,
     media_mapping: MediaMapping,
@@ -194,7 +185,17 @@ def replace_media_mentions(
 
     result = text
     for original_filename, media_doc in media_mapping.items():
-        public_url = _media_public_url(media_doc)
+        # Check for PII deletion first
+        if media_doc.metadata.get("pii_deleted"):
+            replacement = f"[Media Redacted: {original_filename} contains PII]"
+            for marker in ATTACHMENT_MARKERS:
+                pattern = re.escape(original_filename) + r"\s*" + re.escape(marker)
+                result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+            result = re.sub(r"\b" + re.escape(original_filename) + r"\b", replacement, result)
+            continue
+
+        # Get pre-calculated URL from metadata (generated earlier by UrlConvention)
+        public_url = media_doc.metadata.get("public_url")
         if not public_url:
             continue
 
@@ -220,9 +221,21 @@ def replace_markdown_media_refs(table: Table, media_mapping: MediaMapping) -> Ta
 
     updated_table = table
     for original_ref, media_doc in media_mapping.items():
-        public_url = _media_public_url(media_doc)
-        if not public_url:
+        # Check for PII deletion
+        if media_doc.metadata.get("pii_deleted"):
+            pii_reason = media_doc.metadata.get("pii_reason", "Contains PII")
+            logger.info("Redacting markdown media reference '%s': %s", original_ref, pii_reason)
+            updated_table = updated_table.mutate(
+                text=updated_table.text.replace(f"]({original_ref})", f"]([REDACTED: {pii_reason}])")
+            )
             continue
+
+        # Get pre-calculated URL from metadata (generated earlier by UrlConvention)
+        public_url = media_doc.metadata.get("public_url")
+        if not public_url:
+            logger.debug("No public URL for markdown media ref '%s', skipping", original_ref)
+            continue
+
         updated_table = updated_table.mutate(
             text=updated_table.text.replace(f"]({original_ref})", f"]({public_url})")
         )

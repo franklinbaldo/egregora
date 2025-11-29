@@ -91,6 +91,7 @@ line-length = 110  # Slightly more generous for strings/logs
 target-version = "py312"
 extend-exclude = [
     ".claude",
+    "prompt_tests",
 ]
 
 [tool.ruff.lint]

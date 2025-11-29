@@ -14,6 +14,7 @@ Part of the three-layer architecture:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import os
@@ -44,6 +45,7 @@ from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.run_store import RunStore
 from egregora.database.views import daily_aggregates_view
+from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.base import MediaMapping
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
@@ -53,6 +55,7 @@ from egregora.orchestration.factory import PipelineFactory
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
+from egregora.rag import index_documents, reset_backend
 from egregora.transformations import (
     create_windows,
     load_checkpoint,
@@ -246,9 +249,9 @@ def _process_single_window(
             try:
                 output_sink.persist(media_doc)
             except (OSError, PermissionError) as exc:  # pragma: no cover - defensive
-                logger.error("Failed to write media file %s: %s", media_doc.metadata.get("filename"), exc)
+                logger.exception("Failed to write media file %s: %s", media_doc.metadata.get("filename"), exc)
             except ValueError as exc:  # pragma: no cover - defensive
-                logger.error("Invalid media document %s: %s", media_doc.metadata.get("filename"), exc)
+                logger.exception("Invalid media document %s: %s", media_doc.metadata.get("filename"), exc)
 
     # Write posts
     resources = PipelineFactory.create_writer_resources(ctx)
@@ -993,18 +996,15 @@ def _prepare_pipeline_data(
     ctx = ctx.with_adapter(adapter)
 
     # Index existing documents into RAG
-    if config.rag.enabled:
+    if ctx.config.rag.enabled:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
-            import asyncio
-
-            from egregora.rag import index_documents
-
             # Get existing documents from output format
             existing_docs = list(output_format.documents())
             if existing_docs:
                 asyncio.run(index_documents(existing_docs))
                 logger.info("[green]✓ Indexed %d existing documents into RAG[/]", len(existing_docs))
+                reset_backend()
             else:
                 logger.info("[dim]No existing documents to index[/]")
         except (ConnectionError, TimeoutError) as exc:
@@ -1144,9 +1144,9 @@ def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) ->
         else:
             logger.warning("Output format not initialized - cannot save statistics page")
     except (OSError, PermissionError) as exc:
-        logger.error("[red]Failed to write statistics page: %s[/]", exc)
+        logger.exception("[red]Failed to write statistics page: %s[/]", exc)
     except ValueError as exc:
-        logger.error("[red]Invalid statistics page data: %s[/]", exc)
+        logger.exception("[red]Invalid statistics page data: %s[/]", exc)
 
 
 def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, checkpoint_path: Path) -> None:
@@ -1375,8 +1375,6 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
 
     # Create adapter with config for privacy settings
     # Instead of using singleton from registry, instantiate with config
-    from egregora.input_adapters import ADAPTER_REGISTRY
-
     adapter_cls = ADAPTER_REGISTRY.get(run_params.source_type)
     if adapter_cls is None:
         msg = f"Unknown source type: {run_params.source_type}"
