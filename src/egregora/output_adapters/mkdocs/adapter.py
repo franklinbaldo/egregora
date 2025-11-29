@@ -939,9 +939,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
                 avatar = metadata.get("avatar", "")
                 if not avatar:
-                    from egregora.knowledge.profiles import _generate_fallback_avatar_url
+                    from egregora.knowledge.profiles import generate_fallback_avatar_url
 
-                    avatar = _generate_fallback_avatar_url(author_uuid)
+                    avatar = generate_fallback_avatar_url(author_uuid)
 
                 profiles.append(
                     {
@@ -1046,9 +1046,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             avatar = author.get("avatar", "")
 
             if not avatar:
-                from egregora.knowledge.profiles import _generate_fallback_avatar_url
+                from egregora.knowledge.profiles import generate_fallback_avatar_url
 
-                avatar = _generate_fallback_avatar_url(author_id)
+                avatar = generate_fallback_avatar_url(author_id)
 
             authors_data.append(
                 {
