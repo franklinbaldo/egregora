@@ -207,6 +207,18 @@ __all__ = [
     "RAGQueryResponse",
     "get_backend",
     "index_documents",
+    "reset_backend",
     "search",
     # DuckDB integration (import from duckdb_integration module)
 ]
+
+
+def reset_backend() -> None:
+    """Reset the global RAG backend.
+
+    Forces recreation of the backend (and its embedding router) on the next call
+    to get_backend(). This is necessary when switching between event loops,
+    as the router's background tasks are bound to the loop where they were created.
+    """
+    global _backend  # noqa: PLW0603
+    _backend = None

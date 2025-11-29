@@ -1,0 +1,37 @@
+Running diagnostics...
+
+[11/29/25 05:48:01] INFO     Loading config from
+                             .egregora/config.ym
+                             l
+                    INFO     Loaded plugin
+                             adapter: TJRO
+                             Comunica API v0.1.0
+                             (from iperon-tjro)
+                    INFO     Loaded plugin
+                             adapter: Egregora
+                             Self-Reflection
+                             v0.1.0 (from self)
+                    INFO     Loaded plugin
+                             adapter: WhatsApp
+                             v1.0.0 (from
+                             whatsapp)
+✅ Python Version: Python 3.13.5
+✅ Required Packages: All 7 required packages
+installed
+✅ API Key: GOOGLE_API_KEY set (AIzaSyBx...QnZE)
+✅ DuckDB VSS Extension: VSS extension available
+and loaded
+✅ DuckDB ZipFS Extension: ZipFS extension
+available (enables vectorized ZIP parsing)
+✅ Git: git version 2.43.0
+✅ Cache Directory: Writable at
+/home/frank/workspace/egregora/.egregora-cache
+(3.7 MB)
+✅ Egregora Config: Valid config at
+.egregora/config.yml
+✅ Source Adapters: 3 adapters available:
+iperon-tjro, self, whatsapp
+
+✅ All checks passed! Egregora is ready to use.
+
+Summary: 9 OK, 0 warnings, 0 errors

@@ -7,6 +7,7 @@ It exposes ``write_posts_for_window`` which routes the LLM conversation through 
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import Sequence
@@ -48,6 +49,7 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors, read_profile
 from egregora.ops.media import save_media_asset
 from egregora.output_adapters import OutputAdapterRegistry, create_default_output_registry
+from egregora.rag import RAGQueryRequest, index_documents, reset_backend, search
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
@@ -259,8 +261,6 @@ def register_writer_tools(
 
             """
             try:
-                from egregora.rag import RAGQueryRequest, search
-
                 # Execute RAG search
                 request = RAGQueryRequest(text=query, top_k=top_k)
                 response = await search(request)
@@ -408,7 +408,8 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
                 return cached
 
         # Execute RAG search
-        import asyncio
+        # Reset backend to ensure it attaches to the new event loop created by asyncio.run
+        reset_backend()
 
         request = RAGQueryRequest(text=query_text, top_k=top_k)
         response = asyncio.run(search(request))
@@ -870,6 +871,7 @@ def write_posts_with_pydantic_agent(
 
     _validate_prompt_fits(prompt, model_name, config, context.window_label)
 
+    reset_backend()
     try:
         if context.resources.quota:
             context.resources.quota.reserve(1)
@@ -998,9 +1000,6 @@ def _index_new_content_in_rag(
         return
 
     try:
-        from egregora.data_primitives.document import DocumentType
-        from egregora.rag import index_documents
-
         # Read the newly saved post documents
         docs: list[Document] = []
         for post_id in saved_posts:
@@ -1014,8 +1013,6 @@ def _index_new_content_in_rag(
                         break
 
         if docs:
-            import asyncio
-
             asyncio.run(index_documents(docs))
             logger.info("Indexed %d new posts in RAG", len(docs))
         else:
