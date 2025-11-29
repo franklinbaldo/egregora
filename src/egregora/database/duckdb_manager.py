@@ -532,7 +532,7 @@ class DuckDBStorageManager:
         """Context manager entry."""
         return self
 
-    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+    def __exit__(self, _exc_type: object, _exc_val: object, _exc_tb: object) -> None:
         """Context manager exit - closes connection."""
         self.close()
 

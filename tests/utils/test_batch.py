@@ -117,7 +117,7 @@ def test_gemini_batch_client_poll_timeout(mock_genai_client):
 
 
 @mock.patch("time.sleep", return_value=None)
-def test_call_with_retries_sync(mock_sleep):
+def test_call_with_retries_sync(_mock_sleep):
     """Test retry logic."""
     func = mock.MagicMock()
     func.side_effect = [
