@@ -22,29 +22,6 @@ from egregora.data_primitives.document import Document, DocumentType, MediaAsset
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.utils.paths import slugify
 
-
-class PIIRedactionError(Exception):
-    """Raised when media contains PII and has been redacted for privacy.
-
-    This exception explicitly signals that media was intentionally blocked
-    due to privacy concerns, distinguishing it from missing or malformed data.
-
-    Attributes:
-        media_id: Identifier of the redacted media
-        reason: Human-readable reason for redaction
-        metadata: Additional context about the redaction
-
-    """
-
-    def __init__(
-        self, media_id: str, reason: str = "Contains personally identifiable information", **metadata
-    ) -> None:
-        self.media_id = media_id
-        self.reason = reason
-        self.metadata = metadata
-        super().__init__(f"Media {media_id} redacted: {reason}")
-
-
 if TYPE_CHECKING:
     from ibis.expr.types import Table
 
@@ -198,29 +175,6 @@ def _normalize_public_url(value: str | None) -> str | None:
     return "/" + value.lstrip("/")
 
 
-def _media_public_url(media_doc: Document) -> str:
-    """Generate public URL for media document.
-
-    Raises:
-        PIIRedactionError: If media was deleted due to PII detection
-
-    """
-    if media_doc.metadata.get("pii_deleted"):
-        media_id = media_doc.document_id
-        pii_reason = media_doc.metadata.get("pii_reason", "Contains personally identifiable information")
-        raise PIIRedactionError(
-            media_id=media_id,
-            reason=pii_reason,
-            original_filename=media_doc.metadata.get("filename", "unknown"),
-        )
-    url = media_doc.metadata.get("public_url")
-    if url:
-        return _normalize_public_url(url)
-    if media_doc.suggested_path:
-        return _normalize_public_url(media_doc.suggested_path.strip("/"))
-    return None
-
-
 def replace_media_mentions(
     text: str,
     media_mapping: MediaMapping,
@@ -240,7 +194,8 @@ def replace_media_mentions(
             result = re.sub(r"\b" + re.escape(original_filename) + r"\b", replacement, result)
             continue
 
-        public_url = _media_public_url(media_doc)
+        # Get pre-calculated URL from metadata (generated earlier by UrlConvention)
+        public_url = media_doc.metadata.get("public_url")
         if not public_url:
             continue
 
@@ -266,20 +221,24 @@ def replace_markdown_media_refs(table: Table, media_mapping: MediaMapping) -> Ta
 
     updated_table = table
     for original_ref, media_doc in media_mapping.items():
-        try:
-            public_url = _media_public_url(media_doc)
+        # Check for PII deletion
+        if media_doc.metadata.get("pii_deleted"):
+            pii_reason = media_doc.metadata.get("pii_reason", "Contains PII")
+            logger.info("Redacting markdown media reference '%s': %s", original_ref, pii_reason)
             updated_table = updated_table.mutate(
-                text=updated_table.text.replace(f"]({original_ref})", f"]({public_url})")
+                text=updated_table.text.replace(f"]({original_ref})", f"]([REDACTED: {pii_reason}])")
             )
-        except PIIRedactionError as e:
-            logger.info("Redacting markdown media reference '%s': %s", original_ref, e.reason)
-            # Replace with a redacted placeholder in markdown
-            updated_table = updated_table.mutate(
-                text=updated_table.text.replace(f"]({original_ref})", f"]([REDACTED: {e.reason}])")
-            )
-        except (ValueError, KeyError, AttributeError) as e:
-            logger.warning("Failed to generate public URL for markdown media ref '%s': %s", original_ref, e)
             continue
+
+        # Get pre-calculated URL from metadata (generated earlier by UrlConvention)
+        public_url = media_doc.metadata.get("public_url")
+        if not public_url:
+            logger.debug("No public URL for markdown media ref '%s', skipping", original_ref)
+            continue
+
+        updated_table = updated_table.mutate(
+            text=updated_table.text.replace(f"]({original_ref})", f"]({public_url})")
+        )
 
     return updated_table
 
