@@ -30,7 +30,7 @@ class _ConfigLoader(yaml.SafeLoader):
     """YAML loader that ignores unknown tags."""
 
 
-_ConfigLoader.add_constructor(None, lambda loader, node: None)
+_ConfigLoader.add_constructor(None, lambda loader, _node: None)
 
 
 def _safe_yaml_load(content: str) -> dict[str, Any]:

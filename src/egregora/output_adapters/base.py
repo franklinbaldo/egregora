@@ -273,10 +273,10 @@ class OutputAdapter(OutputSink, ABC):
 
     def finalize_window(
         self,
-        window_label: str,
-        posts_created: list[str],
-        profiles_updated: list[str],
-        metadata: dict[str, Any] | None = None,
+        _window_label: str,
+        _posts_created: list[str],
+        _profiles_updated: list[str],
+        _metadata: dict[str, Any] | None = None,
     ) -> None:
         """Post-processing hook called after writer agent completes a window."""
         # Base implementation does nothing - subclasses override for specific tasks
