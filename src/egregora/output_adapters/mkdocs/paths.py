@@ -133,11 +133,12 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
 def compute_site_prefix(site_root: Path, docs_dir: Path) -> str:
     """Return docs_dir relative to site_root for URL generation."""
     try:
-        relative = docs_dir.relative_to(site_root)
+        docs_dir.relative_to(site_root)
     except ValueError:
         return ""
 
-    rel_str = relative.as_posix().strip("/")
-    if rel_str in {"", "."}:
-        return ""
-    return rel_str
+    # MkDocs serves content from the docs_dir as the site root; the docs_dir
+    # itself should not appear in canonical URLs. Returning an empty prefix
+    # keeps generated URLs aligned with MkDocs' served paths while still
+    # allowing callers to validate the docs_dir relationship to site_root.
+    return ""
