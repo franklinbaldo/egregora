@@ -113,13 +113,12 @@ class StandardUrlConvention(UrlConvention):
             if window_label:
                 safe_label = slugify(window_label)
                 return self._join(ctx, self.routes.journal_prefix, safe_label)
-            else:
-                slug_value = document.metadata.get("slug")
-                if slug_value:
-                    safe_label = slugify(slug_value)
-                    return self._join(ctx, self.routes.journal_prefix, safe_label)
-                # Fallback: no window_label or slug, return journal root
-                return self._join(ctx, self.routes.journal_prefix)
+            slug_value = document.metadata.get("slug")
+            if slug_value:
+                safe_label = slugify(slug_value)
+                return self._join(ctx, self.routes.journal_prefix, safe_label)
+            # Fallback: no window_label or slug, return journal root
+            return self._join(ctx, self.routes.journal_prefix)
 
         if document.type == DocumentType.MEDIA:
             return self._format_media_url(ctx, document)

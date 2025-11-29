@@ -232,9 +232,9 @@ def test_week1_golden_whatsapp_pipeline(  # noqa: PLR0915
     unique_authors_raw2 = second_df["author_raw"].unique()
 
     # Same number of unique authors
-    assert len(unique_authors_raw) == len(
-        unique_authors_raw2
-    ), f"Author count mismatch: {len(unique_authors_raw)} vs {len(unique_authors_raw2)}"
+    assert len(unique_authors_raw) == len(unique_authors_raw2), (
+        f"Author count mismatch: {len(unique_authors_raw)} vs {len(unique_authors_raw2)}"
+    )
 
     # Same anonymized UUIDs (order may differ, so compare sets)
     assert set(unique_authors_raw) == set(unique_authors_raw2), "Anonymized UUIDs differ between re-ingests"
