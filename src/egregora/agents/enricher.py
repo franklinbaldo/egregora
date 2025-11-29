@@ -23,7 +23,7 @@ import httpx
 import ibis
 from ibis.expr.types import Table
 from pydantic import BaseModel
-from pydantic_ai import Agent, AgentRunResult, RunContext
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
 from ratelimit import limits, sleep_and_retry
@@ -317,10 +317,9 @@ async def _run_media_enrichment_async(  # noqa: PLR0913
     payload = binary_content or load_file_as_binary_content(file_path)
     message_content = [prompt, payload]
 
-    async def call() -> AgentRunResult[EnrichmentOutput]:
-        return await agent.run(message_content, deps=deps)
-
-    result = await retry_async(call)
+    async for attempt in AsyncRetrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
+        with attempt:
+            result = await agent.run(message_content, deps=deps)
     output = getattr(result, "data", getattr(result, "output", result))
     output.markdown = output.markdown.strip()
     return output, result.usage()

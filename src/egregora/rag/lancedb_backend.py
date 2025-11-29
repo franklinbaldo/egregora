@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -26,8 +26,6 @@ logger = logging.getLogger(__name__)
 # Type alias for embedding functions
 # task_type should be "RETRIEVAL_DOCUMENT" for indexing, "RETRIEVAL_QUERY" for searching
 # Updated to async for compatibility with async embedding router
-from collections.abc import Awaitable
-
 EmbedFn = Callable[[Sequence[str], str], Awaitable[list[list[float]]]]
 
 

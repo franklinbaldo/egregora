@@ -868,7 +868,7 @@ def load_egregora_config(site_root: Path) -> EgregoraConfig:
     except ValidationError as e:
         logger.exception("Configuration validation failed for %s:", config_path)
         for error in e.errors():
-            loc = " → ".join(str(l) for l in error["loc"])
+            loc = " → ".join(str(location_part) for location_part in error["loc"])
             logger.exception("  %s: %s", loc, error["msg"])
         logger.warning("Creating default config due to validation error")
         return create_default_config(site_root)
