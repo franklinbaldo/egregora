@@ -27,6 +27,7 @@ from pydantic_ai import Agent, AgentRunResult, RunContext
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
 from ratelimit import limits, sleep_and_retry
+from tenacity import AsyncRetrying
 
 from egregora.config.settings import EnrichmentSettings, ModelSettings, QuotaSettings
 from egregora.constants import PrivacyMarkers
@@ -42,6 +43,7 @@ from egregora.ops.media import (
 )
 from egregora.resources.prompts import render_prompt
 from egregora.transformations.enrichment import combine_with_enrichment_rows
+from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.metrics import UsageTracker
@@ -268,7 +270,9 @@ async def _run_url_enrichment_async(
         pii_prevention=pii_prevention,
     )
 
-    result = await agent.run(prompt, deps=deps)
+    async for attempt in AsyncRetrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
+        with attempt:
+            result = await agent.run(prompt, deps=deps)
     output = getattr(result, "data", getattr(result, "output", result))
     output.markdown = output.markdown.strip()
     return output, result.usage()

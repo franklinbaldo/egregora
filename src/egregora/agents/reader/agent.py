@@ -15,10 +15,12 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
+from tenacity import AsyncRetrying
 
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
 from egregora.config.settings import EgregoraConfig
 from egregora.resources.prompts import render_prompt
+from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
 
 if TYPE_CHECKING:
     from egregora.agents.reader.models import EvaluationRequest
@@ -94,7 +96,9 @@ Evaluate both posts and determine which is better quality overall.
 
     logger.debug("Comparing posts: %s vs %s", request.post_a_slug, request.post_b_slug)
 
-    result = await agent.run(prompt)
+    async for attempt in AsyncRetrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
+        with attempt:
+            result = await agent.run(prompt)
     comparison_result = result.data
 
     # Convert to PostComparison (includes full Document references)

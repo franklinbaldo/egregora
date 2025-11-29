@@ -31,6 +31,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 from ratelimit import limits, sleep_and_retry
+from tenacity import Retrying
 
 from egregora.agents.banner.agent import generate_banner, is_banner_generation_available
 from egregora.agents.formatting import (
@@ -49,7 +50,7 @@ from egregora.ops.media import save_media_asset
 from egregora.output_adapters import OutputAdapterRegistry, create_default_output_registry
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
-from egregora.utils.batch import call_with_retries_sync
+from egregora.utils.batch import RETRYABLE_EXCEPTIONS, RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.utils.cache import CacheTier, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
@@ -872,7 +873,9 @@ def write_posts_with_pydantic_agent(
     try:
         if context.resources.quota:
             context.resources.quota.reserve(1)
-        result = call_with_retries_sync(agent.run_sync, prompt, deps=context)
+        for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
+            with attempt:
+                result = agent.run_sync(prompt, deps=context)
     except QuotaExceededError as exc:
         msg = (
             "LLM quota exceeded for this day. No additional posts can be generated "
