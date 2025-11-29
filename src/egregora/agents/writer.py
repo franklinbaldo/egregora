@@ -50,7 +50,7 @@ from egregora.ops.media import save_media_asset
 from egregora.output_adapters import OutputAdapterRegistry, create_default_output_registry
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
-from egregora.utils.batch import RETRYABLE_EXCEPTIONS, RETRY_IF, RETRY_STOP, RETRY_WAIT
+from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.utils.cache import CacheTier, PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaExceededError, QuotaTracker
