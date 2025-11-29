@@ -31,25 +31,25 @@ Comment on any PR with `@gemini {your specific request}` to trigger a custom rev
 
 4. **Context Collection**:
    - Checks out the repository with full history
-   - Runs `npx repomix` to generate a complete textual bundle of the codebase (`repomix.txt`)
-   - Fetches the PR's `.patch` file via GitHub API
-   - Fetches the entire PR conversation (all comments) for context
+   - Fetches the PR's unified diff via `git diff`
+   - Extracts PR description and commit messages
+   - Reads CLAUDE.md for project-specific patterns
 
-5. **AI Review**:
-   - Sends repository context, PR changes, and conversation history to Gemini
-   - Gemini considers what has already been discussed to avoid repetition
-   - In automatic mode: Provides a concise but complete review focusing on what matters most
-   - In comment mode: Addresses your specific request while being contextually aware
-   - Review skills include:
-     - Summary and overall assessment
-     - Correctness & bugs
-     - API/contracts & backwards-compatibility
-     - Security & privacy concerns
-     - Performance & complexity
-     - Testing & observability
-     - Style & readability
-     - Architecture/design trade-offs
-     - Actionable checklist
+5. **AI Review** (Two-Phase Approach):
+
+   **Phase 1: Understanding & Steel-Manning**
+   - Analyzes the actual code changes (PRIMARY source of truth)
+   - Reads stated intent from PR description and commits (SECONDARY - may be incomplete)
+   - Reconciles any gaps between stated and actual intent
+   - Steel-mans the author's approach (strongest interpretation)
+   - Defines success criteria for the PR
+
+   **Phase 2: Critical Evaluation**
+   - Evaluates correctness against objectives
+   - Assesses implementation quality
+   - Flags critical issues (privacy, security, bugs)
+   - Suggests improvements that still meet objectives
+   - Checks egregora pattern compliance
 
 6. **Comment Posting**:
    - Posts the review as a comment on the PR
@@ -92,15 +92,123 @@ You can modify `.repomixignore` to adjust what gets included in the review conte
 ## Review Style & Expertise
 
 Gemini's code review approach emphasizes:
+
+### Understanding First, Critique Second
+- **Code-first analysis** - infers intent from actual changes (the primary source of truth)
+- **Steel-manning** - presents the STRONGEST interpretation of the author's choices before criticizing
+- **Context reconciliation** - acknowledges that PR descriptions and commit messages are often incomplete
+- **Objective-based evaluation** - judges implementation against stated/inferred goals, not ideal perfection
+
+### Review Quality
 - **Concise but complete** - every sentence adds value, no verbose explanations
-- **Contextually aware** - considers existing PR conversation to avoid repetition
-- **Ruthlessly prioritized** - critical issues first, minor style points last
+- **Ruthlessly prioritized** - critical issues first, minor style points last (or omitted)
 - **Direct and candid** - points out real issues without sugar-coating
-- **Professional** - constructive criticism, not personal attacks
+- **Professional & empathetic** - constructive criticism, assumes good faith, not personal attacks
 - **Specific and actionable** - cites exact locations (file:line), provides implementable suggestions
 - **Focused on substance** - skips obvious points, avoids unnecessary praise or preamble
 
 When triggered via `@gemini` comments, Gemini focuses on your specific request while remaining contextually aware of what has already been discussed in the PR.
+
+## The Two-Phase Review Philosophy
+
+### Why Code-First Understanding Matters
+
+Traditional code reviews often jump straight to finding issues, which can lead to:
+- ❌ Flagging intentional design decisions as "mistakes"
+- ❌ Missing the context and constraints the author faced
+- ❌ Providing feedback that doesn't align with the PR's actual goals
+- ❌ Creating adversarial dynamics instead of collaborative improvement
+
+**Our approach:** Understand FIRST, critique SECOND.
+
+### Phase 1: Understanding & Steel-Manning
+
+The reviewer **must** first understand what the PR is trying to accomplish by:
+
+1. **Reading the actual code changes** (PRIMARY source)
+   - What files changed? What patterns emerge?
+   - What do function names, imports, and structure tell us?
+   - What will this code actually DO when executed?
+
+2. **Reading PR description and commits** (SECONDARY - often incomplete)
+   - ⚠️ **Key insight:** PR descriptions and commit messages are frequently vague, incomplete, or missing
+   - We treat them as hints, not gospel
+
+3. **Reconciling and steel-manning**
+   - Does stated intent match actual changes?
+   - If there's a gap, what's the STRONGEST interpretation of the code?
+   - What legitimate constraints might justify this approach?
+
+4. **Defining success criteria**
+   - What does "working correctly" mean for THIS PR?
+   - What are the primary vs. secondary objectives?
+
+### Phase 2: Critical Evaluation
+
+Only AFTER understanding the intent, the reviewer evaluates:
+
+- **Correctness:** Does it achieve its objectives?
+- **Implementation quality:** Is the approach sound? Are there better alternatives?
+- **Safety:** Privacy, security, performance issues
+- **Patterns:** Does it follow egregora conventions?
+
+### Example: Before vs. After
+
+**❌ Old approach (critique-first):**
+> **file.py:45** - You're using a dict instead of a Pydantic model. This is inconsistent with our patterns and should be changed.
+
+**✅ New approach (understand-first):**
+> **🎯 Intent & Context:**
+> The code changes suggest this is optimizing a hot path by avoiding Pydantic validation overhead. The stated intent mentions "performance improvements" but doesn't specify where.
+>
+> **Steel-man interpretation:** The author identified that Pydantic validation was a bottleneck in this specific code path and chose raw dicts for speed.
+>
+> **⚠️ Implementation Quality:**
+> While the performance goal is valid, consider:
+> - Is this actually a hot path? (Add benchmark data to PR description)
+> - Could we use `model_config = ConfigDict(validate_assignment=False)` to get type hints without runtime overhead?
+> - Document the performance rationale in a comment for future maintainers
+
+The second approach:
+- ✅ Acknowledges the author's legitimate goal
+- ✅ Validates whether the solution fits the problem
+- ✅ Suggests alternatives that STILL meet the performance objective
+- ✅ Feels collaborative, not adversarial
+
+### Review Output Structure
+
+Every review follows this structure:
+
+```markdown
+### 🎯 Intent & Context (Phase 1)
+**What the code actually does:** [2-3 sentences from diff analysis]
+**Stated intent:** [1 sentence from PR/commits, or "No description provided"]
+**Reconciliation:** Does stated match actual? [YES/NO/PARTIAL]
+**Steel-man interpretation:** [Strongest case for this approach]
+**Success criteria:** [Primary objectives 1, 2, ...]
+
+### ✅ Does It Achieve Its Goals? (Phase 2 Correctness)
+- Objective 1: [✅/❌/⚠️] Brief explanation
+- Objective 2: [✅/❌/⚠️] Brief explanation
+
+### 🔍 Critical Issues (Phase 2 Safety)
+[Privacy, security, bugs - empty if none]
+
+### ⚠️ Implementation Quality (Phase 2)
+[Architecture, patterns, simplicity - with alternatives that still meet goals]
+
+### 💡 Suggestions (Phase 2)
+[Nice-to-haves that don't block merging]
+
+### 🏗️ Egregora Patterns Compliance
+- Privacy-first: [✅/❌/N/A]
+- Ibis over pandas: [✅/❌/N/A]
+- [etc.]
+
+### ✅ Final Verdict
+- Ready to merge: [YES/NO/WITH CHANGES]
+- Top priority action: [Most important next step]
+```
 
 ## Usage Examples
 

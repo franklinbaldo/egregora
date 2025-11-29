@@ -64,6 +64,7 @@ jobs:
             core.setOutput('head_sha', prData.head.sha);
             core.setOutput('pr_title', prData.title);
             core.setOutput('pr_author', prData.user.login);
+            core.setOutput('pr_body', prData.body || '(No description provided)');
 
       - name: Checkout code
         uses: actions/checkout@v6
@@ -77,6 +78,7 @@ jobs:
           BASE_REF: ${{ steps.pr.outputs.base_ref }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
           PR_TITLE: ${{ steps.pr.outputs.pr_title }}
+          PR_BODY: ${{ steps.pr.outputs.pr_body }}
           USER_INSTRUCTIONS: ${{ steps.pr.outputs.user_instructions }}
           TRIGGER_MODE: ${{ steps.pr.outputs.trigger_mode }}
         run: |
@@ -91,6 +93,10 @@ jobs:
           # Trim diff to avoid blowing the context window (90KB ~= 22k tokens)
           head -c 90000 pr.diff > pr-trimmed.diff
 
+          # Get commit messages to understand intent
+          # Format: hash - subject + body (if any)
+          git log --format="%h - %s%n%b" "origin/${BASE_REF}..${HEAD_SHA}" > commits.txt || echo "(No commits found)" > commits.txt
+
           # Read CLAUDE.md for project-specific context
           CLAUDE_MD=""
           if [ -f "CLAUDE.md" ]; then
@@ -101,6 +107,8 @@ jobs:
           # Use unique delimiters to avoid conflicts with diff content
           DIFF_DELIMITER="ghadelimiter_diff_$(uuidgen)"
           CLAUDE_DELIMITER="ghadelimiter_claude_$(uuidgen)"
+          COMMITS_DELIMITER="ghadelimiter_commits_$(uuidgen)"
+          PR_BODY_DELIMITER="ghadelimiter_pr_body_$(uuidgen)"
 
           {
             echo "diff<<${DIFF_DELIMITER}"
@@ -109,6 +117,12 @@ jobs:
             echo "claude_md<<${CLAUDE_DELIMITER}"
             echo "$CLAUDE_MD"
             echo "${CLAUDE_DELIMITER}"
+            echo "commits<<${COMMITS_DELIMITER}"
+            cat commits.txt
+            echo "${COMMITS_DELIMITER}"
+            echo "pr_body<<${PR_BODY_DELIMITER}"
+            echo "$PR_BODY"
+            echo "${PR_BODY_DELIMITER}"
             echo "user_instructions=$USER_INSTRUCTIONS"
             echo "trigger_mode=$TRIGGER_MODE"
           } >> "$GITHUB_OUTPUT"
@@ -131,24 +145,55 @@ jobs:
             - **Philosophy:** Alpha mindset—clean breaks over backward compatibility
             - **Architecture:** Three-layer functional (orchestration → transformations/adapters → data_primitives)
 
-            ## Review Instructions
+            ## Review Philosophy: Two-Phase Approach
 
-            **Trigger Mode:** ${{ steps.collect.outputs.trigger_mode }}
-            ${{ steps.collect.outputs.user_instructions && format('**User Request:** {0}', steps.collect.outputs.user_instructions) || '' }}
+            Your review has **TWO PHASES**. You MUST complete Phase 1 before Phase 2.
 
-            1. **Tone:** Professional, concise, and actionable. No fluff.
-            2. **Focus:** Identify bugs, security vulnerabilities, performance issues, and breaking changes.
-            ${{ steps.collect.outputs.user_instructions && '3. **User Priority:** Address the user request above first, then provide general review.' || '' }}
-            ${{ steps.collect.outputs.user_instructions && '4. **Priority:**' || '3. **Priority:**' }}
-               - 🔴 **CRITICAL:** Privacy bypasses, PII leaks, bugs, security exploits, data loss
-               - 🟡 **IMPORTANT:** Performance, confusing logic, missing tests, architecture violations
-               - 🟢 **MINOR:** Variable naming, style preferences (mention briefly or ignore)
+            ### Phase 1: Understanding & Steel-Manning (REQUIRED FIRST)
 
-            ## Egregora-Specific Checks
+            Before finding issues, **understand what this PR is trying to accomplish and why.**
 
-            <claude_md>
-            ${{ steps.collect.outputs.claude_md }}
-            </claude_md>
+            1. **Analyze the actual code changes** (PRIMARY SOURCE OF TRUTH):
+               - What files changed? What types of changes? (new feature, refactor, bug fix, etc.)
+               - What do function/variable names, imports, and patterns tell you about intent?
+               - What is the code actually doing when executed?
+
+            2. **Read the stated intent** (SECONDARY - may be incomplete/missing):
+               - PR title and description (below)
+               - Commit messages (below)
+               - ⚠️ **WARNING:** These are often incomplete, vague, or missing entirely.
+
+            3. **Reconcile and steel-man**:
+               - Does the stated intent match the actual code changes?
+               - If there's a gap, what's the STRONGEST interpretation based on the code?
+               - What legitimate reasons might justify this approach?
+               - What constraints might the author be working under?
+
+            4. **Define success criteria**:
+               - What are the primary objectives of this PR?
+               - What does "working correctly" mean for these changes?
+
+            ### Phase 2: Critical Evaluation (ONLY AFTER UNDERSTANDING)
+
+            Now that you understand the intent, evaluate the execution:
+
+            5. **Correctness**:
+               - Does it achieve the stated/inferred objectives?
+               - Are there bugs or logic errors?
+
+            6. **Implementation Quality**:
+               - Is the approach sound given the constraints?
+               - Are there simpler alternatives that still meet the goals?
+               - Does it follow egregora patterns? (see CLAUDE.md below)
+
+            7. **Safety & Non-Functional Requirements**:
+               - 🔴 **CRITICAL:** Privacy bypasses, PII leaks, security vulnerabilities, data loss
+               - 🟡 **IMPORTANT:** Performance issues, missing tests, architecture violations
+               - 🟢 **MINOR:** Style, naming (mention only if significant)
+
+            **Tone:** Professional, empathetic but direct, concise, actionable. No fluff.
+
+            ---
 
             ## Pull Request Details
 
@@ -156,43 +201,91 @@ jobs:
             - **PR #${{ steps.pr.outputs.pr_number }}:** ${{ steps.pr.outputs.pr_title }}
             - **Author:** @${{ steps.pr.outputs.pr_author }}
 
+            **Trigger Mode:** ${{ steps.collect.outputs.trigger_mode }}
+            ${{ steps.collect.outputs.user_instructions && format('**User Request:** {0}', steps.collect.outputs.user_instructions) || '' }}
+
+            ### PR Description
+
+            ```
+            ${{ steps.collect.outputs.pr_body }}
+            ```
+
+            ### Commit Messages
+
+            ```
+            ${{ steps.collect.outputs.commits }}
+            ```
+
             ## Unified Diff
 
             ```diff
             ${{ steps.collect.outputs.diff }}
             ```
 
+            ## Egregora-Specific Patterns & Architecture
+
+            <claude_md>
+            ${{ steps.collect.outputs.claude_md }}
+            </claude_md>
+
+            ---
+
             ## Output Format
 
-            Return your review in this Markdown structure:
+            Structure your review to **separate understanding from evaluation**:
 
-            ### 📋 Summary
-            (1-2 sentences high-level assessment)
+            ### 🎯 Intent & Context (Phase 1 Output)
 
-            ### 🔍 Critical Issues
-            (MUST flag any privacy/security issues - empty section is OK if none found)
+            **What the code actually does:**
+            (2-3 sentences describing the actual changes based on the diff)
+
+            **Stated intent:**
+            (1 sentence summarizing PR/commit descriptions, or "No description provided" if empty)
+
+            **Reconciliation:**
+            - Does stated intent match actual changes? [YES/NO/PARTIAL]
+            - Steel-man interpretation: (What's the STRONGEST case for this approach?)
+
+            **Success criteria:**
+            - Primary objective 1: ...
+            - Primary objective 2: ...
+
+            ### ✅ Does It Achieve Its Goals? (Phase 2 Correctness)
+
+            - **Objective 1:** [✅ Success / ❌ Fails / ⚠️ Partial] - Brief explanation
+            - **Objective 2:** [✅ Success / ❌ Fails / ⚠️ Partial] - Brief explanation
+
+            ### 🔍 Critical Issues (Phase 2 Safety)
+
+            (MUST flag privacy/security - empty section OK if none)
             - **file.py:45** - 🔴 Description with severity and impact
 
-            ### ⚠️ Important Issues
-            (Architecture violations, missing tests, performance issues)
-            - **file.py:90** - 🟡 Description and rationale
+            ### ⚠️ Implementation Quality (Phase 2 Code Quality)
 
-            ### 💡 Suggestions
-            (Code quality improvements, optional enhancements)
-            - **file.py:120** - 🟢 Description
+            (Architecture, patterns, simplicity, tests)
+            - **file.py:90** - 🟡 Issue + suggested alternative (if it still meets objectives)
 
-            ### 🏗️ Architecture & Patterns
-            Comment on adherence to egregora patterns: privacy-first, Ibis usage, functional transforms, VectorStore, etc.
+            ### 💡 Suggestions (Phase 2 Nice-to-Haves)
 
-            ### 📝 Breaking Changes
-            Verify if breaking changes are properly documented in CLAUDE.md. Flag if missing.
+            (Optional improvements that don't block merging)
+            - **file.py:120** - 🟢 Suggestion
 
-            ### ✅ Action Items
-            - [ ] Fix X (if critical)
-            - [ ] Add tests for Y (if important)
-            - [ ] Document breaking changes (if applicable)
+            ### 🏗️ Egregora Patterns Compliance
 
-            Keep the entire review under 1000 words. Be concise and actionable.
+            - **Privacy-first:** [✅ / ❌ / N/A] - Brief note
+            - **Ibis over pandas:** [✅ / ❌ / N/A] - Brief note
+            - **Functional transforms:** [✅ / ❌ / N/A] - Brief note
+            - **Schema preservation:** [✅ / ❌ / N/A] - Brief note
+            - **Breaking changes documented:** [✅ / ❌ / N/A] - Check CLAUDE.md
+
+            ### ✅ Final Verdict
+
+            - **Ready to merge:** [YES / NO / WITH CHANGES]
+            - **Top priority action:** (Most important thing to do next, if any)
+
+            ---
+
+            **Word limit:** Keep entire review under 1200 words. Be concise and actionable.
 
       - name: Check Gemini step result
         if: always()
