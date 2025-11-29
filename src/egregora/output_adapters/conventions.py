@@ -25,6 +25,7 @@ Examples:
 
 The OutputAdapter then converts this URL to a filesystem path:
     >>> adapter.persist(doc)  # Internally: URL -> Path("docs/posts/2025-01-10-hello.md")
+
 """
 
 from __future__ import annotations
@@ -62,6 +63,7 @@ def _remove_url_extension(url_path: str) -> str:
         'posts/bar'
         >>> _remove_url_extension("some.dir/file.md")
         'some.dir/file'
+
     """
     if "." not in url_path:
         return url_path
@@ -73,7 +75,7 @@ def _remove_url_extension(url_path: str) -> str:
         # Has a path and a filename with extension
         # Remove extension from the filename only
         return f"{parts[0]}/{parts[1].rsplit('.', 1)[0]}"
-    elif "." in parts[0]:
+    if "." in parts[0]:
         # Just a filename with extension (no slashes)
         return parts[0].rsplit(".", 1)[0]
 
