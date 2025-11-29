@@ -24,7 +24,6 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
-from egregora.knowledge.profiles import write_profile as write_profile_content
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 from egregora.output_adapters.conventions import StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
@@ -32,9 +31,6 @@ from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, _s
 from egregora.utils.filesystem import (
     _ensure_author_entries,
     _format_frontmatter_datetime,
-)
-from egregora.utils.filesystem import (
-    write_markdown_post as _write_mkdocs_post,
 )
 from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import slugify
@@ -243,67 +239,6 @@ class MkDocsAdapter(OutputAdapter):
     def resolve_paths(self, site_root: Path) -> SiteConfiguration:
         """Resolve all paths for an existing MkDocs site."""
         return self._scaffolder.resolve_paths(site_root)
-
-    def write_post(self, content: str, metadata: dict[str, Any], output_dir: Path, **_kwargs: object) -> str:
-        """Write a blog post in MkDocs format.
-
-        Args:
-            content: Markdown content of the post
-            metadata: Post metadata (title, date, slug, tags, authors, summary, etc.)
-            output_dir: Directory to write the post to (typically posts_dir)
-            **kwargs: Additional options (ignored)
-
-        Returns:
-            Path to the written file (as string)
-
-        Raises:
-            ValueError: If required metadata is missing
-            RuntimeError: If writing fails
-
-        """
-        try:
-            return _write_mkdocs_post(content, metadata, output_dir)
-        except Exception as e:
-            msg = f"Failed to write MkDocs post: {e}"
-            raise RuntimeError(msg) from e
-
-    def write_profile(
-        self, author_id: str, profile_data: dict[str, Any], profiles_dir: Path, **_kwargs: object
-    ) -> str:
-        """Write an author profile page in MkDocs format.
-
-        Args:
-            author_id: Unique identifier for the author (UUID)
-            profile_data: Profile information
-                Required key: "content" - markdown content
-                Optional keys: any metadata
-            profiles_dir: Directory to write the profile to
-            **kwargs: Additional options (ignored)
-
-        Returns:
-            Path to the written file (as string)
-
-        Raises:
-            ValueError: If author_id is invalid or content is missing
-            RuntimeError: If writing fails
-
-        """
-        if not author_id:
-            msg = "author_id cannot be empty"
-            raise ValueError(msg)
-        if isinstance(profile_data, str):
-            content = profile_data
-        elif "content" in profile_data:
-            content = profile_data["content"]
-        else:
-            name = profile_data.get("name", author_id)
-            bio = profile_data.get("bio", "")
-            content = f"# {name}\n\n{bio}"
-        try:
-            return write_profile_content(author_id, content, profiles_dir)
-        except Exception as e:
-            msg = f"Failed to write profile: {e}"
-            raise RuntimeError(msg) from e
 
     def load_config(self, site_root: Path) -> dict[str, Any]:
         """Load MkDocs site configuration.
@@ -851,6 +786,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         path.write_text(full_content, encoding="utf-8")
 
     def _write_media_doc(self, document: Document, path: Path) -> None:
+        if document.metadata.get("pii_deleted"):
+            logger.info("Skipping persistence of PII-containing media: %s", path.name)
+            return
+
         payload = (
             document.content if isinstance(document.content, bytes) else document.content.encode("utf-8")
         )
