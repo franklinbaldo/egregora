@@ -12,6 +12,8 @@ limits cause API failures or silent truncation, wasting tokens and degrading qua
 import logging
 from typing import Protocol, runtime_checkable
 
+from egregora.constants import KNOWN_MODEL_LIMITS
+
 logger = logging.getLogger(__name__)
 
 
@@ -36,9 +38,6 @@ class PromptTooLargeError(Exception):
         super().__init__(
             f"Prompt exceeds hard limit: {estimated_tokens} tokens > {effective_limit} for {model_name} (window: {window_id})"
         )
-
-
-from egregora.constants import KNOWN_MODEL_LIMITS
 
 
 @runtime_checkable

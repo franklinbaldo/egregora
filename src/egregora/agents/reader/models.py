@@ -11,15 +11,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from pydantic import BaseModel, Field
+
 if TYPE_CHECKING:
     from egregora.data_primitives import Document
 
 # Constants for validation
 MIN_STAR_RATING = 1
 MAX_STAR_RATING = 5
-
-
-from pydantic import BaseModel, Field
 
 
 class ReaderFeedback(BaseModel):
