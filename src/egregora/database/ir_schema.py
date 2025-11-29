@@ -724,7 +724,6 @@ __all__ = [
     "ANNOTATIONS_SCHEMA",
     # Ephemeral schemas
     "CONVERSATION_SCHEMA",
-    "conversation_schema_dict",
     "DEFAULT_TIMEZONE",
     # Elo schemas
     "ELO_HISTORY_SCHEMA",
@@ -741,6 +740,7 @@ __all__ = [
     "WHATSAPP_CONVERSATION_SCHEMA",
     # General utilities
     "add_primary_key",
+    "conversation_schema_dict",
     "conversation_schema_dict",
     "create_index",
     # Runs utilities

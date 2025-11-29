@@ -298,7 +298,7 @@ def register_writer_tools(
                 logger.warning("Invalid query for media search: %s", exc)
                 return SearchMediaResult(results=[])
             except (AttributeError, KeyError) as exc:
-                logger.error("Malformed response from RAG media search: %s", exc)
+                logger.exception("Malformed response from RAG media search: %s", exc)
                 return SearchMediaResult(results=[])
 
     @agent.tool
@@ -444,7 +444,7 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
         logger.warning("Invalid RAG query, continuing without context: %s", exc)
         return ""
     except (AttributeError, KeyError, TypeError) as exc:
-        logger.error("Malformed RAG response, continuing without context: %s", exc)
+        logger.exception("Malformed RAG response, continuing without context: %s", exc)
         return ""
 
 
@@ -693,10 +693,10 @@ def _save_journal_to_file(  # noqa: PLR0913
         )
         template = env.get_template(JOURNAL_TEMPLATE_NAME)
     except TemplateNotFound as exc:
-        logger.error("Journal template not found: %s", exc)
+        logger.exception("Journal template not found: %s", exc)
         return None
     except (OSError, PermissionError) as exc:
-        logger.error("Cannot access template directory: %s", exc)
+        logger.exception("Cannot access template directory: %s", exc)
         return None
 
     now_utc = datetime.now(tz=UTC)
@@ -717,10 +717,10 @@ def _save_journal_to_file(  # noqa: PLR0913
             total_tokens=total_tokens,
         )
     except TemplateError as exc:
-        logger.error("Journal template rendering failed: %s", exc)
+        logger.exception("Journal template rendering failed: %s", exc)
         return None
     except (TypeError, AttributeError) as exc:
-        logger.error("Invalid template data for journal: %s", exc)
+        logger.exception("Invalid template data for journal: %s", exc)
         return None
     journal_content = journal_content.replace("../media/", "/media/")
 
@@ -742,10 +742,10 @@ def _save_journal_to_file(  # noqa: PLR0913
         )
         output_format.persist(doc)
     except (OSError, PermissionError) as exc:
-        logger.error("Failed to write journal to disk: %s", exc)
+        logger.exception("Failed to write journal to disk: %s", exc)
         return None
     except ValueError as exc:
-        logger.error("Invalid journal document: %s", exc)
+        logger.exception("Invalid journal document: %s", exc)
         return None
     logger.info("Saved journal entry: %s", doc.document_id)
     return doc.document_id

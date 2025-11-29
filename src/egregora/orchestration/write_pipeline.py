@@ -249,9 +249,9 @@ def _process_single_window(
             try:
                 output_sink.persist(media_doc)
             except (OSError, PermissionError) as exc:  # pragma: no cover - defensive
-                logger.error("Failed to write media file %s: %s", media_doc.metadata.get("filename"), exc)
+                logger.exception("Failed to write media file %s: %s", media_doc.metadata.get("filename"), exc)
             except ValueError as exc:  # pragma: no cover - defensive
-                logger.error("Invalid media document %s: %s", media_doc.metadata.get("filename"), exc)
+                logger.exception("Invalid media document %s: %s", media_doc.metadata.get("filename"), exc)
 
     # Write posts
     resources = PipelineFactory.create_writer_resources(ctx)
@@ -1144,9 +1144,9 @@ def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) ->
         else:
             logger.warning("Output format not initialized - cannot save statistics page")
     except (OSError, PermissionError) as exc:
-        logger.error("[red]Failed to write statistics page: %s[/]", exc)
+        logger.exception("[red]Failed to write statistics page: %s[/]", exc)
     except ValueError as exc:
-        logger.error("[red]Invalid statistics page data: %s[/]", exc)
+        logger.exception("[red]Invalid statistics page data: %s[/]", exc)
 
 
 def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, checkpoint_path: Path) -> None:
