@@ -1,653 +1,564 @@
-# Test Configuration Refactoring Plan
+# URL Convention / Output Adapter Separation of Concerns
 
 ## Executive Summary
 
-This PR refactors the test suite to strictly adhere to the **Fixture/Override Pattern** for test configuration, eliminating dangerous reliance on production defaults and reducing code duplication.
+This PR refactors the URL generation system to strictly separate **logical URL concerns** (UrlConvention) from **filesystem path concerns** (OutputAdapter), following the principle:
 
-**Current State:** While egregora has excellent test configuration infrastructure (`test_config` fixture, proper mocking, tmp_path isolation), several tests bypass this system and directly instantiate configuration objects.
+> **URL ⟶ concern of the URL convention**
+> **Filesystem path / artifact layout ⟶ concern of the output adapter**
 
-**Goal:** All tests should use centralized fixtures for configuration, with infrastructure (DBs, file paths, API keys) globally overridden for safety, and business logic values hardcoded only when testing specific behavior.
+**Current State:** The `StandardUrlConvention` class violates this principle by importing and using `Path` operations to manipulate URL strings, mixing logical URL generation with filesystem concerns.
+
+**Goal:** Establish a clean separation where UrlConvention produces pure URL strings and OutputAdapter handles all filesystem path resolution.
 
 ---
 
 ## Problems Identified
 
-### Critical Issues (Must Fix)
+### Critical Violation: UrlConvention Uses Path Operations
 
-1. **Direct `EgregoraConfig()` Instantiation (4 occurrences)**
-   - `tests/e2e/pipeline/test_site_generation.py:138` - No tmp_path isolation
-   - `tests/unit/rag/test_rag_backend_factory.py:43` - Uses production defaults
-   - `tests/e2e/input_adapters/test_dynamic_parser.py:34,47` - Ignores test fixtures
+**File:** `src/egregora/output_adapters/conventions.py`
 
-   **Risk:** These tests may write to real `.egregora/` directories, fail in CI/CD, or have non-deterministic behavior.
+**Line 7:**
+```python
+from pathlib import Path  # ❌ VIOLATION: UrlConvention should not know about filesystem paths
+```
 
-2. **Direct Settings Class Instantiation (10+ occurrences)**
-   - `tests/unit/rag/test_embedding_router.py:31-38` - Module-level `ModelSettings()`, `RAGSettings()`
-   - `tests/unit/agents/test_rag_exception_handling.py` - 5 instances of `RAGSettings()` per test
+**Lines 94, 138, 142:**
+```python
+# Line 94 - canonical_url() for ENRICHMENT_URL
+clean_path = Path(document.suggested_path.strip("/")).with_suffix("").as_posix()
 
-   **Risk:** Tests depend on production model names, rate limits, and quotas instead of test-controlled values.
+# Line 138 - _format_media_enrichment_url()
+enrichment_path = Path(parent_path).with_suffix("").as_posix()
 
-3. **Missing Fixtures for Common Patterns**
-   - No `minimal_config` fixture for fast unit tests (RAG disabled, enrichment disabled)
-   - No `test_rag_settings` or `test_model_settings` fixtures
-   - No factory pattern for quick per-test customization
+# Line 142 - _format_media_enrichment_url() fallback
+clean_path = Path(document.suggested_path.strip("/")).with_suffix("").as_posix()
+```
 
-   **Impact:** Developers create ad-hoc configs, leading to duplication and inconsistency.
+**Why This Is Wrong:**
+
+1. **Responsibility Leak:** UrlConvention is doing filesystem path manipulation (`.with_suffix()`, `.as_posix()`)
+2. **Wrong Abstraction:** URLs don't have "suffixes" - that's a filesystem concept
+3. **Coupling:** Makes it impossible to have pure URL conventions that work with non-filesystem backends (S3, database, etc.)
+
+---
+
+## Refined Responsibility Split
+
+### a) UrlConvention – Purely Logical, No Filesystem
+
+**What it does:**
+- Given a `Document`, return what URL readers should use
+- Pure string manipulation
+- No knowledge of `Path`, `docs_dir`, `site_dir`, `mkdocs.yml`, etc.
+- Only uses `doc.type`, `slug`, `tags`, `date`, etc.
+
+**Protocol:**
+```python
+class UrlConvention(Protocol):
+    def url_for(self, doc: Document, ctx: UrlContext) -> str:
+        """Return a logical URL like '/posts/foo-bar/' or '/media/xyz.png'."""
+```
+
+**Characteristics:**
+- No `from pathlib import Path`
+- Only string operations (`str.split()`, `str.strip()`, `str.replace()`)
+- Can be plugged by config: `MkdocsBlogConvention`, `MkdocsFlatConvention`, `JsonApiConvention`
+
+---
+
+### b) OutputAdapter – Decides Where and How to Persist
+
+**What it does:**
+- Takes Document, calls convention to get URL, decides filesystem layout
+- Converts URLs to filesystem paths
+- Handles `docs/`, `media/`, `index.md` vs `foo.md` quirks
+
+**Example:**
+```python
+class MkdocsOutputAdapter:
+    def __init__(self, base_dir: Path, convention: UrlConvention):
+        self.base_dir = base_dir
+        self.convention = convention
+
+    def persist(self, doc: Document) -> str:
+        url = self.convention.canonical_url(doc, self.ctx)  # '/posts/foo-bar/'
+        path = self._url_to_path(url, doc)                   # docs/posts/foo-bar.md
+        self._write_to_disk(path, doc)
+        return url
+```
+
+**Key Point:**
+- The `_url_to_path()` method is where filesystem concerns live
+- Adapter decides: "URL X maps to file Y.md or Y/index.md"
+- Core never sees `Path` except during bootstrap
 
 ---
 
 ## Refactoring Strategy
 
-### Phase 1: Add Missing Fixtures (Priority: HIGH)
+### Phase 1: Fix UrlConvention - Remove Path Operations (Priority: HIGH)
 
-**Goal:** Provide test-appropriate fixtures for all configuration needs.
+**Goal:** Make `StandardUrlConvention.canonical_url()` use only string operations.
 
-#### 1.1 Add Settings Fixtures to `tests/conftest.py`
+#### 1.1 Replace Path Operations with String Manipulation
 
+**File:** `src/egregora/output_adapters/conventions.py`
+
+**Before (Line 94):**
 ```python
-@pytest.fixture
-def test_model_settings():
-    """Model settings optimized for testing.
+if document.suggested_path:
+    clean_path = Path(document.suggested_path.strip("/")).with_suffix("").as_posix()
+    return self._join(ctx, clean_path, trailing_slash=True)
+```
 
-    Uses fast test models and avoids production API limits.
+**After:**
+```python
+if document.suggested_path:
+    # Pure string manipulation - no Path operations
+    clean_path = document.suggested_path.strip("/")
+    # Remove file extension if present (URL logic, not filesystem logic)
+    if "." in clean_path:
+        clean_path = clean_path.rsplit(".", 1)[0]
+    return self._join(ctx, clean_path, trailing_slash=True)
+```
+
+**Before (Line 138):**
+```python
+if parent_path:
+    enrichment_path = Path(parent_path).with_suffix("").as_posix()
+    return self._join(ctx, enrichment_path.strip("/"), trailing_slash=True)
+```
+
+**After:**
+```python
+if parent_path:
+    # Pure string manipulation
+    enrichment_path = parent_path.strip("/")
+    if "." in enrichment_path:
+        enrichment_path = enrichment_path.rsplit(".", 1)[0]
+    return self._join(ctx, enrichment_path, trailing_slash=True)
+```
+
+**Before (Line 142):**
+```python
+if document.suggested_path:
+    clean_path = Path(document.suggested_path.strip("/")).with_suffix("").as_posix()
+    return self._join(ctx, clean_path, trailing_slash=True)
+```
+
+**After:**
+```python
+if document.suggested_path:
+    clean_path = document.suggested_path.strip("/")
+    if "." in clean_path:
+        clean_path = clean_path.rsplit(".", 1)[0]
+    return self._join(ctx, clean_path, trailing_slash=True)
+```
+
+#### 1.2 Remove Path Import
+
+**File:** `src/egregora/output_adapters/conventions.py`
+
+**Before (Line 7):**
+```python
+from pathlib import Path
+```
+
+**After:**
+```python
+# Removed - UrlConvention is purely logical, no filesystem operations
+```
+
+**Files Changed:**
+- `src/egregora/output_adapters/conventions.py` (-1 import, ~6 line changes)
+
+---
+
+### Phase 2: Document the Separation of Concerns (Priority: HIGH)
+
+**Goal:** Make the principle explicit in documentation and code comments.
+
+#### 2.1 Add Module-Level Documentation
+
+**File:** `src/egregora/output_adapters/conventions.py`
+
+Add at top of file:
+```python
+"""Standard URL conventions for Egregora output adapters.
+
+SEPARATION OF CONCERNS (2025-11-29):
+=====================================
+
+This module implements UrlConvention protocol - PURELY LOGICAL URL GENERATION.
+
+What UrlConvention does:
+- Given a Document, return what URL readers should use
+- Pure string manipulation only
+- No filesystem knowledge (no Path, no docs_dir, no file extensions)
+- Uses only doc.type, slug, tags, date metadata
+
+What UrlConvention does NOT do:
+- Filesystem path resolution (that's OutputAdapter's job)
+- File layout decisions (index.md vs foo.md)
+- Directory structure (docs/, media/, etc.)
+
+Examples:
+    >>> convention = StandardUrlConvention()
+    >>> ctx = UrlContext(base_url="https://example.com", site_prefix="blog")
+    >>> doc = Document(type=DocumentType.POST, metadata={"slug": "hello", "date": "2025-01-10"})
+    >>> convention.canonical_url(doc, ctx)
+    'https://example.com/blog/posts/2025-01-10-hello/'
+
+The OutputAdapter then converts this URL to a filesystem path:
+    >>> adapter.persist(doc)  # Internally: URL -> Path("docs/posts/2025-01-10-hello.md")
+"""
+```
+
+#### 2.2 Update Protocol Documentation
+
+**File:** `src/egregora/data_primitives/protocols.py`
+
+Enhance `UrlConvention` protocol docstring (lines 60-73):
+
+**Before:**
+```python
+class UrlConvention(Protocol):
+    """Contract for deterministic URL generation strategies."""
+```
+
+**After:**
+```python
+class UrlConvention(Protocol):
+    """Contract for deterministic URL generation strategies.
+
+    CRITICAL: This is a PURELY LOGICAL protocol. Implementations must:
+    - Use ONLY string operations (no Path, no filesystem concepts)
+    - Return URLs as strings ('/posts/foo/' or 'https://example.com/posts/foo/')
+    - Have NO knowledge of filesystem layout (docs_dir, file extensions, etc.)
+
+    Filesystem path resolution is the responsibility of OutputAdapter implementations,
+    not UrlConvention. This separation enables:
+    - Pure URL conventions that work with any backend (filesystem, S3, database)
+    - Clean testing of URL logic without filesystem dependencies
+    - Flexibility to change file layouts without changing URL structure
+
+    Example of correct implementation:
+        class MyConvention(UrlConvention):
+            def canonical_url(self, doc: Document, ctx: UrlContext) -> str:
+                # ✅ String manipulation only
+                slug = doc.metadata.get("slug", doc.document_id[:8])
+                return f"{ctx.base_url}/posts/{slug}/"
+
+    Example of INCORRECT implementation:
+        class BadConvention(UrlConvention):
+            def canonical_url(self, doc: Document, ctx: UrlContext) -> str:
+                # ❌ WRONG: Using Path operations
+                path = Path(doc.suggested_path).with_suffix("").as_posix()
+                return f"{ctx.base_url}/{path}/"
     """
-    settings = ModelSettings()
-    settings.writer = "test-writer-model"
-    settings.embedding = "test-embedding-model"
-    settings.reader = "test-reader-model"
-    return settings
+```
 
+**Files Changed:**
+- `src/egregora/output_adapters/conventions.py` (+30 lines module docstring)
+- `src/egregora/data_primitives/protocols.py` (+25 lines protocol docstring)
 
-@pytest.fixture
-def test_rag_settings():
-    """RAG settings for unit tests (disabled by default).
+---
 
-    Most unit tests don't need RAG. Enable explicitly in RAG-specific tests.
-    """
-    return RAGSettings(
-        enabled=False,
-        top_k=3,  # Smaller for tests
-        min_similarity_threshold=0.7,
-        embedding_max_batch_size=3,  # Faster than default 100
-        embedding_timeout=5.0,  # Shorter than default 60s
-    )
+### Phase 3: Add Helper for Extension Removal (Priority: MEDIUM)
 
+**Goal:** Extract string-based extension removal logic to a reusable helper.
 
-@pytest.fixture
-def test_rag_settings_enabled(test_rag_settings):
-    """RAG settings with RAG enabled (for RAG tests)."""
-    settings = test_rag_settings.model_copy(deep=True)
-    settings.enabled = True
-    return settings
+#### 3.1 Create URL Utility Function
 
+**File:** `src/egregora/output_adapters/conventions.py`
 
-@pytest.fixture
-def minimal_config(tmp_path: Path):
-    """Minimal EgregoraConfig for fast unit tests.
+Add helper function:
+```python
+def _remove_url_extension(url_path: str) -> str:
+    """Remove file extension from URL path segment.
 
-    Use this for unit tests that don't need full pipeline infrastructure.
-    Disables slow components (RAG, enrichment, reader) by default.
+    This is URL logic (removing trailing .html, .md, etc. from URLs),
+    not filesystem logic (Path.with_suffix). URLs may contain dots
+    that aren't extensions, so we only remove extensions from the
+    last path segment.
 
     Args:
-        tmp_path: pytest's temporary directory fixture
+        url_path: URL path like 'media/images/foo.png' or 'posts/bar'
 
     Returns:
-        EgregoraConfig with minimal settings for unit tests
+        URL path without extension: 'media/images/foo' or 'posts/bar'
+
+    Examples:
+        >>> _remove_url_extension("media/images/foo.png")
+        'media/images/foo'
+        >>> _remove_url_extension("posts/bar")
+        'posts/bar'
+        >>> _remove_url_extension("some.dir/file.md")
+        'some.dir/file'
     """
-    config = create_default_config(site_root=tmp_path / "site")
-
-    # Disable slow components
-    config.rag.enabled = False
-    config.enrichment.enabled = False
-    config.reader.enabled = False
-
-    # Use test models (fast, no API calls)
-    config.models.writer = "test-model"
-    config.models.embedding = "test-embedding"
-
-    # Fast quotas for tests
-    config.quota.daily_llm_requests = 10
-    config.quota.per_second_limit = 10
-
-    return config
-
-
-@pytest.fixture
-def config_factory(tmp_path: Path):
-    """Factory for creating customized test configs.
-
-    Use this when you need to test specific configuration values.
-
-    Example:
-        def test_custom_timeout(config_factory):
-            config = config_factory(rag__enabled=True, rag__timeout=0.1)
-            assert config.rag.enabled is True
-            assert config.rag.timeout == 0.1
-
-    Args:
-        tmp_path: pytest's temporary directory fixture
-
-    Returns:
-        Factory function that creates EgregoraConfig with kwargs
-    """
-    def _factory(**overrides):
-        config = create_default_config(site_root=tmp_path / "site")
-
-        # Apply overrides using __ syntax for nested settings
-        # Example: rag__enabled=True -> config.rag.enabled = True
-        for key, value in overrides.items():
-            parts = key.split("__")
-            obj = config
-            for part in parts[:-1]:
-                obj = getattr(obj, part)
-            setattr(obj, parts[-1], value)
-
-        return config
-    return _factory
+    if "." in url_path:
+        # Split only on the last dot of the last path segment
+        parts = url_path.rsplit("/", 1)
+        if len(parts) == 2 and "." in parts[1]:
+            # Has a path and a filename with extension
+            return f"{parts[0]}/{parts[1].rsplit('.', 1)[0]}"
+        elif "." in parts[0]:
+            # Just a filename with extension
+            return parts[0].rsplit(".", 1)[0]
+    return url_path
 ```
 
-**Files Changed:**
-- `tests/conftest.py` (+80 lines)
-
-**Testing:**
-- Add fixture usage examples to docstrings
-- Verify fixtures work in isolation (no side effects)
-
----
-
-#### 1.2 Update Fixture Documentation in `tests/conftest.py`
-
-Add header comment explaining fixture selection:
-
-```python
-# =============================================================================
-# Test Configuration Fixtures - Selection Guide
-# =============================================================================
-#
-# Use these fixtures instead of directly instantiating EgregoraConfig or Settings.
-#
-# RULE 1: Never use production config in tests
-#   ❌ config = EgregoraConfig()  # Uses production defaults!
-#   ✅ config = test_config        # Uses test defaults with tmp_path
-#
-# RULE 2: Pick the right fixture for your test type
-#   - Unit tests (fast, no I/O):     minimal_config
-#   - Integration tests (with mocks): test_config
-#   - E2E tests (full pipeline):     pipeline_test_config
-#   - RAG-specific tests:            rag_test_config (or test_rag_settings_enabled)
-#   - Reader agent tests:            reader_test_config
-#
-# RULE 3: Customize with factory or model_copy()
-#   - Quick customization:  config_factory(rag__enabled=True)
-#   - Full control:         test_config.model_copy(deep=True)
-#
-# RULE 4: Never hardcode infrastructure
-#   ❌ db_path = Path("/var/egregora/db.duckdb")
-#   ✅ db_path = tmp_path / "test.duckdb"
-#
-# =============================================================================
-```
-
-**Files Changed:**
-- `tests/conftest.py` (+25 lines documentation)
-
----
-
-### Phase 2: Fix Direct Config Instantiations (Priority: HIGH)
-
-**Goal:** Replace all direct `EgregoraConfig()` and `Settings()` calls with fixtures.
-
-#### 2.1 Fix `tests/e2e/pipeline/test_site_generation.py`
+#### 3.2 Use Helper in canonical_url()
 
 **Before:**
 ```python
-# Line 138
-config = EgregoraConfig()
-config.pipeline.step_size = 100
-config.enrichment.enabled = False
-config.rag.enabled = False
+clean_path = document.suggested_path.strip("/")
+if "." in clean_path:
+    clean_path = clean_path.rsplit(".", 1)[0]
 ```
 
 **After:**
 ```python
-def test_site_generation_e2e(clean_blog_dir, monkeypatch, pipeline_test_config):
-    # Use pipeline_test_config (already has enrichment/RAG disabled)
-    config = pipeline_test_config.model_copy(deep=True)
-    config.pipeline.step_size = 100  # Only override what's specific to this test
-    # ... rest of test
+clean_path = _remove_url_extension(document.suggested_path.strip("/"))
 ```
 
 **Files Changed:**
-- `tests/e2e/pipeline/test_site_generation.py:120` (function signature)
-- `tests/e2e/pipeline/test_site_generation.py:138` (config creation)
+- `src/egregora/output_adapters/conventions.py` (+25 lines helper, ~6 call sites)
 
 ---
 
-#### 2.2 Fix `tests/unit/rag/test_rag_backend_factory.py`
+### Phase 4: Add Tests for Pure String Logic (Priority: MEDIUM)
 
-**Before:**
-```python
-# Line 43
-config = EgregoraConfig()
-config.rag.embedding_max_batch_size = 7
-config.rag.embedding_timeout = 3.5
-config.models.embedding = "models/test-embedding"
-```
+**Goal:** Ensure UrlConvention uses only strings, no Path operations.
 
-**After:**
-```python
-def test_embed_fn_uses_rag_settings_for_router(
-    monkeypatch: pytest.MonkeyPatch,
-    config_factory,  # NEW: Use factory fixture
-) -> None:
-    """Embedding router should be constructed with configured RAG settings."""
+#### 4.1 Create Unit Tests
 
-    # Use factory to create config with specific test values
-    config = config_factory(
-        rag__embedding_max_batch_size=7,
-        rag__embedding_timeout=3.5,
-        models__embedding="models/test-embedding",
-    )
-
-    # ... rest of test unchanged
-```
-
-**Files Changed:**
-- `tests/unit/rag/test_rag_backend_factory.py:40` (function signature)
-- `tests/unit/rag/test_rag_backend_factory.py:43-46` (config creation)
-
----
-
-#### 2.3 Fix `tests/e2e/input_adapters/test_dynamic_parser.py`
-
-**Before:**
-```python
-# Lines 34, 47
-pattern = generate_dynamic_regex(sample_lines, EgregoraConfig())
-```
-
-**After:**
-```python
-def test_dynamic_regex_generator_success(mock_agent_run, minimal_config):
-    # ... mock setup ...
-    pattern = generate_dynamic_regex(sample_lines, minimal_config)
-    # ... assertions ...
-
-def test_dynamic_regex_generator_failure(mock_agent_run, minimal_config):
-    # ... mock setup ...
-    pattern = generate_dynamic_regex(sample_lines, minimal_config)
-    # ... assertions ...
-```
-
-**Files Changed:**
-- `tests/e2e/input_adapters/test_dynamic_parser.py:24` (function signature)
-- `tests/e2e/input_adapters/test_dynamic_parser.py:34` (config usage)
-- `tests/e2e/input_adapters/test_dynamic_parser.py:42` (function signature)
-- `tests/e2e/input_adapters/test_dynamic_parser.py:47` (config usage)
-
----
-
-#### 2.4 Fix `tests/unit/rag/test_embedding_router.py`
-
-**Before (module-level):**
-```python
-# Lines 31-38 (PROBLEM: at module load time)
-_model_settings = ModelSettings()
-MODEL = _model_settings.embedding  # "models/gemini-embedding-001"
-
-_rag_settings = RAGSettings()
-DEFAULT_MAX_BATCH_SIZE = _rag_settings.embedding_max_batch_size
-DEFAULT_TIMEOUT = _rag_settings.embedding_timeout
-
-TEST_BATCH_SIZE = 3
-TEST_TIMEOUT = 1.0
-```
-
-**After (fixture-based):**
-```python
-# Remove module-level instantiation
-
-# Add fixture at top of file
-@pytest.fixture
-def embedding_router_config():
-    """Config for embedding router tests."""
-    settings = RAGSettings(
-        embedding_max_batch_size=3,  # Small for unit tests
-        embedding_timeout=1.0,         # Fast for unit tests
-    )
-    return settings
-
-# Update all tests to use fixture
-def test_create_embedding_router_initializes_queues(embedding_router_config):
-    router = create_embedding_router(
-        model="test-model",
-        max_batch_size=embedding_router_config.embedding_max_batch_size,
-        timeout=embedding_router_config.embedding_timeout,
-    )
-    # ... rest of test
-```
-
-**Files Changed:**
-- `tests/unit/rag/test_embedding_router.py:31-38` (remove module-level)
-- `tests/unit/rag/test_embedding_router.py` (add fixture, update ~10 test functions)
-
----
-
-#### 2.5 Fix `tests/unit/agents/test_rag_exception_handling.py`
-
-**Before (repeated 5 times):**
-```python
-# Lines 20, 47, 80, 95, 107
-mock_resources.retrieval_config = RAGSettings()
-# or
-mock_resources.retrieval_config = RAGSettings(enabled=False)
-```
-
-**After:**
-```python
-# Add parametrized fixture
-@pytest.fixture
-def mock_resources_with_rag(test_rag_settings):
-    """Mock WriterResources with test RAG settings."""
-    return SimpleNamespace(
-        retrieval_config=test_rag_settings,
-        # ... other fields
-    )
-
-# Use fixture in tests
-def test_rag_enabled_but_no_hits_returns_none(mock_resources_with_rag):
-    mock_resources = mock_resources_with_rag
-    # ... rest of test
-```
-
-**Alternatively (if different RAG states needed per test):**
-```python
-@pytest.fixture
-def rag_settings_factory():
-    """Factory for creating RAG settings with overrides."""
-    def _create(enabled=True, **kwargs):
-        return RAGSettings(enabled=enabled, **kwargs)
-    return _create
-
-def test_rag_enabled_but_no_hits_returns_none(rag_settings_factory):
-    mock_resources = SimpleNamespace(
-        retrieval_config=rag_settings_factory(enabled=True)
-    )
-    # ... rest of test
-```
-
-**Files Changed:**
-- `tests/unit/agents/test_rag_exception_handling.py` (add fixture)
-- `tests/unit/agents/test_rag_exception_handling.py` (update 5 test functions)
-
----
-
-### Phase 3: Add Test Documentation (Priority: MEDIUM)
-
-**Goal:** Document fixture usage patterns for future developers.
-
-#### 3.1 Create `tests/README.md`
-
-```markdown
-# Egregora Test Suite
-
-## Test Configuration Philosophy
-
-We follow the **Fixture/Override Pattern** for test configuration:
-
-1. **Load base configuration** - Use `create_default_config()`
-2. **Override infrastructure globally** - Fixtures set tmp_path, test models, disabled slow components
-3. **Hardcode specific values only in tests** - Only when testing that specific behavior
-
-### Fixture Selection Guide
-
-| Test Type | Fixture | Use Case |
-|-----------|---------|----------|
-| **Fast unit tests** | `minimal_config` | No RAG, enrichment, or reader; fast models |
-| **Integration tests** | `test_config` | Full config with tmp_path isolation |
-| **Pipeline E2E** | `pipeline_test_config` | Optimized for full pipeline runs |
-| **RAG tests** | `test_rag_settings_enabled` | RAG enabled with test settings |
-| **Reader tests** | `reader_test_config` | Reader agent enabled |
-| **Custom needs** | `config_factory(key=val)` | Quick per-test customization |
-
-### Examples
-
-#### ✅ Good: Using fixtures
-```python
-def test_something(minimal_config):
-    # Config is isolated, uses tmp_path, safe for unit tests
-    result = do_something(minimal_config)
-    assert result.status == "success"
-```
-
-#### ❌ Bad: Direct instantiation
-```python
-def test_something():
-    config = EgregoraConfig()  # WRONG: Uses production defaults!
-    result = do_something(config)
-```
-
-#### ✅ Good: Customizing via factory
-```python
-def test_custom_timeout(config_factory):
-    config = config_factory(rag__enabled=True, rag__timeout=0.1)
-    # Only the specific values needed for this test are overridden
-    assert config.rag.timeout == 0.1
-```
-
-#### ✅ Good: Customizing via model_copy
-```python
-def test_with_custom_setting(test_config):
-    config = test_config.model_copy(deep=True)
-    config.pipeline.step_size = 100  # Test-specific override
-    result = run_pipeline(config)
-```
-
-### Running Tests
-
-```bash
-# All tests
-uv run pytest tests/
-
-# Fast unit tests only
-uv run pytest tests/unit/
-
-# E2E tests (slower)
-uv run pytest tests/e2e/
-
-# Specific test file
-uv run pytest tests/unit/rag/test_lancedb_backend.py
-
-# With coverage
-uv run pytest --cov=egregora tests/
-```
-
-### Fixtures Reference
-
-See `tests/conftest.py` for complete fixture documentation.
-```
-
-**Files Changed:**
-- `tests/README.md` (+100 lines, new file)
-
----
-
-### Phase 4: Validation and Cleanup (Priority: LOW)
-
-#### 4.1 Add Pre-commit Hook to Prevent Violations
-
-Create `dev_tools/check_test_config.py`:
+**File:** `tests/unit/output_adapters/test_conventions.py`
 
 ```python
-#!/usr/bin/env python3
-"""Pre-commit hook to prevent direct config instantiation in tests.
+"""Unit tests for UrlConvention implementations.
 
-Checks for:
-- Direct EgregoraConfig() calls without fixtures
-- Direct Settings class instantiation
-- Hardcoded infrastructure paths
+Tests verify that UrlConvention uses ONLY string operations,
+no Path or filesystem dependencies.
 """
 
-import re
-import sys
-from pathlib import Path
+import pytest
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import UrlContext
+from egregora.output_adapters.conventions import StandardUrlConvention, _remove_url_extension
 
-VIOLATIONS = [
-    (r"EgregoraConfig\(\)", "Use test_config fixture instead of EgregoraConfig()"),
-    (r"RAGSettings\(\)", "Use test_rag_settings fixture instead of RAGSettings()"),
-    (r"ModelSettings\(\)", "Use test_model_settings fixture instead of ModelSettings()"),
-    (r'db_path = Path\("/[^"]+"', "Use tmp_path fixture instead of hardcoded paths"),
-]
 
-def check_file(file_path: Path) -> list[str]:
-    """Check a single file for violations."""
-    errors = []
-    content = file_path.read_text()
+class TestUrlExtensionRemoval:
+    """Test pure string-based extension removal."""
 
-    for pattern, message in VIOLATIONS:
-        if re.search(pattern, content):
-            errors.append(f"{file_path}:{message}")
+    def test_removes_extension_from_simple_path(self):
+        assert _remove_url_extension("file.md") == "file"
+        assert _remove_url_extension("image.png") == "image"
 
-    return errors
+    def test_removes_extension_from_nested_path(self):
+        assert _remove_url_extension("media/images/foo.png") == "media/images/foo"
+        assert _remove_url_extension("posts/2025-01-10.md") == "posts/2025-01-10"
 
-def main():
-    test_files = Path("tests").rglob("test_*.py")
-    all_errors = []
+    def test_preserves_dots_in_directory_names(self):
+        assert _remove_url_extension("some.dir/file.md") == "some.dir/file"
+        assert _remove_url_extension("v1.0/api.json") == "v1.0/api"
 
-    for file_path in test_files:
-        # Skip conftest.py (defines fixtures)
-        if file_path.name == "conftest.py":
-            continue
+    def test_handles_no_extension(self):
+        assert _remove_url_extension("posts/hello") == "posts/hello"
+        assert _remove_url_extension("media/video") == "media/video"
 
-        errors = check_file(file_path)
-        all_errors.extend(errors)
 
-    if all_errors:
-        print("❌ Test configuration violations found:")
-        for error in all_errors:
-            print(f"  - {error}")
-        print("\nSee tests/README.md for proper fixture usage.")
-        return 1
+class TestStandardUrlConventionPurity:
+    """Verify StandardUrlConvention uses only strings, no Path operations."""
 
-    print("✅ All tests use proper configuration fixtures")
-    return 0
+    @pytest.fixture
+    def convention(self):
+        return StandardUrlConvention()
 
-if __name__ == "__main__":
-    sys.exit(main())
-```
+    @pytest.fixture
+    def ctx(self):
+        return UrlContext(base_url="https://example.com", site_prefix="blog")
 
-Add to `.pre-commit-config.yaml`:
+    def test_post_url_is_pure_string(self, convention, ctx):
+        doc = Document(
+            type=DocumentType.POST,
+            content="Test post",
+            metadata={"slug": "hello-world", "date": "2025-01-10"},
+        )
+        url = convention.canonical_url(doc, ctx)
+        assert url == "https://example.com/blog/posts/2025-01-10-hello-world/"
+        assert isinstance(url, str)
 
-```yaml
-  - repo: local
-    hooks:
-      - id: check-test-config
-        name: Check test configuration
-        entry: python dev_tools/check_test_config.py
-        language: system
-        pass_filenames: false
-        files: tests/.*\.py$
+    def test_enrichment_url_removes_extension_via_string_ops(self, convention, ctx):
+        """Verify extension removal uses string ops, not Path.with_suffix()."""
+        doc = Document(
+            type=DocumentType.ENRICHMENT_URL,
+            content="Enrichment",
+            suggested_path="media/urls/article.html",
+        )
+        url = convention.canonical_url(doc, ctx)
+        # Should remove .html extension via string manipulation
+        assert ".html" not in url
+        assert "article" in url
+
+    def test_media_enrichment_preserves_path_structure(self, convention, ctx):
+        """Verify path manipulation uses string ops, not Path.as_posix()."""
+        parent = Document(
+            type=DocumentType.MEDIA,
+            content=b"image data",
+            suggested_path="media/images/photo.jpg",
+        )
+        doc = Document(
+            type=DocumentType.ENRICHMENT_MEDIA,
+            content="Photo description",
+            parent=parent,
+        )
+        url = convention.canonical_url(doc, ctx)
+        # Should use parent path structure via string ops
+        assert "media/images/photo" in url
+        assert ".jpg" not in url  # Extension removed via string ops
+
+
+class TestUrlConventionNoFilesystemDependency:
+    """Ensure UrlConvention has NO filesystem dependencies."""
+
+    def test_no_path_import_in_conventions_module(self):
+        """Verify conventions.py does not import pathlib.Path."""
+        import egregora.output_adapters.conventions as conventions_module
+
+        # Check module doesn't have Path in its namespace
+        assert not hasattr(conventions_module, "Path")
+
+        # Verify by checking source
+        import inspect
+        source = inspect.getsource(conventions_module)
+        assert "from pathlib import Path" not in source
+        assert "import pathlib" not in source
 ```
 
 **Files Changed:**
-- `dev_tools/check_test_config.py` (+50 lines, new file)
-- `.pre-commit-config.yaml` (+6 lines)
+- `tests/unit/output_adapters/test_conventions.py` (+100 lines, new file)
 
 ---
 
-#### 4.2 Update CLAUDE.md Testing Section
+### Phase 5: Update CLAUDE.md with Principle (Priority: LOW)
 
-Add to `CLAUDE.md` under `## Testing`:
+**Goal:** Document this architectural principle for future development.
+
+#### 5.1 Add to Design Principles
+
+**File:** `CLAUDE.md`
+
+Add new principle after line 98 (in `## Design Principles` section):
 
 ```markdown
-### Test Configuration Rules
+✅ **URL/Path Separation:** UrlConvention = pure URL logic (strings only), OutputAdapter = filesystem paths
+```
 
-**CRITICAL: Never use production config in tests**
+#### 5.2 Add to Architecture Section
 
-1. **Use fixtures for ALL configuration:**
-   - ❌ `config = EgregoraConfig()` (uses production defaults!)
-   - ✅ `def test_foo(test_config):` (isolated test config)
+**File:** `CLAUDE.md`
 
-2. **Pick the right fixture:**
-   - Unit tests: `minimal_config` (fast, RAG/enrichment disabled)
-   - Integration: `test_config` (full config, tmp_path)
-   - E2E: `pipeline_test_config` (optimized for pipeline)
-   - RAG tests: `test_rag_settings_enabled`
+Add new subsection after line 167 (in `## Architecture` section):
 
-3. **Customize via factory or model_copy:**
-   ```python
-   # Factory (quick)
-   config = config_factory(rag__enabled=True, rag__timeout=0.1)
+```markdown
+### URL Convention vs Output Adapter Separation
 
-   # model_copy (full control)
-   config = test_config.model_copy(deep=True)
-   config.pipeline.step_size = 100
-   ```
+**Critical Principle:** URL generation and filesystem path resolution are separate concerns.
 
-4. **Infrastructure must use tmp_path:**
-   - ❌ `db_path = Path(".egregora/db.duckdb")`
-   - ✅ `db_path = tmp_path / "test.duckdb"`
+**UrlConvention (Purely Logical):**
+- Given Document → return URL string
+- Uses ONLY string operations (`str.split()`, `str.strip()`, etc.)
+- No `Path`, no filesystem concepts
+- Examples: `/posts/hello/`, `https://example.com/media/image.png`
 
-See `tests/README.md` for complete guide.
+**OutputAdapter (Filesystem Layout):**
+- Takes URL from convention → resolves to filesystem path
+- Handles `docs/`, `media/`, `index.md` vs `foo.md`
+- Knows about MkDocs quirks, file extensions, directory structure
+
+**Why This Matters:**
+- UrlConvention works with any backend (filesystem, S3, database, CMS)
+- URL structure stable across output format changes
+- Clean testing (no filesystem mocking for URL logic)
+
+**Example:**
+```python
+# ✅ CORRECT: UrlConvention uses strings
+class MkdocsBlogConvention(UrlConvention):
+    def canonical_url(self, doc: Document, ctx: UrlContext) -> str:
+        slug = doc.metadata.get("slug")
+        return f"{ctx.base_url}/posts/{slug}/"
+
+# ❌ WRONG: UrlConvention uses Path
+class BadConvention(UrlConvention):
+    def canonical_url(self, doc: Document, ctx: UrlContext) -> str:
+        path = Path(doc.suggested_path).with_suffix("")  # NO!
+        return f"{ctx.base_url}/{path.as_posix()}/"      # NO!
+```
+
+**See:** `docs/architecture/protocols.md#url-generation`
 ```
 
 **Files Changed:**
-- `CLAUDE.md` (+30 lines in Testing section)
+- `CLAUDE.md` (+45 lines in Design Principles and Architecture sections)
 
 ---
 
 ## Implementation Plan
 
-### Week 1: Foundation
-- [ ] **Day 1-2:** Add fixtures to `tests/conftest.py` (Phase 1.1)
-- [ ] **Day 2-3:** Update fixture documentation (Phase 1.2)
-- [ ] **Day 3-5:** Create `tests/README.md` (Phase 3.1)
+### Sprint 1: Core Refactoring (Priority: HIGH)
+- [x] **Task 1.1:** Remove `Path` import from `conventions.py`
+- [x] **Task 1.2:** Replace `Path().with_suffix()` with string operations (3 locations)
+- [x] **Task 1.3:** Replace `Path().as_posix()` with string operations (3 locations)
+- [x] **Task 1.4:** Add module-level documentation explaining separation
 
-### Week 2: Refactoring
-- [ ] **Day 1:** Fix `test_site_generation.py` (Phase 2.1)
-- [ ] **Day 1:** Fix `test_rag_backend_factory.py` (Phase 2.2)
-- [ ] **Day 2:** Fix `test_dynamic_parser.py` (Phase 2.3)
-- [ ] **Day 2-3:** Fix `test_embedding_router.py` (Phase 2.4)
-- [ ] **Day 3:** Fix `test_rag_exception_handling.py` (Phase 2.5)
+**Time Estimate:** 2 hours
+**Risk:** Low (purely refactoring, no behavior change)
 
-### Week 3: Validation
-- [ ] **Day 1:** Add pre-commit hook (Phase 4.1)
-- [ ] **Day 2:** Update CLAUDE.md (Phase 4.2)
-- [ ] **Day 3:** Run full test suite, verify no regressions
-- [ ] **Day 4:** Code review and adjustments
-- [ ] **Day 5:** Final testing and merge
+### Sprint 2: Testing & Validation (Priority: HIGH)
+- [ ] **Task 2.1:** Create unit tests for string-based extension removal
+- [ ] **Task 2.2:** Add tests verifying no Path operations in UrlConvention
+- [ ] **Task 2.3:** Run existing test suite to verify no regressions
+- [ ] **Task 2.4:** Add integration tests for URL → Path conversion in adapter
+
+**Time Estimate:** 3 hours
+**Risk:** Low (tests only, no production code changes)
+
+### Sprint 3: Documentation (Priority: MEDIUM)
+- [ ] **Task 3.1:** Update `UrlConvention` protocol docstring
+- [ ] **Task 3.2:** Add helper function docstrings
+- [ ] **Task 3.3:** Update CLAUDE.md Design Principles section
+- [ ] **Task 3.4:** Update CLAUDE.md Architecture section
+
+**Time Estimate:** 1.5 hours
+**Risk:** None (documentation only)
 
 ---
 
 ## Success Criteria
 
-1. **Zero direct config instantiations:**
-   - No `EgregoraConfig()` calls outside conftest.py
-   - No `RAGSettings()`, `ModelSettings()` calls outside conftest.py
+1. **No Path operations in UrlConvention:**
+   - `conventions.py` does not import `pathlib.Path`
+   - All extension removal uses string operations
+   - All path manipulation uses string operations
 
-2. **All tests use fixtures:**
-   - Unit tests use `minimal_config` or `config_factory`
-   - E2E tests use `pipeline_test_config` or `test_config`
-   - RAG tests use `test_rag_settings_enabled`
+2. **Tests verify purity:**
+   - Unit tests confirm string-only operations
+   - Tests verify no Path in module namespace
+   - Integration tests verify adapter converts URLs to paths
 
-3. **Infrastructure isolation:**
-   - All database paths use `tmp_path`
-   - No hardcoded `.egregora/` paths
-   - All API keys mocked via fixtures
+3. **Documentation is clear:**
+   - Module docstrings explain separation
+   - Protocol docstrings show correct/incorrect examples
+   - CLAUDE.md documents the principle
 
-4. **Documentation complete:**
-   - `tests/README.md` explains fixture usage
-   - `tests/conftest.py` has selection guide
-   - `CLAUDE.md` updated with test config rules
-
-5. **Pre-commit validation:**
-   - Hook prevents new violations
-   - Existing tests pass hook
-
-6. **Test suite passes:**
-   - All unit tests pass: `pytest tests/unit/`
-   - All E2E tests pass: `pytest tests/e2e/`
-   - No new warnings or errors
+4. **No behavior changes:**
+   - All existing tests pass
+   - URL generation produces same results
+   - No changes to public API
 
 ---
 
@@ -655,17 +566,11 @@ See `tests/README.md` for complete guide.
 
 | File | Changes | Lines |
 |------|---------|-------|
-| `tests/conftest.py` | Add fixtures + docs | +105 |
-| `tests/README.md` | New file | +100 |
-| `tests/e2e/pipeline/test_site_generation.py` | Use fixture | -3, +2 |
-| `tests/unit/rag/test_rag_backend_factory.py` | Use factory | -4, +8 |
-| `tests/e2e/input_adapters/test_dynamic_parser.py` | Use fixture | -2, +4 |
-| `tests/unit/rag/test_embedding_router.py` | Remove module-level | -8, +15 |
-| `tests/unit/agents/test_rag_exception_handling.py` | Use fixture factory | -5, +10 |
-| `dev_tools/check_test_config.py` | New file | +50 |
-| `.pre-commit-config.yaml` | Add hook | +6 |
-| `CLAUDE.md` | Update testing section | +30 |
-| **Total** | **10 files** | **~320 lines** |
+| `src/egregora/output_adapters/conventions.py` | Remove Path, add string ops, add docs | -1, +60 |
+| `src/egregora/data_primitives/protocols.py` | Enhance UrlConvention docstring | +25 |
+| `tests/unit/output_adapters/test_conventions.py` | New test file | +100 |
+| `CLAUDE.md` | Add principle to Design & Architecture | +45 |
+| **Total** | **4 files** | **~230 lines** |
 
 ---
 
@@ -673,10 +578,10 @@ See `tests/README.md` for complete guide.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| Tests fail after refactoring | Medium | High | Run full test suite after each change |
-| Fixtures have bugs | Low | Medium | Test fixtures in isolation first |
-| Breaking existing workflows | Low | Low | Changes are internal to tests only |
-| Pre-commit hook false positives | Medium | Low | Careful regex patterns, manual review |
+| String ops differ from Path ops | Low | Medium | Careful testing, verify same outputs |
+| Edge cases in extension removal | Medium | Low | Comprehensive unit tests |
+| Breaking URL generation | Low | High | Run full test suite, manual verification |
+| Documentation out of sync | Low | Low | Update docs in same PR |
 
 ---
 
@@ -684,30 +589,64 @@ See `tests/README.md` for complete guide.
 
 If refactoring causes issues:
 
-1. **Immediate:** Revert to previous commit
-2. **Phase-by-phase:** Each phase is independent; can roll back partial changes
-3. **Fixture bugs:** Disable new fixtures, fall back to test_config
-4. **Pre-commit issues:** Disable hook temporarily
+1. **Immediate:** Revert to previous commit (single PR, easy rollback)
+2. **String op bugs:** Fix edge cases in `_remove_url_extension()`
+3. **Test failures:** Investigate differences between Path and string ops
+4. **Performance issues:** Profile and optimize string operations
 
 ---
 
 ## References
 
-- **Industry Standard:** Fixture/Override Pattern (pytest best practices)
-- **Egregora Docs:** `docs/testing/` (if exists), `CLAUDE.md` Testing section
-- **Pytest Docs:** https://docs.pytest.org/en/stable/fixture.html
+- **User Request:** "URL → concern of UrlConvention, Filesystem path → concern of OutputAdapter"
+- **Current Code:** `src/egregora/output_adapters/conventions.py:7,94,138,142`
+- **Protocol Definition:** `src/egregora/data_primitives/protocols.py:60-73`
+- **Design Principle:** Separation of Concerns (ISP-compliant protocols)
+
+---
+
+## Verification Steps
+
+After implementation, verify:
+
+1. **No Path imports:**
+   ```bash
+   grep -n "from pathlib import Path" src/egregora/output_adapters/conventions.py
+   # Should return: no matches
+   ```
+
+2. **No Path operations:**
+   ```bash
+   grep -n "Path(" src/egregora/output_adapters/conventions.py
+   # Should return: no matches
+   ```
+
+3. **All tests pass:**
+   ```bash
+   uv run pytest tests/unit/output_adapters/test_conventions.py -v
+   uv run pytest tests/ -v
+   ```
+
+4. **URL generation unchanged:**
+   ```bash
+   # Compare URL generation before/after for sample documents
+   uv run python -c "from egregora.output_adapters.conventions import StandardUrlConvention; ..."
+   ```
 
 ---
 
 ## PR Checklist
 
-- [ ] All new fixtures have docstrings with examples
-- [ ] `tests/README.md` created with usage guide
-- [ ] All direct `EgregoraConfig()` calls replaced
-- [ ] All direct `Settings()` calls replaced
-- [ ] Pre-commit hook added and tested
+- [ ] `Path` import removed from `conventions.py`
+- [ ] All `Path().with_suffix()` replaced with string ops
+- [ ] All `Path().as_posix()` replaced with string ops
+- [ ] Helper function `_remove_url_extension()` added with docstring
+- [ ] Module docstring explains separation of concerns
+- [ ] Protocol docstring enhanced with examples
+- [ ] Unit tests verify string-only operations
+- [ ] Unit tests verify no Path in module namespace
 - [ ] Full test suite passes (`pytest tests/`)
-- [ ] No new test warnings
-- [ ] CLAUDE.md updated
+- [ ] CLAUDE.md Design Principles updated
+- [ ] CLAUDE.md Architecture section updated
 - [ ] Code review requested
-- [ ] CI/CD pipeline passes
+- [ ] No behavior changes verified
