@@ -36,8 +36,8 @@ from tenacity import Retrying
 
 from egregora.agents.banner.agent import generate_banner, is_banner_generation_available
 from egregora.agents.formatting import (
-    _build_conversation_xml,
-    _load_journal_memory,
+    build_conversation_xml,
+    load_journal_memory,
 )
 from egregora.agents.model_limits import (
     PromptTooLargeError,
@@ -528,7 +528,7 @@ def _build_writer_context(  # noqa: PLR0913
 ) -> WriterContext:
     """Collect contextual inputs used when rendering the writer prompt."""
     messages_table = table_with_str_uuids.to_pyarrow()
-    conversation_xml = _build_conversation_xml(messages_table, resources.annotations_store)
+    conversation_xml = build_conversation_xml(messages_table, resources.annotations_store)
 
     # Build RAG context if enabled
     if resources.retrieval_config.enabled:
@@ -542,7 +542,7 @@ def _build_writer_context(  # noqa: PLR0913
         rag_context = ""
 
     profiles_context = _load_profiles_context(table_with_str_uuids, resources.profiles_dir)
-    journal_memory = _load_journal_memory(resources.output)
+    journal_memory = load_journal_memory(resources.output)
     active_authors = get_active_authors(table_with_str_uuids)
 
     format_instructions = resources.output.get_format_instructions()

@@ -19,7 +19,7 @@ from egregora.output_adapters.base import OutputSink
 logger = logging.getLogger(__name__)
 
 
-def _load_journal_memory(output_sink: OutputSink) -> str:
+def load_journal_memory(output_sink: OutputSink) -> str:
     """Return the latest journal memo content (if any)."""
     journals = list(output_sink.list(DocumentType.JOURNAL))
     if not journals:
@@ -89,7 +89,7 @@ def _compute_message_id(row: Mapping[str, object]) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
-def _build_conversation_xml(
+def build_conversation_xml(
     data: pa.Table | Iterable[Mapping[str, object]] | Sequence[Mapping[str, object]],
     annotations_store: AnnotationStore | None,
 ) -> str:

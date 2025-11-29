@@ -33,7 +33,7 @@ class _ConfigLoader(yaml.SafeLoader):
 _ConfigLoader.add_constructor(None, lambda loader, _node: None)
 
 
-def _safe_yaml_load(content: str) -> dict[str, Any]:
+def safe_yaml_load(content: str) -> dict[str, Any]:
     """Load YAML safely, ignoring unknown tags like !ENV."""
     return yaml.load(content, Loader=_ConfigLoader) or {}  # noqa: S506
 
@@ -131,7 +131,7 @@ class MkDocsSiteScaffolder:
         mkdocs_path = site_paths.get("mkdocs_path")
         if mkdocs_path:
             try:
-                mkdocs_config = _safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
+                mkdocs_config = safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
             except yaml.YAMLError as exc:
                 logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
                 mkdocs_config = {}
@@ -286,4 +286,4 @@ class MkDocsSiteScaffolder:
             logger.info("Created .egregora/.gitignore")
 
 
-__all__ = ["MkDocsSiteScaffolder", "_safe_yaml_load"]
+__all__ = ["MkDocsSiteScaffolder", "safe_yaml_load"]

@@ -27,10 +27,10 @@ from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 from egregora.output_adapters.conventions import StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
-from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, _safe_yaml_load
+from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 from egregora.utils.filesystem import (
-    _ensure_author_entries,
-    _format_frontmatter_datetime,
+    ensure_author_entries,
+    format_frontmatter_datetime,
 )
 from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import slugify
@@ -251,7 +251,7 @@ class MkDocsAdapter(OutputAdapter):
             msg = f"No mkdocs.yml found in {site_root}"
             raise FileNotFoundError(msg)
         try:
-            config = _safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
+            config = safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
         except yaml.YAMLError as exc:
             logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
             config = {}
@@ -695,9 +695,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         metadata = dict(document.metadata or {})
         if "date" in metadata:
-            metadata["date"] = _format_frontmatter_datetime(metadata["date"])
+            metadata["date"] = format_frontmatter_datetime(metadata["date"])
         if "authors" in metadata:
-            _ensure_author_entries(path.parent, metadata.get("authors"))
+            ensure_author_entries(path.parent, metadata.get("authors"))
 
         # Add related posts based on shared tags
         all_posts = list(self.documents())  # This is inefficient, but will work for now
