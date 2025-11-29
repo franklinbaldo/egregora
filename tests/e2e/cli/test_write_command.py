@@ -312,8 +312,8 @@ class TestWriteCommandWithMocks:
         test_zip_file,
         test_output_dir,
         monkeypatch,
-        writer_test_agent,
-        mock_batch_client,
+        _writer_test_agent,
+        _mock_batch_client,
     ):
         """Run the write command with deterministic pydantic-ai test models.
 

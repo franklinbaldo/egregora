@@ -28,10 +28,10 @@ from egregora.knowledge.profiles import write_profile as write_profile_content
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 from egregora.output_adapters.conventions import StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
-from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, _safe_yaml_load
+from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 from egregora.utils.filesystem import (
-    _ensure_author_entries,
-    _format_frontmatter_datetime,
+    ensure_author_entries,
+    format_frontmatter_datetime,
 )
 from egregora.utils.filesystem import (
     write_markdown_post as _write_mkdocs_post,
@@ -326,7 +326,7 @@ class MkDocsAdapter(OutputAdapter):
             msg = f"No mkdocs.yml found in {site_root}"
             raise FileNotFoundError(msg)
         try:
-            config = _safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
+            config = safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
         except yaml.YAMLError as exc:
             logger.warning("Failed to parse mkdocs.yml at %s: %s", mkdocs_path, exc)
             config = {}
@@ -765,9 +765,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         metadata = dict(document.metadata or {})
         if "date" in metadata:
-            metadata["date"] = _format_frontmatter_datetime(metadata["date"])
+            metadata["date"] = format_frontmatter_datetime(metadata["date"])
         if "authors" in metadata:
-            _ensure_author_entries(path.parent, metadata.get("authors"))
+            ensure_author_entries(path.parent, metadata.get("authors"))
 
         # Add related posts based on shared tags
         all_posts = list(self.documents())  # This is inefficient, but will work for now
@@ -1005,9 +1005,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
                 avatar = metadata.get("avatar", "")
                 if not avatar:
-                    from egregora.knowledge.profiles import _generate_fallback_avatar_url
+                    from egregora.knowledge.profiles import generate_fallback_avatar_url
 
-                    avatar = _generate_fallback_avatar_url(author_uuid)
+                    avatar = generate_fallback_avatar_url(author_uuid)
 
                 profiles.append(
                     {
@@ -1112,9 +1112,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             avatar = author.get("avatar", "")
 
             if not avatar:
-                from egregora.knowledge.profiles import _generate_fallback_avatar_url
+                from egregora.knowledge.profiles import generate_fallback_avatar_url
 
-                avatar = _generate_fallback_avatar_url(author_id)
+                avatar = generate_fallback_avatar_url(author_id)
 
             authors_data.append(
                 {
