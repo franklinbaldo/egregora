@@ -58,7 +58,34 @@ class DocumentMetadata:
 
 
 class UrlConvention(Protocol):
-    """Contract for deterministic URL generation strategies."""
+    """Contract for deterministic URL generation strategies.
+
+    CRITICAL: This is a PURELY LOGICAL protocol. Implementations must:
+    - Use ONLY string operations (no Path, no filesystem concepts)
+    - Return URLs as strings ('/posts/foo/' or 'https://example.com/posts/foo/')
+    - Have NO knowledge of filesystem layout (docs_dir, file extensions, etc.)
+
+    Filesystem path resolution is the responsibility of OutputAdapter implementations,
+    not UrlConvention. This separation enables:
+    - Pure URL conventions that work with any backend (filesystem, S3, database)
+    - Clean testing of URL logic without filesystem dependencies
+    - Flexibility to change file layouts without changing URL structure
+
+    Example of correct implementation:
+        class MyConvention(UrlConvention):
+            def canonical_url(self, doc: Document, ctx: UrlContext) -> str:
+                # ✅ String manipulation only
+                slug = doc.metadata.get("slug", doc.document_id[:8])
+                return f"{ctx.base_url}/posts/{slug}/"
+
+    Example of INCORRECT implementation:
+        class BadConvention(UrlConvention):
+            def canonical_url(self, doc: Document, ctx: UrlContext) -> str:
+                # ❌ WRONG: Using Path operations
+                from pathlib import Path
+                path = Path(doc.suggested_path).with_suffix("").as_posix()
+                return f"{ctx.base_url}/{path}/"
+    """
 
     @property
     def name(self) -> str:

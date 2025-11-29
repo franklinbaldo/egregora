@@ -69,6 +69,44 @@ Layer 1: data_primitives/      # Foundation models (Document, etc.)
 
 **Key Pattern:** No `PipelineStage` abstraction—all transforms are pure functions.
 
+### URL Convention vs Output Adapter Separation
+
+**Critical Principle:** URL generation and filesystem path resolution are separate concerns.
+
+**UrlConvention (Purely Logical):**
+- Given Document → return URL string
+- Uses ONLY string operations (`str.split()`, `str.strip()`, etc.)
+- No `Path`, no filesystem concepts
+- Examples: `/posts/hello/`, `https://example.com/media/image.png`
+
+**OutputAdapter (Filesystem Layout):**
+- Takes URL from convention → resolves to filesystem path
+- Handles `docs/`, `media/`, `index.md` vs `foo.md`
+- Knows about MkDocs quirks, file extensions, directory structure
+
+**Why This Matters:**
+- UrlConvention works with any backend (filesystem, S3, database, CMS)
+- URL structure stable across output format changes
+- Clean testing (no filesystem mocking for URL logic)
+
+**Example:**
+```python
+# ✅ CORRECT: UrlConvention uses strings
+class MkdocsBlogConvention(UrlConvention):
+    def canonical_url(self, doc: Document, ctx: UrlContext) -> str:
+        slug = doc.metadata.get("slug")
+        return f"{ctx.base_url}/posts/{slug}/"
+
+# ❌ WRONG: UrlConvention uses Path
+class BadConvention(UrlConvention):
+    def canonical_url(self, doc: Document, ctx: UrlContext) -> str:
+        from pathlib import Path
+        path = Path(doc.suggested_path).with_suffix("")  # NO!
+        return f"{ctx.base_url}/{path.as_posix()}/"      # NO!
+```
+
+**See:** `docs/architecture/protocols.md#url-generation`
+
 ### Code Structure
 
 ```
@@ -202,6 +240,7 @@ src/egregora/
 ✅ **Schemas as Contracts:** All stages preserve `IR_MESSAGE_SCHEMA`
 ✅ **Simple Default:** Full rebuild (--resume for incremental)
 ✅ **Alpha Mindset:** Clean breaks, no backward compatibility
+✅ **URL/Path Separation:** UrlConvention = pure URL logic (strings only), OutputAdapter = filesystem paths
 
 ## Agents
 
