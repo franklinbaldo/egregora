@@ -62,6 +62,11 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
         type=DocumentType.JOURNAL,
         metadata={"window_label": "Agent Memory"},
     )
+    fallback_journal = Document(
+        content="Fallback journal entry",
+        type=DocumentType.JOURNAL,
+        metadata={},
+    )
     enrichment = Document(
         content="URL summary",
         type=DocumentType.ENRICHMENT_URL,
@@ -74,14 +79,16 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
         suggested_path="media/images/promo.png",
     )
 
-    for document in (post, profile, journal, enrichment, media):
+    for document in (post, profile, journal, fallback_journal, enrichment, media):
         adapter.persist(document)
 
     site_dir = _build_site(tmp_path, docs_dir)
 
     # Persisted paths should mirror the canonical URLs produced by the embedded convention.
-    for stored_doc in (post, profile, journal, enrichment, media):
+    for stored_doc in (post, profile, journal, fallback_journal, enrichment, media):
         canonical_url = adapter.url_convention.canonical_url(stored_doc, adapter._ctx)  # type: ignore[arg-type]
+        if stored_doc is fallback_journal:
+            assert canonical_url == "/journal/"
         relative_from_url = _relative_path_from_url(canonical_url, stored_doc)
         stored_path = adapter._index[stored_doc.document_id]
 
