@@ -724,6 +724,7 @@ __all__ = [
     "ANNOTATIONS_SCHEMA",
     # Ephemeral schemas
     "CONVERSATION_SCHEMA",
+    "conversation_schema_dict",
     "DEFAULT_TIMEZONE",
     # Elo schemas
     "ELO_HISTORY_SCHEMA",
