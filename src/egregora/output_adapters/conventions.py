@@ -50,6 +50,9 @@ def _remove_url_extension(url_path: str) -> str:
     that aren't extensions, so we only remove extensions from the
     last path segment.
 
+    Dotfiles (files starting with a dot like '.config') are preserved
+    as they don't have an extension to remove.
+
     Args:
         url_path: URL path like 'media/images/foo.png' or 'posts/bar'
 
@@ -63,6 +66,10 @@ def _remove_url_extension(url_path: str) -> str:
         'posts/bar'
         >>> _remove_url_extension("some.dir/file.md")
         'some.dir/file'
+        >>> _remove_url_extension(".config")
+        '.config'
+        >>> _remove_url_extension("path/.gitignore")
+        'path/.gitignore'
 
     """
     if "." not in url_path:
@@ -74,10 +81,20 @@ def _remove_url_extension(url_path: str) -> str:
     if len(parts) == 2 and "." in parts[1]:
         # Has a path and a filename with extension
         # Remove extension from the filename only
-        return f"{parts[0]}/{parts[1].rsplit('.', 1)[0]}"
-    if "." in parts[0]:
+        basename_without_ext = parts[1].rsplit(".", 1)[0]
+        # Check if this is a dotfile (basename would be empty after split)
+        if not basename_without_ext:
+            # This is a dotfile, preserve it
+            return url_path
+        return f"{parts[0]}/{basename_without_ext}"
+    elif "." in parts[0]:
         # Just a filename with extension (no slashes)
-        return parts[0].rsplit(".", 1)[0]
+        basename_without_ext = parts[0].rsplit(".", 1)[0]
+        # Check if this is a dotfile (basename would be empty after split)
+        if not basename_without_ext:
+            # This is a dotfile, preserve it
+            return url_path
+        return basename_without_ext
 
     return url_path
 
