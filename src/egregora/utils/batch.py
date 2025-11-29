@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from google.api_core import exceptions as google_exceptions
 from google.genai import errors as genai_errors
@@ -154,7 +153,9 @@ class GeminiBatchClient:
         logger.debug("Uploading media for batch processing: %s", path)
         # Newer google-genai clients accept only the file path/handle; display
         # names are deprecated, so we ignore them here for compatibility.
-        for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry):
+        for attempt in Retrying(
+            stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry
+        ):
             with attempt:
                 uploaded_file = self._client.files.upload(file=path)
 
@@ -173,7 +174,9 @@ class GeminiBatchClient:
                 break
             time.sleep(poll_interval)
             elapsed += poll_interval
-            for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry):
+            for attempt in Retrying(
+                stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry
+            ):
                 with attempt:
                     uploaded_file = self._client.files.get(name=uploaded_file.name)
             logger.debug(
@@ -223,7 +226,9 @@ class GeminiBatchClient:
             len(inlined_requests),
         )
 
-        for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry):
+        for attempt in Retrying(
+            stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry
+        ):
             with attempt:
                 job = self._client.batches.create(
                     model=self._default_model,
@@ -312,7 +317,9 @@ class GeminiBatchClient:
 
         logger.info("[blue]📚 Embedding model:[/] %s — %d item(s)", model_name, len(contents))
 
-        for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry):
+        for attempt in Retrying(
+            stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry
+        ):
             with attempt:
                 job = self._client.batches.create_embeddings(
                     model=model_name,
@@ -371,7 +378,9 @@ class GeminiBatchClient:
         last_state = None
 
         while True:
-            for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry):
+            for attempt in Retrying(
+                stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry
+            ):
                 with attempt:
                     job = self._client.batches.get(name=job_name)
             state = job.state.name if job.state else "JOB_STATE_UNSPECIFIED"
