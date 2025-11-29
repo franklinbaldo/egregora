@@ -89,6 +89,7 @@ class MkDocsAdapter(OutputAdapter):
         site_paths = derive_mkdocs_paths(site_root)
         self.site_root = site_paths["site_root"]
         self._site_root = self.site_root
+        self.docs_dir = site_paths["docs_dir"]
         prefix = compute_site_prefix(self.site_root, site_paths["docs_dir"])
         self._ctx = url_context or UrlContext(base_url="", site_prefix=prefix, base_path=self.site_root)
         self.posts_dir = site_paths["posts_dir"]
@@ -633,7 +634,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         return self.profiles_dir / f"{url_path.split('/')[-1]}.md"
 
     def _resolve_journal_path(self, url_path: str) -> Path:
-        return self.journal_dir / f"{url_path.split('/')[-1]}.md"
+        # When url_path is just "journal" (root journal URL), return journal.md in docs root
+        # Otherwise, extract the slug and put it in journal/
+        slug = url_path.split("/")[-1]
+        if url_path == "journal":
+            return self.docs_dir / "journal.md"
+        return self.journal_dir / f"{slug}.md"
 
     def _resolve_enrichment_url_path(self, url_path: str) -> Path:
         # url_path might be 'media/urls/slug' -> we want 'slug.md' inside urls_dir
