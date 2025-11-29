@@ -36,7 +36,7 @@ from zoneinfo import ZoneInfo
 import ibis
 from ibis.expr.types import Table
 
-from egregora.agents.formatting import _build_conversation_xml
+from egregora.agents.formatting import build_conversation_xml
 from egregora.config.settings import EgregoraConfig
 
 logger = logging.getLogger(__name__)
@@ -591,7 +591,7 @@ def generate_window_signature(
     else:
         # Fallback to generating XML for hash consistency
         # (We use XML because that's what the LLM sees)
-        xml_content = _build_conversation_xml(window_table.to_pyarrow(), None)
+        xml_content = build_conversation_xml(window_table.to_pyarrow(), None)
         data_hash = hashlib.sha256(xml_content.encode()).hexdigest()
 
     # 2. Logic Hash
