@@ -87,7 +87,7 @@ def _remove_url_extension(url_path: str) -> str:
             # This is a dotfile, preserve it
             return url_path
         return f"{parts[0]}/{basename_without_ext}"
-    elif "." in parts[0]:
+    if "." in parts[0]:
         # Just a filename with extension (no slashes)
         basename_without_ext = parts[0].rsplit(".", 1)[0]
         # Check if this is a dotfile (basename would be empty after split)
