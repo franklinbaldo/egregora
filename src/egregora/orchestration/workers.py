@@ -26,15 +26,10 @@ class BaseWorker(ABC):
 
     def __init__(self, ctx: PipelineContext) -> None:
         self.ctx = ctx
-        # Assume task_store is available on context or we get it from storage
-        # Ideally it should be on context. If not, we instantiate it.
-        # But we need storage manager.
-        if hasattr(ctx, "task_store") and ctx.task_store:
-             self.task_store = ctx.task_store
-        else:
-             # Fallback if not injected (though it should be)
-             from egregora.database.task_store import TaskStore
-             self.task_store = TaskStore(ctx.storage)
+        if not hasattr(ctx, "task_store") or not ctx.task_store:
+            msg = "TaskStore not found in PipelineContext; it must be initialized and injected."
+            raise ValueError(msg)
+        self.task_store = ctx.task_store
 
     @abstractmethod
     def run(self) -> int:
