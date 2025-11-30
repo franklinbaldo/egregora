@@ -15,7 +15,7 @@ import ibis
 from google import genai
 
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.writer import WriterResources
+from egregora.agents.types import WriterResources
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import UrlContext
 from egregora.database import initialize_database

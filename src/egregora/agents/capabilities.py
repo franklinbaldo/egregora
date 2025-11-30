@@ -1,0 +1,64 @@
+"""Capabilities for extending the writer agent.
+
+Each capability registers its tools with the agent, enabling explicit and
+auditable composition at the call site.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Protocol, runtime_checkable
+
+from pydantic_ai import Agent, RunContext
+
+from egregora.agents.types import WriterDeps
+from egregora.agents.writer_tools import (
+    BannerContext,
+    BannerResult,
+    SearchMediaResult,
+    generate_banner_impl,
+    search_media_impl,
+)
+
+logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class AgentCapability(Protocol):
+    """A distinct capability that can be attached to the writer agent."""
+
+    name: str
+
+    def register(self, agent: Agent[WriterDeps, Any]) -> None:
+        """Register tools associated with this capability."""
+
+
+class RagCapability:
+    """Enables RAG knowledge retrieval for media search."""
+
+    name = "RAG Knowledge Retrieval"
+
+    def register(self, agent: Agent[WriterDeps, Any]) -> None:
+        @agent.tool
+        async def search_media(
+            ctx: RunContext[WriterDeps], query: str, top_k: int = 5
+        ) -> SearchMediaResult:
+            """Search for relevant media (images, videos, audio) in the knowledge base."""
+
+            return await search_media_impl(query, top_k)
+
+
+class BannerCapability:
+    """Enables visual banner generation for posts."""
+
+    name = "Banner Image Generation"
+
+    def register(self, agent: Agent[WriterDeps, Any]) -> None:
+        @agent.tool
+        def generate_banner(
+            ctx: RunContext[WriterDeps], post_slug: str, title: str, summary: str
+        ) -> BannerResult:
+            """Generate a banner image for a post."""
+
+            banner_ctx = BannerContext(output_sink=ctx.deps.output_sink)
+            return generate_banner_impl(banner_ctx, post_slug, title, summary)
