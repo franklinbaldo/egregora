@@ -14,7 +14,6 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import ibis
-from ibis import _
 
 from egregora.database.duckdb_manager import DuckDBStorageManager
 
@@ -113,7 +112,7 @@ class EloStore:
 
         """
         ratings_table = self.storage.read_table("elo_ratings")
-        result = ratings_table.filter(_.post_slug == post_slug).limit(1).execute()
+        result = ratings_table.filter(ratings_table.post_slug == post_slug).limit(1).execute()
 
         if result.empty:
             # Return default rating for new posts
@@ -297,7 +296,11 @@ class EloStore:
 
         """
         ratings_table = self.storage.ibis_conn.table("elo_ratings")
-        return ratings_table.filter(_.comparisons > 0).order_by(_.rating.desc()).limit(limit)
+        return (
+            ratings_table.filter(ratings_table.comparisons > 0)
+            .order_by(ratings_table.rating.desc())
+            .limit(limit)
+        )
 
     def get_comparison_history(
         self,
@@ -317,9 +320,11 @@ class EloStore:
         history_table = self.storage.read_table("comparison_history")
 
         if post_slug:
-            history_table = history_table.filter((_.post_a_slug == post_slug) | (_.post_b_slug == post_slug))
+            history_table = history_table.filter(
+                (history_table.post_a_slug == post_slug) | (history_table.post_b_slug == post_slug)
+            )
 
-        history_table = history_table.order_by(_.timestamp.desc())
+        history_table = history_table.order_by(history_table.timestamp.desc())
 
         if limit:
             history_table = history_table.limit(limit)

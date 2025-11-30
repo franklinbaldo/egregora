@@ -1106,7 +1106,7 @@ def get_top_authors(table: Table, limit: int = 20) -> list[str]:
         .filter(table.author_uuid.notnull())
         .filter(table.author_uuid.cast("string") != "")
         .group_by("author_uuid")
-        .aggregate(count=ibis._.count())
+        .aggregate(count=table.author_uuid.count())
         .order_by(ibis.desc("count"))
         .limit(limit)
     )

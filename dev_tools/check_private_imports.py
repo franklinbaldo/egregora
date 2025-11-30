@@ -35,11 +35,6 @@ def check_all_for_private_names(file_path: Path) -> list[str]:
 def check_private_imports(file_path: Path) -> list[str]:
     """Check for imports of underscore-prefixed names from other modules."""
     errors = []
-    # Special cases that are OK
-    allowed_private_imports = {
-        ("ibis", "_"),  # ibis._ is a conventional placeholder (like SQL's _)
-    }
-
     try:
         tree = ast.parse(file_path.read_text())
         for node in ast.walk(tree):
@@ -50,9 +45,6 @@ def check_private_imports(file_path: Path) -> list[str]:
                         if alias.name.startswith("_") and not (
                             alias.name.startswith("__") and alias.name.endswith("__")
                         ):
-                            # Skip allowed cases
-                            if (node.module, alias.name) in allowed_private_imports:
-                                continue
                             errors.append(
                                 f"{file_path}:{node.lineno}: Importing private name '{alias.name}' "
                                 f"from '{node.module}'"
