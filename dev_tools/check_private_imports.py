@@ -36,7 +36,7 @@ def check_private_imports(file_path: Path) -> list[str]:
     """Check for imports of underscore-prefixed names from other modules."""
     errors = []
     # Special cases that are OK
-    ALLOWED_PRIVATE_IMPORTS = {
+    allowed_private_imports = {
         ("ibis", "_"),  # ibis._ is a conventional placeholder (like SQL's _)
     }
 
@@ -49,7 +49,7 @@ def check_private_imports(file_path: Path) -> list[str]:
                     for alias in node.names:
                         if alias.name.startswith("_"):
                             # Skip allowed cases
-                            if (node.module, alias.name) in ALLOWED_PRIVATE_IMPORTS:
+                            if (node.module, alias.name) in allowed_private_imports:
                                 continue
                             errors.append(
                                 f"{file_path}:{node.lineno}: Importing private name '{alias.name}' "
