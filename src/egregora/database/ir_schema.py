@@ -20,7 +20,7 @@ for improved maintainability and single source of truth.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import duckdb
 import ibis
@@ -28,9 +28,6 @@ import ibis.expr.datatypes as dt
 
 from egregora.database.sql import SQLManager
 from egregora.database.utils import quote_identifier
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
