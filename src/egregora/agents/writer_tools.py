@@ -25,6 +25,7 @@ from egregora.rag import search
 from egregora.rag.models import RAGQueryRequest
 
 if TYPE_CHECKING:
+    from egregora.agents.capabilities import AsyncBannerCapability, AsyncProfileCapability
     from egregora.database.annotations_store import AnnotationsStore
     from egregora.output_adapters.base import OutputSink
 
@@ -53,6 +54,8 @@ class WriteProfileResult(BaseModel):
 
     status: str
     path: str
+    image_path: str | None = None
+    caption: str | None = None
 
 
 class MediaItem(BaseModel):
@@ -84,7 +87,10 @@ class BannerResult(BaseModel):
     """Result from generating a banner."""
 
     status: str
-    path: str | None
+    path: str | None = None # Legacy field
+    image_path: str | None = None
+    caption: str | None = None
+    error: str | None = None
 
 
 # ==============================================================================
@@ -98,6 +104,7 @@ class ToolContext:
 
     output_sink: OutputSink
     window_label: str
+    profile_capability: AsyncProfileCapability | None = None
 
 
 @dataclass
@@ -112,6 +119,7 @@ class BannerContext:
     """Context for banner generation."""
 
     output_sink: OutputSink
+    banner_capability: AsyncBannerCapability | None = None
 
 
 # ==============================================================================
@@ -162,6 +170,9 @@ def read_profile_impl(ctx: ToolContext, author_uuid: str) -> ReadProfileResult:
 def write_profile_impl(ctx: ToolContext, author_uuid: str, content: str) -> WriteProfileResult:
     """Write or update an author's profile.
 
+    If an AsyncProfileCapability is available in the context, this delegates to it.
+    Otherwise, it writes directly to the output sink (synchronous fallback).
+
     Args:
         ctx: Tool context with output sink and window label
         author_uuid: UUID of the author
@@ -171,6 +182,11 @@ def write_profile_impl(ctx: ToolContext, author_uuid: str, content: str) -> Writ
         WriteProfileResult with success status and document path
 
     """
+    if ctx.profile_capability:
+        logger.info("Delegating profile update to async capability for %s", author_uuid)
+        return ctx.profile_capability.schedule(author_uuid, content)
+
+    # Fallback: Synchronous write
     doc = Document(
         content=content,
         type=DocumentType.PROFILE,
@@ -269,6 +285,9 @@ def annotate_conversation_impl(
 def generate_banner_impl(ctx: BannerContext, post_slug: str, title: str, summary: str) -> BannerResult:
     """Generate a banner image for a post.
 
+    If an AsyncBannerCapability is available, delegates to it.
+    Otherwise, generates synchronously.
+
     Args:
         ctx: Banner context with output sink
         post_slug: Slug for the post
@@ -279,6 +298,11 @@ def generate_banner_impl(ctx: BannerContext, post_slug: str, title: str, summary
         BannerResult with generation status and path
 
     """
+    if ctx.banner_capability:
+        logger.info("Delegating banner generation to async capability for %s", post_slug)
+        return ctx.banner_capability.schedule(post_slug, title, summary)
+
+    # Fallback: Synchronous generation
     result = generate_banner(post_title=title, post_summary=summary, slug=post_slug)
 
     if result.success and result.document:
@@ -292,5 +316,6 @@ def generate_banner_impl(ctx: BannerContext, post_slug: str, title: str, summary
         # Persist the banner through the output adapter
         ctx.output_sink.persist(banner_doc)
 
-        return BannerResult(status="success", path=web_path)
-    return BannerResult(status="failed", path=result.error)
+        return BannerResult(status="success", path=web_path, image_path=web_path)
+
+    return BannerResult(status="failed", error=result.error)

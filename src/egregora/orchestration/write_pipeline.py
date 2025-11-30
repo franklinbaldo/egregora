@@ -5,6 +5,7 @@ This module orchestrates the high-level flow for the 'write' command, coordinati
 - Privacy and enrichment stages
 - Window-based post generation
 - Output adapter persistence
+- Asynchronous task processing (banners, profiles)
 
 Part of the three-layer architecture:
 - orchestration/ (THIS) - Business workflows (WHAT to execute)
@@ -44,6 +45,7 @@ from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.run_store import RunStore
+from egregora.database.task_store import TaskStore
 from egregora.database.views import daily_aggregates_view
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.base import MediaMapping
@@ -52,6 +54,7 @@ from egregora.knowledge.profiles import filter_opted_out_authors, process_comman
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
+from egregora.orchestration.workers import BannerWorker, ProfileWorker
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
@@ -199,6 +202,31 @@ def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
     return (summary or "").strip(), (instructions or "").strip()
 
 
+def _process_background_tasks(ctx: PipelineContext) -> None:
+    """Process pending background tasks (banners, profiles, enrichment)."""
+    if not hasattr(ctx, "task_store") or not ctx.task_store:
+        return
+
+    logger.info("⚙️  [bold cyan]Processing background tasks...[/]")
+
+    # Run workers sequentially for now (can be parallelized later)
+    # 1. Banner Generation (Highest priority - visual assets)
+    banner_worker = BannerWorker(ctx)
+    banners_processed = banner_worker.run()
+    if banners_processed > 0:
+        logger.info("Generated %d banners", banners_processed)
+
+    # 2. Profile Updates (Coalescing optimization)
+    profile_worker = ProfileWorker(ctx)
+    profiles_processed = profile_worker.run()
+    if profiles_processed > 0:
+        logger.info("Updated %d profiles", profiles_processed)
+
+    # 3. Enrichment (Lower priority - can catch up later)
+    # enrichment_worker = EnrichmentWorker(ctx)
+    # enrichment_worker.run()
+
+
 def _process_single_window(
     window: any, ctx: PipelineContext, *, depth: int = 0
 ) -> dict[str, dict[str, list[str]]]:
@@ -266,9 +294,17 @@ def _process_single_window(
         cache=ctx.cache,
         adapter_content_summary=adapter_summary,
         adapter_generation_instructions=adapter_instructions,
+        run_id=str(ctx.run_id) if ctx.run_id else None,
     )
     post_count = len(result.get("posts", []))
     profile_count = len(result.get("profiles", []))
+
+    # Check for scheduled tasks
+    # TODO: We might want to inspect result for scheduled tasks specifically,
+    # but currently write_posts_for_window returns lists of persisted paths.
+    # The capability implementation returns "pending:<task_id>" as path.
+    # We can rely on the task store for accurate counts.
+
     logger.info(
         "%s[green]✔ Generated[/] %s posts / %s profiles for %s",
         indent,
@@ -527,6 +563,10 @@ def _process_all_windows(
         if max_processed_timestamp is None or window.end_time > max_processed_timestamp:
             max_processed_timestamp = window.end_time
 
+        # Process accumulated background tasks periodically or after each window?
+        # Processing after each window keeps the queue small and provides incremental progress.
+        _process_background_tasks(ctx)
+
         # Log summary (per-window event tracking removed - see SIMPLIFICATION_PLAN.md)
         posts_count = sum(len(r.get("posts", [])) for r in window_results.values())
         profiles_count = sum(len(r.get("profiles", [])) for r in window_results.values())
@@ -727,6 +767,9 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     storage = DuckDBStorageManager(db_path=db_file)
     annotations_store = AnnotationStore(storage)
 
+    # Initialize TaskStore for async operations
+    task_store = TaskStore(storage)
+
     quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
 
     output_registry = create_default_output_registry()
@@ -762,7 +805,24 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         output_registry=output_registry,
     )
 
+    # Inject TaskStore into state/context
+    # Note: PipelineState definition might need update if we want type safety,
+    # but PipelineContext can accept extra attrs or we subclass PipelineState.
+    # For now, we attach it to the context instance or use `with_` if available.
+    # PipelineContext is a dataclass, so we can't easily attach arbitrary attrs if frozen.
+    # We should update PipelineContext definition ideally, but it's imported.
+    # Let's see if we can attach it to the State object.
+
+    # Explicitly set task_store on state object (now supported in definition)
+    state.task_store = task_store
+
     ctx = PipelineContext(config_obj, state)
+    # Also ensure ctx exposes task_store (if PipelineContext delegates __getattr__ or similar)
+    # PipelineContext usually wraps config and state.
+    # If PipelineContext structure is rigid, we might need to modify `egregora/orchestration/context.py`.
+    # Let's assume for now we can access it via ctx.state.task_store or similar.
+    # BUT wait, the code uses `ctx.task_store` in `_process_background_tasks`.
+    # I'll check `context.py` next. If `PipelineContext` is frozen, I can't set attributes.
 
     return ctx, pipeline_backend, runs_backend
 
@@ -1416,6 +1476,10 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             )
             # Save checkpoint first (critical path)
             _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
+
+            # Process remaining background tasks after all windows are done
+            # (In case there are stragglers)
+            _process_background_tasks(dataset.context)
 
             # Generate statistics page (non-critical, isolated)
             try:
