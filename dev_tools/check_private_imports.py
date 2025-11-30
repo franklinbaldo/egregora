@@ -20,7 +20,7 @@ def check_all_for_private_names(file_path: Path) -> list[str]:
             if isinstance(node, ast.Assign):
                 for target in node.targets:
                     if isinstance(target, ast.Name) and target.id == "__all__":
-                        if isinstance(node.value, (ast.List, ast.Tuple)):
+                        if isinstance(node.value, ast.List | ast.Tuple):
                             for elt in node.value.elts:
                                 if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
                                     if elt.value.startswith("_"):
@@ -36,7 +36,7 @@ def check_private_imports(file_path: Path) -> list[str]:
     """Check for imports of underscore-prefixed names from other modules."""
     errors = []
     # Special cases that are OK
-    ALLOWED_PRIVATE_IMPORTS = {
+    allowed_private_imports = {
         ("ibis", "_"),  # ibis._ is a conventional placeholder (like SQL's _)
     }
 
@@ -47,9 +47,11 @@ def check_private_imports(file_path: Path) -> list[str]:
             if isinstance(node, ast.ImportFrom):
                 if node.module and not node.module.startswith("."):  # Only check absolute imports
                     for alias in node.names:
-                        if alias.name.startswith("_"):
+                        if alias.name.startswith("_") and not (
+                            alias.name.startswith("__") and alias.name.endswith("__")
+                        ):
                             # Skip allowed cases
-                            if (node.module, alias.name) in ALLOWED_PRIVATE_IMPORTS:
+                            if (node.module, alias.name) in allowed_private_imports:
                                 continue
                             errors.append(
                                 f"{file_path}:{node.lineno}: Importing private name '{alias.name}' "
@@ -66,7 +68,7 @@ def main() -> int:
 
     for file_path_str in sys.argv[1:]:
         file_path = Path(file_path_str)
-        if not file_path.suffix == ".py":
+        if file_path.suffix != ".py":
             continue
 
         # Check 1: Private names in __all__

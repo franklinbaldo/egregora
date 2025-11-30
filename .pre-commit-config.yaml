@@ -23,6 +23,12 @@ repos:
   # - check-complexity, check-dead-code, check-security: Use scripts/quality.sh instead
   - repo: local
     hooks:
+      - id: check-private-imports
+        name: Check private imports
+        entry: dev_tools/check_private_imports.py
+        language: python
+        types: [python]
+        pass_filenames: true
       - id: check-test-config
         name: Check test configuration
         entry: python dev_tools/check_test_config.py
