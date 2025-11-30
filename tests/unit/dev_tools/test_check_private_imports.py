@@ -94,8 +94,8 @@ VERSION = __version__
 
         assert len(errors) == 0
 
-    def test_check_private_imports_allows_ibis_underscore(self, tmp_path):
-        """Test that ibis._ import is allowed."""
+    def test_check_private_imports_flags_ibis_underscore(self, tmp_path):
+        """Test that ibis._ import is treated as private."""
         code = """
 from ibis import _
 
@@ -105,7 +105,7 @@ t = _.col
         f.write_text(code)
         errors = check_private_imports(f)
 
-        assert len(errors) == 0
+        assert len(errors) == 1
 
 
 class TestRegressionTests:

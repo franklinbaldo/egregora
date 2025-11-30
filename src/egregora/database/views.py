@@ -62,10 +62,10 @@ def hourly_aggregates_view(ir: Table) -> Table:
         ir.mutate(hour=ir.ts.truncate("hour"))
         .group_by("hour")
         .agg(
-            message_count=ibis._.count(),
-            unique_authors=ibis._.author_uuid.nunique(),
-            first_message=ibis._.ts.min(),
-            last_message=ibis._.ts.max(),
+            message_count=ir.event_id.count(),
+            unique_authors=ir.author_uuid.nunique(),
+            first_message=ir.ts.min(),
+            last_message=ir.ts.max(),
         )
         .order_by("hour")
     )
@@ -77,10 +77,10 @@ def daily_aggregates_view(ir: Table) -> Table:
         ir.mutate(day=ir.ts.truncate("day"))
         .group_by("day")
         .agg(
-            message_count=ibis._.count(),
-            unique_authors=ibis._.author_uuid.nunique(),
-            first_message=ibis._.ts.min(),
-            last_message=ibis._.ts.max(),
+            message_count=ir.event_id.count(),
+            unique_authors=ir.author_uuid.nunique(),
+            first_message=ir.ts.min(),
+            last_message=ir.ts.max(),
         )
         .order_by("day")
     )
