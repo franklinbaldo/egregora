@@ -40,8 +40,11 @@ class RagCapability:
 
     def register(self, agent: Agent[WriterDeps, Any]) -> None:
         @agent.tool
-        async def search_media(ctx: RunContext[WriterDeps], query: str, top_k: int = 5) -> SearchMediaResult:
+        async def search_media(
+            ctx: RunContext[WriterDeps], query: str, top_k: int = 5
+        ) -> SearchMediaResult:
             """Search for relevant media (images, videos, audio) in the knowledge base."""
+
             return await search_media_impl(query, top_k)
 
 
@@ -56,5 +59,6 @@ class BannerCapability:
             ctx: RunContext[WriterDeps], post_slug: str, title: str, summary: str
         ) -> BannerResult:
             """Generate a banner image for a post."""
+
             banner_ctx = BannerContext(output_sink=ctx.deps.output_sink)
             return generate_banner_impl(banner_ctx, post_slug, title, summary)
