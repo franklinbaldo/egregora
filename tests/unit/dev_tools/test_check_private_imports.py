@@ -1,17 +1,17 @@
 """Tests for check_private_imports pre-commit hook."""
 
 import ast
-import pytest
-from pathlib import Path
 
 # Import the check_private_imports module
 import sys
+from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parents[3] / "dev_tools"))
 
 from check_private_imports import (
-    check_private_in_all,
     check_cross_module_private_imports,
     check_file,
+    check_private_in_all,
 )
 
 
@@ -20,7 +20,7 @@ class TestPrivateImportsChecker:
 
     def test_check_private_in_all_detects_violation(self):
         """Test detection of private names exported in __all__."""
-        code = '''
+        code = """
 __all__ = ["public_func", "_private_func"]
 
 def public_func():
@@ -28,7 +28,7 @@ def public_func():
 
 def _private_func():
     pass
-'''
+"""
         tree = ast.parse(code)
         errors = check_private_in_all(tree, "test.py")
 
@@ -38,7 +38,7 @@ def _private_func():
 
     def test_check_private_in_all_allows_public_names(self):
         """Test that public names in __all__ are allowed."""
-        code = '''
+        code = """
 __all__ = ["public_func", "PublicClass"]
 
 def public_func():
@@ -46,7 +46,7 @@ def public_func():
 
 class PublicClass:
     pass
-'''
+"""
         tree = ast.parse(code)
         errors = check_private_in_all(tree, "test.py")
 
@@ -54,12 +54,12 @@ class PublicClass:
 
     def test_check_cross_module_imports_detects_violation(self):
         """Test detection of cross-module private function imports."""
-        code = '''
+        code = """
 from other_module import _private_function
 
 def my_function():
     return _private_function()
-'''
+"""
         tree = ast.parse(code)
         errors = check_cross_module_private_imports(tree, "test.py")
 
@@ -69,12 +69,12 @@ def my_function():
 
     def test_check_cross_module_imports_allows_public(self):
         """Test that public function imports are allowed."""
-        code = '''
+        code = """
 from other_module import public_function
 
 def my_function():
     return public_function()
-'''
+"""
         tree = ast.parse(code)
         errors = check_cross_module_private_imports(tree, "test.py")
 
@@ -82,11 +82,11 @@ def my_function():
 
     def test_check_cross_module_imports_allows_dunder(self):
         """Test that dunder imports (like __version__) are allowed."""
-        code = '''
+        code = """
 from other_module import __version__
 
 VERSION = __version__
-'''
+"""
         tree = ast.parse(code)
         errors = check_cross_module_private_imports(tree, "test.py")
 
@@ -94,14 +94,14 @@ VERSION = __version__
 
     def test_check_file_combines_all_checks(self):
         """Test that check_file runs all validation checks."""
-        code = '''
+        code = """
 __all__ = ["_bad_export"]
 
 from other import _private_func
 
 def _bad_export():
     return _private_func()
-'''
+"""
         errors = check_file("test.py", code)
 
         # Should find both violations
@@ -134,15 +134,15 @@ class TestRegressionTests:
 
     def test_avatar_import_was_violation(self):
         """Test that the old avatar import pattern would be caught.
-        
+
         Regression test - the bug we fixed in PR #1036 would have been caught.
         """
         # This was the problematic code pattern
-        code = '''
+        code = """
 from egregora.knowledge.avatar import _generate_fallback_avatar_url
 
 url = _generate_fallback_avatar_url(uuid)
-'''
+"""
         tree = ast.parse(code)
         errors = check_cross_module_private_imports(tree, "adapter.py")
 

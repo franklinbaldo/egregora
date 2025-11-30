@@ -90,7 +90,9 @@ class MkDocsSiteScaffolder:
                 "default_writer_model": EgregoraConfig().models.writer,
                 "media_counts": {"urls": 0, "images": 0, "videos": 0, "audio": 0},
                 "recent_media": [],
-"overrides_dir": Path(os.path.relpath(site_paths["egregora_dir"] / "overrides", mkdocs_config_dir)).as_posix(),
+                "overrides_dir": Path(
+                    os.path.relpath(site_paths["egregora_dir"] / "overrides", mkdocs_config_dir)
+                ).as_posix(),
             }
 
             new_mkdocs_path = site_paths["mkdocs_config_path"]
