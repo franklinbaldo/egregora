@@ -456,7 +456,7 @@ class DuckDBStorageManager:
 
         cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
         values = [int(row[0]) for row in cursor.fetchall()]
-        
+
         # Defensive check: if query returns empty, sequence might not exist
         if not values:
             # Check if sequence exists
@@ -472,7 +472,7 @@ class DuckDBStorageManager:
                 # Sequence exists but query returned empty - this is unexpected
                 msg = f"Sequence '{sequence_name}' exists but nextval query returned no results"
                 raise RuntimeError(msg)
-        
+
         return values
 
     def table_exists(self, name: str) -> bool:
