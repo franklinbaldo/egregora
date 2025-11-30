@@ -19,17 +19,17 @@
 
 {% macro media_embed_block(media_type, media_path, media_filename) -%}
 {% if media_type == "image" %}
-![{{ media_filename }}](../../{{ media_path }})
+![{{ media_filename }}](/{{ media_path }})
 {% elif media_type == "video" %}
 <video controls width="100%">
-  <source src="../../{{ media_path }}" type="video/mp4">
+  <source src="/{{ media_path }}" type="video/mp4">
 </video>
 {% elif media_type == "audio" %}
 <audio controls>
-  <source src="../../{{ media_path }}">
+  <source src="/{{ media_path }}">
 </audio>
 {% else %}
-[Download/view file](../../{{ media_path }})
+[Download/view file](/{{ media_path }})
 {% endif %}
 {%- endmacro %}
 
@@ -191,7 +191,7 @@ Generate a complete markdown document following this structure:
 ### Media File
 {{ media_embed_block(media_type, media_path, media_filename) }}
 
-[Download](../../{{ media_path }})
+[Download](/{{ media_path }})
 
 ## Analysis
 
