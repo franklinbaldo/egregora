@@ -1,109 +1,34 @@
-# Egregora Agents
+# Repository Guidelines
 
-This document serves as the primary onboarding guide for both human developers and AI assistants working with the Egregora agentic system.
+## Project Structure & Module Organization
+- Source lives in `src/egregora`: CLI (`cli/`), orchestration (`orchestration/`), pure transforms (`transformations/`), adapters (`input_adapters/`, `output_adapters/`), persistence/RAG (`database/`, `rag/`), agents (`agents/`), prompts/templates (`prompts/`, `templates/`), utilities (`utils/`).
+- Tests reside in `tests/` (unit, integration, e2e) with fixtures under `tests/fixtures/` (sample chats, VCR cassettes, golden data).
+- Docs are MkDocs-based in `docs/`; dev helpers in `dev_tools/`; configs in `pyproject.toml`, `uv.lock`, `mkdocs.yml`.
 
-## System Overview
+## Build, Test, and Development Commands
+- First-time setup: `python dev_tools/setup_hooks.py` (installs deps with uv and pre-commit hooks).
+- Lint/format: `uv run ruff check src tests` and `uv run ruff format src tests`.
+- Tests: `uv run pytest tests/`; quick loop `uv run pytest -m "not slow"`; coverage `uv run pytest --cov=egregora --cov-report=html tests/`.
+- Docs preview: `uvx mkdocs serve` from the repo root.
+- CLI smoke test: `uv run egregora --help` or `uv run egregora write tests/fixtures/sample_chats/basic_chat.zip --output=./site`.
 
-Egregora uses a multi-agent architecture to transform raw WhatsApp conversations into polished blog posts. The system is built on **Pydantic-AI** and orchestrates several specialized agents.
+## Coding Style & Naming Conventions
+- Python 3.12+, 4-space indent, line length 100 (Black) / 110 (Ruff). Type hints required; Google-style docstrings for public APIs.
+- Ibis-first policy: avoid pandas/pyarrow in `src/` (allowed only in compat/testing); absolute imports only.
+- Keep transformations pure and side-effect free; prefer protocol-driven design and dependency injection over globals.
+- Naming: snake_case modules; `{Name}Adapter` for adapters, `*Settings` for configs, `*Context` for runtime contexts, verb-first functions (`create_windows`, `run_pipeline`); use `utils.paths` for slug/path helpers.
 
-```mermaid
-graph TD
-    Raw[Raw WhatsApp Data] --> Adapter[Input Adapter]
-    Adapter --> Enricher[Enricher Agent]
-    Enricher --> Context[Context Assembly]
-    Context --> Writer[Writer Agent]
-    Writer --> Post[Blog Post]
-    Writer --> Banner[Banner Agent]
-    Writer --> Journal[Journal Entry]
-    Writer --> Profiles[User Profiles]
-```
+## Testing Guidelines
+- Pytest markers include `e2e`, `slow`, `quality`, `security`, `benchmark`. Use `-m "not slow"` for fast runs.
+- Use provided fixtures (`test_config`, `minimal_config`, `config_factory`) instead of instantiating configs directly to avoid touching real `.egregora/` paths; prefer `tmp_path` for any writes.
+- VCR cassettes live in `tests/fixtures/vcr_cassettes/`; delete a cassette to re-record. Update golden fixtures when expected outputs change.
+- Coverage: core ~90%+, utilities ~80%+, CLI ~70%.
 
----
+## Commit & Pull Request Guidelines
+- Follow Conventional Commit prefixes (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, etc.) seen in git history.
+- Before pushing: `uv run pre-commit run --all-files` and `uv run pytest tests/`.
+- PRs target `dev/develop`; include a concise summary, linked issues, and test evidence. Attach screenshots/log snippets for UI or doc output when relevant. Rebase workflow keeps PRs current—pull latest `dev` to avoid conflicts.
 
-## The Agents
-
-### 1. Writer Agent ✍️
-**Source:** `src/egregora/agents/writer.py`
-
-The conductor of the blog generation process. It analyzes the conversation, decides on a narrative angle, and synthesizes the final post.
-
-- **Role:** Narrative construction, content synthesis, continuity management.
-- **Inputs:**
-  - Enriched conversation DataFrame.
-  - Historical context (previous journal entries).
-  - User profiles (personalities, interests).
-- **Outputs:**
-  - Markdown blog post (`DocumentType.POST`).
-  - Continuity journal entry (`DocumentType.JOURNAL`).
-  - Updated user profiles (`DocumentType.PROFILE`).
-- **Key Tools:**
-  - `write_post`: Persists the final blog post.
-  - `search_media`: RAG-based search for relevant past content.
-  - `generate_banner`: Delegates to the Banner Agent.
-  - `read_profile` / `write_profile`: Manages user knowledge graph.
-
-### 2. Enricher Agent 🔍
-**Source:** `src/egregora/agents/enricher.py`
-
-Pre-processes raw data to add semantic depth before the Writer sees it.
-
-- **Role:** Data augmentation and content extraction.
-- **Capabilities:**
-  - **URL Enrichment:** Fetches metadata (title, description) and content summaries for shared links.
-  - **Media Enrichment:** Generates descriptions for images and transcriptions for audio/video.
-- **Caching:** Uses a robust L1 cache (`.egregora-cache/enrichment`) to prevent redundant API calls.
-
-### 3. Banner Agent 🎨
-**Source:** `src/egregora/agents/banner/agent.py`
-
-A specialized visual designer agent.
-
-- **Role:** Creating visual assets for blog posts.
-- **Inputs:** Post title, summary, slug.
-- **Outputs:** SVG/PNG banner images saved to `docs/assets/banners/`.
-
----
-
-## Developer Guide (Humans)
-
-### Adding a New Tool
-Tools are defined in `src/egregora/agents/writer_tools.py` to keep the agent logic clean.
-
-1. **Define the Implementation:** Create a pure function in `writer_tools.py`.
-   ```python
-   def my_new_tool_impl(ctx: ToolContext, arg1: str) -> Result:
-       # Logic here
-       return Result(...)
-   ```
-2. **Register with Agent:** In `writer.py`, wrap it with `@agent.tool`.
-   ```python
-   @agent.tool
-   def my_new_tool(ctx: RunContext[WriterDeps], arg1: str) -> Result:
-       return my_new_tool_impl(ctx.deps.tool_context, arg1)
-   ```
-
-### Modifying Prompts
-Prompts are Jinja2 templates located in `src/egregora/prompts/`.
-- `writer.jinja`: The core instruction set for the Writer.
-- `enrichment.jinja`: Instructions for media/URL analysis.
-
-**Tip:** Use `uv run` to execute the pipeline during development:
-```bash
-uv run egregora write path/to/data.zip
-```
-
----
-
-## AI Assistant Guide (Robots)
-
-If you are an AI (like Antigravity or Codex) working on this repo, follow these rules:
-
-1. **Tool Isolation:** When modifying agent capabilities, look at `src/egregora/agents/writer_tools.py` first. Do not put heavy logic directly into `writer.py`.
-2. **Type Safety:** Respect the Pydantic models in `src/egregora/data_primitives/`.
-3. **Context Awareness:** The `WriterDeps` and `ToolContext` classes are the primary dependency injection mechanisms. Ensure they are correctly populated in `write_pipeline.py`.
-4. **Testing:** Always add a test case in `tests/agents/test_writer_tools.py` when adding new functionality.
-5. **Path Handling:** Use `pathlib.Path` everywhere. Avoid string manipulation for paths.
-
-### Common Pitfalls
-- **Circular Imports:** `writer.py` imports `writer_tools.py`. Do not import `writer.py` from `writer_tools.py`.
-- **API Keys:** Never hardcode keys. Use `os.environ` or the `config` object.
+## Security & Configuration Tips
+- Keep secrets in environment variables (e.g., `GOOGLE_API_KEY`); never commit keys or generated `.egregora/` or `site/` outputs.
+- Prefer temporary paths for local runs and tests; cache directories such as `.egregora-cache/` should not be versioned.

@@ -1,6 +1,6 @@
 """Tests for writer_tools module - ensures tool functions are independently testable."""
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -97,8 +97,11 @@ class TestWriterToolsExtraction:
     async def test_search_media_impl_handles_rag_errors(self):
         """Test search_media_impl gracefully handles RAG backend errors."""
         # This test verifies error handling works without needing actual RAG backend
-        # Act
-        result = await search_media_impl("test query", top_k=5)
+
+        # Patch search to raise an error
+        with patch("egregora.agents.writer_tools.search", side_effect=RuntimeError("RAG error")):
+            # Act
+            result = await search_media_impl("test query", top_k=5)
 
         # Assert - should return empty results on connection error
         assert isinstance(result, SearchMediaResult)
@@ -136,7 +139,7 @@ class TestWriterToolsExtraction:
         """Test generate_banner_impl returns failure result when generation fails."""
         # This would require mocking the banner generator
         # For now, just verify the function signature exists and is callable
-        ctx = BannerContext(output_sink=Mock())
+        BannerContext(output_sink=Mock())
         # Function exists and accepts correct parameters
         assert callable(generate_banner_impl)
 

@@ -47,7 +47,9 @@ def check_private_imports(file_path: Path) -> list[str]:
             if isinstance(node, ast.ImportFrom):
                 if node.module and not node.module.startswith("."):  # Only check absolute imports
                     for alias in node.names:
-                        if alias.name.startswith("_"):
+                        if alias.name.startswith("_") and not (
+                            alias.name.startswith("__") and alias.name.endswith("__")
+                        ):
                             # Skip allowed cases
                             if (node.module, alias.name) in allowed_private_imports:
                                 continue

@@ -222,7 +222,7 @@ async def search_media_impl(query: str, top_k: int = 5) -> SearchMediaResult:
         logger.info("RAG media search returned %d results for query: %s", len(media_items), query[:50])
         return SearchMediaResult(results=media_items)
 
-    except (ConnectionError, TimeoutError) as exc:
+    except (ConnectionError, TimeoutError, RuntimeError) as exc:
         logger.warning("RAG backend unavailable for media search: %s", exc)
         return SearchMediaResult(results=[])
     except ValueError as exc:

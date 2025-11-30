@@ -13,6 +13,7 @@ def test_full_pipeline_smoke_test(
     llm_response_mocks,
     mock_vector_store,
     mocked_writer_agent,
+    mock_batch_client,
     tmp_path,
     gemini_api_key,
 ):
@@ -114,6 +115,7 @@ def test_pipeline_with_rag_enabled(
     llm_response_mocks,
     mock_vector_store,
     mocked_writer_agent,
+    mock_batch_client,
     tmp_path,
     gemini_api_key,
 ):
