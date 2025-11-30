@@ -18,10 +18,7 @@ from egregora.database.duckdb_manager import (
 )
 from egregora.database.init import initialize_database
 from egregora.database.ir_schema import (
-    CONVERSATION_SCHEMA,
-    MESSAGE_SCHEMA,
     RUNS_TABLE_SCHEMA,
-    WHATSAPP_CONVERSATION_SCHEMA,
     create_runs_table,
     ensure_runs_table_exists,
 )
@@ -55,10 +52,7 @@ __all__ = [
     # Views
     "COMMON_VIEWS",
     # Schemas
-    "CONVERSATION_SCHEMA",
-    "MESSAGE_SCHEMA",
     "RUNS_TABLE_SCHEMA",
-    "WHATSAPP_CONVERSATION_SCHEMA",
     # Storage
     "DuckDBStorageManager",
     # Tracking & Observability
