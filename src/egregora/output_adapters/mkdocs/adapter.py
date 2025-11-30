@@ -938,10 +938,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 top_topics = sorted(topics.items(), key=lambda item: item[1], reverse=True)
 
                 avatar = metadata.get("avatar", "")
-                if not avatar:
-                    from egregora.knowledge.profiles import _generate_fallback_avatar_url
+                # Generate fallback avatar if missing
+                if not metadata.get("avatar"):
+                    from egregora.knowledge.profiles import generate_fallback_avatar_url
 
-                    avatar = _generate_fallback_avatar_url(author_uuid)
+                    avatar = generate_fallback_avatar_url(author_uuid)
 
                 profiles.append(
                     {
@@ -1045,10 +1046,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             name = author.get("name", author_id[:8])
             avatar = author.get("avatar", "")
 
+            # Generate fallback avatar if not set
             if not avatar:
-                from egregora.knowledge.profiles import _generate_fallback_avatar_url
+                from egregora.knowledge.profiles import generate_fallback_avatar_url
 
-                avatar = _generate_fallback_avatar_url(author_id)
+                avatar = generate_fallback_avatar_url(author_id)
 
             authors_data.append(
                 {
