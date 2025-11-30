@@ -21,6 +21,7 @@ from pydantic import BaseModel
 
 from egregora.agents.banner.agent import generate_banner
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
 from egregora.rag import search
 from egregora.rag.models import RAGQueryRequest
 
@@ -187,15 +188,13 @@ def write_profile_impl(ctx: ToolContext, author_uuid: str, content: str) -> Writ
         return ctx.profile_capability.schedule(author_uuid, content)
 
     # Fallback: Synchronous write
-    doc = Document(
-        content=content,
-        type=DocumentType.PROFILE,
-        metadata={"uuid": author_uuid},
+    doc_id = persist_profile_document(
+        ctx.output_sink,
+        author_uuid,
+        content,
         source_window=ctx.window_label,
     )
-    ctx.output_sink.persist(doc)
-    logger.info("Writer agent saved profile (doc_id: %s)", doc.document_id)
-    return WriteProfileResult(status="success", path=doc.document_id)
+    return WriteProfileResult(status="success", path=doc_id)
 
 
 async def search_media_impl(query: str, top_k: int = 5) -> SearchMediaResult:
@@ -306,16 +305,7 @@ def generate_banner_impl(ctx: BannerContext, post_slug: str, title: str, summary
     result = generate_banner(post_title=title, post_summary=summary, slug=post_slug)
 
     if result.success and result.document:
-        banner_doc = result.document
-
-        # Generate canonical URL via UrlConvention
-        url_convention = ctx.output_sink.url_convention
-        url_context = ctx.output_sink.url_context
-        web_path = url_convention.canonical_url(banner_doc, url_context)
-
-        # Persist the banner through the output adapter
-        ctx.output_sink.persist(banner_doc)
-
+        web_path = persist_banner_document(ctx.output_sink, result.document)
         return BannerResult(status="success", path=web_path, image_path=web_path)
 
     return BannerResult(status="failed", error=result.error)

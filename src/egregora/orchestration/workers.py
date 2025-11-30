@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from egregora.agents.banner.agent import generate_banner
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
 
 if TYPE_CHECKING:
     from egregora.orchestration.context import PipelineContext
@@ -69,17 +70,10 @@ class BannerWorker(BaseWorker):
                 result = generate_banner(post_title=title, post_summary=summary, slug=post_slug)
 
                 if result.success and result.document:
-                    # Persist
-                    self.ctx.output_format.persist(result.document)
+                    # Persist using shared helper
+                    web_path = persist_banner_document(self.ctx.output_format, result.document)
 
-                    # Chain: Enqueue enrichment if needed (e.g. image description)
-                    # For now, just mark complete
                     self.task_store.mark_completed(task["task_id"])
-
-                    # Determine web path for logging/further use
-                    url_convention = self.ctx.output_format.url_convention
-                    url_context = self.ctx.output_format.url_context
-                    web_path = url_convention.canonical_url(result.document, url_context)
                     logger.info("Banner generated: %s", web_path)
 
                     # TODO: Enqueue 'enrich_media' task here if we implement chaining
@@ -140,14 +134,13 @@ class ProfileWorker(BaseWorker):
             try:
                 content = latest_task["_parsed_payload"]["content"]
 
-                # Write profile
-                doc = Document(
-                    content=content,
-                    type=DocumentType.PROFILE,
-                    metadata={"uuid": author_uuid},
-                    source_window="async_worker", # Or derive from task metadata if stored
+                # Write profile using shared helper
+                persist_profile_document(
+                    self.ctx.output_format,
+                    author_uuid,
+                    content,
+                    source_window="async_worker",
                 )
-                self.ctx.output_format.persist(doc)
 
                 self.task_store.mark_completed(latest_task["task_id"])
                 logger.info("Updated profile for %s (Task %s)", author_uuid, latest_task["task_id"])
