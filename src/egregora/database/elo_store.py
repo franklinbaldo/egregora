@@ -297,8 +297,7 @@ class EloStore:
         """
         ratings_table = self.storage.ibis_conn.table("elo_ratings")
         return (
-            ratings_table
-            .filter(ratings_table.comparisons > 0)
+            ratings_table.filter(ratings_table.comparisons > 0)
             .order_by(ratings_table.rating.desc())
             .limit(limit)
         )
