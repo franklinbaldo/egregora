@@ -2,7 +2,6 @@
 
 import sys
 from pathlib import Path
-import pytest
 
 # Add dev_tools to path
 sys.path.insert(0, str(Path(__file__).parents[3] / "dev_tools"))
