@@ -70,9 +70,6 @@ from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaExceededError
 
 if TYPE_CHECKING:
-    from google import genai
-
-    from egregora.agents.shared.annotations import AnnotationStore
     from egregora.data_primitives.protocols import OutputSink
 
 logger = logging.getLogger(__name__)
@@ -585,6 +582,7 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
             _process_result(message.content, getattr(message, "tool_name", None))
 
     return saved_posts, saved_profiles
+
 
 def _validate_prompt_fits(
     prompt: str,
