@@ -1,8 +1,8 @@
 """Pydantic-AI powered writer agent.
 
 This module implements the writer workflow using Pydantic-AI.
-It exposes ``write_posts_for_window`` which routes the LLM conversation through a
-``pydantic_ai.Agent`` instance.
+It acts as the Composition Root for the agent, assembling core tools and
+capabilities before executing the conversation through a ``pydantic_ai.Agent``.
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ import ibis.common.exceptions
 from ibis.expr.types import Table
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
-from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import (
     ModelRequest,
@@ -35,6 +34,7 @@ from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
 from egregora.agents.banner.agent import is_banner_generation_available
+from egregora.agents.capabilities import AgentCapability, BannerCapability, RagCapability
 from egregora.agents.formatting import (
     build_conversation_xml,
     load_journal_memory,
@@ -44,24 +44,20 @@ from egregora.agents.model_limits import (
     get_model_context_limit,
     validate_prompt_fits,
 )
+from egregora.agents.types import PostMetadata, WriterAgentReturn, WriterDeps, WriterResources
 from egregora.agents.writer_tools import (
     AnnotationContext,
     AnnotationResult,
-    BannerContext,
-    BannerResult,
     ReadProfileResult,
-    SearchMediaResult,
     ToolContext,
     WritePostResult,
     WriteProfileResult,
     annotate_conversation_impl,
-    generate_banner_impl,
     read_profile_impl,
-    search_media_impl,
     write_post_impl,
     write_profile_impl,
 )
-from egregora.config.settings import EgregoraConfig, RAGSettings
+from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors, read_profile
 from egregora.output_adapters import OutputAdapterRegistry, create_default_output_registry
@@ -71,14 +67,10 @@ from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.utils.cache import CacheTier, PipelineCache
 from egregora.utils.metrics import UsageTracker
-from egregora.utils.quota import QuotaExceededError, QuotaTracker
+from egregora.utils.quota import QuotaExceededError
 
 if TYPE_CHECKING:
-    from google import genai
-
-    from egregora.agents.shared.annotations import AnnotationStore
     from egregora.data_primitives.protocols import OutputSink
-    from egregora.orchestration.context import PipelineContext
 
 logger = logging.getLogger(__name__)
 
@@ -110,86 +102,15 @@ AgentModel = Any
 
 
 # ============================================================================
-# Data Structures (Schemas)
-# ============================================================================
-
-
-class PostMetadata(BaseModel):
-    """Metadata schema for the write_post tool."""
-
-    title: str
-    slug: str
-    date: str
-    tags: list[str] = Field(default_factory=list)
-    summary: str | None = None
-    authors: list[str] = Field(default_factory=list)
-    category: str | None = None
-
-
-class WriterAgentReturn(BaseModel):
-    """Final assistant response when the agent finishes."""
-
-    summary: str | None = None
-    notes: str | None = None
-
-
-@dataclass(frozen=True)
-class WriterResources:
-    """Explicit resources required by the writer agent."""
-
-    # The Sink/Source for posts and profiles
-    output: OutputSink
-
-    # Knowledge Stores
-    annotations_store: AnnotationStore | None
-    storage: Any | None  # StorageProtocol - Required for RAG indexing
-
-    # Configuration required for tools
-    embedding_model: str
-    retrieval_config: RAGSettings
-
-    # Paths for prompt context loading
-    profiles_dir: Path
-    journal_dir: Path
-    prompts_dir: Path | None
-
-    # Runtime trackers
-    client: genai.Client | None
-    quota: QuotaTracker | None
-    usage: UsageTracker | None
-    output_registry: OutputAdapterRegistry | None = None
-
-
-@dataclass(frozen=True)
-class WriterDeps:
-    """Immutable dependencies passed to agent tools.
-
-    Replaces WriterAgentContext and WriterAgentState with a single,
-    simplified structure wrapping WriterResources.
-    """
-
-    resources: WriterResources
-    window_start: datetime
-    window_end: datetime
-    window_label: str
-
-    @property
-    def output_sink(self) -> OutputSink:
-        return self.resources.output
-
-
-# ============================================================================
 # Tool Definitions
 # ============================================================================
 
 
 def register_writer_tools(
     agent: Agent[WriterDeps, WriterAgentReturn],
-    *,
-    enable_banner: bool = False,
-    enable_rag: bool = False,
+    capabilities: list[AgentCapability],
 ) -> None:
-    """Attach tool implementations to the agent."""
+    """Attach tool implementations to the agent via core tools and capabilities."""
 
     @agent.tool
     def write_post_tool(ctx: RunContext[WriterDeps], metadata: PostMetadata, content: str) -> WritePostResult:
@@ -215,15 +136,6 @@ def register_writer_tools(
         )
         return write_profile_impl(tool_ctx, author_uuid, content)
 
-    if enable_rag:
-
-        @agent.tool
-        async def search_media_tool(
-            ctx: RunContext[WriterDeps], query: str, top_k: int = 5
-        ) -> SearchMediaResult:
-            """Search for relevant media (images, videos, audio) in the knowledge base."""
-            return await search_media_impl(query, top_k)
-
     @agent.tool
     def annotate_conversation_tool(
         ctx: RunContext[WriterDeps], parent_id: str, parent_type: str, commentary: str
@@ -232,14 +144,9 @@ def register_writer_tools(
         annot_ctx = AnnotationContext(annotations_store=ctx.deps.resources.annotations_store)
         return annotate_conversation_impl(annot_ctx, parent_id, parent_type, commentary)
 
-    if enable_banner:
-
-        @agent.tool
-        def generate_banner_tool(
-            ctx: RunContext[WriterDeps], post_slug: str, title: str, summary: str
-        ) -> BannerResult:
-            banner_ctx = BannerContext(output_sink=ctx.deps.output_sink)
-            return generate_banner_impl(banner_ctx, post_slug, title, summary)
+    for capability in capabilities:
+        logger.debug("Registering capability: %s", capability.name)
+        capability.register(agent)
 
 
 # ============================================================================
@@ -677,33 +584,6 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
     return saved_posts, saved_profiles
 
 
-def _prepare_deps(
-    ctx: PipelineContext,
-    window_start: datetime,
-    window_end: datetime,
-) -> WriterDeps:
-    """Prepare writer dependencies from pipeline context."""
-    window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
-
-    # Ensure output sink is initialized
-    if not ctx.output_format:
-        msg = "Output format not initialized in context"
-        raise ValueError(msg)
-
-    prompts_dir = ctx.site_root / ".egregora" / "prompts" if ctx.site_root else None
-
-    return WriterDeps(
-        ctx=ctx,
-        window_start=window_start,
-        window_end=window_end,
-        window_label=window_label,
-        prompts_dir=prompts_dir,
-        quota=ctx.quota_tracker,
-        usage_tracker=ctx.usage_tracker,
-        rate_limit=ctx.rate_limit,
-    )
-
-
 def _validate_prompt_fits(
     prompt: str,
     model_name: str,
@@ -753,11 +633,20 @@ def write_posts_with_pydantic_agent(
     """Execute the writer flow using Pydantic-AI agent tooling."""
     logger.info("Running writer via Pydantic-AI backend")
 
+    active_capabilities: list[AgentCapability] = []
+    if config.rag.enabled:
+        active_capabilities.append(RagCapability())
+
+    if is_banner_generation_available():
+        active_capabilities.append(BannerCapability())
+
+    if active_capabilities:
+        caps_list = ", ".join(capability.name for capability in active_capabilities)
+        logger.info("Writer capabilities enabled: %s", caps_list)
+
     model_name = test_model if test_model is not None else config.models.writer
     agent = Agent[WriterDeps, WriterAgentReturn](model=model_name, deps_type=WriterDeps)
-    register_writer_tools(
-        agent, enable_banner=is_banner_generation_available(), enable_rag=config.rag.enabled
-    )
+    register_writer_tools(agent, capabilities=active_capabilities)
 
     _validate_prompt_fits(prompt, model_name, config, context.window_label)
 
