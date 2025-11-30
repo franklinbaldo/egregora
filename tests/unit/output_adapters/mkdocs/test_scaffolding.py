@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, _safe_yaml_load
+from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def test_scaffold_site_creates_expected_layout(tmp_path: Path, scaffolder: MkDoc
     assert mkdocs_path == tmp_path / ".egregora" / "mkdocs.yml"
     assert mkdocs_path.exists()
 
-    mkdocs_config = _safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
+    mkdocs_config = safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
     assert mkdocs_config.get("site_name") == "Test Site"
 
     docs_dir = tmp_path / "docs"
