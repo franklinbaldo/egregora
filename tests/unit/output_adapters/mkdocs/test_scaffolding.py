@@ -49,3 +49,20 @@ def test_resolve_paths_returns_site_configuration(tmp_path: Path, scaffolder: Mk
     assert site_config.docs_dir == tmp_path / "docs"
     assert site_config.posts_dir.relative_to(site_config.docs_dir) == Path("posts")
     assert site_config.config_file == tmp_path / ".egregora" / "mkdocs.yml"
+
+
+def test_main_py_and_overrides_in_egregora_dir(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:
+    """Test that main.py and overrides/ are created in .egregora/ not site root.
+    
+    Regression test for PR #1036 - ensures site root stays clean.
+    """
+    scaffolder.scaffold_site(tmp_path, site_name="Clean Site")
+
+    # main.py should be in .egregora/, not root
+    assert (tmp_path / ".egregora" / "main.py").exists()
+    assert not (tmp_path / "main.py").exists()
+
+    # overrides/ should be in .egregora/, not root 
+    assert (tmp_path / ".egregora" / "overrides").exists()
+    assert (tmp_path / ".egregora" / "overrides" / "home.html").exists()
+    assert not (tmp_path / "overrides").exists()
