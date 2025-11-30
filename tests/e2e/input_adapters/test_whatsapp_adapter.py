@@ -69,7 +69,7 @@ def test_pipeline_rejects_unsafe_zip(tmp_path: Path):
 
 
 @pytest.fixture
-def mock_dynamic_regex_fallback(monkeypatch):
+def _mock_dynamic_regex_fallback(monkeypatch):
     """Mocks the dynamic regex generator to force fallback."""
     monkeypatch.setattr(
         "egregora.input_adapters.whatsapp.parsing.generate_dynamic_regex",
