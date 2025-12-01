@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 from google.genai import types as genai_types
-
 from egregora.utils.batch import (
     BatchPromptRequest,
     BatchPromptResult,
@@ -23,15 +22,13 @@ from egregora.utils.batch import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from google import genai
-
 
 class MockGeminiBatchClient:
     """Mock batch client that returns instant fake responses."""
 
     def __init__(
         self,
-        client: genai.Client | None = None,
+        client: object | None = None,
         default_model: str = "models/gemini-flash-latest",
         poll_interval: float = 5.0,
         timeout: float | None = 900.0,
@@ -46,7 +43,7 @@ class MockGeminiBatchClient:
         """Return the default model."""
         return self._default_model
 
-    def upload_file(self, *, path: str, display_name: str | None = None) -> genai_types.File:
+    def upload_file(self, *, path: str, display_name: str | None = None) -> File:
         """Mock file upload - returns a fake File object."""
         # Create a minimal fake File object
         return genai_types.File(
@@ -77,8 +74,7 @@ class MockGeminiBatchClient:
                 text=mock_text,
                 candidates=[
                     genai_types.Candidate(
-                        content=genai_types.Content(parts=[genai_types.Part(text=mock_text)]),
-                        finish_reason=genai_types.FinishReason.STOP,
+                        content=genai_types.Content(parts=[genai_types.Part(text=mock_text)])
                     )
                 ],
             )

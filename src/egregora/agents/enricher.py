@@ -268,7 +268,7 @@ async def _run_url_enrichment_async(
         prompts_dir=prompts_dir,
         sanitized_url=sanitized_url,
         pii_prevention=pii_prevention,
-    )
+    ).strip()
 
     async for attempt in AsyncRetrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
         with attempt:
@@ -312,7 +312,7 @@ async def _run_media_enrichment_async(  # noqa: PLR0913
         sanitized_filename=sanitized_filename,
         sanitized_mime=sanitized_mime,
         pii_prevention=pii_prevention,
-    )
+    ).strip()
 
     payload = binary_content or load_file_as_binary_content(file_path)
     message_content = [prompt, payload]

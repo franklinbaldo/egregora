@@ -1,8 +1,10 @@
 """CLI commands for viewing and managing pipeline run history."""
 
+import contextlib
 from pathlib import Path
 from typing import Annotated
 
+import duckdb
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -18,10 +20,31 @@ runs_app = typer.Typer(
     help="View and manage pipeline run history",
 )
 
+class _RunsDuckDBStorage:
+    """Minimal DuckDB storage used by the runs CLI without initializing Ibis."""
+
+    def __init__(self, db_path: Path) -> None:
+        self.db_path = db_path
+        self._conn = duckdb.connect(str(db_path))
+
+    @contextlib.contextmanager
+    def connection(self):
+        yield self._conn
+
+    def execute_query(self, sql: str, params: list | None = None):
+        return self._conn.execute(sql, params or []).fetchall()
+
+    def execute_query_single(self, sql: str, params: list | None = None):
+        return self._conn.execute(sql, params or []).fetchone()
+
+    def get_table_columns(self, table_name: str) -> set[str]:
+        info = self._conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+        return {row[1] for row in info}
+
 
 def get_storage(db_path: Path) -> DuckDBStorageManager:
     """Get a DuckDBStorageManager instance."""
-    return DuckDBStorageManager(db_path=db_path)
+    return _RunsDuckDBStorage(db_path)
 
 
 @runs_app.command(name="tail")
