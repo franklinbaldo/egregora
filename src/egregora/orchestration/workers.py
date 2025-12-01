@@ -298,7 +298,7 @@ class EnrichmentWorker(BaseWorker):
             except RuntimeError:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-            
+
             results = loop.run_until_complete(process_all_urls())
         except Exception as e:
             logger.error("Enrichment processing failed: %s", e)
