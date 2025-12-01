@@ -51,11 +51,15 @@ def _ibis_backend(request):
         yield
         return
 
-    connection = duckdb.connect(":memory:")
     try:
-        backend = ibis.duckdb.from_connection(connection)
+        # Ibis 9.0.0+ does not support passing a raw connection directly via connect() or from_connection()
+        # Instead, we create a fresh in-memory connection using ibis.duckdb.connect()
+        # Note: If tests strictly require the exact raw connection object, this might be insufficient,
+        # but for most tests using Ibis API it works.
+        backend = ibis.duckdb.connect(":memory:")
+        # Expose the underlying connection if tests need raw access (backend.con)
+        connection = backend.con
     except Exception as exc:  # pragma: no cover - guard against broken ibis deps
-        connection.close()
         pytest.skip(f"ibis backend unavailable: {exc}")
     options = getattr(ibis, "options", None)
     previous_backend = getattr(options, "default_backend", None) if options else None

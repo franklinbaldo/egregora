@@ -3,14 +3,13 @@
 This module implements the enrichment workflow using Pydantic-AI agents, replacing the
 legacy batching runners. It provides:
 - UrlEnrichmentAgent & MediaEnrichmentAgent
-- Async orchestration via enrich_table
+- Orchestration via enrich_table (synchronous)
 """
 
 from __future__ import annotations
 
 import logging
 import mimetypes
-import re
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -18,30 +17,35 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import httpx
 import ibis
 from ibis.expr.types import Table
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
+from ratelimit import limits, sleep_and_retry
+from tenacity import Retrying
 
 from egregora.config.settings import EnrichmentSettings, get_google_api_key
+from egregora.constants import PrivacyMarkers
 from egregora.data_primitives.document import Document
-from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import MediaMapping
 from egregora.models.google_batch import GoogleBatchModel
 from egregora.ops.media import (
+    detect_media_type,
     extract_urls,
     find_media_references,
     replace_media_mentions,
 )
 from egregora.resources.prompts import render_prompt
+from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.paths import slugify
-from egregora.utils.quota import QuotaTracker
+from egregora.utils.text import sanitize_prompt_input as _sanitize_prompt_input
 
 if TYPE_CHECKING:
     import pandas as pd  # noqa: TID251
@@ -84,7 +88,8 @@ def load_file_as_binary_content(file_path: Path, max_size_mb: int = 20) -> Binar
     return BinaryContent(data=file_bytes, media_type=media_type)
 
 
-def _normalize_slug(candidate: str | None, fallback: str) -> str:
+def normalize_slug(candidate: str | None, fallback: str) -> str:
+    """Normalize slug from candidate string or fallback."""
     if isinstance(candidate, str) and candidate.strip():
         value = slugify(candidate.strip())
         if value:
@@ -139,7 +144,7 @@ class EnrichmentRuntimeContext:
     site_root: Path | None = None
     duckdb_connection: DuckDBBackend | None = None
     target_table: str | None = None
-    quota: QuotaTracker | None = None
+    quota: Any | None = None  # QuotaTracker
     usage_tracker: UsageTracker | None = None
     pii_prevention: dict[str, Any] | None = None  # LLM-native PII prevention settings
     task_store: Any | None = None  # Added for job queue scheduling
@@ -158,29 +163,6 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentDeps, Enrichme
 
     """
     model_settings = GoogleModelSettings(google_tools=[{"url_context": {}}])
-
-    # Use PromptManager to get system prompt content safely if needed,
-    # but here we need to render it with context from deps at runtime.
-    # The writer agent does similar dynamic rendering.
-    # However, the instruction says "Use PromptManager directly like the writer agent does."
-    # The writer agent calls `render_prompt` inside the flow or pre-renders it.
-    # Here it is inside `@agent.system_prompt`. This IS using `render_prompt` which uses `PromptManager`.
-    # Maybe the user meant "don't define prompt construction function inline"?
-    # It is already calling `render_prompt`.
-    # Ah, wait, the instruction says: `create_url_enrichment_agent` defines a prompt construction function inline. Use `PromptManager` directly like the writer agent does.
-    # The current code DOES define `system_prompt` inline.
-    # I'll check if I can avoid the inline definition or if it's fine.
-    # The writer agent pre-renders prompt and passes it. But for pydantic-ai agents with deps, dynamic system prompt is common.
-    # I'll leave it as is if it already uses `render_prompt` (which uses `PromptManager`),
-    # OR I might need to check if `render_prompt` was not used before (maybe I am seeing the file AFTER some changes? No).
-    # Let's assume the user refers to `src/egregora/agents/enricher.py` before my read.
-    # Wait, I read `enricher.py` content and it DOES use `render_prompt`.
-    # "create_url_enrichment_agent defines a prompt construction function inline. Use PromptManager directly like the writer agent does."
-    # Maybe the user sees `def system_prompt(ctx)` as "inline construction" and wants it extracted?
-    # Or maybe the "writer agent" pattern is to render prompt *before* creating agent?
-    # But deps depend on runtime.
-    # I'll assume the request is satisfied if it uses `render_prompt`, OR maybe I should extract `system_prompt` function out of `create_url_enrichment_agent` scope.
-    # I will keep it but ensure `_sanitize_prompt_input` is moved.
 
     # Wrap the Google batch model so we still satisfy the Agent interface
     model_instance = GoogleBatchModel(api_key=get_google_api_key(), model_name=model)
@@ -241,8 +223,87 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentDeps, Enri
 
 
 # ---------------------------------------------------------------------------
-# Helper Logic (Internal)
+# Helper Logic (Synchronous Execution)
 # ---------------------------------------------------------------------------
+
+
+@sleep_and_retry
+@limits(calls=100, period=60)
+def run_url_enrichment(
+    agent: Agent[UrlEnrichmentDeps, EnrichmentOutput],
+    url: str,
+    prompts_dir: Path | None,
+    pii_prevention: dict[str, Any] | None = None,
+) -> tuple[EnrichmentOutput, Any]:
+    """Run URL enrichment synchronously."""
+    url_str = str(url)
+    sanitized_url_raw = _sanitize_prompt_input(url_str, max_length=2000)
+    sanitized_url = "\n".join(line.strip() for line in sanitized_url_raw.splitlines() if line.strip())
+
+    deps = UrlEnrichmentDeps(url=sanitized_url, prompts_dir=prompts_dir)
+    prompt = render_prompt(
+        "enrichment.jinja",
+        mode="url_user",
+        prompts_dir=prompts_dir,
+        sanitized_url=sanitized_url,
+        pii_prevention=pii_prevention,
+    ).strip()
+
+    for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
+        with attempt:
+            # Use run_sync for synchronous execution
+            result = agent.run_sync(prompt, deps=deps)
+    output = getattr(result, "data", getattr(result, "output", result))
+    output.markdown = output.markdown.strip()
+    return output, result.usage()
+
+
+@sleep_and_retry
+@limits(calls=100, period=60)
+def run_media_enrichment(  # noqa: PLR0913
+    agent: Agent[MediaEnrichmentDeps, EnrichmentOutput],
+    *,
+    filename: str,
+    mime_hint: str | None,
+    prompts_dir: Path | None,
+    binary_content: BinaryContent | None = None,
+    file_path: Path | None = None,
+    media_path: str | None = None,
+    pii_prevention: dict[str, Any] | None = None,
+) -> tuple[EnrichmentOutput, Any]:
+    """Run media enrichment synchronously."""
+    if binary_content is None and file_path is None:
+        msg = "Either binary_content or file_path must be provided."
+        raise ValueError(msg)
+
+    sanitized_filename_raw = _sanitize_prompt_input(filename, max_length=255)
+    sanitized_filename = sanitized_filename_raw.replace("\\", "").strip()
+    sanitized_mime = _sanitize_prompt_input(mime_hint, max_length=50).strip() if mime_hint else None
+    deps = MediaEnrichmentDeps(
+        prompts_dir=prompts_dir,
+        media_filename=sanitized_filename,
+        media_type=sanitized_mime,
+        media_path=media_path,
+    )
+    prompt = render_prompt(
+        "enrichment.jinja",
+        mode="media_user",
+        prompts_dir=prompts_dir,
+        sanitized_filename=sanitized_filename,
+        sanitized_mime=sanitized_mime,
+        pii_prevention=pii_prevention,
+    ).strip()
+
+    payload = binary_content or load_file_as_binary_content(file_path)
+    message_content = [prompt, payload]
+
+    for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
+        with attempt:
+            # Use run_sync for synchronous execution
+            result = agent.run_sync(message_content, deps=deps)
+    output = getattr(result, "data", getattr(result, "output", result))
+    output.markdown = output.markdown.strip()
+    return output, result.usage()
 
 
 def _uuid_to_str(value: uuid.UUID | str | None) -> str | None:
@@ -256,12 +317,13 @@ def _safe_timestamp_plus_one(timestamp: datetime | pd.Timestamp) -> datetime:
     return dt_value + timedelta(seconds=1)
 
 
-def _create_enrichment_row(
+def create_enrichment_row(
     message_metadata: dict[str, Any] | None,
     enrichment_type: str,
     identifier: str,
     enrichment_id_str: str,
 ) -> dict[str, Any] | None:
+    """Create a new message row for the enrichment data."""
     if not message_metadata:
         return None
 
@@ -333,7 +395,7 @@ def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[d
 
 
 # ---------------------------------------------------------------------------
-# Batch Orchestration (Async)
+# Scheduling (Producer)
 # ---------------------------------------------------------------------------
 
 
@@ -374,11 +436,6 @@ def schedule_enrichment(
     # 1. Schedule URL enrichment
     if enable_url:
         # Extract URLs from messages
-        # This logic mimics _schedule_url_tasks but just enqueues
-        # We need to iterate over messages and extract URLs
-        # Ideally we'd use Ibis to filter messages with URLs, but regex extraction is Python-side currently
-        # For efficiency, let's stream the table
-
         url_count = 0
         for batch in _iter_table_batches(messages_table):
             for row in batch:
@@ -391,8 +448,6 @@ def schedule_enrichment(
                     if url_count >= max_enrichments:
                         break
 
-                    # Check cache first to avoid redundant tasks?
-                    # Workers will check cache too, but checking here saves queue space.
                     cache_key = make_enrichment_cache_key(kind="url", identifier=url)
                     if context.cache.load(cache_key) is not None:
                         continue
@@ -419,14 +474,6 @@ def schedule_enrichment(
     # 2. Schedule Media enrichment
     if enable_media and media_mapping:
         media_count = 0
-        # Iterate over media mapping directly?
-        # Or iterate over messages to find media references?
-        # The original logic used find_media_references on the table.
-        # But media_mapping contains all valid media docs for the window.
-        # Let's iterate media_mapping, but we need message metadata for the enrichment row.
-        # Actually, the enrichment row links to the message.
-        # So we should iterate messages, find media refs, and look up in mapping.
-
         for batch in _iter_table_batches(messages_table):
             for row in batch:
                 if media_count >= max_enrichments:
@@ -447,32 +494,6 @@ def schedule_enrichment(
                     cache_key = make_enrichment_cache_key(kind="media", identifier=media_doc.document_id)
                     if context.cache.load(cache_key) is not None:
                         continue
-
-                    # Enqueue task
-                    # We need to pass enough info for the worker to load the media
-                    # The worker won't have the full media_mapping or the zip file open?
-                    # The worker needs access to the media content.
-                    # If media is already persisted to disk (by write_pipeline), we can pass the path.
-                    # In write_pipeline, media is persisted BEFORE enrichment if it's not PII.
-                    # But PII check happens AFTER enrichment usually?
-                    # Wait, original code:
-                    # 1. process_media_for_window -> returns table and mapping (media in memory/temp)
-                    # 2. enrichment -> checks PII -> marks pii_deleted
-                    # 3. persist media if not pii_deleted
-
-                    # If we move enrichment to background, we must persist media FIRST?
-                    # Or store media in a temporary location accessible to worker?
-                    # The worker runs in the same process/context in the current architecture (just later in pipeline).
-                    # But if we want true "fire and forget" across process restarts, media must be on disk.
-                    # For now, let's assume media is persisted to `media_dir` by the main pipeline
-                    # BEFORE scheduling enrichment?
-                    # In `write_pipeline.py`, media persistence happens AFTER enrichment currently.
-                    # I should change `write_pipeline.py` to persist media first (optimistically),
-                    # and then the worker can delete it if PII is found?
-                    # Or just pass the path to the worker.
-
-                    # Let's assume the media document has a `suggested_path` which is where it WILL be or IS.
-                    # If the pipeline persists it, the worker can read it.
 
                     payload = {
                         "type": "media",
@@ -504,185 +525,7 @@ def schedule_enrichment(
     )
 
 
-def _persist_enrichments(combined: Table, context: EnrichmentRuntimeContext) -> None:
-    # Persistence logic copied from runners.py
-    duckdb_connection = context.duckdb_connection
-    target_table = context.target_table
-
-    if (duckdb_connection is None) != (target_table is None):
-        msg = "duckdb_connection and target_table must be provided together when persisting"
-        raise ValueError(msg)
-
-    if duckdb_connection and target_table:
-        try:
-            raw_conn = duckdb_connection.con
-            storage = DuckDBStorageManager.from_connection(raw_conn)
-            storage.persist_atomic(combined, target_table, schema=IR_MESSAGE_SCHEMA)
-        except Exception:
-            logger.exception("Failed to persist enrichments using DuckDBStorageManager")
-            raise
-
-
-def _extract_url_candidates(  # noqa: C901
-    messages_table: Table, max_enrichments: int
-) -> list[tuple[str, dict[str, Any]]]:
-    """Extract unique URL candidates with metadata, up to max_enrichments."""
-    if max_enrichments <= 0:
-        return []
-
-    url_metadata: dict[str, dict[str, Any]] = {}
-    discovered_count = 0
-
-    for batch in _iter_table_batches(
-        messages_table.select(
-            "ts",
-            "text",
-            "event_id",
-            "tenant_id",
-            "source",
-            "thread_id",
-            "author_uuid",
-            "created_at",
-            "created_by_run",
-        )
-    ):
-        for row in batch:
-            if discovered_count >= max_enrichments:
-                break
-            message = row.get("text")
-            if not message:
-                continue
-            urls = extract_urls(message)
-            if not urls:
-                continue
-
-            timestamp = ensure_datetime(row.get("ts")) if row.get("ts") else None
-            row_metadata = {
-                "ts": timestamp,
-                "event_id": _uuid_to_str(row.get("event_id")),
-                "tenant_id": row.get("tenant_id"),
-                "source": row.get("source"),
-                "thread_id": _uuid_to_str(row.get("thread_id")),
-                "author_uuid": _uuid_to_str(row.get("author_uuid")),
-                "created_at": row.get("created_at"),
-                "created_by_run": _uuid_to_str(row.get("created_by_run")),
-            }
-
-            for url in urls[:3]:
-                existing = url_metadata.get(url)
-                if existing is None:
-                    url_metadata[url] = row_metadata.copy()
-                    discovered_count += 1
-                    if discovered_count >= max_enrichments:
-                        break
-                else:
-                    # Keep earliest timestamp
-                    existing_ts = existing.get("ts")
-                    if timestamp is not None and (existing_ts is None or timestamp < existing_ts):
-                        existing.update(row_metadata)
-
-        if discovered_count >= max_enrichments:
-            break
-
-    sorted_items = sorted(
-        url_metadata.items(),
-        key=lambda item: (item[1]["ts"] is None, item[1]["ts"]),
-    )
-    return sorted_items[:max_enrichments]
-
-
-def _extract_media_candidates(  # noqa: C901, PLR0912
-    messages_table: Table, media_mapping: MediaMapping, limit: int
-) -> list[tuple[str, Document, dict[str, Any]]]:
-    """Extract unique Media candidates with metadata."""
-    if limit <= 0:
-        return []
-
-    media_filename_lookup: dict[str, tuple[str, Document]] = {}
-    for original_filename, media_doc in media_mapping.items():
-        filename = media_doc.metadata.get("filename") or original_filename
-        media_filename_lookup[original_filename] = (original_filename, media_doc)
-        if filename:
-            media_filename_lookup[filename] = (original_filename, media_doc)
-
-    unique_media: set[str] = set()
-    metadata_lookup: dict[str, dict[str, Any]] = {}
-
-    # Regex setup
-    # Match any filename in markdown link: ![alt](path/to/filename.ext)
-    markdown_re = re.compile(r"(?:!\[|\[)[^\]]*\]\([^)]*?([^/)]+\.\w+)\)")
-    uuid_re = re.compile(r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)")
-
-    for batch in _iter_table_batches(
-        messages_table.select(
-            "ts",
-            "text",
-            "event_id",
-            "tenant_id",
-            "source",
-            "thread_id",
-            "author_uuid",
-            "created_at",
-            "created_by_run",
-        )
-    ):
-        for row in batch:
-            message = row.get("text")
-            if not message:
-                continue
-
-            refs = find_media_references(message)
-            refs.extend(markdown_re.findall(message))
-            refs.extend(uuid_re.findall(message))
-
-            if not refs:
-                continue
-
-            timestamp = ensure_datetime(row.get("ts")) if row.get("ts") else None
-            row_metadata = {
-                "ts": timestamp,
-                "event_id": _uuid_to_str(row.get("event_id")),
-                "tenant_id": row.get("tenant_id"),
-                "source": row.get("source"),
-                "thread_id": _uuid_to_str(row.get("thread_id")),
-                "author_uuid": _uuid_to_str(row.get("author_uuid")),
-                "created_at": row.get("created_at"),
-                "created_by_run": _uuid_to_str(row.get("created_by_run")),
-            }
-
-            for ref in set(refs):
-                if ref not in media_filename_lookup:
-                    continue
-
-                existing = metadata_lookup.get(ref)
-                if existing is None:
-                    unique_media.add(ref)
-                    metadata_lookup[ref] = row_metadata.copy()
-                else:
-                    # Keep earliest timestamp
-                    existing_ts = existing.get("ts")
-                    if timestamp is not None and (existing_ts is None or timestamp < existing_ts):
-                        existing.update(row_metadata)
-
-    sorted_media = sorted(
-        unique_media,
-        key=lambda item: (
-            metadata_lookup.get(item, {}).get("ts") is None,
-            metadata_lookup.get(item, {}).get("ts"),
-        ),
-    )
-
-    results = []
-    for ref in sorted_media[:limit]:
-        lookup_result = media_filename_lookup.get(ref)
-        if lookup_result:
-            _, media_doc = lookup_result
-            results.append((ref, media_doc, metadata_lookup[ref]))
-
-    return results
-
-
-def _replace_pii_media_references(
+def replace_pii_media_references(
     messages_table: Table,
     media_mapping: MediaMapping,
 ) -> Table:

@@ -61,10 +61,10 @@ class BannerCapability:
             return generate_banner_impl(banner_ctx, post_slug, title, summary)
 
 
-class BackgroundBannerCapability:
-    """Enables visual banner generation for posts (Background)."""
+class ScheduledBannerCapability:
+    """Enables visual banner generation for posts (Scheduled/Background)."""
 
-    name = "Background Banner Image Generation"
+    name = "Scheduled Banner Image Generation"
 
     def __init__(self, run_id: uuid.UUID | str) -> None:
         self.run_id = uuid.UUID(str(run_id))
@@ -88,8 +88,8 @@ class BackgroundBannerCapability:
                 "run_id": str(self.run_id),
             }
 
-            # Schedule task (sync)
-            task_id = task_store.enqueue(
+            # Schedule task (synchronous DB insert)
+            task = task_store.create_task(
                 task_type="generate_banner",
                 payload=payload,
                 run_id=self.run_id,

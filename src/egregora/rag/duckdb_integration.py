@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def search_to_table(request: RAGQueryRequest) -> ir.Table:
-    """Execute RAG search and return results as an Ibis table (sync).
+    """Execute RAG search and return results as an Ibis table.
 
     This allows you to use DuckDB's SQL capabilities on vector search results,
     including joins with other tables, aggregations, and filtering.
@@ -110,7 +110,7 @@ def join_with_messages(
 
 
 def create_rag_analytics_view(storage_manager: Any, rag_query: str, top_k: int = 100) -> ir.Table:
-    """Create a DuckDB view combining RAG results with analytics (sync).
+    """Create a DuckDB view combining RAG results with analytics.
 
     This creates a materialized view that you can query with SQL, joining
     vector search results with your existing DuckDB tables.
@@ -165,7 +165,7 @@ def search_with_filters(
     document_types: list[str] | None = None,
     top_k: int = 10,
 ) -> ir.Table:
-    """Execute RAG search with SQL-based filtering (sync).
+    """Execute RAG search with SQL-based filtering.
 
     This combines vector search with SQL filtering for more precise results.
 

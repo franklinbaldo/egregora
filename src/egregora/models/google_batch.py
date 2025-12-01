@@ -70,7 +70,9 @@ class GoogleBatchModel(Model):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
     ) -> ModelResponse:
-        batch_results = self.run_batch(
+        """Execute request synchronously but maintain async interface."""
+        # This implementation blocks the event loop, which is intended in this sync refactor.
+        batch_results = self.run_batch_sync(
             [
                 {
                     "tag": "req-0",
@@ -98,13 +100,10 @@ class GoogleBatchModel(Model):
         )
 
     # ------------------------------------------------------------------ #
-    # HTTP batch helpers
+    # HTTP batch helpers (Synchronous)
     # ------------------------------------------------------------------ #
-    # ------------------------------------------------------------------ #
-    # HTTP batch helpers
-    # ------------------------------------------------------------------ #
-    def run_batch(self, requests: list[dict[str, Any]]) -> list[BatchResult]:
-        """Run a batch of requests using the Gemini Batch API.
+    def run_batch_sync(self, requests: list[dict[str, Any]]) -> list[BatchResult]:
+        """Run a batch of requests using the Gemini Batch API synchronously.
 
         Args:
             requests: List of request dictionaries. Each dict must have:
@@ -145,24 +144,24 @@ class GoogleBatchModel(Model):
             temp_path = f.name
 
         try:
-            # Upload file (blocking IO)
+            # Upload file (blocking)
             uploaded_file = client.files.upload(
                 file=temp_path,
                 config=types.UploadFileConfig(display_name="pydantic-ai-batch", mime_type="application/json"),
             )
 
-            # Create batch job (blocking IO)
+            # Create batch job (blocking)
             batch_job = client.batches.create(
                 model=self.model_name,
                 src=uploaded_file.name,
                 config=types.CreateBatchJobConfig(display_name="pydantic-ai-batch"),
             )
 
-            # Poll for completion (sync poll)
-            completed_job = self._poll_job(client, batch_job.name)
+            # Poll for completion (blocking)
+            completed_job = self._poll_job_sync(client, batch_job.name)
 
-            # Download results (blocking IO)
-            return self._download_results(client, completed_job.output_uri, requests)
+            # Download results (blocking)
+            return self._download_results_sync(client, completed_job.output_uri, requests)
 
         except genai.errors.ClientError as e:
             logger.error("Google GenAI ClientError: %s", e)
@@ -179,10 +178,22 @@ class GoogleBatchModel(Model):
             if os.path.exists(temp_path):
                 os.remove(temp_path)
 
-    def _poll_job(self, client: Any, job_name: str) -> Any:
+    def run_batch(self, requests: list[dict[str, Any]]) -> Any:
+        """Deprecated async alias for run_batch_sync."""
+        # For backward compatibility if anything still awaits it, we wrap it
+        import asyncio
+
+        # If called from async context, return a future that resolves to the sync result.
+        # But since we are moving to sync, we should prefer run_batch_sync.
+        # If the caller awaits this, we can return a coroutine.
+        async def wrapper():
+            return self.run_batch_sync(requests)
+
+        return wrapper()
+
+    def _poll_job_sync(self, client: Any, job_name: str) -> Any:
         start_time = time.time()
         while time.time() - start_time < self.timeout:
-            # client.batches.get is blocking
             job = client.batches.get(name=job_name)
 
             if job.state.name in ("PROCESSING", "PENDING", "STATE_UNSPECIFIED"):
@@ -196,10 +207,9 @@ class GoogleBatchModel(Model):
 
         raise ModelAPIError("Batch job polling timed out")
 
-    def _download_results(
+    def _download_results_sync(
         self, client: Any, output_uri: str, requests: list[dict[str, Any]]
     ) -> list[BatchResult]:
-        # httpx.get is blocking
         with httpx.Client() as http_client:
             resp = http_client.get(output_uri)
             resp.raise_for_status()

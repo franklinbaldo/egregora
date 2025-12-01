@@ -6,25 +6,13 @@ Workers fetch tasks from the TaskStore, process them, and update their status.
 
 from __future__ import annotations
 
-import asyncio
-import base64
 import json
 import logging
 from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel
-from pydantic_ai import Agent
-
 from egregora.agents.banner.agent import generate_banner
-from egregora.agents.enricher import _create_enrichment_row, _normalize_slug
-from egregora.config.settings import get_google_api_key
-from egregora.data_primitives.document import Document, DocumentType
-from egregora.models.google_batch import GoogleBatchModel
 from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
-from egregora.resources.prompts import render_prompt
-from egregora.utils.model_fallback import create_fallback_model
 
 if TYPE_CHECKING:
     from egregora.orchestration.context import PipelineContext
@@ -72,7 +60,7 @@ class BannerWorker(BaseWorker):
 
                 logger.info("Generating banner for %s", post_slug)
 
-                # Execute generation (synchronous)
+                # Execute generation
                 result = generate_banner(post_title=title, post_summary=summary, slug=post_slug)
 
                 if result.success and result.document:
@@ -156,11 +144,6 @@ class ProfileWorker(BaseWorker):
         return processed_count
 
 
-class EnrichmentOutput(BaseModel):
-    slug: str
-    markdown: str
-
-
 class EnrichmentWorker(BaseWorker):
     """Worker for media enrichment (e.g. image description)."""
 
@@ -182,72 +165,78 @@ class EnrichmentWorker(BaseWorker):
         return processed_count
 
     def _process_url_batch(self, tasks: list[dict[str, Any]]) -> int:
-        # Prepare requests
-        tasks_data = []
+        from concurrent.futures import ThreadPoolExecutor
+
+        from egregora.agents.enricher import (
+            create_enrichment_row,
+            create_url_enrichment_agent,
+            normalize_slug,
+            run_url_enrichment,
+        )
+        from egregora.data_primitives.document import Document, DocumentType
+
+        # Prepare task data
         prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
 
-        for task in tasks:
+        # Create a single agent instance to reuse (it's stateless except config)
+        url_model = self.ctx.config.models.enricher
+        agent = create_url_enrichment_agent(url_model)
+
+        def process_single_task(task: dict[str, Any]) -> tuple[dict, Any | None, str | None]:
             try:
                 payload = task["payload"]
                 if isinstance(payload, str):
                     payload = json.loads(payload)
+                # Attach parsed for later use
                 task["_parsed_payload"] = payload
 
                 url = payload["url"]
-                prompt = render_prompt(
-                    "enrichment.jinja",
-                    mode="url_user",
-                    prompts_dir=prompts_dir,
-                    sanitized_url=url,
-                ).strip()
 
-                tasks_data.append({"task": task, "url": url, "prompt": prompt})
+                # Execute logic
+                output, usage = run_url_enrichment(
+                    agent,
+                    url,
+                    prompts_dir,
+                    pii_prevention=None # Could pass from context if available
+                )
+
+                # Record usage (thread-safe?)
+                # UsageTracker might need lock if shared
+                # For simplicity, we aggregate or ignore in worker for now, or assume it's thread-safe
+                if self.ctx.usage_tracker:
+                    self.ctx.usage_tracker.record(usage)
+
+                return task, output, None
             except Exception as e:
-                logger.error("Failed to prepare URL task %s: %s", task["task_id"], e)
-                self.task_store.mark_failed(task["task_id"], f"Preparation failed: {e!s}")
+                logger.error("Error processing URL task %s: %s", task["task_id"], e)
+                return task, None, str(e)
 
-        if not tasks_data:
-            return 0
-
-        # Execute enrichment for each URL individually with fallback using ThreadPoolExecutor
-        enrichment_concurrency = getattr(self.ctx.config.enrichment, "max_concurrent_enrichments", 5)
-        global_concurrency = getattr(self.ctx.config.quota, "concurrency", 1)
-        max_concurrent = min(enrichment_concurrency, global_concurrency)
-
+        max_concurrent = getattr(self.ctx.config.enrichment, "max_concurrent_enrichments", 5)
         logger.info(
-            "Processing %d enrichment tasks with max concurrency of %d (enrichment limit: %d, global limit: %d)",
-            len(tasks_data),
-            max_concurrent,
-            enrichment_concurrency,
-            global_concurrency,
+            "Processing %d enrichment tasks with max concurrency of %d (ThreadPool)", len(tasks), max_concurrent
         )
 
         results = []
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
-            future_to_task = {executor.submit(self._enrich_single_url, td): td for td in tasks_data}
-            for future in as_completed(future_to_task):
-                try:
-                    result = future.result()
-                    results.append(result)
-                except Exception as e:
-                    task = future_to_task[future]["task"]
-                    logger.error("Enrichment failed for %s: %s", task["task_id"], e)
-                    results.append((task, None, str(e)))
+            results = list(executor.map(process_single_task, tasks))
 
-        # Process results and create documents
+        # Process results and create documents (Main thread)
+        success_count = 0
         new_rows = []
+
         for task, output, error in results:
             if error:
                 self.task_store.mark_failed(task["task_id"], error)
                 continue
 
             if not output:
+                # Should have error if None, but defensive check
                 continue
 
             try:
                 payload = task["_parsed_payload"]
                 url = payload["url"]
-                slug_value = _normalize_slug(output.slug, url)
+                slug_value = normalize_slug(output.slug, url)
 
                 doc = Document(
                     content=output.markdown,
@@ -263,11 +252,12 @@ class EnrichmentWorker(BaseWorker):
 
                 # Create DB row
                 metadata = payload["message_metadata"]
-                row = _create_enrichment_row(metadata, "URL", url, doc.document_id)
+                row = create_enrichment_row(metadata, "URL", url, doc.document_id)
                 if row:
                     new_rows.append(row)
 
                 self.task_store.mark_completed(task["task_id"])
+                success_count += 1
             except Exception as e:
                 logger.error("Failed to persist enrichment for %s: %s", task["task_id"], e)
                 self.task_store.mark_failed(task["task_id"], f"Persistence error: {e!s}")
@@ -280,32 +270,24 @@ class EnrichmentWorker(BaseWorker):
             except Exception as e:
                 logger.error("Failed to insert enrichment rows: %s", e)
 
-        return len(results)
-
-    def _enrich_single_url(self, task_data: dict) -> tuple[dict, EnrichmentOutput | None, str | None]:
-        """Enrich a single URL with fallback support (sync wrapper)."""
-        task = task_data["task"]
-        url = task_data["url"]
-        prompt = task_data["prompt"]
-
-        try:
-            # Create agent with fallback
-            model = create_fallback_model(self.ctx.config.models.enricher)
-            agent = Agent(model=model, output_type=EnrichmentOutput)
-
-            # Use run_sync to execute the async agent synchronously
-            result = agent.run_sync(prompt)
-            return task, result.data, None
-        except Exception as e:
-            logger.error("Failed to enrich URL %s: %s", url, e)
-            return task, None, str(e)
+        return success_count
 
     def _process_media_batch(self, tasks: list[dict[str, Any]]) -> int:
-        requests = []
-        task_map = {}
-        prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
+        from concurrent.futures import ThreadPoolExecutor
 
-        for task in tasks:
+        from egregora.agents.enricher import (
+            create_enrichment_row,
+            create_media_enrichment_agent,
+            normalize_slug,
+            run_media_enrichment,
+        )
+        from egregora.data_primitives.document import Document, DocumentType
+
+        prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
+        vision_model = self.ctx.config.models.enricher_vision
+        agent = create_media_enrichment_agent(vision_model)
+
+        def process_single_task(task: dict[str, Any]) -> tuple[dict, Any | None, str | None]:
             try:
                 payload = task["payload"]
                 if isinstance(payload, str):
@@ -316,6 +298,7 @@ class EnrichmentWorker(BaseWorker):
                 media_type = payload["media_type"]
                 suggested_path = payload.get("suggested_path")
 
+                # Resolve file path
                 file_path = None
                 if suggested_path:
                     full_path = self.ctx.output_dir / suggested_path
@@ -323,89 +306,49 @@ class EnrichmentWorker(BaseWorker):
                         file_path = full_path
 
                 if not file_path or not file_path.exists():
-                    logger.warning("Media file not found for task %s: %s", task["task_id"], suggested_path)
-                    self.task_store.mark_failed(task["task_id"], "Media file not found")
-                    continue
+                    return task, None, "Media file not found"
 
-                file_bytes = file_path.read_bytes()
-                b64_data = base64.b64encode(file_bytes).decode("utf-8")
-
-                prompt = render_prompt(
-                    "enrichment.jinja",
-                    mode="media_user",
+                output, usage = run_media_enrichment(
+                    agent,
+                    filename=filename,
+                    mime_hint=media_type,
                     prompts_dir=prompts_dir,
-                    sanitized_filename=filename,
-                    sanitized_mime=media_type,
-                ).strip()
-
-                tag = str(task["task_id"])
-                requests.append(
-                    {
-                        "tag": tag,
-                        "contents": [
-                            {
-                                "parts": [
-                                    {"text": prompt},
-                                    {"inlineData": {"mimeType": media_type, "data": b64_data}},
-                                ]
-                            }
-                        ],
-                        "config": {"response_modalities": ["TEXT"]},
-                    }
+                    file_path=file_path,
+                    pii_prevention=None
                 )
-                task_map[tag] = task
+
+                if self.ctx.usage_tracker:
+                    self.ctx.usage_tracker.record(usage)
+
+                return task, output, None
 
             except Exception as e:
-                logger.error("Failed to prepare media task %s: %s", task["task_id"], e)
-                self.task_store.mark_failed(task["task_id"], str(e))
+                logger.error("Error processing media task %s: %s", task["task_id"], e)
+                return task, None, str(e)
 
-        if not requests:
-            return 0
+        max_concurrent = getattr(self.ctx.config.enrichment, "max_concurrent_enrichments", 5)
 
-        # Execute batch
-        model_name = self.ctx.config.models.enricher_vision
-        model = GoogleBatchModel(api_key=get_google_api_key(), model_name=model_name)
+        results = []
+        with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+            results = list(executor.map(process_single_task, tasks))
 
-        try:
-            # Use asyncio.run to execute the async batch method synchronously
-            results = asyncio.run(model.run_batch(requests))
-        except Exception as e:
-            logger.error("Media enrichment batch failed: %s", e)
-            for t in tasks:
-                if t["task_id"] in task_map:
-                    self.task_store.mark_failed(t["task_id"], f"Batch failed: {e!s}")
-            return 0
-
-        # Process results
+        success_count = 0
         new_rows = []
-        for res in results:
-            task = task_map.get(res.tag)
-            if not task:
+
+        for task, output, error in results:
+            if error:
+                self.task_store.mark_failed(task["task_id"], error)
                 continue
 
-            if res.error:
-                self.task_store.mark_failed(task["task_id"], str(res.error))
+            if not output:
                 continue
 
-            text = self._extract_text(res.response)
             try:
-                clean_text = text.strip()
-                clean_text = clean_text.removeprefix("```json")
-                clean_text = clean_text.removeprefix("```")
-                clean_text = clean_text.removesuffix("```")
-
-                data = json.loads(clean_text.strip())
-                slug = data.get("slug")
-                markdown = data.get("markdown")
-
-                if not slug or not markdown:
-                    raise ValueError("Missing slug or markdown")
-
                 payload = task["_parsed_payload"]
                 filename = payload["filename"]
                 media_type = payload["media_type"]
 
-                slug_value = _normalize_slug(slug, filename)
+                slug_value = normalize_slug(output.slug, filename)
 
                 enrichment_metadata = {
                     "filename": filename,
@@ -417,7 +360,7 @@ class EnrichmentWorker(BaseWorker):
                 }
 
                 doc = Document(
-                    content=markdown,
+                    content=output.markdown,
                     type=DocumentType.ENRICHMENT_MEDIA,
                     metadata=enrichment_metadata,
                 )
@@ -425,15 +368,16 @@ class EnrichmentWorker(BaseWorker):
 
                 # Create DB row
                 metadata = payload["message_metadata"]
-                row = _create_enrichment_row(metadata, "Media", filename, doc.document_id)
+                row = create_enrichment_row(metadata, "Media", filename, doc.document_id)
                 if row:
                     new_rows.append(row)
 
                 self.task_store.mark_completed(task["task_id"])
+                success_count += 1
 
             except Exception as e:
-                logger.error("Failed to parse media result %s: %s", task["task_id"], e)
-                self.task_store.mark_failed(task["task_id"], f"Parse error: {e!s}")
+                logger.error("Failed to persist media enrichment for %s: %s", task["task_id"], e)
+                self.task_store.mark_failed(task["task_id"], f"Persistence error: {e!s}")
 
         if new_rows:
             try:
@@ -442,17 +386,4 @@ class EnrichmentWorker(BaseWorker):
             except Exception as e:
                 logger.error("Failed to insert media enrichment rows: %s", e)
 
-        return len(results)
-
-    def _extract_text(self, response: dict[str, Any] | None) -> str:
-        if not response:
-            return ""
-        if "text" in response:
-            return response["text"]
-        texts = []
-        for cand in response.get("candidates") or []:
-            content = cand.get("content") or {}
-            for part in content.get("parts") or []:
-                if "text" in part:
-                    texts.append(part["text"])
-        return "\n".join(texts)
+        return success_count

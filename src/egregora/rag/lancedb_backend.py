@@ -25,9 +25,6 @@ logger = logging.getLogger(__name__)
 
 # Type alias for embedding functions
 # task_type should be "RETRIEVAL_DOCUMENT" for indexing, "RETRIEVAL_QUERY" for searching
-# Updated to async for compatibility with async embedding router
-# Type alias for embedding functions
-# task_type should be "RETRIEVAL_DOCUMENT" for indexing, "RETRIEVAL_QUERY" for searching
 EmbedFn = Callable[[Sequence[str], str], list[list[float]]]
 
 

@@ -18,10 +18,10 @@ Configuration:
     Set paths in .egregora/config.yml:
     ```yaml
     paths:
-        lancedb_dir: .egregora/lancedb
+      lancedb_dir: .egregora/lancedb
 
     rag:
-        top_k: 5
+      top_k: 5
     ```
 
 Example:
@@ -55,7 +55,7 @@ from pathlib import Path
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.rag.backend import RAGBackend
-from egregora.rag.embedding_router import EmbeddingRouter, create_embedding_router
+from egregora.rag.embedding_router import create_embedding_router, get_router
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
 from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
 
@@ -106,22 +106,14 @@ def _create_backend() -> RAGBackend:
             except KeyError:
                 logger.warning("Unknown document type in config: %s (skipping)", type_str)
 
-    # Create sync embedding function that uses the dual-queue router
-    # IMPORTANT: Google Gemini embeddings are asymmetric - documents and queries
-    # must use different task_type values for optimal retrieval quality.
-    # The caller (LanceDBRAGBackend) is responsible for specifying the correct task_type.
-    router: EmbeddingRouter | None = None
-
+    # Create synchronous embedding function
     def embed_fn(texts: Sequence[str], task_type: str) -> list[list[float]]:
-        nonlocal router
-        if router is None:
-            router = create_embedding_router(
-                model=embedding_model,
-                api_key=None,
-                max_batch_size=rag_settings.embedding_max_batch_size,
-                timeout=rag_settings.embedding_timeout,
-            )
-
+        router = get_router(
+            model=embedding_model,
+            api_key=None,
+            max_batch_size=rag_settings.embedding_max_batch_size,
+            timeout=rag_settings.embedding_timeout,
+        )
         return router.embed(list(texts), task_type=task_type)
 
     logger.info("Creating LanceDB RAG backend at %s", lancedb_dir)
@@ -152,9 +144,7 @@ def get_backend() -> RAGBackend:
 
 
 def index_documents(docs: Sequence[Document]) -> None:
-    r"""Index documents into the RAG knowledge base (sync).
-
-    Uses the sync embedding router for optimal throughput.
+    r"""Index documents into the RAG knowledge base.
 
     Args:
         docs: Sequence of Document instances to index
@@ -174,9 +164,7 @@ def index_documents(docs: Sequence[Document]) -> None:
 
 
 def search(request: RAGQueryRequest) -> RAGQueryResponse:
-    """Execute vector similarity search (sync).
-
-    Uses the sync embedding router for optimal throughput.
+    """Execute vector similarity search.
 
     Args:
         request: Query parameters (text, top_k, filters)
@@ -216,7 +204,7 @@ def reset_backend() -> None:
     """Reset the global RAG backend.
 
     Forces recreation of the backend (and its embedding router) on the next call
-    to get_backend().
+    to get_backend(). This is necessary for cleanup or config changes.
     """
     global _backend  # noqa: PLW0603
     _backend = None

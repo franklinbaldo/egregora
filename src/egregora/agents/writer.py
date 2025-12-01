@@ -7,6 +7,7 @@ capabilities before executing the conversation through a ``pydantic_ai.Agent``.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import Sequence
@@ -35,9 +36,9 @@ from tenacity import Retrying
 from egregora.agents.banner.agent import is_banner_generation_available
 from egregora.agents.capabilities import (
     AgentCapability,
-    BackgroundBannerCapability,
     BannerCapability,
     RagCapability,
+    ScheduledBannerCapability,
 )
 from egregora.agents.formatting import (
     build_conversation_xml,
@@ -122,9 +123,7 @@ def register_writer_tools(
             output_sink=ctx.deps.resources.output,
             window_label=ctx.deps.window_label,
         )
-        meta_dict = metadata.model_dump(exclude_none=True)
-        meta_dict["model"] = ctx.deps.model_name
-        return write_post_impl(tool_ctx, meta_dict, content)
+        return write_post_impl(tool_ctx, metadata.model_dump(exclude_none=True), content)
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str) -> ReadProfileResult:
@@ -211,12 +210,11 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
                 return cached
 
         # Execute RAG search
-        # Execute RAG search
         # Reset backend to ensure it attaches to the new event loop created by asyncio.run
         reset_backend()
 
         request = RAGQueryRequest(text=query_text, top_k=top_k)
-        response = search(request)
+        response = asyncio.run(search(request))
 
         if not response.hits:
             return ""
@@ -622,7 +620,7 @@ def _prepare_deps(
         run_id=ctx.run_id,
     )
 
-    return _prepare_writer_dependencies(window_start, window_end, resources, ctx.config.models.writer)
+    return _prepare_writer_dependencies(window_start, window_end, resources)
 
 
 def _validate_prompt_fits(
@@ -680,7 +678,7 @@ def write_posts_with_pydantic_agent(
 
     if is_banner_generation_available():
         if context.resources.task_store and context.resources.run_id:
-            active_capabilities.append(BackgroundBannerCapability(context.resources.run_id))
+            active_capabilities.append(AsyncBannerCapability(context.resources.run_id))
         else:
             active_capabilities.append(BannerCapability())
 
@@ -709,19 +707,13 @@ def write_posts_with_pydantic_agent(
 
     # Create model with automatic fallback
     configured_model = test_model if test_model is not None else config.models.writer
-    model = create_fallback_model(configured_model, use_google_batch=False)
+    model = create_fallback_model(configured_model)
 
     # Validate prompt fits
     _validate_prompt_fits(prompt, configured_model, config, context.window_label)
 
     # Create agent
-    agent = Agent[WriterDeps, WriterAgentReturn](
-        model=model,
-        deps_type=WriterDeps,
-        # Allow a few validation retries so transient schema hiccups don't abort the run
-        retries=3,
-        output_retries=3,
-    )
+    agent = Agent[WriterDeps, WriterAgentReturn](model=model, deps_type=WriterDeps)
     register_writer_tools(agent, capabilities=active_capabilities)
 
     reset_backend()
@@ -884,7 +876,6 @@ def _prepare_writer_dependencies(
     window_start: datetime,
     window_end: datetime,
     resources: WriterResources,
-    model_name: str,
 ) -> WriterDeps:
     """Create WriterDeps from window parameters and resources."""
     window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
@@ -894,7 +885,6 @@ def _prepare_writer_dependencies(
         window_start=window_start,
         window_end=window_end,
         window_label=window_label,
-        model_name=model_name,
     )
 
 
@@ -960,9 +950,9 @@ def _execute_writer_with_error_handling(
             context=deps,
         )
     except Exception as exc:
+        # Let PromptTooLargeError propagate unchanged (don't wrap it)
         if isinstance(exc, PromptTooLargeError):
             raise
-
         msg = f"Writer agent failed for {deps.window_label}"
         logger.exception(msg)
         raise RuntimeError(msg) from exc
@@ -1027,7 +1017,7 @@ def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
 
         resources = dataclasses.replace(resources, run_id=run_id)
 
-    deps = _prepare_writer_dependencies(window_start, window_end, resources, config.models.writer)
+    deps = _prepare_writer_dependencies(window_start, window_end, resources)
 
     # 2. Build context and calculate signature
     writer_context, signature = _build_context_and_signature(
