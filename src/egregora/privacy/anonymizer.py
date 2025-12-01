@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from typing import Optional
+
 import ibis
 from ibis.expr.types import Table
 
@@ -67,7 +69,7 @@ def anonymize_table(
     if "text" in anonymized.columns:
 
         @ibis.udf.scalar.python
-        def redact_mentions(message: str | None) -> str | None:
+        def redact_mentions(message: str) -> str:
             if message is None:
                 return None
             return _sanitize_mentions(message, mapping)

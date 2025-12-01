@@ -37,6 +37,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import re
+import threading
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -117,7 +118,7 @@ class DuckDBStorageManager:
         self._init_vector_extensions()
 
         # Initialize Ibis backend
-        self.ibis_conn = ibis.duckdb.from_connection(self._conn)
+        self.ibis_conn = ibis.duckdb.connect(database=db_str)
 
         # Initialize SQL template manager
         self.sql = SQLManager()
@@ -130,6 +131,7 @@ class DuckDBStorageManager:
             "memory" if db_path is None else db_path,
             self.checkpoint_dir,
         )
+        self._lock = threading.Lock()
 
     @classmethod
     def from_connection(cls, conn: duckdb.DuckDBPyConnection, checkpoint_dir: Path | None = None) -> Self:
@@ -153,9 +155,14 @@ class DuckDBStorageManager:
         instance._conn = conn
         instance._vss_function = None
         instance._init_vector_extensions()  # Initialize VSS on instance
-        instance.ibis_conn = ibis.duckdb.from_connection(conn)
+        db_list = conn.execute("PRAGMA database_list").fetchall()
+        # PRAGMA database_list returns rows as (oid, name, file)
+        db_path = db_list[0][2] if db_list else None
+        db_str = db_path or ":memory:"
+        instance.ibis_conn = ibis.duckdb.connect(database=db_str)
         instance.sql = SQLManager()
         instance._table_info_cache = {}
+        instance._lock = threading.Lock()
         logger.debug("DuckDBStorageManager created from existing connection")
         return instance
 
@@ -454,8 +461,9 @@ class DuckDBStorageManager:
             msg = "count must be positive"
             raise ValueError(msg)
 
-        cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
-        values = [int(row[0]) for row in cursor.fetchall()]
+        with self._lock:
+            cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
+            values = [int(row[0]) for row in cursor.fetchall()]
 
         # Defensive check: if query returns empty, sequence might not exist
         if not values:

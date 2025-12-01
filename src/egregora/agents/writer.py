@@ -686,8 +686,46 @@ def write_posts_with_pydantic_agent(
         caps_list = ", ".join(capability.name for capability in active_capabilities)
         logger.info("Writer capabilities enabled: %s", caps_list)
 
+    from google import genai
+    from pydantic_ai.models.google import GoogleModel
+    from egregora.config.settings import get_google_api_key
+
+    # Define a simple provider to wrap the SDK client
+    class SimpleProvider:
+        def __init__(self, client):
+            self._client = client
+            self.model_profile = None
+        
+        @property
+        def client(self):
+            return self._client
+            
+        def name(self):
+            return "google-gla"
+            
+        @property
+        def base_url(self):
+            return "https://generativelanguage.googleapis.com/v1beta/"
+
+    # Explicitly create a fresh client and model to avoid event loop binding issues
+    # when run_sync is called multiple times (which creates new event loops).
+    api_key = get_google_api_key()
+    client = genai.Client(api_key=api_key)
+    
+    # Wrap in provider
+    provider = SimpleProvider(client)
+    
+    # Extract model name from config
+    raw_model_name = config.models.writer
+    if raw_model_name.startswith("google-gla:"):
+        raw_model_name = raw_model_name[len("google-gla:"):]
+    
+    model = GoogleModel(raw_model_name, provider=provider)
+    
+    # Restore model_name for validation
     model_name = test_model if test_model is not None else config.models.writer
-    agent = Agent[WriterDeps, WriterAgentReturn](model=model_name, deps_type=WriterDeps)
+
+    agent = Agent[WriterDeps, WriterAgentReturn](model=model, deps_type=WriterDeps)
     register_writer_tools(agent, capabilities=active_capabilities)
 
     _validate_prompt_fits(prompt, model_name, config, context.window_label)

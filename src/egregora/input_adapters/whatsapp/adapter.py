@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, TypedDict, Unpack
 
 import ibis
+import ibis.expr.datatypes as dt
 
 from egregora.constants import AuthorPrivacyStrategy
 from egregora.data_primitives.document import Document, DocumentType
@@ -109,12 +110,6 @@ class WhatsAppAdapter(InputAdapter):
             timezone=timezone,
             expose_raw_author=True,  # Always expose raw initially
         )
-
-        @ibis.udf.scalar.python
-        def convert_media(message: str | None) -> str | None:
-            return convert_media_to_markdown(message)
-
-        messages_table = messages_table.mutate(text=convert_media(messages_table.text))
 
         # Apply privacy strategies based on configuration
         if self._config is not None and self._config.privacy.structural.enabled:

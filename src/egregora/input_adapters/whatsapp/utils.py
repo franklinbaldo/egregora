@@ -86,9 +86,11 @@ def build_message_attrs(
     has_metadata = ibis.coalesce(original_line, tagged_line, message_date).notnull()
     attrs_json = attrs_struct.cast(dt.json).cast(dt.string)
     empty_json = ibis.literal(None, type=dt.string)
-    return ibis.cases(
-        (has_metadata, attrs_json),
-        else_=empty_json,
+    return (
+        ibis.case()
+        .when(has_metadata, attrs_json)
+        .else_(empty_json)
+        .end()
     )
 
 

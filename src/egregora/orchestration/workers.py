@@ -150,6 +150,368 @@ class EnrichmentWorker(BaseWorker):
     """Worker for media enrichment (e.g. image description)."""
 
     def run(self) -> int:
-        # Placeholder for enrichment logic
-        # Typically fetches 'enrich_media' tasks
-        return 0
+        """Process pending enrichment tasks in batches."""
+        # Configurable batch size
+        batch_size = 50
+        tasks = self.task_store.fetch_pending(task_type="enrich_url", limit=batch_size)
+        media_tasks = self.task_store.fetch_pending(task_type="enrich_media", limit=batch_size)
+        
+        # Combine tasks but process separately or together?
+        # GoogleBatchModel can handle mixed requests if we structure them right.
+        # But let's process them in separate batches for simplicity of result handling.
+        
+        processed_count = 0
+        
+        if tasks:
+            processed_count += self._process_url_batch(tasks)
+            
+        if media_tasks:
+            processed_count += self._process_media_batch(media_tasks)
+            
+        return processed_count
+
+    def _process_url_batch(self, tasks: list[dict[str, Any]]) -> int:
+        from egregora.resources.prompts import render_prompt
+        from egregora.agents.enricher import _normalize_slug
+        from egregora.data_primitives.document import Document, DocumentType
+        from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
+        from egregora.transformations.enrichment import combine_with_enrichment_rows
+        from egregora.agents.enricher import _create_enrichment_row
+        import ibis
+        
+        # Prepare requests
+        requests = []
+        task_map = {}
+        
+        prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
+        
+        for task in tasks:
+            payload = task["payload"]
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            task["_parsed_payload"] = payload
+            
+            url = payload["url"]
+            
+            # Render prompt
+            prompt = render_prompt(
+                "enrichment.jinja",
+                mode="url_user",
+                prompts_dir=prompts_dir,
+                sanitized_url=url, # Assuming sanitized in schedule? No, should sanitize here.
+                # For simplicity, passing raw url, template should handle or we add helper
+            ).strip()
+            
+            tag = str(task["task_id"])
+            requests.append({
+                "tag": tag,
+                "contents": [{"parts": [{"text": prompt}]}],
+                "config": {"response_modalities": ["TEXT"]}
+            })
+            task_map[tag] = task
+
+        if not requests:
+            return 0
+            
+        # Execute batch
+        # We need the enricher model name
+        model_name = self.ctx.config.models.enricher
+        # We need a GoogleBatchModel instance. 
+        # The worker doesn't have one injected, we create it.
+        from egregora.models.google_batch import GoogleBatchModel
+        from egregora.config.settings import get_google_api_key
+        
+        # Use asyncio.run for async call if we are in sync context
+        import asyncio
+        
+        model = GoogleBatchModel(api_key=get_google_api_key(), model_name=model_name)
+        
+        try:
+            # Run batch (this blocks until completion)
+            results = asyncio.run(model.run_batch(requests))
+        except Exception as e:
+            logger.error("Enrichment batch failed: %s", e)
+            # Mark all as failed?
+            for t in tasks:
+                self.task_store.mark_failed(t["task_id"], f"Batch failed: {str(e)}")
+            return 0
+
+        # Process results
+        new_rows = []
+        
+        for res in results:
+            task = task_map.get(res.tag)
+            if not task:
+                continue
+                
+            if res.error:
+                self.task_store.mark_failed(task["task_id"], str(res.error))
+                continue
+                
+            # Parse response
+            # Expected format: JSON with slug, markdown
+            text = self._extract_text(res.response)
+            try:
+                # The prompt asks for JSON, but model might return markdown block
+                # We need to parse it. 
+                # Let's assume simple parsing for now or use a helper if available.
+                # The original agent used Pydantic output parser. 
+                # Here we are getting raw text.
+                # We need to parse JSON from text.
+                
+                # Strip markdown code blocks
+                clean_text = text.strip()
+                if clean_text.startswith("```json"):
+                    clean_text = clean_text[7:]
+                if clean_text.startswith("```"):
+                    clean_text = clean_text[3:]
+                if clean_text.endswith("```"):
+                    clean_text = clean_text[:-3]
+                
+                data = json.loads(clean_text.strip())
+                slug = data.get("slug")
+                markdown = data.get("markdown")
+                
+                if not slug or not markdown:
+                    raise ValueError("Missing slug or markdown in response")
+                    
+                # Create Document
+                payload = task["_parsed_payload"]
+                url = payload["url"]
+                slug_value = _normalize_slug(slug, url)
+                
+                doc = Document(
+                    content=markdown,
+                    type=DocumentType.ENRICHMENT_URL,
+                    metadata={
+                        "url": url,
+                        "slug": slug_value,
+                        "nav_exclude": True,
+                        "hide": ["navigation"],
+                    },
+                )
+                self.ctx.output_format.persist(doc)
+                
+                # Create DB row
+                metadata = payload["message_metadata"]
+                row = _create_enrichment_row(metadata, "URL", url, doc.document_id)
+                if row:
+                    new_rows.append(row)
+                
+                self.task_store.mark_completed(task["task_id"])
+                
+            except Exception as e:
+                logger.error("Failed to parse enrichment result for %s: %s", task["task_id"], e)
+                self.task_store.mark_failed(task["task_id"], f"Parse error: {str(e)}")
+
+        # Insert rows into DB
+        if new_rows:
+            # We need to append to the messages table or enrichment table?
+            # The original logic combined rows into messages table.
+            # But messages table is usually read-only from source?
+            # No, it's an Ibis table.
+            # We should probably insert into a dedicated 'enrichments' table and view union them?
+            # Or insert back into 'messages' if it's mutable?
+            # DuckDB tables are mutable.
+            # IR_MESSAGE_SCHEMA matches.
+            
+            # We can use the storage manager to insert.
+            try:
+                self.ctx.storage.ibis_conn.insert("messages", new_rows)
+                logger.info("Inserted %d enrichment rows", len(new_rows))
+            except Exception as e:
+                logger.error("Failed to insert enrichment rows: %s", e)
+        
+        return len(results)
+
+    def _process_media_batch(self, tasks: list[dict[str, Any]]) -> int:
+        from egregora.resources.prompts import render_prompt
+        from egregora.agents.enricher import _normalize_slug
+        from egregora.data_primitives.document import Document, DocumentType
+        from egregora.agents.enricher import _create_enrichment_row
+        from pathlib import Path
+        import mimetypes
+        import base64
+        
+        requests = []
+        task_map = {}
+        prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
+        
+        for task in tasks:
+            payload = task["payload"]
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            task["_parsed_payload"] = payload
+            
+            filename = payload["filename"]
+            media_type = payload["media_type"]
+            suggested_path = payload.get("suggested_path")
+            
+            # Load binary content
+            # We assume suggested_path is valid and accessible
+            # If not, we might fail.
+            # suggested_path is relative to output dir usually? 
+            # Document.suggested_path is usually relative.
+            # We need to resolve it against output_dir.
+            
+            file_path = None
+            if suggested_path:
+                # Try resolving against media_dir
+                # self.ctx.media_dir is where media is saved
+                # But suggested_path might be 'media/foo.jpg'
+                full_path = self.ctx.output_dir / suggested_path
+                if full_path.exists():
+                    file_path = full_path
+            
+            if not file_path or not file_path.exists():
+                logger.warning("Media file not found for task %s: %s", task["task_id"], suggested_path)
+                self.task_store.mark_failed(task["task_id"], "Media file not found")
+                continue
+                
+            try:
+                file_bytes = file_path.read_bytes()
+                # Encode base64 for batch request (inline data)
+                # Or use blob upload? 
+                # GoogleBatchModel _to_genai_contents handles base64 encoding if passed as 'data'
+                # But here we are constructing request dict manually for run_batch.
+                # run_batch expects 'contents' -> 'parts'
+                
+                # We can pass base64 string in 'inlineData'
+                b64_data = base64.b64encode(file_bytes).decode("utf-8")
+                
+                prompt = render_prompt(
+                    "enrichment.jinja",
+                    mode="media_user",
+                    prompts_dir=prompts_dir,
+                    sanitized_filename=filename,
+                    sanitized_mime=media_type,
+                ).strip()
+                
+                tag = str(task["task_id"])
+                requests.append({
+                    "tag": tag,
+                    "contents": [
+                        {
+                            "parts": [
+                                {"text": prompt},
+                                {"inlineData": {"mimeType": media_type, "data": b64_data}}
+                            ]
+                        }
+                    ],
+                    "config": {"response_modalities": ["TEXT"]}
+                })
+                task_map[tag] = task
+                
+            except Exception as e:
+                logger.error("Failed to prepare media task %s: %s", task["task_id"], e)
+                self.task_store.mark_failed(task["task_id"], str(e))
+
+        if not requests:
+            return 0
+            
+        # Execute batch
+        model_name = self.ctx.config.models.enricher_vision
+        from egregora.models.google_batch import GoogleBatchModel
+        from egregora.config.settings import get_google_api_key
+        import asyncio
+        
+        model = GoogleBatchModel(api_key=get_google_api_key(), model_name=model_name)
+        
+        try:
+            results = asyncio.run(model.run_batch(requests))
+        except Exception as e:
+            logger.error("Media enrichment batch failed: %s", e)
+            for t in tasks:
+                if t["task_id"] in task_map:
+                    self.task_store.mark_failed(t["task_id"], f"Batch failed: {str(e)}")
+            return 0
+
+        # Process results
+        new_rows = []
+        for res in results:
+            task = task_map.get(res.tag)
+            if not task:
+                continue
+                
+            if res.error:
+                self.task_store.mark_failed(task["task_id"], str(res.error))
+                continue
+                
+            text = self._extract_text(res.response)
+            try:
+                clean_text = text.strip()
+                if clean_text.startswith("```json"):
+                    clean_text = clean_text[7:]
+                if clean_text.startswith("```"):
+                    clean_text = clean_text[3:]
+                if clean_text.endswith("```"):
+                    clean_text = clean_text[:-3]
+                
+                data = json.loads(clean_text.strip())
+                slug = data.get("slug")
+                markdown = data.get("markdown")
+                
+                if not slug or not markdown:
+                    raise ValueError("Missing slug or markdown")
+                
+                payload = task["_parsed_payload"]
+                filename = payload["filename"]
+                media_type = payload["media_type"]
+                url = payload.get("url") # Might not be present for media
+                
+                slug_value = _normalize_slug(slug, filename)
+                
+                # Create Enriched Media Document
+                # We need to link it to the original media doc?
+                # The original media doc is already persisted.
+                # We create a new enrichment doc.
+                
+                enrichment_metadata = {
+                    "filename": filename,
+                    "media_type": media_type,
+                    "parent_path": payload.get("suggested_path"),
+                    "slug": slug_value,
+                    "nav_exclude": True,
+                    "hide": ["navigation"],
+                }
+
+                doc = Document(
+                    content=markdown,
+                    type=DocumentType.ENRICHMENT_MEDIA,
+                    metadata=enrichment_metadata,
+                )
+                self.ctx.output_format.persist(doc)
+                
+                # Create DB row
+                metadata = payload["message_metadata"]
+                row = _create_enrichment_row(metadata, "Media", filename, doc.document_id)
+                if row:
+                    new_rows.append(row)
+                
+                self.task_store.mark_completed(task["task_id"])
+                
+            except Exception as e:
+                logger.error("Failed to parse media result %s: %s", task["task_id"], e)
+                self.task_store.mark_failed(task["task_id"], f"Parse error: {str(e)}")
+
+        if new_rows:
+            try:
+                self.ctx.storage.ibis_conn.insert("messages", new_rows)
+                logger.info("Inserted %d media enrichment rows", len(new_rows))
+            except Exception as e:
+                logger.error("Failed to insert media enrichment rows: %s", e)
+                
+        return len(results)
+
+    def _extract_text(self, response: dict[str, Any] | None) -> str:
+        if not response:
+            return ""
+        if "text" in response:
+            return response["text"]
+        texts = []
+        for cand in response.get("candidates") or []:
+            content = cand.get("content") or {}
+            for part in content.get("parts") or []:
+                if "text" in part:
+                    texts.append(part["text"])
+        return "\n".join(texts)
