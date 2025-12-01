@@ -32,8 +32,14 @@ GOOGLE_FALLBACK_MODELS = [
 FALLBACK_MODELS = GOOGLE_FALLBACK_MODELS.copy()
 
 
-def get_openrouter_free_models() -> list[str]:
+def get_openrouter_free_models(modality: str = "text") -> list[str]:
     """Fetch list of free OpenRouter models from their API.
+
+    Args:
+        modality: Filter by modality. Options:
+            - "text": Text-only models (for URL enrichment, writer, reader)
+            - "vision": Models with image input support (for media enrichment)
+            - "any": All free models regardless of modality
 
     Returns:
         List of model names in pydantic-ai format (e.g., 'openrouter:model/name')
@@ -41,38 +47,50 @@ def get_openrouter_free_models() -> list[str]:
     """
     global _free_models_cache, _cache_timestamp  # noqa: PLW0603
 
-    # Check cache
-    if _free_models_cache and (time.time() - _cache_timestamp) < CACHE_TTL:
-        return _free_models_cache
-
+    # Use a different cache key for each modality
+    cache_key = f"_{modality}_models_cache"
+    
     free_models: list[str] = []
     try:
         response = httpx.get("https://openrouter.ai/api/v1/models", timeout=10.0)
         response.raise_for_status()
         data = response.json()
 
-        # Filter for free models and convert to pydantic-ai format
-        free_models = [
-            f"openrouter:{model['id']}"
-            for model in data.get("data", [])
-            if model.get("pricing", {}).get("prompt", "0") == "0"
-            and model.get("pricing", {}).get("completion", "0") == "0"
-        ]
+        # Filter for free models based on modality
+        for model in data.get("data", []):
+            # Check if model is free
+            pricing = model.get("pricing", {})
+            if pricing.get("prompt", "0") != "0" or pricing.get("completion", "0") != "0":
+                continue
+            
+            # Check modality requirements
+            architecture = model.get("architecture", {})
+            input_modalities = architecture.get("input_modalities", [])
+            
+            # Filter based on requested modality
+            if modality == "text":
+                # Text models should accept text input
+                if "text" in input_modalities:
+                    free_models.append(f"openrouter:{model['id']}")
+            elif modality == "vision":
+                # Vision models should accept both text and image input
+                if "text" in input_modalities and "image" in input_modalities:
+                    free_models.append(f"openrouter:{model['id']}")
+            else:  # "any"
+                free_models.append(f"openrouter:{model['id']}")
 
-        # Update cache
-        _free_models_cache = free_models
-        _cache_timestamp = time.time()
-
-        logger.info("Fetched %d free OpenRouter models", len(free_models))
+        logger.info("Fetched %d free OpenRouter models for modality '%s'", len(free_models), modality)
     except (httpx.HTTPError, httpx.TimeoutException) as e:
         logger.warning("Failed to fetch OpenRouter free models: %s. Using fallback list.", e)
-        # Return hardcoded fallback if API call fails
-        free_models = [
-            "openrouter:x-ai/grok-beta",
-            "openrouter:google/gemma-2-9b-it:free",
-            "openrouter:meta-llama/llama-3.1-8b-instruct:free",
-            "openrouter:mistralai/mistral-7b-instruct:free",
-        ]
+        # Return hardcoded fallback if API call fails (text-only models)
+        if modality in ("text", "any"):
+            free_models = [
+                "openrouter:x-ai/grok-beta",
+                "openrouter:google/gemma-2-9b-it:free",
+                "openrouter:meta-llama/llama-3.1-8b-instruct:free",
+                "openrouter:mistralai/mistral-7b-instruct:free",
+            ]
+        # For vision, return empty list as fallback since we don't have reliable free vision models
 
     return free_models
 
@@ -82,6 +100,7 @@ def create_fallback_model(
     fallback_models: list[str | Model] | None = None,
     *,
     include_openrouter: bool = True,
+    modality: str = "text",
 ) -> Model:
     """Create a FallbackModel with automatic fallback on 429 errors.
 
@@ -89,6 +108,8 @@ def create_fallback_model(
         primary_model: The primary model to use (can be model name string or Model instance)
         fallback_models: List of fallback models. If None, uses FALLBACK_MODELS + OpenRouter free models.
         include_openrouter: If True, automatically include free OpenRouter models in fallback list.
+        modality: Model modality required. Options: "text", "vision", "any".
+                  For media enrichment use "vision", for text use "text".
 
     Returns:
         A FallbackModel that will automatically fall back on API errors.
@@ -105,11 +126,15 @@ def create_fallback_model(
         # Add OpenRouter free models if requested
         if include_openrouter:
             try:
-                openrouter_models = get_openrouter_free_models()
-                # Add OpenRouter models that aren't already in the list
-                for orm in openrouter_models:
-                    if orm not in fallback_models and orm != primary_model:
-                        fallback_models.append(orm)
+                openrouter_models = get_openrouter_free_models(modality=modality)
+                # Only add if we got models back (vision may return empty list)
+                if openrouter_models:
+                    # Add OpenRouter models that aren't already in the list
+                    for orm in openrouter_models:
+                        if orm not in fallback_models and orm != primary_model:
+                            fallback_models.append(orm)
+                elif modality == "vision":
+                    logger.info("No free OpenRouter vision models available, using Google models only")
             except (httpx.HTTPError, httpx.TimeoutException) as e:
                 logger.warning("Failed to add OpenRouter models to fallback: %s", e)
 

@@ -90,9 +90,27 @@ enrichment:
 ✅ **Unlimited Generation**: When Google APIs hit 429 quota limits, automatically switches to OpenRouter free models  
 ✅ **Simpler Code**: Removed 100+ lines of custom fallback logic  
 ✅ **Dynamic Discovery**: Always up-to-date with new free models  
+✅ **Modality Filtering**: Automatically filters models by capability (text-only vs vision)  
 ✅ **Better Error Handling**: Falls back on any API error, not just 429  
 ✅ **Rate Limiting**: Configurable concurrency prevents hitting API limits  
 ✅ **Zero Cost**: All OpenRouter fallback models are 100% free  
+
+## Important Limitations
+
+⚠️ **URL Access**: Most OpenRouter models cannot directly access URLs like Gemini can. For URL enrichment, consider:
+- Pre-fetching URL content with tools like `httpx` or `playwright`
+- Passing the extracted text to the OpenRouter model
+- Using Google models as primary with OpenRouter as fallback for text-only tasks
+
+⚠️ **Vision/Multimodal**: Very few free OpenRouter models support image/video input. For media enrichment:
+- The system automatically filters for vision-capable models
+- If no free vision models are available, falls back to Google models only
+- Consider keeping media enrichment on Google models exclusively
+
+⚠️ **Model Capabilities**: The system uses OpenRouter's API to dynamically detect:
+- `input_modalities`: What types of input the model accepts (text, image, audio, video)
+- `pricing`: Which models are truly free ($0.00 for both prompt and completion)
+- This ensures only compatible models are used for each task  
 
 ## Usage Example
 
