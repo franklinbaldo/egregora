@@ -1,19 +1,17 @@
 import logging
-import asyncio
+
 import numpy as np
 from sklearn.cluster import KMeans
 
 from egregora.agents.taxonomy import create_global_taxonomy_agent
+from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import OutputSink
 from egregora.rag import get_backend
-from egregora.config.settings import EgregoraConfig
 
 logger = logging.getLogger(__name__)
 
-async def generate_semantic_taxonomy(
-    output_sink: OutputSink,
-    config: EgregoraConfig
-) -> int:
+
+async def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) -> int:
     backend = get_backend()
 
     # 1. Fetch & Cluster (Standard K-Means)
@@ -61,15 +59,14 @@ async def generate_semantic_taxonomy(
     # We join all clusters into one giant prompt so the LLM sees the boundaries
     agent = create_global_taxonomy_agent(config.models.writer)
 
-    prompt = (
-        "Analyze these document clusters and generate a distinct tag set for each.\n\n" +
-        "\n\n".join(clusters_input)
+    prompt = "Analyze these document clusters and generate a distinct tag set for each.\n\n" + "\n\n".join(
+        clusters_input
     )
 
     logger.info("Generating global taxonomy map...")
     try:
         result = await agent.run(prompt)
-        taxonomy_map = result.data.mappings # List[ClusterTags]
+        taxonomy_map = result.data.mappings  # List[ClusterTags]
     except Exception as e:
         logger.warning("Taxonomy generation failed: %s", e)
         return 0
@@ -86,7 +83,8 @@ async def generate_semantic_taxonomy(
 
         for doc_id in member_ids:
             doc = doc_lookup.get(doc_id)
-            if not doc: continue
+            if not doc:
+                continue
 
             # Idempotent merge
             current_tags = set(doc.metadata.get("tags", []))

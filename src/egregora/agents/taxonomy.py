@@ -1,29 +1,32 @@
-"""
-Pydantic-AI agent for generating semantic taxonomy from content clusters.
-"""
-from typing import List
+"""Pydantic-AI agent for generating semantic taxonomy from content clusters."""
+
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
 from egregora.utils.model_fallback import create_fallback_model
 
+
 class ClusterInput(BaseModel):
     """Input representation of a single cluster for the prompt."""
+
     cluster_id: int
-    exemplars: List[str] = Field(description="Titles/Summaries of posts in this cluster")
+    exemplars: list[str] = Field(description="Titles/Summaries of posts in this cluster")
+
 
 class ClusterTags(BaseModel):
     """The tags assigned to a specific cluster."""
+
     cluster_id: int = Field(description="The ID of the cluster being labeled")
-    tags: List[str] = Field(
-        description="2-4 distinct tags that describe this specific topic group",
-        min_length=2,
-        max_length=4
+    tags: list[str] = Field(
+        description="2-4 distinct tags that describe this specific topic group", min_length=2, max_length=4
     )
+
 
 class GlobalTaxonomyResult(BaseModel):
     """The complete taxonomy map."""
-    mappings: List[ClusterTags]
+
+    mappings: list[ClusterTags]
+
 
 def create_global_taxonomy_agent(model_name: str) -> Agent[None, GlobalTaxonomyResult]:
     """Create the global taxonomy agent with fallback support."""
@@ -42,8 +45,4 @@ def create_global_taxonomy_agent(model_name: str) -> Agent[None, GlobalTaxonomyR
     4. **Output**: Return a strictly structured mapping of Cluster ID to Tag List.
     """
 
-    return Agent(
-        model=model,
-        result_type=GlobalTaxonomyResult,
-        system_prompt=system_prompt
-    )
+    return Agent(model=model, result_type=GlobalTaxonomyResult, system_prompt=system_prompt)

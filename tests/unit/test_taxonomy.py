@@ -1,4 +1,5 @@
 """Unit tests for taxonomy generation logic."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
@@ -7,10 +8,12 @@ import pytest
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.ops.taxonomy import generate_semantic_taxonomy
 
+
 @pytest.fixture(autouse=True)
 def _ibis_backend():
     """Override global fixture to avoid Ibis connection issues in unit tests."""
-    yield
+    return
+
 
 # Mock dependencies
 @pytest.fixture
@@ -19,24 +22,28 @@ def mock_output_sink():
     # Create some dummy documents
     docs = []
     for i in range(10):
-        docs.append(Document(
-            content=f"Content {i}",
-            type=DocumentType.POST,
-            metadata={
-                "title": f"Post {i}",
-                "summary": f"Summary {i}",
-                "tags": ["original"],
-                "path": f"posts/post_{i}.md"
-            }
-        ))
+        docs.append(
+            Document(
+                content=f"Content {i}",
+                type=DocumentType.POST,
+                metadata={
+                    "title": f"Post {i}",
+                    "summary": f"Summary {i}",
+                    "tags": ["original"],
+                    "path": f"posts/post_{i}.md",
+                },
+            )
+        )
     sink.documents.return_value = docs
     return sink
+
 
 @pytest.fixture
 def mock_config():
     config = MagicMock()
     config.models.writer = "mock-model"
     return config
+
 
 @pytest.fixture
 def mock_backend():
@@ -46,6 +53,7 @@ def mock_backend():
     vectors = np.random.rand(10, 768)
     backend.get_all_post_vectors = AsyncMock(return_value=(doc_ids, vectors))
     return backend
+
 
 @pytest.mark.asyncio
 async def test_generate_semantic_taxonomy_insufficient_docs(mock_output_sink, mock_config):
@@ -58,18 +66,20 @@ async def test_generate_semantic_taxonomy_insufficient_docs(mock_output_sink, mo
         count = await generate_semantic_taxonomy(mock_output_sink, mock_config)
         assert count == 0
 
+
 @pytest.mark.asyncio
 async def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config):
     """Test successful global taxonomy generation."""
-    with patch("egregora.ops.taxonomy.get_backend") as mock_get_backend, \
-         patch("egregora.ops.taxonomy.create_global_taxonomy_agent") as mock_create_agent:
-
+    with (
+        patch("egregora.ops.taxonomy.get_backend") as mock_get_backend,
+        patch("egregora.ops.taxonomy.create_global_taxonomy_agent") as mock_create_agent,
+    ):
         # Setup Backend
         backend = MagicMock()
         # Create matching doc IDs
         real_docs = list(mock_output_sink.documents())
         doc_ids = [d.document_id for d in real_docs]
-        vectors = np.random.rand(len(doc_ids), 10) # 10-dim vectors
+        vectors = np.random.rand(len(doc_ids), 10)  # 10-dim vectors
         backend.get_all_post_vectors = AsyncMock(return_value=(doc_ids, vectors))
         mock_get_backend.return_value = backend
 
@@ -96,7 +106,7 @@ async def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config)
         count = await generate_semantic_taxonomy(mock_output_sink, mock_config)
 
         # Verify
-        assert count > 0 # Should update docs
+        assert count > 0  # Should update docs
         assert mock_output_sink.persist.called
 
         # Check that persist was called with updated tags
@@ -108,12 +118,14 @@ async def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config)
         assert "original" in tags
         assert any(t in tags for t in ["GlobalTagA", "GlobalTagB", "GlobalTagC", "GlobalTagD"])
 
+
 @pytest.mark.asyncio
 async def test_generate_semantic_taxonomy_agent_failure(mock_output_sink, mock_config):
     """Test graceful failure if agent errors out."""
-    with patch("egregora.ops.taxonomy.get_backend") as mock_get_backend, \
-         patch("egregora.ops.taxonomy.create_global_taxonomy_agent") as mock_create_agent:
-
+    with (
+        patch("egregora.ops.taxonomy.get_backend") as mock_get_backend,
+        patch("egregora.ops.taxonomy.create_global_taxonomy_agent") as mock_create_agent,
+    ):
         # Setup Backend
         backend = MagicMock()
         real_docs = list(mock_output_sink.documents())
