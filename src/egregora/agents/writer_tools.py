@@ -276,15 +276,24 @@ def annotate_conversation_impl(
         msg = "Annotation store is not configured"
         raise RuntimeError(msg)
 
-    annotation = ctx.annotations_store.save_annotation(
-        parent_id=parent_id, parent_type=parent_type, commentary=commentary
-    )
-    return AnnotationResult(
-        status="success",
-        annotation_id=annotation.id,
-        parent_id=annotation.parent_id,
-        parent_type=annotation.parent_type,
-    )
+    try:
+        annotation = ctx.annotations_store.save_annotation(
+            parent_id=parent_id, parent_type=parent_type, commentary=commentary
+        )
+        return AnnotationResult(
+            status="success",
+            annotation_id=annotation.id,
+            parent_id=annotation.parent_id,
+            parent_type=annotation.parent_type,
+        )
+    except Exception as exc:  # noqa: BLE001 - defensive catch to avoid pipeline aborts
+        logger.warning("Failed to persist annotation, continuing without it: %s", exc)
+        return AnnotationResult(
+            status="failed",
+            annotation_id="annotation-error",
+            parent_id=parent_id,
+            parent_type=parent_type,
+        )
 
 
 def generate_banner_impl(ctx: BannerContext, post_slug: str, title: str, summary: str) -> BannerResult:

@@ -62,9 +62,10 @@ from egregora.agents.writer_tools import (
     write_post_impl,
     write_profile_impl,
 )
-from egregora.config.settings import EgregoraConfig
+from egregora.config.settings import EgregoraConfig, get_google_api_key
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors, read_profile
+from egregora.models import GoogleBatchModel
 from egregora.output_adapters import OutputAdapterRegistry, create_default_output_registry
 from egregora.rag import index_documents, reset_backend
 from egregora.resources.prompts import PromptManager, render_prompt
@@ -660,6 +661,22 @@ def _validate_prompt_fits(
             )
 
 
+def _is_event_loop_binding_error(exc: BaseException) -> bool:
+    """Detect google-genai async client errors caused by crossing event loops."""
+    current: BaseException | None = exc
+    needle = "bound to a different event loop"
+    while current is not None:
+        if needle in str(current):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
+def _build_batch_model(model_name: str) -> GoogleBatchModel:
+    """Return a synchronous batch model to avoid async client bugs."""
+    return GoogleBatchModel(api_key=get_google_api_key(), model_name=model_name)
+
+
 @sleep_and_retry
 @limits(calls=100, period=60)
 def write_posts_with_pydantic_agent(
@@ -707,13 +724,19 @@ def write_posts_with_pydantic_agent(
 
     # Create model with automatic fallback
     configured_model = test_model if test_model is not None else config.models.writer
-    model = create_fallback_model(configured_model)
+    model = create_fallback_model(configured_model, use_google_batch=True)
 
     # Validate prompt fits
     _validate_prompt_fits(prompt, configured_model, config, context.window_label)
 
     # Create agent
-    agent = Agent[WriterDeps, WriterAgentReturn](model=model, deps_type=WriterDeps)
+    agent = Agent[WriterDeps, WriterAgentReturn](
+        model=model,
+        deps_type=WriterDeps,
+        # Allow a few validation retries so transient schema hiccups don't abort the run
+        retries=3,
+        output_retries=3,
+    )
     register_writer_tools(agent, capabilities=active_capabilities)
 
     reset_backend()
@@ -950,9 +973,28 @@ def _execute_writer_with_error_handling(
             context=deps,
         )
     except Exception as exc:
-        # Let PromptTooLargeError propagate unchanged (don't wrap it)
         if isinstance(exc, PromptTooLargeError):
             raise
+
+        if _is_event_loop_binding_error(exc):
+            logger.warning(
+                "Detected Google async client event-loop binding bug; retrying window '%s' with batch model",
+                deps.window_label,
+            )
+            try:
+                batch_model = _build_batch_model(config.models.writer)
+                return write_posts_with_pydantic_agent(
+                    prompt=prompt,
+                    config=config,
+                    context=deps,
+                    test_model=batch_model,
+                )
+            except Exception as batch_exc:
+                if isinstance(batch_exc, PromptTooLargeError):
+                    raise
+                msg = f"Writer agent batch fallback failed for {deps.window_label}"
+                logger.exception(msg)
+                raise RuntimeError(msg) from batch_exc
         msg = f"Writer agent failed for {deps.window_label}"
         logger.exception(msg)
         raise RuntimeError(msg) from exc

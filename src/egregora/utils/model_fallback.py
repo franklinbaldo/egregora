@@ -7,9 +7,13 @@ from typing import TYPE_CHECKING
 
 import httpx
 from pydantic_ai.models.fallback import FallbackModel
+from pydantic_ai.exceptions import ModelAPIError, UsageLimitExceeded
 
 if TYPE_CHECKING:
     from pydantic_ai.models import Model
+
+from egregora.config.settings import get_google_api_key
+from egregora.models import GoogleBatchModel
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +104,7 @@ def create_fallback_model(
     *,
     include_openrouter: bool = True,
     modality: str = "text",
+    use_google_batch: bool = False,
 ) -> Model:
     """Create a FallbackModel with automatic fallback on 429 errors.
 
@@ -137,8 +142,30 @@ def create_fallback_model(
             except (httpx.HTTPError, httpx.TimeoutException) as e:
                 logger.warning("Failed to add OpenRouter models to fallback: %s", e)
 
-    # FallbackModel defaults to falling back on ModelAPIError (which includes 429)
+    # Use synchronous batch-based Google client to avoid async event loop bugs.
+    if use_google_batch:
+        api_key = get_google_api_key()
+        converted_fallbacks: list[str | Model] = []
+        for model in fallback_models:
+            if isinstance(model, str) and model.startswith("google-gla:"):
+                converted_fallbacks.append(GoogleBatchModel(api_key=api_key, model_name=model))
+            else:
+                converted_fallbacks.append(model)
+
+        default_model: str | Model
+        if isinstance(primary_model, str) and primary_model.startswith("google-gla:"):
+            default_model = GoogleBatchModel(api_key=api_key, model_name=primary_model)
+        else:
+            default_model = primary_model
+
+        return FallbackModel(
+            default_model,
+            *converted_fallbacks,
+            fallback_on=(ModelAPIError, UsageLimitExceeded),
+        )
+
     return FallbackModel(
         primary_model,
         *fallback_models,
+        fallback_on=(ModelAPIError, UsageLimitExceeded),
     )

@@ -167,16 +167,43 @@ class DuckDBStorageManager:
         return instance
 
     def _init_vector_extensions(self) -> None:
-        """Install and load DuckDB VSS extension, and detect best search function."""
-        # Enable HNSW index persistence for vector search
-        # Requires 'vss' extension to be loaded first
+        """Disable VSS extension when stability issues are detected."""
+        self._vss_function = None
+
+    def _is_invalidated_error(self, exc: duckdb.Error) -> bool:
+        """Check if DuckDB raised a fatal invalidation error."""
+        message = str(exc).lower()
+        return "database has been invalidated" in message or "read-only but has made changes" in message
+
+    def _reset_connection(self) -> None:
+        """Recreate the DuckDB connection after a fatal error and clear caches."""
+        db_str = str(self.db_path) if self.db_path else ":memory:"
+        logger.warning("Resetting DuckDB connection after fatal error (db=%s)", db_str)
         try:
-            self._conn.execute("INSTALL vss; LOAD vss;")
-            self._conn.execute("SET hnsw_enable_experimental_persistence=true")
-            self._vss_function = self.detect_vss_function()
-        except (duckdb.Error, RuntimeError) as exc:
-            logger.warning("VSS extension unavailable: %s", exc)
-            self._vss_function = None
+            self._conn.close()
+        except Exception as close_exc:  # pragma: no cover - defensive logging
+            logger.error("Failed closing invalidated DuckDB connection: %s", close_exc)
+
+        def _connect() -> None:
+            self._conn = duckdb.connect(db_str)
+            self._init_vector_extensions()
+            self.ibis_conn = ibis.duckdb.connect(database=db_str)
+
+        try:
+            _connect()
+        except duckdb.Error as exc:
+            if self._is_invalidated_error(exc) and self.db_path:
+                logger.warning("Recreating DuckDB database file after fatal invalidation: %s", db_str)
+                try:
+                    Path(db_str).unlink(missing_ok=True)
+                except Exception as unlink_exc:  # pragma: no cover - defensive logging
+                    logger.error("Failed to remove invalidated DuckDB file %s: %s", db_str, unlink_exc)
+                _connect()
+            else:
+                raise
+
+        self.sql = SQLManager()
+        self._table_info_cache.clear()
 
     @contextlib.contextmanager
     def connection(self) -> duckdb.DuckDBPyConnection:
@@ -265,6 +292,12 @@ class DuckDBStorageManager:
         try:
             return self.ibis_conn.table(name)
         except Exception as e:
+            if self._is_invalidated_error(e):
+                self._reset_connection()
+                try:
+                    return self.ibis_conn.table(name)
+                except Exception:
+                    pass
             msg = f"Table '{name}' not found in database"
             logger.exception(msg)
             raise ValueError(msg) from e
@@ -462,8 +495,18 @@ class DuckDBStorageManager:
             raise ValueError(msg)
 
         with self._lock:
-            cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
-            values = [int(row[0]) for row in cursor.fetchall()]
+            try:
+                cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
+                values = [int(row[0]) for row in cursor.fetchall()]
+            except duckdb.Error as exc:
+                if not self._is_invalidated_error(exc):
+                    raise
+
+                # DuckDB occasionally invalidates the connection after a fatal internal error.
+                # Recreate the connection and retry once so the pipeline can continue.
+                self._reset_connection()
+                cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
+                values = [int(row[0]) for row in cursor.fetchall()]
 
         # Defensive check: if query returns empty, sequence might not exist
         if not values:
