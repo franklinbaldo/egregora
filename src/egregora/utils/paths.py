@@ -1,9 +1,9 @@
 """Path safety utilities for secure file operations."""
 
 from pathlib import Path
+from unicodedata import normalize
 
-from slugify import slugify as _slugify
-from werkzeug.utils import safe_join as _werkzeug_safe_join
+from pymdownx.slugs import slugify as _md_slugify
 
 
 class PathTraversalError(Exception):
@@ -11,10 +11,9 @@ class PathTraversalError(Exception):
 
 
 def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
-    """Convert text to a safe URL-friendly slug using python-slugify.
+    """Convert text to a safe URL-friendly slug using MkDocs/Python Markdown semantics.
 
-    Uses the industry-standard python-slugify library with Unicode transliteration
-    support (100M+ downloads). Handles Cyrillic, Greek, Arabic, CJK, and more.
+    Produces ASCII-only, hyphen-separated slugs matching MkDocs tab/heading behavior.
 
     Args:
         text: Input text to slugify
@@ -39,8 +38,14 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
         'aaaaaaaaaaaaaaaaaaaa'
 
     """
-    slug = _slugify(text, max_length=max_len, separator="-", lowercase=lowercase)
-    return slug if slug else "post"
+    normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    slugifier = _md_slugify(case="lower" if lowercase else None, separator="-")
+    slug = slugifier(normalized)
+    if not slug:
+        return "post"
+    if len(slug) > max_len:
+        slug = slug[:max_len].rstrip("-")
+    return slug
 
 
 def safe_path_join(base_dir: Path, *parts: str) -> Path:
@@ -70,23 +75,28 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
         PathTraversalError: Path escaped output directory
 
     """
-    normalized_parts = []
-    min_windows_abs_path_len = 3
+    base_resolved = base_dir.resolve()
+    candidate = base_resolved
     for part in parts:
-        if len(part) >= min_windows_abs_path_len and part[1:3] == ":\\":
-            msg = f"Absolute Windows paths not allowed: {part}"
+        part_path = Path(part)
+        if part_path.is_absolute():
+            msg = f"Absolute paths not allowed: {part}"
             raise PathTraversalError(msg)
-        normalized_parts.append(part.replace("\\", "/"))
-    base_str = str(base_dir.resolve())
+        candidate = candidate.joinpath(part_path)
+
     try:
-        result_str = _werkzeug_safe_join(base_str, *normalized_parts)
-    except Exception as exc:
-        msg = f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"
+        candidate_resolved = candidate.resolve()
+    except OSError as exc:  # pragma: no cover - defensive
+        msg = f"Failed to resolve path {candidate}: {exc}"
         raise PathTraversalError(msg) from exc
-    if result_str is None:
+
+    try:
+        candidate_resolved.relative_to(base_resolved)
+    except ValueError:
         msg = f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"
         raise PathTraversalError(msg)
-    return Path(result_str)
+
+    return candidate_resolved
 
 
 def ensure_dir(path: Path) -> Path:

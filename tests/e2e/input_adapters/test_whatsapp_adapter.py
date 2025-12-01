@@ -23,7 +23,7 @@ import ibis
 import pytest
 
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
-from egregora.input_adapters.whatsapp import filter_egregora_messages, parse_source
+from egregora.input_adapters.whatsapp.parsing import parse_source
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
 
 if TYPE_CHECKING:
@@ -275,6 +275,8 @@ def test_egregora_commands_are_filtered_out(whatsapp_fixture: WhatsAppFixture, m
         "text": "/egregora opt-out",
     }
     augmented = table.union(ibis.memtable([synthetic], schema=table.schema()))
+
+    from egregora.input_adapters.whatsapp.commands import filter_egregora_messages
 
     filtered, removed_count = filter_egregora_messages(augmented)
     assert removed_count == 1

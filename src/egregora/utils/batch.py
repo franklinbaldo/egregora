@@ -1,41 +1,29 @@
-"""Synchronous helpers for running Gemini Batch API jobs."""
+"""Synchronous helpers for Gemini-style batch operations (HTTP-only stubs)."""
 
 from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeVar
+from typing import TypeVar
 
-from google.api_core import exceptions as google_exceptions
-from google.genai import errors as genai_errors
+import httpx
 from google.genai import types as genai_types
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from tenacity import (
     RetryCallState,
-    Retrying,
     retry_if_exception_type,
     stop_after_attempt,
     wait_random_exponential,
 )
-from tqdm import tqdm
-
-from egregora.config import EMBEDDING_DIM
 
 T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
 
 # Shared retry configuration - use tenacity directly with these constants
-RETRYABLE_EXCEPTIONS = (
-    UnexpectedModelBehavior,
-    google_exceptions.ResourceExhausted,
-    google_exceptions.ServiceUnavailable,
-    google_exceptions.InternalServerError,
-    google_exceptions.GatewayTimeout,
-    genai_errors.ServerError,
-)
-
+RETRYABLE_EXCEPTIONS = (UnexpectedModelBehavior, httpx.HTTPError)
 RETRY_STOP = stop_after_attempt(5)
 RETRY_WAIT = wait_random_exponential(min=2.0, max=60.0)
 RETRY_IF = retry_if_exception_type(RETRYABLE_EXCEPTIONS)
@@ -52,31 +40,15 @@ def _log_before_retry(retry_state: RetryCallState) -> None:
 
 
 def sleep_with_progress_sync(duration: float, message: str = "Sleeping") -> None:
-    """Sleep for a given duration with a progress bar.
-
-    Args:
-        duration: The number of seconds to sleep.
-        message: The message to display in the progress bar.
-
-    """
+    """Sleep for a given duration with a simple loop (no progress bar dependency)."""
     if duration <= 0:
         return
-
-    # Use a small sleep interval to update the progress bar smoothly
     sleep_interval = 0.1
-    with tqdm(total=duration, desc=message, unit="s", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt}") as pbar:
-        slept_time = 0
-        while slept_time < duration:
-            sleep_amount = min(sleep_interval, duration - slept_time)
-            time.sleep(sleep_amount)
-            pbar.update(sleep_amount)
-            slept_time += sleep_amount
-
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
-
-    from google import genai
+    slept_time = 0.0
+    while slept_time < duration:
+        sleep_amount = min(sleep_interval, duration - slept_time)
+        time.sleep(sleep_amount)
+        slept_time += sleep_amount
 
 
 @dataclass(slots=True)
@@ -84,7 +56,7 @@ class BatchPromptRequest:
     """Single request to be executed in a batch generate job."""
 
     contents: list[genai_types.Content]
-    config: genai_types.GenerateContentConfig | None = None
+    config: dict | genai_types.GenerateContentConfig | None = None
     model: str | None = None
     tag: str | None = None
 
@@ -100,10 +72,7 @@ class BatchPromptResult:
 
 @dataclass(slots=True)
 class EmbeddingBatchRequest:
-    """Embed request executed through the batch embeddings API.
-
-    All embeddings use fixed 768-dimension output.
-    """
+    """Embed request executed through the batch embeddings API."""
 
     text: str
     tag: str | None = None
@@ -121,19 +90,11 @@ class EmbeddingBatchResult:
 
 
 class GeminiBatchClient:
-    """Minimal synchronous wrapper around ``client.batches``.
-
-    Args:
-        client: The Google GenAI client.
-        default_model: The default model to use for batch jobs.
-        poll_interval: The default polling interval in seconds.
-        timeout: The default timeout in seconds.
-
-    """
+    """Synchronous Gemini batch helper built on the official google-genai client."""
 
     def __init__(
         self,
-        client: genai.Client,
+        client: object,
         default_model: str,
         poll_interval: float = 5.0,
         timeout: float | None = 900.0,
@@ -148,45 +109,9 @@ class GeminiBatchClient:
         """Return the default generative model for this batch client."""
         return self._default_model
 
-    def upload_file(self, *, path: str, _display_name: str | None = None) -> genai_types.File:
-        """Upload a media file and wait for it to become ACTIVE before returning."""
-        logger.debug("Uploading media for batch processing: %s", path)
-        # Newer google-genai clients accept only the file path/handle; display
-        # names are deprecated, so we ignore them here for compatibility.
-        for attempt in Retrying(
-            stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry
-        ):
-            with attempt:
-                uploaded_file = self._client.files.upload(file=path)
-
-        # Wait for file to become ACTIVE (required before use)
-        max_wait = 60  # seconds
-        poll_interval = 2  # seconds
-        elapsed = 0
-        while uploaded_file.state.name != "ACTIVE":
-            if elapsed >= max_wait:
-                logger.warning(
-                    "File %s did not become ACTIVE after %ds (state: %s)",
-                    path,
-                    max_wait,
-                    uploaded_file.state.name,
-                )
-                break
-            time.sleep(poll_interval)
-            elapsed += poll_interval
-            for attempt in Retrying(
-                stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry
-            ):
-                with attempt:
-                    uploaded_file = self._client.files.get(name=uploaded_file.name)
-            logger.debug(
-                "Waiting for file %s to become ACTIVE (current: %s, elapsed: %ds)",
-                path,
-                uploaded_file.state.name,
-                elapsed,
-            )
-
-        return uploaded_file
+    def upload_file(self, *, path: str, _display_name: str | None = None) -> File:
+        display_name = _display_name or path
+        return self._client.files.upload(file=path, display_name=display_name)
 
     def generate_content(
         self,
@@ -196,77 +121,35 @@ class GeminiBatchClient:
         poll_interval: float | None = None,
         timeout: float | None = None,
     ) -> list[BatchPromptResult]:
-        """Execute a batch generate job and return responses in order.
-
-        Args:
-            requests: A sequence of batch prompt requests.
-            _display_name: A display name for the batch job.
-            poll_interval: The polling interval in seconds.
-            timeout: The timeout in seconds.
-
-        Returns:
-            A list of batch prompt results.
-
-        """
         if not requests:
             return []
 
-        inlined_requests = [
-            genai_types.InlinedRequest(
-                model=req.model or self._default_model,
-                contents=req.contents,
-                config=req.config,
-            )
-            for req in requests
-        ]
-
-        logger.info(
-            "[blue]🧠 Batch model:[/] %s — %d request(s)",
-            self._default_model,
-            len(inlined_requests),
-        )
-
-        for attempt in Retrying(
-            stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry
-        ):
-            with attempt:
-                job = self._client.batches.create(
-                    model=self._default_model,
-                    src=genai_types.BatchJobSource(inlined_requests=inlined_requests),
-                )
-
-        logger.info("[cyan]🚀 Batch job created:[/] %s", job.name or "<unknown>")
-        completed_job = self._poll_until_done(
-            job.name,
-            interval=poll_interval,
-            timeout=timeout,
-        )
-
-        responses = (completed_job.dest.inlined_responses if completed_job.dest else None) or []
+        poll_seconds = poll_interval or self._poll_interval
+        timeout_seconds = timeout or self._timeout
 
         results: list[BatchPromptResult] = []
-
-        for index, request in enumerate(requests):
-            response_obj = responses[index] if index < len(responses) else None
-            response = getattr(response_obj, "response", None) if response_obj else None
-            error = getattr(response_obj, "error", None) if response_obj else None
-
-            if error:
-                logger.warning(
-                    "[yellow]⚠️ Batch item failed[/] tag=%s index=%d code=%s message=%s",
-                    request.tag,
-                    index,
-                    getattr(error, "code", "n/a"),
-                    getattr(error, "message", "unknown error"),
+        for req in requests:
+            model = req.model or self._default_model
+            try:
+                response = self._client.models.generate_content(
+                    model=model,
+                    contents=req.contents,
+                    config=req.config or {},
+                    timeout=timeout_seconds,
+                )
+                results.append(BatchPromptResult(tag=req.tag, response=response, error=None))
+            except Exception as exc:  # pragma: no cover - exercised in integration
+                logger.exception("Batch generate_content failed for tag %s", req.tag)
+                results.append(
+                    BatchPromptResult(
+                        tag=req.tag,
+                        response=None,
+                        error=genai_types.JobError(code=type(exc).__name__, message=str(exc)),
+                    )
                 )
 
-            results.append(
-                BatchPromptResult(
-                    tag=request.tag,
-                    response=response,
-                    error=error,
-                )
-            )
+            if poll_seconds:
+                sleep_with_progress_sync(poll_seconds)
 
         return results
 
@@ -278,134 +161,43 @@ class GeminiBatchClient:
         poll_interval: float | None = None,
         timeout: float | None = None,
     ) -> list[EmbeddingBatchResult]:
-        """Execute a batch embedding job.
-
-        Args:
-            requests: A sequence of embedding batch requests.
-            _display_name: A display name for the batch job.
-            poll_interval: The polling interval in seconds.
-            timeout: The timeout in seconds.
-
-        Returns:
-            A list of embedding batch results.
-
-        """
         if not requests:
             return []
 
-        model_name = next((req.model for req in requests if req.model), self._default_model)
-
-        task_type = next((req.task_type for req in requests if req.task_type), None)
-        if any(req.task_type not in (None, task_type) for req in requests):
-            msg = "All embedding batch requests must use the same task_type"
-            raise ValueError(msg)
-
-        # Always use fixed 768 dimensions for all embeddings
-        embed_config = genai_types.EmbedContentConfig(
-            task_type=task_type,
-            output_dimensionality=EMBEDDING_DIM,
-        )
-
-        contents = [genai_types.Content(parts=[genai_types.Part(text=req.text)]) for req in requests]
-
-        source = genai_types.EmbeddingsBatchJobSource(
-            inlined_requests=genai_types.EmbedContentBatch(
-                contents=contents,
-                config=embed_config,
-            )
-        )
-
-        logger.info("[blue]📚 Embedding model:[/] %s — %d item(s)", model_name, len(contents))
-
-        for attempt in Retrying(
-            stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry
-        ):
-            with attempt:
-                job = self._client.batches.create_embeddings(
-                    model=model_name,
-                    src=source,
-                )
-
-        logger.info("[cyan]🚀 Embedding job created:[/] %s", job.name or "<unknown>")
-        completed_job = self._poll_until_done(
-            job.name,
-            interval=poll_interval,
-            timeout=timeout,
-        )
-
-        responses = (completed_job.dest.inlined_embed_content_responses if completed_job.dest else None) or []
+        poll_seconds = poll_interval or self._poll_interval
+        timeout_seconds = timeout or self._timeout
 
         results: list[EmbeddingBatchResult] = []
-        for index, req in enumerate(requests):
-            response_obj = responses[index] if index < len(responses) else None
-            response = getattr(response_obj, "response", None) if response_obj else None
-            error = getattr(response_obj, "error", None) if response_obj else None
+        for req in requests:
+            model = req.model or self._default_model
+            try:
+                if hasattr(self._client, "models") and hasattr(self._client.models, "embed_content"):
+                    resp = self._client.models.embed_content(
+                        model=model,
+                        content=req.text,
+                        task_type=req.task_type,
+                        timeout=timeout_seconds,
+                    )
+                    embedding = getattr(resp, "embedding", None)
+                    values = getattr(embedding, "values", None) if embedding else None
+                else:
+                    values = None
 
-            embedding_values: list[float] | None = None
-            if response and response.embedding:
-                embedding_values = list(response.embedding.values)
+                if values is None:
+                    raise UnexpectedModelBehavior("No embedding returned")
 
-            if error:
-                logger.warning(
-                    "[yellow]⚠️ Embed item failed[/] tag=%s index=%d code=%s message=%s",
-                    req.tag,
-                    index,
-                    getattr(error, "code", "n/a"),
-                    getattr(error, "message", "unknown error"),
+                results.append(EmbeddingBatchResult(tag=req.tag, embedding=list(values), error=None))
+            except Exception as exc:  # pragma: no cover - exercised in integration
+                logger.exception("Batch embed_content failed for tag %s", req.tag)
+                results.append(
+                    EmbeddingBatchResult(
+                        tag=req.tag,
+                        embedding=None,
+                        error=genai_types.JobError(code=type(exc).__name__, message=str(exc)),
+                    )
                 )
 
-            results.append(
-                EmbeddingBatchResult(
-                    tag=req.tag,
-                    embedding=embedding_values,
-                    error=error,
-                )
-            )
+            if poll_seconds:
+                sleep_with_progress_sync(poll_seconds)
 
         return results
-
-    def _poll_until_done(
-        self,
-        job_name: str,
-        *,
-        interval: float | None,
-        timeout: float | None,
-    ) -> genai_types.BatchJob:
-        """Poll the batch job until it reaches a terminal state."""
-        poll_interval = interval or self._poll_interval
-        max_timeout = timeout or self._timeout
-        start = time.monotonic()
-        last_state = None
-
-        while True:
-            for attempt in Retrying(
-                stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, before_sleep=_log_before_retry
-            ):
-                with attempt:
-                    job = self._client.batches.get(name=job_name)
-            state = job.state.name if job.state else "JOB_STATE_UNSPECIFIED"
-
-            if state != last_state:
-                logger.info("[cyan]📡 Batch job %s state:[/] %s", job_name, state.replace("JOB_STATE_", ""))
-                last_state = state
-
-            if job.done:
-                if state not in {"JOB_STATE_SUCCEEDED", "JOB_STATE_PARTIALLY_SUCCEEDED"}:
-                    error_message = (
-                        getattr(job.error, "message", "unknown error") if job.error else "unknown error"
-                    )
-                    msg = f"Batch job {job_name} finished with state {state}: {error_message}"
-                    raise RuntimeError(msg)
-
-                elapsed = time.monotonic() - start
-                logger.info("[green]✅ Batch job %s completed in %.1fs[/green]", job_name, elapsed)
-                return job
-
-            if max_timeout is not None and (time.monotonic() - start) > max_timeout:
-                msg = f"Batch job {job_name} exceeded timeout ({max_timeout}s)"
-                raise TimeoutError(msg)
-
-            sleep_with_progress_sync(poll_interval, f"Waiting for {job_name}")
-
-
-# Use the standard library implementation from Python 3.12+

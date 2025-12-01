@@ -320,27 +320,30 @@ def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:  # noq
         DuckDB SQL type string
 
     """
-    import ibis.expr.datatypes as dt
+    # Ibis dtypes are value objects (not classes) in 9.x, so prefer predicate methods over isinstance.
+    is_kind = lambda name: callable(getattr(ibis_type, name, None)) and getattr(ibis_type, name)()
 
-    if isinstance(ibis_type, dt.Timestamp):
+    if is_kind("is_timestamp"):
         return "TIMESTAMP WITH TIME ZONE"
-    if isinstance(ibis_type, dt.Date):
+    if is_kind("is_date"):
         return "DATE"
-    if isinstance(ibis_type, dt.String):
+    if is_kind("is_string"):
         return "VARCHAR"
-    if isinstance(ibis_type, dt.Int64):
+    if is_kind("is_int64"):
         return "BIGINT"
-    if isinstance(ibis_type, dt.Int32):
+    if is_kind("is_int32"):
         return "INTEGER"
-    if isinstance(ibis_type, dt.Float64):
+    if is_kind("is_float64"):
         return "DOUBLE PRECISION"
-    if isinstance(ibis_type, dt.Boolean):
+    if is_kind("is_boolean"):
         return "BOOLEAN"
-    if isinstance(ibis_type, dt.Binary):
+    if is_kind("is_binary"):
         return "BLOB"
-    if isinstance(ibis_type, dt.UUID):
+    if is_kind("is_uuid"):
         return "UUID"
-    if isinstance(ibis_type, dt.Array):
+    if is_kind("is_json"):
+        return "JSON"
+    if is_kind("is_array"):
         value_type = _ibis_to_duckdb_type(ibis_type.value_type)
         return f"{value_type}[]"
     # Fallback to string representation
