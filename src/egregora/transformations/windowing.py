@@ -116,7 +116,7 @@ class Window:
     the database since changing windowing params would invalidate any stored
     window metadata.
 
-    The `table` field contains a filtered view of CONVERSATION_SCHEMA data.
+    The `table` field contains a filtered view of data (IR_MESSAGE_SCHEMA).
 
     Note: No window_id needed - use (start_time, end_time) for identification.
     """
@@ -124,7 +124,7 @@ class Window:
     window_index: int
     start_time: datetime
     end_time: datetime
-    table: Table  # Filtered view of CONVERSATION_SCHEMA (not a separate DB schema)
+    table: Table  # Filtered view of data (not a separate DB schema)
     size: int  # Number of messages
 
 

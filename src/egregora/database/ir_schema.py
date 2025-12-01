@@ -20,8 +20,7 @@ for improved maintainability and single source of truth.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
-from zoneinfo import ZoneInfo
+from typing import Any
 
 import duckdb
 import ibis
@@ -30,61 +29,11 @@ import ibis.expr.datatypes as dt
 from egregora.database.sql import SQLManager
 from egregora.database.utils import quote_identifier
 
-if TYPE_CHECKING:
-    from ibis.expr.types import Table
-
 logger = logging.getLogger(__name__)
 
 # Single, module-level instance of the SQL manager
 sql_manager = SQLManager()
 
-
-# ============================================================================
-# Ephemeral/In-Memory Schemas (Not Persisted)
-# ============================================================================
-# These schemas define the structure of data that flows through the pipeline
-# but is never persisted to disk (for privacy/performance reasons).
-# Having schemas for ephemeral data provides:
-# - Type safety during transformations
-# - Documentation of data contracts
-# - Optimization for vectorized operations
-# - Validation capabilities
-
-DEFAULT_TIMEZONE = "UTC"
-
-# Primary conversation schema used throughout the pipeline
-CONVERSATION_SCHEMA = ibis.schema(
-    {
-        "timestamp": dt.Timestamp(timezone="UTC", scale=9),  # nanosecond precision
-        "date": dt.date,
-        "author": dt.string,  # Anonymized UUID after privacy stage
-        "message": dt.string,
-        "original_line": dt.string,  # Raw line from WhatsApp export
-        "tagged_line": dt.string,  # Processed line with mentions
-        "message_id": dt.String(nullable=True),  # milliseconds since first message (group creation)
-        "event_id": dt.UUID(nullable=True),
-    }
-)
-
-
-def conversation_schema_dict(*, timezone: str | ZoneInfo | None = None) -> dict[str, dt.DataType]:
-    """Return a dict view of :data:`CONVERSATION_SCHEMA` with an optional timezone."""
-    schema_dict = dict(CONVERSATION_SCHEMA.items())
-    timestamp_dtype = schema_dict.get("timestamp", dt.Timestamp(timezone=DEFAULT_TIMEZONE, scale=9))
-    tz = timezone or DEFAULT_TIMEZONE
-    tz_name = getattr(tz, "key", str(tz)) if isinstance(tz, ZoneInfo) else str(tz)
-    if isinstance(timestamp_dtype, dt.Timestamp):
-        schema_dict["timestamp"] = dt.Timestamp(timezone=tz_name, scale=timestamp_dtype.scale)
-    else:
-        schema_dict["timestamp"] = dt.Timestamp(timezone=tz_name, scale=9)
-    return schema_dict
-
-
-# Derived message schema dict for backward compatibility
-MESSAGE_SCHEMA: dict[str, dt.DataType] = conversation_schema_dict()
-
-# Alias for CONVERSATION_SCHEMA - represents WhatsApp export data
-WHATSAPP_CONVERSATION_SCHEMA = CONVERSATION_SCHEMA
 
 # ============================================================================
 # Persistent Schemas
@@ -639,82 +588,6 @@ def ensure_lineage_table_exists(conn: Any) -> None:
         create_lineage_table(conn)
 
 
-# ----------------------------------------------------------------------------
-# Message Schema Utilities
-# ----------------------------------------------------------------------------
-
-
-def ensure_message_schema(table: Table, *, timezone: str | ZoneInfo | None = None) -> Table:
-    """Return ``table`` cast to the canonical :data:`MESSAGE_SCHEMA`.
-
-    The pipeline relies on consistent dtypes so schema validation is performed
-    eagerly at ingestion boundaries (parser and render stages). This function
-    strictly enforces MESSAGE_SCHEMA by:
-    - Adding missing columns with nulls
-    - Casting existing columns to correct types
-    - Dropping any extra columns not in MESSAGE_SCHEMA
-    - Normalizing timezone information
-    """
-    tz = timezone or DEFAULT_TIMEZONE
-    tz_name = getattr(tz, "key", str(tz)) if isinstance(tz, ZoneInfo) else str(tz)
-    target_schema = conversation_schema_dict(timezone=tz_name)
-    if int(table.count().execute()) == 0:
-        return ibis.memtable([], schema=ibis.schema(target_schema))
-    result = table
-    for name, dtype in target_schema.items():
-        if name in {"timestamp", "date"}:
-            continue
-        if name in result.columns:
-            result = result.mutate(**{name: result[name].cast(dtype)})
-        else:
-            result = result.mutate(**{name: ibis.null().cast(dtype)})
-    if "timestamp" not in result.columns:
-        msg = "Table is missing required 'timestamp' column"
-        raise ValueError(msg)
-    result = _normalise_timestamp(result, tz_name)
-    result = _ensure_date_column(result)
-    extra_columns = set(result.columns) - set(target_schema.keys())
-    if extra_columns:
-        result = result.select(*target_schema.keys())
-    return result
-
-
-def _normalise_timestamp(table: Table, desired_timezone: str) -> Table:
-    """Normalize timestamp column to desired timezone."""
-    schema = table.schema()
-    current_dtype = schema.get("timestamp")
-    if current_dtype is None:
-        msg = "Table is missing required 'timestamp' column"
-        raise ValueError(msg)
-    desired_dtype = dt.Timestamp(timezone=desired_timezone, scale=9)
-    ts_col = table["timestamp"]
-    current_timezone: str | None
-    if isinstance(current_dtype, dt.Timestamp):
-        current_timezone = current_dtype.timezone
-        if current_dtype.scale != desired_dtype.scale:
-            ts_col = ts_col.cast(dt.Timestamp(timezone=current_timezone, scale=desired_dtype.scale))
-    else:
-        ts_col = ts_col.cast(dt.Timestamp(scale=desired_dtype.scale))
-        current_timezone = None
-    if desired_timezone is None:
-        normalized_ts = ts_col
-    elif current_timezone is None:
-        localized = ts_col.cast(dt.Timestamp()).timezone(ibis.literal(desired_timezone))
-        normalized_ts = localized.cast(desired_dtype)
-    elif current_timezone == desired_timezone:
-        normalized_ts = ts_col
-    else:
-        normalized_ts = ts_col.cast(desired_dtype)
-    return table.mutate(timestamp=normalized_ts)
-
-
-def _ensure_date_column(table: Table) -> Table:
-    """Ensure date column exists, deriving from timestamp if needed."""
-    if "date" in table.columns:
-        return table.mutate(date=table["date"].cast(dt.Date()))
-    return table.mutate(date=table["timestamp"].date())
-
-
 # ============================================================================
 # Exports
 # ============================================================================
@@ -722,14 +595,10 @@ def _ensure_date_column(table: Table) -> Table:
 __all__ = [
     # Annotations schema
     "ANNOTATIONS_SCHEMA",
-    # Ephemeral schemas
-    "CONVERSATION_SCHEMA",
-    "DEFAULT_TIMEZONE",
     # Elo schemas
     "ELO_HISTORY_SCHEMA",
     "ELO_RATINGS_SCHEMA",
     "IR_MESSAGE_SCHEMA",
-    "MESSAGE_SCHEMA",
     # RAG schemas
     "RAG_CHUNKS_METADATA_SCHEMA",
     "RAG_CHUNKS_SCHEMA",
@@ -737,11 +606,8 @@ __all__ = [
     "RAG_SEARCH_RESULT_SCHEMA",
     # Runs schema
     "RUNS_TABLE_SCHEMA",
-    "WHATSAPP_CONVERSATION_SCHEMA",
     # General utilities
     "add_primary_key",
-    "conversation_schema_dict",
-    "conversation_schema_dict",
     "create_index",
     # Runs utilities
     "create_runs_table",
@@ -749,7 +615,6 @@ __all__ = [
     "drop_runs_table",
     "ensure_identity_column",
     # Message schema utilities
-    "ensure_message_schema",
     "ensure_runs_table_exists",
     "quote_identifier",
 ]
