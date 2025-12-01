@@ -6,7 +6,6 @@ composition and capability implementations.
 
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -20,7 +19,6 @@ if TYPE_CHECKING:
     from egregora.agents.shared.annotations import AnnotationStore
     from egregora.config.settings import RAGSettings
     from egregora.data_primitives.protocols import OutputSink
-    from egregora.database.task_store import TaskStore
     from egregora.output_adapters import OutputAdapterRegistry
     from egregora.utils.metrics import UsageTracker
     from egregora.utils.quota import QuotaTracker
@@ -60,9 +58,7 @@ class WriterResources:
     client: genai.Client | None
     quota: QuotaTracker | None
     usage: UsageTracker | None
-    task_store: TaskStore | None = None
     output_registry: OutputAdapterRegistry | None = None
-    run_id: uuid.UUID | str | None = None
 
 
 @dataclass(frozen=True)

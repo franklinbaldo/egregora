@@ -7,7 +7,6 @@ auditable composition at the call site.
 from __future__ import annotations
 
 import logging
-import uuid
 from typing import Any, Protocol, runtime_checkable
 
 from pydantic_ai import Agent, RunContext
@@ -47,7 +46,7 @@ class RagCapability:
 
 
 class BannerCapability:
-    """Enables visual banner generation for posts (Synchronous)."""
+    """Enables visual banner generation for posts."""
 
     name = "Banner Image Generation"
 
@@ -59,40 +58,3 @@ class BannerCapability:
             """Generate a banner image for a post."""
             banner_ctx = BannerContext(output_sink=ctx.deps.output_sink)
             return generate_banner_impl(banner_ctx, post_slug, title, summary)
-
-
-class AsyncBannerCapability:
-    """Enables visual banner generation for posts (Asynchronous)."""
-
-    name = "Async Banner Image Generation"
-
-    def __init__(self, run_id: uuid.UUID | str) -> None:
-        self.run_id = uuid.UUID(str(run_id))
-
-    def register(self, agent: Agent[WriterDeps, Any]) -> None:
-        @agent.tool
-        async def generate_banner(
-            ctx: RunContext[WriterDeps], post_slug: str, title: str, summary: str
-        ) -> BannerResult:
-            """Schedule a banner image generation task."""
-            task_store = ctx.deps.resources.task_store
-            if not task_store:
-                logger.warning("Task store not available, skipping banner generation")
-                return BannerResult(status="skipped", path=None)
-
-            # Create task payload
-            payload = {
-                "post_slug": post_slug,
-                "title": title,
-                "summary": summary,
-                "run_id": str(self.run_id),
-            }
-
-            # Schedule task
-            task = await task_store.create_task(
-                task_type="generate_banner",
-                payload=payload,
-                priority=10,
-            )
-            logger.info("Scheduled banner generation task: %s", task.id)
-            return BannerResult(status="scheduled", path=None)
