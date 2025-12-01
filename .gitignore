@@ -69,3 +69,11 @@ Thumbs.db
 
 # Node.js (GitHub Actions scripts)
 node_modules/
+
+# Temporary debug files
+cleanup_batches.py
+debug_*.txt
+debug_*.py
+list_models.py
+reproduce_*.py
+blog_generation.log
