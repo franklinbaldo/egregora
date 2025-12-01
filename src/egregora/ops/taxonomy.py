@@ -1,12 +1,13 @@
-import logging
 import asyncio
+import logging
+
 import numpy as np
 from sklearn.cluster import KMeans
 
 from egregora.agents.taxonomy import create_global_taxonomy_agent
+from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import OutputSink
 from egregora.rag import get_backend
-from egregora.config.settings import EgregoraConfig
 
 logger = logging.getLogger(__name__)
 
@@ -14,10 +15,8 @@ logger = logging.getLogger(__name__)
 # Gemini 1.5 has 1M+ context, but we keep it safe to avoid timeout/latency issues.
 MAX_PROMPT_CHARS = 400_000
 
-async def generate_semantic_taxonomy(
-    output_sink: OutputSink,
-    config: EgregoraConfig
-) -> int:
+
+async def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) -> int:
     backend = get_backend()
 
     # 1. Fetch & Cluster (Standard K-Means)
@@ -89,8 +88,8 @@ async def generate_semantic_taxonomy(
     # Process batches concurrently
     async def process_batch(batch_items):
         prompt = (
-            "Analyze these document clusters and generate a distinct tag set for each.\n\n" +
-            "\n\n".join(batch_items)
+            "Analyze these document clusters and generate a distinct tag set for each.\n\n"
+            + "\n\n".join(batch_items)
         )
         try:
             result = await agent.run(prompt)
@@ -115,7 +114,8 @@ async def generate_semantic_taxonomy(
 
         for doc_id in member_ids:
             doc = doc_lookup.get(doc_id)
-            if not doc: continue
+            if not doc:
+                continue
 
             # Idempotent merge
             current_tags = set(doc.metadata.get("tags", []))
