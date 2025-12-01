@@ -292,7 +292,14 @@ class EnrichmentWorker(BaseWorker):
             return processed_results
 
         try:
-            results = asyncio.run(process_all_urls())
+            # Get or create event loop (worker runs in sync context)
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            results = loop.run_until_complete(process_all_urls())
         except Exception as e:
             logger.error("Enrichment processing failed: %s", e)
             for t in tasks:
