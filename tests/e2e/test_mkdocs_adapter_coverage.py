@@ -1,9 +1,10 @@
 """Test coverage for MkDocsAdapter."""
 
 import pytest
-from pathlib import Path
+
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.output_adapters.mkdocs import MkDocsAdapter
+
 
 @pytest.fixture
 def adapter(tmp_path):
@@ -11,6 +12,7 @@ def adapter(tmp_path):
     adapter = MkDocsAdapter()
     adapter.initialize(tmp_path)
     return adapter
+
 
 def test_write_profile_doc_generates_fallback_avatar(adapter):
     """Test that writing a profile without an avatar generates a fallback one.
@@ -23,7 +25,7 @@ def test_write_profile_doc_generates_fallback_avatar(adapter):
     doc = Document(
         content="# Bio\nUser bio.",
         type=DocumentType.PROFILE,
-        metadata={"uuid": "test-uuid-123", "name": "Test User"}
+        metadata={"uuid": "test-uuid-123", "name": "Test User"},
     )
 
     # Persist
@@ -42,6 +44,7 @@ def test_write_profile_doc_generates_fallback_avatar(adapter):
     # The adapter prepends the avatar macro to the content
     assert "![Avatar]({{ page.meta.avatar }}){ align=left width=150 }" in content
 
+
 def test_write_post_doc_adds_related_posts(adapter):
     """Test that writing a post adds related posts based on tags."""
 
@@ -49,12 +52,12 @@ def test_write_post_doc_adds_related_posts(adapter):
     post1 = Document(
         content="# Post 1",
         type=DocumentType.POST,
-        metadata={"title": "Post 1", "date": "2024-01-01", "slug": "post-1", "tags": ["tag1", "tag2"]}
+        metadata={"title": "Post 1", "date": "2024-01-01", "slug": "post-1", "tags": ["tag1", "tag2"]},
     )
     post2 = Document(
         content="# Post 2",
         type=DocumentType.POST,
-        metadata={"title": "Post 2", "date": "2024-01-02", "slug": "post-2", "tags": ["tag2", "tag3"]}
+        metadata={"title": "Post 2", "date": "2024-01-02", "slug": "post-2", "tags": ["tag2", "tag3"]},
     )
 
     # Persist post1 first
@@ -79,6 +82,7 @@ def test_write_post_doc_adds_related_posts(adapter):
     assert "related_posts:" in content
     assert "title: Post 2" in content
 
+
 def test_get_profiles_data_generates_stats(adapter):
     """Test get_profiles_data calculates stats correctly."""
 
@@ -86,18 +90,16 @@ def test_get_profiles_data_generates_stats(adapter):
 
     # Create profile
     profile = Document(
-        content="Bio",
-        type=DocumentType.PROFILE,
-        metadata={"uuid": uuid, "name": "Stats User"}
+        content="Bio", type=DocumentType.PROFILE, metadata={"uuid": uuid, "name": "Stats User"}
     )
     adapter.persist(profile)
 
     # Create posts for this user
     # Note: author uuid in 'authors' list
     post = Document(
-        content="word " * 10, # 10 words
+        content="word " * 10,  # 10 words
         type=DocumentType.POST,
-        metadata={"title": "Post", "date": "2024-01-01", "slug": "p1", "authors": [uuid], "tags": ["topic1"]}
+        metadata={"title": "Post", "date": "2024-01-01", "slug": "p1", "authors": [uuid], "tags": ["topic1"]},
     )
     adapter.persist(post)
 
@@ -111,6 +113,7 @@ def test_get_profiles_data_generates_stats(adapter):
     assert p["word_count"] == 10
     assert "topic1" in p["topics"]
     assert p["topic_counts"][0] == ("topic1", 1)
+
 
 def test_mkdocs_adapter_scaffolding_passthrough(adapter, tmp_path):
     """Test that scaffolding methods are passed through to the scaffolder."""
