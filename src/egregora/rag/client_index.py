@@ -45,9 +45,7 @@ async def build_client_search_index(
 
         # Fallback: if no summary, use title + start of content
         if not summary:
-            content_snippet = (
-                doc.content[:CONTENT_SNIPPET_LENGTH] if isinstance(doc.content, str) else ""
-            )
+            content_snippet = doc.content[:CONTENT_SNIPPET_LENGTH] if isinstance(doc.content, str) else ""
             text_to_embed = f"{title}: {content_snippet}"
         else:
             text_to_embed = summary
@@ -62,9 +60,7 @@ async def build_client_search_index(
                 "t": title,
                 "d": doc.metadata.get("date", ""),
                 "s": (
-                    summary[:SUMMARY_MAX_LENGTH] + "..."
-                    if len(summary) > SUMMARY_MAX_LENGTH
-                    else summary
+                    summary[:SUMMARY_MAX_LENGTH] + "..." if len(summary) > SUMMARY_MAX_LENGTH else summary
                 ),  # Truncate visual summary
             }
         )
