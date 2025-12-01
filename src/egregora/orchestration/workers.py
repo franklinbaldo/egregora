@@ -234,7 +234,8 @@ class EnrichmentWorker(BaseWorker):
                 model = create_fallback_model(self.ctx.config.models.enricher)
                 agent = Agent(model=model, output_type=EnrichmentOutput)
                 result = await agent.run(prompt)
-                return task, result.data, None
+                # With output_type, result IS the EnrichmentOutput
+                return task, result, None
             except Exception as e:
                 logger.error("Failed to enrich URL %s: %s", url, e)
                 return task, None, str(e)
