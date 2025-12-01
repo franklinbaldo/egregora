@@ -34,7 +34,12 @@ from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
 from egregora.agents.banner.agent import is_banner_generation_available
-from egregora.agents.capabilities import AgentCapability, BannerCapability, RagCapability
+from egregora.agents.capabilities import (
+    AgentCapability,
+    AsyncBannerCapability,
+    BannerCapability,
+    RagCapability,
+)
 from egregora.agents.formatting import (
     build_conversation_xml,
     load_journal_memory,
@@ -566,7 +571,7 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
         else:
             return
 
-        if data.get("status") == "success" and "path" in data:
+        if data.get("status") in ("success", "scheduled") and "path" in data:
             path = data["path"]
             if tool_name == "write_post_tool" or "/posts/" in path:
                 saved_posts.append(path)
@@ -582,6 +587,40 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
             _process_result(message.content, getattr(message, "tool_name", None))
 
     return saved_posts, saved_profiles
+
+
+def _prepare_deps(
+    ctx: PipelineContext,
+    window_start: datetime,
+    window_end: datetime,
+) -> WriterDeps:
+    """Prepare writer dependencies from pipeline context."""
+    # Ensure output sink is initialized
+    if not ctx.output_format:
+        msg = "Output format not initialized in context"
+        raise ValueError(msg)
+
+    prompts_dir = ctx.site_root / ".egregora" / "prompts" if ctx.site_root else None
+
+    # Construct WriterResources using existing context
+    resources = WriterResources(
+        output=ctx.output_format,
+        annotations_store=ctx.annotations_store,
+        storage=ctx.storage,
+        task_store=getattr(ctx, "task_store", None),
+        embedding_model=ctx.config.models.embedding,
+        retrieval_config=ctx.config.rag,
+        profiles_dir=ctx.site_root / "profiles" if ctx.site_root else None,
+        journal_dir=ctx.site_root / "journal" if ctx.site_root else None,
+        prompts_dir=prompts_dir,
+        client=getattr(ctx, "client", None),
+        quota=ctx.quota_tracker,
+        usage=ctx.usage_tracker,
+        output_registry=getattr(ctx, "output_registry", None),
+        run_id=ctx.run_id,
+    )
+
+    return _prepare_writer_dependencies(window_start, window_end, resources)
 
 
 def _validate_prompt_fits(
@@ -638,7 +677,10 @@ def write_posts_with_pydantic_agent(
         active_capabilities.append(RagCapability())
 
     if is_banner_generation_available():
-        active_capabilities.append(BannerCapability())
+        if context.resources.task_store and context.resources.run_id:
+            active_capabilities.append(AsyncBannerCapability(context.resources.run_id))
+        else:
+            active_capabilities.append(BannerCapability())
 
     if active_capabilities:
         caps_list = ", ".join(capability.name for capability in active_capabilities)
@@ -813,6 +855,7 @@ def _prepare_writer_dependencies(
 ) -> WriterDeps:
     """Create WriterDeps from window parameters and resources."""
     window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
+
     return WriterDeps(
         resources=resources,
         window_start=window_start,
@@ -933,6 +976,7 @@ def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
     # These are extracted from pipeline context earlier and passed explicitly now
     adapter_content_summary: str = "",
     adapter_generation_instructions: str = "",
+    run_id: str | None = None,
 ) -> dict[str, list[str]]:
     """Let LLM analyze window's messages, write 0-N posts, and update author profiles.
 
@@ -943,6 +987,12 @@ def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
         return {RESULT_KEY_POSTS: [], RESULT_KEY_PROFILES: []}
 
     # 1. Prepare dependencies
+    if run_id and resources.run_id is None:
+        # Create new resources with run_id
+        import dataclasses
+
+        resources = dataclasses.replace(resources, run_id=run_id)
+
     deps = _prepare_writer_dependencies(window_start, window_end, resources)
 
     # 2. Build context and calculate signature

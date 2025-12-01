@@ -17,7 +17,7 @@ from tests.utils.mock_batch_client import create_mock_batch_client
 DEFAULT_EMBEDDING_DIM = 3072
 
 
-def test_mock_embeddings_are_deterministic(_mock_batch_client):
+def test_mock_embeddings_are_deterministic(mock_batch_client):
     """Verify that mock embeddings are deterministic (same text = same vector)."""
     client = create_mock_batch_client()
 
@@ -33,7 +33,7 @@ def test_mock_embeddings_are_deterministic(_mock_batch_client):
     assert len(results1[0].embedding) == DEFAULT_EMBEDDING_DIM
 
 
-def test_mock_embeddings_different_for_different_text(_mock_batch_client):
+def test_mock_embeddings_different_for_different_text(mock_batch_client):
     """Verify that different texts produce different embeddings."""
     client = create_mock_batch_client()
 
