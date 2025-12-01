@@ -1478,6 +1478,22 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
                 dataset.context,
                 dataset.embedding_model,
             )
+
+            # 2. Taxonomy Generation (New)
+            if dataset.context.config.rag.enabled:
+                from egregora.ops.taxonomy import generate_semantic_taxonomy
+                logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
+                try:
+                    tagged_count = asyncio.run(generate_semantic_taxonomy(
+                        dataset.context.output_format,
+                        dataset.context.config
+                    ))
+                    if tagged_count > 0:
+                        logger.info(f"[green]✓ Applied semantic tags to {tagged_count} posts[/]")
+                except Exception as e:
+                    # Non-critical failure
+                    logger.warning(f"Auto-taxonomy failed: {e}")
+
             # Save checkpoint first (critical path)
             _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
 
