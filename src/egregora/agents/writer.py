@@ -990,6 +990,7 @@ def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
     if run_id and resources.run_id is None:
         # Create new resources with run_id
         import dataclasses
+
         resources = dataclasses.replace(resources, run_id=run_id)
 
     deps = _prepare_writer_dependencies(window_start, window_end, resources)
