@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 from egregora.agents.banner.agent import generate_banner
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
 
 if TYPE_CHECKING:
@@ -119,7 +120,8 @@ class ProfileWorker(BaseWorker):
             # 1. Mark superseded
             for t in superseded_tasks:
                 self.task_store.mark_superseded(
-                    t["task_id"], reason=f"Superseded by task {latest_task['task_id']}"
+                    t["task_id"],
+                    reason=f"Superseded by task {latest_task['task_id']}"
                 )
                 logger.info("Coalesced profile update for %s (Task %s skipped)", author_uuid, t["task_id"])
 
