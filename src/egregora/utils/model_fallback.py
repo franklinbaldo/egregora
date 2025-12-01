@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import time
+import os
 from typing import TYPE_CHECKING
 
 import httpx
@@ -18,7 +20,7 @@ from egregora.models import GoogleBatchModel
 logger = logging.getLogger(__name__)
 
 # Cache for OpenRouter free models to avoid repeated API calls
-_free_models_cache: list[str] | None = None
+_free_models_cache: dict[str, list[str]] = {}
 _cache_timestamp: float = 0
 CACHE_TTL = 3600  # Cache for 1 hour
 
@@ -50,8 +52,12 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:
     """
     global _free_models_cache, _cache_timestamp
 
-    # Use a different cache key for each modality
-    cache_key = f"_{modality}_models_cache"
+    current_time = time.time()
+    
+    # Check cache validity
+    if _free_models_cache and (current_time - _cache_timestamp < CACHE_TTL):
+        if modality in _free_models_cache:
+            return _free_models_cache[modality]
 
     free_models: list[str] = []
     try:
@@ -65,11 +71,11 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:
             pricing = model.get("pricing", {})
             if pricing.get("prompt", "0") != "0" or pricing.get("completion", "0") != "0":
                 continue
-
+            
             # Check modality requirements
             architecture = model.get("architecture", {})
             input_modalities = architecture.get("input_modalities", [])
-
+            
             # Filter based on requested modality
             if modality == "text":
                 # Text models should accept text input
@@ -83,17 +89,17 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:
                 free_models.append(f"openrouter:{model['id']}")
 
         logger.info("Fetched %d free OpenRouter models for modality '%s'", len(free_models), modality)
+        
+        # Update cache
+        if modality not in _free_models_cache:
+             _free_models_cache[modality] = []
+        _free_models_cache[modality] = free_models
+        _cache_timestamp = current_time
+        
     except (httpx.HTTPError, httpx.TimeoutException) as e:
-        logger.warning("Failed to fetch OpenRouter free models: %s. Using fallback list.", e)
-        # Return hardcoded fallback if API call fails (text-only models)
-        if modality in ("text", "any"):
-            free_models = [
-                "openrouter:x-ai/grok-beta",
-                "openrouter:google/gemma-2-9b-it:free",
-                "openrouter:meta-llama/llama-3.1-8b-instruct:free",
-                "openrouter:mistralai/mistral-7b-instruct:free",
-            ]
-        # For vision, return empty list as fallback since we don't have reliable free vision models
+        logger.warning("Failed to fetch OpenRouter free models: %s. No OpenRouter fallback available.", e)
+        # Return empty list if API call fails - do not use hardcoded fallbacks
+        free_models = []
 
     return free_models
 
@@ -142,30 +148,63 @@ def create_fallback_model(
             except (httpx.HTTPError, httpx.TimeoutException) as e:
                 logger.warning("Failed to add OpenRouter models to fallback: %s", e)
 
-    # Use synchronous batch-based Google client to avoid async event loop bugs.
-    if use_google_batch:
-        api_key = get_google_api_key()
-        converted_fallbacks: list[str | Model] = []
-        for model in fallback_models:
-            if isinstance(model, str) and model.startswith("google-gla:"):
-                converted_fallbacks.append(GoogleBatchModel(api_key=api_key, model_name=model))
+    from egregora.models.rate_limited import RateLimitedModel
+    from pydantic_ai.models.gemini import GeminiModel
+    from pydantic_ai.models.openai import OpenAIModel
+    import os
+
+    def _resolve_and_wrap(model_def: str | Model) -> Model:
+        if isinstance(model_def, RateLimitedModel):
+            return model_def
+            
+        model: Model
+        if isinstance(model_def, Model):
+            model = model_def
+        elif isinstance(model_def, str):
+            if model_def.startswith("google-gla:"):
+                model = GeminiModel(model_def.removeprefix("google-gla:"))
+            elif model_def.startswith("openrouter:"):
+                from openai import AsyncOpenAI
+                client = AsyncOpenAI(
+                    base_url="https://openrouter.ai/api/v1",
+                    api_key=os.environ.get("OPENROUTER_API_KEY")
+                )
+                model = OpenAIModel(
+                    model_def.removeprefix("openrouter:"),
+                    openai_client=client,
+                    provider='openrouter'
+                )
             else:
-                converted_fallbacks.append(model)
-
-        default_model: str | Model
-        if isinstance(primary_model, str) and primary_model.startswith("google-gla:"):
-            default_model = GoogleBatchModel(api_key=api_key, model_name=primary_model)
+                # Default to Gemini for unknown strings in this context
+                model = GeminiModel(model_def)
         else:
-            default_model = primary_model
+            raise ValueError(f"Unknown model type: {type(model_def)}")
+            
+        return RateLimitedModel(model)
 
-        return FallbackModel(
-            default_model,
-            *converted_fallbacks,
-            fallback_on=(ModelAPIError, UsageLimitExceeded),
-        )
+    # Prepare models
+    api_key = get_google_api_key()
+    
+    # 1. Prepare Primary
+    primary: Model
+    if use_google_batch and isinstance(primary_model, str) and primary_model.startswith("google-gla:"):
+        primary = GoogleBatchModel(api_key=api_key, model_name=primary_model)
+        # GoogleBatchModel is already a Model, wrap it
+        primary = RateLimitedModel(primary)
+    else:
+        primary = _resolve_and_wrap(primary_model)
+
+    # 2. Prepare Fallbacks
+    wrapped_fallbacks: list[Model] = []
+    for m in fallback_models:
+        if use_google_batch and isinstance(m, str) and m.startswith("google-gla:"):
+            batch_model = GoogleBatchModel(api_key=api_key, model_name=m)
+            wrapped_fallbacks.append(RateLimitedModel(batch_model))
+        else:
+            wrapped_fallbacks.append(_resolve_and_wrap(m))
 
     return FallbackModel(
-        primary_model,
-        *fallback_models,
+        primary,
+        *wrapped_fallbacks,
         fallback_on=(ModelAPIError, UsageLimitExceeded),
     )
