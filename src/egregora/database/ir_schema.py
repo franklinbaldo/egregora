@@ -302,6 +302,22 @@ RUNS_TABLE_SCHEMA = ibis.schema(
 )
 
 # ----------------------------------------------------------------------------
+# Tasks Schema (Asynchronous Background Tasks)
+# ----------------------------------------------------------------------------
+TASKS_SCHEMA = ibis.schema(
+    {
+        "task_id": dt.UUID,
+        "task_type": dt.string,  # "generate_banner", "update_profile", "enrich_media"
+        "status": dt.string,  # "pending", "processing", "completed", "failed", "superseded"
+        "payload": dt.JSON,  # Arguments for the task
+        "created_at": dt.Timestamp(timezone="UTC"),
+        "processed_at": dt.Timestamp(timezone="UTC", nullable=True),
+        "error": dt.String(nullable=True),
+        "run_id": dt.UUID,  # Link back to the pipeline run
+    }
+)
+
+# ----------------------------------------------------------------------------
 # Run Events Table Schema (REMOVED - 2025-11-17)
 # ----------------------------------------------------------------------------
 # REMOVED: Event-sourced tracking replaced with simpler stateful runs table.
@@ -737,6 +753,7 @@ __all__ = [
     "RAG_SEARCH_RESULT_SCHEMA",
     # Runs schema
     "RUNS_TABLE_SCHEMA",
+    "TASKS_SCHEMA",
     "WHATSAPP_CONVERSATION_SCHEMA",
     # General utilities
     "add_primary_key",

@@ -129,7 +129,7 @@ def test_config_yml_structure(tmp_path: Path):
 def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
     """Test that mkdocs.yml doesn't have extra.egregora."""
     from egregora.init.scaffolding import ensure_mkdocs_project
-    from egregora.output_adapters.mkdocs.adapter import _safe_yaml_load
+    from egregora.output_adapters.mkdocs.scaffolding import safe_yaml_load
 
     # Create site
     ensure_mkdocs_project(tmp_path)
@@ -139,7 +139,7 @@ def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
     assert mkdocs_path.exists()
 
     with mkdocs_path.open() as f:
-        mkdocs_dict = _safe_yaml_load(f.read())
+        mkdocs_dict = safe_yaml_load(f.read())
 
     # Should NOT have extra.egregora
     extra_section = mkdocs_dict.get("extra", {})

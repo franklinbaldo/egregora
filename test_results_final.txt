@@ -1,0 +1,59 @@
+   Building egregora @ file:///app
+      Built egregora @ file:///app
+Uninstalled 1 package in 0.71ms
+Installed 1 package in 1ms
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-8.4.2, pluggy-1.6.0
+rootdir: /app
+configfile: pyproject.toml
+plugins: logfire-4.13.0, anyio-4.11.0, respx-0.22.0, asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 273 items / 1 skipped
+
+tests/e2e/cli/test_init_command.py .......                               [  2%]
+tests/e2e/cli/test_runs_command.py ..................................    [ 15%]
+tests/e2e/cli/test_utilities_command.py .........sssssssssssssssssssssss [ 26%]
+sssss                                                                    [ 28%]
+tests/e2e/cli/test_write_command.py ......................               [ 36%]
+tests/e2e/database/test_duckdb_sequences.py ...s                         [ 38%]
+tests/e2e/database/test_duckdb_upsert_helper.py .                        [ 38%]
+tests/e2e/input_adapters/test_dynamic_parser.py ...                      [ 39%]
+tests/e2e/input_adapters/test_iperon_tjro_adapter.py .                   [ 39%]
+tests/e2e/input_adapters/test_self_reflection_adapter.py .               [ 40%]
+tests/e2e/input_adapters/test_whatsapp_adapter.py ..............         [ 45%]
+tests/e2e/output_adapters/test_parquet_adapter.py .                      [ 45%]
+tests/e2e/pipeline/test_site_generation.py .                             [ 46%]
+tests/e2e/pipeline/test_write_pipeline_e2e.py .......                    [ 48%]
+tests/e2e/test_extended_e2e.py .                                         [ 49%]
+tests/e2e/test_fast_with_mock.py ..                                      [ 49%]
+tests/test_caching.py ...                                                [ 50%]
+tests/unit/agents/banner/test_banner_image_generation.py .               [ 51%]
+tests/unit/agents/banner/test_gemini_provider.py ..                      [ 52%]
+tests/unit/agents/test_enricher_tasks.py ..                              [ 52%]
+tests/unit/agents/test_rag_exception_handling.py .......                 [ 55%]
+tests/unit/agents/test_tool_registry.py ..                               [ 56%]
+tests/unit/agents/test_writer_capabilities.py ..                         [ 56%]
+tests/unit/agents/test_writer_tools.py ............                      [ 61%]
+tests/unit/config/test_validation.py .........                           [ 64%]
+tests/unit/dev_tools/test_check_private_imports.py .......               [ 67%]
+tests/unit/input_adapters/test_registry.py .                             [ 67%]
+tests/unit/output_adapters/mkdocs/test_scaffolding.py ....               [ 68%]
+tests/unit/output_adapters/mkdocs/test_url_convention.py .               [ 69%]
+tests/unit/output_adapters/test_conventions.py ..............            [ 74%]
+tests/unit/privacy/test_privacy_config.py ....                           [ 75%]
+tests/unit/rag/test_duckdb_integration.py ........                       [ 78%]
+tests/unit/rag/test_embedding_router.py ..............                   [ 83%]
+tests/unit/rag/test_lancedb_backend.py .....                             [ 85%]
+tests/unit/rag/test_rag_backend_factory.py .                             [ 86%]
+tests/unit/rag/test_rag_comprehensive.py ............................... [ 97%]
+                                                                         [ 97%]
+tests/unit/utils/test_network.py ......                                  [ 99%]
+tests/utils/test_no_cassettes.py .                                       [100%]
+
+=============================== warnings summary ===============================
+tests/e2e/pipeline/test_write_pipeline_e2e.py::test_full_pipeline_smoke_test
+  /app/.venv/lib/python3.12/site-packages/pydantic_graph/_utils.py:54: DeprecationWarning: There is no current event loop
+    event_loop = asyncio.get_event_loop()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============ 244 passed, 30 skipped, 1 warning in 64.20s (0:01:04) =============
