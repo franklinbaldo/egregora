@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Test Post</title>
+    <!-- Mimic base href behavior -->
+    <base href="./">
+    <style>
+        /* Minimal CSS variables */
+        :root {
+            --md-typeset-color-light: #ccc;
+            --md-code-bg-color: #f5f5f5;
+            --md-typeset-color: #333;
+            --md-accent-fg-color: #00bcd4;
+        }
+
+        /* content from extra.css */
+        .related-posts {
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--md-typeset-color-light);
+            display: none; /* Hidden until loaded */
+        }
+
+        .related-posts.loaded {
+            display: block;
+            animation: fade-in 0.5s;
+        }
+
+        .related-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .related-card {
+            display: block;
+            padding: 1rem;
+            background: var(--md-code-bg-color);
+            border: 1px solid transparent;
+            border-radius: 8px;
+            text-decoration: none !important;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .related-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--md-accent-fg-color);
+        }
+
+        .related-title {
+            font-weight: 600;
+            color: var(--md-typeset-color);
+            margin-bottom: 0.5rem;
+            line-height: 1.4;
+        }
+
+        .related-meta {
+            font-size: 0.8rem;
+            color: var(--md-typeset-color-light);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .related-score {
+            opacity: 0.7;
+        }
+
+        @keyframes fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <article data-url="test_post.html">
+        <h1>Current Post</h1>
+        <p>This is the content of the current post.</p>
+
+        <!-- Related Posts Placeholder -->
+        <section id="related-posts-container" class="related-posts">
+            <!-- JS will populate this -->
+        </section>
+    </article>
+
+    <script>
+    // Inlined related_posts.js for simplicity in verification
+    (function() {
+        const CONFIG = {
+            // Path relative to site root. Material theme handles base_url via 'url' filter in template
+            indexPath: "assets/data/search.json",
+            containerId: "related-posts-container",
+            maxResults: 3,
+            threshold: 0.3 // Minimum similarity score
+        };
+
+        // Cache the index promise to avoid refetching on navigation
+        let indexPromise = null;
+
+        function getIndex(basePath) {
+            if (!indexPromise) {
+                indexPromise = fetch(basePath + CONFIG.indexPath)
+                    .then(response => {
+                        if (!response.ok) throw new Error("Index not found");
+                        return response.json();
+                    })
+                    .catch(err => {
+                        console.warn("Egregora related posts disabled:", err);
+                        return [];
+                    });
+            }
+            return indexPromise;
+        }
+
+        function cosineSimilarity(vecA, vecB) {
+            if (!vecA || !vecB || vecA.length !== vecB.length) return 0;
+            let dot = 0, normA = 0, normB = 0;
+            for (let i = 0; i < vecA.length; i++) {
+                dot += vecA[i] * vecB[i];
+                normA += vecA[i] * vecA[i];
+                normB += vecB[i] * vecB[i];
+            }
+            return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+        }
+
+        async function initRelatedPosts() {
+            const container = document.getElementById(CONFIG.containerId);
+            if (!container) return; // Not a post page or container missing
+
+            // 1. Determine current URL from data attribute (robust against trailing slashes)
+            // The container usually sits inside <article>
+            const article = container.closest("article");
+            const currentCanonicalUrl = article ? article.getAttribute("data-url") : null;
+
+            if (!currentCanonicalUrl) return;
+
+            // 2. Resolve base path for fetching assets
+            // MkDocs Material provides 'base_url' in global config usually, or we infer relative
+            const basePath = document.querySelector('base') ? document.querySelector('base').href : "./";
+
+            // 3. Fetch & Search
+            const index = await getIndex(basePath);
+            if (!index || index.length === 0) return;
+
+            // Find current post vector
+            // We match loosely on the end of the URL to handle dev vs prod paths
+            const currentPost = index.find(p => currentCanonicalUrl.endsWith(p.u) || p.u.endsWith(currentCanonicalUrl));
+
+            if (!currentPost || !currentPost.v) return;
+
+            // Compute scores
+            const candidates = index
+                .filter(p => p !== currentPost)
+                .map(p => ({
+                    item: p,
+                    score: cosineSimilarity(currentPost.v, p.v)
+                }))
+                .filter(c => c.score > CONFIG.threshold)
+                .sort((a, b) => b.score - a.score)
+                .slice(0, CONFIG.maxResults);
+
+            if (candidates.length === 0) return;
+
+            // 4. Render
+            const listHtml = candidates.map(c => `
+                <a href="${basePath}${c.item.u}" class="related-card">
+                    <div class="related-title">${c.item.t}</div>
+                    <div class="related-meta">
+                        <span>${c.item.d}</span>
+                        <span class="related-score" title="Semantic Match">${Math.round(c.score * 100)}% match</span>
+                    </div>
+                </a>
+            `).join("");
+
+            container.innerHTML = `
+                <h2>Running Threads</h2>
+                <p class="related-intro">Other posts exploring similar concepts:</p>
+                <div class="related-grid">${listHtml}</div>
+            `;
+            container.classList.add("loaded");
+        }
+
+        // Hook into MkDocs Material navigation
+        // document$ is an RxJS observable present in Material for MkDocs
+        if (window.document$) {
+            window.document$.subscribe(() => {
+                // Short timeout to ensure DOM is ready after transition
+                setTimeout(initRelatedPosts, 100);
+            });
+        } else {
+            document.addEventListener("DOMContentLoaded", initRelatedPosts);
+        }
+    })();
+    </script>
+</body>
+</html>
