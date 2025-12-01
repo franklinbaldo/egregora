@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import TYPE_CHECKING
 
 import httpx
@@ -45,11 +44,11 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:
         List of model names in pydantic-ai format (e.g., 'openrouter:model/name')
 
     """
-    global _free_models_cache, _cache_timestamp  # noqa: PLW0603
+    global _free_models_cache, _cache_timestamp
 
     # Use a different cache key for each modality
     cache_key = f"_{modality}_models_cache"
-    
+
     free_models: list[str] = []
     try:
         response = httpx.get("https://openrouter.ai/api/v1/models", timeout=10.0)
@@ -62,11 +61,11 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:
             pricing = model.get("pricing", {})
             if pricing.get("prompt", "0") != "0" or pricing.get("completion", "0") != "0":
                 continue
-            
+
             # Check modality requirements
             architecture = model.get("architecture", {})
             input_modalities = architecture.get("input_modalities", [])
-            
+
             # Filter based on requested modality
             if modality == "text":
                 # Text models should accept text input
