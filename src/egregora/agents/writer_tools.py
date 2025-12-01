@@ -88,7 +88,7 @@ class BannerResult(BaseModel):
     """Result from generating a banner."""
 
     status: str
-    path: str | None = None # Legacy field
+    path: str | None = None  # Legacy field
     image_path: str | None = None
     caption: str | None = None
     error: str | None = None
