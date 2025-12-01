@@ -181,7 +181,6 @@ class GoogleBatchModel(Model):
     def run_batch(self, requests: list[dict[str, Any]]) -> Any:
         """Deprecated async alias for run_batch_sync."""
         # For backward compatibility if anything still awaits it, we wrap it
-        import asyncio
 
         # If called from async context, return a future that resolves to the sync result.
         # But since we are moving to sync, we should prefer run_batch_sync.

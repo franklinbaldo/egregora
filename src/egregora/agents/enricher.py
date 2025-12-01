@@ -17,7 +17,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import httpx
 import ibis
 from ibis.expr.types import Table
 from pydantic import BaseModel
@@ -28,13 +27,9 @@ from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
 from egregora.config.settings import EnrichmentSettings, get_google_api_key
-from egregora.constants import PrivacyMarkers
-from egregora.data_primitives.document import Document
-from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import MediaMapping
 from egregora.models.google_batch import GoogleBatchModel
 from egregora.ops.media import (
-    detect_media_type,
     extract_urls,
     find_media_references,
     replace_media_mentions,

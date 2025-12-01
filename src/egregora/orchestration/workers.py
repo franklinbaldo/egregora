@@ -197,7 +197,7 @@ class EnrichmentWorker(BaseWorker):
                     agent,
                     url,
                     prompts_dir,
-                    pii_prevention=None # Could pass from context if available
+                    pii_prevention=None,  # Could pass from context if available
                 )
 
                 # Record usage (thread-safe?)
@@ -213,7 +213,9 @@ class EnrichmentWorker(BaseWorker):
 
         max_concurrent = getattr(self.ctx.config.enrichment, "max_concurrent_enrichments", 5)
         logger.info(
-            "Processing %d enrichment tasks with max concurrency of %d (ThreadPool)", len(tasks), max_concurrent
+            "Processing %d enrichment tasks with max concurrency of %d (ThreadPool)",
+            len(tasks),
+            max_concurrent,
         )
 
         results = []
@@ -314,7 +316,7 @@ class EnrichmentWorker(BaseWorker):
                     mime_hint=media_type,
                     prompts_dir=prompts_dir,
                     file_path=file_path,
-                    pii_prevention=None
+                    pii_prevention=None,
                 )
 
                 if self.ctx.usage_tracker:

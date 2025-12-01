@@ -6,7 +6,7 @@ import logging
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -14,10 +14,7 @@ import pytest
 from egregora.config import EMBEDDING_DIM
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.rag import (
-    RAGBackend,
-    RAGHit,
     RAGQueryRequest,
-    get_backend,
     index_documents,
     reset_backend,
     search,

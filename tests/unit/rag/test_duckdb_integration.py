@@ -2,22 +2,16 @@
 
 from __future__ import annotations
 
-import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from egregora.data_primitives.document import Document, DocumentType
 from egregora.rag import (
-    RAGBackend,
     RAGHit,
     RAGQueryRequest,
     RAGQueryResponse,
 )
 from egregora.rag.duckdb_integration import (
-    create_rag_analytics_view,
-    join_with_messages,
     search_to_table,
     search_with_filters,
 )

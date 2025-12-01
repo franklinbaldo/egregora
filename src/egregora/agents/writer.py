@@ -38,7 +38,6 @@ from egregora.agents.capabilities import (
     AgentCapability,
     BannerCapability,
     RagCapability,
-    ScheduledBannerCapability,
 )
 from egregora.agents.formatting import (
     build_conversation_xml,
