@@ -17,7 +17,7 @@ from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.input_adapters.privacy_config import AdapterPrivacyConfig
 from egregora.input_adapters.whatsapp.commands import EGREGORA_COMMAND_PATTERN
 from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
-from egregora.input_adapters.whatsapp.utils import convert_media_to_markdown, discover_chat_file
+from egregora.input_adapters.whatsapp.utils import discover_chat_file
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.utils.paths import slugify
 
@@ -109,12 +109,6 @@ class WhatsAppAdapter(InputAdapter):
             timezone=timezone,
             expose_raw_author=True,  # Always expose raw initially
         )
-
-        @ibis.udf.scalar.python
-        def convert_media(message: str | None) -> str | None:
-            return convert_media_to_markdown(message)
-
-        messages_table = messages_table.mutate(text=convert_media(messages_table.text))
 
         # Apply privacy strategies based on configuration
         if self._config is not None and self._config.privacy.structural.enabled:

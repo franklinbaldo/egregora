@@ -40,7 +40,7 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
     """
     normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
     slugifier = _md_slugify(case="lower" if lowercase else None, separator="-")
-    slug = slugifier(normalized)
+    slug = slugifier(normalized, sep="-")
     if not slug:
         return "post"
     if len(slug) > max_len:

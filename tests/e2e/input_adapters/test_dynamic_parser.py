@@ -3,11 +3,11 @@ from unittest.mock import patch
 
 import pytest
 from conftest import WhatsAppFixture
-
 from egregora.input_adapters.whatsapp.dynamic import (
     ParserDefinition,
     generate_dynamic_regex,
 )
+
 from tests.e2e.input_adapters.test_whatsapp_adapter import (
     create_export_from_fixture,
 )

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import hashlib
 import io
-import json
 import logging
 import re
 import unicodedata
@@ -21,9 +19,7 @@ import ibis.expr.datatypes as dt
 from dateutil import parser as date_parser
 from pydantic import BaseModel
 
-from egregora.config import EgregoraConfig
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
-from egregora.input_adapters.whatsapp.dynamic import generate_dynamic_regex
 from egregora.input_adapters.whatsapp.utils import build_message_attrs
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.privacy.uuid_namespaces import deterministic_author_uuid
@@ -206,63 +202,13 @@ class ZipMessageSource:
                 raise ZipValidationError(msg) from exc
 
 
-def _get_parser_pattern(source: ZipMessageSource, cache_dir: Path | None = None) -> re.Pattern:
-    """Determines the correct regex pattern for this specific file."""
-    if cache_dir is None:
-        cache_dir = Path(".egregora-cache")
-    cache_dir.mkdir(exist_ok=True)
-    cache_file = cache_dir / "parsers.json"
-
-    # Calculate hash of the first 1000 bytes
-    with open(source.export.zip_path, "rb") as f:
-        file_head = f.read(1000)
-    file_hash = hashlib.sha256(file_head).hexdigest()
-
-    # Check cache
-    if cache_file.exists():
-        with open(cache_file) as f:
-            try:
-                cache_data = json.load(f)
-                if file_hash in cache_data:
-                    logger.info("Loaded dynamic parser from cache.")
-                    return re.compile(cache_data[file_hash])
-            except json.JSONDecodeError:
-                cache_data = {}
-    else:
-        cache_data = {}
-
-    # 1. Get a sample of lines (e.g., first 20 lines that aren't empty)
-    sample = []
-    try:
-        iterator = source.lines()
-        while len(sample) < 20:
-            line = next(iterator)
-            if len(line) > 10:  # Skip short noise
-                sample.append(line)
-    except StopIteration:
-        pass
-
-    # 3. Try Dynamic Generation
-    dynamic_pattern = generate_dynamic_regex(sample, config=EgregoraConfig())
-
-    if dynamic_pattern:
-        # Save to cache
-        cache_data[file_hash] = dynamic_pattern.pattern
-        with open(cache_file, "w") as f:
-            json.dump(cache_data, f, indent=2)
-        return dynamic_pattern
-
-    logger.warning("Falling back to default static regex parser.")
-    return FALLBACK_PATTERN
-
-
 def _parse_whatsapp_lines(
     source: ZipMessageSource,
     export: WhatsAppExport,
     timezone: str | ZoneInfo | None,
 ) -> list[dict[str, Any]]:
     """Pure Python parser for WhatsApp logs."""
-    line_pattern = _get_parser_pattern(source)
+    line_pattern = FALLBACK_PATTERN
 
     tz = _resolve_timezone(timezone)
     builder = MessageBuilder(

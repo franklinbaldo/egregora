@@ -35,7 +35,7 @@ import ibis.common.exceptions
 from google import genai
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
-from egregora.agents.enricher import EnrichmentRuntimeContext, enrich_table
+from egregora.agents.enricher import EnrichmentRuntimeContext, schedule_enrichment
 from egregora.agents.model_limits import PromptTooLargeError, get_model_context_limit
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.writer import write_posts_for_window
@@ -54,7 +54,7 @@ from egregora.knowledge.profiles import filter_opted_out_authors, process_comman
 from egregora.ops.media import process_media_for_window
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
-from egregora.orchestration.workers import BannerWorker, ProfileWorker
+from egregora.orchestration.workers import BannerWorker, EnrichmentWorker, ProfileWorker
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
@@ -223,8 +223,10 @@ def _process_background_tasks(ctx: PipelineContext) -> None:
         logger.info("Updated %d profiles", profiles_processed)
 
     # 3. Enrichment (Lower priority - can catch up later)
-    # enrichment_worker = EnrichmentWorker(ctx)
-    # enrichment_worker.run()
+    enrichment_worker = EnrichmentWorker(ctx)
+    enrichment_processed = enrichment_worker.run()
+    if enrichment_processed > 0:
+        logger.info("Enriched %d items", enrichment_processed)
 
 
 def _process_single_window(
@@ -263,23 +265,26 @@ def _process_single_window(
         zip_path=ctx.input_path,
     )
 
-    # Enrichment
-    if ctx.enable_enrichment:
-        logger.info("%s✨ [cyan]Enriching[/] window %s", indent, window_label)
-        enriched_table = _perform_enrichment(window_table_processed, media_mapping, ctx)
-    else:
-        enriched_table = window_table_processed
-
+    # Persist media immediately so background workers can access it
     if media_mapping:
         for media_doc in media_mapping.values():
-            if media_doc.metadata.get("pii_deleted"):
-                continue
+            # Note: PII check happens in background worker now.
+            # If PII is found later, the worker should delete/redact the file?
+            # Or we accept that raw media is on disk until enriched?
+            # For now, we persist everything.
             try:
                 output_sink.persist(media_doc)
             except (OSError, PermissionError) as exc:  # pragma: no cover - defensive
                 logger.exception("Failed to write media file %s: %s", media_doc.metadata.get("filename"), exc)
             except ValueError as exc:  # pragma: no cover - defensive
                 logger.exception("Invalid media document %s: %s", media_doc.metadata.get("filename"), exc)
+
+    # Enrichment (Schedule tasks)
+    if ctx.enable_enrichment:
+        logger.info("%s✨ [cyan]Scheduling enrichment[/] for window %s", indent, window_label)
+        enriched_table = _perform_enrichment(window_table_processed, media_mapping, ctx)
+    else:
+        enriched_table = window_table_processed
 
     # Write posts
     resources = PipelineFactory.create_writer_resources(ctx)
@@ -617,15 +622,20 @@ def _perform_enrichment(
         quota=ctx.quota_tracker,
         usage_tracker=ctx.usage_tracker,
         pii_prevention=pii_prevention,
+        task_store=ctx.task_store,
     )
-    return enrich_table(
+
+    # Schedule enrichment tasks (fire and forget)
+    schedule_enrichment(
         window_table,
         media_mapping,
-        ctx.config.models,
         ctx.config.enrichment,
-        ctx.config.quota,
         enrichment_context,
+        run_id=ctx.run_id,
     )
+
+    # Return original table since enrichment happens in background
+    return window_table
 
 
 def _create_database_backends(
@@ -681,7 +691,7 @@ def _create_database_backends(
                 else:
                     fs_path = Path(path_value).resolve()
                 fs_path.parent.mkdir(parents=True, exist_ok=True)
-                normalized_value = f"duckdb:///{fs_path}"
+                normalized_value = f"duckdb://{fs_path}"
 
         return normalized_value, ibis.connect(normalized_value)
 

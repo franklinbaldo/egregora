@@ -67,7 +67,7 @@ def anonymize_table(
     if "text" in anonymized.columns:
 
         @ibis.udf.scalar.python
-        def redact_mentions(message: str | None) -> str | None:
+        def redact_mentions(message: str) -> str:
             if message is None:
                 return None
             return _sanitize_mentions(message, mapping)

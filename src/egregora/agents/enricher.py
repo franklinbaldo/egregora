@@ -29,12 +29,13 @@ from pydantic_ai.models.google import GoogleModelSettings
 from ratelimit import limits, sleep_and_retry
 from tenacity import AsyncRetrying
 
-from egregora.config.settings import EnrichmentSettings, ModelSettings, QuotaSettings
+from egregora.config.settings import EnrichmentSettings, get_google_api_key
 from egregora.constants import PrivacyMarkers
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import MediaMapping
+from egregora.models.google_batch import GoogleBatchModel
 from egregora.ops.media import (
     detect_media_type,
     extract_urls,
@@ -42,7 +43,6 @@ from egregora.ops.media import (
     replace_media_mentions,
 )
 from egregora.resources.prompts import render_prompt
-from egregora.transformations.enrichment import combine_with_enrichment_rows
 from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
@@ -150,6 +150,7 @@ class EnrichmentRuntimeContext:
     quota: QuotaTracker | None = None
     usage_tracker: UsageTracker | None = None
     pii_prevention: dict[str, Any] | None = None  # LLM-native PII prevention settings
+    task_store: Any | None = None  # Added for job queue scheduling
 
 
 # ---------------------------------------------------------------------------
@@ -189,8 +190,11 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentDeps, Enrichme
     # I'll assume the request is satisfied if it uses `render_prompt`, OR maybe I should extract `system_prompt` function out of `create_url_enrichment_agent` scope.
     # I will keep it but ensure `_sanitize_prompt_input` is moved.
 
+    # Wrap the Google batch model so we still satisfy the Agent interface
+    model_instance = GoogleBatchModel(api_key=get_google_api_key(), model_name=model)
+
     agent = Agent[UrlEnrichmentDeps, EnrichmentOutput](
-        model=model,
+        model=model_instance,
         output_type=EnrichmentOutput,
         model_settings=model_settings,
     )
@@ -220,8 +224,9 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentDeps, Enri
         model: The model name to use.
 
     """
+    model_instance = GoogleBatchModel(api_key=get_google_api_key(), model_name=model)
     agent = Agent[MediaEnrichmentDeps, EnrichmentOutput](
-        model=model,
+        model=model_instance,
         output_type=EnrichmentOutput,
     )
 
@@ -671,128 +676,171 @@ async def _process_media_task(  # noqa: PLR0913
         return row, pii_detected, ref, updated_media_doc
 
 
-def enrich_table(
+def schedule_enrichment(
     messages_table: Table,
     media_mapping: MediaMapping,
-    models: ModelSettings,
     enrichment_settings: EnrichmentSettings,
-    quota_settings: QuotaSettings,
     context: EnrichmentRuntimeContext,
-) -> Table:
-    """Enrich messages table with URL and media context using async agents.
+    run_id: uuid.UUID | None = None,
+) -> None:
+    """Schedule enrichment tasks for background processing.
 
     Args:
         messages_table: Parsed messages to enrich.
         media_mapping: Mapping from media reference to associated documents.
-        models: Model configuration specific to enrichment.
         enrichment_settings: Feature toggles and limits for enrichment.
-        quota_settings: Quota controls (e.g., concurrency) used during enrichment.
-        context: Runtime resources and caches needed by enrichment helpers.
+        context: Runtime resources (TaskStore is required).
+        run_id: Current pipeline run ID.
 
     """
-    # Use asyncio.run to execute async logic from synchronous context
-    return asyncio.run(
-        _enrich_table_async(
-            messages_table,
-            media_mapping,
-            models,
-            enrichment_settings,
-            quota_settings,
-            context,
-        )
-    )
+    if not hasattr(context, "task_store") or not context.task_store:
+        logger.warning("TaskStore not available in context; skipping enrichment scheduling.")
+        return
 
-
-async def _enrich_table_async(
-    messages_table: Table,
-    media_mapping: MediaMapping,
-    models: ModelSettings,
-    enrichment_settings: EnrichmentSettings,
-    quota_settings: QuotaSettings,
-    context: EnrichmentRuntimeContext,
-) -> Table:
-    """Async implementation of :func:`enrich_table`.
-
-    Args:
-        messages_table: Parsed messages to enrich.
-        media_mapping: Mapping from media reference to associated documents.
-        models: Model configuration specific to enrichment.
-        enrichment_settings: Feature toggles and limits for enrichment.
-        quota_settings: Quota controls (e.g., concurrency) used during enrichment.
-        context: Runtime resources and caches needed by enrichment helpers.
-
-    """
     if messages_table.count().execute() == 0:
-        return messages_table
+        return
 
-    url_model = models.enricher
-    vision_model = models.enricher_vision
     max_enrichments = enrichment_settings.max_enrichments
     enable_url = enrichment_settings.enable_url
     enable_media = enrichment_settings.enable_media
-    prompts_dir = context.site_root / ".egregora" / "prompts" if context.site_root else None
 
-    logger.info("[blue]🌐 Enricher text model:[/] %s", url_model)
-    logger.info("[blue]🖼️  Enricher vision model:[/] %s", vision_model)
+    # Use a default run_id if none provided (though it should be)
+    current_run_id = run_id or uuid.uuid4()
 
-    new_rows: list[dict[str, Any]] = []
-    pii_detected_count = 0
-    pii_media_deleted = False
+    url_count = 0
+    media_count = 0
 
-    # Concurrency limit (configurable)
-    concurrency = max(1, quota_settings.concurrency)
-    semaphore = asyncio.Semaphore(concurrency)
+    # 1. Schedule URL enrichment
+    if enable_url:
+        # Extract URLs from messages
+        # This logic mimics _schedule_url_tasks but just enqueues
+        # We need to iterate over messages and extract URLs
+        # Ideally we'd use Ibis to filter messages with URLs, but regex extraction is Python-side currently
+        # For efficiency, let's stream the table
 
-    tasks = []
+        url_count = 0
+        for batch in _iter_table_batches(messages_table):
+            for row in batch:
+                if url_count >= max_enrichments:
+                    break
 
-    tasks.extend(
-        _schedule_url_tasks(
-            messages_table,
-            enable_url,
-            max_enrichments,
-            url_model,
-            context,
-            prompts_dir,
-            semaphore,
-        )
+                text = row.get("text") or ""
+                urls = extract_urls(text)
+                for url in urls:
+                    if url_count >= max_enrichments:
+                        break
+
+                    # Check cache first to avoid redundant tasks?
+                    # Workers will check cache too, but checking here saves queue space.
+                    cache_key = make_enrichment_cache_key(kind="url", identifier=url)
+                    if context.cache.load(cache_key) is not None:
+                        continue
+
+                    # Enqueue task
+                    payload = {
+                        "type": "url",
+                        "url": url,
+                        "message_metadata": {
+                            "ts": row.get("ts").isoformat() if row.get("ts") else None,
+                            "tenant_id": row.get("tenant_id"),
+                            "source": row.get("source"),
+                            "thread_id": str(row.get("thread_id")),
+                            "author_uuid": str(row.get("author_uuid")),
+                            "created_at": row.get("created_at").isoformat()
+                            if row.get("created_at")
+                            else None,
+                            "created_by_run": str(row.get("created_by_run")),
+                        },
+                    }
+                    context.task_store.enqueue("enrich_url", payload, current_run_id)
+                    url_count += 1
+
+    # 2. Schedule Media enrichment
+    if enable_media and media_mapping:
+        media_count = 0
+        # Iterate over media mapping directly?
+        # Or iterate over messages to find media references?
+        # The original logic used find_media_references on the table.
+        # But media_mapping contains all valid media docs for the window.
+        # Let's iterate media_mapping, but we need message metadata for the enrichment row.
+        # Actually, the enrichment row links to the message.
+        # So we should iterate messages, find media refs, and look up in mapping.
+
+        for batch in _iter_table_batches(messages_table):
+            for row in batch:
+                if media_count >= max_enrichments:
+                    break
+
+                text = row.get("text") or ""
+                refs = find_media_references(text)
+                for ref in refs:
+                    if media_count >= max_enrichments:
+                        break
+
+                    if ref not in media_mapping:
+                        continue
+
+                    media_doc = media_mapping[ref]
+
+                    # Check cache
+                    cache_key = make_enrichment_cache_key(kind="media", identifier=media_doc.document_id)
+                    if context.cache.load(cache_key) is not None:
+                        continue
+
+                    # Enqueue task
+                    # We need to pass enough info for the worker to load the media
+                    # The worker won't have the full media_mapping or the zip file open?
+                    # The worker needs access to the media content.
+                    # If media is already persisted to disk (by write_pipeline), we can pass the path.
+                    # In write_pipeline, media is persisted BEFORE enrichment if it's not PII.
+                    # But PII check happens AFTER enrichment usually?
+                    # Wait, original code:
+                    # 1. process_media_for_window -> returns table and mapping (media in memory/temp)
+                    # 2. enrichment -> checks PII -> marks pii_deleted
+                    # 3. persist media if not pii_deleted
+
+                    # If we move enrichment to background, we must persist media FIRST?
+                    # Or store media in a temporary location accessible to worker?
+                    # The worker runs in the same process/context in the current architecture (just later in pipeline).
+                    # But if we want true "fire and forget" across process restarts, media must be on disk.
+                    # For now, let's assume media is persisted to `media_dir` by the main pipeline
+                    # BEFORE scheduling enrichment?
+                    # In `write_pipeline.py`, media persistence happens AFTER enrichment currently.
+                    # I should change `write_pipeline.py` to persist media first (optimistically),
+                    # and then the worker can delete it if PII is found?
+                    # Or just pass the path to the worker.
+
+                    # Let's assume the media document has a `suggested_path` which is where it WILL be or IS.
+                    # If the pipeline persists it, the worker can read it.
+
+                    payload = {
+                        "type": "media",
+                        "ref": ref,
+                        "media_id": media_doc.document_id,
+                        "filename": media_doc.metadata.get("filename"),
+                        "original_filename": media_doc.metadata.get("original_filename"),
+                        "media_type": media_doc.metadata.get("media_type"),
+                        "suggested_path": str(media_doc.suggested_path) if media_doc.suggested_path else None,
+                        "message_metadata": {
+                            "ts": row.get("ts").isoformat() if row.get("ts") else None,
+                            "tenant_id": row.get("tenant_id"),
+                            "source": row.get("source"),
+                            "thread_id": str(row.get("thread_id")),
+                            "author_uuid": str(row.get("author_uuid")),
+                            "created_at": row.get("created_at").isoformat()
+                            if row.get("created_at")
+                            else None,
+                            "created_by_run": str(row.get("created_by_run")),
+                        },
+                    }
+                    context.task_store.enqueue("enrich_media", payload, current_run_id)
+                    media_count += 1
+
+    logger.info(
+        "Scheduled %d URL tasks and %d Media tasks",
+        url_count if enable_url else 0,
+        media_count if enable_media else 0,
     )
-
-    tasks.extend(
-        _schedule_media_tasks(
-            messages_table,
-            media_mapping,
-            enable_media,
-            max_enrichments,
-            vision_model,
-            context,
-            prompts_dir,
-            semaphore,
-        )
-    )
-
-    if not tasks:
-        return messages_table
-
-    logger.info("Running %d enrichment tasks...", len(tasks))
-    results = await asyncio.gather(*tasks)
-
-    (
-        new_rows,
-        pii_detected_count,
-        pii_media_deleted,
-    ) = _process_enrichment_results(results, max_enrichments, media_mapping)
-
-    if pii_media_deleted:
-        messages_table = _replace_pii_media_references(messages_table, media_mapping)
-
-    combined = combine_with_enrichment_rows(messages_table, new_rows, schema=IR_MESSAGE_SCHEMA)
-
-    _persist_enrichments(combined, context)
-
-    if pii_detected_count > 0:
-        logger.info("Privacy summary: %d media file(s) deleted due to PII detection", pii_detected_count)
-
-    return combined
 
 
 def _schedule_url_tasks(

@@ -140,6 +140,9 @@ def write_post_impl(ctx: ToolContext, metadata: dict, content: str) -> WritePost
         WritePostResult with success status and document path
 
     """
+    # Fix: Unescape literal newlines that might have been escaped by the LLM
+    content = content.replace("\\n", "\n")
+
     doc = Document(
         content=content,
         type=DocumentType.POST,
@@ -186,6 +189,9 @@ def write_profile_impl(ctx: ToolContext, author_uuid: str, content: str) -> Writ
     if ctx.profile_capability:
         logger.info("Delegating profile update to async capability for %s", author_uuid)
         return ctx.profile_capability.schedule(author_uuid, content)
+
+    # Fix: Unescape literal newlines
+    content = content.replace("\\n", "\n")
 
     # Fallback: Synchronous write
     doc_id = persist_profile_document(

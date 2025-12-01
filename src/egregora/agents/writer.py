@@ -686,11 +686,35 @@ def write_posts_with_pydantic_agent(
         caps_list = ", ".join(capability.name for capability in active_capabilities)
         logger.info("Writer capabilities enabled: %s", caps_list)
 
-    model_name = test_model if test_model is not None else config.models.writer
-    agent = Agent[WriterDeps, WriterAgentReturn](model=model_name, deps_type=WriterDeps)
-    register_writer_tools(agent, capabilities=active_capabilities)
+    # Define a simple provider to wrap the SDK client
+    class SimpleProvider:
+        def __init__(self, client):
+            self._client = client
+            self.model_profile = None
 
-    _validate_prompt_fits(prompt, model_name, config, context.window_label)
+        @property
+        def client(self):
+            return self._client
+
+        def name(self):
+            return "google-gla"
+
+        @property
+        def base_url(self):
+            return "https://generativelanguage.googleapis.com/v1beta/"
+
+    from egregora.utils.model_fallback import create_fallback_model
+
+    # Create model with automatic fallback
+    configured_model = test_model if test_model is not None else config.models.writer
+    model = create_fallback_model(configured_model)
+
+    # Validate prompt fits
+    _validate_prompt_fits(prompt, configured_model, config, context.window_label)
+
+    # Create agent
+    agent = Agent[WriterDeps, WriterAgentReturn](model=model, deps_type=WriterDeps)
+    register_writer_tools(agent, capabilities=active_capabilities)
 
     reset_backend()
     try:
