@@ -113,10 +113,6 @@ class DuckDBStorageManager:
         db_str = str(db_path) if db_path else ":memory:"
         self._conn = duckdb.connect(db_str)
 
-        # Initialize vector extensions
-        self._vss_function: str | None = None
-        self._init_vector_extensions()
-
         # Initialize Ibis backend
         self.ibis_conn = ibis.duckdb.connect(database=db_str)
 
@@ -153,8 +149,6 @@ class DuckDBStorageManager:
         instance.db_path = None  # Unknown for external connections
         instance.checkpoint_dir = checkpoint_dir or Path(".egregora/data")
         instance._conn = conn
-        instance._vss_function = None
-        instance._init_vector_extensions()  # Initialize VSS on instance
         db_list = conn.execute("PRAGMA database_list").fetchall()
         # PRAGMA database_list returns rows as (oid, name, file)
         db_path = db_list[0][2] if db_list else None
@@ -166,9 +160,7 @@ class DuckDBStorageManager:
         logger.debug("DuckDBStorageManager created from existing connection")
         return instance
 
-    def _init_vector_extensions(self) -> None:
-        """Disable VSS extension when stability issues are detected."""
-        self._vss_function = None
+
 
     def _is_invalidated_error(self, exc: duckdb.Error) -> bool:
         """Check if DuckDB raised a fatal invalidation error."""
@@ -186,7 +178,6 @@ class DuckDBStorageManager:
 
         def _connect() -> None:
             self._conn = duckdb.connect(db_str)
-            self._init_vector_extensions()
             self.ibis_conn = ibis.duckdb.connect(database=db_str)
 
         try:
@@ -268,9 +259,7 @@ class DuckDBStorageManager:
         self.execute_sql(f"DELETE FROM {quoted_table} WHERE {where_clause}", params)
         self.ibis_conn.insert(table, rows)
 
-    def get_vector_function_name(self) -> str | None:
-        """Return the detected VSS search function name (vss_search or vss_match), or None."""
-        return self._vss_function
+
 
     def read_table(self, name: str) -> Table:
         """Read table as Ibis expression.
@@ -609,29 +598,7 @@ class DuckDBStorageManager:
     # Vector backend helpers (Consolidated)
     # ==================================================================
 
-    def install_vss_extensions(self) -> bool:
-        try:
-            self._conn.execute("INSTALL vss")
-            self._conn.execute("LOAD vss")
-        except (duckdb.Error, RuntimeError) as exc:
-            logger.warning("VSS extension unavailable: %s", exc)
-            return False
-        return True
 
-    def detect_vss_function(self) -> str:
-        try:
-            rows = self._conn.execute("SELECT name FROM pragma_table_functions()").fetchall()
-        except duckdb.Error as exc:
-            logger.debug("Unable to inspect table functions: %s", exc)
-            return "vss_search"
-        function_names = {str(row[0]).lower() for row in rows if row}
-        if "vss_search" in function_names:
-            return "vss_search"
-        if "vss_match" in function_names:
-            logger.debug("Using vss_match table function for ANN queries")
-            return "vss_match"
-        logger.debug("No VSS table function detected; defaulting to vss_search")
-        return "vss_search"
 
     def drop_index(self, name: str) -> None:
         quoted = quote_identifier(name)
@@ -643,22 +610,6 @@ class DuckDBStorageManager:
         quoted = quote_identifier(table_name)
         row = self._conn.execute(f"SELECT COUNT(*) FROM {quoted}").fetchone()
         return int(row[0]) if row and row[0] is not None else 0
-
-    def create_hnsw_index(self, *, table_name: str, index_name: str, column: str = "embedding") -> bool:
-        try:
-            sql = self.sql.render(
-                "ddl/create_index.sql.jinja",
-                index_name=index_name,
-                table_name=table_name,
-                column_name=column,
-                index_type="HNSW",
-            )
-            self._conn.execute(sql)
-            logger.info("Created HNSW index %s on %s.%s", index_name, table_name, column)
-        except duckdb.Error as exc:
-            logger.warning("Skipping HNSW index creation: %s", exc)
-            return False
-        return True
 
 
 def temp_storage() -> DuckDBStorageManager:

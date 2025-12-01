@@ -112,7 +112,7 @@ class TestDoctorCommand:
 
             mock_diagnostics.return_value = [
                 DiagnosticResult(
-                    check="DuckDB VSS", status=HealthStatus.WARNING, message="VSS extension not available"
+                    check="Some Warning", status=HealthStatus.WARNING, message="Generic warning message"
                 ),
             ]
 

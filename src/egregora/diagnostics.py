@@ -129,67 +129,7 @@ def check_api_key() -> DiagnosticResult:
     )
 
 
-def check_duckdb_extensions() -> DiagnosticResult:
-    """Check if DuckDB VSS extension is available."""
-    # Lazy import - allows doctor command to run even if duckdb not installed
-    try:
-        duckdb = importlib.import_module("duckdb")
-    except ImportError:
-        return DiagnosticResult(
-            check="DuckDB VSS Extension",
-            status=HealthStatus.ERROR,
-            message="DuckDB not installed (run: uv sync --all-extras)",
-            details={"missing_package": "duckdb"},
-        )
 
-    try:
-        conn = duckdb.connect(":memory:")
-
-        # Try to install VSS extension
-        try:
-            conn.execute("INSTALL vss")
-            conn.execute("LOAD vss")
-
-            # Verify extension is loaded
-            result = conn.execute(
-                "SELECT extension_name, loaded FROM duckdb_extensions() WHERE extension_name = 'vss'"
-            ).fetchone()
-
-            if result and result[1]:  # loaded = True
-                return DiagnosticResult(
-                    check="DuckDB VSS Extension",
-                    status=HealthStatus.OK,
-                    message="VSS extension available and loaded",
-                )
-
-            return DiagnosticResult(
-                check="DuckDB VSS Extension",
-                status=HealthStatus.WARNING,
-                message="VSS extension installed but not loaded",
-            )
-
-        except duckdb.IOException as e:
-            # Extension not available (e.g., unsupported platform)
-            return DiagnosticResult(
-                check="DuckDB VSS Extension",
-                status=HealthStatus.WARNING,
-                message=f"VSS extension not available: {e}",
-                details={"workaround": "Use --retrieval-mode=exact for RAG"},
-            )
-
-        finally:
-            conn.close()
-
-    except Exception as e:
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.exception("Failed to check VSS extension")
-        return DiagnosticResult(
-            check="DuckDB VSS Extension",
-            status=HealthStatus.ERROR,
-            message=f"Failed to check VSS extension: {e}",
-        )
 
 
 def check_duckdb_zipfs() -> DiagnosticResult:
@@ -407,7 +347,7 @@ def run_diagnostics() -> list[DiagnosticResult]:
         check_python_version,
         check_required_packages,
         check_api_key,
-        check_duckdb_extensions,
+
         check_duckdb_zipfs,
         check_git,
         check_cache_directory,

@@ -25,7 +25,7 @@ class RAGBackend(Protocol):
     - Executing vector similarity search
 
     Implementations:
-        - DuckDBRAGBackend: Legacy DuckDB VSS implementation (deprecated)
+
         - LanceDBRAGBackend: New LanceDB implementation (recommended)
 
     """
