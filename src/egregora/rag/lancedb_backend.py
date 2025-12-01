@@ -256,7 +256,6 @@ class LanceDBRAGBackend:
 
         Returns:
             (doc_ids, vectors_matrix)
-
         """
         # Fetch all vectors (Zero-copy Arrow)
         # In a real scenario, filter by "document_type" metadata if possible

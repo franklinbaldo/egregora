@@ -1482,12 +1482,12 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             # 2. Taxonomy Generation (New)
             if dataset.context.config.rag.enabled:
                 from egregora.ops.taxonomy import generate_semantic_taxonomy
-
                 logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
                 try:
-                    tagged_count = asyncio.run(
-                        generate_semantic_taxonomy(dataset.context.output_format, dataset.context.config)
-                    )
+                    tagged_count = asyncio.run(generate_semantic_taxonomy(
+                        dataset.context.output_format,
+                        dataset.context.config
+                    ))
                     if tagged_count > 0:
                         logger.info(f"[green]✓ Applied semantic tags to {tagged_count} posts[/]")
                 except Exception as e:

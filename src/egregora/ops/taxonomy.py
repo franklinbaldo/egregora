@@ -1,17 +1,23 @@
 import logging
-
+import asyncio
 import numpy as np
 from sklearn.cluster import KMeans
 
 from egregora.agents.taxonomy import create_global_taxonomy_agent
-from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import OutputSink
 from egregora.rag import get_backend
+from egregora.config.settings import EgregoraConfig
 
 logger = logging.getLogger(__name__)
 
+# Conservative character limit for a "safe" context batch (approx 100k tokens ~ 400k chars)
+# Gemini 1.5 has 1M+ context, but we keep it safe to avoid timeout/latency issues.
+MAX_PROMPT_CHARS = 400_000
 
-async def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) -> int:
+async def generate_semantic_taxonomy(
+    output_sink: OutputSink,
+    config: EgregoraConfig
+) -> int:
     backend = get_backend()
 
     # 1. Fetch & Cluster (Standard K-Means)
@@ -55,26 +61,52 @@ async def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraCo
         if exemplars:
             clusters_input.append(f"Cluster {cid}:\n" + "\n".join(f"- {ex}" for ex in exemplars))
 
-    # 3. Single Global Inference
-    # We join all clusters into one giant prompt so the LLM sees the boundaries
+    # 3. Batched Global Inference
     agent = create_global_taxonomy_agent(config.models.writer)
 
-    prompt = "Analyze these document clusters and generate a distinct tag set for each.\n\n" + "\n\n".join(
-        clusters_input
-    )
+    # Simple batching by character count
+    batches = []
+    current_batch = []
+    current_chars = 0
 
-    logger.info("Generating global taxonomy map...")
-    try:
-        result = await agent.run(prompt)
-        taxonomy_map = result.data.mappings  # List[ClusterTags]
-    except Exception as e:
-        logger.warning("Taxonomy generation failed: %s", e)
-        return 0
+    for item in clusters_input:
+        item_len = len(item)
+        if current_chars + item_len > MAX_PROMPT_CHARS:
+            batches.append(current_batch)
+            current_batch = [item]
+            current_chars = item_len
+        else:
+            current_batch.append(item)
+            current_chars += item_len
+    if current_batch:
+        batches.append(current_batch)
 
-    # 4. Apply Updates
+    if len(batches) > 1:
+        logger.info("Taxonomy input too large, split into %d batches.", len(batches))
+
     updates_count = 0
 
-    for mapping in taxonomy_map:
+    # Process batches concurrently
+    async def process_batch(batch_items):
+        prompt = (
+            "Analyze these document clusters and generate a distinct tag set for each.\n\n" +
+            "\n\n".join(batch_items)
+        )
+        try:
+            result = await agent.run(prompt)
+            return result.data.mappings
+        except Exception as e:
+            logger.warning("Batch taxonomy generation failed: %s", e)
+            return []
+
+    # Run all batches
+    batch_results = await asyncio.gather(*[process_batch(b) for b in batches])
+
+    # Flatten results
+    all_mappings = [m for sublist in batch_results for m in sublist]
+
+    # 4. Apply Updates
+    for mapping in all_mappings:
         cid = mapping.cluster_id
         new_tags = mapping.tags
 
@@ -83,8 +115,7 @@ async def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraCo
 
         for doc_id in member_ids:
             doc = doc_lookup.get(doc_id)
-            if not doc:
-                continue
+            if not doc: continue
 
             # Idempotent merge
             current_tags = set(doc.metadata.get("tags", []))
