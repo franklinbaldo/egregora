@@ -686,11 +686,6 @@ def write_posts_with_pydantic_agent(
         caps_list = ", ".join(capability.name for capability in active_capabilities)
         logger.info("Writer capabilities enabled: %s", caps_list)
 
-    from google import genai
-    from pydantic_ai.models.google import GoogleModel
-
-    from egregora.config.settings import get_google_api_key
-
     # Define a simple provider to wrap the SDK client
     class SimpleProvider:
         def __init__(self, client):

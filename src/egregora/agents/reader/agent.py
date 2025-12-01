@@ -97,7 +97,7 @@ Evaluate both posts and determine which is better quality overall.
     # Create model with automatic fallback
     model = create_fallback_model(model_name)
     agent = Agent(model=model, output_type=ComparisonResult, system_prompt=system_prompt)
-    
+
     logger.debug("Comparing posts: %s vs %s", request.post_a_slug, request.post_b_slug)
 
     async for attempt in AsyncRetrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):

@@ -118,4 +118,3 @@ def create_fallback_model(
         primary_model,
         *fallback_models,
     )
-

@@ -213,9 +213,11 @@ class EnrichmentWorker(BaseWorker):
 
         # Execute enrichment for each URL individually with fallback
         import asyncio
-        from egregora.utils.model_fallback import create_fallback_model
-        from pydantic_ai import Agent
+
         from pydantic import BaseModel
+        from pydantic_ai import Agent
+
+        from egregora.utils.model_fallback import create_fallback_model
 
         class EnrichmentOutput(BaseModel):
             slug: str
@@ -226,7 +228,7 @@ class EnrichmentWorker(BaseWorker):
             task = task_data["task"]
             url = task_data["url"]
             prompt = task_data["prompt"]
-            
+
             try:
                 # Create agent with fallback
                 model = create_fallback_model(self.ctx.config.models.enricher)
@@ -254,26 +256,28 @@ class EnrichmentWorker(BaseWorker):
                         prompts_dir=prompts_dir,
                         sanitized_url=url,
                     ).strip()
-                    
+
                     tasks_data.append({"task": task, "url": url, "prompt": prompt})
                 except Exception as e:
                     logger.error("Failed to prepare URL task %s: %s", task["task_id"], e)
                     self.task_store.mark_failed(task["task_id"], f"Preparation failed: {e!s}")
-                    
+
             # Process all tasks with controlled concurrency
             # This prevents hitting rate limits
-            max_concurrent = getattr(self.ctx.config.enrichment, 'max_concurrent_enrichments', 5)
+            max_concurrent = getattr(self.ctx.config.enrichment, "max_concurrent_enrichments", 5)
             semaphore = asyncio.Semaphore(max_concurrent)
-            logger.info("Processing %d enrichment tasks with max concurrency of %d", len(tasks_data), max_concurrent)
-            
+            logger.info(
+                "Processing %d enrichment tasks with max concurrency of %d", len(tasks_data), max_concurrent
+            )
+
             async def process_with_semaphore(task_data):
                 async with semaphore:
                     return await enrich_single_url(task_data)
-            
-            results = await asyncio.gather(*[
-                process_with_semaphore(td) for td in tasks_data
-            ], return_exceptions=True)
-            
+
+            results = await asyncio.gather(
+                *[process_with_semaphore(td) for td in tasks_data], return_exceptions=True
+            )
+
             # Handle any exceptions from gather
             processed_results = []
             for i, result in enumerate(results):
@@ -283,7 +287,7 @@ class EnrichmentWorker(BaseWorker):
                     processed_results.append((task, None, str(result)))
                 else:
                     processed_results.append(result)
-            
+
             return processed_results
 
         try:
@@ -300,10 +304,10 @@ class EnrichmentWorker(BaseWorker):
             if error:
                 self.task_store.mark_failed(task["task_id"], error)
                 continue
-                
+
             if not output:
                 continue
-                
+
             try:
                 payload = task["_parsed_payload"]
                 url = payload["url"]
