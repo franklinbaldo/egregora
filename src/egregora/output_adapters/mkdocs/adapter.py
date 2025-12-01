@@ -869,7 +869,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     # Phase 2: Dynamic Data Population for UX Templates
     # ============================================================================
 
-    def _get_site_stats(self) -> dict[str, int]:
+    def get_site_stats(self) -> dict[str, int]:
         """Calculate site statistics for homepage.
 
         Returns:
@@ -907,7 +907,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         return stats
 
-    def _get_profiles_data(self) -> list[dict[str, Any]]:
+    def get_profiles_data(self) -> list[dict[str, Any]]:
         """Extract profile metadata for profiles index, including calculated stats."""
         profiles = []
         all_posts = list(self.documents())  # Inefficient, but necessary for stats
@@ -963,7 +963,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         return profiles
 
-    def _get_recent_media(self, limit: int = 5) -> list[dict[str, Any]]:
+    def get_recent_media(self, limit: int = 5) -> list[dict[str, Any]]:
         """Get recent media items for media index.
 
         Args:
