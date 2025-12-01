@@ -1,6 +1,5 @@
 """Path safety utilities for secure file operations."""
 
-import os
 from pathlib import Path
 from unicodedata import normalize
 

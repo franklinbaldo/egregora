@@ -4,22 +4,19 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Sequence, TypeVar
+from typing import TypeVar
 
 import httpx
 from google.genai import types as genai_types
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from tenacity import (
     RetryCallState,
-    Retrying,
     retry_if_exception_type,
     stop_after_attempt,
     wait_random_exponential,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import Iterable
 
 T = TypeVar("T")
 

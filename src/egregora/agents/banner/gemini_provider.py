@@ -95,7 +95,9 @@ class GeminiImageGenerationProvider(ImageGenerationProvider):
             image_config_cls = getattr(genai_types, "ImageConfig", SimpleNamespace)
             config.image_config = image_config_cls(aspect_ratio=request.aspect_ratio)
 
-        stream = self._client.models.generate_content_stream(model=self._model, contents=contents, config=config)
+        stream = self._client.models.generate_content_stream(
+            model=self._model, contents=contents, config=config
+        )
 
         image_bytes: bytes | None = None
         mime_type: str | None = None

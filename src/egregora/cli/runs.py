@@ -20,6 +20,7 @@ runs_app = typer.Typer(
     help="View and manage pipeline run history",
 )
 
+
 class _RunsDuckDBStorage:
     """Minimal DuckDB storage used by the runs CLI without initializing Ibis."""
 

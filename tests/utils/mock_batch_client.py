@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
 from google.genai import types as genai_types
+
 from egregora.utils.batch import (
     BatchPromptRequest,
     BatchPromptResult,
