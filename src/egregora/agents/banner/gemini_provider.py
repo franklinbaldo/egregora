@@ -30,6 +30,7 @@ class GeminiImageGenerationProvider(ImageGenerationProvider):
         import os
         import tempfile
         import time
+
         from google.genai import types
 
         # 1. Prepare JSONL payload
@@ -40,7 +41,7 @@ class GeminiImageGenerationProvider(ImageGenerationProvider):
                 "generation_config": {},
             },
         }
-        
+
         if request.response_modalities:
             payload["request"]["generation_config"]["responseModalities"] = list(request.response_modalities)
         if request.aspect_ratio:
@@ -54,14 +55,14 @@ class GeminiImageGenerationProvider(ImageGenerationProvider):
         try:
             uploaded_file = self._client.files.upload(
                 file=temp_path,
-                config=types.UploadFileConfig(display_name='banner-batch', mime_type='application/json')
+                config=types.UploadFileConfig(display_name="banner-batch", mime_type="application/json"),
             )
-            
+
             # 3. Create batch job
             batch_job = self._client.batches.create(
                 model=self._model,
                 src=uploaded_file.name,
-                config=types.CreateBatchJobConfig(display_name='banner-batch-job')
+                config=types.CreateBatchJobConfig(display_name="banner-batch-job"),
             )
             logger.info("Created banner batch job: %s", batch_job.name)
 
@@ -72,55 +73,44 @@ class GeminiImageGenerationProvider(ImageGenerationProvider):
                 if job.state.name in ("PROCESSING", "PENDING", "STATE_UNSPECIFIED"):
                     time.sleep(self._poll_interval)
                     continue
-                
+
                 if job.state.name != "SUCCEEDED":
                     error_msg = f"Batch job failed with state {job.state.name}: {job.error}"
                     logger.error(error_msg)
                     return ImageGenerationResult(
-                        image_bytes=None,
-                        mime_type=None,
-                        error=error_msg,
-                        error_code="BATCH_FAILED"
+                        image_bytes=None, mime_type=None, error=error_msg, error_code="BATCH_FAILED"
                     )
                 break
             else:
                 return ImageGenerationResult(
-                    image_bytes=None,
-                    mime_type=None,
-                    error="Batch job timed out",
-                    error_code="TIMEOUT"
+                    image_bytes=None, mime_type=None, error="Batch job timed out", error_code="TIMEOUT"
                 )
 
             # 5. Download and parse results
             # The output_uri is a URL we can GET
             import httpx
+
             resp = httpx.get(job.output_uri)
             resp.raise_for_status()
-            
+
             # Parse JSONL response
             # There should be only one line since we sent one request
             line = resp.text.strip()
             if not line:
                 return ImageGenerationResult(
-                    image_bytes=None,
-                    mime_type=None,
-                    error="Empty result file",
-                    error_code="EMPTY_RESULT"
+                    image_bytes=None, mime_type=None, error="Empty result file", error_code="EMPTY_RESULT"
                 )
-                
+
             data = json.loads(line)
             if "error" in data:
-                 return ImageGenerationResult(
-                    image_bytes=None,
-                    mime_type=None,
-                    error=str(data["error"]),
-                    error_code="GENERATION_ERROR"
+                return ImageGenerationResult(
+                    image_bytes=None, mime_type=None, error=str(data["error"]), error_code="GENERATION_ERROR"
                 )
 
             # Extract image from response
             # Structure: response -> candidates -> content -> parts -> inlineData
             candidates = data.get("response", {}).get("candidates", [])
-            
+
             image_bytes: bytes | None = None
             mime_type: str | None = None
             debug_text_parts: list[str] = []
@@ -134,6 +124,7 @@ class GeminiImageGenerationProvider(ImageGenerationProvider):
                         data_field = inline.get("data")
                         if isinstance(data_field, str):
                             import base64
+
                             image_bytes = base64.b64decode(data_field)
                         else:
                             image_bytes = data_field
@@ -147,14 +138,10 @@ class GeminiImageGenerationProvider(ImageGenerationProvider):
                     mime_type=None,
                     debug_text=debug_text,
                     error="No image data found in response",
-                    error_code="NO_IMAGE"
+                    error_code="NO_IMAGE",
                 )
 
-            return ImageGenerationResult(
-                image_bytes=image_bytes,
-                mime_type=mime_type,
-                debug_text=debug_text
-            )
+            return ImageGenerationResult(image_bytes=image_bytes, mime_type=mime_type, debug_text=debug_text)
 
         finally:
             if os.path.exists(temp_path):

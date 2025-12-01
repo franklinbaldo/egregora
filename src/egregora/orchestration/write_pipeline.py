@@ -624,7 +624,7 @@ def _perform_enrichment(
         pii_prevention=pii_prevention,
         task_store=ctx.task_store,
     )
-    
+
     # Schedule enrichment tasks (fire and forget)
     schedule_enrichment(
         window_table,
@@ -633,7 +633,7 @@ def _perform_enrichment(
         enrichment_context,
         run_id=ctx.run_id,
     )
-    
+
     # Return original table since enrichment happens in background
     return window_table
 

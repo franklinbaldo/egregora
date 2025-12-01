@@ -6,10 +6,9 @@ import base64
 import json
 import logging
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Iterable
-from urllib.parse import urlencode
+from typing import Any
 
 import httpx
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UsageLimitExceeded
@@ -45,14 +44,14 @@ class GoogleBatchModel(Model):
     ) -> None:
         super().__init__(settings=None, profile=None)
         self.api_key = api_key
-        
+
         # Normalize model name for Google API
         # Remove pydantic-ai provider prefix if present
         name = model_name.replace("google-gla:", "")
         # Ensure models/ prefix is present
         if not name.startswith("models/"):
             name = f"models/{name}"
-            
+
         self._model_name = name
         self.poll_interval = poll_interval
         self.timeout = timeout
@@ -86,13 +85,17 @@ class GoogleBatchModel(Model):
             code = first.error.get("code") if isinstance(first.error, dict) else None
             if code == 429 or (message and "RESOURCE_EXHAUSTED" in message):
                 raise UsageLimitExceeded(message or "Quota exceeded")
-            raise ModelHTTPError(status_code=code or 0, model_name=self.model_name, body=message or str(first.error))
+            raise ModelHTTPError(
+                status_code=code or 0, model_name=self.model_name, body=message or str(first.error)
+            )
         if not first.response:
             raise ModelAPIError(f"No response returned for {self.model_name}")
 
         text = self._extract_text(first.response)
         usage = RequestUsage()
-        return ModelResponse(parts=[TextPart(text=text)], usage=usage, model_name=self.model_name, provider_name="google")
+        return ModelResponse(
+            parts=[TextPart(text=text)], usage=usage, model_name=self.model_name, provider_name="google"
+        )
 
     # ------------------------------------------------------------------ #
     # HTTP batch helpers
@@ -108,6 +111,7 @@ class GoogleBatchModel(Model):
 
         Returns:
             List of BatchResult objects containing responses or errors.
+
         """
         if not requests:
             return []
@@ -124,45 +128,46 @@ class GoogleBatchModel(Model):
             jsonl_lines.append(json.dumps(record))
         jsonl_body = "\n".join(jsonl_lines)
 
+        import asyncio
+
         from google import genai
         from google.genai import types
-        import asyncio
 
         # Offload client creation to thread if needed, but it's usually fast.
         # However, file upload and batch creation are blocking IO in the sync SDK.
         # We should wrap them in to_thread to be truly async.
-        
+
         client = genai.Client(api_key=self.api_key)
-        
+
         # Create a temporary file for upload
-        import tempfile
         import os
-        
-        # File IO is blocking, but temp file writing is fast. 
+        import tempfile
+
+        # File IO is blocking, but temp file writing is fast.
         # For strict async, we could use aiofiles, but standard tempfile is acceptable here.
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".jsonl") as f:
             f.write(jsonl_body)
             temp_path = f.name
-            
+
         try:
             # Upload file (blocking IO -> thread)
             uploaded_file = await asyncio.to_thread(
                 client.files.upload,
                 file=temp_path,
-                config=types.UploadFileConfig(display_name='pydantic-ai-batch', mime_type='application/json')
+                config=types.UploadFileConfig(display_name="pydantic-ai-batch", mime_type="application/json"),
             )
-            
+
             # Create batch job (blocking IO -> thread)
             batch_job = await asyncio.to_thread(
                 client.batches.create,
                 model=self.model_name,
                 src=uploaded_file.name,
-                config=types.CreateBatchJobConfig(display_name='pydantic-ai-batch')
+                config=types.CreateBatchJobConfig(display_name="pydantic-ai-batch"),
             )
-            
+
             # Poll for completion (async poll)
             completed_job = await self._poll_job(client, batch_job.name)
-            
+
             # Download results (blocking IO -> thread)
             return await self._download_results(client, completed_job.output_uri, requests)
 
@@ -171,46 +176,48 @@ class GoogleBatchModel(Model):
             if e.code == 429:
                 logger.error("429 Details: %s", e.message)
                 # Try to extract more details if available
-                if hasattr(e, 'details'):
+                if hasattr(e, "details"):
                     logger.error("Error Details: %s", e.details)
-                
+
                 raise UsageLimitExceeded(f"Google Batch API Quota Exceeded: {e.message}") from e
             raise ModelHTTPError(status_code=e.code, model_name=self.model_name, body=str(e)) from e
-            
+
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
 
     async def _poll_job(self, client: Any, job_name: str) -> Any:
         import asyncio
+
         start_time = time.time()
         while time.time() - start_time < self.timeout:
             # client.batches.get is blocking
             job = await asyncio.to_thread(client.batches.get, name=job_name)
-            
+
             if job.state.name in ("PROCESSING", "PENDING", "STATE_UNSPECIFIED"):
                 await asyncio.sleep(self.poll_interval)
                 continue
-                
+
             if job.state.name != "SUCCEEDED":
                 raise ModelHTTPError(status_code=0, model_name=self.model_name, body=str(job.error))
-                
+
             return job
-            
+
         raise ModelAPIError("Batch job polling timed out")
 
-    async def _download_results(self, client: Any, output_uri: str, requests: list[dict[str, Any]]) -> list[BatchResult]:
-        import httpx
+    async def _download_results(
+        self, client: Any, output_uri: str, requests: list[dict[str, Any]]
+    ) -> list[BatchResult]:
         # httpx.get is blocking, use async client or to_thread
         # Since we are inside an async method, let's use to_thread for simplicity with sync httpx
-        # or better, use httpx.AsyncClient if we want to be proper. 
+        # or better, use httpx.AsyncClient if we want to be proper.
         # But to keep dependencies simple and consistent with the rest of the file (which imports httpx),
         # let's use AsyncClient context manager.
-        
+
         async with httpx.AsyncClient() as http_client:
             resp = await http_client.get(output_uri)
             resp.raise_for_status()
-            
+
         lines = resp.text.splitlines()
         results: list[BatchResult] = []
         for idx, line in enumerate(lines):
@@ -220,10 +227,14 @@ class GoogleBatchModel(Model):
             # Handle both successful response and error formats
             response = data.get("response")
             error = data.get("error")
-            
+
             # Map key/custom_id back to tag
-            tag = data.get("key") or data.get("custom_id") or (requests[idx]["tag"] if idx < len(requests) else f"idx-{idx}")
-            
+            tag = (
+                data.get("key")
+                or data.get("custom_id")
+                or (requests[idx]["tag"] if idx < len(requests) else f"idx-{idx}")
+            )
+
             results.append(BatchResult(tag=str(tag), response=response, error=error))
         return results
 
@@ -252,7 +263,7 @@ class GoogleBatchModel(Model):
         if model_request_parameters and hasattr(model_request_parameters, "max_output_tokens"):
             cfg["max_output_tokens"] = model_request_parameters.max_output_tokens
         if model_settings and hasattr(model_settings, "response_modalities"):
-            cfg["response_modalities"] = getattr(model_settings, "response_modalities")
+            cfg["response_modalities"] = model_settings.response_modalities
         return cfg
 
     def _extract_text(self, response: dict[str, Any]) -> str:

@@ -202,9 +202,6 @@ class ZipMessageSource:
                 raise ZipValidationError(msg) from exc
 
 
-
-
-
 def _parse_whatsapp_lines(
     source: ZipMessageSource,
     export: WhatsAppExport,

@@ -688,6 +688,7 @@ def write_posts_with_pydantic_agent(
 
     from google import genai
     from pydantic_ai.models.google import GoogleModel
+
     from egregora.config.settings import get_google_api_key
 
     # Define a simple provider to wrap the SDK client
@@ -695,14 +696,14 @@ def write_posts_with_pydantic_agent(
         def __init__(self, client):
             self._client = client
             self.model_profile = None
-        
+
         @property
         def client(self):
             return self._client
-            
+
         def name(self):
             return "google-gla"
-            
+
         @property
         def base_url(self):
             return "https://generativelanguage.googleapis.com/v1beta/"
@@ -711,17 +712,16 @@ def write_posts_with_pydantic_agent(
     # when run_sync is called multiple times (which creates new event loops).
     api_key = get_google_api_key()
     client = genai.Client(api_key=api_key)
-    
+
     # Wrap in provider
     provider = SimpleProvider(client)
-    
+
     # Extract model name from config
     raw_model_name = config.models.writer
-    if raw_model_name.startswith("google-gla:"):
-        raw_model_name = raw_model_name[len("google-gla:"):]
-    
+    raw_model_name = raw_model_name.removeprefix("google-gla:")
+
     model = GoogleModel(raw_model_name, provider=provider)
-    
+
     # Restore model_name for validation
     model_name = test_model if test_model is not None else config.models.writer
 

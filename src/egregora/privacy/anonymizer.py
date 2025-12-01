@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import re
 
-from typing import Optional
-
 import ibis
 from ibis.expr.types import Table
 

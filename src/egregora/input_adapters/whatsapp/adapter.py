@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any, TypedDict, Unpack
 
 import ibis
-import ibis.expr.datatypes as dt
 
 from egregora.constants import AuthorPrivacyStrategy
 from egregora.data_primitives.document import Document, DocumentType
@@ -18,7 +17,7 @@ from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.input_adapters.privacy_config import AdapterPrivacyConfig
 from egregora.input_adapters.whatsapp.commands import EGREGORA_COMMAND_PATTERN
 from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
-from egregora.input_adapters.whatsapp.utils import convert_media_to_markdown, discover_chat_file
+from egregora.input_adapters.whatsapp.utils import discover_chat_file
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.utils.paths import slugify
 
