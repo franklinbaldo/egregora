@@ -1,7 +1,7 @@
 {% extends "main.html" %}
 
 {% block content %}
-<article class="md-content__inner md-typeset">
+<article class="md-content__inner md-typeset" data-url="{{ page.url }}">
   <!-- Reading Progress Bar -->
   <div id="reading-progress-bar"></div>
 
@@ -38,22 +38,16 @@
 
   {{ page.content }}
 
-  <!-- Related Posts -->
-  <section class="related-posts">
-    <h2>Continue Reading</h2>
-    <div class="related-posts-grid">
-      {% for post in page.meta.related_posts %}
-      <div class="related-post-card">
-        <h3 class="related-post-title"><a href="{{ post.url }}">{{ post.title }}</a></h3>
-        <div class="related-post-meta">
-          <span>{{ post.reading_time }} min read</span>
-          {% if post.reason %}
-          <span class="related-post-reason">{{ post.reason }}</span>
-          {% endif %}
-        </div>
-      </div>
-      {% endfor %}
-    </div>
+  <!-- Related Posts Placeholder -->
+  <!-- Replaces the old static section -->
+  <section id="related-posts-container" class="related-posts">
+    <!-- JS will populate this. If JS fails, this remains empty/invisible -->
   </section>
 </article>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <!-- Inject search index path logic if needed, or handle in JS -->
+  <script src="{{ 'javascripts/related_posts.js' | url }}"></script>
 {% endblock %}

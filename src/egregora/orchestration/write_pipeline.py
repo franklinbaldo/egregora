@@ -1428,6 +1428,28 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             # Update run to completed
             _record_run_completion(run_store, run_id, started_at, results)
 
+            # --- NEW: Build Client-Side Related Posts Index ---
+            # This is done last as it requires reading back all persisted posts
+            if dataset.context.site_root and dataset.context.output_format:
+                # We save as 'related.json' containing the pre-computed mapping
+                related_index_path = dataset.context.site_root / "assets" / "data" / "related.json"
+                # We run this async function within the sync pipeline wrapper
+                try:
+                    import asyncio
+
+                    from egregora.rag.client_index import build_client_search_index
+
+                    asyncio.run(
+                        build_client_search_index(
+                            adapter=dataset.context.output_format,
+                            config=run_params.config,
+                            output_path=related_index_path,
+                        )
+                    )
+                except Exception as e:
+                    logger.warning("Failed to build related posts index (non-critical): %s", e)
+            # -------------------------------------------
+
             logger.info("[bold green]🎉 Pipeline completed successfully![/]")
 
         except KeyboardInterrupt:

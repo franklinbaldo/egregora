@@ -666,30 +666,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     # Document Writing Strategies ---------------------------------------------
 
-    def _get_related_posts(
-        self, current_post: Document, all_posts: list[Document], limit: int = 3
-    ) -> list[Document]:
-        """Get a list of related posts based on shared tags."""
-        if not current_post.metadata or "tags" not in current_post.metadata:
-            return []
-
-        current_tags = set(current_post.metadata["tags"])
-        related = []
-        for post in all_posts:
-            if (
-                post.document_id == current_post.document_id
-                or not post.metadata
-                or "tags" not in post.metadata
-            ):
-                continue
-
-            shared_tags = current_tags.intersection(set(post.metadata["tags"]))
-            if shared_tags:
-                related.append((post, len(shared_tags)))
-
-        related.sort(key=lambda x: x[1], reverse=True)
-        return [post for post, score in related[:limit]]
-
     def _write_post_doc(self, document: Document, path: Path) -> None:
         import yaml as _yaml
 
@@ -698,17 +674,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             metadata["date"] = format_frontmatter_datetime(metadata["date"])
         if "authors" in metadata:
             ensure_author_entries(path.parent, metadata.get("authors"))
-
-        # Add related posts based on shared tags
-        all_posts = list(self.documents())  # This is inefficient, but will work for now
-        related_posts_docs = self._get_related_posts(document, all_posts)
-        metadata["related_posts"] = [
-            {
-                "title": post.metadata.get("title"),
-                "url": self.url_convention.canonical_url(post, self._ctx),
-            }
-            for post in related_posts_docs
-        ]
 
         # Add enriched authors data
 
