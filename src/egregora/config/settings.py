@@ -426,6 +426,12 @@ class EnrichmentSettings(BaseModel):
         le=200,
         description="Maximum number of enrichments per run",
     )
+    max_concurrent_enrichments: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="Maximum concurrent enrichment requests to prevent rate limiting",
+    )
 
 
 from egregora.constants import WindowUnit  # noqa: E402
@@ -1078,3 +1084,22 @@ def google_api_key_status() -> bool:
     import os
 
     return bool(os.environ.get("GOOGLE_API_KEY"))
+
+
+def get_openrouter_api_key() -> str:
+    """Get OpenRouter API key from environment."""
+    import os
+
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        msg = "OPENROUTER_API_KEY environment variable is required for OpenRouter models"
+        raise ValueError(msg)
+    # Handle bash export syntax (e.g., "= value" instead of "value")
+    return api_key.strip().lstrip("=").strip()
+
+
+def openrouter_api_key_status() -> bool:
+    """Check if OPENROUTER_API_KEY is configured."""
+    import os
+
+    return bool(os.environ.get("OPENROUTER_API_KEY"))

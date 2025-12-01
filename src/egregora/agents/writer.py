@@ -708,27 +708,18 @@ def write_posts_with_pydantic_agent(
         def base_url(self):
             return "https://generativelanguage.googleapis.com/v1beta/"
 
-    # Explicitly create a fresh client and model to avoid event loop binding issues
-    # when run_sync is called multiple times (which creates new event loops).
-    api_key = get_google_api_key()
-    client = genai.Client(api_key=api_key)
+    from egregora.utils.model_fallback import create_fallback_model
 
-    # Wrap in provider
-    provider = SimpleProvider(client)
+    # Create model with automatic fallback
+    configured_model = test_model if test_model is not None else config.models.writer
+    model = create_fallback_model(configured_model)
 
-    # Extract model name from config
-    raw_model_name = config.models.writer
-    raw_model_name = raw_model_name.removeprefix("google-gla:")
+    # Validate prompt fits
+    _validate_prompt_fits(prompt, configured_model, config, context.window_label)
 
-    model = GoogleModel(raw_model_name, provider=provider)
-
-    # Restore model_name for validation
-    model_name = test_model if test_model is not None else config.models.writer
-
+    # Create agent
     agent = Agent[WriterDeps, WriterAgentReturn](model=model, deps_type=WriterDeps)
     register_writer_tools(agent, capabilities=active_capabilities)
-
-    _validate_prompt_fits(prompt, model_name, config, context.window_label)
 
     reset_backend()
     try:

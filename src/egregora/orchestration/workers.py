@@ -211,72 +211,106 @@ class EnrichmentWorker(BaseWorker):
         if not requests:
             return 0
 
-        # Execute batch
-        # We need the enricher model name
-        model_name = self.ctx.config.models.enricher
-        # We need a GoogleBatchModel instance.
-        # The worker doesn't have one injected, we create it.
-        # Use asyncio.run for async call if we are in sync context
+        # Execute enrichment for each URL individually with fallback
         import asyncio
+        from egregora.utils.model_fallback import create_fallback_model
+        from pydantic_ai import Agent
+        from pydantic import BaseModel
 
-        from egregora.config.settings import get_google_api_key
-        from egregora.models.google_batch import GoogleBatchModel
+        class EnrichmentOutput(BaseModel):
+            slug: str
+            markdown: str
 
-        model = GoogleBatchModel(api_key=get_google_api_key(), model_name=model_name)
+        async def enrich_single_url(task_data: dict) -> tuple[dict, EnrichmentOutput | None, str | None]:
+            """Enrich a single URL with fallback support."""
+            task = task_data["task"]
+            url = task_data["url"]
+            prompt = task_data["prompt"]
+            
+            try:
+                # Create agent with fallback
+                model = create_fallback_model(self.ctx.config.models.enricher)
+                agent = Agent(model=model, output_type=EnrichmentOutput)
+                result = await agent.run(prompt)
+                return task, result.data, None
+            except Exception as e:
+                logger.error("Failed to enrich URL %s: %s", url, e)
+                return task, None, str(e)
+
+        async def process_all_urls():
+            # Prepare all task data
+            tasks_data = []
+            for task in tasks:
+                try:
+                    payload = task["payload"]
+                    if isinstance(payload, str):
+                        payload = json.loads(payload)
+                    task["_parsed_payload"] = payload
+
+                    url = payload["url"]
+                    prompt = render_prompt(
+                        "enrichment.jinja",
+                        mode="url_user",
+                        prompts_dir=prompts_dir,
+                        sanitized_url=url,
+                    ).strip()
+                    
+                    tasks_data.append({"task": task, "url": url, "prompt": prompt})
+                except Exception as e:
+                    logger.error("Failed to prepare URL task %s: %s", task["task_id"], e)
+                    self.task_store.mark_failed(task["task_id"], f"Preparation failed: {e!s}")
+                    
+            # Process all tasks with controlled concurrency
+            # This prevents hitting rate limits
+            max_concurrent = getattr(self.ctx.config.enrichment, 'max_concurrent_enrichments', 5)
+            semaphore = asyncio.Semaphore(max_concurrent)
+            logger.info("Processing %d enrichment tasks with max concurrency of %d", len(tasks_data), max_concurrent)
+            
+            async def process_with_semaphore(task_data):
+                async with semaphore:
+                    return await enrich_single_url(task_data)
+            
+            results = await asyncio.gather(*[
+                process_with_semaphore(td) for td in tasks_data
+            ], return_exceptions=True)
+            
+            # Handle any exceptions from gather
+            processed_results = []
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    task = tasks_data[i]["task"]
+                    logger.error("Enrichment failed for %s: %s", task["task_id"], result)
+                    processed_results.append((task, None, str(result)))
+                else:
+                    processed_results.append(result)
+            
+            return processed_results
 
         try:
-            # Run batch (this blocks until completion)
-            results = asyncio.run(model.run_batch(requests))
+            results = asyncio.run(process_all_urls())
         except Exception as e:
-            logger.error("Enrichment batch failed: %s", e)
-            # Mark all as failed?
+            logger.error("Enrichment processing failed: %s", e)
             for t in tasks:
-                self.task_store.mark_failed(t["task_id"], f"Batch failed: {e!s}")
+                self.task_store.mark_failed(t["task_id"], f"Processing failed: {e!s}")
             return 0
 
-        # Process results
+        # Process results and create documents
         new_rows = []
-
-        for res in results:
-            task = task_map.get(res.tag)
-            if not task:
+        for task, output, error in results:
+            if error:
+                self.task_store.mark_failed(task["task_id"], error)
                 continue
-
-            if res.error:
-                self.task_store.mark_failed(task["task_id"], str(res.error))
+                
+            if not output:
                 continue
-
-            # Parse response
-            # Expected format: JSON with slug, markdown
-            text = self._extract_text(res.response)
+                
             try:
-                # The prompt asks for JSON, but model might return markdown block
-                # We need to parse it.
-                # Let's assume simple parsing for now or use a helper if available.
-                # The original agent used Pydantic output parser.
-                # Here we are getting raw text.
-                # We need to parse JSON from text.
-
-                # Strip markdown code blocks
-                clean_text = text.strip()
-                clean_text = clean_text.removeprefix("```json")
-                clean_text = clean_text.removeprefix("```")
-                clean_text = clean_text.removesuffix("```")
-
-                data = json.loads(clean_text.strip())
-                slug = data.get("slug")
-                markdown = data.get("markdown")
-
-                if not slug or not markdown:
-                    raise ValueError("Missing slug or markdown in response")
-
-                # Create Document
                 payload = task["_parsed_payload"]
                 url = payload["url"]
-                slug_value = _normalize_slug(slug, url)
+                slug_value = _normalize_slug(output.slug, url)
 
                 doc = Document(
-                    content=markdown,
+                    content=output.markdown,
                     type=DocumentType.ENRICHMENT_URL,
                     metadata={
                         "url": url,
@@ -294,10 +328,9 @@ class EnrichmentWorker(BaseWorker):
                     new_rows.append(row)
 
                 self.task_store.mark_completed(task["task_id"])
-
             except Exception as e:
-                logger.error("Failed to parse enrichment result for %s: %s", task["task_id"], e)
-                self.task_store.mark_failed(task["task_id"], f"Parse error: {e!s}")
+                logger.error("Failed to persist enrichment for %s: %s", task["task_id"], e)
+                self.task_store.mark_failed(task["task_id"], f"Persistence error: {e!s}")
 
         # Insert rows into DB
         if new_rows:
