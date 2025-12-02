@@ -33,8 +33,7 @@ from egregora.database.elo_store import EloStore
 # =============================================================================
 
 
-@pytest.mark.asyncio
-async def test_reader_agent_evaluates_posts_and_persists_elo_rankings(
+def test_reader_agent_evaluates_posts_and_persists_elo_rankings(
     tmp_path: Path,
     reader_test_config,
 ) -> None:
