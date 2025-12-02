@@ -112,7 +112,7 @@ class DuckDBStorageManager:
         # Initialize Ibis backend first (it manages the DuckDB connection)
         db_str = str(db_path) if db_path else ":memory:"
         self.ibis_conn = ibis.duckdb.connect(database=db_str)
-        
+
         # Use the underlying DuckDB connection from Ibis to ensure we share the same connection
         # This prevents "read-only transaction" errors caused by multiple connections to the same file
         self._conn = self.ibis_conn.con
@@ -182,9 +182,9 @@ class DuckDBStorageManager:
         instance = cls.__new__(cls)
         # Try to determine path from backend if possible, but it's not strictly required
         # as we use the backend's connection directly.
-        instance.db_path = None 
+        instance.db_path = None
         instance.checkpoint_dir = checkpoint_dir or Path(".egregora/data")
-        
+
         instance.ibis_conn = backend
         # Share the raw connection from the backend
         if hasattr(backend, "con"):
@@ -192,7 +192,7 @@ class DuckDBStorageManager:
         else:
             msg = "Provided backend does not expose a raw 'con' attribute (expected DuckDB backend)"
             raise ValueError(msg)
-            
+
         instance.sql = SQLManager()
         instance._table_info_cache = {}
         instance._lock = threading.Lock()

@@ -125,9 +125,7 @@ def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
 # =============================================================================
 
 
-def test_anonymization_removes_real_author_names(
-    whatsapp_fixture: WhatsAppFixture
-):
+def test_anonymization_removes_real_author_names(whatsapp_fixture: WhatsAppFixture):
     """Test that anonymization removes real author names from table."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -140,9 +138,7 @@ def test_anonymization_removes_real_author_names(
     assert any("@" in message and "teste de menção" in message for message in messages)
 
 
-def test_parse_source_exposes_raw_authors_when_requested(
-    whatsapp_fixture: WhatsAppFixture
-):
+def test_parse_source_exposes_raw_authors_when_requested(whatsapp_fixture: WhatsAppFixture):
     """Test that raw author names are exposed when explicitly requested."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(
@@ -224,10 +220,10 @@ def test_media_references_replaced_in_messages(
     tmp_path: Path,
 ):
     """Test that media references in messages are converted to markdown via pipeline ops."""
+    from egregora.data_primitives.document import Document
+    from egregora.data_primitives.protocols import UrlContext, UrlConvention
     from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
     from egregora.ops.media import process_media_for_window
-    from egregora.data_primitives.protocols import UrlContext, UrlConvention
-    from egregora.data_primitives.document import Document
     from egregora.transformations.windowing import Window
 
     adapter = WhatsAppAdapter()
@@ -248,7 +244,7 @@ def test_media_references_replaced_in_messages(
             return f"media/{doc.metadata['filename']}"
 
     url_context = UrlContext(base_path=tmp_path)
-    
+
     # Process media (this is what happens in the pipeline)
     processed_table, _ = process_media_for_window(
         window_table=table,

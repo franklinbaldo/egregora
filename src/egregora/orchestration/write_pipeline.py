@@ -15,7 +15,6 @@ Part of the three-layer architecture:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import math
 import os
@@ -40,13 +39,11 @@ from egregora.agents.model_limits import PromptTooLargeError, get_model_context_
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
-from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.run_store import RunStore
 from egregora.database.task_store import TaskStore
-from egregora.database.views import daily_aggregates_view
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.base import MediaMapping
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
@@ -777,7 +774,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     cache_dir = Path(".egregora-cache") / site_paths["site_root"].name
     cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
     site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
-    
+
     # Use the pipeline backend for storage to ensure we share the same connection
     # This prevents "read-only transaction" errors and database invalidation
     storage = DuckDBStorageManager.from_ibis_backend(pipeline_backend)
@@ -1117,8 +1114,6 @@ def _index_media_into_rag(
     # ... (removed for now)
 
 
-
-
 def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, checkpoint_path: Path) -> None:
     """Save checkpoint after successful window processing.
 
@@ -1406,7 +1401,6 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             # Process remaining background tasks after all windows are done
             # (In case there are stragglers)
             _process_background_tasks(dataset.context)
-
 
             # Update run to completed
             _record_run_completion(run_store, run_id, started_at, results)
