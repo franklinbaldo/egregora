@@ -64,11 +64,11 @@ from egregora.transformations.windowing import (
 
 __all__ = [
     "create_windows",
-    "split_window_into_n_parts",
-    "load_checkpoint",
-    "save_checkpoint",
-    "generate_window_signature",
     "extract_media_references",
+    "generate_window_signature",
+    "load_checkpoint",
     "process_media_for_window",
     "replace_media_references",
+    "save_checkpoint",
+    "split_window_into_n_parts",
 ]
