@@ -295,7 +295,7 @@ class EnrichmentWorker(BaseWorker):
 
             # Use run_sync to execute the async agent synchronously
             result = agent.run_sync(prompt)
-            return task, result.data, None
+            return task, result.output, None
         except Exception as e:
             logger.error("Failed to enrich URL %s: %s", url, e)
             return task, None, str(e)
