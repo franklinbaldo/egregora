@@ -286,9 +286,7 @@ def write(  # noqa: C901, PLR0913
 
     if not api_key:
         console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
-        console.print(
-            "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
-        )
+        console.print("Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key")
         console.print("You can also create a .env file in the output directory or current directory.")
         raise typer.Exit(1)
 

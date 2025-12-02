@@ -119,6 +119,75 @@ AVATAR_HAIR_COLORS = [
     "SilverGray",
 ]
 
+# Fallback name generation
+FALLBACK_ADJECTIVES = [
+    "Anonymous",
+    "Brave",
+    "Calm",
+    "Happy",
+    "Lucky",
+    "Mighty",
+    "Quiet",
+    "Swift",
+    "Wise",
+    "Zealous",
+    "Clever",
+    "Eager",
+    "Gentle",
+    "Jolly",
+    "Kind",
+    "Lively",
+    "Nice",
+    "Proud",
+    "Silly",
+    "Witty",
+]
+FALLBACK_ANIMALS = [
+    "Armadillo",
+    "Bear",
+    "Cat",
+    "Dog",
+    "Eagle",
+    "Fox",
+    "Giraffe",
+    "Hawk",
+    "Iguana",
+    "Jaguar",
+    "Koala",
+    "Lion",
+    "Mouse",
+    "Narwhal",
+    "Owl",
+    "Panda",
+    "Quail",
+    "Rabbit",
+    "Sloth",
+    "Tiger",
+    "Unicorn",
+    "Viper",
+    "Wolf",
+    "Yak",
+    "Zebra",
+]
+
+
+def generate_fallback_name(author_uuid: str) -> str:
+    """Generate a deterministic fallback name (e.g., 'Happy Panda').
+
+    Args:
+        author_uuid: The author's UUID
+
+    Returns:
+        A generated pseudonym
+
+    """
+    import hashlib
+
+    h = hashlib.sha256(author_uuid.encode()).hexdigest()
+    adj_idx = int(h[0:2], 16) % len(FALLBACK_ADJECTIVES)
+    ani_idx = int(h[2:4], 16) % len(FALLBACK_ANIMALS)
+    return f"{FALLBACK_ADJECTIVES[adj_idx]} {FALLBACK_ANIMALS[ani_idx]}"
+
 
 def read_profile(
     author_uuid: Annotated[str, "The UUID5 pseudonym of the author"],
@@ -169,9 +238,10 @@ def write_profile(
     metadata = _extract_profile_metadata(profile_path) if profile_path.exists() else {}
 
     # Create front-matter with metadata
+    fallback_name = generate_fallback_name(author_uuid)
     front_matter = {
         "uuid": author_uuid,
-        "name": metadata.get("name", author_uuid),  # Default to UUID if no alias set
+        "name": metadata.get("name", fallback_name),  # Default to pseudonym if no alias set
     }
 
     # Add optional fields if they exist in metadata
