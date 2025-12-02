@@ -120,7 +120,9 @@ def test_search_with_filters_document_type(mock_rag_response):
     with patch("egregora.rag.duckdb_integration.search") as mock_search:
         mock_search.return_value = mock_rag_response
 
-        result_table = search_with_filters("test query", min_score=0.0, document_types=["POST"], top_k=10)
+        result_table = search_with_filters(
+            "test query", min_score=0.0, document_types=["POST"], top_k=10
+        )
         result = result_table.execute()
 
         # Should only have POST documents
