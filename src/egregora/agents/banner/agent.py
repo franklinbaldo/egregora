@@ -10,7 +10,6 @@ interpretation and generation in a single API call.
 from __future__ import annotations
 
 import logging
-import os
 
 from google import genai
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,6 +17,7 @@ from tenacity import Retrying
 
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
 from egregora.agents.banner.image_generation import ImageGenerationRequest
+import os
 from egregora.config import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.resources.prompts import render_prompt

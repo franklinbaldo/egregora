@@ -14,7 +14,6 @@ Architecture:
 from __future__ import annotations
 
 import logging
-import os
 import queue
 import threading
 import time
@@ -26,16 +25,12 @@ from typing import Annotated, Any
 
 import httpx
 
+import os
 from egregora.config import EMBEDDING_DIM
 
 logger = logging.getLogger(__name__)
 
 
-def _get_api_key_from_env() -> str:
-    key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-    if not key:
-        raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY required")
-    return key
 
 
 # Constants
@@ -139,7 +134,7 @@ class EndpointQueue:
     worker_thread: threading.Thread | None = None
     stop_event: threading.Event = field(default_factory=threading.Event)
     max_batch_size: int = 100
-    api_key: str = field(default_factory=_get_api_key_from_env)
+    api_key: str
     timeout: float = 60.0
 
     def start(self) -> None:
@@ -375,7 +370,9 @@ class EmbeddingRouter:
             timeout: HTTP timeout in seconds
 
         """
-        effective_api_key = api_key or _get_api_key_from_env()
+        effective_api_key = api_key or os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        if not effective_api_key:
+            raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY required")
 
         # Create dual rate limiters
         self.batch_limiter = RateLimiter(EndpointType.BATCH)

@@ -1068,6 +1068,8 @@ __all__ = [
 ]
 
 
+
+
 def get_openrouter_api_key() -> str:
     """Get OpenRouter API key from environment."""
     import os

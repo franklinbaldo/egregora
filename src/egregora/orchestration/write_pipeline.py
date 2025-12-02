@@ -15,6 +15,7 @@ Part of the three-layer architecture:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import os
@@ -39,11 +40,13 @@ from egregora.agents.model_limits import PromptTooLargeError, get_model_context_
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.writer import write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.run_store import RunStore
 from egregora.database.task_store import TaskStore
+from egregora.database.views import daily_aggregates_view
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.base import MediaMapping
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
@@ -286,10 +289,6 @@ def _process_single_window(
     # Write posts
     resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
-
-    print(f"DEBUG: Calling write_posts_for_window for {window_label}")
-    print(f"DEBUG: Enriched table rows: {enriched_table.count().execute()}")
-    print(f"DEBUG: Resources: {resources}")
 
     result = write_posts_for_window(
         table=enriched_table,
@@ -774,10 +773,8 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     cache_dir = Path(".egregora-cache") / site_paths["site_root"].name
     cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
     site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
-
-    # Use the pipeline backend for storage to ensure we share the same connection
-    # This prevents "read-only transaction" errors and database invalidation
-    storage = DuckDBStorageManager.from_ibis_backend(pipeline_backend)
+    db_file = site_paths["egregora_dir"] / "app.duckdb"
+    storage = DuckDBStorageManager(db_path=db_file)
     annotations_store = AnnotationStore(storage)
 
     # Initialize TaskStore for async operations
@@ -1069,7 +1066,7 @@ def _prepare_pipeline_data(
             # Get existing documents from output format
             existing_docs = list(output_format.documents())
             if existing_docs:
-                index_documents(existing_docs)
+                asyncio.run(index_documents(existing_docs))
                 logger.info("[green]✓ Indexed %d existing documents into RAG[/]", len(existing_docs))
                 reset_backend()
             else:
@@ -1112,6 +1109,108 @@ def _index_media_into_rag(
     # Media RAG indexing removed - will be reimplemented with egregora.rag
     # logger.info("[bold cyan]📚 Indexing media into RAG...[/]")
     # ... (removed for now)
+
+
+def _generate_statistics_page(messages_table: ir.Table, ctx: PipelineContext) -> None:
+    """Generate statistics page from conversation data.
+
+    Creates a POST-type document with daily activity statistics and persists it
+    via the output adapter. Skips generation if messages table is empty.
+
+    Args:
+        messages_table: Complete messages table (before windowing). Must conform
+            to IR_MESSAGE_SCHEMA.
+        ctx: Pipeline context with output adapter for persistence.
+
+    Side Effects:
+        - Writes statistics document to ctx.output_format.persist()
+        - Logs info/warning/error messages
+
+    Raises:
+        Does not raise exceptions - errors are caught and logged.
+
+    """
+    logger.info("[bold cyan]📊 Generating statistics page...[/]")
+
+    # Compute daily aggregates (stays as Ibis Table)
+    stats_table = daily_aggregates_view(messages_table)
+
+    # Check if empty using Ibis
+    row_count = stats_table.count().to_pyarrow().as_py()
+    if row_count == 0:
+        logger.warning("No statistics data available - skipping statistics page")
+        return
+
+    # Calculate totals using Ibis
+    total_messages = messages_table.count().to_pyarrow().as_py()
+    total_authors = messages_table.author_uuid.nunique().to_pyarrow().as_py()
+
+    # Get date range using Ibis aggregation
+    date_range = stats_table.aggregate(
+        [stats_table.day.min().name("min_day"), stats_table.day.max().name("max_day")]
+    ).to_pyarrow()
+
+    min_date = date_range["min_day"][0].as_py()
+    max_date = date_range["max_day"][0].as_py()
+
+    # Extract date-only strings for clean slugs (avoid timestamp in URL)
+    min_date_str = min_date.date().isoformat() if hasattr(min_date, "date") else str(min_date)[:10]
+    max_date_str = max_date.date().isoformat() if hasattr(max_date, "date") else str(max_date)[:10]
+
+    # Build Markdown content
+    content_lines = [
+        "# Conversation Statistics",
+        "",
+        "This page provides an overview of activity in this conversation archive.",
+        "",
+        "## Summary",
+        "",
+        f"- **Total Messages**: {total_messages:,}",
+        f"- **Unique Authors**: {total_authors}",
+        f"- **Date Range**: {min_date_str} to {max_date_str}",
+        "",
+        "## Daily Activity",
+        "",
+        "| Date | Messages | Active Authors | First Message | Last Message |",
+        "|------|----------|----------------|---------------|--------------|",
+    ]
+
+    # Convert to PyArrow (not pandas) for iteration
+    stats_arrow = stats_table.to_pyarrow()
+    for row in stats_arrow.to_pylist():
+        date_str = row["day"].strftime("%Y-%m-%d")
+        msg_count = f"{row['message_count']:,}"
+        author_count = row["unique_authors"]
+        first_time = row["first_message"].strftime("%H:%M")
+        last_time = row["last_message"].strftime("%H:%M")
+        content_lines.append(f"| {date_str} | {msg_count} | {author_count} | {first_time} | {last_time} |")
+
+    content = "\n".join(content_lines)
+
+    # Create Document with data-derived date (not current timestamp)
+    doc = Document(
+        content=content,
+        type=DocumentType.POST,
+        metadata={
+            "title": "Conversation Statistics",
+            "date": max_date_str,  # Use YYYY-MM-DD format for clean URLs
+            "slug": "statistics",
+            "tags": ["meta", "statistics"],
+            "summary": "Overview of conversation activity and daily message volume",
+        },
+    )
+
+    # Persist document with error handling
+    try:
+        if ctx.output_format:
+            ctx.output_format.persist(doc)
+            logger.info("[green]✓ Statistics page generated[/]")
+        else:
+            logger.warning("Output format not initialized - cannot save statistics page")
+    except (OSError, PermissionError) as exc:
+        logger.exception("[red]Failed to write statistics page: %s[/]", exc)
+    except ValueError as exc:
+        logger.exception("[red]Invalid statistics page data: %s[/]", exc)
 
 
 def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, checkpoint_path: Path) -> None:
@@ -1379,28 +1478,20 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
                 dataset.context,
                 dataset.embedding_model,
             )
-
-            # 2. Taxonomy Generation (New)
-            if dataset.context.config.rag.enabled:
-                from egregora.ops.taxonomy import generate_semantic_taxonomy
-
-                logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
-                try:
-                    tagged_count = generate_semantic_taxonomy(
-                        dataset.context.output_format, dataset.context.config
-                    )
-                    if tagged_count > 0:
-                        logger.info(f"[green]✓ Applied semantic tags to {tagged_count} posts[/]")
-                except Exception as e:
-                    # Non-critical failure
-                    logger.warning(f"Auto-taxonomy failed: {e}")
-
             # Save checkpoint first (critical path)
             _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
 
             # Process remaining background tasks after all windows are done
             # (In case there are stragglers)
             _process_background_tasks(dataset.context)
+
+            # Generate statistics page (non-critical, isolated)
+            try:
+                _generate_statistics_page(dataset.messages_table, dataset.context)
+            except (OSError, PermissionError) as exc:
+                logger.warning("[red]Failed to write statistics page (non-critical): %s[/]", exc)
+            except ValueError as exc:
+                logger.warning("[red]Invalid statistics data (non-critical): %s[/]", exc)
 
             # Update run to completed
             _record_run_completion(run_store, run_id, started_at, results)

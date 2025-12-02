@@ -185,13 +185,13 @@ def mock_vector_store(monkeypatch):
     # Track what's been indexed for assertions
     indexed_docs = []
 
-    def mock_index_documents(documents):
-        """Mock document indexing (sync)."""
+    async def mock_index_documents(documents):
+        """Mock document indexing (async)."""
         indexed_docs.extend(documents)
         # Silently succeed - indexing is non-critical
 
-    def mock_search(request):
-        """Mock RAG search that returns deterministic results (sync)."""
+    async def mock_search(request):
+        """Mock RAG search that returns deterministic results (async)."""
         # Return mock results
         hits = [
             RAGHit(
