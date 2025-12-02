@@ -70,7 +70,7 @@ class GoogleBatchModel(Model):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
     ) -> ModelResponse:
-        batch_results = await self.run_batch(
+        batch_results = self.run_batch(
             [
                 {
                     "tag": "req-0",
@@ -100,7 +100,10 @@ class GoogleBatchModel(Model):
     # ------------------------------------------------------------------ #
     # HTTP batch helpers
     # ------------------------------------------------------------------ #
-    async def run_batch(self, requests: list[dict[str, Any]]) -> list[BatchResult]:
+    # ------------------------------------------------------------------ #
+    # HTTP batch helpers
+    # ------------------------------------------------------------------ #
+    def run_batch(self, requests: list[dict[str, Any]]) -> list[BatchResult]:
         """Run a batch of requests using the Gemini Batch API.
 
         Args:
@@ -128,14 +131,8 @@ class GoogleBatchModel(Model):
             jsonl_lines.append(json.dumps(record))
         jsonl_body = "\n".join(jsonl_lines)
 
-        import asyncio
-
         from google import genai
         from google.genai import types
-
-        # Offload client creation to thread if needed, but it's usually fast.
-        # However, file upload and batch creation are blocking IO in the sync SDK.
-        # We should wrap them in to_thread to be truly async.
 
         client = genai.Client(api_key=self.api_key)
 
@@ -143,33 +140,29 @@ class GoogleBatchModel(Model):
         import os
         import tempfile
 
-        # File IO is blocking, but temp file writing is fast.
-        # For strict async, we could use aiofiles, but standard tempfile is acceptable here.
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".jsonl") as f:
             f.write(jsonl_body)
             temp_path = f.name
 
         try:
-            # Upload file (blocking IO -> thread)
-            uploaded_file = await asyncio.to_thread(
-                client.files.upload,
+            # Upload file (blocking IO)
+            uploaded_file = client.files.upload(
                 file=temp_path,
                 config=types.UploadFileConfig(display_name="pydantic-ai-batch", mime_type="application/json"),
             )
 
-            # Create batch job (blocking IO -> thread)
-            batch_job = await asyncio.to_thread(
-                client.batches.create,
+            # Create batch job (blocking IO)
+            batch_job = client.batches.create(
                 model=self.model_name,
                 src=uploaded_file.name,
                 config=types.CreateBatchJobConfig(display_name="pydantic-ai-batch"),
             )
 
-            # Poll for completion (async poll)
-            completed_job = await self._poll_job(client, batch_job.name)
+            # Poll for completion (sync poll)
+            completed_job = self._poll_job(client, batch_job.name)
 
-            # Download results (blocking IO -> thread)
-            return await self._download_results(client, completed_job.output_uri, requests)
+            # Download results (blocking IO)
+            return self._download_results(client, completed_job.output_uri, requests)
 
         except genai.errors.ClientError as e:
             logger.error("Google GenAI ClientError: %s", e)
@@ -186,16 +179,14 @@ class GoogleBatchModel(Model):
             if os.path.exists(temp_path):
                 os.remove(temp_path)
 
-    async def _poll_job(self, client: Any, job_name: str) -> Any:
-        import asyncio
-
+    def _poll_job(self, client: Any, job_name: str) -> Any:
         start_time = time.time()
         while time.time() - start_time < self.timeout:
             # client.batches.get is blocking
-            job = await asyncio.to_thread(client.batches.get, name=job_name)
+            job = client.batches.get(name=job_name)
 
             if job.state.name in ("PROCESSING", "PENDING", "STATE_UNSPECIFIED"):
-                await asyncio.sleep(self.poll_interval)
+                time.sleep(self.poll_interval)
                 continue
 
             if job.state.name != "SUCCEEDED":
@@ -205,17 +196,12 @@ class GoogleBatchModel(Model):
 
         raise ModelAPIError("Batch job polling timed out")
 
-    async def _download_results(
+    def _download_results(
         self, client: Any, output_uri: str, requests: list[dict[str, Any]]
     ) -> list[BatchResult]:
-        # httpx.get is blocking, use async client or to_thread
-        # Since we are inside an async method, let's use to_thread for simplicity with sync httpx
-        # or better, use httpx.AsyncClient if we want to be proper.
-        # But to keep dependencies simple and consistent with the rest of the file (which imports httpx),
-        # let's use AsyncClient context manager.
-
-        async with httpx.AsyncClient() as http_client:
-            resp = await http_client.get(output_uri)
+        # httpx.get is blocking
+        with httpx.Client() as http_client:
+            resp = http_client.get(output_uri)
             resp.raise_for_status()
 
         lines = resp.text.splitlines()

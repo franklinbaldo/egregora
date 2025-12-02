@@ -30,6 +30,10 @@ class TaskStore:
 
         """
         self.storage = storage
+        self._ensure_table()
+
+    def _ensure_table(self) -> None:
+        """Create the tasks table if it was dropped or the database was rebuilt."""
         if "tasks" not in self.storage.list_tables():
             self.storage.ibis_conn.create_table("tasks", schema=TASKS_SCHEMA)
 
@@ -45,6 +49,7 @@ class TaskStore:
             The generated task_id as a string
 
         """
+        self._ensure_table()
         task_id = uuid.uuid4()
 
         # Ibis handles the dict -> JSON conversion for the payload column
@@ -77,7 +82,11 @@ class TaskStore:
             List of task dictionaries (including payload)
 
         """
-        t = self.storage.read_table("tasks")
+        try:
+            t = self.storage.read_table("tasks")
+        except ValueError:
+            self._ensure_table()
+            return []
         query = t.filter(t.status == "pending")
 
         if task_type:
@@ -98,6 +107,7 @@ class TaskStore:
         """Internal helper to update task status using raw SQL."""
         now = datetime.now(UTC)
         table_name = quote_identifier("tasks")
+        self._ensure_table()
 
         # Use raw SQL for specific updates to ensure immediate visibility
         sql = f"""

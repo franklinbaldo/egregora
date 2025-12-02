@@ -175,30 +175,6 @@ class VectorStorageProtocol(Protocol):
     Defines operations specific to vector databases and similarity search.
     """
 
-    def get_vector_function_name(self) -> str | None:
-        """Return the vector search function name (e.g., 'vss_search', 'vss_match'), or None."""
-        ...
-
-    def create_hnsw_index(
-        self,
-        *,
-        table_name: str,
-        index_name: str,
-        column: str = "embedding",
-    ) -> bool:
-        """Create an HNSW index for vector similarity search.
-
-        Args:
-            table_name: Table containing vectors
-            index_name: Name for the index
-            column: Column containing vector embeddings
-
-        Returns:
-            True if index created successfully, False otherwise
-
-        """
-        ...
-
     def drop_index(self, name: str) -> None:
         """Drop an index.
 

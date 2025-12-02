@@ -58,7 +58,7 @@ class SkillInjectionSupport(Protocol):
         ...
 
 
-async def use_skill(ctx: RunContext[Any], skill_name: str, task: str) -> str:
+def use_skill(ctx: RunContext[Any], skill_name: str, task: str) -> str:
     """Load a skill and execute a task with it using a specialized sub-agent.
 
     This tool spawns a sub-agent with the requested skill content injected into
@@ -79,8 +79,8 @@ async def use_skill(ctx: RunContext[Any], skill_name: str, task: str) -> str:
         Summary of what the sub-agent accomplished.
 
     Examples:
-        >>> await use_skill(ctx, "github-api", "Analyze PR #123 for security issues")
-        >>> await use_skill(ctx, "data-analysis", "Generate statistics from conversation data")
+        >>> use_skill(ctx, "github-api", "Analyze PR #123 for security issues")
+        >>> use_skill(ctx, "data-analysis", "Generate statistics from conversation data")
 
     """
     logger.info("Loading skill: %s for task: %s...", skill_name, task[:100])
@@ -134,7 +134,7 @@ async def use_skill(ctx: RunContext[Any], skill_name: str, task: str) -> str:
     # Execute sub-agent with parent's dependencies
     # This ensures parent tools work correctly (can access storage, RAG, etc.)
     try:
-        summary = await _run_sub_agent(sub_agent, task, skill_name, ctx.deps)
+        summary = _run_sub_agent(sub_agent, task, skill_name, ctx.deps)
     except Exception as e:
         error_msg = f"Sub-agent execution failed: {e}"
         logger.error(error_msg, exc_info=True)
@@ -171,7 +171,7 @@ def end_skill_use(summary: str) -> SkillCompletionResult:
 # _build_skill_system_prompt removed in favor of Jinja template
 
 
-async def _run_sub_agent(agent: Agent[Any, Any], task: str, skill_name: str, parent_deps: Any) -> str:
+def _run_sub_agent(agent: Agent[Any, Any], task: str, skill_name: str, parent_deps: Any) -> str:
     """Run sub-agent and extract summary.
 
     The sub-agent can either:
@@ -194,7 +194,7 @@ async def _run_sub_agent(agent: Agent[Any, Any], task: str, skill_name: str, par
     """
     # Run sub-agent with parent's dependencies
     # This is CRITICAL: parent tools need access to parent's storage, RAG, etc.
-    result = await agent.run(task, deps=parent_deps)
+    result = agent.run_sync(task, deps=parent_deps)
 
     # Check if the agent called end_skill_use by looking for the completion marker
     summary = _extract_summary_from_result(result)

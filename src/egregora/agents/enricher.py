@@ -8,7 +8,6 @@ legacy batching runners. It provides:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import mimetypes
 import re
@@ -19,37 +18,30 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import httpx
 import ibis
 from ibis.expr.types import Table
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
-from ratelimit import limits, sleep_and_retry
-from tenacity import AsyncRetrying
 
 from egregora.config.settings import EnrichmentSettings, get_google_api_key
-from egregora.constants import PrivacyMarkers
-from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.document import Document
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import MediaMapping
 from egregora.models.google_batch import GoogleBatchModel
 from egregora.ops.media import (
-    detect_media_type,
     extract_urls,
     find_media_references,
     replace_media_mentions,
 )
 from egregora.resources.prompts import render_prompt
-from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.paths import slugify
-from egregora.utils.quota import QuotaExceededError, QuotaTracker
-from egregora.utils.text import sanitize_prompt_input as _sanitize_prompt_input
+from egregora.utils.quota import QuotaTracker
 
 if TYPE_CHECKING:
     import pandas as pd  # noqa: TID251
@@ -253,83 +245,6 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentDeps, Enri
 # ---------------------------------------------------------------------------
 
 
-@sleep_and_retry
-@limits(calls=100, period=60)
-async def _run_url_enrichment_async(
-    agent: Agent[UrlEnrichmentDeps, EnrichmentOutput],
-    url: str,
-    prompts_dir: Path | None,
-    pii_prevention: dict[str, Any] | None = None,
-) -> EnrichmentOutput:
-    """Run URL enrichment asynchronously."""
-    url_str = str(url)
-    sanitized_url_raw = _sanitize_prompt_input(url_str, max_length=2000)
-    sanitized_url = "\n".join(line.strip() for line in sanitized_url_raw.splitlines() if line.strip())
-
-    deps = UrlEnrichmentDeps(url=sanitized_url, prompts_dir=prompts_dir)
-    prompt = render_prompt(
-        "enrichment.jinja",
-        mode="url_user",
-        prompts_dir=prompts_dir,
-        sanitized_url=sanitized_url,
-        pii_prevention=pii_prevention,
-    ).strip()
-
-    async for attempt in AsyncRetrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
-        with attempt:
-            result = await agent.run(prompt, deps=deps)
-    output = getattr(result, "data", getattr(result, "output", result))
-    output.markdown = output.markdown.strip()
-    return output, result.usage()
-
-
-@sleep_and_retry
-@limits(calls=100, period=60)
-async def _run_media_enrichment_async(  # noqa: PLR0913
-    agent: Agent[MediaEnrichmentDeps, EnrichmentOutput],
-    *,
-    filename: str,
-    mime_hint: str | None,
-    prompts_dir: Path | None,
-    binary_content: BinaryContent | None = None,
-    file_path: Path | None = None,
-    media_path: str | None = None,
-    pii_prevention: dict[str, Any] | None = None,
-) -> EnrichmentOutput:
-    """Run media enrichment asynchronously."""
-    if binary_content is None and file_path is None:
-        msg = "Either binary_content or file_path must be provided."
-        raise ValueError(msg)
-
-    sanitized_filename_raw = _sanitize_prompt_input(filename, max_length=255)
-    sanitized_filename = sanitized_filename_raw.replace("\\", "").strip()
-    sanitized_mime = _sanitize_prompt_input(mime_hint, max_length=50).strip() if mime_hint else None
-    deps = MediaEnrichmentDeps(
-        prompts_dir=prompts_dir,
-        media_filename=sanitized_filename,
-        media_type=sanitized_mime,
-        media_path=media_path,
-    )
-    prompt = render_prompt(
-        "enrichment.jinja",
-        mode="media_user",
-        prompts_dir=prompts_dir,
-        sanitized_filename=sanitized_filename,
-        sanitized_mime=sanitized_mime,
-        pii_prevention=pii_prevention,
-    ).strip()
-
-    payload = binary_content or load_file_as_binary_content(file_path)
-    message_content = [prompt, payload]
-
-    async for attempt in AsyncRetrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
-        with attempt:
-            result = await agent.run(message_content, deps=deps)
-    output = getattr(result, "data", getattr(result, "output", result))
-    output.markdown = output.markdown.strip()
-    return output, result.usage()
-
-
 def _uuid_to_str(value: uuid.UUID | str | None) -> str | None:
     if value is None:
         return None
@@ -420,260 +335,6 @@ def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[d
 # ---------------------------------------------------------------------------
 # Batch Orchestration (Async)
 # ---------------------------------------------------------------------------
-
-
-async def _process_url_task(  # noqa: PLR0913
-    url: str,
-    metadata: dict[str, Any],
-    agent: Agent[UrlEnrichmentDeps, EnrichmentOutput],
-    cache: EnrichmentCache,
-    context: EnrichmentRuntimeContext,
-    prompts_dir: Path | None,
-    semaphore: asyncio.Semaphore,
-) -> dict[str, Any] | None:
-    """Process a single URL enrichment task."""
-    async with semaphore:
-        cache_key = make_enrichment_cache_key(kind="url", identifier=url)
-        cache_entry = cache.load(cache_key)
-
-        if cache_entry:
-            logger.debug("⚡ [L1 Cache Hit] URL: %s", url)
-            markdown = cache_entry.get("markdown", "")
-            cached_slug = cache_entry.get("slug")
-        else:
-            try:
-                if context.quota:
-                    context.quota.reserve(1)
-                output_data, usage = await _run_url_enrichment_async(
-                    agent, url, prompts_dir, pii_prevention=context.pii_prevention
-                )
-                if context.usage_tracker:
-                    context.usage_tracker.record(usage)
-                markdown = output_data.markdown
-                cached_slug = output_data.slug
-                cache.store(cache_key, {"markdown": markdown, "slug": cached_slug, "type": "url"})
-            except QuotaExceededError:
-                logger.warning("LLM quota reached; skipping URL enrichment for %s", url)
-                return None
-            except httpx.HTTPError as exc:
-                logger.warning("HTTP error during URL enrichment for %s: %s", url, exc)
-                return None
-            except OSError as exc:
-                logger.warning("File/cache error during URL enrichment for %s: %s", url, exc)
-                return None
-
-        slug_value = _normalize_slug(cached_slug, url)
-        doc = Document(
-            content=markdown,
-            type=DocumentType.ENRICHMENT_URL,
-            metadata={
-                "url": url,
-                "slug": slug_value,
-                "nav_exclude": True,
-                "hide": ["navigation"],
-            },
-        )
-        context.output_format.persist(doc)
-        return _create_enrichment_row(metadata, "URL", url, doc.document_id)
-
-
-def _prepare_media_binary(
-    media_doc: Document,
-    ref: str,
-) -> tuple[str, str | None, BinaryContent] | None:
-    """Prepare media file information and binary content for enrichment.
-
-    Returns:
-        tuple[filename, media_type, binary_content] or None if unsupported
-
-    """
-    filename = media_doc.metadata.get("filename") or media_doc.metadata.get("original_filename") or ref
-    media_type = media_doc.metadata.get("media_type")
-    if not media_type and filename:
-        media_type = detect_media_type(Path(filename))
-    if not media_type:
-        logger.warning("Unsupported media type for enrichment: %s", filename or ref)
-        return None
-
-    raw_content = media_doc.content
-    payload = raw_content if isinstance(raw_content, bytes) else str(raw_content).encode("utf-8")
-    binary = BinaryContent(
-        data=payload,
-        media_type=mimetypes.guess_type(filename or "")[0] or "application/octet-stream",
-    )
-    return filename, media_type, binary
-
-
-async def _get_or_generate_media_enrichment(
-    agent: Agent[MediaEnrichmentDeps, EnrichmentOutput],
-    cache: EnrichmentCache,
-    cache_key: str,
-    filename: str,
-    media_type: str | None,
-    binary: BinaryContent,
-    media_path: str | None,
-    prompts_dir: Path | None,
-    context: EnrichmentRuntimeContext,
-) -> tuple[str, str] | None:
-    """Get enrichment from cache or generate new one via LLM.
-
-    Returns:
-        tuple[markdown, slug] or None if error occurred
-
-    """
-    cache_entry = cache.load(cache_key)
-    if cache_entry:
-        logger.debug("⚡ [L1 Cache Hit] Media: %s", filename)
-        markdown = cache_entry.get("markdown", "")
-        cached_slug = cache_entry.get("slug")
-        return markdown, cached_slug
-
-    try:
-        if context.quota:
-            context.quota.reserve(1)
-        output_data, usage = await _run_media_enrichment_async(
-            agent,
-            filename=filename,
-            mime_hint=media_type,
-            prompts_dir=prompts_dir,
-            binary_content=binary,
-            media_path=media_path,
-            pii_prevention=context.pii_prevention,
-        )
-        if context.usage_tracker:
-            context.usage_tracker.record(usage)
-        markdown = output_data.markdown
-        cached_slug = output_data.slug
-        cache.store(cache_key, {"markdown": markdown, "slug": cached_slug, "type": "media"})
-        return markdown, cached_slug
-    except QuotaExceededError:
-        logger.warning("LLM quota reached; skipping media enrichment for %s", filename)
-        return None
-    except httpx.HTTPError as exc:
-        logger.warning("HTTP error during media enrichment for %s: %s", filename, exc)
-        return None
-    except OSError as exc:
-        logger.warning("File/cache error during media enrichment for %s: %s", filename, exc)
-        return None
-
-
-def _handle_pii_in_media_enrichment(
-    markdown: str,
-    media_doc: Document,
-    filename: str,
-) -> tuple[str, bool]:
-    """Check for PII in enrichment and update media document if found.
-
-    Returns:
-        tuple[cleaned_markdown, pii_detected]
-
-    """
-    pii_detected = False
-    if PrivacyMarkers.PII_DETECTED in markdown:
-        logger.warning("PII detected in media: %s. Media will not be published.", filename)
-        markdown = markdown.replace(PrivacyMarkers.PII_DETECTED, "").strip()
-        media_doc.metadata["pii_deleted"] = True
-        media_doc.metadata["public_url"] = None
-        pii_detected = True
-
-    if not markdown:
-        markdown = f"[No enrichment generated for media: {filename}]"
-
-    return markdown, pii_detected
-
-
-def _build_enriched_media_document(
-    markdown: str,
-    cached_slug: str,
-    filename: str,
-    media_type: str | None,
-    media_doc: Document,
-    context: EnrichmentRuntimeContext,
-) -> Document:
-    """Build and persist the enriched media document.
-
-    Returns:
-        Updated media document with slug metadata
-
-    """
-    slug_value = _normalize_slug(cached_slug, filename)
-    updated_media_doc = media_doc.with_metadata(slug=slug_value)
-    parent_path = updated_media_doc.suggested_path
-
-    enrichment_metadata = {
-        "filename": filename,
-        "media_type": media_type,
-        "parent_path": parent_path,
-        "slug": slug_value,
-        "nav_exclude": True,
-        "hide": ["navigation"],
-    }
-
-    doc = Document(
-        content=markdown,
-        type=DocumentType.ENRICHMENT_MEDIA,
-        metadata=enrichment_metadata,
-    ).with_parent(updated_media_doc)
-    context.output_format.persist(doc)
-    return updated_media_doc
-
-
-async def _process_media_task(  # noqa: PLR0913
-    ref: str,
-    media_doc: Document,
-    metadata: dict[str, Any],
-    agent: Agent[MediaEnrichmentDeps, EnrichmentOutput],
-    cache: EnrichmentCache,
-    context: EnrichmentRuntimeContext,
-    prompts_dir: Path | None,
-    semaphore: asyncio.Semaphore,
-) -> tuple[dict[str, Any] | None, bool, str | None, Document | None]:
-    """Process a single media enrichment task.
-
-    Returns:
-        tuple[row, pii_detected, media_ref, updated_media_doc]
-
-    """
-    async with semaphore:
-        # Prepare binary content
-        prepared = _prepare_media_binary(media_doc, ref)
-        if not prepared:
-            return None, False, ref, None
-        filename, media_type, binary = prepared
-
-        # Get or generate enrichment
-        cache_key = make_enrichment_cache_key(kind="media", identifier=media_doc.document_id)
-        result = await _get_or_generate_media_enrichment(
-            agent,
-            cache,
-            cache_key,
-            filename,
-            media_type,
-            binary,
-            media_doc.suggested_path,
-            prompts_dir,
-            context,
-        )
-        if not result:
-            return None, False, ref, None
-        markdown, cached_slug = result
-
-        # Handle PII detection
-        markdown, pii_detected = _handle_pii_in_media_enrichment(markdown, media_doc, filename)
-
-        # Build and persist enriched document
-        updated_media_doc = _build_enriched_media_document(
-            markdown,
-            cached_slug,
-            filename,
-            media_type,
-            media_doc,
-            context,
-        )
-
-        # Create enrichment row for database
-        row = _create_enrichment_row(metadata, "Media", filename, updated_media_doc.document_id)
-        return row, pii_detected, ref, updated_media_doc
 
 
 def schedule_enrichment(
@@ -841,103 +502,6 @@ def schedule_enrichment(
         url_count if enable_url else 0,
         media_count if enable_media else 0,
     )
-
-
-def _schedule_url_tasks(
-    messages_table: Table,
-    enable_url: bool,
-    max_enrichments: int,
-    url_model: str,
-    context: EnrichmentRuntimeContext,
-    prompts_dir: Path | None,
-    semaphore: asyncio.Semaphore,
-) -> list[asyncio.Task]:
-    tasks: list[asyncio.Task] = []
-
-    if not enable_url:
-        return tasks
-
-    url_agent = create_url_enrichment_agent(url_model)
-    url_candidates = _extract_url_candidates(messages_table, max_enrichments)
-
-    for url, metadata in url_candidates:
-        tasks.append(
-            _process_url_task(url, metadata, url_agent, context.cache, context, prompts_dir, semaphore)
-        )
-
-    return tasks
-
-
-def _schedule_media_tasks(
-    messages_table: Table,
-    media_mapping: MediaMapping,
-    enable_media: bool,
-    max_enrichments: int,
-    vision_model: str,
-    context: EnrichmentRuntimeContext,
-    prompts_dir: Path | None,
-    semaphore: asyncio.Semaphore,
-) -> list[asyncio.Task]:
-    tasks: list[asyncio.Task] = []
-
-    if not (enable_media and media_mapping):
-        return tasks
-
-    media_agent = create_media_enrichment_agent(vision_model)
-
-    # NOTE: We deliberately overfetch media candidates because we don't yet know
-    # how many URL tasks will succeed. We filter later.
-    media_candidates = _extract_media_candidates(messages_table, media_mapping, max_enrichments)
-
-    for ref, media_doc, metadata in media_candidates:
-        tasks.append(
-            _process_media_task(
-                ref, media_doc, metadata, media_agent, context.cache, context, prompts_dir, semaphore
-            )
-        )
-
-    return tasks
-
-
-def _process_enrichment_results(
-    results: list[dict[str, Any] | tuple[dict[str, Any] | None, bool, str | None, Document | None] | None],
-    max_enrichments: int,
-    media_mapping: MediaMapping,
-) -> tuple[list[dict[str, Any]], int, bool]:
-    new_rows: list[dict[str, Any]] = []
-    pii_detected_count = 0
-    pii_media_deleted = False
-
-    url_success_count = 0
-    media_results: list[tuple[dict[str, Any] | None, bool, str | None, Document | None]] = []
-
-    # First pass: Collect successful URL enrichments
-    for res in results:
-        if res is None:
-            continue
-        if isinstance(res, tuple):
-            media_results.append(res)
-            continue
-        new_rows.append(res)
-        url_success_count += 1
-
-    # Second pass: Collect media enrichments, respecting remaining quota
-    remaining_slots = max(0, max_enrichments - url_success_count)
-    media_added_count = 0
-
-    for row, pii, media_ref, updated_media_doc in media_results:
-        if pii:
-            pii_detected_count += 1
-            pii_media_deleted = True
-
-        if media_ref and updated_media_doc:
-            media_mapping[media_ref] = updated_media_doc
-
-        if media_added_count < remaining_slots and row:
-            new_rows.append(row)
-            media_added_count += 1
-
-    return new_rows, pii_detected_count, pii_media_deleted
 
 
 def _persist_enrichments(combined: Table, context: EnrichmentRuntimeContext) -> None:

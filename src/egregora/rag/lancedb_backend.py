@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +26,9 @@ logger = logging.getLogger(__name__)
 # Type alias for embedding functions
 # task_type should be "RETRIEVAL_DOCUMENT" for indexing, "RETRIEVAL_QUERY" for searching
 # Updated to async for compatibility with async embedding router
-EmbedFn = Callable[[Sequence[str], str], Awaitable[list[list[float]]]]
+# Type alias for embedding functions
+# task_type should be "RETRIEVAL_DOCUMENT" for indexing, "RETRIEVAL_QUERY" for searching
+EmbedFn = Callable[[Sequence[str], str], list[list[float]]]
 
 
 # Pydantic-based schema for LanceDB (zero-copy Arrow)
@@ -106,12 +108,12 @@ class LanceDBRAGBackend:
             logger.info("Opening existing LanceDB table: %s", table_name)
             self._table = self._db.open_table(table_name)
 
-    async def index_documents(self, docs: Sequence[Document]) -> None:
+    def index_documents(self, docs: Sequence[Document]) -> None:
         """Index a batch of Documents into the RAG knowledge base.
 
         Implementation:
             1. Convert Documents to chunks using ingestion module
-            2. Compute embeddings for all chunk texts (async)
+            2. Compute embeddings for all chunk texts
             3. Atomic upsert into LanceDB (merge_insert with update/insert)
 
         Args:
@@ -134,9 +136,9 @@ class LanceDBRAGBackend:
         # Extract texts for embedding
         texts = [c.text for c in chunks]
 
-        # Compute embeddings with RETRIEVAL_DOCUMENT task type (async)
+        # Compute embeddings with RETRIEVAL_DOCUMENT task type
         try:
-            embeddings = await self._embed_fn(texts, "RETRIEVAL_DOCUMENT")
+            embeddings = self._embed_fn(texts, "RETRIEVAL_DOCUMENT")
         except Exception as e:
             msg = f"Failed to compute embeddings: {e}"
             raise RuntimeError(msg) from e
@@ -168,11 +170,11 @@ class LanceDBRAGBackend:
             msg = f"Failed to upsert chunks to LanceDB: {e}"
             raise RuntimeError(msg) from e
 
-    async def query(self, request: RAGQueryRequest) -> RAGQueryResponse:
+    def query(self, request: RAGQueryRequest) -> RAGQueryResponse:
         """Execute vector search in the knowledge base.
 
         Implementation:
-            1. Embed the query text (async)
+            1. Embed the query text
             2. Run vector search in LanceDB
             3. Convert results to RAGHit objects
 
@@ -189,9 +191,9 @@ class LanceDBRAGBackend:
         """
         top_k = request.top_k
 
-        # Embed query with RETRIEVAL_QUERY task type (async)
+        # Embed query with RETRIEVAL_QUERY task type
         try:
-            query_emb = (await self._embed_fn([request.text], "RETRIEVAL_QUERY"))[0]
+            query_emb = self._embed_fn([request.text], "RETRIEVAL_QUERY")[0]
         except Exception as e:
             msg = f"Failed to embed query: {e}"
             raise RuntimeError(msg) from e

@@ -58,7 +58,7 @@ def select_post_pairs(
     return pairs
 
 
-async def run_reader_evaluation(
+def run_reader_evaluation(
     posts_dir: Path,
     config: ReaderSettings,
     model: str | None = None,
@@ -111,7 +111,7 @@ async def run_reader_evaluation(
             document_b = slug_documents[slug_b]
 
             request = EvaluationRequest(post_a=document_a, post_b=document_b)
-            comparison = await compare_posts(request, model=model)
+            comparison = compare_posts(request, model=model)
 
             rating_a = elo_store.get_rating(slug_a)
             rating_b = elo_store.get_rating(slug_b)
