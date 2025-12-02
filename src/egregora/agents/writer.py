@@ -7,6 +7,7 @@ capabilities before executing the conversation through a ``pydantic_ai.Agent``.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import Sequence
@@ -866,7 +867,7 @@ def _index_new_content_in_rag(
                         break
 
         if docs:
-            asyncio.run(index_documents(docs))
+            index_documents(docs)
             logger.info("Indexed %d new posts in RAG", len(docs))
         else:
             logger.debug("No new documents to index in RAG")
