@@ -64,36 +64,6 @@ rag:
       show_root_heading: true
       heading_level: 3
 
-### Models
-
-::: egregora.rag.models.RAGQueryRequest
-    options:
-      show_root_heading: true
-      heading_level: 3
-      members:
-        - text
-        - top_k
-        - filters
-        - min_similarity
-
-::: egregora.rag.models.RAGQueryResponse
-    options:
-      show_root_heading: true
-      heading_level: 3
-      members:
-        - hits
-        - query_time_ms
-
-::: egregora.rag.models.RAGHit
-    options:
-      show_root_heading: true
-      heading_level: 3
-      members:
-        - text
-        - score
-        - metadata
-        - document_type
-
 ### Backend Protocol
 
 ::: egregora.rag.backend.RAGBackend
