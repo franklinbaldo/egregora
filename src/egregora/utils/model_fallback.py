@@ -158,12 +158,12 @@ def create_fallback_model(
             model = model_def
         elif isinstance(model_def, str):
             if model_def.startswith("google-gla:"):
-                model = GeminiModel(model_def.removeprefix("google-gla:"))
+                model = GeminiModel(model_def.removeprefix("google-gla:"), api_key=get_google_api_key())
             elif model_def.startswith("openrouter:"):
                 model = OpenAIModel(model_def.removeprefix("openrouter:"), provider="openrouter")
             else:
                 # Default to Gemini for unknown strings in this context
-                model = GeminiModel(model_def)
+                model = GeminiModel(model_def, api_key=get_google_api_key())
         else:
             raise ValueError(f"Unknown model type: {type(model_def)}")
 
