@@ -155,11 +155,11 @@ def extract_media_references(table: Table) -> set[str]:
             ref = match.group(2)
             if not ref.startswith(("http://", "https://")):
                 references.add(ref)
-        
+
         # 2. Raw references
         raw_refs = find_media_references(message)
         references.update(raw_refs)
-            
+
     return references
 
 
@@ -232,7 +232,7 @@ def replace_media_references(table: Table, media_mapping: MediaMapping) -> Table
             pii_reason = media_doc.metadata.get("pii_reason", "Contains PII")
             logger.info("Redacting media reference '%s': %s", original_ref, pii_reason)
             replacement = f"[REDACTED: {pii_reason}]"
-            
+
             # Markdown redaction
             updated_table = updated_table.mutate(
                 text=updated_table.text.replace(f"]({original_ref})", f"]({replacement})")
@@ -240,7 +240,7 @@ def replace_media_references(table: Table, media_mapping: MediaMapping) -> Table
             # Raw redaction (simple string match for now)
             # Note: This misses regex variations (\s*) but covers standard cases
             for marker in ATTACHMENT_MARKERS:
-                 updated_table = updated_table.mutate(
+                updated_table = updated_table.mutate(
                     text=updated_table.text.replace(f"{original_ref} {marker}", replacement)
                 )
             continue
@@ -261,7 +261,7 @@ def replace_media_references(table: Table, media_mapping: MediaMapping) -> Table
         updated_table = updated_table.mutate(
             text=updated_table.text.replace(f"]({original_ref})", f"]({public_url})")
         )
-        
+
         # Raw replacement
         for marker in ATTACHMENT_MARKERS:
             # Try exact match with single space first (most common)
@@ -320,9 +320,7 @@ def process_media_for_window(
         media_doc = media_doc.with_metadata(public_url=_normalize_public_url(public_url))
         media_mapping[media_ref] = media_doc
 
-    updated_table = (
-        replace_media_references(window_table, media_mapping) if media_mapping else window_table
-    )
+    updated_table = replace_media_references(window_table, media_mapping) if media_mapping else window_table
 
     return (updated_table, media_mapping)
 
