@@ -878,6 +878,10 @@ def _index_new_content_in_rag(
         logger.warning("Invalid document data for RAG indexing, skipping: %s", exc)
     except (OSError, PermissionError) as exc:
         logger.warning("Cannot access RAG storage, skipping indexing: %s", exc)
+    finally:
+        # CRITICAL: Reset backend to clear loop-bound clients (httpx)
+        # preventing "bound to different event loop" errors in next window
+        reset_backend()
 
 
 def _prepare_writer_dependencies(
