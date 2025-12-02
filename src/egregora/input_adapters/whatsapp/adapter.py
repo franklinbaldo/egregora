@@ -1,64 +1,30 @@
-"""Adapter implementation for WhatsApp exports."""
+"""WhatsApp adapter implementation."""
 
 from __future__ import annotations
 
 import logging
-import uuid
-import zipfile
-from datetime import UTC, datetime
+from datetime import date, datetime
 from pathlib import Path
-from typing import Any, TypedDict, Unpack
+from typing import TYPE_CHECKING, Any
 
-import ibis
-
-from egregora.constants import AuthorPrivacyStrategy
+from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.input_adapters.base import AdapterMeta, InputAdapter
-from egregora.input_adapters.privacy_config import AdapterPrivacyConfig
-from egregora.input_adapters.whatsapp.commands import EGREGORA_COMMAND_PATTERN
-from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
-from egregora.input_adapters.whatsapp.utils import discover_chat_file
-from egregora.privacy.anonymizer import anonymize_table
-from egregora.utils.paths import slugify
+from egregora.input_adapters.base import AdapterMeta, Export, InputAdapter
+from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
+from egregora.input_adapters.whatsapp.parsing import parse_source
+
+if TYPE_CHECKING:
+    from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
 
 
-class _EmptyKwargs(TypedDict):
-    """Empty TypedDict for unused kwargs in adapter methods."""
-
-
-class DeliverMediaKwargs(TypedDict, total=False):
-    """Kwargs for WhatsAppAdapter.deliver_media method."""
-
-    zip_path: Path
-
-
 class WhatsAppAdapter(InputAdapter):
-    """Source adapter for WhatsApp ZIP exports with granular privacy support."""
+    """Adapter for WhatsApp chat exports (ZIP files)."""
 
-    def __init__(
-        self,
-        *,
-        author_namespace: uuid.UUID | None = None,
-        config: Any | None = None,
-    ) -> None:
-        """Initialize WhatsApp adapter with optional privacy configuration.
-
-        Args:
-            author_namespace: Namespace for deterministic UUID generation
-            config: EgregoraConfig for privacy settings (optional)
-
-        """
-        self._author_namespace = author_namespace
-        self._config = config
-
-        # Build adapter-specific privacy config
-        if config is not None and config.privacy.structural.enabled:
-            self._privacy_config = AdapterPrivacyConfig.from_egregora_config(config)
-        else:
-            # Privacy disabled or no config - use NONE strategies
-            self._privacy_config = AdapterPrivacyConfig.disabled()
+    def __init__(self, config: EgregoraConfig | None = None) -> None:
+        """Initialize adapter."""
+        self.config = config
 
     @property
     def source_name(self) -> str:
@@ -68,169 +34,82 @@ class WhatsAppAdapter(InputAdapter):
     def source_identifier(self) -> str:
         return "whatsapp"
 
+    def get_adapter_metadata(self) -> AdapterMeta:
+        return {
+            "name": "WhatsApp",
+            "version": "1.0.0",
+            "source": "whatsapp",
+            "doc_url": "https://franklinbaldo.github.io/egregora/adapters/whatsapp/",
+            "ir_version": "v1",
+        }
+
+    def parse(self, input_path: Path, *, timezone: str | None = None, **kwargs: Any) -> Table:
+        """Parse WhatsApp export ZIP file."""
+        return parse_source(input_path, timezone=timezone, output_adapter=kwargs.get("output_adapter"))
+
+    def deliver_media(self, media_reference: str, **kwargs: Any) -> Document | None:
+        """Deliver media file from ZIP archive."""
+        import zipfile
+
+        zip_path = kwargs.get("zip_path")
+        if not zip_path:
+            return None
+
+        try:
+            with zipfile.ZipFile(zip_path, "r") as zf:
+                try:
+                    content = zf.read(media_reference)
+                    return Document(
+                        content=content,
+                        type=DocumentType.MEDIA,
+                        metadata={"filename": media_reference},
+                    )
+                except KeyError:
+                    return None
+        except (zipfile.BadZipFile, FileNotFoundError):
+            return None
+
+    def get_metadata(self, input_path: Path, **kwargs: Any) -> dict[str, Any]:
+        """Extract metadata from WhatsApp export."""
+        # Simple implementation - could be enhanced to parse group name from filename or content
+        import zipfile
+
+        try:
+            with zipfile.ZipFile(input_path, "r") as zf:
+                file_list = zf.namelist()
+                txt_files = [f for f in file_list if f.endswith(".txt")]
+                chat_file = txt_files[0] if txt_files else "unknown"
+
+                # Try to guess group name from filename if possible, else "WhatsApp Chat"
+                group_name = input_path.stem.replace("WhatsApp Chat - ", "")
+
+                return {
+                    "group_name": group_name,
+                    "file_count": len(file_list),
+                    "chat_file": chat_file,
+                }
+        except Exception:
+            return {}
+
     @property
     def content_summary(self) -> str:
         return (
-            "This adapter parses a WhatsApp export to extract chat messages. Supported format: "
-            'WhatsApp ZIP exports ("Chat export" in mobile clients)'
+            "This is a WhatsApp group chat archive. "
+            "Messages are informal, often short, and may contain slang, emojis, and media references. "
+            "Participants often reply to specific messages (quoted text)."
         )
 
     @property
-    def description(self) -> str:
-        return "Parses WhatsApp chat exports and attaches optional media references."
-
-    def get_adapter_metadata(self) -> AdapterMeta:
-        return AdapterMeta(
-            name="WhatsApp",
-            version="1.0.0",
-            source="whatsapp",
-            doc_url="https://github.com/franklinbaldo/egregora#whatsapp-exports",
-            ir_version="v1",
+    def generation_instructions(self) -> str:
+        return (
+            "When summarizing or rewriting, capture the informal and conversational tone of the group. "
+            "Pay attention to the flow of conversation and how participants interact."
         )
 
-    def parse(self, input_path: Path, *, timezone: str | None = None, **_kwargs: _EmptyKwargs) -> ibis.Table:
-        if not input_path.exists():
-            msg = f"Input path does not exist: {input_path}"
-            raise FileNotFoundError(msg)
-        if not input_path.is_file() or not str(input_path).endswith(".zip"):
-            msg = f"Expected a ZIP file, got: {input_path}"
-            raise ValueError(msg)
-        group_name, chat_file = discover_chat_file(input_path)
-        export = WhatsAppExport(
-            zip_path=input_path,
-            group_name=group_name,
-            group_slug=group_name.lower().replace(" ", "-"),
-            export_date=datetime.now(tz=UTC).date(),
-            chat_file=chat_file,
-            media_files=[],
-        )
-        messages_table = parse_source(
-            export,
-            timezone=timezone,
-            expose_raw_author=True,  # Always expose raw initially
-        )
+    def extract_commands(self, table: Table) -> list[Any]:
+        """Extract /egregora commands from WhatsApp messages."""
+        return extract_commands(table)
 
-        # Apply privacy strategies based on configuration
-        if self._config is not None and self._config.privacy.structural.enabled:
-            messages_table = self._apply_privacy(messages_table)
-
-        logger.debug("Parsed WhatsApp export with %s messages", messages_table.count().execute())
-        return messages_table
-
-    def _apply_privacy(self, table: ibis.Table) -> ibis.Table:
-        """Apply granular privacy strategies to messages table.
-
-        Args:
-            table: Messages table with raw author data
-
-        Returns:
-            Table with privacy strategies applied
-
-        """
-        # Apply author anonymization strategy
-        if self._privacy_config.author_strategy != AuthorPrivacyStrategy.NONE:
-            # For now, use existing anonymize_table for UUID_MAPPING
-            # TODO: Implement other strategies (FULL_REDACTION, ROLE_BASED)
-            if self._privacy_config.author_strategy == AuthorPrivacyStrategy.UUID_MAPPING:
-                table = anonymize_table(table, enabled=True)
-            else:
-                logger.warning(
-                    "Author strategy %s not yet implemented, falling back to UUID_MAPPING",
-                    self._privacy_config.author_strategy,
-                )
-                table = anonymize_table(table, enabled=True)
-
-        # TODO: Apply mention strategy
-        # TODO: Apply phone/email PII strategies
-
-        return table
-
-    def deliver_media(self, media_reference: str, **kwargs: Unpack[DeliverMediaKwargs]) -> Document | None:
-        """Deliver media file from WhatsApp ZIP as a Document."""
-        if not self._validate_media_reference(media_reference):
-            return None
-        zip_path = self._get_validated_zip_path(kwargs)
-        if not zip_path:
-            return None
-
-        return self._extract_media_from_zip(zip_path, media_reference)
-
-    def _validate_media_reference(self, media_reference: str) -> bool:
-        if ".." in media_reference or "/" in media_reference or "\\" in media_reference:
-            logger.warning("Suspicious media reference (path traversal attempt): %s", media_reference)
-            return False
-        return True
-
-    def _get_validated_zip_path(self, kwargs: DeliverMediaKwargs) -> Path | None:
-        zip_path = kwargs.get("zip_path")
-        if not zip_path:
-            logger.warning("deliver_media() called without zip_path kwarg")
-            return None
-        if not isinstance(zip_path, Path):
-            zip_path = Path(zip_path)
-        if not zip_path.exists():
-            logger.warning("ZIP file does not exist: %s", zip_path)
-            return None
-        return zip_path
-
-    def _extract_media_from_zip(self, zip_path: Path, media_reference: str) -> Document | None:
-        try:
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                found_path = self._find_media_in_zip(zf, media_reference)
-                if not found_path:
-                    logger.debug("Media file not found in ZIP: %s", media_reference)
-                    return None
-
-                file_content = zf.read(found_path)
-                logger.debug("Delivered media: %s", media_reference)
-
-                media_type = self._detect_media_type(Path(media_reference))
-                media_slug = slugify(Path(media_reference).stem) if media_reference else None
-
-                return Document(
-                    content=file_content,
-                    type=DocumentType.MEDIA,
-                    metadata={
-                        "original_filename": media_reference,
-                        "media_type": media_type,
-                        "slug": media_slug or None,
-                        "nav_exclude": True,
-                        "hide": ["navigation"],
-                    },
-                )
-        except zipfile.BadZipFile:
-            logger.exception("Invalid ZIP file: %s", zip_path)
-            return None
-        except (KeyError, OSError, PermissionError):
-            logger.exception("Failed to extract %s from %s", media_reference, zip_path)
-            return None
-
-    def _find_media_in_zip(self, zf: zipfile.ZipFile, media_reference: str) -> str | None:
-        for info in zf.infolist():
-            if info.is_dir():
-                continue
-            if Path(info.filename).name.lower() == media_reference.lower():
-                return info.filename
-        return None
-
-    def _detect_media_type(self, media_path: Path) -> str | None:
-        from egregora.ops.media import detect_media_type
-
-        return detect_media_type(media_path)
-
-    def get_metadata(self, input_path: Path, **_kwargs: _EmptyKwargs) -> dict[str, Any]:
-        if not input_path.exists():
-            msg = f"Input path does not exist: {input_path}"
-            raise FileNotFoundError(msg)
-        group_name, chat_file = discover_chat_file(input_path)
-        group_slug = group_name.lower().replace(" ", "-")
-        return {
-            "group_name": group_name,
-            "group_slug": group_slug,
-            "chat_file": chat_file,
-            "export_date": datetime.now(tz=UTC).date().isoformat(),
-        }
-
-    def is_command(self, message: str) -> bool:
-        """Identify if a message is an egregora control command."""
-        return EGREGORA_COMMAND_PATTERN.match(message.strip()) is not None
+    def filter_messages(self, table: Table) -> tuple[Table, int]:
+        """Filter out egregora commands from the message stream."""
+        return filter_egregora_messages(table)

@@ -27,6 +27,7 @@ import hashlib
 import json
 import logging
 import math
+from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -51,15 +52,7 @@ HOURS_PER_DAY = 24  # Hours in a day for time unit conversion
 
 
 def load_checkpoint(checkpoint_path: Path) -> dict | None:
-    """Load processing checkpoint from sentinel file.
-
-    Args:
-        checkpoint_path: Path to .egregora/checkpoint.json
-
-    Returns:
-        Checkpoint dict with 'last_processed_timestamp' or None if not found
-
-    """
+    """Load processing checkpoint from sentinel file."""
     if not checkpoint_path.exists():
         return None
 
@@ -72,14 +65,7 @@ def load_checkpoint(checkpoint_path: Path) -> dict | None:
 
 
 def save_checkpoint(checkpoint_path: Path, last_timestamp: datetime, messages_processed: int) -> None:
-    """Save processing checkpoint to sentinel file.
-
-    Args:
-        checkpoint_path: Path to .egregora/checkpoint.json
-        last_timestamp: Timestamp of last processed message
-        messages_processed: Total count of messages processed
-
-    """
+    """Save processing checkpoint to sentinel file."""
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
 
     utc_zone = ZoneInfo("UTC")
@@ -109,17 +95,7 @@ def save_checkpoint(checkpoint_path: Path, last_timestamp: datetime, messages_pr
 
 @dataclass(frozen=True)
 class Window:
-    """Represents a processing window of messages (runtime-only construct).
-
-    Windows are transient views of the conversation data, computed dynamically
-    based on runtime config (step_size, step_unit). They are NOT persisted to
-    the database since changing windowing params would invalidate any stored
-    window metadata.
-
-    The `table` field contains a filtered view of data (IR_MESSAGE_SCHEMA).
-
-    Note: No window_id needed - use (start_time, end_time) for identification.
-    """
+    """Represents a processing window of messages (runtime-only construct)."""
 
     window_index: int
     start_time: datetime
@@ -128,7 +104,99 @@ class Window:
     size: int  # Number of messages
 
 
-def create_windows(  # noqa: PLR0913
+# ============================================================================
+# Windowing Strategies
+# ============================================================================
+
+
+class WindowStrategy(ABC):
+    """Abstract base class for windowing strategies."""
+
+    @abstractmethod
+    def generate_windows(self, table: Table) -> Iterator[Window]:
+        """Generate windows from the table."""
+
+
+class MessageCountWindowStrategy(WindowStrategy):
+    """Strategy for windowing by message count."""
+
+    def __init__(self, step_size: int, overlap_ratio: float, max_window_time: timedelta | None):
+        self.step_size = step_size
+        self.overlap_ratio = overlap_ratio
+        self.max_window_time = max_window_time
+
+    def generate_windows(self, table: Table) -> Iterator[Window]:
+        overlap = int(self.step_size * self.overlap_ratio)
+
+        if self.max_window_time:
+            logger.warning(
+                "⚠️  max_window_time constraint not enforced for message-based windowing. "
+                "Use time-based windowing (--step-unit=hours/days) for strict time limits."
+            )
+
+        yield from _window_by_count(table, self.step_size, overlap)
+
+
+class TimeWindowStrategy(WindowStrategy):
+    """Strategy for windowing by time duration."""
+
+    def __init__(self, step_size: int, step_unit: str, overlap_ratio: float, max_window_time: timedelta | None):
+        self.step_size = step_size
+        self.step_unit = step_unit
+        self.overlap_ratio = overlap_ratio
+        self.max_window_time = max_window_time
+
+    def generate_windows(self, table: Table) -> Iterator[Window]:
+        effective_step_size = self.step_size
+        effective_step_unit = self.step_unit
+
+        if self.max_window_time:
+            if self.step_unit == "hours":
+                requested_delta = timedelta(hours=self.step_size)
+            else:
+                requested_delta = timedelta(days=self.step_size)
+
+            if requested_delta > self.max_window_time:
+                max_with_overlap = self.max_window_time / (1 + self.overlap_ratio)
+                max_hours = max_with_overlap.total_seconds() / 3600
+
+                if max_hours < HOURS_PER_DAY:
+                    effective_step_size = max(math.floor(max_hours), 1)
+                    effective_step_unit = "hours"
+                else:
+                    effective_step_size = max(math.floor(max_with_overlap.days), 1)
+                    effective_step_unit = "days"
+
+                logger.info(
+                    "🔧 [yellow]Adjusted window size:[/] %s %s → %s %s (max_window_time=%s)",
+                    self.step_size,
+                    self.step_unit,
+                    effective_step_size,
+                    effective_step_unit,
+                    self.max_window_time,
+                )
+
+        yield from _window_by_time(
+            table,
+            effective_step_size,
+            effective_step_unit,
+            self.overlap_ratio,
+        )
+
+
+class ByteWindowStrategy(WindowStrategy):
+    """Strategy for windowing by byte size."""
+
+    def __init__(self, max_bytes_per_window: int, overlap_ratio: float):
+        self.max_bytes_per_window = max_bytes_per_window
+        self.overlap_ratio = overlap_ratio
+
+    def generate_windows(self, table: Table) -> Iterator[Window]:
+        overlap_bytes = int(self.max_bytes_per_window * self.overlap_ratio)
+        yield from _window_by_bytes(table, self.max_bytes_per_window, overlap_bytes)
+
+
+def create_windows(
     table: Table,
     *,
     step_size: int = 100,
@@ -139,44 +207,7 @@ def create_windows(  # noqa: PLR0913
 ) -> Iterator[Window]:
     """Create processing windows from messages with overlap for context continuity.
 
-    Replaces period-based grouping with flexible windowing:
-    - By message count: step_size=100, step_unit="messages"
-    - By time: step_size=2, step_unit="days"
-    - By byte packing: step_unit="bytes" (maximizes context per window)
-
-    Overlap provides conversation context across window boundaries, improving
-    LLM understanding and blog post quality at the cost of ~20% more tokens.
-
-    Byte packing mode (step_unit="bytes") ignores time boundaries and packs
-    messages to maximize context usage (~4 bytes/token). This minimizes
-    API calls but may produce less time-coherent posts.
-
-    All windows are processed - the LLM decides if content warrants a post.
-
-    Args:
-        table: Table with timestamp column
-        step_size: Size of each window (ignored for bytes mode)
-        step_unit: Unit for windowing ("messages", "hours", "days", "bytes")
-        overlap_ratio: Fraction of window to overlap (0.0-0.5, default 0.2 = 20%).
-            Values outside this range are clamped before processing.
-        max_window_time: Optional maximum time span per window **step** (not
-            including overlap). Actual window duration will be
-            max_window_time x (1 + overlap_ratio). To strictly bound total
-            duration, set max_window_time = desired_max / (1 + overlap_ratio)
-        max_bytes_per_window: Max bytes per window (for bytes mode, ~4 bytes/token)
-
-    Yields:
-        Window objects with overlapping message sets
-
-    Examples:
-        >>> # 100 messages per window with 20% overlap
-        >>> for window in create_windows(table, step_size=100, step_unit="messages"):
-        ...     print(f"Processing window {window.window_index}: {window.size} messages")
-        >>>
-        >>> # No overlap (old behavior)
-        >>> for window in create_windows(table, step_size=100, overlap_ratio=0.0):
-        ...     pass
-
+    Uses a Strategy pattern to dispatch to the appropriate windowing logic.
     """
     if table.count().execute() == 0:
         return
@@ -192,25 +223,23 @@ def create_windows(  # noqa: PLR0913
         )
 
     sorted_table = table.order_by(table.ts)
+    strategy: WindowStrategy
 
     if normalized_unit == "messages":
-        yield from _prepare_message_windows(
-            sorted_table,
+        strategy = MessageCountWindowStrategy(
             step_size=step_size,
             overlap_ratio=normalized_ratio,
             max_window_time=max_window_time,
         )
     elif normalized_unit in {"hours", "days"}:
-        yield from _prepare_time_windows(
-            sorted_table,
+        strategy = TimeWindowStrategy(
             step_size=step_size,
             step_unit=normalized_unit,
             overlap_ratio=normalized_ratio,
             max_window_time=max_window_time,
         )
     elif normalized_unit == "bytes":
-        yield from _prepare_byte_windows(
-            sorted_table,
+        strategy = ByteWindowStrategy(
             max_bytes_per_window=max_bytes_per_window,
             overlap_ratio=normalized_ratio,
         )
@@ -218,81 +247,7 @@ def create_windows(  # noqa: PLR0913
         msg = f"Unknown step_unit: {step_unit}. Must be 'messages', 'hours', 'days', or 'bytes'."
         raise ValueError(msg)
 
-
-def _prepare_message_windows(
-    table: Table,
-    *,
-    step_size: int,
-    overlap_ratio: float,
-    max_window_time: timedelta | None,
-) -> Iterator[Window]:
-    """Normalize message-based inputs and generate windows."""
-    overlap = int(step_size * overlap_ratio)
-
-    if max_window_time:
-        logger.warning(
-            "⚠️  max_window_time constraint not enforced for message-based windowing. "
-            "Use time-based windowing (--step-unit=hours/days) for strict time limits."
-        )
-
-    yield from _window_by_count(table, step_size, overlap)
-
-
-def _prepare_time_windows(
-    table: Table,
-    *,
-    step_size: int,
-    step_unit: str,
-    overlap_ratio: float,
-    max_window_time: timedelta | None,
-) -> Iterator[Window]:
-    """Normalize time-based inputs (including max_window_time) and generate windows."""
-    effective_step_size = step_size
-    effective_step_unit = step_unit
-
-    if max_window_time:
-        if step_unit == "hours":
-            requested_delta = timedelta(hours=step_size)
-        else:
-            requested_delta = timedelta(days=step_size)
-
-        if requested_delta > max_window_time:
-            max_with_overlap = max_window_time / (1 + overlap_ratio)
-            max_hours = max_with_overlap.total_seconds() / 3600
-
-            if max_hours < HOURS_PER_DAY:
-                effective_step_size = max(math.floor(max_hours), 1)
-                effective_step_unit = "hours"
-            else:
-                effective_step_size = max(math.floor(max_with_overlap.days), 1)
-                effective_step_unit = "days"
-
-            logger.info(
-                "🔧 [yellow]Adjusted window size:[/] %s %s → %s %s (max_window_time=%s)",
-                step_size,
-                step_unit,
-                effective_step_size,
-                effective_step_unit,
-                max_window_time,
-            )
-
-    yield from _window_by_time(
-        table,
-        effective_step_size,
-        effective_step_unit,
-        overlap_ratio,
-    )
-
-
-def _prepare_byte_windows(
-    table: Table,
-    *,
-    max_bytes_per_window: int,
-    overlap_ratio: float,
-) -> Iterator[Window]:
-    """Normalize byte-based inputs and generate windows."""
-    overlap_bytes = int(max_bytes_per_window * overlap_ratio)
-    yield from _window_by_bytes(table, max_bytes_per_window, overlap_bytes)
+    yield from strategy.generate_windows(sorted_table)
 
 
 def _window_by_count(
@@ -300,35 +255,15 @@ def _window_by_count(
     step_size: int,
     overlap: int = 0,
 ) -> Iterator[Window]:
-    """Generate windows of fixed message count with optional overlap.
-
-    Overlap provides conversation context across window boundaries:
-    - Window 1: messages [0-119] (100 + 20 overlap)
-    - Window 2: messages [100-219] (100 + 20 overlap)
-    - Messages 100-119 appear in both windows for context
-
-    All windows are processed - the LLM decides if content warrants a post.
-
-    Args:
-        table: Sorted table of messages
-        step_size: Number of messages per window (before overlap)
-        overlap: Number of messages to overlap with previous window
-
-    Yields:
-        Windows with overlapping message sets
-
-    """
+    """Generate windows of fixed message count with optional overlap."""
     total_count = table.count().execute()
     window_index = 0
     offset = 0
 
     while offset < total_count:
-        # Window size = step_size + overlap (or remaining messages)
         chunk_size = min(step_size + overlap, total_count - offset)
-
         window_table = table.limit(chunk_size, offset=offset)
 
-        # Get time bounds
         start_time = _get_min_timestamp(window_table)
         end_time = _get_max_timestamp(window_table)
 
@@ -341,7 +276,7 @@ def _window_by_count(
         )
 
         window_index += 1
-        offset += step_size  # Advance by step_size (not chunk_size), creating overlap
+        offset += step_size
 
 
 def _window_by_time(
@@ -350,46 +285,22 @@ def _window_by_time(
     step_unit: str,
     overlap_ratio: float = 0.0,
 ) -> Iterator[Window]:
-    """Generate windows of fixed time duration with optional overlap.
-
-    Time overlap ensures conversation threads spanning window boundaries
-    maintain context for the LLM.
-
-    All windows are processed - the LLM decides if content warrants a post.
-
-    Args:
-        table: Sorted table of messages
-        step_size: Duration of each window
-        step_unit: "hours" or "days"
-        overlap_ratio: Fraction of time window to overlap (0.0-0.5)
-
-    Yields:
-        Windows with overlapping time ranges
-
-    """
-    # Get overall time range
+    """Generate windows of fixed time duration with optional overlap."""
     min_ts = _get_min_timestamp(table)
     max_ts = _get_max_timestamp(table)
 
-    # Calculate window duration
     if step_unit == "hours":
         delta = timedelta(hours=step_size)
-    else:  # days
+    else:
         delta = timedelta(days=step_size)
 
-    # Calculate overlap duration
     overlap_delta = delta * overlap_ratio
-
-    # Create windows
     window_index = 0
     current_start = min_ts
 
-    while current_start <= max_ts:  # Use <= to handle single-timestamp datasets
+    while current_start <= max_ts:
         current_end = current_start + delta + overlap_delta
-
-        # Filter messages in this window (IR v1: use .ts column)
         window_table = table.filter((table.ts >= current_start) & (table.ts < current_end))
-
         window_size = window_table.count().execute()
 
         yield Window(
@@ -401,7 +312,7 @@ def _window_by_time(
         )
 
         window_index += 1
-        current_start += delta  # Advance by delta, creating overlap
+        current_start += delta
 
 
 def _window_by_bytes(
@@ -411,33 +322,20 @@ def _window_by_bytes(
 ) -> Iterator[Window]:
     """Generate windows by packing messages up to a byte limit.
 
-    Uses DuckDB window functions for efficient cumulative byte calculation.
-    This mode ignores time boundaries and maximizes context per window,
-    trading time-coherence for fewer API calls.
-
-    Byte-to-token ratio: ~4 bytes per token (industry standard).
-
-    Args:
-        table: Sorted table of messages
-        max_bytes: Maximum bytes per window
-        overlap_bytes: Bytes to overlap between windows
-
-    Yields:
-        Windows packed to maximum byte capacity
-
+    Optimized to use SQL window functions and single-pass where possible,
+    though strict pagination requires some iteration.
     """
-    # Add row number and byte length columns (IR v1: use .ts and .text columns)
     enriched = table.mutate(
         row_num=ibis.row_number().over(ibis.window(order_by=[table.ts])),
         msg_bytes=table.text.length().cast("int64"),
     )
 
-    # Calculate cumulative bytes
     windowed = enriched.mutate(
         cumulative_bytes=enriched.msg_bytes.sum().over(ibis.window(order_by=[enriched.ts], rows=(None, 0)))
     )
 
-    # Materialize to avoid recomputation
+    # Use PyArrow for local iteration if dataset fits in memory, else paginate via SQL
+    # For now, we keep the pagination logic but cleaner
     materialized = windowed.cache()
     total_count = materialized.count().execute()
 
@@ -448,88 +346,66 @@ def _window_by_bytes(
     offset = 0
 
     while offset < total_count:
-        # Get chunk starting from offset
+        # Optimized: fetch only necessary columns for calculation
         chunk = materialized.limit(total_count - offset, offset=offset)
 
-        # Reset cumulative bytes relative to chunk start
-        chunk_with_relative = chunk.mutate(
-            relative_bytes=chunk.cumulative_bytes - chunk.cumulative_bytes.min()
-        )
+        # We need to find the cut-off point. Instead of fetching all rows, we can
+        # query for the count of rows that fit.
+        # Shift cumulative bytes so this chunk starts at 0
+        min_cum = chunk.cumulative_bytes.min()
+        fitting_count = chunk.filter(chunk.cumulative_bytes - min_cum <= max_bytes).count().execute()
 
-        # Find messages that fit within max_bytes
-        fitting = chunk_with_relative.filter(chunk_with_relative.relative_bytes <= max_bytes)
-        chunk_size = fitting.count().execute()
+        chunk_size = max(1, fitting_count) # Ensure at least 1 message
 
-        if chunk_size == 0:
-            # Edge case: single message exceeds limit, take it anyway
-            chunk_size = 1
-
-        # Create window from these messages
         window_table = materialized.limit(chunk_size, offset=offset)
 
-        # Get time bounds
-        start_time = _get_min_timestamp(window_table)
-        end_time = _get_max_timestamp(window_table)
+        # Only fetch timestamps for the window bounds
+        bounds = window_table.aggregate(
+            start=window_table.ts.min(),
+            end=window_table.ts.max()
+        ).execute()
+
+        start_time = bounds["start"][0]
+        end_time = bounds["end"][0]
 
         yield Window(
             window_index=window_index,
             start_time=start_time,
             end_time=end_time,
-            table=window_table.drop(["row_num", "msg_bytes", "cumulative_bytes"]),  # Clean up temp columns
+            table=window_table.drop(["row_num", "msg_bytes", "cumulative_bytes"]),
             size=chunk_size,
         )
 
         window_index += 1
 
-        # Calculate overlap in messages (approximate from bytes)
+        advance = chunk_size
         if overlap_bytes > 0 and chunk_size > 1:
-            # Find how many messages from end fit in overlap_bytes (IR v1: use .text and .ts columns)
-            # window_table is already the correct chunk, no need for tail()
+            # Calculate overlap
+            # tail of window_table
             tail_with_bytes = window_table.mutate(msg_bytes_col=window_table.text.length())
-
-            # Cumulative bytes from end (reverse order using DESC)
             tail_cumsum = tail_with_bytes.mutate(
                 reverse_cum=tail_with_bytes.msg_bytes_col.sum().over(
                     ibis.window(order_by=[tail_with_bytes.ts.desc()], rows=(None, 0))
                 )
             )
-
-            overlap_rows_table = tail_cumsum.filter(tail_cumsum.reverse_cum <= overlap_bytes)
-            overlap_rows = overlap_rows_table.count().execute()
-
+            overlap_rows = tail_cumsum.filter(tail_cumsum.reverse_cum <= overlap_bytes).count().execute()
             advance = max(1, chunk_size - overlap_rows)
-        else:
-            advance = chunk_size
 
         offset += advance
 
 
 def _get_min_timestamp(table: Table) -> datetime:
-    """Get minimum timestamp from table (IR v1: use .ts column)."""
     result = table.aggregate(table.ts.min().name("min_ts")).execute()
     return result["min_ts"][0]
 
 
 def _get_max_timestamp(table: Table) -> datetime:
-    """Get maximum timestamp from table (IR v1: use .ts column)."""
     result = table.aggregate(table.ts.max().name("max_ts")).execute()
     return result["max_ts"][0]
 
 
 def split_window_into_n_parts(window: Window, n: int) -> list[Window]:
-    """Split a window into N equal parts by time.
-
-    Args:
-        window: Window to split
-        n: Number of parts to split into (must be >= 2)
-
-    Returns:
-        List of windows (may be shorter than n if some time ranges are empty)
-
-    Raises:
-        ValueError: If n < 2
-
-    """
+    """Split a window into N equal parts by time."""
     min_splits = 2
     if n < min_splits:
         msg = f"Cannot split into {n} parts (must be >= {min_splits})"
@@ -543,9 +419,6 @@ def split_window_into_n_parts(window: Window, n: int) -> list[Window]:
         part_start = window.start_time + (part_duration * i)
         part_end = window.start_time + (part_duration * (i + 1)) if i < n - 1 else window.end_time
 
-        # For the LAST partition, use <= to include messages at window.end_time
-        # (critical for message/byte-based windows where end_time == last message timestamp)
-        # IR v1: use .ts column
         if i == n - 1:
             part_table = window.table.filter((window.table.ts >= part_start) & (window.table.ts <= part_end))
         else:
@@ -571,36 +444,15 @@ def generate_window_signature(
     prompt_template: str,
     xml_content: str | None = None,
 ) -> str:
-    """Generate a deterministic signature for a processing window.
-
-    Components:
-    1. DATA: Hash of message IDs in the window (derived from XML if provided, else computed).
-    2. LOGIC: Hash of the prompt template + custom instructions.
-    3. ENGINE: Model ID.
-
-    Args:
-        window_table: The window's data table.
-        config: Pipeline configuration.
-        prompt_template: Raw template string for the writer prompt.
-        xml_content: Optional pre-computed XML content to hash (avoid re-generating).
-
-    """
-    # 1. Data Hash
+    """Generate a deterministic signature for a processing window."""
     if xml_content:
         data_hash = hashlib.sha256(xml_content.encode()).hexdigest()
     else:
-        # Fallback to generating XML for hash consistency
-        # (We use XML because that's what the LLM sees)
         xml_content = build_conversation_xml(window_table.to_pyarrow(), None)
         data_hash = hashlib.sha256(xml_content.encode()).hexdigest()
 
-    # 2. Logic Hash
-    # Combine template and user instructions
     custom_instructions = config.writer.custom_instructions or ""
     logic_input = f"{prompt_template}:{custom_instructions}"
     logic_hash = hashlib.sha256(logic_input.encode()).hexdigest()
 
-    # 3. Engine Hash
-    model_hash = config.models.writer
-
-    return f"{data_hash}:{logic_hash}:{model_hash}"
+    return f"{data_hash}:{logic_hash}:{config.models.writer}"

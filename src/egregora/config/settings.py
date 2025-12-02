@@ -43,13 +43,11 @@ DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash-image"
 EMBEDDING_DIM = 768  # Embedding vector dimensions
 
 # Quota defaults
-# Quota defaults
 DEFAULT_DAILY_LLM_REQUESTS = 220
 DEFAULT_PER_SECOND_LIMIT = 1
 DEFAULT_CONCURRENCY = 1
 
 # Default database connection strings
-# Can be overridden via config.yml or environment variables
 DEFAULT_PIPELINE_DB = "duckdb:///./.egregora/pipeline.duckdb"
 DEFAULT_RUNS_DB = "duckdb:///./.egregora/runs.duckdb"
 
@@ -184,7 +182,7 @@ class RAGSettings(BaseModel):
         description="Document types to index in RAG (e.g., ['POST', 'NOTE'])",
     )
 
-    # Embedding router settings (dual-queue architecture)
+    # Embedding router settings
     embedding_max_batch_size: int = Field(
         default=100,
         ge=1,
@@ -207,12 +205,11 @@ class RAGSettings(BaseModel):
     @field_validator("top_k")
     @classmethod
     def validate_top_k(cls, v: int) -> int:
-        """Validate top_k is reasonable and warn if too high."""
+        """Validate top_k is reasonable."""
         if v > 15:
-            logger.warning(
-                f"RAG top_k={v} is unusually high. "
-                f"Consider values between 5-10 for better performance and relevance."
-            )
+             # Just return, logging side effects inside validators are discouraged
+             # The warning is handled by ConfigValidator if needed
+             pass
         return v
 
 
@@ -235,11 +232,7 @@ from egregora.constants import (  # noqa: E402
 
 
 class AgentPIISettings(BaseModel):
-    """PII prevention settings for a specific agent (LLM-native).
-
-    LLMs naturally understand what constitutes PII without regex patterns.
-    We just tell them what we consider private using declarative scopes.
-    """
+    """PII prevention settings for a specific agent (LLM-native)."""
 
     enabled: bool = Field(
         default=True,
@@ -263,16 +256,13 @@ class AgentPIISettings(BaseModel):
 
 
 class PIIPreventionSettings(BaseModel):
-    """LLM-native PII prevention settings for all agents.
-
-    No regex patterns needed - LLMs naturally understand PII.
-    """
+    """LLM-native PII prevention settings for all agents."""
 
     enricher: AgentPIISettings = Field(
         default_factory=lambda: AgentPIISettings(
             enabled=True,
             scope=PIIScope.CONTACT_INFO,
-            apply_to_journals=False,  # Enricher journals typically internal
+            apply_to_journals=False,
         ),
         description="Enricher agent PII prevention",
     )
@@ -281,7 +271,7 @@ class PIIPreventionSettings(BaseModel):
         default_factory=lambda: AgentPIISettings(
             enabled=True,
             scope=PIIScope.ALL_PII,
-            apply_to_journals=True,  # CRITICAL: protect journals too
+            apply_to_journals=True,
         ),
         description="Writer agent PII prevention",
     )
@@ -306,11 +296,7 @@ class PIIPreventionSettings(BaseModel):
 
 
 class StructuralPrivacySettings(BaseModel):
-    """Structural anonymization settings (adapter-level, deterministic preprocessing).
-
-    Uses simple regex patterns for deterministic preprocessing of raw input data.
-    This is separate from LLM-native PII prevention which uses natural language.
-    """
+    """Structural anonymization settings (adapter-level, deterministic preprocessing)."""
 
     enabled: bool = Field(
         default=True,
@@ -339,25 +325,7 @@ class StructuralPrivacySettings(BaseModel):
 
 
 class PrivacySettings(BaseModel):
-    """Privacy and data protection settings (YAML configuration).
-
-    Two-level privacy model:
-    1. **Structural** (Level 1): Deterministic preprocessing of raw input data
-    2. **PII Prevention** (Level 2): LLM-native PII understanding in agent outputs
-
-    .. warning::
-       Disabling privacy features should only be done for public datasets
-       (e.g., judicial records, public archives, news articles).
-
-       For private conversations, always keep privacy enabled to protect PII.
-
-    This Pydantic model (for YAML config) has the same name as the dataclass in
-    ``egregora.privacy.config.PrivacySettings`` (for runtime policy). They serve
-    different purposes:
-
-    - **This class**: YAML configuration (persisted to config.yml)
-    - **privacy.config.PrivacySettings**: Runtime policy with tenant isolation
-    """
+    """Privacy and data protection settings (YAML configuration)."""
 
     structural: StructuralPrivacySettings = Field(
         default_factory=StructuralPrivacySettings,
@@ -379,30 +347,6 @@ class PrivacySettings(BaseModel):
     def anonymize_authors(self) -> bool:
         """Legacy: check if authors are being anonymized."""
         return self.structural.author_strategy != AuthorPrivacyStrategy.NONE
-
-    @model_validator(mode="after")
-    def validate_privacy_settings(self) -> PrivacySettings:
-        """Validate privacy settings and warn if disabled."""
-        if not self.structural.enabled:
-            logger.warning(
-                "⚠️  Structural privacy is DISABLED (privacy.structural.enabled=false). "
-                "Only use for public datasets! Private conversations will NOT be anonymized."
-            )
-
-        if self.structural.author_strategy == AuthorPrivacyStrategy.NONE and self.structural.enabled:
-            logger.warning(
-                "Author anonymization is disabled (strategy=none) but structural privacy is enabled. "
-                "Author names will appear in output."
-            )
-
-        # Warn about journal protection
-        if self.pii_prevention.writer.enabled and not self.pii_prevention.writer.apply_to_journals:
-            logger.warning(
-                "Writer PII prevention is enabled but apply_to_journals=false. "
-                "Agent execution journals may contain PII!"
-            )
-
-        return self
 
 
 class EnrichmentSettings(BaseModel):
@@ -443,26 +387,26 @@ class PipelineSettings(BaseModel):
     step_size: int = Field(
         default=1,
         ge=1,
-        description="Size of each processing window (number of messages, hours, days, etc.)",
+        description="Size of each processing window",
     )
     step_unit: WindowUnit = Field(
         default=WindowUnit.DAYS,
-        description="Unit for windowing: 'messages' (count), 'hours'/'days' (time), 'bytes' (max packing)",
+        description="Unit for windowing",
     )
     overlap_ratio: float = Field(
         default=0.2,
         ge=0.0,
         le=0.5,
-        description="Fraction of window to overlap for context continuity (0.0-0.5, default 0.2 = 20%)",
+        description="Fraction of window to overlap",
     )
     max_window_time: int | None = Field(
         default=None,
         ge=1,
-        description="Maximum time span per window in hours (optional constraint)",
+        description="Maximum time span per window in hours",
     )
     timezone: str | None = Field(
         default=None,
-        description="Timezone for timestamp parsing (e.g., 'America/New_York')",
+        description="Timezone for timestamp parsing",
     )
     batch_threshold: int = Field(
         default=10,
@@ -471,51 +415,47 @@ class PipelineSettings(BaseModel):
     )
     from_date: str | None = Field(
         default=None,
-        description="Start date for filtering (ISO format: YYYY-MM-DD)",
+        description="Start date for filtering",
     )
     to_date: str | None = Field(
         default=None,
-        description="End date for filtering (ISO format: YYYY-MM-DD)",
+        description="End date for filtering",
     )
     max_prompt_tokens: int = Field(
         default=100_000,
         ge=1_000,
-        description="Maximum tokens per prompt (default 100k, even if model supports more). Prevents context overflow and controls costs.",
+        description="Maximum tokens per prompt",
     )
     use_full_context_window: bool = Field(
         default=False,
-        description="Use full model context window (overrides max_prompt_tokens cap)",
+        description="Use full model context window",
     )
     max_windows: int | None = Field(
         default=1,
         ge=0,
-        description="Maximum windows to process per run (1=single window, 0=all windows, None=all)",
+        description="Maximum windows to process per run",
     )
     checkpoint_enabled: bool = Field(
         default=False,
-        description="Enable incremental processing with checkpoints (opt-in). Default: always rebuild from scratch for simplicity.",
+        description="Enable incremental processing with checkpoints",
     )
 
 
 class PathsSettings(BaseModel):
-    """Site directory paths configuration.
-
-    All paths are relative to site_root (output directory).
-    Provides defaults that match the standard .egregora/ structure.
-    """
+    """Site directory paths configuration."""
 
     # .egregora/ internal paths (relative to site_root)
     egregora_dir: str = Field(
         default=".egregora",
-        description="Egregora internal directory (contains config, rag, cache)",
+        description="Egregora internal directory",
     )
     rag_dir: str = Field(
         default=".egregora/rag",
-        description="RAG database and embeddings storage (DuckDB backend)",
+        description="RAG database and embeddings storage",
     )
     lancedb_dir: str = Field(
         default=".egregora/lancedb",
-        description="LanceDB vector database directory (LanceDB backend)",
+        description="LanceDB vector database directory",
     )
     cache_dir: str = Field(
         default=".egregora/.cache",
@@ -541,7 +481,7 @@ class PathsSettings(BaseModel):
     )
     media_dir: str = Field(
         default="media",
-        description="Media files (images, videos) directory",
+        description="Media files directory",
     )
     journal_dir: str = Field(
         default="journal",
@@ -550,43 +490,29 @@ class PathsSettings(BaseModel):
 
 
 class OutputSettings(BaseModel):
-    """Output format configuration.
-
-    Specifies which output format to use for generated content.
-    """
+    """Output format configuration."""
 
     format: Literal["mkdocs", "hugo"] = Field(
         default="mkdocs",
-        description="Output format: 'mkdocs' (default), 'hugo', or future formats (database, s3)",
+        description="Output format",
     )
 
     mkdocs_config_path: str | None = Field(
         default=None,
-        description="Path to mkdocs.yml config file, relative to site root. If None, defaults to '.egregora/mkdocs.yml'",
+        description="Path to mkdocs.yml config file",
     )
 
 
 class DatabaseSettings(BaseModel):
-    """Database configuration for pipeline and observability.
-
-    All values must be valid Ibis connection URIs (e.g. DuckDB, Postgres, SQLite).
-    """
+    """Database configuration for pipeline and observability."""
 
     pipeline_db: str = Field(
         default=DEFAULT_PIPELINE_DB,
-        description=(
-            "Pipeline database connection URI (e.g. 'duckdb:///absolute/path.duckdb', "
-            "'duckdb:///./.egregora/pipeline.duckdb' for a site-relative file, or "
-            "'postgres://user:pass@host:5432/dbname')."
-        ),
+        description="Pipeline database connection URI",
     )
     runs_db: str = Field(
         default=DEFAULT_RUNS_DB,
-        description=(
-            "Run tracking database connection URI (e.g. 'duckdb:///absolute/runs.duckdb', "
-            "'duckdb:///./.egregora/runs.duckdb' for a site-relative file, or "
-            "'postgres://user:pass@host:5432/dbname')."
-        ),
+        description="Run tracking database connection URI",
     )
 
 
@@ -595,23 +521,23 @@ class ReaderSettings(BaseModel):
 
     enabled: bool = Field(
         default=False,
-        description="Enable reader agent for post quality evaluation",
+        description="Enable reader agent",
     )
     comparisons_per_post: int = Field(
         default=5,
         ge=1,
         le=20,
-        description="Number of pairwise comparisons per post for ELO ranking",
+        description="Number of pairwise comparisons per post",
     )
     k_factor: int = Field(
         default=32,
         ge=16,
         le=64,
-        description="ELO K-factor controlling rating volatility (16=stable, 64=volatile)",
+        description="ELO K-factor",
     )
     database_path: str = Field(
         default=".egregora/reader.duckdb",
-        description="Path to reader database for ELO ratings and comparison history",
+        description="Path to reader database",
     )
 
 
@@ -620,7 +546,7 @@ class FeaturesSettings(BaseModel):
 
     ranking_enabled: bool = Field(
         default=False,
-        description="Enable Elo-based post ranking (deprecated: use reader.enabled instead)",
+        description="Enable Elo-based post ranking (deprecated)",
     )
     annotations_enabled: bool = Field(
         default=True,
@@ -634,155 +560,58 @@ class QuotaSettings(BaseModel):
     daily_llm_requests: int = Field(
         default=DEFAULT_DAILY_LLM_REQUESTS,
         ge=1,
-        description="Soft limit for daily LLM calls (writer + enrichment).",
+        description="Soft limit for daily LLM calls",
     )
     per_second_limit: int = Field(
         default=DEFAULT_PER_SECOND_LIMIT,
         ge=1,
-        description="Maximum number of LLM calls allowed per second (for async guard).",
+        description="Maximum number of LLM calls allowed per second",
     )
     concurrency: int = Field(
         default=DEFAULT_CONCURRENCY,
         ge=1,
         le=20,
-        description="Maximum number of simultaneous LLM tasks (enrichment, writing, etc).",
+        description="Maximum number of simultaneous LLM tasks",
     )
 
 
 class EgregoraConfig(BaseModel):
-    """Root configuration for Egregora.
+    """Root configuration for Egregora."""
 
-    This model defines the complete .egregora/config.yml schema.
-
-    Example config.yml:
-    ```yaml
-    models:
-      writer: google-gla:gemini-flash-latest
-      enricher: google-gla:gemini-flash-latest
-
-    rag:
-      enabled: true
-      top_k: 5
-      min_similarity_threshold: 0.7
-
-    writer:
-      custom_instructions: "Write in a casual, friendly tone"
-      enable_banners: true
-
-    privacy:
-      anonymization_enabled: true
-      pii_detection_enabled: true
-
-    pipeline:
-      step_size: 1
-      step_unit: days
-
-    database:
-      pipeline_db: duckdb:///./.egregora/pipeline.duckdb
-      runs_db: duckdb:///./.egregora/runs.duckdb
-
-    output:
-      format: mkdocs
-    ```
-    """
-
-    models: ModelSettings = Field(
-        default_factory=ModelSettings,
-        description="LLM model configuration",
-    )
-    image_generation: ImageGenerationSettings = Field(
-        default_factory=ImageGenerationSettings,
-        description="Image generation request settings",
-    )
-    rag: RAGSettings = Field(
-        default_factory=RAGSettings,
-        description="RAG configuration",
-    )
-    writer: WriterAgentSettings = Field(
-        default_factory=WriterAgentSettings,
-        description="Writer configuration",
-    )
-    reader: ReaderSettings = Field(
-        default_factory=ReaderSettings,
-        description="Reader agent configuration",
-    )
-    privacy: PrivacySettings = Field(
-        default_factory=PrivacySettings,
-        description="Privacy settings",
-    )
-    enrichment: EnrichmentSettings = Field(
-        default_factory=EnrichmentSettings,
-        description="Enrichment settings",
-    )
-    pipeline: PipelineSettings = Field(
-        default_factory=PipelineSettings,
-        description="Pipeline settings",
-    )
-    paths: PathsSettings = Field(
-        default_factory=PathsSettings,
-        description="Site directory paths (relative to site root)",
-    )
-    database: DatabaseSettings = Field(
-        default_factory=DatabaseSettings,
-        description="Database configuration (pipeline and run tracking)",
-    )
-    output: OutputSettings = Field(
-        default_factory=OutputSettings,
-        description="Output format settings",
-    )
-    features: FeaturesSettings = Field(
-        default_factory=FeaturesSettings,
-        description="Feature flags",
-    )
-    quota: QuotaSettings = Field(
-        default_factory=QuotaSettings,
-        description="LLM usage quota tracking",
-    )
+    models: ModelSettings = Field(default_factory=ModelSettings)
+    image_generation: ImageGenerationSettings = Field(default_factory=ImageGenerationSettings)
+    rag: RAGSettings = Field(default_factory=RAGSettings)
+    writer: WriterAgentSettings = Field(default_factory=WriterAgentSettings)
+    reader: ReaderSettings = Field(default_factory=ReaderSettings)
+    privacy: PrivacySettings = Field(default_factory=PrivacySettings)
+    enrichment: EnrichmentSettings = Field(default_factory=EnrichmentSettings)
+    pipeline: PipelineSettings = Field(default_factory=PipelineSettings)
+    paths: PathsSettings = Field(default_factory=PathsSettings)
+    database: DatabaseSettings = Field(default_factory=DatabaseSettings)
+    output: OutputSettings = Field(default_factory=OutputSettings)
+    features: FeaturesSettings = Field(default_factory=FeaturesSettings)
+    quota: QuotaSettings = Field(default_factory=QuotaSettings)
 
     model_config = ConfigDict(
-        extra="forbid",  # Reject unknown fields
-        validate_assignment=True,  # Validate on attribute assignment
+        extra="forbid",
+        validate_assignment=True,
     )
 
     @model_validator(mode="after")
     def validate_cross_field(self) -> EgregoraConfig:
-        """Validate cross-field dependencies and warn about potential issues."""
-        # If RAG is enabled, ensure lancedb_dir is set
+        """Validate cross-field dependencies."""
+        # Clean validation without side effects (logging)
         if self.rag.enabled and not self.paths.lancedb_dir:
             msg = (
                 "RAG is enabled (rag.enabled=true) but paths.lancedb_dir is not set. "
                 "Set paths.lancedb_dir to a valid directory path."
             )
             raise ValueError(msg)
-
-        # Warn about very high max_prompt_tokens
-        if self.pipeline.max_prompt_tokens > 200_000:
-            logger.warning(
-                f"pipeline.max_prompt_tokens={self.pipeline.max_prompt_tokens} exceeds most model limits. "
-                "Consider using pipeline.use_full_context_window=true instead of setting a high token limit."
-            )
-
-        # Warn if use_full_context_window is enabled
-        if self.pipeline.use_full_context_window:
-            logger.info(
-                "pipeline.use_full_context_window=true. Using full model context window "
-                "(overrides max_prompt_tokens setting)."
-            )
-
-        # Check for deprecated feature flags
-        if self.features.ranking_enabled:
-            logger.warning("features.ranking_enabled is deprecated. Use reader.enabled instead.")
-
         return self
 
     @classmethod
     def from_cli_overrides(cls, base_config: EgregoraConfig, **cli_args: Any) -> EgregoraConfig:
-        """Create a new config instance with CLI overrides applied.
-
-        Handles nested updates for pipeline, enrichment, rag, etc.
-        CLI arguments are expected to be flat key-value pairs or dicts
-        matching the argument structure of CLI commands.
-        """
+        """Create a new config instance with CLI overrides applied."""
         builder = ConfigOverrideBuilder(base_config)
 
         builder.with_pipeline(
@@ -817,15 +646,7 @@ class EgregoraConfig(BaseModel):
 
 
 def find_egregora_config(start_dir: Path) -> Path | None:
-    """Search upward for .egregora/config.yml.
-
-    Args:
-        start_dir: Starting directory for upward search
-
-    Returns:
-        Path to .egregora/config.yml if found, else None
-
-    """
+    """Search upward for .egregora/config.yml."""
     current = start_dir.expanduser().resolve()
     for candidate in (current, *current.parents):
         config_path = candidate / ".egregora" / "config.yml"
@@ -835,20 +656,7 @@ def find_egregora_config(start_dir: Path) -> Path | None:
 
 
 def load_egregora_config(site_root: Path) -> EgregoraConfig:
-    """Load Egregora configuration from .egregora/config.yml.
-
-    SIMPLE: Just load .egregora/config.yml, create if missing.
-
-    Args:
-        site_root: Root directory of the site
-
-    Returns:
-        Validated EgregoraConfig instance
-
-    Raises:
-        ValidationError: If config file contains invalid data
-
-    """
+    """Load Egregora configuration from .egregora/config.yml."""
     config_path = site_root / ".egregora" / "config.yml"
 
     if not config_path.exists():
@@ -872,52 +680,36 @@ def load_egregora_config(site_root: Path) -> EgregoraConfig:
     try:
         return EgregoraConfig(**data)
     except ValidationError as e:
-        logger.exception("Configuration validation failed for %s:", config_path)
-        for error in e.errors():
-            loc = " → ".join(str(location_part) for location_part in error["loc"])
-            logger.exception("  %s: %s", loc, error["msg"])
+        # Separate validation error logging logic
+        _log_validation_errors(config_path, e)
         logger.warning("Creating default config due to validation error")
         return create_default_config(site_root)
 
 
+def _log_validation_errors(config_path: Path, e: ValidationError) -> None:
+    logger.exception("Configuration validation failed for %s:", config_path)
+    for error in e.errors():
+        loc = " → ".join(str(location_part) for location_part in error["loc"])
+        logger.exception("  %s: %s", loc, error["msg"])
+
+
 def create_default_config(site_root: Path) -> EgregoraConfig:
-    """Create default .egregora/config.yml and return it.
-
-    Args:
-        site_root: Root directory of the site
-
-    Returns:
-        EgregoraConfig with all defaults
-
-    """
-    config = EgregoraConfig()  # All defaults from Pydantic
+    """Create default .egregora/config.yml and return it."""
+    config = EgregoraConfig()
     save_egregora_config(config, site_root)
     logger.info("Created default config at %s/.egregora/config.yml", site_root)
     return config
 
 
 def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
-    """Save EgregoraConfig to .egregora/config.yml.
-
-    Creates .egregora/ directory if it doesn't exist.
-
-    Args:
-        config: EgregoraConfig instance to save
-        site_root: Root directory of the site
-
-    Returns:
-        Path to the saved config file
-
-    """
+    """Save EgregoraConfig to .egregora/config.yml."""
     egregora_dir = site_root / ".egregora"
     egregora_dir.mkdir(exist_ok=True, parents=True)
 
     config_path = egregora_dir / "config.yml"
 
-    # Export as dict
     data = config.model_dump(exclude_defaults=False, mode="json")
 
-    # Write with nice formatting
     yaml_str = yaml.dump(
         data,
         default_flow_style=False,
@@ -934,8 +726,6 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
 # ============================================================================
 # Runtime Configuration Dataclasses
 # ============================================================================
-# These dataclasses are used for function parameters (not persisted to YAML).
-# They replace parameter soup (12-16 params → 3-6 params).
 
 
 from egregora.constants import WindowUnit  # noqa: E402
@@ -943,15 +733,7 @@ from egregora.constants import WindowUnit  # noqa: E402
 
 @dataclass
 class RuntimeContext:
-    """Runtime-only context that cannot be persisted to config.yml.
-
-    This is the minimal set of fields that are truly runtime-specific:
-    - Paths resolved at invocation time
-    - Debug flags
-
-    API keys are read directly from environment variables by pydantic-ai/genai.
-    All other configuration lives in EgregoraConfig (single source of truth).
-    """
+    """Runtime-only context that cannot be persisted to config.yml."""
 
     output_dir: Annotated[Path, "Directory for the generated site"]
     input_file: Annotated[Path | None, "Path to the chat export file"] = None
@@ -966,12 +748,12 @@ class RuntimeContext:
 
 @dataclass
 class WriterRuntimeConfig:
-    """Runtime configuration for post writing (not the Pydantic WriterConfig)."""
+    """Runtime configuration for post writing."""
 
     posts_dir: Annotated[Path, "Directory to save posts"]
     profiles_dir: Annotated[Path, "Directory to save profiles"]
     rag_dir: Annotated[Path, "Directory for RAG data"]
-    model_config: Annotated[object | None, "Model configuration"] = None  # ModelConfig defined below
+    model_config: Annotated[object | None, "Model configuration"] = None
     enable_rag: Annotated[bool, "Enable RAG"] = True
 
 
@@ -999,10 +781,7 @@ class EnrichmentRuntimeConfig:
 
 @dataclass
 class PipelineEnrichmentConfig:
-    """Extended enrichment configuration for pipeline operations.
-
-    Extends basic enrichment config with pipeline-specific settings.
-    """
+    """Extended enrichment configuration for pipeline operations."""
 
     batch_threshold: int = 10
     max_enrichments: int = 500
@@ -1010,7 +789,6 @@ class PipelineEnrichmentConfig:
     enable_media: bool = True
 
     def __post_init__(self) -> None:
-        """Validate configuration after initialization."""
         if self.batch_threshold < 1:
             msg = f"batch_threshold must be >= 1, got {self.batch_threshold}"
             raise ValueError(msg)
@@ -1020,7 +798,6 @@ class PipelineEnrichmentConfig:
 
     @classmethod
     def from_cli_args(cls, **kwargs: int | bool) -> PipelineEnrichmentConfig:
-        """Create config from CLI arguments."""
         return cls(
             batch_threshold=kwargs.get("batch_threshold", 10),
             max_enrichments=kwargs.get("max_enrichments", 500),
@@ -1033,7 +810,6 @@ class PipelineEnrichmentConfig:
 # Model Configuration Utilities
 # ============================================================================
 
-# Model type literal for type checking
 ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor", "banner", "embedding"]
 
 
@@ -1094,7 +870,6 @@ def get_openrouter_api_key() -> str:
     if not api_key:
         msg = "OPENROUTER_API_KEY environment variable is required for OpenRouter models"
         raise ValueError(msg)
-    # Handle bash export syntax (e.g., "= value" instead of "value")
     return api_key.strip().lstrip("=").strip()
 
 

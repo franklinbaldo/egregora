@@ -133,6 +133,8 @@ class InputAdapter(ABC):
         - extract_media(): Extract bundled media files
         - deliver_media(): Deliver media file on demand
         - get_metadata(): Extract export metadata
+        - extract_commands(): Extract /egregora commands from table (new)
+        - filter_messages(): Filter messages based on adapter-specific rules (new)
 
     Adapters should be stateless and reusable.
     """
@@ -289,6 +291,33 @@ class InputAdapter(ABC):
 
         """
         return {}
+
+    def extract_commands(self, table: Table) -> list[Any]:
+        """Extract user commands (e.g., /egregora set avatar) from the table.
+
+        Default implementation returns empty list.
+        Override this if your adapter supports inline commands.
+
+        Args:
+            table: The message table.
+
+        Returns:
+            List of command objects.
+        """
+        return []
+
+    def filter_messages(self, table: Table) -> tuple[Table, int]:
+        """Filter out messages that should not be processed (e.g., system messages).
+
+        Default implementation returns the table as-is.
+
+        Args:
+            table: The message table.
+
+        Returns:
+            Tuple of (filtered_table, count_removed).
+        """
+        return table, 0
 
     def __repr__(self) -> str:
         """String representation of the adapter."""

@@ -1,6 +1,6 @@
 """WhatsApp source adapter package."""
 
-from egregora.input_adapters.whatsapp.adapter import DeliverMediaKwargs, WhatsAppAdapter
+from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
 from egregora.input_adapters.whatsapp.commands import (
     EGREGORA_COMMAND_PATTERN,
     extract_commands,

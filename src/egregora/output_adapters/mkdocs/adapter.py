@@ -1,14 +1,9 @@
 """MkDocs output adapters and filesystem helpers.
 
-This module consolidates all MkDocs-specific logic that used to live across
-``mkdocs.py``, ``mkdocs_output_adapter.py``, ``mkdocs_site.py`` and
-``mkdocs_storage.py``.  It exposes both the legacy registry-friendly
-``MkDocsOutputAdapter`` as well as the modern document-centric
-``MkDocsFilesystemAdapter`` alongside shared helpers for resolving site
-configuration and working with MkDocs' filesystem layout.
+This module consolidates all MkDocs-specific logic. It exposes ``MkDocsAdapter``
+which implements both ``OutputSink`` and ``SiteScaffolder``.
 
-MODERN (2025-11-18): Imports site path resolution from
-``egregora.output_adapters.mkdocs.paths`` to eliminate duplication.
+Refactored to move large static strings and specific logic to helper modules.
 """
 
 from __future__ import annotations
@@ -26,6 +21,7 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 from egregora.output_adapters.conventions import StandardUrlConvention
+from egregora.output_adapters.mkdocs.format_instructions import get_mkdocs_format_instructions
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 from egregora.utils.filesystem import (
@@ -35,25 +31,17 @@ from egregora.utils.filesystem import (
 from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import slugify
 
+# Type checking import moved to TYPE_CHECKING block if needed, but not used here currently
+
 logger = logging.getLogger(__name__)
 
 
 class MkDocsAdapter(OutputAdapter):
     """Unified MkDocs output adapter.
 
-    **ISP-COMPLIANT** (2025-11-22): This adapter implements both:
+    Implements:
     - OutputSink: Runtime data operations (persist, read, list documents)
-    - SiteScaffolder: Project lifecycle operations (scaffold_site, supports_site, resolve_paths)
-
-    This dual implementation makes MkDocsAdapter suitable for:
-    1. Pipeline execution (via OutputSink interface)
-    2. Site initialization (via SiteScaffolder interface)
-
-    Site scaffolding is delegated to :class:`MkDocsSiteScaffolder` to keep
-    runtime persistence concerns separate from one-time setup.
-
-    For adapters that only need data persistence (e.g., PostgresAdapter, S3Adapter),
-    implement only OutputSink. For pure initialization tools, implement only SiteScaffolder.
+    - SiteScaffolder: Project lifecycle operations (delegated to MkDocsSiteScaffolder)
     """
 
     def __init__(self) -> None:
@@ -107,7 +95,6 @@ class MkDocsAdapter(OutputAdapter):
 
     @property
     def format_type(self) -> str:
-        """Return 'mkdocs' as the format type identifier."""
         return "mkdocs"
 
     @property
@@ -139,32 +126,12 @@ class MkDocsAdapter(OutputAdapter):
                 path = self._resolve_collision(path, doc_id)
                 logger.warning("Hash collision for %s, using %s", doc_id[:8], path)
 
-        # Phase 2: Add author cards to POST documents - REMOVED per user request
-        # if document.type == DocumentType.POST and document.metadata:
-        #     authors = document.metadata.get("authors", [])
-        #     if authors and isinstance(authors, list):
-        #         # Append author cards using Jinja template
-        #         import dataclasses
-        #
-        #         new_content = self._append_author_cards(document.content, authors)
-        #         document = dataclasses.replace(document, content=new_content)
-
         self._write_document(document, path)
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
 
     def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path | None:
-        """Resolve filesystem path for a document based on its type.
-
-        Args:
-            doc_type: Type of document
-            identifier: Document identifier
-
-        Returns:
-            Path to document or None if type unsupported
-
-        """
-        # Dispatch table for document type to path resolution
+        """Resolve filesystem path for a document based on its type."""
         path_resolvers = {
             DocumentType.PROFILE: lambda: self.profiles_dir / f"{identifier}.md",
             DocumentType.POST: lambda: (
@@ -206,10 +173,7 @@ class MkDocsAdapter(OutputAdapter):
         return Document(content=actual_content, type=doc_type, metadata=metadata)
 
     def validate_structure(self, site_root: Path) -> bool:
-        """Check if the site root contains a mkdocs.yml file.
-
-        Implements SiteScaffolder.validate_structure.
-        """
+        """Check if the site root contains a mkdocs.yml file."""
         return self.supports_site(site_root)
 
     def supports_site(self, site_root: Path) -> bool:
@@ -231,20 +195,7 @@ class MkDocsAdapter(OutputAdapter):
         return self._scaffolder.resolve_paths(site_root)
 
     def load_config(self, site_root: Path) -> dict[str, Any]:
-        """Load MkDocs site configuration.
-
-        Args:
-            site_root: Root directory of the site
-
-        Returns:
-            Dictionary of configuration values from mkdocs.yml
-
-        Raises:
-            FileNotFoundError: If mkdocs.yml doesn't exist
-            ValueError: If config is invalid
-
-        """
-        # Use derive_mkdocs_paths to find mkdocs.yml (checks .egregora/, root)
+        """Load MkDocs site configuration."""
         site_paths = derive_mkdocs_paths(site_root)
         mkdocs_path = site_paths.get("mkdocs_path")
         if not mkdocs_path:
@@ -258,14 +209,7 @@ class MkDocsAdapter(OutputAdapter):
         return config
 
     def get_markdown_extensions(self) -> list[str]:
-        """Get list of supported markdown extensions for MkDocs Material theme.
-
-        Reads from configuration if available, otherwise returns standard defaults.
-
-        Returns:
-            List of markdown extension identifiers
-
-        """
+        """Get list of supported markdown extensions for MkDocs Material theme."""
         # Load from mkdocs.yml if possible
         if self.site_root:
             try:
@@ -312,154 +256,14 @@ class MkDocsAdapter(OutputAdapter):
         ]
 
     def get_format_instructions(self) -> str:
-        """Generate MkDocs Material format instructions for the writer agent.
-
-        Returns:
-            Markdown-formatted instructions explaining MkDocs Material conventions
-
-        """
-        return """## Output Format: MkDocs Material
-
-Your posts will be rendered using MkDocs with the Material for MkDocs theme.
-
-### Front-matter Format
-
-Use **YAML front-matter** between `---` markers at the top of each post:
-
-```yaml
----
-title: Your Post Title
-date: 2025-01-10
-slug: your-post-slug
-authors:
-  - author-uuid-1
-  - author-uuid-2
-tags:
-  - topic1
-  - topic2
-summary: A brief 1-2 sentence summary of the post
----
-```
-
-**Required fields**: `title`, `date`, `slug`, `authors`, `tags`, `summary`
-
-### File Naming Convention
-
-Posts must be named: `{date}-{slug}.md`
-
-Examples:
-- ✅ `2025-01-10-my-post.md`
-- ✅ `2025-03-15-technical-discussion.md`
-- ❌ `my-post.md` (missing date)
-- ❌ `2025-01-10 my post.md` (spaces not allowed)
-
-**Date format**: `YYYY-MM-DD` (ISO 8601)
-**Slug format**: lowercase, hyphens only, no spaces or special characters
-
-### Author Attribution
-
-Authors are referenced by **UUID only** (not names) in post front-matter.
-
-Author profiles are defined in `.authors.yml` at the site root:
-
-```yaml
-d944f0f7:  # Author UUID (short form)
-  name: Casey
-  description: "AI researcher and conversation synthesizer"
-  avatar: https://example.com/avatar.jpg
-```
-
-The MkDocs blog plugin uses `.authors.yml` to generate author cards, archives, and attribution.
-
-### Special Features Available
-
-**Admonitions** (callout boxes):
-```markdown
-!!! note
-    This is a note admonition
-
-!!! warning
-    This is a warning
-
-!!! tip
-    Pro tip here
-```
-
-**Code blocks** with syntax highlighting:
-```markdown
-\u200b```python
-def example():
-    return "syntax highlighting works"
-\u200b```
-```
-
-**Mathematics** (LaTeX):
-- Inline: `$E = mc^2$`
-- Block: `$$\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}$$`
-
-**Task lists**:
-```markdown
-- [x] Completed task
-- [ ] Pending task
-```
-
-**Tables**:
-```markdown
-| Column 1 | Column 2 |
-|----------|----------|
-| Data 1   | Data 2   |
-```
-
-**Tabbed content**:
-```markdown
-=== "Tab 1"
-    Content for tab 1
-
-=== "Tab 2"
-    Content for tab 2
-```
-
-### Media References
-
-When referencing media (images, videos, audio), use relative paths from the post:
-
-```markdown
-![Description](../media/images/uuid.png)
-```
-
-Media files are organized in:
-- `media/images/` - Images and banners
-- `media/videos/` - Video files
-- `media/audio/` - Audio files
-
-All media filenames use content-based UUIDs for deterministic naming.
-
-### Best Practices
-
-1. **Use semantic markup**: Headers (`##`, `###`), lists, emphasis
-2. **Include summaries**: 1-2 sentence preview for post listings
-3. **Tag appropriately**: Use 2-5 relevant tags per post
-4. **Reference authors correctly**: Use UUIDs from author profiles
-5. **Link media**: Use relative paths to media files
-6. **Leverage admonitions**: Highlight important points with callouts
-7. **Code examples**: Use fenced code blocks with language specification
-
-### Taxonomy
-
-Tags automatically create taxonomy pages where readers can browse posts by topic.
-Use consistent, meaningful tags across posts to build a useful taxonomy.
-"""
+        """Generate MkDocs Material format instructions for the writer agent."""
+        return get_mkdocs_format_instructions()
 
     def documents(self) -> Iterator[Document]:
         """Return all MkDocs documents as Document instances (lazy iterator)."""
         if not hasattr(self, "_site_root") or self._site_root is None:
             return
 
-        # DRY: Use list() to scan directories, then get() to load content
-        # Note: list() returns metadata where identifier is a relative path (e.g., "posts/slug.md")
-        # but get() expects a simpler identifier for some types (e.g., "slug" for posts).
-        # To reliably load all listed documents, we bypass the identifier resolution logic
-        # and load directly from the known path found by list().
         for meta in self.list():
             if meta.doc_type and "path" in meta.metadata:
                 doc_path = Path(str(meta.metadata["path"]))
@@ -469,22 +273,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                     yield doc
 
     def list(self, doc_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
-        """Iterate through available documents as lightweight DocumentMetadata.
-
-        Returns DocumentMetadata (identifier, doc_type, metadata) for efficient
-        enumeration without loading full document content.
-
-        Args:
-            doc_type: Optional filter by document type
-
-        Returns:
-            Iterator of DocumentMetadata instances
-
-        """
+        """Iterate through available documents as lightweight DocumentMetadata."""
         if not hasattr(self, "_site_root") or self._site_root is None:
             return
 
-        # Scan directories and yield DocumentMetadata
         yield from self._list_from_dir(self.posts_dir, DocumentType.POST, doc_type)
         yield from self._list_from_dir(self.profiles_dir, DocumentType.PROFILE, doc_type)
         yield from self._list_from_dir(
@@ -522,22 +314,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         return documents
 
     def resolve_document_path(self, identifier: str) -> Path:
-        """Resolve MkDocs storage identifier (relative path) to absolute filesystem path.
-
-        Args:
-            identifier: Relative path from site_root (e.g., "posts/2025-01-10-my-post.md")
-
-        Returns:
-            Path: Absolute filesystem path
-
-        Raises:
-            RuntimeError: If output format not initialized
-
-        Example:
-            >>> format.resolve_document_path("posts/2025-01-10-my-post.md")
-            Path("/path/to/site/posts/2025-01-10-my-post.md")
-
-        """
+        """Resolve MkDocs storage identifier (relative path) to absolute filesystem path."""
         if not hasattr(self, "_site_root") or self._site_root is None:
             msg = "MkDocsOutputAdapter not initialized - call initialize() first"
             raise RuntimeError(msg)
@@ -610,7 +387,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         url_path = url_path.strip("/")
 
-        # Use strategy pattern to resolve path based on document type
         resolver = self._path_resolvers.get(document.type, self._resolve_generic_path)
         return resolver(url_path)
 
@@ -623,20 +399,16 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         return self.profiles_dir / f"{url_path.split('/')[-1]}.md"
 
     def _resolve_journal_path(self, url_path: str) -> Path:
-        # When url_path is just "journal" (root journal URL), return journal.md in docs root
-        # Otherwise, extract the slug and put it in journal/
         slug = url_path.split("/")[-1]
         if url_path == "journal":
             return self.docs_dir / "journal.md"
         return self.journal_dir / f"{slug}.md"
 
     def _resolve_enrichment_url_path(self, url_path: str) -> Path:
-        # url_path might be 'media/urls/slug' -> we want 'slug.md' inside urls_dir
         slug = url_path.split("/")[-1]
         return self.urls_dir / f"{slug}.md"
 
     def _resolve_enrichment_media_path(self, url_path: str) -> Path:
-        # url_path is like 'media/images/foo' -> we want 'docs/media/images/foo.md'
         rel_path = self._strip_media_prefix(url_path)
         return self.media_dir / f"{rel_path}.md"
 
@@ -659,8 +431,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _write_document(self, document: Document, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Use strategy pattern to write document
         writer = self._writers.get(document.type, self._write_generic_doc)
         writer(document, path)
 
@@ -691,8 +461,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         return [post for post, score in related[:limit]]
 
     def _write_post_doc(self, document: Document, path: Path) -> None:
-        import yaml as _yaml
-
         metadata = dict(document.metadata or {})
         if "date" in metadata:
             metadata["date"] = format_frontmatter_datetime(metadata["date"])
@@ -700,7 +468,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             ensure_author_entries(path.parent, metadata.get("authors"))
 
         # Add related posts based on shared tags
-        all_posts = list(self.documents())  # This is inefficient, but will work for now
+        all_posts = list(self.documents())
         related_posts_docs = self._get_related_posts(document, all_posts)
         metadata["related_posts"] = [
             {
@@ -710,23 +478,17 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             for post in related_posts_docs
         ]
 
-        # Add enriched authors data
-
-        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
     def _write_journal_doc(self, document: Document, path: Path) -> None:
-        import yaml as _yaml
-
         metadata = self._ensure_hidden(dict(document.metadata or {}))
-        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
     def _write_profile_doc(self, document: Document, path: Path) -> None:
-        import yaml as _yaml
-
         from egregora.knowledge.profiles import generate_fallback_avatar_url
 
         # Ensure UUID is in metadata
@@ -735,14 +497,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
             raise ValueError(msg)
 
-        # Use standard frontmatter writing logic
         metadata = dict(document.metadata or {})
 
-        # Ensure avatar is present (fallback if needed)
         if "avatar" not in metadata:
             metadata["avatar"] = generate_fallback_avatar_url(author_uuid)
 
-        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
         all_posts = list(self.documents())
         author_posts_docs = [post for post in all_posts if author_uuid in post.metadata.get("authors", [])]
@@ -755,9 +515,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             for post in author_posts_docs
         ]
 
-        # Prepend avatar using MkDocs macros syntax
-        # This matches the logic in profiles.py but ensures it happens even when writing via adapter
-        # Note: We use double braces {{ }} for Jinja2 syntax, so in f-string we need quadruple braces {{{{ }}}}
         content_with_avatar = (
             f"![Avatar]({{{{ page.meta.avatar }}}}){{ align=left width=150 }}\n\n{document.content}"
         )
@@ -766,8 +523,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         path.write_text(full_content, encoding="utf-8")
 
     def _write_enrichment_doc(self, document: Document, path: Path) -> None:
-        import yaml as _yaml
-
         metadata = self._ensure_hidden(document.metadata.copy())
         metadata.setdefault("document_type", document.type.value)
         metadata.setdefault("slug", document.slug)
@@ -776,7 +531,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if document.parent and document.parent.metadata.get("slug"):
             metadata.setdefault("parent_slug", document.parent.metadata.get("slug"))
 
-        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
@@ -866,16 +621,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 raise RuntimeError(msg)
 
     # ============================================================================
-    # Phase 2: Dynamic Data Population for UX Templates
+    # Dynamic Data Population for UX Templates
     # ============================================================================
 
     def get_site_stats(self) -> dict[str, int]:
-        """Calculate site statistics for homepage.
-
-        Returns:
-            Dictionary with post_count, profile_count, media_count, journal_count
-
-        """
+        """Calculate site statistics for homepage."""
         stats = {
             "post_count": 0,
             "profile_count": 0,
@@ -886,31 +636,27 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if not hasattr(self, "posts_dir") or not self.posts_dir:
             return stats
 
-        # Count posts (exclude index.md and tags.md)
         if self.posts_dir.exists():
             stats["post_count"] = len(
                 [p for p in self.posts_dir.glob("*.md") if p.name not in {"index.md", "tags.md"}]
             )
 
-        # Count profiles (exclude index.md)
         if self.profiles_dir.exists():
             stats["profile_count"] = len([p for p in self.profiles_dir.glob("*.md") if p.name != "index.md"])
 
-        # Count media (URLs + images + videos + audio - exclude indexes)
         if self.media_dir.exists():
             all_media = list(self.media_dir.rglob("*.md"))
             stats["media_count"] = len([p for p in all_media if p.name != "index.md"])
 
-        # Count journal entries (exclude index.md)
         if self.journal_dir.exists():
             stats["journal_count"] = len([p for p in self.journal_dir.glob("*.md") if p.name != "index.md"])
 
         return stats
 
     def get_profiles_data(self) -> list[dict[str, Any]]:
-        """Extract profile metadata for profiles index, including calculated stats."""
+        """Extract profile metadata for profiles index."""
         profiles = []
-        all_posts = list(self.documents())  # Inefficient, but necessary for stats
+        all_posts = list(self.documents())
 
         if not hasattr(self, "profiles_dir") or not self.profiles_dir.exists():
             return profiles
@@ -938,7 +684,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 top_topics = sorted(topics.items(), key=lambda item: item[1], reverse=True)
 
                 avatar = metadata.get("avatar", "")
-                # Generate fallback avatar if missing
                 if not avatar:
                     from egregora.knowledge.profiles import generate_fallback_avatar_url
 
@@ -954,7 +699,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                         "word_count": word_count,
                         "topics": [topic for topic, count in top_topics],
                         "topic_counts": top_topics,
-                        "member_since": metadata.get("member_since", "2024"),  # Placeholder
+                        "member_since": metadata.get("member_since", "2024"),
                     }
                 )
             except (OSError, yaml.YAMLError) as e:
@@ -964,22 +709,13 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         return profiles
 
     def get_recent_media(self, limit: int = 5) -> list[dict[str, Any]]:
-        """Get recent media items for media index.
-
-        Args:
-            limit: Maximum number of items to return
-
-        Returns:
-            List of media dictionaries with title, url, slug, summary
-
-        """
+        """Get recent media items for media index."""
         media_items = []
 
         urls_dir = self.media_dir / "urls" if hasattr(self, "media_dir") else None
         if not urls_dir or not urls_dir.exists():
             return media_items
 
-        # Get all URL enrichments, sorted by modification time (newest first)
         url_files = sorted(urls_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
 
         for media_path in url_files:
@@ -987,7 +723,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 content = media_path.read_text(encoding="utf-8")
                 metadata, body = parse_frontmatter(content)
 
-                # Extract summary from content
                 summary = ""
                 if "## Summary" in body:
                     summary_part = body.split("## Summary", 1)[1].split("##", 1)[0]
@@ -1008,20 +743,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         return media_items
 
     def _append_author_cards(self, content: str, author_ids: list[str]) -> str:
-        """Append author cards to post content using Jinja template.
-
-        Args:
-            content: Post markdown content
-            author_ids: List of author UUIDs
-
-        Returns:
-            Content with author cards appended
-
-        """
+        """Append author cards to post content using Jinja template."""
         if not author_ids:
             return content
 
-        # Load .authors.yml
         authors_file = None
         if hasattr(self, "site_root") and self.site_root:
             for potential_path in [self.site_root / "docs" / ".authors.yml", self.site_root / ".authors.yml"]:
@@ -1039,14 +764,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             logger.warning("Failed to load .authors.yml: %s", e)
             return content
 
-        # Build author data for template
         authors_data = []
         for author_id in author_ids:
             author = authors_db.get(author_id, {})
             name = author.get("name", author_id[:8])
             avatar = author.get("avatar", "")
 
-            # Generate fallback avatar if not set
             if not avatar:
                 from egregora.knowledge.profiles import generate_fallback_avatar_url
 
@@ -1060,7 +783,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 }
             )
 
-        # Render using Jinja template
         try:
             templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
             env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
@@ -1070,20 +792,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         except (OSError, TemplateError) as e:
             logger.warning("Failed to render author cards template: %s", e)
             return content
-
-
-# ============================================================================
-# MkDocs filesystem storage helpers
-# ============================================================================
-
-ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
-
-
-# ============================================================================
-# MkDocs filesystem storage helpers
-# ============================================================================
-
-# Moved to src/egregora/utils/filesystem.py
 
 
 def secure_path_join(base_dir: Path, user_path: str) -> Path:

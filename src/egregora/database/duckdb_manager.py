@@ -1,35 +1,7 @@
 """Centralized storage manager for DuckDB + Ibis operations.
 
 Provides a unified interface for reading/writing tables with automatic
-checkpointing.
-
-This module implements Priority C.2 from the Architecture Roadmap:
-centralized DuckDB access to eliminate raw SQL and provide consistent
-checkpoint management across pipeline stages.
-
-Callers should treat :class:`DuckDBStorageManager` as the single entry point
-for metadata queries and bookkeeping. Avoid holding on to the raw
-``duckdb.Connection`` object; instead use helper methods like
-:meth:`get_table_columns`, :meth:`fetch_latest_runs`, or the
-:meth:`connection` context manager when absolutely necessary.
-
-Usage:
-    from egregora.database.duckdb_manager import DuckDBStorageManager
-
-    # Create storage manager
-    storage = DuckDBStorageManager(db_path=Path("pipeline.duckdb"))
-
-    # Read table as Ibis
-    table = storage.read_table("conversations")
-
-    # Write table with checkpoint
-    storage.write_table(table, "enriched_conversations")
-
-    # Execute a named view
-    from egregora.database.views import COMMON_VIEWS
-
-    chunks_builder = COMMON_VIEWS["chunks"]
-    result = storage.execute_view("chunks", chunks_builder, "conversations")
+checkpointing. Refactored to reduce "Leaky Abstraction" and "Thread Locking" smells.
 """
 
 from __future__ import annotations
@@ -75,21 +47,10 @@ class SequenceState:
 class DuckDBStorageManager:
     """Centralized DuckDB connection + Ibis helpers.
 
-    Manages database connections, table I/O, and automatic checkpointing
-    for pipeline stages. View transformations are provided as callables
-    (see :mod:`egregora.database.views`).
-
     Attributes:
         db_path: Path to DuckDB file (or None for in-memory)
-        _conn: Raw DuckDB connection (private - prefer helpers)
-        ibis_conn: Ibis backend connected to DuckDB
+        ibis_conn: Ibis backend connected to DuckDB (Preferred public interface)
         checkpoint_dir: Directory for parquet checkpoints
-
-    Example:
-        >>> storage = DuckDBStorageManager(db_path=Path("pipeline.duckdb"))
-        >>> table = storage.read_table("conversations")
-        >>> enriched = table.mutate(score=table.rating * 2)
-        >>> storage.write_table(enriched, "conversations_enriched")
 
     """
 
@@ -98,14 +59,7 @@ class DuckDBStorageManager:
         db_path: Path | None = None,
         checkpoint_dir: Path | None = None,
     ) -> None:
-        """Initialize storage manager.
-
-        Args:
-            db_path: Path to DuckDB file (None = in-memory database)
-            checkpoint_dir: Directory for parquet checkpoints
-                          (defaults to .egregora/data/)
-
-        """
+        """Initialize storage manager."""
         self.db_path = db_path
         self.checkpoint_dir = checkpoint_dir or Path(".egregora/data")
 
@@ -131,26 +85,12 @@ class DuckDBStorageManager:
 
     @classmethod
     def from_connection(cls, conn: duckdb.DuckDBPyConnection, checkpoint_dir: Path | None = None) -> Self:
-        """Create storage manager from an existing DuckDB connection.
-
-        This properly initializes both the raw connection and Ibis backend
-        from an existing connection, avoiding the mutation pattern that
-        breaks ibis_conn synchronization.
-
-        Args:
-            conn: Existing DuckDB connection
-            checkpoint_dir: Directory for parquet checkpoints
-
-        Returns:
-            Storage manager instance with properly initialized backends
-
-        """
+        """Create storage manager from an existing DuckDB connection."""
         instance = cls.__new__(cls)
         instance.db_path = None  # Unknown for external connections
         instance.checkpoint_dir = checkpoint_dir or Path(".egregora/data")
         instance._conn = conn
         db_list = conn.execute("PRAGMA database_list").fetchall()
-        # PRAGMA database_list returns rows as (oid, name, file)
         db_path = db_list[0][2] if db_list else None
         db_str = db_path or ":memory:"
         instance.ibis_conn = ibis.duckdb.connect(database=db_str)
@@ -169,14 +109,33 @@ class DuckDBStorageManager:
         """Recreate the DuckDB connection after a fatal error and clear caches."""
         db_str = str(self.db_path) if self.db_path else ":memory:"
         logger.warning("Resetting DuckDB connection after fatal error (db=%s)", db_str)
+
+        # Ensure connection is fully closed before attempting any file operations
         try:
             self._conn.close()
-        except Exception as close_exc:  # pragma: no cover - defensive logging
+        except Exception as close_exc:
             logger.error("Failed closing invalidated DuckDB connection: %s", close_exc)
+
+        # Explicitly clear Ibis backend to release any internal handles
+        if hasattr(self, "ibis_conn"):
+            try:
+                # Ibis backend doesn't always have a close method that closes the underlying connection
+                # if it was created via connect(), but we try best effort.
+                if hasattr(self.ibis_conn, "con") and hasattr(self.ibis_conn.con, "close"):
+                    self.ibis_conn.con.close()
+            except Exception:
+                pass
+            self.ibis_conn = None
 
         def _connect() -> None:
             self._conn = duckdb.connect(db_str)
-            self.ibis_conn = ibis.duckdb.connect(database=db_str)
+            try:
+                self.ibis_conn = ibis.duckdb.connect(database=db_str)
+            except Exception as e:
+                # If Ibis connection fails (e.g. race condition), we might still have a valid raw connection.
+                # However, the manager is broken without Ibis.
+                logger.error("Failed to reconnect Ibis backend: %s", e)
+                raise
 
         try:
             _connect()
@@ -185,8 +144,10 @@ class DuckDBStorageManager:
                 logger.warning("Recreating DuckDB database file after fatal invalidation: %s", db_str)
                 try:
                     Path(db_str).unlink(missing_ok=True)
-                except Exception as unlink_exc:  # pragma: no cover - defensive logging
+                except Exception as unlink_exc:
                     logger.error("Failed to remove invalidated DuckDB file %s: %s", db_str, unlink_exc)
+
+                # Final attempt to connect
                 _connect()
             else:
                 raise
@@ -198,44 +159,30 @@ class DuckDBStorageManager:
     def connection(self) -> duckdb.DuckDBPyConnection:
         """Yield the managed DuckDB connection.
 
-        This is the supported escape hatch for code that still needs direct
-        access to DuckDB. Callers should prefer dedicated helper methods when
-        available and avoid caching the returned handle.
+        Supported escape hatch for direct access when needed.
         """
         yield self._conn
 
     def execute_query(self, sql: str, params: list | None = None) -> list:
-        """Execute a raw SQL query and return all results.
-
-        This is the preferred way to run raw SQL when Ibis is insufficient.
-        It replaces direct access to ``self.conn``.
-
-        Args:
-            sql: SQL query string
-            params: Optional list of parameters for prepared statement
-
-        Returns:
-            List of result tuples
-
-        """
+        """Execute a raw SQL query and return all results."""
         params = params or []
+        # TODO: Add validation or SQL construction via helper to reduce injection risk?
+        # Current usage relies on params for values, but table names must be quoted by caller.
         return self._conn.execute(sql, params).fetchall()
 
-    def execute_sql(self, sql: str, params: Sequence | None = None) -> None:
-        """Execute a raw SQL statement without returning results."""
+    def _execute_sql(self, sql: str, params: Sequence | None = None) -> None:
+        """Internal: Execute a raw SQL statement without returning results."""
         self._conn.execute(sql, params or [])
 
-    def execute_query_single(self, sql: str, params: list | None = None) -> tuple | None:
-        """Execute a raw SQL query and return a single result row.
+    def execute_sql(self, sql: str, params: Sequence | None = None) -> None:
+        """Execute a raw SQL statement without returning results (Public wrapper).
 
-        Args:
-            sql: SQL query string
-            params: Optional list of parameters
-
-        Returns:
-            Single result tuple or None
-
+        Prefer Ibis or specific helpers over this.
         """
+        self._execute_sql(sql, params)
+
+    def execute_query_single(self, sql: str, params: list | None = None) -> tuple | None:
+        """Execute a raw SQL query and return a single result row."""
         params = params or []
         return self._conn.execute(sql, params).fetchone()
 
@@ -247,33 +194,13 @@ class DuckDBStorageManager:
         where_clause: str,
         params: Sequence | None = None,
     ) -> None:
-        """Delete matching rows and insert replacements.
-
-        DuckDB lacks native ``UPSERT`` support; this helper provides
-        upsert-like behavior by issuing a parameterized ``DELETE`` followed
-        by an insert of the provided rows.
-        """
+        """Delete matching rows and insert replacements."""
         quoted_table = quote_identifier(table)
-        self.execute_sql(f"DELETE FROM {quoted_table} WHERE {where_clause}", params)
+        self._execute_sql(f"DELETE FROM {quoted_table} WHERE {where_clause}", params)
         self.ibis_conn.insert(table, rows)
 
     def read_table(self, name: str) -> Table:
-        """Read table as Ibis expression.
-
-        Args:
-            name: Table name in DuckDB
-
-        Returns:
-            Ibis table expression
-
-        Raises:
-            ValueError: If table doesn't exist
-
-        Example:
-            >>> table = storage.read_table("conversations")
-            >>> df = table.execute()
-
-        """
+        """Read table as Ibis expression."""
         try:
             return self.ibis_conn.table(name)
         except Exception as e:
@@ -295,28 +222,14 @@ class DuckDBStorageManager:
         *,
         checkpoint: bool = True,
     ) -> None:
-        """Write Ibis table to DuckDB.
-
-        Args:
-            table: Ibis table expression to write
-            name: Destination table name
-            mode: Write mode ("replace" or "append")
-            checkpoint: If True, save parquet checkpoint to disk
-
-        Example:
-            >>> enriched = table.mutate(score=...)
-            >>> storage.write_table(enriched, "conversations_enriched")
-
-        """
+        """Write Ibis table to DuckDB."""
         if checkpoint:
-            # Write checkpoint to parquet
             parquet_path = self.checkpoint_dir / f"{name}.parquet"
             parquet_path.parent.mkdir(parents=True, exist_ok=True)
 
             logger.debug("Writing checkpoint: %s", parquet_path)
             table.to_parquet(str(parquet_path))
 
-            # Load into DuckDB from parquet
             sql = self.sql.render(
                 "dml/load_parquet.sql.jinja",
                 table_name=name,
@@ -326,10 +239,7 @@ class DuckDBStorageManager:
             self._conn.execute(sql, params)
             logger.info("Table '%s' written with checkpoint (%s)", name, mode)
 
-        # Direct write without checkpoint (faster but no persistence)
         elif mode == "replace":
-            # Use Ibis to_sql for direct write
-            # Note: This requires executing the table first
             dataframe = table.execute()
             self._conn.register(name, dataframe)
             logger.info("Table '%s' written without checkpoint (%s)", name, mode)
@@ -338,17 +248,7 @@ class DuckDBStorageManager:
             raise ValueError(msg)
 
     def persist_atomic(self, table: Table, name: str, schema: ibis.Schema) -> None:
-        """Persist an Ibis table to a DuckDB table atomically using a transaction.
-
-        This preserves existing table properties (like indexes) by performing a
-        DELETE + INSERT transaction instead of dropping and recreating the table.
-
-        Args:
-            table: Ibis table to persist
-            name: Target table name (must be valid SQL identifier)
-            schema: Table schema to use for validation and column selection
-
-        """
+        """Persist an Ibis table to a DuckDB table atomically using a transaction."""
         if not re.fullmatch("[A-Za-z_][A-Za-z0-9_]*", name):
             msg = "target_table must be a valid DuckDB identifier"
             raise ValueError(msg)
@@ -372,15 +272,9 @@ class DuckDBStorageManager:
                 self._conn.unregister(temp_view)
 
     def get_table_columns(self, table_name: str, *, refresh: bool = False) -> set[str]:
-        """Return cached column names for ``table_name``.
-
-        This utility wraps DuckDB's ``PRAGMA table_info`` with identifier
-        validation and caching so that callers no longer need to run SQL.
-        Missing tables simply return an empty set.
-        """
+        """Return cached column names for ``table_name``."""
         cache_key = table_name.lower()
         if refresh or cache_key not in self._table_info_cache:
-            # Validate identifier (raises ValueError on invalid characters)
             quote_identifier(table_name)
 
             try:
@@ -390,15 +284,9 @@ class DuckDBStorageManager:
             except duckdb.Error:
                 rows: list[tuple[str, ...]] = []
 
-            # PRAGMA table_info returns: (cid, name, type, notnull, dflt_value, pk)
-            # We want row[1] which is the column name, not row[0] which is the cid (int)
             self._table_info_cache[cache_key] = {row[1] for row in rows}
 
         return self._table_info_cache[cache_key]
-
-    # ==================================================================
-    # Sequence helpers
-    # ==================================================================
 
     def ensure_sequence(self, name: str, *, start: int = 1) -> None:
         """Create a sequence if it does not exist."""
@@ -479,6 +367,8 @@ class DuckDBStorageManager:
             msg = "count must be positive"
             raise ValueError(msg)
 
+        # Thread locking is necessary here because DuckDB connections are not thread-safe
+        # when accessed concurrently, and nextval() modifies state.
         with self._lock:
             try:
                 cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
@@ -487,40 +377,25 @@ class DuckDBStorageManager:
                 if not self._is_invalidated_error(exc):
                     raise
 
-                # DuckDB occasionally invalidates the connection after a fatal internal error.
-                # Recreate the connection and retry once so the pipeline can continue.
                 self._reset_connection()
                 cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
                 values = [int(row[0]) for row in cursor.fetchall()]
 
-        # Defensive check: if query returns empty, sequence might not exist
         if not values:
-            # Check if sequence exists
             state = self.get_sequence_state(sequence_name)
             if state is None:
-                # Sequence doesn't exist - create it
                 logger.warning("Sequence '%s' not found, creating it", sequence_name)
                 self.ensure_sequence(sequence_name)
-                # Retry the query
                 cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
                 values = [int(row[0]) for row in cursor.fetchall()]
             else:
-                # Sequence exists but query returned empty - this is unexpected
                 msg = f"Sequence '{sequence_name}' exists but nextval query returned no results"
                 raise RuntimeError(msg)
 
         return values
 
     def table_exists(self, name: str) -> bool:
-        """Check if table exists in database.
-
-        Args:
-            name: Table name
-
-        Returns:
-            True if table exists, False otherwise
-
-        """
+        """Check if table exists in database."""
         tables = self._conn.execute(
             """
             SELECT table_name
@@ -532,12 +407,7 @@ class DuckDBStorageManager:
         return len(tables) > 0
 
     def list_tables(self) -> list[str]:
-        """List all tables in database.
-
-        Returns:
-            Sorted list of table names
-
-        """
+        """List all tables in database."""
         tables = self._conn.execute(
             """
             SELECT table_name
@@ -549,18 +419,7 @@ class DuckDBStorageManager:
         return [t[0] for t in tables]
 
     def drop_table(self, name: str, *, checkpoint_too: bool = False) -> None:
-        """Drop table from database.
-
-        Args:
-            name: Table name
-            checkpoint_too: If True, also delete parquet checkpoint
-
-        Example:
-            >>> storage.drop_table("temp_results", checkpoint_too=True)
-
-        """
-        # Try dropping as view first (ibis.memtable creates views), then table
-        # Use quoted identifier to prevent SQL injection
+        """Drop table from database."""
         quoted_name = quote_identifier(name)
         with contextlib.suppress(Exception):
             self._conn.execute(f"DROP VIEW IF EXISTS {quoted_name}")
@@ -575,24 +434,15 @@ class DuckDBStorageManager:
                 logger.info("Deleted checkpoint: %s", parquet_path)
 
     def close(self) -> None:
-        """Close database connection.
-
-        Call this when done with the storage manager to clean up resources.
-        """
+        """Close database connection."""
         self._conn.close()
         logger.info("DuckDBStorageManager closed")
 
     def __enter__(self) -> Self:
-        """Context manager entry."""
         return self
 
     def __exit__(self, _exc_type: object, _exc_val: object, _exc_tb: object) -> None:
-        """Context manager exit - closes connection."""
         self.close()
-
-    # ==================================================================
-    # Vector backend helpers (Consolidated)
-    # ==================================================================
 
     def drop_index(self, name: str) -> None:
         quoted = quote_identifier(name)
@@ -607,38 +457,13 @@ class DuckDBStorageManager:
 
 
 def temp_storage() -> DuckDBStorageManager:
-    """Create temporary in-memory storage manager.
-
-    Returns:
-        DuckDBStorageManager with in-memory database
-
-    Example:
-        >>> with temp_storage() as storage:
-        ...     storage.write_table(my_table, "temp")
-        ...     result = storage.read_table("temp")
-
-    """
+    """Create temporary in-memory storage manager."""
     return DuckDBStorageManager(db_path=None, checkpoint_dir=Path("/tmp/.egregora-temp"))  # noqa: S108
 
 
 @contextlib.contextmanager
 def duckdb_backend() -> ibis.BaseBackend:
-    """Context manager for temporary DuckDB backend.
-
-    MODERN (Phase 2.2): Moved from connection.py to storage.py for consolidation.
-
-    Sets up an in-memory DuckDB database as the default Ibis backend,
-    and properly cleans up connections on exit.
-
-    Yields:
-        Ibis backend connected to DuckDB
-
-    Example:
-        >>> with duckdb_backend():
-        ...     table = ibis.read_csv("data.csv")
-        ...     result = table.execute()
-
-    """
+    """Context manager for temporary DuckDB backend."""
     connection = duckdb.connect(":memory:")
     backend = ibis.duckdb.from_connection(connection)
     old_backend = getattr(ibis.options, "default_backend", None)
