@@ -309,30 +309,32 @@ class DuckDBStorageManager:
 
         """
         if checkpoint:
-            # Write checkpoint to parquet
-            parquet_path = self.checkpoint_dir / f"{name}.parquet"
-            parquet_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._lock:
+                # Write checkpoint to parquet
+                parquet_path = self.checkpoint_dir / f"{name}.parquet"
+                parquet_path.parent.mkdir(parents=True, exist_ok=True)
 
-            logger.debug("Writing checkpoint: %s", parquet_path)
-            table.to_parquet(str(parquet_path))
+                logger.debug("Writing checkpoint: %s", parquet_path)
+                table.to_parquet(str(parquet_path))
 
-            # Load into DuckDB from parquet
-            sql = self.sql.render(
-                "dml/load_parquet.sql.jinja",
-                table_name=name,
-                mode=mode,
-            )
-            params = [str(parquet_path)] if mode == "replace" else [str(parquet_path), str(parquet_path)]
-            self._conn.execute(sql, params)
-            logger.info("Table '%s' written with checkpoint (%s)", name, mode)
+                # Load into DuckDB from parquet
+                sql = self.sql.render(
+                    "dml/load_parquet.sql.jinja",
+                    table_name=name,
+                    mode=mode,
+                )
+                params = [str(parquet_path)] if mode == "replace" else [str(parquet_path), str(parquet_path)]
+                self._conn.execute(sql, params)
+                logger.info("Table '%s' written with checkpoint (%s)", name, mode)
 
         # Direct write without checkpoint (faster but no persistence)
         elif mode == "replace":
-            # Use Ibis to_sql for direct write
-            # Note: This requires executing the table first
-            dataframe = table.execute()
-            self._conn.register(name, dataframe)
-            logger.info("Table '%s' written without checkpoint (%s)", name, mode)
+            with self._lock:
+                # Use Ibis to_sql for direct write
+                # Note: This requires executing the table first
+                dataframe = table.execute()
+                self._conn.register(name, dataframe)
+                logger.info("Table '%s' written without checkpoint (%s)", name, mode)
         else:
             msg = "Append mode requires checkpoint=True"
             raise ValueError(msg)
