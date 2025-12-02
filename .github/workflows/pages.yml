@@ -33,12 +33,8 @@ jobs:
       - name: Set up Python 3.12
         run: uv python install 3.12
 
-      - name: Install MkDocs dependencies
-        run: |
-          uv pip install --system --extras docs .
-
       - name: Build site
-        run: mkdocs build --clean
+        run: uvx --python 3.12 --with ".[docs]" mkdocs build --clean
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
