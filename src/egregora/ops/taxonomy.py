@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 import numpy as np
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 MAX_PROMPT_CHARS = 400_000
 
 
-async def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) -> int:
+def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) -> int:
     backend = get_backend()
 
     # 1. Fetch & Cluster (Standard K-Means)
@@ -24,7 +23,7 @@ async def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraCo
         logger.warning("RAG backend does not support vector retrieval. Skipping taxonomy.")
         return 0
 
-    doc_ids, X = await backend.get_all_post_vectors()
+    doc_ids, X = backend.get_all_post_vectors()
     n_docs = len(doc_ids)
     if n_docs < 5:
         logger.info("Insufficient posts for clustering (<5). Skipping taxonomy.")
@@ -85,21 +84,19 @@ async def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraCo
 
     updates_count = 0
 
-    # Process batches concurrently
-    async def process_batch(batch_items):
+    # Process batches sequentially
+    batch_results = []
+    for batch_items in batches:
         prompt = (
             "Analyze these document clusters and generate a distinct tag set for each.\n\n"
             + "\n\n".join(batch_items)
         )
         try:
-            result = await agent.run(prompt)
-            return result.data.mappings
+            result = agent.run_sync(prompt)
+            batch_results.append(result.data.mappings)
         except Exception as e:
             logger.warning("Batch taxonomy generation failed: %s", e)
-            return []
-
-    # Run all batches
-    batch_results = await asyncio.gather(*[process_batch(b) for b in batches])
+            batch_results.append([])
 
     # Flatten results
     all_mappings = [m for sublist in batch_results for m in sublist]

@@ -56,19 +56,19 @@ def mock_backend():
 
 
 @pytest.mark.asyncio
-async def test_generate_semantic_taxonomy_insufficient_docs(mock_output_sink, mock_config):
+def test_generate_semantic_taxonomy_insufficient_docs(mock_output_sink, mock_config):
     """Test early exit when not enough documents."""
     with patch("egregora.ops.taxonomy.get_backend") as mock_get_backend:
         backend = MagicMock()
-        backend.get_all_post_vectors = AsyncMock(return_value=(["1", "2"], np.random.rand(2, 768)))
+        backend.get_all_post_vectors = MagicMock(return_value=(["1", "2"], np.random.rand(2, 768)))
         mock_get_backend.return_value = backend
 
-        count = await generate_semantic_taxonomy(mock_output_sink, mock_config)
+        count = generate_semantic_taxonomy(mock_output_sink, mock_config)
         assert count == 0
 
 
 @pytest.mark.asyncio
-async def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config):
+def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config):
     """Test successful global taxonomy generation."""
     with (
         patch("egregora.ops.taxonomy.get_backend") as mock_get_backend,
@@ -79,7 +79,7 @@ async def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config)
         real_docs = list(mock_output_sink.documents())
         doc_ids = [d.document_id for d in real_docs]
         vectors = np.random.rand(len(doc_ids), 10)
-        backend.get_all_post_vectors = AsyncMock(return_value=(doc_ids, vectors))
+        backend.get_all_post_vectors = MagicMock(return_value=(doc_ids, vectors))
         mock_get_backend.return_value = backend
 
         # Setup Agent
@@ -94,7 +94,7 @@ async def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config)
         ]
 
         mock_result.data.mappings = mappings
-        mock_agent.run = AsyncMock(return_value=mock_result)
+        mock_agent.run_sync = MagicMock(return_value=mock_result)
         mock_create_agent.return_value = mock_agent
 
         # Run
@@ -106,7 +106,7 @@ async def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config)
 
 
 @pytest.mark.asyncio
-async def test_generate_semantic_taxonomy_batching(mock_output_sink, mock_config):
+def test_generate_semantic_taxonomy_batching(mock_output_sink, mock_config):
     """Test that large inputs are batched."""
     with (
         patch("egregora.ops.taxonomy.get_backend") as mock_get_backend,
@@ -118,7 +118,7 @@ async def test_generate_semantic_taxonomy_batching(mock_output_sink, mock_config
         real_docs = list(mock_output_sink.documents())
         doc_ids = [d.document_id for d in real_docs]
         vectors = np.random.rand(len(doc_ids), 10)
-        backend.get_all_post_vectors = AsyncMock(return_value=(doc_ids, vectors))
+        backend.get_all_post_vectors = MagicMock(return_value=(doc_ids, vectors))
         mock_get_backend.return_value = backend
 
         # Setup Agent
@@ -129,20 +129,20 @@ async def test_generate_semantic_taxonomy_batching(mock_output_sink, mock_config
         # We simulate it returning empty mappings for simplicity of this test
         # (we just want to verify batching logic triggers multiple calls)
         mock_result.data.mappings = []
-        mock_agent.run = AsyncMock(return_value=mock_result)
+        mock_agent.run_sync = MagicMock(return_value=mock_result)
         mock_create_agent.return_value = mock_agent
 
         # Run
-        await generate_semantic_taxonomy(mock_output_sink, mock_config)
+        generate_semantic_taxonomy(mock_output_sink, mock_config)
 
         # Verify
         # With MAX_PROMPT_CHARS=100, and 10 documents / ~2 clusters,
         # the input strings will definitely exceed 100 chars, forcing >1 batch.
-        assert mock_agent.run.call_count >= 2
+        assert mock_agent.run_sync.call_count >= 2
 
 
 @pytest.mark.asyncio
-async def test_generate_semantic_taxonomy_agent_failure(mock_output_sink, mock_config):
+def test_generate_semantic_taxonomy_agent_failure(mock_output_sink, mock_config):
     """Test graceful failure if agent errors out."""
     with (
         patch("egregora.ops.taxonomy.get_backend") as mock_get_backend,
@@ -152,11 +152,11 @@ async def test_generate_semantic_taxonomy_agent_failure(mock_output_sink, mock_c
         real_docs = list(mock_output_sink.documents())
         doc_ids = [d.document_id for d in real_docs]
         vectors = np.random.rand(len(doc_ids), 10)
-        backend.get_all_post_vectors = AsyncMock(return_value=(doc_ids, vectors))
+        backend.get_all_post_vectors = MagicMock(return_value=(doc_ids, vectors))
         mock_get_backend.return_value = backend
 
         mock_agent = MagicMock()
-        mock_agent.run = AsyncMock(side_effect=Exception("API Error"))
+        mock_agent.run_sync = MagicMock(side_effect=Exception("API Error"))
         mock_create_agent.return_value = mock_agent
 
         count = await generate_semantic_taxonomy(mock_output_sink, mock_config)

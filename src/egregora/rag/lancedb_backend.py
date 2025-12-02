@@ -251,7 +251,7 @@ class LanceDBRAGBackend:
         logger.info("Found %d hits for query (top_k=%d)", len(hits), top_k)
         return RAGQueryResponse(hits=hits)
 
-    async def get_all_post_vectors(self) -> tuple[list[str], np.ndarray]:
+    def get_all_post_vectors(self) -> tuple[list[str], np.ndarray]:
         """Retrieve IDs and Centroid Vectors for all indexed posts.
 
         Returns:

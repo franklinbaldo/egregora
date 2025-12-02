@@ -1485,9 +1485,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
 
                 logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
                 try:
-                    tagged_count = asyncio.run(
-                        generate_semantic_taxonomy(dataset.context.output_format, dataset.context.config)
-                    )
+                    tagged_count = generate_semantic_taxonomy(dataset.context.output_format, dataset.context.config)
                     if tagged_count > 0:
                         logger.info(f"[green]✓ Applied semantic tags to {tagged_count} posts[/]")
                 except Exception as e:
