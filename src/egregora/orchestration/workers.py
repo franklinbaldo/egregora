@@ -19,7 +19,6 @@ from pydantic_ai import Agent
 
 from egregora.agents.banner.agent import generate_banner
 from egregora.agents.enricher import _create_enrichment_row, _normalize_slug
-from egregora.config.settings import get_google_api_key
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.models.google_batch import GoogleBatchModel
 from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
@@ -364,7 +363,7 @@ class EnrichmentWorker(BaseWorker):
 
         # Execute batch
         model_name = self.ctx.config.models.enricher_vision
-        model = GoogleBatchModel(api_key=get_google_api_key(), model_name=model_name)
+        model = GoogleBatchModel(model_name=model_name)
 
         try:
             # Use asyncio.run to execute the async batch method synchronously

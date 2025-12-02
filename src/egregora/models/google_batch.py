@@ -32,13 +32,13 @@ class GoogleBatchModel(Model):
     _model_name: str
     poll_interval: float
     timeout: float
-    api_key: str
+    api_key: str | None
 
     def __init__(
         self,
         *,
-        api_key: str,
         model_name: str,
+        api_key: str | None = None,
         poll_interval: float = 5.0,
         timeout: float = 600.0,
     ) -> None:
@@ -134,7 +134,10 @@ class GoogleBatchModel(Model):
         from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=self.api_key)
+        if self.api_key:
+            client = genai.Client(api_key=self.api_key)
+        else:
+            client = genai.Client()
 
         # Create a temporary file for upload
         import os

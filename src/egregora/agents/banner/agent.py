@@ -17,7 +17,8 @@ from tenacity import Retrying
 
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
 from egregora.agents.banner.image_generation import ImageGenerationRequest
-from egregora.config import EgregoraConfig, google_api_key_status
+import os
+from egregora.config import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.resources.prompts import render_prompt
 from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
@@ -169,4 +170,4 @@ def is_banner_generation_available() -> bool:
         True if GOOGLE_API_KEY environment variable is set
 
     """
-    return google_api_key_status()
+    return bool(os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"))
