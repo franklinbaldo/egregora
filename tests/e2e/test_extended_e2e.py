@@ -33,8 +33,7 @@ from egregora.database.elo_store import EloStore
 # =============================================================================
 
 
-@pytest.mark.asyncio
-async def test_reader_agent_evaluates_posts_and_persists_elo_rankings(
+def test_reader_agent_evaluates_posts_and_persists_elo_rankings(
     tmp_path: Path,
     reader_test_config,
 ) -> None:
@@ -92,7 +91,7 @@ async def test_reader_agent_evaluates_posts_and_persists_elo_rankings(
         mock_compare.side_effect = deterministic_comparison
 
         # Execute the evaluation pipeline
-        rankings = await run_reader_evaluation(posts_dir=posts_dir, config=config)
+        rankings = run_reader_evaluation(posts_dir=posts_dir, config=config)
 
     # Verify: Rankings were generated
     assert len(rankings) > 0, "Reader Agent should produce rankings"

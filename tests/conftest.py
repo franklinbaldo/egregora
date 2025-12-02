@@ -51,9 +51,11 @@ def _ibis_backend(request):
         return
 
     try:
+        # In ibis 9.0+, use connect() with database path directly
         backend = ibis.duckdb.connect(":memory:")
     except Exception as exc:  # pragma: no cover - guard against broken ibis deps
         pytest.skip(f"ibis backend unavailable: {exc}")
+
     options = getattr(ibis, "options", None)
     previous_backend = getattr(options, "default_backend", None) if options else None
 
@@ -64,6 +66,9 @@ def _ibis_backend(request):
     finally:
         if options is not None:
             options.default_backend = previous_backend
+        # Close backend to release resources
+        if hasattr(backend, "disconnect"):
+            backend.disconnect()
 
 
 @dataclass(slots=True)

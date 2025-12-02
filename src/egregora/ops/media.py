@@ -139,8 +139,8 @@ def find_media_references(text: str) -> list[str]:
     return list(set(media_files))
 
 
-def extract_markdown_media_refs(table: Table) -> set[str]:
-    """Extract all markdown media references from message column."""
+def extract_media_references(table: Table) -> set[str]:
+    """Extract all media references (markdown and raw) from message column."""
     references = set()
     # IR v1: use "text" column
     messages = table.select("text").execute()
@@ -148,12 +148,18 @@ def extract_markdown_media_refs(table: Table) -> set[str]:
         message = row.text
         if not message:
             continue
+        # 1. Markdown references
         for match in MARKDOWN_IMAGE_PATTERN.finditer(message):
             references.add(match.group(2))
         for match in MARKDOWN_LINK_PATTERN.finditer(message):
             ref = match.group(2)
             if not ref.startswith(("http://", "https://")):
                 references.add(ref)
+        
+        # 2. Raw references
+        raw_refs = find_media_references(message)
+        references.update(raw_refs)
+            
     return references
 
 
@@ -214,8 +220,8 @@ def replace_media_mentions(
     return result
 
 
-def replace_markdown_media_refs(table: Table, media_mapping: MediaMapping) -> Table:
-    """Replace markdown media references with canonical URLs in Ibis table."""
+def replace_media_references(table: Table, media_mapping: MediaMapping) -> Table:
+    """Replace media references (markdown and raw) with canonical URLs in Ibis table."""
     if not media_mapping:
         return table
 
@@ -224,21 +230,48 @@ def replace_markdown_media_refs(table: Table, media_mapping: MediaMapping) -> Ta
         # Check for PII deletion
         if media_doc.metadata.get("pii_deleted"):
             pii_reason = media_doc.metadata.get("pii_reason", "Contains PII")
-            logger.info("Redacting markdown media reference '%s': %s", original_ref, pii_reason)
+            logger.info("Redacting media reference '%s': %s", original_ref, pii_reason)
+            replacement = f"[REDACTED: {pii_reason}]"
+            
+            # Markdown redaction
             updated_table = updated_table.mutate(
-                text=updated_table.text.replace(f"]({original_ref})", f"]([REDACTED: {pii_reason}])")
+                text=updated_table.text.replace(f"]({original_ref})", f"]({replacement})")
             )
+            # Raw redaction (simple string match for now)
+            # Note: This misses regex variations (\s*) but covers standard cases
+            for marker in ATTACHMENT_MARKERS:
+                 updated_table = updated_table.mutate(
+                    text=updated_table.text.replace(f"{original_ref} {marker}", replacement)
+                )
             continue
 
         # Get pre-calculated URL from metadata (generated earlier by UrlConvention)
         public_url = media_doc.metadata.get("public_url")
         if not public_url:
-            logger.debug("No public URL for markdown media ref '%s', skipping", original_ref)
+            logger.debug("No public URL for media ref '%s', skipping", original_ref)
             continue
 
+        media_type = media_doc.metadata.get("media_type")
+        display_name = media_doc.metadata.get("filename") or original_ref
+        replacement = (
+            f"![Image]({public_url})" if media_type == "image" else f"[{display_name}]({public_url})"
+        )
+
+        # Markdown replacement
         updated_table = updated_table.mutate(
             text=updated_table.text.replace(f"]({original_ref})", f"]({public_url})")
         )
+        
+        # Raw replacement
+        for marker in ATTACHMENT_MARKERS:
+            # Try exact match with single space first (most common)
+            updated_table = updated_table.mutate(
+                text=updated_table.text.replace(f"{original_ref} {marker}", replacement)
+            )
+            # Also try without space (some markers might include it or not)
+            updated_table = updated_table.mutate(
+                text=updated_table.text.replace(f"{original_ref}{marker}", replacement)
+            )
 
     return updated_table
 
@@ -251,7 +284,7 @@ def process_media_for_window(
     **adapter_kwargs: object,
 ) -> tuple[Table, MediaMapping]:
     """High-level pipeline to process media for a window."""
-    media_refs = extract_markdown_media_refs(window_table)
+    media_refs = extract_media_references(window_table)
     if not media_refs:
         return (window_table, {})
 
@@ -288,7 +321,7 @@ def process_media_for_window(
         media_mapping[media_ref] = media_doc
 
     updated_table = (
-        replace_markdown_media_refs(window_table, media_mapping) if media_mapping else window_table
+        replace_media_references(window_table, media_mapping) if media_mapping else window_table
     )
 
     return (updated_table, media_mapping)

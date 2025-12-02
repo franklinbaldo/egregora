@@ -68,16 +68,7 @@ def test_pipeline_rejects_unsafe_zip(tmp_path: Path):
 # =============================================================================
 
 
-@pytest.fixture
-def mock_dynamic_regex_fallback(monkeypatch):
-    """Mocks the dynamic regex generator to force fallback."""
-    monkeypatch.setattr(
-        "egregora.input_adapters.whatsapp.parsing.generate_dynamic_regex",
-        lambda *args, **kwargs: None,
-    )
-
-
-def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
+def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture):
     """Test that parser produces valid IR table with expected columns."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -91,7 +82,7 @@ def test_parser_produces_valid_table(whatsapp_fixture: WhatsAppFixture, mock_dyn
     assert all(ts.tzinfo is not None for ts in timestamps)
 
 
-def test_parser_handles_portuguese_dates(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
+def test_parser_handles_portuguese_dates(whatsapp_fixture: WhatsAppFixture):
     """Test that parser correctly handles Portuguese date formats."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -102,7 +93,7 @@ def test_parser_handles_portuguese_dates(whatsapp_fixture: WhatsAppFixture, mock
     assert "2025-10-28" in dates
 
 
-def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
+def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture):
     """Test that parser preserves all participant messages."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -110,7 +101,7 @@ def test_parser_preserves_all_messages(whatsapp_fixture: WhatsAppFixture, mock_d
     assert table.count().execute() == 10
 
 
-def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
+def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture):
     """Test that parser extracts media file references from messages."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -120,7 +111,7 @@ def test_parser_extracts_media_references(whatsapp_fixture: WhatsAppFixture, moc
     assert "arquivo anexado" in combined
 
 
-def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
+def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture):
     """Test that parser strictly enforces IR MESSAGE_SCHEMA without extra columns."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -135,7 +126,7 @@ def test_parser_enforces_message_schema(whatsapp_fixture: WhatsAppFixture, mock_
 
 
 def test_anonymization_removes_real_author_names(
-    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+    whatsapp_fixture: WhatsAppFixture
 ):
     """Test that anonymization removes real author names from table."""
     export = create_export_from_fixture(whatsapp_fixture)
@@ -150,7 +141,7 @@ def test_anonymization_removes_real_author_names(
 
 
 def test_parse_source_exposes_raw_authors_when_requested(
-    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+    whatsapp_fixture: WhatsAppFixture
 ):
     """Test that raw author names are exposed when explicitly requested."""
     export = create_export_from_fixture(whatsapp_fixture)
@@ -171,7 +162,7 @@ def test_parse_source_exposes_raw_authors_when_requested(
     assert "Você" not in authors, "'Você' only appears in system messages, should not be in authors"
 
 
-def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
+def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture):
     """Test that anonymization produces same UUIDs for same names."""
     export = create_export_from_fixture(whatsapp_fixture)
     table_one = parse_source(export, timezone=whatsapp_fixture.timezone)
@@ -183,7 +174,7 @@ def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture, mock_
     assert authors_one == authors_two
 
 
-def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
+def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture):
     """Test that anonymized UUIDs follow expected format (full UUID format)."""
     import uuid
 
@@ -229,22 +220,53 @@ def test_media_extraction_creates_expected_files(whatsapp_fixture: WhatsAppFixtu
 
 
 def test_media_references_replaced_in_messages(
-    whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback
+    whatsapp_fixture: WhatsAppFixture,
+    tmp_path: Path,
 ):
-    """Test that media references in messages are converted to markdown."""
+    """Test that media references in messages are converted to markdown via pipeline ops."""
     from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
+    from egregora.ops.media import process_media_for_window
+    from egregora.data_primitives.protocols import UrlContext, UrlConvention
+    from egregora.data_primitives.document import Document
+    from egregora.transformations.windowing import Window
 
     adapter = WhatsAppAdapter()
     table = adapter.parse(whatsapp_fixture.zip_path, timezone=whatsapp_fixture.timezone)
 
+    # Create a dummy window for processing
+    window = Window(
+        table=table,
+        start_time=table["ts"].min().execute(),
+        end_time=table["ts"].max().execute(),
+        window_index=0,
+        size=table.count().execute(),
+    )
+
+    # Mock URL convention/context
+    class MockUrlConvention(UrlConvention):
+        def canonical_url(self, doc: Document, context: UrlContext) -> str:
+            return f"media/{doc.metadata['filename']}"
+
+    url_context = UrlContext(base_path=tmp_path)
+    
+    # Process media (this is what happens in the pipeline)
+    processed_table, _ = process_media_for_window(
+        window_table=table,
+        adapter=adapter,
+        url_convention=MockUrlConvention(),
+        url_context=url_context,
+        zip_path=whatsapp_fixture.zip_path,
+    )
+
     # Get all text content
-    messages = table["text"].execute().tolist()
+    messages = processed_table["text"].execute().tolist()
     combined_text = " ".join(messages)
 
     # Verify markdown conversion
     # The fixture contains "IMG-20251028-WA0035.jpg (arquivo anexado)"
-    # It should be converted to "![Image](IMG-20251028-WA0035.jpg)"
-    assert "![Image](IMG-20251028-WA0035.jpg)" in combined_text
+    # It should be converted to "![Image](/media/img-20251028-wa0035-....jpg)"
+    # Note: The URL is slugified and may contain a hash suffix
+    assert "![Image](/media/img-20251028-wa0035" in combined_text
 
     # Verify raw "arquivo anexado" text is removed or replaced
     # Note: The regex replacement might leave some whitespace, but the marker itself should be gone/replaced
@@ -258,7 +280,7 @@ def test_media_references_replaced_in_messages(
 # =============================================================================
 
 
-def test_egregora_commands_are_filtered_out(whatsapp_fixture: WhatsAppFixture, mock_dynamic_regex_fallback):
+def test_egregora_commands_are_filtered_out(whatsapp_fixture: WhatsAppFixture):
     """Test that egregora in-chat commands are filtered from the message stream."""
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)

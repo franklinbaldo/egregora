@@ -50,9 +50,9 @@ Media processing:
 """
 
 from egregora.ops.media import (
-    extract_markdown_media_refs,
+    extract_media_references,
     process_media_for_window,
-    replace_markdown_media_refs,
+    replace_media_references,
 )
 from egregora.transformations.windowing import (
     Window,
@@ -63,12 +63,12 @@ from egregora.transformations.windowing import (
 )
 
 __all__ = [
-    "Window",
     "create_windows",
-    "extract_markdown_media_refs",
-    "load_checkpoint",
-    "process_media_for_window",
-    "replace_markdown_media_refs",
-    "save_checkpoint",
     "split_window_into_n_parts",
+    "load_checkpoint",
+    "save_checkpoint",
+    "generate_window_signature",
+    "extract_media_references",
+    "process_media_for_window",
+    "replace_media_references",
 ]

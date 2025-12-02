@@ -11,6 +11,7 @@ from typing import TypeVar
 import httpx
 from google.genai import types as genai_types
 from pydantic_ai.exceptions import UnexpectedModelBehavior
+from pydantic_core import ValidationError
 from tenacity import (
     RetryCallState,
     retry_if_exception_type,
@@ -23,7 +24,7 @@ T = TypeVar("T")
 logger = logging.getLogger(__name__)
 
 # Shared retry configuration - use tenacity directly with these constants
-RETRYABLE_EXCEPTIONS = (UnexpectedModelBehavior, httpx.HTTPError)
+RETRYABLE_EXCEPTIONS = (UnexpectedModelBehavior, httpx.HTTPError, ValidationError)
 RETRY_STOP = stop_after_attempt(5)
 RETRY_WAIT = wait_random_exponential(min=2.0, max=60.0)
 RETRY_IF = retry_if_exception_type(RETRYABLE_EXCEPTIONS)

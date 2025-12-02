@@ -158,12 +158,18 @@ def create_fallback_model(
             model = model_def
         elif isinstance(model_def, str):
             if model_def.startswith("google-gla:"):
-                model = GeminiModel(model_def.removeprefix("google-gla:"))
+                from pydantic_ai.providers.google_gla import GoogleGLAProvider
+
+                provider = GoogleGLAProvider(api_key=get_google_api_key())
+                model = GeminiModel(model_def.removeprefix("google-gla:"), provider=provider)
             elif model_def.startswith("openrouter:"):
                 model = OpenAIModel(model_def.removeprefix("openrouter:"), provider="openrouter")
             else:
                 # Default to Gemini for unknown strings in this context
-                model = GeminiModel(model_def)
+                from pydantic_ai.providers.google_gla import GoogleGLAProvider
+
+                provider = GoogleGLAProvider(api_key=get_google_api_key())
+                model = GeminiModel(model_def, provider=provider)
         else:
             raise ValueError(f"Unknown model type: {type(model_def)}")
 
@@ -190,8 +196,10 @@ def create_fallback_model(
         else:
             wrapped_fallbacks.append(_resolve_and_wrap(m))
 
+    from pydantic_core import ValidationError
+
     return FallbackModel(
         primary,
         *wrapped_fallbacks,
-        fallback_on=(ModelAPIError, UsageLimitExceeded),
+        fallback_on=(ModelAPIError, UsageLimitExceeded, ValidationError),
     )
