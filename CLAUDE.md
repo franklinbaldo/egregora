@@ -662,9 +662,10 @@ Ask permission to update CLAUDE.md with valuable insights.
 - **TODO:** Remove legacy RAG module in future cleanup PR
 
 **Mixed Sync/Async Patterns**
-- RAG APIs are fully async (correct)
-- Pipeline orchestration is sync with `asyncio.run()` wrappers
-- **Consider:** Full async pipeline migration for better performance
+- RAG backend refactored to synchronous architecture (threads for concurrency)
+- Removed `asyncio.run()` wrappers from `writer.py`
+- Tests updated to match synchronous nature of production code
+- **Resolved:** Reduced friction between sync pipeline and RAG components
 
 **Constants Module Organization**
 - `constants.py` at root level (good for visibility)

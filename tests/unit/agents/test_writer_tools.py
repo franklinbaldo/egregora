@@ -93,15 +93,14 @@ class TestWriterToolsExtraction:
         assert persisted_doc.type == DocumentType.PROFILE
         assert persisted_doc.metadata["uuid"] == "test-uuid"
 
-    @pytest.mark.asyncio
-    async def test_search_media_impl_handles_rag_errors(self):
+    def test_search_media_impl_handles_rag_errors(self):
         """Test search_media_impl gracefully handles RAG backend errors."""
         # This test verifies error handling works without needing actual RAG backend
 
         # Patch search to raise an error
         with patch("egregora.agents.writer_tools.search", side_effect=RuntimeError("RAG error")):
             # Act
-            result = await search_media_impl("test query", top_k=5)
+            result = search_media_impl("test query", top_k=5)
 
         # Assert - should return empty results on connection error
         assert isinstance(result, SearchMediaResult)

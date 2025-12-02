@@ -866,7 +866,7 @@ def _index_new_content_in_rag(
                         break
 
         if docs:
-            asyncio.run(index_documents(docs))
+            index_documents(docs)
             logger.info("Indexed %d new posts in RAG", len(docs))
         else:
             logger.debug("No new documents to index in RAG")
