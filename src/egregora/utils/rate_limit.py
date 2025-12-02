@@ -16,7 +16,7 @@ class GlobalRateLimiter:
 
     requests_per_second: float = 1.0
     max_concurrency: int = 1
-    
+
     _tokens: float = 1.0
     _last_update: float = field(default_factory=time.time)
     _lock: threading.Lock = field(default_factory=threading.Lock)
@@ -30,20 +30,19 @@ class GlobalRateLimiter:
         """Acquire permission to make a request. Blocks if limits are reached."""
         # 1. Concurrency limit (Semaphore)
         self._semaphore.acquire()
-        
+
         try:
             # 2. Rate limit (Token Bucket)
             with self._lock:
                 now = time.time()
                 elapsed = now - self._last_update
                 self._last_update = now
-                
+
                 # Refill tokens
                 self._tokens = min(
-                    self.requests_per_second,
-                    self._tokens + elapsed * self.requests_per_second
+                    self.requests_per_second, self._tokens + elapsed * self.requests_per_second
                 )
-                
+
                 if self._tokens < 1.0:
                     # Need to wait
                     wait_time = (1.0 - self._tokens) / self.requests_per_second
@@ -81,12 +80,7 @@ def init_rate_limiter(requests_per_second: float, max_concurrency: int) -> None:
     """Initialize the global rate limiter with specific config."""
     global _limiter
     with _limiter_lock:
-        _limiter = GlobalRateLimiter(
-            requests_per_second=requests_per_second,
-            max_concurrency=max_concurrency
-        )
+        _limiter = GlobalRateLimiter(requests_per_second=requests_per_second, max_concurrency=max_concurrency)
     logger.info(
-        "Initialized global rate limiter: %s req/s, %s concurrent",
-        requests_per_second,
-        max_concurrency
+        "Initialized global rate limiter: %s req/s, %s concurrent", requests_per_second, max_concurrency
     )

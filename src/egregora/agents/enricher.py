@@ -8,7 +8,6 @@ legacy batching runners. It provides:
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import mimetypes
 import re
@@ -19,37 +18,30 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import httpx
 import ibis
 from ibis.expr.types import Table
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
-from ratelimit import limits, sleep_and_retry
-from tenacity import AsyncRetrying
 
 from egregora.config.settings import EnrichmentSettings, get_google_api_key
-from egregora.constants import PrivacyMarkers
-from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.document import Document
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import MediaMapping
 from egregora.models.google_batch import GoogleBatchModel
 from egregora.ops.media import (
-    detect_media_type,
     extract_urls,
     find_media_references,
     replace_media_mentions,
 )
 from egregora.resources.prompts import render_prompt
-from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.paths import slugify
-from egregora.utils.quota import QuotaExceededError, QuotaTracker
-from egregora.utils.text import sanitize_prompt_input as _sanitize_prompt_input
+from egregora.utils.quota import QuotaTracker
 
 if TYPE_CHECKING:
     import pandas as pd  # noqa: TID251
@@ -253,12 +245,6 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentDeps, Enri
 # ---------------------------------------------------------------------------
 
 
-
-
-
-
-
-
 def _uuid_to_str(value: uuid.UUID | str | None) -> str | None:
     if value is None:
         return None
@@ -349,9 +335,6 @@ def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[d
 # ---------------------------------------------------------------------------
 # Batch Orchestration (Async)
 # ---------------------------------------------------------------------------
-
-
-
 
 
 def schedule_enrichment(
@@ -519,9 +502,6 @@ def schedule_enrichment(
         url_count if enable_url else 0,
         media_count if enable_media else 0,
     )
-
-
-
 
 
 def _persist_enrichments(combined: Table, context: EnrichmentRuntimeContext) -> None:

@@ -160,8 +160,6 @@ class DuckDBStorageManager:
         logger.debug("DuckDBStorageManager created from existing connection")
         return instance
 
-
-
     def _is_invalidated_error(self, exc: duckdb.Error) -> bool:
         """Check if DuckDB raised a fatal invalidation error."""
         message = str(exc).lower()
@@ -258,8 +256,6 @@ class DuckDBStorageManager:
         quoted_table = quote_identifier(table)
         self.execute_sql(f"DELETE FROM {quoted_table} WHERE {where_clause}", params)
         self.ibis_conn.insert(table, rows)
-
-
 
     def read_table(self, name: str) -> Table:
         """Read table as Ibis expression.
@@ -597,8 +593,6 @@ class DuckDBStorageManager:
     # ==================================================================
     # Vector backend helpers (Consolidated)
     # ==================================================================
-
-
 
     def drop_index(self, name: str) -> None:
         quoted = quote_identifier(name)

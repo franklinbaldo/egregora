@@ -129,9 +129,6 @@ def check_api_key() -> DiagnosticResult:
     )
 
 
-
-
-
 def check_duckdb_zipfs() -> DiagnosticResult:
     """Check if DuckDB zipfs extension is available for streaming ZIP reads."""
     # Lazy import - allows doctor command to run even if duckdb not installed
@@ -347,7 +344,6 @@ def run_diagnostics() -> list[DiagnosticResult]:
         check_python_version,
         check_required_packages,
         check_api_key,
-
         check_duckdb_zipfs,
         check_git,
         check_cache_directory,

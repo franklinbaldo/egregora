@@ -26,7 +26,7 @@ from egregora.rag import search
 from egregora.rag.models import RAGQueryRequest
 
 if TYPE_CHECKING:
-    from egregora.agents.capabilities import BackgroundBannerCapability, AsyncProfileCapability
+    from egregora.agents.capabilities import AsyncProfileCapability, BackgroundBannerCapability
     from egregora.database.annotations_store import AnnotationsStore
     from egregora.output_adapters.base import OutputSink
 

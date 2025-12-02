@@ -784,6 +784,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
     # Initialize global rate limiter
     from egregora.utils.rate_limit import init_rate_limiter
+
     init_rate_limiter(
         requests_per_second=run_params.config.quota.per_second_limit,
         max_concurrency=run_params.config.quota.concurrency,

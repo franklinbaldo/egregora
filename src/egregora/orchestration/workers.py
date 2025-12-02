@@ -206,7 +206,6 @@ class EnrichmentWorker(BaseWorker):
                 logger.error("Failed to prepare URL task %s: %s", task["task_id"], e)
                 self.task_store.mark_failed(task["task_id"], f"Preparation failed: {e!s}")
 
-
         if not tasks_data:
             return 0
 
@@ -214,20 +213,18 @@ class EnrichmentWorker(BaseWorker):
         enrichment_concurrency = getattr(self.ctx.config.enrichment, "max_concurrent_enrichments", 5)
         global_concurrency = getattr(self.ctx.config.quota, "concurrency", 1)
         max_concurrent = min(enrichment_concurrency, global_concurrency)
-        
+
         logger.info(
-            "Processing %d enrichment tasks with max concurrency of %d (enrichment limit: %d, global limit: %d)", 
-            len(tasks_data), 
+            "Processing %d enrichment tasks with max concurrency of %d (enrichment limit: %d, global limit: %d)",
+            len(tasks_data),
             max_concurrent,
             enrichment_concurrency,
-            global_concurrency
+            global_concurrency,
         )
 
         results = []
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
-            future_to_task = {
-                executor.submit(self._enrich_single_url, td): td for td in tasks_data
-            }
+            future_to_task = {executor.submit(self._enrich_single_url, td): td for td in tasks_data}
             for future in as_completed(future_to_task):
                 try:
                     result = future.result()
@@ -295,7 +292,7 @@ class EnrichmentWorker(BaseWorker):
             # Create agent with fallback
             model = create_fallback_model(self.ctx.config.models.enricher)
             agent = Agent(model=model, output_type=EnrichmentOutput)
-            
+
             # Use run_sync to execute the async agent synchronously
             result = agent.run_sync(prompt)
             return task, result.data, None

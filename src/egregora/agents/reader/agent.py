@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
-from tenacity import AsyncRetrying
 
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
 from egregora.config.settings import EgregoraConfig

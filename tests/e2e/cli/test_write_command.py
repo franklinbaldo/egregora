@@ -337,7 +337,6 @@ class TestWriteCommandWithMocks:
                 "100",  # Process all messages in one window
                 "--step-unit",
                 "messages",
-
                 "--no-enable-enrichment",  # Faster test
                 "--max-windows",
                 "1",  # Just process one window
@@ -484,7 +483,6 @@ class TestWriteCommandEdgeCases:
                 "2025-10-31",
                 "--timezone",
                 "America/Sao_Paulo",
-
                 "--max-prompt-tokens",
                 "50000",
             ],

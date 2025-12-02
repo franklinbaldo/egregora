@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
 
 from pydantic_ai.messages import ModelMessage, ModelResponse
 from pydantic_ai.models import Model, ModelRequestParameters, ModelSettings
@@ -29,24 +28,22 @@ class RateLimitedModel(Model):
     ) -> ModelResponse:
         """Make a rate-limited request."""
         limiter = get_rate_limiter()
-        
+
         # Acquire slot (blocks if needed)
-        # Note: limiter.acquire() is blocking (sync). 
+        # Note: limiter.acquire() is blocking (sync).
         # Since we are in async method, this blocks the event loop if not careful.
         # But we are moving to synchronous execution mostly.
         # However, pydantic-ai Agent calls this async method.
         # If we block here, we block the loop.
         # But since we are de-asyncing, maybe we should use run_in_executor?
         # Or just accept blocking if we are running in a thread (run_sync does that).
-        
+
         # If running via agent.run_sync(), we are in a dedicated thread/loop.
         # Blocking here is fine.
-        
+
         limiter.acquire()
         try:
-            return await self.wrapped_model.request(
-                messages, model_settings, model_request_parameters
-            )
+            return await self.wrapped_model.request(messages, model_settings, model_request_parameters)
         finally:
             limiter.release()
 

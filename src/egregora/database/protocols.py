@@ -175,8 +175,6 @@ class VectorStorageProtocol(Protocol):
     Defines operations specific to vector databases and similarity search.
     """
 
-
-
     def drop_index(self, name: str) -> None:
         """Drop an index.
 

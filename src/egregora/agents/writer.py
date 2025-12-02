@@ -7,7 +7,6 @@ capabilities before executing the conversation through a ``pydantic_ai.Agent``.
 
 from __future__ import annotations
 
-
 import json
 import logging
 from collections.abc import Sequence
@@ -62,10 +61,9 @@ from egregora.agents.writer_tools import (
     write_post_impl,
     write_profile_impl,
 )
-from egregora.config.settings import EgregoraConfig, get_google_api_key
+from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors, read_profile
-from egregora.models import GoogleBatchModel
 from egregora.output_adapters import OutputAdapterRegistry, create_default_output_registry
 from egregora.rag import index_documents, reset_backend
 from egregora.resources.prompts import PromptManager, render_prompt
@@ -662,9 +660,6 @@ def _validate_prompt_fits(
                 model_name=model_name,
                 window_id=window_label,
             )
-
-
-
 
 
 @sleep_and_retry
