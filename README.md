@@ -35,15 +35,15 @@ graph LR
     end
 
     subgraph TheLoom ["The Loom (Egregora)"]
-        D[Ingest & Normalize] --> E[Pattern Recognition]
-        E --> F[Enrichment & Context]
-        F --> G[Synthesis (LLM)]
+        D["Ingest & Normalize"] --> E["Pattern Recognition"]
+        E --> F["Enrichment & Context"]
+        F --> G["Synthesis (LLM)"]
     end
 
     subgraph Order ["The Order (Output)"]
-        G --> H[Knowledge Base]
-        G --> I[Narrative Blog]
-        G --> J[Author Profiles]
+        G --> H["Knowledge Base"]
+        G --> I["Narrative Blog"]
+        G --> J["Author Profiles"]
     end
 
     Chaos --> D
