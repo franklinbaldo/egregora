@@ -41,9 +41,9 @@ class RagCapability:
 
     def register(self, agent: Agent[WriterDeps, Any]) -> None:
         @agent.tool
-        async def search_media(ctx: RunContext[WriterDeps], query: str, top_k: int = 5) -> SearchMediaResult:
+        def search_media(ctx: RunContext[WriterDeps], query: str, top_k: int = 5) -> SearchMediaResult:
             """Search for relevant media (images, videos, audio) in the knowledge base."""
-            return await search_media_impl(query, top_k)
+            return search_media_impl(query, top_k)
 
 
 class BannerCapability:
@@ -61,17 +61,17 @@ class BannerCapability:
             return generate_banner_impl(banner_ctx, post_slug, title, summary)
 
 
-class AsyncBannerCapability:
-    """Enables visual banner generation for posts (Asynchronous)."""
+class BackgroundBannerCapability:
+    """Enables visual banner generation for posts (Background)."""
 
-    name = "Async Banner Image Generation"
+    name = "Background Banner Image Generation"
 
     def __init__(self, run_id: uuid.UUID | str) -> None:
         self.run_id = uuid.UUID(str(run_id))
 
     def register(self, agent: Agent[WriterDeps, Any]) -> None:
         @agent.tool
-        async def generate_banner(
+        def generate_banner(
             ctx: RunContext[WriterDeps], post_slug: str, title: str, summary: str
         ) -> BannerResult:
             """Schedule a banner image generation task."""
@@ -88,11 +88,11 @@ class AsyncBannerCapability:
                 "run_id": str(self.run_id),
             }
 
-            # Schedule task
-            task = await task_store.create_task(
+            # Schedule task (sync)
+            task_id = task_store.enqueue(
                 task_type="generate_banner",
                 payload=payload,
-                priority=10,
+                run_id=self.run_id,
             )
-            logger.info("Scheduled banner generation task: %s", task.id)
+            logger.info("Scheduled banner generation task: %s", task_id)
             return BannerResult(status="scheduled", path=None)

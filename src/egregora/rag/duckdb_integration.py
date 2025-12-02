@@ -22,8 +22,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-async def search_to_table(request: RAGQueryRequest) -> ir.Table:
-    """Execute RAG search and return results as an Ibis table (async).
+def search_to_table(request: RAGQueryRequest) -> ir.Table:
+    """Execute RAG search and return results as an Ibis table (sync).
 
     This allows you to use DuckDB's SQL capabilities on vector search results,
     including joins with other tables, aggregations, and filtering.
@@ -38,13 +38,13 @@ async def search_to_table(request: RAGQueryRequest) -> ir.Table:
         >>> from egregora.rag import RAGQueryRequest
         >>> from egregora.rag.duckdb_integration import search_to_table
         >>> request = RAGQueryRequest(text="machine learning", top_k=10)
-        >>> results_table = await search_to_table(request)
+        >>> results_table = search_to_table(request)
         >>> # Now you can query with SQL
         >>> top_results = results_table.filter(results_table.score > 0.8)
         >>> print(top_results.execute())
 
     """
-    response = await search(request)
+    response = search(request)
 
     # Convert RAGHit results to dictionary records
     records = []
@@ -109,8 +109,8 @@ def join_with_messages(
     return rag_results.inner_join(messages_table, rag_results[on_column] == messages_table[on_column])
 
 
-async def create_rag_analytics_view(storage_manager: Any, rag_query: str, top_k: int = 100) -> ir.Table:
-    """Create a DuckDB view combining RAG results with analytics (async).
+def create_rag_analytics_view(storage_manager: Any, rag_query: str, top_k: int = 100) -> ir.Table:
+    """Create a DuckDB view combining RAG results with analytics (sync).
 
     This creates a materialized view that you can query with SQL, joining
     vector search results with your existing DuckDB tables.
@@ -126,7 +126,7 @@ async def create_rag_analytics_view(storage_manager: Any, rag_query: str, top_k:
     Example:
         >>> from egregora.database.duckdb_manager import DuckDBStorageManager
         >>> storage = DuckDBStorageManager()
-        >>> view = await create_rag_analytics_view(
+        >>> view = create_rag_analytics_view(
         ...     storage,
         ...     rag_query="machine learning trends",
         ...     top_k=50
@@ -138,7 +138,7 @@ async def create_rag_analytics_view(storage_manager: Any, rag_query: str, top_k:
     """
     # Execute RAG search
     request = RAGQueryRequest(text=rag_query, top_k=top_k)
-    rag_table = await search_to_table(request)
+    rag_table = search_to_table(request)
 
     # Register as a DuckDB table for querying
     with storage_manager.connection() as conn:
@@ -158,14 +158,14 @@ async def create_rag_analytics_view(storage_manager: Any, rag_query: str, top_k:
         return conn.execute(view_sql).fetch_arrow_table()
 
 
-async def search_with_filters(
+def search_with_filters(
     query: str,
     *,
     min_score: float = 0.7,
     document_types: list[str] | None = None,
     top_k: int = 10,
 ) -> ir.Table:
-    """Execute RAG search with SQL-based filtering (async).
+    """Execute RAG search with SQL-based filtering (sync).
 
     This combines vector search with SQL filtering for more precise results.
 
@@ -179,7 +179,7 @@ async def search_with_filters(
         Filtered Ibis table with search results
 
     Example:
-        >>> results = await search_with_filters(
+        >>> results = search_with_filters(
         ...     "python programming",
         ...     min_score=0.8,
         ...     document_types=["POST"],
@@ -191,7 +191,7 @@ async def search_with_filters(
     """
     # Execute RAG search with higher top_k for pre-filtering
     request = RAGQueryRequest(text=query, top_k=top_k * 2)
-    results = await search_to_table(request)
+    results = search_to_table(request)
 
     # Apply SQL filters
     filtered = results.filter(results.score >= min_score)

@@ -11,8 +11,7 @@ import httpx
 from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.exceptions import ModelAPIError, UsageLimitExceeded
 
-if TYPE_CHECKING:
-    from pydantic_ai.models import Model
+from pydantic_ai.models import Model
 
 from egregora.config.settings import get_google_api_key
 from egregora.models import GoogleBatchModel
@@ -164,14 +163,8 @@ def create_fallback_model(
             if model_def.startswith("google-gla:"):
                 model = GeminiModel(model_def.removeprefix("google-gla:"))
             elif model_def.startswith("openrouter:"):
-                from openai import AsyncOpenAI
-                client = AsyncOpenAI(
-                    base_url="https://openrouter.ai/api/v1",
-                    api_key=os.environ.get("OPENROUTER_API_KEY")
-                )
                 model = OpenAIModel(
                     model_def.removeprefix("openrouter:"),
-                    openai_client=client,
                     provider='openrouter'
                 )
             else:

@@ -18,10 +18,10 @@ Configuration:
     Set paths in .egregora/config.yml:
     ```yaml
     paths:
-      lancedb_dir: .egregora/lancedb
+        lancedb_dir: .egregora/lancedb
 
     rag:
-      top_k: 5
+        top_k: 5
     ```
 
 Example:
@@ -56,7 +56,6 @@ from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.rag.backend import RAGBackend
 from egregora.rag.embedding_router import EmbeddingRouter, create_embedding_router
-from egregora.rag.embeddings_async import embed_texts_async
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
 from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
 
@@ -107,23 +106,23 @@ def _create_backend() -> RAGBackend:
             except KeyError:
                 logger.warning("Unknown document type in config: %s (skipping)", type_str)
 
-    # Create async embedding function that uses the dual-queue router
+    # Create sync embedding function that uses the dual-queue router
     # IMPORTANT: Google Gemini embeddings are asymmetric - documents and queries
     # must use different task_type values for optimal retrieval quality.
     # The caller (LanceDBRAGBackend) is responsible for specifying the correct task_type.
     router: EmbeddingRouter | None = None
 
-    async def embed_fn(texts: Sequence[str], task_type: str) -> list[list[float]]:
+    def embed_fn(texts: Sequence[str], task_type: str) -> list[list[float]]:
         nonlocal router
         if router is None:
-            router = await create_embedding_router(
+            router = create_embedding_router(
                 model=embedding_model,
                 api_key=None,
                 max_batch_size=rag_settings.embedding_max_batch_size,
                 timeout=rag_settings.embedding_timeout,
             )
 
-        return await embed_texts_async(list(texts), task_type=task_type, router=router)
+        return router.embed(list(texts), task_type=task_type)
 
     logger.info("Creating LanceDB RAG backend at %s", lancedb_dir)
     return LanceDBRAGBackend(
@@ -152,10 +151,10 @@ def get_backend() -> RAGBackend:
     return _backend
 
 
-async def index_documents(docs: Sequence[Document]) -> None:
-    r"""Index documents into the RAG knowledge base (async).
+def index_documents(docs: Sequence[Document]) -> None:
+    r"""Index documents into the RAG knowledge base (sync).
 
-    Uses the async embedding router for optimal throughput.
+    Uses the sync embedding router for optimal throughput.
 
     Args:
         docs: Sequence of Document instances to index
@@ -167,17 +166,17 @@ async def index_documents(docs: Sequence[Document]) -> None:
     Example:
         >>> from egregora.data_primitives import Document, DocumentType
         >>> doc = Document(content="# Post\n\nContent", type=DocumentType.POST)
-        >>> await index_documents([doc])
+        >>> index_documents([doc])
 
     """
     backend = get_backend()
-    await backend.index_documents(docs)
+    backend.index_documents(docs)
 
 
-async def search(request: RAGQueryRequest) -> RAGQueryResponse:
-    """Execute vector similarity search (async).
+def search(request: RAGQueryRequest) -> RAGQueryResponse:
+    """Execute vector similarity search (sync).
 
-    Uses the async embedding router for optimal throughput.
+    Uses the sync embedding router for optimal throughput.
 
     Args:
         request: Query parameters (text, top_k, filters)
@@ -191,13 +190,13 @@ async def search(request: RAGQueryRequest) -> RAGQueryResponse:
 
     Example:
         >>> request = RAGQueryRequest(text="search query", top_k=5)
-        >>> response = await search(request)
+        >>> response = search(request)
         >>> for hit in response.hits:
         ...     print(f"{hit.score:.2f}: {hit.text[:50]}")
 
     """
     backend = get_backend()
-    return await backend.query(request)
+    return backend.query(request)
 
 
 __all__ = [
@@ -217,8 +216,7 @@ def reset_backend() -> None:
     """Reset the global RAG backend.
 
     Forces recreation of the backend (and its embedding router) on the next call
-    to get_backend(). This is necessary when switching between event loops,
-    as the router's background tasks are bound to the loop where they were created.
+    to get_backend().
     """
     global _backend  # noqa: PLW0603
     _backend = None

@@ -7,7 +7,7 @@ capabilities before executing the conversation through a ``pydantic_ai.Agent``.
 
 from __future__ import annotations
 
-import asyncio
+
 import json
 import logging
 from collections.abc import Sequence
@@ -36,7 +36,7 @@ from tenacity import Retrying
 from egregora.agents.banner.agent import is_banner_generation_available
 from egregora.agents.capabilities import (
     AgentCapability,
-    AsyncBannerCapability,
+    BackgroundBannerCapability,
     BannerCapability,
     RagCapability,
 )
@@ -124,7 +124,9 @@ def register_writer_tools(
             output_sink=ctx.deps.resources.output,
             window_label=ctx.deps.window_label,
         )
-        return write_post_impl(tool_ctx, metadata.model_dump(exclude_none=True), content)
+        meta_dict = metadata.model_dump(exclude_none=True)
+        meta_dict["model"] = ctx.deps.model_name
+        return write_post_impl(tool_ctx, meta_dict, content)
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str) -> ReadProfileResult:
@@ -211,11 +213,12 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
                 return cached
 
         # Execute RAG search
+        # Execute RAG search
         # Reset backend to ensure it attaches to the new event loop created by asyncio.run
         reset_backend()
 
         request = RAGQueryRequest(text=query_text, top_k=top_k)
-        response = asyncio.run(search(request))
+        response = search(request)
 
         if not response.hits:
             return ""
@@ -621,7 +624,7 @@ def _prepare_deps(
         run_id=ctx.run_id,
     )
 
-    return _prepare_writer_dependencies(window_start, window_end, resources)
+    return _prepare_writer_dependencies(window_start, window_end, resources, ctx.config.models.writer)
 
 
 def _validate_prompt_fits(
@@ -661,20 +664,7 @@ def _validate_prompt_fits(
             )
 
 
-def _is_event_loop_binding_error(exc: BaseException) -> bool:
-    """Detect google-genai async client errors caused by crossing event loops."""
-    current: BaseException | None = exc
-    needle = "bound to a different event loop"
-    while current is not None:
-        if needle in str(current):
-            return True
-        current = current.__cause__ or current.__context__
-    return False
 
-
-def _build_batch_model(model_name: str) -> GoogleBatchModel:
-    """Return a synchronous batch model to avoid async client bugs."""
-    return GoogleBatchModel(api_key=get_google_api_key(), model_name=model_name)
 
 
 @sleep_and_retry
@@ -695,7 +685,7 @@ def write_posts_with_pydantic_agent(
 
     if is_banner_generation_available():
         if context.resources.task_store and context.resources.run_id:
-            active_capabilities.append(AsyncBannerCapability(context.resources.run_id))
+            active_capabilities.append(BackgroundBannerCapability(context.resources.run_id))
         else:
             active_capabilities.append(BannerCapability())
 
@@ -724,7 +714,7 @@ def write_posts_with_pydantic_agent(
 
     # Create model with automatic fallback
     configured_model = test_model if test_model is not None else config.models.writer
-    model = create_fallback_model(configured_model, use_google_batch=True)
+    model = create_fallback_model(configured_model, use_google_batch=False)
 
     # Validate prompt fits
     _validate_prompt_fits(prompt, configured_model, config, context.window_label)
@@ -899,6 +889,7 @@ def _prepare_writer_dependencies(
     window_start: datetime,
     window_end: datetime,
     resources: WriterResources,
+    model_name: str,
 ) -> WriterDeps:
     """Create WriterDeps from window parameters and resources."""
     window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
@@ -908,6 +899,7 @@ def _prepare_writer_dependencies(
         window_start=window_start,
         window_end=window_end,
         window_label=window_label,
+        model_name=model_name,
     )
 
 
@@ -976,25 +968,6 @@ def _execute_writer_with_error_handling(
         if isinstance(exc, PromptTooLargeError):
             raise
 
-        if _is_event_loop_binding_error(exc):
-            logger.warning(
-                "Detected Google async client event-loop binding bug; retrying window '%s' with batch model",
-                deps.window_label,
-            )
-            try:
-                batch_model = _build_batch_model(config.models.writer)
-                return write_posts_with_pydantic_agent(
-                    prompt=prompt,
-                    config=config,
-                    context=deps,
-                    test_model=batch_model,
-                )
-            except Exception as batch_exc:
-                if isinstance(batch_exc, PromptTooLargeError):
-                    raise
-                msg = f"Writer agent batch fallback failed for {deps.window_label}"
-                logger.exception(msg)
-                raise RuntimeError(msg) from batch_exc
         msg = f"Writer agent failed for {deps.window_label}"
         logger.exception(msg)
         raise RuntimeError(msg) from exc
@@ -1059,7 +1032,7 @@ def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
 
         resources = dataclasses.replace(resources, run_id=run_id)
 
-    deps = _prepare_writer_dependencies(window_start, window_end, resources)
+    deps = _prepare_writer_dependencies(window_start, window_end, resources, config.models.writer)
 
     # 2. Build context and calculate signature
     writer_context, signature = _build_context_and_signature(

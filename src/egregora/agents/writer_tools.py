@@ -26,7 +26,7 @@ from egregora.rag import search
 from egregora.rag.models import RAGQueryRequest
 
 if TYPE_CHECKING:
-    from egregora.agents.capabilities import AsyncBannerCapability, AsyncProfileCapability
+    from egregora.agents.capabilities import BackgroundBannerCapability, AsyncProfileCapability
     from egregora.database.annotations_store import AnnotationsStore
     from egregora.output_adapters.base import OutputSink
 
@@ -120,7 +120,7 @@ class BannerContext:
     """Context for banner generation."""
 
     output_sink: OutputSink
-    banner_capability: AsyncBannerCapability | None = None
+    banner_capability: BackgroundBannerCapability | None = None
 
 
 # ==============================================================================
@@ -203,7 +203,7 @@ def write_profile_impl(ctx: ToolContext, author_uuid: str, content: str) -> Writ
     return WriteProfileResult(status="success", path=doc_id)
 
 
-async def search_media_impl(query: str, top_k: int = 5) -> SearchMediaResult:
+def search_media_impl(query: str, top_k: int = 5) -> SearchMediaResult:
     """Search for relevant media using RAG.
 
     Args:
@@ -217,7 +217,7 @@ async def search_media_impl(query: str, top_k: int = 5) -> SearchMediaResult:
     try:
         # Execute RAG search
         request = RAGQueryRequest(text=query, top_k=top_k)
-        response = await search(request)
+        response = search(request)
 
         # Convert RAGHit results to MediaItem format
         media_items: list[MediaItem] = []

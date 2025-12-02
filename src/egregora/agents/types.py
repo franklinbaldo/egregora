@@ -73,6 +73,7 @@ class WriterDeps:
     window_start: datetime
     window_end: datetime
     window_label: str
+    model_name: str
 
     @property
     def output_sink(self) -> OutputSink:

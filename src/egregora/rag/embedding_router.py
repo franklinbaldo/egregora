@@ -8,15 +8,18 @@ Architecture:
     - Two independent rate limiters
     - Smart routing: prefer batch for efficiency, fallback to single when rate-limited
     - Request accumulation during rate limit waits
+    - Thread-based concurrency (synchronous I/O)
 """
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import logging
+import queue
+import threading
 import time
 from collections.abc import Sequence
+from concurrent.futures import Future
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Annotated, Any
@@ -57,49 +60,54 @@ class RateLimiter:
     available_at: float = 0.0  # Timestamp when endpoint becomes available again
     consecutive_errors: int = 0
     max_consecutive_errors: int = 5
+    _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def is_available(self) -> bool:
         """Check if endpoint is available for requests."""
-        if self.state == RateLimitState.AVAILABLE:
-            return True
-        if time.time() >= self.available_at:
-            # Window expired, reset to available
-            self.state = RateLimitState.AVAILABLE
-            self.consecutive_errors = 0
-            return True
-        return False
+        with self._lock:
+            if self.state == RateLimitState.AVAILABLE:
+                return True
+            if time.time() >= self.available_at:
+                # Window expired, reset to available
+                self.state = RateLimitState.AVAILABLE
+                self.consecutive_errors = 0
+                return True
+            return False
 
     def mark_rate_limited(self, retry_after: float = 60.0) -> None:
         """Mark endpoint as rate limited."""
-        self.state = RateLimitState.RATE_LIMITED
-        self.available_at = time.time() + retry_after
-        logger.warning(
-            "%s endpoint rate limited. Available again at %s (in %.1fs)",
-            self.endpoint_type.value,
-            time.strftime("%H:%M:%S", time.localtime(self.available_at)),
-            retry_after,
-        )
+        with self._lock:
+            self.state = RateLimitState.RATE_LIMITED
+            self.available_at = time.time() + retry_after
+            logger.warning(
+                "%s endpoint rate limited. Available again at %s (in %.1fs)",
+                self.endpoint_type.value,
+                time.strftime("%H:%M:%S", time.localtime(self.available_at)),
+                retry_after,
+            )
 
     def mark_error(self, backoff_seconds: float = 2.0) -> None:
         """Mark endpoint as having an error."""
-        self.consecutive_errors += 1
-        if self.consecutive_errors >= self.max_consecutive_errors:
-            msg = f"{self.endpoint_type.value} endpoint failed {self.consecutive_errors} times"
-            raise RuntimeError(msg)
-        self.state = RateLimitState.ERROR
-        self.available_at = time.time() + backoff_seconds
-        logger.warning(
-            "%s endpoint error #%d. Backing off for %.1fs",
-            self.endpoint_type.value,
-            self.consecutive_errors,
-            backoff_seconds,
-        )
+        with self._lock:
+            self.consecutive_errors += 1
+            if self.consecutive_errors >= self.max_consecutive_errors:
+                msg = f"{self.endpoint_type.value} endpoint failed {self.consecutive_errors} times"
+                raise RuntimeError(msg)
+            self.state = RateLimitState.ERROR
+            self.available_at = time.time() + backoff_seconds
+            logger.warning(
+                "%s endpoint error #%d. Backing off for %.1fs",
+                self.endpoint_type.value,
+                self.consecutive_errors,
+                backoff_seconds,
+            )
 
     def mark_success(self) -> None:
         """Mark successful request."""
-        self.state = RateLimitState.AVAILABLE
-        self.consecutive_errors = 0
-        self.available_at = 0.0
+        with self._lock:
+            self.state = RateLimitState.AVAILABLE
+            self.consecutive_errors = 0
+            self.available_at = 0.0
 
 
 @dataclass
@@ -108,7 +116,7 @@ class EmbeddingRequest:
 
     texts: list[str]
     task_type: str
-    future: asyncio.Future[list[list[float]]]
+    future: Future[list[list[float]]]
     submitted_at: float = field(default_factory=time.time)
 
 
@@ -119,43 +127,52 @@ class EndpointQueue:
     endpoint_type: EndpointType
     rate_limiter: RateLimiter
     model: str  # Google model name (e.g., "models/gemini-embedding-001")
-    queue: asyncio.Queue[EmbeddingRequest] = field(default_factory=asyncio.Queue)
-    worker_task: asyncio.Task[None] | None = None
+    queue: queue.Queue[EmbeddingRequest] = field(default_factory=queue.Queue)
+    worker_thread: threading.Thread | None = None
+    stop_event: threading.Event = field(default_factory=threading.Event)
     max_batch_size: int = 100
     api_key: str = field(default_factory=get_google_api_key)
     timeout: float = 60.0
 
-    async def start(self) -> None:
+    def start(self) -> None:
         """Start background worker."""
-        if self.worker_task is None or self.worker_task.done():
-            self.worker_task = asyncio.create_task(self._worker())
+        if self.worker_thread is None or not self.worker_thread.is_alive():
+            self.stop_event.clear()
+            self.worker_thread = threading.Thread(target=self._worker, daemon=True)
+            self.worker_thread.start()
             logger.info("Started %s endpoint worker", self.endpoint_type.value)
 
-    async def stop(self) -> None:
+    def stop(self) -> None:
         """Stop background worker."""
-        if self.worker_task and not self.worker_task.done():
-            self.worker_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self.worker_task
+        if self.worker_thread and self.worker_thread.is_alive():
+            self.stop_event.set()
+            # Wake up worker if blocked on queue.get
+            # We can't easily interrupt queue.get, but we can put a sentinel or rely on daemon thread
+            # For clean shutdown, we can put a dummy request or just let it die if daemon=True
+            # But let's try to join
+            self.worker_thread.join(timeout=1.0)
             logger.info("Stopped %s endpoint worker", self.endpoint_type.value)
 
-    async def submit(self, texts: list[str], task_type: str) -> list[list[float]]:
+    def submit(self, texts: list[str], task_type: str) -> list[list[float]]:
         """Submit request and wait for result."""
-        future: asyncio.Future[list[list[float]]] = asyncio.Future()
+        future: Future[list[list[float]]] = Future()
         request = EmbeddingRequest(texts, task_type, future)
-        await self.queue.put(request)
-        return await future
+        self.queue.put(request)
+        return future.result()
 
     def is_available(self) -> bool:
         """Check if endpoint is available."""
         return self.rate_limiter.is_available()
 
-    async def _worker(self) -> None:
+    def _worker(self) -> None:
         """Background worker that processes queue."""
-        while True:
+        while not self.stop_event.is_set():
             try:
-                # Wait for first request
-                first_request = await self.queue.get()
+                # Wait for first request with timeout to check stop_event
+                try:
+                    first_request = self.queue.get(timeout=1.0)
+                except queue.Empty:
+                    continue
 
                 # Accumulate more requests if available (non-blocking)
                 requests = [first_request]
@@ -171,39 +188,42 @@ class EndpointQueue:
                                 total_texts += len(req.texts)
                             else:
                                 # Would exceed batch size, put it back
-                                await self.queue.put(req)
+                                # Note: queue.Queue doesn't support push_front easily.
+                                # This is a limitation. We should be careful not to over-fetch.
+                                # But since we are the only consumer, we can just process what we have
+                                # and put the extra one back? No, LIFO is not guaranteed.
+                                # Better strategy: peek or just accept we might process slightly less optimal batches
+                                # if we have to put it back.
+                                # Actually, standard Queue is FIFO. Putting back goes to end.
+                                # This might reorder requests.
+                                # Correct approach: Don't fetch if we can't fit?
+                                # But we don't know size until we fetch.
+                                # Workaround: Put it back and accept reordering, OR use a deque for local buffer.
+                                # For simplicity, let's just put it back. Reordering within milliseconds is fine.
+                                self.queue.put(req)
                                 break
-                        except asyncio.QueueEmpty:
+                        except queue.Empty:
                             break
 
                 # Wait if rate limited
-                while not self.rate_limiter.is_available():
+                while not self.rate_limiter.is_available() and not self.stop_event.is_set():
                     wait_time = max(0.1, self.rate_limiter.available_at - time.time())
                     logger.debug(
                         "%s endpoint waiting %.1fs for rate limit window", self.endpoint_type.value, wait_time
                     )
-                    await asyncio.sleep(min(wait_time, 1.0))
+                    time.sleep(min(wait_time, 1.0))
+
+                if self.stop_event.is_set():
+                    break
 
                 # Process accumulated requests
-                await self._process_batch(requests)
+                self._process_batch(requests)
 
-            except asyncio.CancelledError:
-                # Worker cancelled, propagate to pending requests
-                pending_requests = [first_request] if "first_request" in locals() else []
-                while not self.queue.empty():
-                    try:
-                        pending_requests.append(self.queue.get_nowait())
-                    except asyncio.QueueEmpty:
-                        break
-                for req in pending_requests:
-                    if not req.future.done():
-                        req.future.cancel()
-                raise
             except Exception:
                 logger.exception("Unexpected error in %s worker", self.endpoint_type.value)
-                await asyncio.sleep(1.0)  # Brief pause before continuing
+                time.sleep(1.0)  # Brief pause before continuing
 
-    async def _process_batch(self, requests: list[EmbeddingRequest]) -> None:
+    def _process_batch(self, requests: list[EmbeddingRequest]) -> None:
         """Process a batch of accumulated requests."""
         if not requests:
             return
@@ -222,9 +242,9 @@ class EndpointQueue:
             try:
                 # Call appropriate API endpoint
                 if self.endpoint_type == EndpointType.SINGLE:
-                    embeddings = await self._call_single_endpoint(all_texts, task_type)
+                    embeddings = self._call_single_endpoint(all_texts, task_type)
                 else:
-                    embeddings = await self._call_batch_endpoint(all_texts, task_type)
+                    embeddings = self._call_batch_endpoint(all_texts, task_type)
 
                 # Mark success
                 self.rate_limiter.mark_success()
@@ -242,10 +262,10 @@ class EndpointQueue:
                     if not req.future.done():
                         req.future.set_exception(e)
 
-    async def _call_single_endpoint(self, texts: list[str], task_type: str) -> list[list[float]]:
+    def _call_single_endpoint(self, texts: list[str], task_type: str) -> list[list[float]]:
         """Call /embedContent for each text."""
         embeddings = []
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        with httpx.Client(timeout=self.timeout) as client:
             for text in texts:
                 payload: dict[str, Any] = {
                     "model": self.model,
@@ -256,7 +276,7 @@ class EndpointQueue:
                 url = f"{GENAI_API_BASE}/{self.model}:embedContent"
 
                 try:
-                    response = await client.post(url, params={"key": self.api_key}, json=payload)
+                    response = client.post(url, params={"key": self.api_key}, json=payload)
                     self._handle_response_status(response)
                     data = response.json()
                     embedding = data.get("embedding", {}).get("values")
@@ -277,7 +297,7 @@ class EndpointQueue:
 
         return embeddings
 
-    async def _call_batch_endpoint(self, texts: list[str], task_type: str) -> list[list[float]]:
+    def _call_batch_endpoint(self, texts: list[str], task_type: str) -> list[list[float]]:
         """Call /batchEmbedContents for multiple texts."""
         requests_payload = []
         for text in texts:
@@ -292,9 +312,9 @@ class EndpointQueue:
         payload = {"requests": requests_payload}
         url = f"{GENAI_API_BASE}/{self.model}:batchEmbedContents"
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        with httpx.Client(timeout=self.timeout) as client:
             try:
-                response = await client.post(url, params={"key": self.api_key}, json=payload)
+                response = client.post(url, params={"key": self.api_key}, json=payload)
                 self._handle_response_status(response)
                 data = response.json()
                 embeddings_data = data.get("embeddings", [])
@@ -371,19 +391,19 @@ class EmbeddingRouter:
             timeout=timeout,
         )
 
-    async def start(self) -> None:
+    def start(self) -> None:
         """Start background workers."""
-        await self.batch_queue.start()
-        await self.single_queue.start()
+        self.batch_queue.start()
+        self.single_queue.start()
         logger.info("Embedding router started with dual-queue architecture")
 
-    async def stop(self) -> None:
+    def stop(self) -> None:
         """Stop background workers."""
-        await self.batch_queue.stop()
-        await self.single_queue.stop()
+        self.batch_queue.stop()
+        self.single_queue.stop()
         logger.info("Embedding router stopped")
 
-    async def embed(
+    def embed(
         self,
         texts: Annotated[Sequence[str], "Texts to embed"],
         task_type: Annotated[str, "Task type (RETRIEVAL_DOCUMENT or RETRIEVAL_QUERY)"],
@@ -410,35 +430,35 @@ class EmbeddingRouter:
             # Single endpoint available - use it for low latency
             logger.debug("Routing %d text(s) to single endpoint (low latency)", len(texts_list))
             try:
-                return await self.single_queue.submit(texts_list, task_type)
+                return self.single_queue.submit(texts_list, task_type)
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == HTTP_TOO_MANY_REQUESTS and self.batch_queue.is_available():
                     # Got 429 on single, fallback to batch
                     logger.info("Single endpoint hit rate limit, falling back to batch endpoint")
-                    return await self.batch_queue.submit(texts_list, task_type)
+                    return self.batch_queue.submit(texts_list, task_type)
                 raise
         if self.batch_queue.is_available():
             # Single exhausted, fallback to batch
             logger.debug("Single endpoint exhausted, routing %d texts to batch endpoint", len(texts_list))
             try:
-                return await self.batch_queue.submit(texts_list, task_type)
+                return self.batch_queue.submit(texts_list, task_type)
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == HTTP_TOO_MANY_REQUESTS and self.single_queue.is_available():
                     # Got 429 on batch, fallback to single
                     logger.info("Batch endpoint hit rate limit, falling back to single endpoint")
-                    return await self.single_queue.submit(texts_list, task_type)
+                    return self.single_queue.submit(texts_list, task_type)
                 raise
         # Both exhausted - wait for single (lower latency)
         logger.debug("Both endpoints rate-limited, waiting for single endpoint")
-        return await self.single_queue.submit(texts_list, task_type)
+        return self.single_queue.submit(texts_list, task_type)
 
 
 # Global singleton
 _router: EmbeddingRouter | None = None
-_router_lock = asyncio.Lock()
+_router_lock = threading.Lock()
 
 
-async def create_embedding_router(
+def create_embedding_router(
     *,
     model: str,
     api_key: str | None = None,
@@ -452,11 +472,11 @@ async def create_embedding_router(
         max_batch_size=max_batch_size,
         timeout=timeout,
     )
-    await router.start()
+    router.start()
     return router
 
 
-async def get_router(
+def get_router(
     *,
     model: str,
     api_key: str | None = None,
@@ -469,9 +489,9 @@ async def get_router(
     management. This helper is kept for backwards compatibility.
     """
     global _router
-    async with _router_lock:
+    with _router_lock:
         if _router is None:
-            _router = await create_embedding_router(
+            _router = create_embedding_router(
                 model=model,
                 api_key=api_key,
                 max_batch_size=max_batch_size,
@@ -480,12 +500,12 @@ async def get_router(
     return _router
 
 
-async def shutdown_router() -> None:
+def shutdown_router() -> None:
     """Shutdown global router (for cleanup)."""
     global _router
-    async with _router_lock:
+    with _router_lock:
         if _router is not None:
-            await _router.stop()
+            _router.stop()
             _router = None
 
 

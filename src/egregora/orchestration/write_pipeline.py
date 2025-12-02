@@ -782,6 +782,13 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
     quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
 
+    # Initialize global rate limiter
+    from egregora.utils.rate_limit import init_rate_limiter
+    init_rate_limiter(
+        requests_per_second=run_params.config.quota.per_second_limit,
+        max_concurrency=run_params.config.quota.concurrency,
+    )
+
     output_registry = create_default_output_registry()
 
     url_ctx = UrlContext(
