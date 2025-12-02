@@ -740,7 +740,6 @@ def write_posts_with_pydantic_agent(
         raise RuntimeError("Agent failed after retries")
 
     reset_backend()
-    reset_backend()
     try:
         # Run the async agent in a fresh thread with its own event loop
         # This prevents "bound to different event loop" errors by ensuring complete isolation
