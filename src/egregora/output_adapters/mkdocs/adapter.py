@@ -19,15 +19,14 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
+from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 from egregora.output_adapters.conventions import StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
-from egregora.config.settings import EgregoraConfig
 from egregora.output_adapters.mkdocs.scaffolding import (
     MkDocsSiteScaffolder,
     load_egregora_config,

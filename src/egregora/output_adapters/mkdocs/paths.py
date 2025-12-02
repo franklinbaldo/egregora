@@ -108,10 +108,10 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
 
     try:
         if not posts_dir.is_relative_to(docs_dir):
-             # Try resolving against docs_dir instead (recovery for "sibling" misconfiguration)
-             possible_posts = (docs_dir / paths_settings.posts_dir).resolve()
-             if possible_posts != posts_dir:
-                 posts_dir = possible_posts
+            # Try resolving against docs_dir instead (recovery for "sibling" misconfiguration)
+            possible_posts = (docs_dir / paths_settings.posts_dir).resolve()
+            if possible_posts != posts_dir:
+                posts_dir = possible_posts
 
         blog_relative = posts_dir.relative_to(docs_dir).as_posix()
     except ValueError:

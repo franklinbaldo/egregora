@@ -8,15 +8,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TypeVar
 
-import httpx
 from google.genai import types as genai_types
 from pydantic_ai.exceptions import UnexpectedModelBehavior
-from pydantic_core import ValidationError
 from tenacity import (
     RetryCallState,
 )
-
-from egregora.utils.network import get_retrying_iterator
 
 T = TypeVar("T")
 
