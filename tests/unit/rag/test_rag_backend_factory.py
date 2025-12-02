@@ -73,6 +73,4 @@ def test_embed_fn_uses_rag_settings_for_router(
         max_batch_size=7,
         timeout=3.5,
     )
-    created_router.embed.assert_called_once_with(
-        ["hello"], task_type="RETRIEVAL_DOCUMENT"
-    )
+    created_router.embed.assert_called_once_with(["hello"], task_type="RETRIEVAL_DOCUMENT")

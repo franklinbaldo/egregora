@@ -416,9 +416,7 @@ def test_concurrent_requests_under_rate_limits(router, embedding_model):
     import concurrent.futures
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-        futures = [
-            executor.submit(router.embed, [f"text{i}"], "RETRIEVAL_QUERY") for i in range(3)
-        ]
+        futures = [executor.submit(router.embed, [f"text{i}"], "RETRIEVAL_QUERY") for i in range(3)]
         results = [f.result() for f in futures]
 
     # All should succeed
