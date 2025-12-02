@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import mimetypes
+import os
 import re
 import uuid
 from collections.abc import Iterator
@@ -24,8 +25,6 @@ from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
-
-import os
 
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document

@@ -14,6 +14,7 @@ Architecture:
 from __future__ import annotations
 
 import logging
+import os
 import queue
 import threading
 import time
@@ -25,7 +26,6 @@ from typing import Annotated, Any
 
 import httpx
 
-import os
 from egregora.config import EMBEDDING_DIM
 
 logger = logging.getLogger(__name__)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 
 import httpx
@@ -10,7 +11,6 @@ from pydantic_ai.exceptions import ModelAPIError, UsageLimitExceeded
 from pydantic_ai.models import Model
 from pydantic_ai.models.fallback import FallbackModel
 
-import os
 from egregora.models import GoogleBatchModel
 
 logger = logging.getLogger(__name__)

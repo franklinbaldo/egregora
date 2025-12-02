@@ -7,12 +7,12 @@ and batch processing support.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Annotated, Any
 
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-import os
 from egregora.config import EMBEDDING_DIM
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,7 @@ def _get_api_key_from_env() -> str:
     if not key:
         raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY required")
     return key
+
 
 # Constants
 GENAI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"

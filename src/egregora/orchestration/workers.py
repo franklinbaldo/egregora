@@ -10,6 +10,7 @@ import asyncio
 import base64
 import json
 import logging
+import os
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING, Any
@@ -19,7 +20,6 @@ from pydantic_ai import Agent
 
 from egregora.agents.banner.agent import generate_banner
 from egregora.agents.enricher import _create_enrichment_row, _normalize_slug
-import os
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.models.google_batch import GoogleBatchModel
 from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
