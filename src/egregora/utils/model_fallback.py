@@ -159,6 +159,7 @@ def create_fallback_model(
         elif isinstance(model_def, str):
             if model_def.startswith("google-gla:"):
                 from pydantic_ai.providers.google_gla import GoogleGLAProvider
+
                 provider = GoogleGLAProvider(api_key=get_google_api_key())
                 model = GeminiModel(model_def.removeprefix("google-gla:"), provider=provider)
             elif model_def.startswith("openrouter:"):
@@ -166,6 +167,7 @@ def create_fallback_model(
             else:
                 # Default to Gemini for unknown strings in this context
                 from pydantic_ai.providers.google_gla import GoogleGLAProvider
+
                 provider = GoogleGLAProvider(api_key=get_google_api_key())
                 model = GeminiModel(model_def, provider=provider)
         else:
