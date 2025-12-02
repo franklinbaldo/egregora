@@ -194,8 +194,10 @@ def create_fallback_model(
         else:
             wrapped_fallbacks.append(_resolve_and_wrap(m))
 
+    from pydantic_core import ValidationError
+
     return FallbackModel(
         primary,
         *wrapped_fallbacks,
-        fallback_on=(ModelAPIError, UsageLimitExceeded),
+        fallback_on=(ModelAPIError, UsageLimitExceeded, ValidationError),
     )
