@@ -98,7 +98,7 @@ def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config):
         mock_create_agent.return_value = mock_agent
 
         # Run
-        count = await generate_semantic_taxonomy(mock_output_sink, mock_config)
+        count = generate_semantic_taxonomy(mock_output_sink, mock_config)
 
         # Verify
         assert count > 0
@@ -159,5 +159,5 @@ def test_generate_semantic_taxonomy_agent_failure(mock_output_sink, mock_config)
         mock_agent.run_sync = MagicMock(side_effect=Exception("API Error"))
         mock_create_agent.return_value = mock_agent
 
-        count = await generate_semantic_taxonomy(mock_output_sink, mock_config)
+        count = generate_semantic_taxonomy(mock_output_sink, mock_config)
         assert count == 0
