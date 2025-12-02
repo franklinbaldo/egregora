@@ -47,7 +47,7 @@ uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
 
 Egregora is highly configurable via the `.egregora/config.yml` file generated in your site directory.
 
-*   **Models:** Switch between models (e.g., `gemini-1.5-flash`, `gemini-1.5-pro`) or use OpenRouter.
+*   **Models:** Switch between models (e.g., `google-gla:gemini-2.0-flash`, `google-gla:gemini-1.5-pro`) or use OpenRouter.
 *   **Privacy:** Configure PII redaction and anonymization.
 *   **Pipeline:** Adjust how many days of chat form a single post (`step_size`, `step_unit`).
 
