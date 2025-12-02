@@ -119,7 +119,6 @@ AVATAR_HAIR_COLORS = [
     "SilverGray",
 ]
 
-
 def read_profile(
     author_uuid: Annotated[str, "The UUID5 pseudonym of the author"],
     profiles_dir: Annotated[Path, "The directory where profiles are stored"] = Path("output/profiles"),

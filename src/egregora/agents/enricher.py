@@ -25,7 +25,9 @@ from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
 
-from egregora.config.settings import EnrichmentSettings, get_google_api_key
+import os
+
+from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
@@ -183,7 +185,10 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentDeps, Enrichme
     # I will keep it but ensure `_sanitize_prompt_input` is moved.
 
     # Wrap the Google batch model so we still satisfy the Agent interface
-    model_instance = GoogleBatchModel(api_key=get_google_api_key(), model_name=model)
+    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY required for enrichment")
+    model_instance = GoogleBatchModel(api_key=api_key, model_name=model)
 
     agent = Agent[UrlEnrichmentDeps, EnrichmentOutput](
         model=model_instance,
@@ -216,7 +221,10 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentDeps, Enri
         model: The model name to use.
 
     """
-    model_instance = GoogleBatchModel(api_key=get_google_api_key(), model_name=model)
+    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY required for enrichment")
+    model_instance = GoogleBatchModel(api_key=api_key, model_name=model)
     agent = Agent[MediaEnrichmentDeps, EnrichmentOutput](
         model=model_instance,
         output_type=EnrichmentOutput,
