@@ -56,7 +56,8 @@ def main() -> None:
 def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
     """Ensure site is initialized, creating if needed with user confirmation."""
     config_path = output_dir / ".egregora" / "config.yml"
-    if config_path.exists():
+    config_path_alt = output_dir / ".egregora" / "config.yaml"
+    if config_path.exists() or config_path_alt.exists():
         return
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -86,7 +87,7 @@ def _resolve_gemini_key() -> str | None:
     """Resolve Google Gemini API key from environment."""
     import os
 
-    return os.environ.get("GOOGLE_API_KEY")
+    return os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
 
 @app.command()
@@ -155,6 +156,7 @@ def write(  # noqa: C901, PLR0913
         Path,
         typer.Option(
             "--output-dir",
+            "--output",
             "-o",
             help="Output directory for generated site",
         ),
@@ -273,18 +275,20 @@ def write(  # noqa: C901, PLR0913
 
     import os
 
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
         # Try loading from .env
         from dotenv import load_dotenv
 
         load_dotenv(output_dir / ".env")
         load_dotenv()  # Check CWD as well
-        api_key = os.getenv("GOOGLE_API_KEY")
+        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 
     if not api_key:
-        console.print("[red]Error: GOOGLE_API_KEY environment variable not set[/red]")
-        console.print("Set GOOGLE_API_KEY environment variable with your Google Gemini API key")
+        console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
+        console.print(
+            "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
+        )
         console.print("You can also create a .env file in the output directory or current directory.")
         raise typer.Exit(1)
 
