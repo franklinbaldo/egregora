@@ -741,27 +741,11 @@ def write_posts_with_pydantic_agent(
 
     reset_backend()
     try:
-        # Run the async agent in a fresh event loop manually
+        # Run the async agent in a fresh event loop using asyncio.run
+        # We must create the model and agent INSIDE the loop to avoid
+        # attaching to a different loop (or no loop) during init.
         import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(_run_agent_async())
-        finally:
-            try:
-                # Cancel all running tasks
-                pending = asyncio.all_tasks(loop)
-                for task in pending:
-                    task.cancel()
-                if pending:
-                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                
-                # Shutdown async generators
-                loop.run_until_complete(loop.shutdown_asyncgens())
-            finally:
-                asyncio.set_event_loop(None)
-                loop.close()
-                
+        result = asyncio.run(_run_agent_async())
     except QuotaExceededError as exc:
         msg = (
             "LLM quota exceeded for this day. No additional posts can be generated "
