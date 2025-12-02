@@ -27,27 +27,20 @@ It is not a tool for archiving. **It is a tool for remembering.**
 Egregora functions as an intelligent pipeline—a loom that takes raw, tangled fibers of conversation and weaves them into the tapestry of a static site.
 
 ```mermaid
-graph LR
-    subgraph Chaos ["The Chaos (Input)"]
-        A[WhatsApp]
-        B[Discord*]
-        C[Slack*]
-    end
-
-    subgraph TheLoom ["The Loom (Egregora)"]
-        D["Ingest & Normalize"] --> E["Pattern Recognition"]
-        E --> F["Enrichment & Context"]
-        F --> G["Synthesis (LLM)"]
-    end
-
-    subgraph Order ["The Order (Output)"]
-        G --> H["Knowledge Base"]
-        G --> I["Narrative Blog"]
-        G --> J["Author Profiles"]
-    end
-
-    Chaos --> D
-    style TheLoom fill:#f9f,stroke:#333,stroke-width:2px
+graph TD
+    A["WhatsApp Export ZIP<br/>chat export"] --> B["egregora CLI<br/>egregora process export.zip<br/>--output ./site"]
+    B --> C["Extraction<br/>Parse chat.txt, media/"]
+    C --> D["Normalize & Ingest<br/>Pydantic Schema<br/>Ibis DataFrames<br/>DuckDB"]
+    D --> E["Enrichment<br/>Gemini AI Batch<br/>gemini_batch.py"]
+    E --> F["Pattern Recognition<br/>RAG DuckDB VSS"]
+    F --> G["Author Profiles<br/>& Analysis"]
+    G --> H["Synthesis<br/>LLM Writer Agent"]
+    H --> I["MkDocs Output<br/>Static Site Generation"]
+    I --> J["Knowledge Base"]
+    I --> K["Narrative Blog"]
+    I --> L["Author Profiles"]
+    classDef loom fill:#f9f,stroke:#333,stroke-width:2px
+    class B,C,D,E,F,G,H loom
 ```
 
 1.  **Ingest:** Raw logs are normalized into a strict, type-safe schema.
