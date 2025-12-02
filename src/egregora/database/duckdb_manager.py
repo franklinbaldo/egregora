@@ -639,8 +639,9 @@ def duckdb_backend() -> ibis.BaseBackend:
         ...     result = table.execute()
 
     """
-    connection = duckdb.connect(":memory:")
-    backend = ibis.duckdb.from_connection(connection)
+    # In ibis 9.0+, use connect() with database path directly
+    # We don't need to create a raw duckdb connection first
+    backend = ibis.duckdb.connect(":memory:")
     old_backend = getattr(ibis.options, "default_backend", None)
     try:
         ibis.options.default_backend = backend
@@ -648,7 +649,9 @@ def duckdb_backend() -> ibis.BaseBackend:
         yield backend
     finally:
         ibis.options.default_backend = old_backend
-        connection.close()
+        # Close backend to release resources
+        if hasattr(backend, "disconnect"):
+            backend.disconnect()
         logger.debug("DuckDB backend closed")
 
 
