@@ -2,7 +2,7 @@ name: CI
 # Security: Limit GITHUB_TOKEN permissions to minimum required
 # See: https://docs.github.com/en/actions/security-guides/automatic-token-authentication#permissions-for-the-github_token
 permissions:
-  contents: read  # Allow checkout
+  contents: write  # Allow checkout and pages deploy
 
 on:
   push:
@@ -13,7 +13,7 @@ on:
 jobs:
   lint-and-test:
     permissions:
-      contents: read  # Checkout code
+      contents: write  # Checkout code and deploy docs
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -51,6 +51,19 @@ jobs:
 
       - name: Run E2E tests
         run: uv run pytest tests/e2e/ -v
+
+      - name: Build Documentation
+        run: |
+          cd egregora
+          uv sync --extra docs  # Ensure deps
+          uv run mkdocs build
+
+      - name: Deploy Docs to GitHub Pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./egregora/site
 
   security:
     permissions:
