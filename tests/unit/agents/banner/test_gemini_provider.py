@@ -120,9 +120,7 @@ def test_gemini_provider_handles_batch_failure():
     provider = GeminiImageGenerationProvider(client=client, model="models/test")
     provider._poll_interval = 0  # Speed up test
 
-    result = provider.generate(
-        ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"])
-    )
+    result = provider.generate(ImageGenerationRequest(prompt="prompt", response_modalities=["IMAGE"]))
 
     assert not result.has_image
     assert result.error == "Batch job failed with state FAILED: Something went wrong"

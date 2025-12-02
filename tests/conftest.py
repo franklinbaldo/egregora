@@ -8,7 +8,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
-import duckdb
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
