@@ -1,0 +1,1 @@
+{"includes":["**/*"],"ignores":["docs/**","tests/**",".git/**","**/tmp*","**/dist/**","**/site/**","**/*.bundle.md",".venv/**","**/__pycache__/**"]}
