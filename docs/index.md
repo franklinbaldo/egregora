@@ -2,15 +2,81 @@
 
 **Emergent Group Reflection Engine Generating Organized Relevant Articles**
 
-Welcome to the Egregora documentation! Transform your WhatsApp group chats into intelligent, privacy-first blogs where collective conversations emerge as beautifully written articles.
+<div class="hero" markdown>
+  <div class="hero__content" markdown>
+    <p class="hero__tag">Collective consciousness, rendered.</p>
+    <h1>Turn messy group chats into publishable narratives.</h1>
+    <p class="hero__lede">Egregora ingests WhatsApp exports, scrubs PII, enriches the context, and generates editorial-quality posts that feel like your community wrote them together.</p>
+    <div class="hero__actions">
+      [Get started](getting-started/quickstart.md){ .md-button .md-button--primary }
+      [See the architecture](guide/architecture.md){ .md-button }
+    </div>
+    <div class="hero__meta" markdown>
+      <div>
+        :material-shield-lock-outline: **Privacy-first** — aliases, PII scrubbing, and opt-out tooling baked in.
+      </div>
+      <div>
+        :material-rocket-launch: **Fully automated** — ingestion → enrichment → publication with sensible defaults.
+      </div>
+      <div>
+        :material-chart-timeline-variant: **Context-aware** — RAG retrieval keeps posts consistent across time.
+      </div>
+    </div>
+  </div>
+  <div class="hero__panel" markdown>
+    <p class="hero__panel-label">Pipeline at a glance</p>
+    <ul class="hero__steps">
+      <li><span>1</span> Upload your WhatsApp export</li>
+      <li><span>2</span> Privacy layer strips identifiers</li>
+      <li><span>3</span> Enrichment builds rich context</li>
+      <li><span>4</span> RAG indexing keeps facts aligned</li>
+      <li><span>5</span> Writer assembles polished posts</li>
+    </ul>
+    <p class="hero__panel-foot">Built with Ibis, DuckDB, and Gemini — designed for reproducible, stateless runs.</p>
+  </div>
+</div>
 
-## Features
+## Why Egregora
 
-- 🧠 **Emergent Intelligence**: Collective conversations synthesize into coherent articles
-- 👥 **Group Reflection**: Your community's unique voice and insights are preserved
-- 🛡️ **Privacy-First**: Automatic anonymization - real names never reach the AI
-- ⚙️ **Fully Automated**: Stateless pipeline powered by Ibis, DuckDB, and Gemini
-- 📊 **Smart Context**: RAG retrieval ensures consistent, context-aware writing
+<div class="grid cards" markdown>
+
+-   :material-brain:{ .lg .middle } __Emergent Intelligence__
+
+    ---
+
+    Collective conversations are synthesized into coherent articles with minimal prompts or heuristics.
+
+-   :material-account-group:{ .lg .middle } __Group Reflection__
+
+    ---
+
+    The system preserves your community's unique voice with aliasing and lineage-aware context.
+
+-   :material-lock-check:{ .lg .middle } __Privacy-First__
+
+    ---
+
+    Names never reach the AI. PII detection, opt-out workflows, and aliases are enforced by default.
+
+-   :material-robot-happy-outline:{ .lg .middle } __Fully Automated__
+
+    ---
+
+    Stateless pipeline powered by Ibis, DuckDB, and Gemini — no manual babysitting.
+
+-   :material-chart-box-outline:{ .lg .middle } __Smart Context__
+
+    ---
+
+    RAG retrieval and annotations keep posts consistent, factual, and aligned across time.
+
+-   :material-rocket-launch-outline:{ .lg .middle } __Production Ready__
+
+    ---
+
+    MkDocs output with custom components, instant navigation, and search that works offline.
+
+</div>
 
 ## Quick Links
 
@@ -20,7 +86,7 @@ Welcome to the Egregora documentation! Transform your WhatsApp group chats into 
 
     ---
 
-    Install Egregora and generate your first blog post in minutes
+    Install Egregora and generate your first blog post in minutes.
 
     [:octicons-arrow-right-24: Get Started](getting-started/quickstart.md)
 
@@ -28,7 +94,7 @@ Welcome to the Egregora documentation! Transform your WhatsApp group chats into 
 
     ---
 
-    Learn about the architecture, privacy features, and how to customize your blog
+    Learn about the architecture, privacy features, and how to customize your blog.
 
     [:octicons-arrow-right-24: User Guide](guide/architecture.md)
 
@@ -36,7 +102,7 @@ Welcome to the Egregora documentation! Transform your WhatsApp group chats into 
 
     ---
 
-    Complete API documentation for all modules and functions
+    Complete API documentation for all modules and functions.
 
     [:octicons-arrow-right-24: API Reference](api/index.md)
 
@@ -44,7 +110,7 @@ Welcome to the Egregora documentation! Transform your WhatsApp group chats into 
 
     ---
 
-    Contributing guidelines and development setup instructions
+    Contributing guidelines and development setup instructions.
 
     [:octicons-arrow-right-24: Development](development/contributing.md)
 
