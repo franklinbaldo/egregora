@@ -3,9 +3,22 @@ from __future__ import annotations
 import ipaddress
 import logging
 import socket
+from typing import Any
 from urllib.parse import urlparse
 
+import httpx
+from tenacity import (
+    Retrying,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
 logger = logging.getLogger(__name__)
+
+HTTP_TOO_MANY_REQUESTS = 429
+HTTP_SERVER_ERROR = 500
 
 DEFAULT_BLOCKED_IP_RANGES = (
     ipaddress.ip_network("10.0.0.0/8"),
@@ -93,3 +106,66 @@ def validate_public_url(
         _validate_ip_is_public(ip_addr, url, blocked_ranges)
 
     logger.info("URL validation passed for: %s", url)
+
+
+def get_retry_decorator(
+    max_attempts: int = 5,
+    min_wait: float = 2.0,
+    max_wait: float = 60.0,
+    multiplier: float = 1.0,
+) -> Any:
+    """Get a tenacity retry decorator configured for network calls.
+
+    Retries on:
+    - httpx.HTTPError (except 4xx other than 429)
+    - Connection errors
+
+    Args:
+        max_attempts: Maximum number of attempts
+        min_wait: Minimum wait time in seconds
+        max_wait: Maximum wait time in seconds
+        multiplier: Exponential backoff multiplier
+
+    Returns:
+        A tenacity retry object
+
+    """
+
+    def is_retryable_error(exception: BaseException) -> bool:
+        """Check if exception is retryable."""
+        if isinstance(exception, httpx.HTTPStatusError):
+            status = exception.response.status_code
+            return status == HTTP_TOO_MANY_REQUESTS or status >= HTTP_SERVER_ERROR
+        return isinstance(exception, (httpx.NetworkError, httpx.TimeoutException))
+
+    return retry(
+        stop=stop_after_attempt(max_attempts),
+        wait=wait_exponential(multiplier=multiplier, min=min_wait, max=max_wait),
+        retry=retry_if_exception_type(BaseException) & is_retryable_error,  # type: ignore
+        reraise=True,
+    )
+
+
+def get_retrying_iterator(
+    max_attempts: int = 5,
+    min_wait: float = 2.0,
+    max_wait: float = 60.0,
+    multiplier: float = 1.0,
+) -> Retrying:
+    """Get a tenacity Retrying object for use in loops/contexts.
+
+    Uses the same logic as get_retry_decorator.
+    """
+
+    def is_retryable_error(exception: BaseException) -> bool:
+        if isinstance(exception, httpx.HTTPStatusError):
+            status = exception.response.status_code
+            return status == HTTP_TOO_MANY_REQUESTS or status >= HTTP_SERVER_ERROR
+        return isinstance(exception, (httpx.NetworkError, httpx.TimeoutException))
+
+    return Retrying(
+        stop=stop_after_attempt(max_attempts),
+        wait=wait_exponential(multiplier=multiplier, min=min_wait, max=max_wait),
+        retry=retry_if_exception_type(BaseException) & is_retryable_error,  # type: ignore
+        reraise=True,
+    )

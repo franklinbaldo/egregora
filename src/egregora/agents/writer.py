@@ -33,12 +33,6 @@ from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
 from egregora.agents.banner.agent import is_banner_generation_available
-from egregora.agents.capabilities import (
-    AgentCapability,
-    BackgroundBannerCapability,
-    BannerCapability,
-    RagCapability,
-)
 from egregora.agents.formatting import (
     build_conversation_xml,
     load_journal_memory,
@@ -52,12 +46,17 @@ from egregora.agents.types import PostMetadata, WriterAgentReturn, WriterDeps, W
 from egregora.agents.writer_tools import (
     AnnotationContext,
     AnnotationResult,
+    BannerContext,
+    BannerResult,
     ReadProfileResult,
+    SearchMediaResult,
     ToolContext,
     WritePostResult,
     WriteProfileResult,
     annotate_conversation_impl,
+    generate_banner_impl,
     read_profile_impl,
+    search_media_impl,
     write_post_impl,
     write_profile_impl,
 )
@@ -68,9 +67,9 @@ from egregora.output_adapters import OutputAdapterRegistry, create_default_outpu
 from egregora.rag import index_documents, reset_backend
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
-from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.utils.cache import CacheTier, PipelineCache
 from egregora.utils.metrics import UsageTracker
+from egregora.utils.network import get_retrying_iterator
 from egregora.utils.quota import QuotaExceededError
 
 if TYPE_CHECKING:
@@ -103,56 +102,6 @@ RESULT_KEY_PROFILES = "profiles"
 MessageHistory = Sequence[ModelRequest | ModelResponse]
 LLMClient = Any
 AgentModel = Any
-
-
-# ============================================================================
-# Tool Definitions
-# ============================================================================
-
-
-def register_writer_tools(
-    agent: Agent[WriterDeps, WriterAgentReturn],
-    capabilities: list[AgentCapability],
-) -> None:
-    """Attach tool implementations to the agent via core tools and capabilities."""
-
-    @agent.tool
-    def write_post_tool(ctx: RunContext[WriterDeps], metadata: PostMetadata, content: str) -> WritePostResult:
-        tool_ctx = ToolContext(
-            output_sink=ctx.deps.resources.output,
-            window_label=ctx.deps.window_label,
-        )
-        meta_dict = metadata.model_dump(exclude_none=True)
-        meta_dict["model"] = ctx.deps.model_name
-        return write_post_impl(tool_ctx, meta_dict, content)
-
-    @agent.tool
-    def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str) -> ReadProfileResult:
-        tool_ctx = ToolContext(
-            output_sink=ctx.deps.resources.output,
-            window_label=ctx.deps.window_label,
-        )
-        return read_profile_impl(tool_ctx, author_uuid)
-
-    @agent.tool
-    def write_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str, content: str) -> WriteProfileResult:
-        tool_ctx = ToolContext(
-            output_sink=ctx.deps.resources.output,
-            window_label=ctx.deps.window_label,
-        )
-        return write_profile_impl(tool_ctx, author_uuid, content)
-
-    @agent.tool
-    def annotate_conversation_tool(
-        ctx: RunContext[WriterDeps], parent_id: str, parent_type: str, commentary: str
-    ) -> AnnotationResult:
-        """Annotate a message or another annotation with commentary."""
-        annot_ctx = AnnotationContext(annotations_store=ctx.deps.resources.annotations_store)
-        return annotate_conversation_impl(annot_ctx, parent_id, parent_type, commentary)
-
-    for capability in capabilities:
-        logger.debug("Registering capability: %s", capability.name)
-        capability.register(agent)
 
 
 # ============================================================================
@@ -674,20 +623,6 @@ def write_posts_with_pydantic_agent(
     """Execute the writer flow using Pydantic-AI agent tooling."""
     logger.info("Running writer via Pydantic-AI backend")
 
-    active_capabilities: list[AgentCapability] = []
-    if config.rag.enabled:
-        active_capabilities.append(RagCapability())
-
-    if is_banner_generation_available():
-        if context.resources.task_store and context.resources.run_id:
-            active_capabilities.append(BackgroundBannerCapability(context.resources.run_id))
-        else:
-            active_capabilities.append(BannerCapability())
-
-    if active_capabilities:
-        caps_list = ", ".join(capability.name for capability in active_capabilities)
-        logger.info("Writer capabilities enabled: %s", caps_list)
-
     # Define a simple provider to wrap the SDK client
     class SimpleProvider:
         def __init__(self, client):
@@ -726,13 +661,73 @@ def write_posts_with_pydantic_agent(
             retries=3,
             output_retries=3,
         )
-        register_writer_tools(agent, capabilities=active_capabilities)
+
+        # Register core tools
+        @agent.tool
+        def write_post_tool(
+            ctx: RunContext[WriterDeps], metadata: PostMetadata, content: str
+        ) -> WritePostResult:
+            tool_ctx = ToolContext(
+                output_sink=ctx.deps.resources.output,
+                window_label=ctx.deps.window_label,
+            )
+            meta_dict = metadata.model_dump(exclude_none=True)
+            meta_dict["model"] = ctx.deps.model_name
+            return write_post_impl(tool_ctx, meta_dict, content)
+
+        @agent.tool
+        def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str) -> ReadProfileResult:
+            tool_ctx = ToolContext(
+                output_sink=ctx.deps.resources.output,
+                window_label=ctx.deps.window_label,
+            )
+            return read_profile_impl(tool_ctx, author_uuid)
+
+        @agent.tool
+        def write_profile_tool(
+            ctx: RunContext[WriterDeps], author_uuid: str, content: str
+        ) -> WriteProfileResult:
+            tool_ctx = ToolContext(
+                output_sink=ctx.deps.resources.output,
+                window_label=ctx.deps.window_label,
+            )
+            return write_profile_impl(tool_ctx, author_uuid, content)
+
+        @agent.tool
+        def annotate_conversation_tool(
+            ctx: RunContext[WriterDeps], parent_id: str, parent_type: str, commentary: str
+        ) -> AnnotationResult:
+            """Annotate a message or another annotation with commentary."""
+            annot_ctx = AnnotationContext(annotations_store=ctx.deps.resources.annotations_store)
+            return annotate_conversation_impl(annot_ctx, parent_id, parent_type, commentary)
+
+        # Register optional tools
+        if config.rag.enabled:
+
+            @agent.tool
+            def search_media_tool(ctx: RunContext[WriterDeps], query: str, top_k: int = 5) -> SearchMediaResult:
+                """Search for relevant media (images, videos, audio) in the knowledge base."""
+                return search_media_impl(query, top_k)
+
+        if is_banner_generation_available():
+
+            @agent.tool
+            def generate_banner_tool(
+                ctx: RunContext[WriterDeps], post_slug: str, title: str, summary: str
+            ) -> BannerResult:
+                """Generate a banner image for a post."""
+                banner_ctx = BannerContext(
+                    output_sink=ctx.deps.resources.output,
+                    task_store=ctx.deps.resources.task_store,
+                    run_id=ctx.deps.resources.run_id,
+                )
+                return generate_banner_impl(banner_ctx, post_slug, title, summary)
 
         if context.resources.quota:
             context.resources.quota.reserve(1)
 
         # Use tenacity for retries
-        for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
+        for attempt in get_retrying_iterator():
             with attempt:
                 return await agent.run(prompt, deps=context)
 

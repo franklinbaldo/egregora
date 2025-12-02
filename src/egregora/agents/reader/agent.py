@@ -19,7 +19,7 @@ from pydantic_ai import Agent
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
 from egregora.config.settings import EgregoraConfig
 from egregora.resources.prompts import render_prompt
-from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
+from egregora.utils.network import get_retrying_iterator
 
 if TYPE_CHECKING:
     from egregora.agents.reader.models import EvaluationRequest
@@ -99,9 +99,7 @@ Evaluate both posts and determine which is better quality overall.
 
     logger.debug("Comparing posts: %s vs %s", request.post_a_slug, request.post_b_slug)
 
-    from tenacity import Retrying
-
-    for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
+    for attempt in get_retrying_iterator():
         with attempt:
             result = agent.run_sync(prompt)
     comparison_result = result.data
