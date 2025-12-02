@@ -731,12 +731,25 @@ def write_posts_with_pydantic_agent(
         if context.resources.quota:
             context.resources.quota.reserve(1)
         
-        # Use tenacity for retries
-        for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
-            with attempt:
-                return await agent.run(prompt, deps=context)
-        
-        # Should be unreachable due to reraise=True
+        # Usefrom pydantic_core import ValidationError
+from tenacity import (
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+
+RETRY_STOP = stop_after_attempt(5)
+RETRY_WAIT = wait_exponential(multiplier=1, min=4, max=60)
+RETRY_IF = retry_if_exception_type(
+    (
+        ModelRetry,
+        httpx.HTTPError,
+        httpx.TimeoutException,
+        TimeoutError,
+        ConnectionError,
+        ValidationError,
+    )
+)    # Should be unreachable due to reraise=True
         raise RuntimeError("Agent failed after retries")
 
     reset_backend()
