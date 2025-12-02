@@ -21,8 +21,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
 from egregora.agents.reader.reader_runner import run_reader_evaluation
 from egregora.database.duckdb_manager import DuckDBStorageManager

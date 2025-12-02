@@ -59,6 +59,7 @@ def test_full_pipeline_smoke_test(
 
     # Resolve paths dynamically using the same logic as the adapter
     from egregora.output_adapters.mkdocs.paths import derive_mkdocs_paths
+
     site_paths = derive_mkdocs_paths(site_root)
     posts_dir = site_paths["posts_dir"]
     profiles_dir = site_paths["profiles_dir"]
