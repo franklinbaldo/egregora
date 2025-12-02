@@ -30,9 +30,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install MkDocs
+      - name: Install MkDocs dependencies
         run: |
-          pip install mkdocs mkdocs-material
+          pip install uv
+          uv pip install --system --extras docs .
 
       - name: Build site
         run: mkdocs build --clean
