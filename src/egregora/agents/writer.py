@@ -708,29 +708,42 @@ def write_posts_with_pydantic_agent(
     from egregora.utils.model_fallback import create_fallback_model
 
     # Create model with automatic fallback
-    configured_model = test_model if test_model is not None else config.models.writer
-    model = create_fallback_model(configured_model, use_google_batch=False)
+    # Create model and agent INSIDE the async function to ensure
+    # they are bound to the correct event loop (asyncio.run creates a new loop)
+    async def _run_agent_async() -> ModelResponse:
+        # Create model with automatic fallback
+        configured_model = test_model if test_model is not None else config.models.writer
+        model = create_fallback_model(configured_model, use_google_batch=False)
 
-    # Validate prompt fits
-    _validate_prompt_fits(prompt, configured_model, config, context.window_label)
+        # Validate prompt fits
+        _validate_prompt_fits(prompt, configured_model, config, context.window_label)
 
-    # Create agent
-    agent = Agent[WriterDeps, WriterAgentReturn](
-        model=model,
-        deps_type=WriterDeps,
-        # Allow a few validation retries so transient schema hiccups don't abort the run
-        retries=3,
-        output_retries=3,
-    )
-    register_writer_tools(agent, capabilities=active_capabilities)
+        # Create agent
+        agent = Agent[WriterDeps, WriterAgentReturn](
+            model=model,
+            deps_type=WriterDeps,
+            # Allow a few validation retries so transient schema hiccups don't abort the run
+            retries=3,
+            output_retries=3,
+        )
+        register_writer_tools(agent, capabilities=active_capabilities)
+
+        if context.resources.quota:
+            context.resources.quota.reserve(1)
+        
+        # Use tenacity for retries
+        for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
+            with attempt:
+                return await agent.run(prompt, deps=context)
+        
+        # Should be unreachable due to reraise=True
+        raise RuntimeError("Agent failed after retries")
 
     reset_backend()
     try:
-        if context.resources.quota:
-            context.resources.quota.reserve(1)
-        for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
-            with attempt:
-                result = agent.run_sync(prompt, deps=context)
+        # Run the async agent in a fresh event loop
+        import asyncio
+        result = asyncio.run(_run_agent_async())
     except QuotaExceededError as exc:
         msg = (
             "LLM quota exceeded for this day. No additional posts can be generated "
