@@ -8,7 +8,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
-import duckdb
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -56,7 +55,7 @@ def _ibis_backend(request):
         backend = ibis.duckdb.connect(":memory:")
     except Exception as exc:  # pragma: no cover - guard against broken ibis deps
         pytest.skip(f"ibis backend unavailable: {exc}")
-    
+
     options = getattr(ibis, "options", None)
     previous_backend = getattr(options, "default_backend", None) if options else None
 
