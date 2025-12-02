@@ -29,7 +29,13 @@ class MediaCarousel {
         if (url.includes('vimeo.com')) return 'vimeo';
         if (url.includes('twitter.com') || url.includes('x.com')) return 'twitter';
         if (url.includes('spotify.com')) return 'spotify';
-        if (url.includes('github.com')) return 'github';
+        try {
+            const parsed = new URL(url);
+            const allowedHosts = ['github.com', 'www.github.com'];
+            if (allowedHosts.includes(parsed.hostname)) return 'github';
+        } catch (e) {
+            // If URL parsing fails, treat as card
+        }
         return 'card';
     }
 
