@@ -10,7 +10,6 @@ from pydantic_ai.exceptions import ModelAPIError, UsageLimitExceeded
 from pydantic_ai.models import Model
 from pydantic_ai.models.fallback import FallbackModel
 
-from egregora.config.settings import get_google_api_key
 from egregora.models import GoogleBatchModel
 
 logger = logging.getLogger(__name__)
@@ -158,24 +157,27 @@ def create_fallback_model(
             model = model_def
         elif isinstance(model_def, str):
             if model_def.startswith("google-gla:"):
-                model = GeminiModel(model_def.removeprefix("google-gla:"))
+                from pydantic_ai.providers.google_gla import GoogleGLAProvider
+
+                provider = GoogleGLAProvider(api_key=get_google_api_key())
+                model = GeminiModel(model_def.removeprefix("google-gla:"), provider=provider)
             elif model_def.startswith("openrouter:"):
                 model = OpenAIModel(model_def.removeprefix("openrouter:"), provider="openrouter")
             else:
                 # Default to Gemini for unknown strings in this context
-                model = GeminiModel(model_def)
+                from pydantic_ai.providers.google_gla import GoogleGLAProvider
+
+                provider = GoogleGLAProvider(api_key=get_google_api_key())
+                model = GeminiModel(model_def, provider=provider)
         else:
             raise ValueError(f"Unknown model type: {type(model_def)}")
 
         return RateLimitedModel(model)
 
-    # Prepare models
-    api_key = get_google_api_key()
-
     # 1. Prepare Primary
     primary: Model
     if use_google_batch and isinstance(primary_model, str) and primary_model.startswith("google-gla:"):
-        primary = GoogleBatchModel(api_key=api_key, model_name=primary_model)
+        primary = GoogleBatchModel(model_name=primary_model)
         # GoogleBatchModel is already a Model, wrap it
         primary = RateLimitedModel(primary)
     else:
@@ -185,13 +187,15 @@ def create_fallback_model(
     wrapped_fallbacks: list[Model] = []
     for m in fallback_models:
         if use_google_batch and isinstance(m, str) and m.startswith("google-gla:"):
-            batch_model = GoogleBatchModel(api_key=api_key, model_name=m)
+            batch_model = GoogleBatchModel(model_name=m)
             wrapped_fallbacks.append(RateLimitedModel(batch_model))
         else:
             wrapped_fallbacks.append(_resolve_and_wrap(m))
 
+    from pydantic_core import ValidationError
+
     return FallbackModel(
         primary,
         *wrapped_fallbacks,
-        fallback_on=(ModelAPIError, UsageLimitExceeded),
+        fallback_on=(ModelAPIError, UsageLimitExceeded, ValidationError),
     )

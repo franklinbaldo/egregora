@@ -54,14 +54,14 @@ The default configuration is generated at `.egregora/config.yml`.
 
 ```yaml
 models:
-  writer: google-gla:gemini-flash-latest
-  enricher: google-gla:gemini-flash-latest
-  embedding: google-gla:gemini-embedding-001
+  writer: google-gla:gemini-2.0-flash
+  enricher: google-gla:gemini-2.0-flash
+  embedding: models/gemini-embedding-001
 
 rag:
   enabled: true
   top_k: 5
-  mode: ann  # "ann" (fast) or "exact" (no VSS extension required)
+  # Note: Retrieval mode is now handled automatically by LanceDB
 
 pipeline:
   step_size: 1
@@ -86,7 +86,7 @@ my-blog/
 ├── .egregora/
 │   ├── config.yml          # Local config
 │   ├── runs.duckdb         # Run tracking
-│   ├── rag.duckdb          # Vector embeddings (L2 cache)
+│   ├── lancedb/            # Vector embeddings (RAG)
 │   ├── enrichment.duckdb   # Asset metadata (L1 cache)
 │   ├── writer_cache.duckdb # Generated posts (L3 cache)
 │   └── checkpoint.json     # Resume state
@@ -97,22 +97,33 @@ my-blog/
 
 ## 🏗️ Architecture
 
-### Three-Layer Functional Architecture
+Egregora uses a modular architecture designed for performance and flexibility.
 
-1.  **Layer 3: Orchestration** (`src/egregora/orchestration/`)
-    *   High-level workflows.
+### Core Components
+
+1.  **Orchestration:** (`src/egregora/orchestration/`)
     *   Coordinates the flow of data between adapters and transforms.
+    *   Manages the pipeline lifecycle and state.
 
-2.  **Layer 2: Transformations** (`src/egregora/transformations/`)
-    *   Pure functional transforms (`Table -> Table`).
-    *   Includes windowing, aggregation, and ranking.
+2.  **Transformations:** (`src/egregora/transformations/`)
+    *   Data processing modules using Ibis/DuckDB.
+    *   Handles windowing, aggregation, and ranking.
 
-3.  **Layer 1: Data Primitives** (`src/egregora/data_primitives/`)
-    *   Foundation models (`Document`, `Message`).
-    *   Protocols and interfaces.
+3.  **Data Primitives:** (`src/egregora/data_primitives/`)
+    *   Core models like `Document` and `Message`.
+    *   Defines the protocols for input/output adapters.
+
+### Data Flow
+
+1.  **Ingestion:** Raw data (e.g., WhatsApp ZIP) is parsed into structured tables.
+2.  **Privacy:** PII is redacted and authors are anonymized.
+3.  **Enrichment:** Media and links are analyzed by AI agents.
+4.  **RAG:** Content is indexed in LanceDB for historical context.
+5.  **Generation:** The Writer Agent synthesizes posts using the enriched context.
+6.  **Publication:** The final output is written to disk (Markdown, Parquet, etc.).
 
 ### Design Principles
 
-*   **Intelligence-First:** Pattern recognition > manual configuration.
-*   **Functional Purity:** Transforms are stateless where possible.
-*   **Type-Safe:** 100% type coverage with Pydantic and MyPy.
+*   **Intelligence-First:** We rely on AI for pattern recognition and synthesis.
+*   **Functional Purity:** Data transformations are stateless where possible.
+*   **Type-Safe:** The codebase is fully typed to prevent runtime errors.

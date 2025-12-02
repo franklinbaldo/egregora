@@ -1,0 +1,15 @@
+{% extends "main.html" %}
+
+{% block content %}
+  <div class="md-content__inner md-typeset">
+    <h1>Topics</h1>
+    <div class="tags-grid">
+      {% for tag in site.tags %}
+        <a href="{{ 'posts/tags.md' | url }}#{{ tag.name | slugify }}" class="tag-card">
+          <span class="tag-card-name">{{ tag.name }}</span>
+          <span class="tag-card-count">{{ tag.count }} posts</span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+{% endblock %}

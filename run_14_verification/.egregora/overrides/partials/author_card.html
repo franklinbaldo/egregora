@@ -1,0 +1,13 @@
+<div class="author-card">
+  <div class="author-card-header">
+    <img src="{{ author.avatar }}" alt="{{ author.name }}" class="author-card-avatar">
+    <div class="author-card-info">
+      <span class="author-card-name">{{ author.name }}</span>
+      <span class="author-card-stats">{{ author.post_count }} posts &bull; {{ author.topic_count }} topics</span>
+    </div>
+  </div>
+  <div class="author-card-topics">
+    <strong>Topics:</strong> {{ author.topics | join(', ') }}
+  </div>
+  <a href="{{ 'profiles/' ~ author.uuid ~ '.md' | url }}" class="author-card-link">View Profile →</a>
+</div>

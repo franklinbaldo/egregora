@@ -1,150 +1,109 @@
 # Egregora
-> *The alchemical loom that weaves collective consciousness into living knowledge.*
+> *Turn your chaotic group chat into a structured, readable blog.*
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![uv](https://img.shields.io/badge/uv-powered-FF6C37.svg)](https://github.com/astral-sh/uv)
 [![Pydantic-AI](https://img.shields.io/badge/Pydantic--AI-type--safe-00D9FF.svg)](https://ai.pydantic.dev/)
 
----
-
-## 📜 The Manifesto
-
-**We speak in fragments.**
-
-In our group chats, Slacks, and Discords, we build cathedrals of thought—one brick at a time, separated by hours, memes, and noise. We solve problems, debate philosophy, and uncover truths. And then, we scroll.
-
-**The wisdom is lost.** The context decays. The collective intelligence—the *egregore*—dissipates into the digital ether.
-
-**Egregora is the vessel for this ghost.** It is an engine of synthesis that listens to the chaotic hum of human conversation and weaves it into structured, enduring narratives. It does not just "log" chat; it *understands* it, finding the golden thread of an argument across days of banter and spinning it into a coherent, beautiful chronicle.
-
-It is not a tool for archiving. **It is a tool for remembering.**
+**Egregora** is a tool that reads your chat history and writes a blog. It uses AI to filter noise, synthesize conversations, and generate engaging posts. It is designed to run locally, keeping your data private by default, while using modern LLMs (like Gemini or OpenRouter) to do the heavy lifting of writing and formatting.
 
 ---
 
-## 🧶 The Loom
+## 🚀 Getting Started
 
-Egregora functions as an intelligent pipeline—a loom that takes raw, tangled fibers of conversation and weaves them into the tapestry of a static site.
+Egregora transforms a WhatsApp export (ZIP) into a static website powered by [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/).
 
-```mermaid
-graph LR
-    subgraph Chaos ["The Chaos (Input)"]
-        A[WhatsApp]
-        B[Discord*]
-        C[Slack*]
-    end
+### 1. Prerequisites
+You need **Python 3.12+** and **[uv](https://github.com/astral-sh/uv)** installed. You will also need a Google Gemini API key (free tier available).
 
-    subgraph TheLoom ["The Loom (Egregora)"]
-        D["Ingest & Normalize"] --> E["Pattern Recognition"]
-        E --> F["Enrichment & Context"]
-        F --> G["Synthesis (LLM)"]
-    end
-
-    subgraph Order ["The Order (Output)"]
-        G --> H["Knowledge Base"]
-        G --> I["Narrative Blog"]
-        G --> J["Author Profiles"]
-    end
-
-    Chaos --> D
-    style TheLoom fill:#f9f,stroke:#333,stroke-width:2px
+```bash
+export GOOGLE_API_KEY="your-api-key"
 ```
 
-1.  **Ingest:** Raw logs are normalized into a strict, type-safe schema.
-2.  **Enrich:** External links are unfurled, media is processed, and context is gathered.
-3.  **Recall:** A RAG (Retrieval-Augmented Generation) engine summons past conversations to inform the present, ensuring no insight is an island.
-4.  **Weave:** A sophisticated Agent (The Writer) drafts, edits, and refines the narrative, mimicking the style of a thoughtful chronicler.
-5.  **Publish:** The result is a beautiful, static site—fast, searchable, and permanent.
+### 2. The Workflow
 
----
-
-## ✨ The Threads (Features)
-
-### 🧠 Emergent Intelligence
-Egregora doesn't just summarize; it *synthesizes*. It detects the subtle arc of a conversation that spans three days and forty participants, ignoring the noise to capture the signal.
-
-### 🔮 Temporal Memory (RAG)
-Using **DuckDB VSS**, Egregora remembers what you said last year. When a new topic arises, it pulls relevant threads from the past, adding depth and citation to every new post. It respects the history of your tribe.
-
-### 🎭 The Chorus (Profiles)
-Every voice matters. Egregora builds dynamic profiles for every participant, analyzing their unique contribution style and tracking their "stats" within the collective—not just message counts, but the impact of their ideas.
-
-### 🛡️ Privacy by Design
-The "Ibis Everywhere" architecture ensures that data flows through strict, functional transformations. PII is scrubbed, authors can be anonymized, and the "Privacy-First" invariant is baked into the core.
-
----
-
-## ⚙️ The Engine (Tech Stack)
-
-Under the hood, Egregora is a showcase of modern, high-performance Python engineering. It rejects the bloat of the past for the speed of the future.
-
-*   **[Ibis](https://ibis-project.org/):** The backbone. Lazy, type-safe DataFrames that compile to SQL. No more "pandas spaghetti."
-*   **[DuckDB](https://duckdb.org/):** The muscle. An in-process OLAP database that handles vector search, full-text indexing, and analytics without a server.
-*   **[Pydantic-AI](https://ai.pydantic.dev/):** The brain. Type-safe, structured interaction with LLMs (Gemini).
-*   **[Material for MkDocs](https://squidfunk.github.io/mkdocs-material/):** The face. A gorgeous, responsive, and accessible frontend for your knowledge base.
-
----
-
-## 🧵 Weaving (Usage)
-
-To start your own egregore, you need only a spark (an API key) and some fuel (a chat export).
-
-### 1. The Spark
+**1. Initialize a new site:**
 ```bash
-# Summon the creative fire (Gemini is free and fast)
-export GOOGLE_API_KEY="your-key-here"
-```
-
-### 2. The Fuel
-Export your WhatsApp chat (without media for speed, or with media for richness).
-
-### 3. The Incantation
-```bash
-# Install with uv (the fastest wand in the west)
 uvx --from git+https://github.com/franklinbaldo/egregora \
-    egregora write chat-export.zip --output=./my-collective
+    egregora init ./my-blog
+cd my-blog
 ```
 
-### 4. The Reveal
+**2. Generate posts from your chat export:**
 ```bash
-cd my-collective
+uv run egregora write path/to/chat_export.zip --output=.
+```
+
+**3. Preview your site:**
+```bash
 uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs serve
 ```
-*Behold: Your chaotic group chat is now a structured, searchable library of wisdom at http://localhost:8000.*
+*Visit http://localhost:8000 to read your new blog.*
 
 ---
 
-## 📚 Grimoire (Reference)
+## 🛠️ Configuration
 
-For those who wish to master the finer arts of the loom:
+Egregora is highly configurable via the `.egregora/config.yml` file generated in your site directory.
 
-*   **[Technical Reference](docs/reference.md):** Advanced CLI commands, configuration options, and deep architecture details.
-*   **[Code of the Weaver](CLAUDE.md):** The developer's guide to contributing.
+*   **Models:** Switch between models (e.g., `google-gla:gemini-2.0-flash`, `google-gla:gemini-1.5-pro`) or use OpenRouter.
+*   **Privacy:** Configure PII redaction and anonymization.
+*   **Pipeline:** Adjust how many days of chat form a single post (`step_size`, `step_unit`).
 
----
+👉 **[Full Configuration Reference](docs/configuration.md)**
 
-## 🧭 The Compass (Philosophy)
-
-We adhere to a set of rigid tenets to ensure the Loom never breaks:
-
-*   **Analyze Once, Execute Many:** Heavy LLM work happens once; the artifacts (parsers, regexes) are cached and reused.
-*   **Parse, Don't Validate:** Data is checked at the gates. Inside the walls, we trust the flow.
-*   **No "Pandas Spaghetti":** We use strict schemas and functional transformations.
-*   **Alpha Mindset:** We break things to make them better. Backward compatibility is a shackle we do not wear yet.
+### Customizing the AI
+*   **Prompts:** Edit `.egregora/prompts/writer.jinja` to change the tone and style of the writing.
+*   **Instructions:** Add custom instructions in `config.yml` under `writer.custom_instructions`.
 
 ---
 
-## 🏰 Join the Guild (Contributing)
+## ✨ Features
 
-This project is an open invitation to digital archivists, pythonistas, and philosophers.
+### 🧠 Context & Memory (RAG)
+Egregora uses **LanceDB** to build a vector knowledge base of your conversations. When writing a new post, the AI "remembers" related discussions from the past, adding depth and continuity to the narrative.
 
-If you believe that our digital conversations are worth saving, help us build a better loom.
+### 🖼️ Rich Media
+Images and videos shared in the chat are automatically extracted, optimized, and embedded in the posts. An "Enricher" agent analyzes images to provide descriptions for the Writer agent.
 
-1.  **Read the [Code of the Weaver](CLAUDE.md)** (Architecture & Design).
-2.  **Sync your tools:** `uv sync --all-extras`
-3.  **Run the trials:** `uv run pytest tests/`
-4.  **Submit your thread.**
+### 🎨 Visuals
+A dedicated **Banner Agent** generates unique cover images for each post based on its content, giving your blog a polished look.
+
+### 📊 Ranking & Quality
+The **Reader Agent** uses an ELO rating system to evaluate and rank posts, helping you surface the best content from your archives.
 
 ---
 
-> *"We are the stories we tell together."*
+## 👩‍💻 Developer Guide
+
+Egregora is built with a focus on performance and maintainability.
+
+### Project Structure
+*   `src/egregora/orchestration/`: High-level workflows that coordinate the pipeline.
+*   `src/egregora/agents/`: AI logic powered by **Pydantic-AI**.
+*   `src/egregora/database/`: Data persistence using **DuckDB** and **LanceDB**.
+*   `src/egregora/input_adapters/`: Logic for reading different data sources.
+
+### Performance (Internals)
+We use **Ibis** and **DuckDB** to handle large datasets efficiently.
+*   **Streaming:** Large ZIP files are processed without loading everything into RAM.
+*   **Functional Transforms:** Data flows through pure functions (`Table -> Table`) for speed and reliability.
+
+### Adding New Adapters
+You can extend Egregora to read from other sources (e.g., Slack, Telegram) by implementing the `InputAdapter` protocol in `src/egregora/input_adapters/base.py`.
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Please check out:
+
+*   **[Technical Reference](docs/reference.md):** Deep dive into CLI commands and architecture.
+*   **[Code of the Weaver](CLAUDE.md):** Guidelines for contributors and AI agents.
+
+To run tests:
+```bash
+uv sync --all-extras
+uv run pytest tests/
+```

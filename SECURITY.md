@@ -2,27 +2,37 @@
 
 ## Supported Versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+| Branch/Tag | Status                  |
+|------------|-------------------------|
+| `main`     | :white_check_mark: Active (latest development) |
+| `dev`      | :white_check_mark: Active (staging) |
+| Others     | :x: No longer supported |
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+Security updates for active branches only.
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+Report vulnerabilities responsibly:
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+1. **Preferred**: [GitHub Security Advisories](https://github.com/franklinbaldo/egregora/security/advisories/new) (private until patch).
+2. **Alternative**: Open a private GitHub Issue labeled "security" or email `security@egregora.example` (TBD).
+3. **Critical**: Direct maintainer contact via GitHub profile.
+
+Expect:
+- Acknowledgment within 48 hours.
+- Patch/targeted fix within 7-14 days (priority).
+- Disclosure coordination (CVSS 7+ coordinated).
 
 ## Secure Development Practices
 
-To reduce the risk of regressions that could impact security, all contributors must install the repository's pre-commit hooks
-right after cloning. Run `python dev_tools/setup_hooks.py` (or `uv run pre-commit install`) so linting, formatting, and security
-scans execute locally on every commit—the same checks that run in CI. Contributions submitted without the hooks will be asked to
-install them before review continues.
+- Pre-commit hooks (run `python dev_tools/setup_hooks.py`) enforce linting, secrets scanning, formatting on every commit.
+- Dependencies pinned via `uv.lock`; audit with `uv run ruff check --select=security src/`.
+- No committed secrets; env vars only (e.g., `GOOGLE_API_KEY`).
+- Privacy-by-design: anonymization before LLM; PII detection in pipeline.
+
+## Scope
+
+In-scope: core pipeline (src/egregora), CLI, adapters.
+Out-of-scope: 3rd-party (Gemini API, DuckDB vulns reported upstream).
+
+Thanks for helping keep Egregora secure!
