@@ -7,6 +7,7 @@ capabilities before executing the conversation through a ``pydantic_ai.Agent``.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import Sequence
@@ -740,12 +741,17 @@ def write_posts_with_pydantic_agent(
         raise RuntimeError("Agent failed after retries")
 
     reset_backend()
+    reset_backend()
     try:
-        # Run the async agent in a fresh event loop using asyncio.run
-        # We must create the model and agent INSIDE the loop to avoid
-        # attaching to a different loop (or no loop) during init.
+        # Run the async agent in a fresh thread with its own event loop
+        # This prevents "bound to different event loop" errors by ensuring complete isolation
         import asyncio
-        result = asyncio.run(_run_agent_async())
+        from concurrent.futures import ThreadPoolExecutor
+        
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(asyncio.run, _run_agent_async())
+            result = future.result()
+            
     except QuotaExceededError as exc:
         msg = (
             "LLM quota exceeded for this day. No additional posts can be generated "
@@ -881,7 +887,7 @@ def _index_new_content_in_rag(
                         break
 
         if docs:
-            asyncio.run(index_documents(docs))
+            index_documents(docs)
             logger.info("Indexed %d new posts in RAG", len(docs))
         else:
             logger.debug("No new documents to index in RAG")

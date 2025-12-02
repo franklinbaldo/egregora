@@ -21,7 +21,7 @@ from __future__ import annotations
 import tempfile
 import time
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
@@ -45,7 +45,7 @@ def temp_db_dir() -> Path:
 def mock_embed_fn():
     """Create a mock embedding function that returns deterministic vectors."""
 
-    async def embed(texts: list[str], task_type: str) -> list[list[float]]:
+    def embed(texts: list[str], task_type: str) -> list[list[float]]:
         # Return deterministic embeddings based on text content
         # This allows us to test similarity meaningfully
         embeddings = []
@@ -64,7 +64,7 @@ def mock_embed_fn():
 def mock_embed_fn_similar():
     """Create an embedding function where similar texts get similar embeddings."""
 
-    async def embed(texts: list[str], task_type: str) -> list[list[float]]:
+    def embed(texts: list[str], task_type: str) -> list[list[float]]:
         embeddings = []
         for text in texts:
             # Create embeddings based on word overlap
@@ -221,8 +221,7 @@ def test_chunking_word_boundary_splitting():
 # ============================================================================
 
 
-@pytest.mark.asyncio
-async def test_backend_index_empty_documents(temp_db_dir: Path, mock_embed_fn):
+def test_backend_index_empty_documents(temp_db_dir: Path, mock_embed_fn):
     """Test indexing with empty document list."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -231,11 +230,10 @@ async def test_backend_index_empty_documents(temp_db_dir: Path, mock_embed_fn):
     )
 
     # Should not raise
-    await backend.index_documents([])
+    backend.index_documents([])
 
 
-@pytest.mark.asyncio
-async def test_backend_index_documents_idempotency(temp_db_dir: Path, mock_embed_fn):
+def test_backend_index_documents_idempotency(temp_db_dir: Path, mock_embed_fn):
     """Test that indexing the same document twice is idempotent."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -246,21 +244,20 @@ async def test_backend_index_documents_idempotency(temp_db_dir: Path, mock_embed
     doc = Document(content="Test document", type=DocumentType.POST)
 
     # Index once
-    await backend.index_documents([doc])
+    backend.index_documents([doc])
 
     # Index again (should upsert, not duplicate)
-    await backend.index_documents([doc])
+    backend.index_documents([doc])
 
     # Query should return only one result
     request = RAGQueryRequest(text="Test document", top_k=10)
-    response = await backend.query(request)
+    response = backend.query(request)
 
     # Should have exactly 1 hit (not duplicated)
     assert len(response.hits) == 1
 
 
-@pytest.mark.asyncio
-async def test_backend_index_documents_with_custom_types(temp_db_dir: Path, mock_embed_fn):
+def test_backend_index_documents_with_custom_types(temp_db_dir: Path, mock_embed_fn):
     """Test indexing with custom document types."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -275,17 +272,16 @@ async def test_backend_index_documents_with_custom_types(temp_db_dir: Path, mock
         Document(content="Annotation content", type=DocumentType.ANNOTATION),
     ]
 
-    await backend.index_documents(docs)
+    backend.index_documents(docs)
 
     # Query - should only have POST and MEDIA indexed (ANNOTATION should be filtered out)
     request = RAGQueryRequest(text="content", top_k=10)
-    response = await backend.query(request)
+    response = backend.query(request)
 
     assert len(response.hits) == 2
 
 
-@pytest.mark.asyncio
-async def test_backend_index_large_batch(temp_db_dir: Path, mock_embed_fn):
+def test_backend_index_large_batch(temp_db_dir: Path, mock_embed_fn):
     """Test indexing a large batch of documents."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -297,11 +293,11 @@ async def test_backend_index_large_batch(temp_db_dir: Path, mock_embed_fn):
     docs = [Document(content=f"Document {i} with unique content", type=DocumentType.POST) for i in range(100)]
 
     # Should handle large batch
-    await backend.index_documents(docs)
+    backend.index_documents(docs)
 
     # Verify all indexed (top_k can now go up to 100)
     request = RAGQueryRequest(text="Document", top_k=50)
-    response = await backend.query(request)
+    response = backend.query(request)
 
     assert len(response.hits) == 50
 
@@ -309,11 +305,10 @@ async def test_backend_index_large_batch(temp_db_dir: Path, mock_embed_fn):
     # or check the table directly, but this at least confirms indexing succeeded
 
 
-@pytest.mark.asyncio
-async def test_backend_index_embedding_failure(temp_db_dir: Path):
+def test_backend_index_embedding_failure(temp_db_dir: Path):
     """Test handling of embedding failures."""
 
-    async def failing_embed_fn(texts: list[str], task_type: str) -> list[list[float]]:
+    def failing_embed_fn(texts: list[str], task_type: str) -> list[list[float]]:
         msg = "Embedding API failed"
         raise RuntimeError(msg)
 
@@ -326,14 +321,13 @@ async def test_backend_index_embedding_failure(temp_db_dir: Path):
     doc = Document(content="Test", type=DocumentType.POST)
 
     with pytest.raises(RuntimeError, match="Failed to compute embeddings"):
-        await backend.index_documents([doc])
+        backend.index_documents([doc])
 
 
-@pytest.mark.asyncio
-async def test_backend_index_embedding_count_mismatch(temp_db_dir: Path):
+def test_backend_index_embedding_count_mismatch(temp_db_dir: Path):
     """Test handling of embedding count mismatch."""
 
-    async def bad_embed_fn(texts: list[str], task_type: str) -> list[list[float]]:
+    def bad_embed_fn(texts: list[str], task_type: str) -> list[list[float]]:
         # Return wrong number of embeddings
         return [np.random.rand(768).tolist()]  # noqa: NPY002
 
@@ -349,7 +343,7 @@ async def test_backend_index_embedding_count_mismatch(temp_db_dir: Path):
     ]
 
     with pytest.raises(RuntimeError, match="Embedding count mismatch"):
-        await backend.index_documents(docs)
+        backend.index_documents(docs)
 
 
 # ============================================================================
@@ -357,8 +351,7 @@ async def test_backend_index_embedding_count_mismatch(temp_db_dir: Path):
 # ============================================================================
 
 
-@pytest.mark.asyncio
-async def test_backend_query_basic(temp_db_dir: Path, mock_embed_fn_similar):
+def test_backend_query_basic(temp_db_dir: Path, mock_embed_fn_similar):
     """Test basic query functionality."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -372,19 +365,18 @@ async def test_backend_query_basic(temp_db_dir: Path, mock_embed_fn_similar):
         Document(content="Deep learning with neural networks", type=DocumentType.POST),
     ]
 
-    await backend.index_documents(docs)
+    backend.index_documents(docs)
 
     # Query for machine learning
     request = RAGQueryRequest(text="machine learning", top_k=2)
-    response = await backend.query(request)
+    response = backend.query(request)
 
     assert len(response.hits) == 2
     # First hit should have "Machine learning" due to word overlap
     assert "Machine learning" in response.hits[0].text or "Deep learning" in response.hits[0].text
 
 
-@pytest.mark.asyncio
-async def test_backend_query_top_k_limit(temp_db_dir: Path, mock_embed_fn):
+def test_backend_query_top_k_limit(temp_db_dir: Path, mock_embed_fn):
     """Test that top_k limit is respected.
 
     The top_k parameter is now directly controlled by RAGQueryRequest with a default
@@ -398,29 +390,28 @@ async def test_backend_query_top_k_limit(temp_db_dir: Path, mock_embed_fn):
 
     # Index 15 documents
     docs = [Document(content=f"Document {i}", type=DocumentType.POST) for i in range(15)]
-    await backend.index_documents(docs)
+    backend.index_documents(docs)
 
     # Query with top_k=5
     request = RAGQueryRequest(text="Document", top_k=5)
-    response = await backend.query(request)
+    response = backend.query(request)
 
     assert len(response.hits) == 5
 
     # Query with default top_k=5 (RAGQueryRequest defaults to 5)
     request_default = RAGQueryRequest(text="Document")
-    response_default = await backend.query(request_default)
+    response_default = backend.query(request_default)
 
     assert len(response_default.hits) == 5
 
     # Test the new higher limit
     request_large = RAGQueryRequest(text="Document", top_k=15)
-    response_large = await backend.query(request_large)
+    response_large = backend.query(request_large)
 
     assert len(response_large.hits) == 15
 
 
-@pytest.mark.asyncio
-async def test_backend_query_empty_database(temp_db_dir: Path, mock_embed_fn):
+def test_backend_query_empty_database(temp_db_dir: Path, mock_embed_fn):
     """Test querying an empty database."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -429,13 +420,12 @@ async def test_backend_query_empty_database(temp_db_dir: Path, mock_embed_fn):
     )
 
     request = RAGQueryRequest(text="test query", top_k=5)
-    response = await backend.query(request)
+    response = backend.query(request)
 
     assert len(response.hits) == 0
 
 
-@pytest.mark.asyncio
-async def test_backend_query_score_range(temp_db_dir: Path, mock_embed_fn):
+def test_backend_query_score_range(temp_db_dir: Path, mock_embed_fn):
     """Test that similarity scores are in the correct range.
 
     After fixing to use cosine metric:
@@ -452,10 +442,10 @@ async def test_backend_query_score_range(temp_db_dir: Path, mock_embed_fn):
     )
 
     docs = [Document(content=f"Document {i}", type=DocumentType.POST) for i in range(5)]
-    await backend.index_documents(docs)
+    backend.index_documents(docs)
 
     request = RAGQueryRequest(text="Document", top_k=5)
-    response = await backend.query(request)
+    response = backend.query(request)
 
     assert len(response.hits) == 5
     for hit in response.hits:
@@ -470,8 +460,7 @@ async def test_backend_query_score_range(temp_db_dir: Path, mock_embed_fn):
     assert scores == sorted(scores, reverse=True), "Hits should be ranked by score (descending)"
 
 
-@pytest.mark.asyncio
-async def test_backend_query_metadata_preservation(temp_db_dir: Path, mock_embed_fn):
+def test_backend_query_metadata_preservation(temp_db_dir: Path, mock_embed_fn):
     """Test that metadata is preserved in query results."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -485,10 +474,10 @@ async def test_backend_query_metadata_preservation(temp_db_dir: Path, mock_embed
         metadata={"title": "Test", "author": "Alice", "tags": "test,sample"},
     )
 
-    await backend.index_documents([doc])
+    backend.index_documents([doc])
 
     request = RAGQueryRequest(text="Test", top_k=1)
-    response = await backend.query(request)
+    response = backend.query(request)
 
     assert len(response.hits) == 1
     hit = response.hits[0]
@@ -497,8 +486,7 @@ async def test_backend_query_metadata_preservation(temp_db_dir: Path, mock_embed
     assert hit.metadata["tags"] == "test,sample"
 
 
-@pytest.mark.asyncio
-async def test_backend_query_chunk_id_format(temp_db_dir: Path, mock_embed_fn):
+def test_backend_query_chunk_id_format(temp_db_dir: Path, mock_embed_fn):
     """Test that chunk IDs follow expected format."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -510,10 +498,10 @@ async def test_backend_query_chunk_id_format(temp_db_dir: Path, mock_embed_fn):
     content = " ".join([f"Word{i}" for i in range(200)])  # Large document
     doc = Document(content=content, type=DocumentType.POST)
 
-    await backend.index_documents([doc])
+    backend.index_documents([doc])
 
     request = RAGQueryRequest(text="Word", top_k=10)
-    response = await backend.query(request)
+    response = backend.query(request)
 
     # All hits should have chunk_ids in format "{document_id}:{index}"
     for hit in response.hits:
@@ -523,8 +511,7 @@ async def test_backend_query_chunk_id_format(temp_db_dir: Path, mock_embed_fn):
         assert chunk_idx.isdigit()
 
 
-@pytest.mark.asyncio
-async def test_backend_asymmetric_embeddings(temp_db_dir: Path):
+def test_backend_asymmetric_embeddings(temp_db_dir: Path):
     """Test that documents and queries use different task_types for asymmetric embeddings.
 
     Google Gemini embeddings are asymmetric - documents should use RETRIEVAL_DOCUMENT
@@ -533,7 +520,7 @@ async def test_backend_asymmetric_embeddings(temp_db_dir: Path):
     # Track what task_types were used
     embedding_calls = []
 
-    async def mock_embed_with_task_tracking(texts: list[str], task_type: str) -> list[list[float]]:
+    def mock_embed_with_task_tracking(texts: list[str], task_type: str) -> list[list[float]]:
         embedding_calls.append({"count": len(texts), "task_type": task_type})
 
         # Return mock embeddings
@@ -550,11 +537,11 @@ async def test_backend_asymmetric_embeddings(temp_db_dir: Path):
         Document(content="Document 1", type=DocumentType.POST),
         Document(content="Document 2", type=DocumentType.POST),
     ]
-    await backend.index_documents(docs)
+    backend.index_documents(docs)
 
     # Query (should use RETRIEVAL_QUERY)
     request = RAGQueryRequest(text="search query", top_k=5)
-    await backend.query(request)
+    backend.query(request)
 
     # Verify task types
     assert len(embedding_calls) == 2, "Should have 2 embedding calls (index + query)"
@@ -568,8 +555,7 @@ async def test_backend_asymmetric_embeddings(temp_db_dir: Path):
     assert query_call["task_type"] == "RETRIEVAL_QUERY"
 
 
-@pytest.mark.asyncio
-async def test_backend_query_with_filters(temp_db_dir: Path, mock_embed_fn):
+def test_backend_query_with_filters(temp_db_dir: Path, mock_embed_fn):
     """Test query with metadata filters.
 
     Filters now accept SQL WHERE clause strings, matching LanceDB's native API.
@@ -589,11 +575,11 @@ async def test_backend_query_with_filters(temp_db_dir: Path, mock_embed_fn):
         Document(content="Post about cooking", type=DocumentType.POST, metadata={"category": "food"}),
     ]
 
-    await backend.index_documents(docs)
+    backend.index_documents(docs)
 
     # Test that basic query works without filters
     request = RAGQueryRequest(text="Post", top_k=10, filters=None)
-    response = await backend.query(request)
+    response = backend.query(request)
 
     assert len(response.hits) == 2
 
@@ -603,7 +589,7 @@ async def test_backend_query_with_filters(temp_db_dir: Path, mock_embed_fn):
 
     # Filter to only that specific document
     request_filtered = RAGQueryRequest(text="Post", top_k=10, filters=f"document_id = '{doc_id}'")
-    response_filtered = await backend.query(request_filtered)
+    response_filtered = backend.query(request_filtered)
 
     # Should only return chunks from that one document
     assert len(response_filtered.hits) >= 1
@@ -615,14 +601,13 @@ async def test_backend_query_with_filters(temp_db_dir: Path, mock_embed_fn):
 # ============================================================================
 
 
-@pytest.mark.asyncio
-async def test_high_level_api_index_and_search():
+def test_high_level_api_index_and_search():
     """Test the high-level index_documents() and search() API."""
     with (
         tempfile.TemporaryDirectory(),
         patch("egregora.rag._create_backend") as mock_create,
     ):
-        mock_backend = AsyncMock()
+        mock_backend = Mock()
         mock_create.return_value = mock_backend
 
         # Reset global backend
@@ -630,13 +615,13 @@ async def test_high_level_api_index_and_search():
 
         # Use high-level API
         docs = [Document(content="Test", type=DocumentType.POST)]
-        await index_documents(docs)
+        index_documents(docs)
 
         mock_backend.index_documents.assert_called_once_with(docs)
 
         # Search
         request = RAGQueryRequest(text="Test", top_k=5)
-        await search(request)
+        search(request)
 
         mock_backend.query.assert_called_once_with(request)
 
@@ -697,8 +682,7 @@ def test_chunking_single_long_word():
     assert len(chunks) >= 1
 
 
-@pytest.mark.asyncio
-async def test_backend_persistence_across_sessions(temp_db_dir: Path, mock_embed_fn):
+def test_backend_persistence_across_sessions(temp_db_dir: Path, mock_embed_fn):
     """Test that indexed data persists across backend instances."""
     # Create backend and index documents
     backend1 = LanceDBRAGBackend(
@@ -708,7 +692,7 @@ async def test_backend_persistence_across_sessions(temp_db_dir: Path, mock_embed
     )
 
     doc = Document(content="Persistent test document", type=DocumentType.POST)
-    await backend1.index_documents([doc])
+    backend1.index_documents([doc])
 
     # Create new backend instance pointing to same directory
     backend2 = LanceDBRAGBackend(
@@ -719,14 +703,13 @@ async def test_backend_persistence_across_sessions(temp_db_dir: Path, mock_embed
 
     # Should be able to query previously indexed data
     request = RAGQueryRequest(text="Persistent", top_k=1)
-    response = await backend2.query(request)
+    response = backend2.query(request)
 
     assert len(response.hits) == 1
     assert "Persistent" in response.hits[0].text
 
 
-@pytest.mark.asyncio
-async def test_backend_multiple_tables(temp_db_dir: Path, mock_embed_fn):
+def test_backend_multiple_tables(temp_db_dir: Path, mock_embed_fn):
     """Test that multiple tables can coexist in same database."""
     backend1 = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -741,12 +724,12 @@ async def test_backend_multiple_tables(temp_db_dir: Path, mock_embed_fn):
     )
 
     # Index different documents in each table
-    await backend1.index_documents([Document(content="Table 1 content", type=DocumentType.POST)])
-    await backend2.index_documents([Document(content="Table 2 content", type=DocumentType.POST)])
+    backend1.index_documents([Document(content="Table 1 content", type=DocumentType.POST)])
+    backend2.index_documents([Document(content="Table 2 content", type=DocumentType.POST)])
 
     # Query each table - should return only its own documents
-    response1 = await backend1.query(RAGQueryRequest(text="Table", top_k=10))
-    response2 = await backend2.query(RAGQueryRequest(text="Table", top_k=10))
+    response1 = backend1.query(RAGQueryRequest(text="Table", top_k=10))
+    response2 = backend2.query(RAGQueryRequest(text="Table", top_k=10))
 
     assert len(response1.hits) == 1
     assert len(response2.hits) == 1
@@ -782,8 +765,7 @@ def test_chunking_performance():
     assert len(chunks) > 500
 
 
-@pytest.mark.asyncio
-async def test_backend_concurrent_queries(temp_db_dir: Path, mock_embed_fn):
+def test_backend_concurrent_queries(temp_db_dir: Path, mock_embed_fn):
     """Test that backend handles concurrent queries correctly."""
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -793,13 +775,13 @@ async def test_backend_concurrent_queries(temp_db_dir: Path, mock_embed_fn):
 
     # Index some documents
     docs = [Document(content=f"Document {i}", type=DocumentType.POST) for i in range(10)]
-    await backend.index_documents(docs)
+    backend.index_documents(docs)
 
     # Perform multiple queries
     responses = []
     for i in range(5):
         request = RAGQueryRequest(text=f"Document {i}", top_k=3)
-        response = await backend.query(request)
+        response = backend.query(request)
         responses.append(response)
 
     # All queries should succeed
@@ -812,8 +794,7 @@ async def test_backend_concurrent_queries(temp_db_dir: Path, mock_embed_fn):
 # ============================================================================
 
 
-@pytest.mark.asyncio
-async def test_end_to_end_workflow(temp_db_dir: Path, mock_embed_fn_similar):
+def test_end_to_end_workflow(temp_db_dir: Path, mock_embed_fn_similar):
     """Test complete end-to-end RAG workflow."""
     # 1. Create backend
     backend = LanceDBRAGBackend(
@@ -848,19 +829,19 @@ async def test_end_to_end_workflow(temp_db_dir: Path, mock_embed_fn_similar):
     ]
 
     # 3. Index documents
-    await backend.index_documents(docs)
+    backend.index_documents(docs)
 
     # 4. Perform searches
     # Search for Python-related content
     python_query = RAGQueryRequest(text="Python programming", top_k=2)
-    python_results = await backend.query(python_query)
+    python_results = backend.query(python_query)
 
     assert len(python_results.hits) == 2
     # Should find Python and Django docs
 
     # Search for AI-related content
     ai_query = RAGQueryRequest(text="artificial intelligence neural", top_k=2)
-    ai_results = await backend.query(ai_query)
+    ai_results = backend.query(ai_query)
 
     assert len(ai_results.hits) == 2
 
