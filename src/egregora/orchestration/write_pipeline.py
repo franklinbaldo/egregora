@@ -290,6 +290,10 @@ def _process_single_window(
     resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
 
+    print(f"DEBUG: Calling write_posts_for_window for {window_label}")
+    print(f"DEBUG: Enriched table rows: {enriched_table.count().execute()}")
+    print(f"DEBUG: Resources: {resources}")
+
     result = write_posts_for_window(
         table=enriched_table,
         window_start=window.start_time,
@@ -773,8 +777,10 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     cache_dir = Path(".egregora-cache") / site_paths["site_root"].name
     cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
     site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
-    db_file = site_paths["egregora_dir"] / "app.duckdb"
-    storage = DuckDBStorageManager(db_path=db_file)
+    
+    # Use the pipeline backend for storage to ensure we share the same connection
+    # This prevents "read-only transaction" errors and database invalidation
+    storage = DuckDBStorageManager.from_ibis_backend(pipeline_backend)
     annotations_store = AnnotationStore(storage)
 
     # Initialize TaskStore for async operations
@@ -1066,7 +1072,7 @@ def _prepare_pipeline_data(
             # Get existing documents from output format
             existing_docs = list(output_format.documents())
             if existing_docs:
-                asyncio.run(index_documents(existing_docs))
+                index_documents(existing_docs)
                 logger.info("[green]✓ Indexed %d existing documents into RAG[/]", len(existing_docs))
                 reset_backend()
             else:
