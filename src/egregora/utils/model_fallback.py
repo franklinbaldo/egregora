@@ -3,18 +3,20 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+import time
 
 import httpx
+from pydantic_ai.exceptions import ModelAPIError, UsageLimitExceeded
+from pydantic_ai.models import Model
 from pydantic_ai.models.fallback import FallbackModel
 
-if TYPE_CHECKING:
-    from pydantic_ai.models import Model
+from egregora.config.settings import get_google_api_key
+from egregora.models import GoogleBatchModel
 
 logger = logging.getLogger(__name__)
 
 # Cache for OpenRouter free models to avoid repeated API calls
-_free_models_cache: list[str] | None = None
+_free_models_cache: dict[str, list[str]] = {}
 _cache_timestamp: float = 0
 CACHE_TTL = 3600  # Cache for 1 hour
 
@@ -46,8 +48,12 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:
     """
     global _free_models_cache, _cache_timestamp
 
-    # Use a different cache key for each modality
-    cache_key = f"_{modality}_models_cache"
+    current_time = time.time()
+
+    # Check cache validity
+    if _free_models_cache and (current_time - _cache_timestamp < CACHE_TTL):
+        if modality in _free_models_cache:
+            return _free_models_cache[modality]
 
     free_models: list[str] = []
     try:
@@ -79,17 +85,17 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:
                 free_models.append(f"openrouter:{model['id']}")
 
         logger.info("Fetched %d free OpenRouter models for modality '%s'", len(free_models), modality)
+
+        # Update cache
+        if modality not in _free_models_cache:
+            _free_models_cache[modality] = []
+        _free_models_cache[modality] = free_models
+        _cache_timestamp = current_time
+
     except (httpx.HTTPError, httpx.TimeoutException) as e:
-        logger.warning("Failed to fetch OpenRouter free models: %s. Using fallback list.", e)
-        # Return hardcoded fallback if API call fails (text-only models)
-        if modality in ("text", "any"):
-            free_models = [
-                "openrouter:x-ai/grok-beta",
-                "openrouter:google/gemma-2-9b-it:free",
-                "openrouter:meta-llama/llama-3.1-8b-instruct:free",
-                "openrouter:mistralai/mistral-7b-instruct:free",
-            ]
-        # For vision, return empty list as fallback since we don't have reliable free vision models
+        logger.warning("Failed to fetch OpenRouter free models: %s. No OpenRouter fallback available.", e)
+        # Return empty list if API call fails - do not use hardcoded fallbacks
+        free_models = []
 
     return free_models
 
@@ -100,6 +106,7 @@ def create_fallback_model(
     *,
     include_openrouter: bool = True,
     modality: str = "text",
+    use_google_batch: bool = False,
 ) -> Model:
     """Create a FallbackModel with automatic fallback on 429 errors.
 
@@ -137,8 +144,54 @@ def create_fallback_model(
             except (httpx.HTTPError, httpx.TimeoutException) as e:
                 logger.warning("Failed to add OpenRouter models to fallback: %s", e)
 
-    # FallbackModel defaults to falling back on ModelAPIError (which includes 429)
+    from pydantic_ai.models.gemini import GeminiModel
+    from pydantic_ai.models.openai import OpenAIModel
+
+    from egregora.models.rate_limited import RateLimitedModel
+
+    def _resolve_and_wrap(model_def: str | Model) -> Model:
+        if isinstance(model_def, RateLimitedModel):
+            return model_def
+
+        model: Model
+        if isinstance(model_def, Model):
+            model = model_def
+        elif isinstance(model_def, str):
+            if model_def.startswith("google-gla:"):
+                model = GeminiModel(model_def.removeprefix("google-gla:"))
+            elif model_def.startswith("openrouter:"):
+                model = OpenAIModel(model_def.removeprefix("openrouter:"), provider="openrouter")
+            else:
+                # Default to Gemini for unknown strings in this context
+                model = GeminiModel(model_def)
+        else:
+            raise ValueError(f"Unknown model type: {type(model_def)}")
+
+        return RateLimitedModel(model)
+
+    # Prepare models
+    api_key = get_google_api_key()
+
+    # 1. Prepare Primary
+    primary: Model
+    if use_google_batch and isinstance(primary_model, str) and primary_model.startswith("google-gla:"):
+        primary = GoogleBatchModel(api_key=api_key, model_name=primary_model)
+        # GoogleBatchModel is already a Model, wrap it
+        primary = RateLimitedModel(primary)
+    else:
+        primary = _resolve_and_wrap(primary_model)
+
+    # 2. Prepare Fallbacks
+    wrapped_fallbacks: list[Model] = []
+    for m in fallback_models:
+        if use_google_batch and isinstance(m, str) and m.startswith("google-gla:"):
+            batch_model = GoogleBatchModel(api_key=api_key, model_name=m)
+            wrapped_fallbacks.append(RateLimitedModel(batch_model))
+        else:
+            wrapped_fallbacks.append(_resolve_and_wrap(m))
+
     return FallbackModel(
-        primary_model,
-        *fallback_models,
+        primary,
+        *wrapped_fallbacks,
+        fallback_on=(ModelAPIError, UsageLimitExceeded),
     )

@@ -709,7 +709,7 @@ def write_posts_with_pydantic_agent(
 
     # Create model with automatic fallback
     configured_model = test_model if test_model is not None else config.models.writer
-    model = create_fallback_model(configured_model)
+    model = create_fallback_model(configured_model, use_google_batch=False)
 
     # Validate prompt fits
     _validate_prompt_fits(prompt, configured_model, config, context.window_label)
