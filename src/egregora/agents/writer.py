@@ -30,7 +30,6 @@ from pydantic_ai.messages import (
     ToolReturnPart,
 )
 from ratelimit import limits, sleep_and_retry
-from tenacity import Retrying
 
 from egregora.agents.banner.agent import is_banner_generation_available
 from egregora.agents.formatting import (
@@ -540,8 +539,6 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
     return saved_posts, saved_profiles
 
 
-
-
 def _validate_prompt_fits(
     prompt: str,
     model_name: str,
@@ -673,7 +670,9 @@ def write_posts_with_pydantic_agent(
         if config.rag.enabled:
 
             @agent.tool
-            def search_media_tool(ctx: RunContext[WriterDeps], query: str, top_k: int = 5) -> SearchMediaResult:
+            def search_media_tool(
+                ctx: RunContext[WriterDeps], query: str, top_k: int = 5
+            ) -> SearchMediaResult:
                 """Search for relevant media (images, videos, audio) in the knowledge base."""
                 return search_media_impl(query, top_k)
 

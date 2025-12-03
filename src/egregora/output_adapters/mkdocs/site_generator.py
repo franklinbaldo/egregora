@@ -13,8 +13,7 @@ for how that data is presented in the final static site.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
-from pathlib import Path
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from egregora.data_primitives.document import Document, DocumentType
@@ -89,11 +88,13 @@ def get_recent_media(adapter: MkDocsAdapter, limit: int = 5) -> list[dict[str, A
 
     recent = []
     for doc in images[:limit]:
-        recent.append({
-            "path": doc.metadata.get("path", ""),
-            "caption": doc.metadata.get("caption", "") or doc.document_id,
-            "date": get_date(doc),
-        })
+        recent.append(
+            {
+                "path": doc.metadata.get("path", ""),
+                "caption": doc.metadata.get("caption", "") or doc.document_id,
+                "date": get_date(doc),
+            }
+        )
     return recent
 
 
@@ -106,7 +107,7 @@ def _append_author_cards(content: str, adapter: MkDocsAdapter) -> str:
     if not profiles:
         return content
 
-    cards_section = "\n\n## Contributors\n\n<div class=\"grid cards\" markdown>\n"
+    cards_section = '\n\n## Contributors\n\n<div class="grid cards" markdown>\n'
 
     for profile in profiles:
         name = profile.get("name", "Unknown Author")

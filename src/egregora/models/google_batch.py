@@ -155,7 +155,9 @@ class GoogleBatchModel(Model):
             uploaded_file = retry_call(
                 lambda: client.files.upload(
                     file=temp_path,
-                    config=types.UploadFileConfig(display_name="pydantic-ai-batch", mime_type="application/json"),
+                    config=types.UploadFileConfig(
+                        display_name="pydantic-ai-batch", mime_type="application/json"
+                    ),
                 )
             )
 
