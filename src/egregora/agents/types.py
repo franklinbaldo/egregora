@@ -10,18 +10,15 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
-    from google import genai
-
     from egregora.agents.shared.annotations import AnnotationStore
     from egregora.config.settings import RAGSettings
     from egregora.data_primitives.protocols import OutputSink
     from egregora.database.task_store import TaskStore
-    from egregora.output_adapters import OutputAdapterRegistry
     from egregora.utils.metrics import UsageTracker
     from egregora.utils.quota import QuotaTracker
 
@@ -51,17 +48,12 @@ class WriterResources:
 
     output: OutputSink
     annotations_store: AnnotationStore | None
-    storage: Any | None
-    embedding_model: str
     retrieval_config: RAGSettings
     profiles_dir: Path
-    journal_dir: Path
     prompts_dir: Path | None
-    client: genai.Client | None
     quota: QuotaTracker | None
     usage: UsageTracker | None
     task_store: TaskStore | None = None
-    output_registry: OutputAdapterRegistry | None = None
     run_id: uuid.UUID | str | None = None
 
 

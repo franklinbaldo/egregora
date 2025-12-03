@@ -358,15 +358,12 @@ def test_model_settings():
 
 @pytest.fixture
 def test_rag_settings():
-    """RAG settings for unit tests (disabled by default).
-
-    Most unit tests don't need RAG. Enable explicitly in RAG-specific tests.
+    """RAG settings for unit tests.
 
     Returns:
-        RAGSettings with RAG disabled and test-optimized values
+        RAGSettings with test-optimized values
     """
     return RAGSettings(
-        enabled=False,
         top_k=3,  # Smaller for tests
         min_similarity_threshold=0.7,
         embedding_max_batch_size=3,  # Faster than default 100
@@ -386,9 +383,7 @@ def test_rag_settings_enabled(test_rag_settings):
     Returns:
         RAGSettings with RAG enabled
     """
-    settings = test_rag_settings.model_copy(deep=True)
-    settings.enabled = True
-    return settings
+    return test_rag_settings.model_copy(deep=True)
 
 
 @pytest.fixture
@@ -407,7 +402,6 @@ def minimal_config(tmp_path: Path):
     config = create_default_config(site_root=tmp_path / "site")
 
     # Disable slow components
-    config.rag.enabled = False
     config.enrichment.enabled = False
     config.reader.enabled = False
 

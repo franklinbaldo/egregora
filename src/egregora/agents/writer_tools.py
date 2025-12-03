@@ -14,8 +14,9 @@ making it easy to test with mocks and reuse in different contexts.
 from __future__ import annotations
 
 import logging
+import uuid
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
@@ -26,7 +27,6 @@ from egregora.rag import search
 from egregora.rag.models import RAGQueryRequest
 
 if TYPE_CHECKING:
-    from egregora.agents.capabilities import AsyncProfileCapability, BackgroundBannerCapability
     from egregora.database.annotations_store import AnnotationsStore
     from egregora.output_adapters.base import OutputSink
 
@@ -88,7 +88,6 @@ class BannerResult(BaseModel):
     """Result from generating a banner."""
 
     status: str
-    path: str | None = None  # Legacy field
     image_path: str | None = None
     caption: str | None = None
     error: str | None = None
@@ -105,7 +104,6 @@ class ToolContext:
 
     output_sink: OutputSink
     window_label: str
-    profile_capability: AsyncProfileCapability | None = None
 
 
 @dataclass
@@ -120,7 +118,8 @@ class BannerContext:
     """Context for banner generation."""
 
     output_sink: OutputSink
-    banner_capability: BackgroundBannerCapability | None = None
+    task_store: Any | None = None
+    run_id: str | None = None
 
 
 # ==============================================================================
@@ -174,9 +173,6 @@ def read_profile_impl(ctx: ToolContext, author_uuid: str) -> ReadProfileResult:
 def write_profile_impl(ctx: ToolContext, author_uuid: str, content: str) -> WriteProfileResult:
     """Write or update an author's profile.
 
-    If an AsyncProfileCapability is available in the context, this delegates to it.
-    Otherwise, it writes directly to the output sink (synchronous fallback).
-
     Args:
         ctx: Tool context with output sink and window label
         author_uuid: UUID of the author
@@ -186,10 +182,6 @@ def write_profile_impl(ctx: ToolContext, author_uuid: str, content: str) -> Writ
         WriteProfileResult with success status and document path
 
     """
-    if ctx.profile_capability:
-        logger.info("Delegating profile update to async capability for %s", author_uuid)
-        return ctx.profile_capability.schedule(author_uuid, content)
-
     # Fix: Unescape literal newlines
     content = content.replace("\\n", "\n")
 
@@ -299,7 +291,7 @@ def annotate_conversation_impl(
 def generate_banner_impl(ctx: BannerContext, post_slug: str, title: str, summary: str) -> BannerResult:
     """Generate a banner image for a post.
 
-    If an AsyncBannerCapability is available, delegates to it.
+    If a task store is available in the context, schedules a background task.
     Otherwise, generates synchronously.
 
     Args:
@@ -312,15 +304,32 @@ def generate_banner_impl(ctx: BannerContext, post_slug: str, title: str, summary
         BannerResult with generation status and path
 
     """
-    if ctx.banner_capability:
-        logger.info("Delegating banner generation to async capability for %s", post_slug)
-        return ctx.banner_capability.schedule(post_slug, title, summary)
+    if ctx.task_store and ctx.run_id:
+        try:
+            payload = {
+                "post_slug": post_slug,
+                "title": title,
+                "summary": summary,
+                "run_id": str(ctx.run_id),
+            }
+            # Schedule task (sync)
+            task_id = ctx.task_store.enqueue(
+                task_type="generate_banner",
+                payload=payload,
+                run_id=uuid.UUID(str(ctx.run_id)),
+            )
+            logger.info("Scheduled banner generation task: %s", task_id)
+            return BannerResult(status="scheduled")
+        except Exception as exc:
+            logger.exception("Failed to schedule banner generation task: %s", exc)
+            return BannerResult(status="failed", error=str(exc))
 
     # Fallback: Synchronous generation
+    logger.info("Generating banner synchronously for %s", post_slug)
     result = generate_banner(post_title=title, post_summary=summary, slug=post_slug)
 
     if result.success and result.document:
         web_path = persist_banner_document(ctx.output_sink, result.document)
-        return BannerResult(status="success", path=web_path, image_path=web_path)
+        return BannerResult(status="success", image_path=web_path)
 
     return BannerResult(status="failed", error=result.error)

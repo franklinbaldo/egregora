@@ -36,8 +36,7 @@ configuration objects (3-6 params). The pattern includes:
 config/
 ├── __init__.py          # This facade (re-exports everything)
 ├── schema.py            # CONSOLIDATED: All config code (Pydantic models, dataclasses, loading)
-├── config_validation.py # CLI-specific validation utilities
-└── site.py              # MkDocs site paths (DEPRECATED, should move to output_adapters/)
+└── config_validation.py # CLI-specific validation utilities
 ```
 
 **Migration Status:**

@@ -13,14 +13,13 @@ import logging
 
 from google import genai
 from pydantic import BaseModel, ConfigDict, Field
-from tenacity import Retrying
 
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
 from egregora.agents.banner.image_generation import ImageGenerationRequest
-from egregora.config import EgregoraConfig, google_api_key_status
+from egregora.config import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.resources.prompts import render_prompt
-from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
+from egregora.utils.network import get_retrying_iterator
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +153,7 @@ def generate_banner(
             response_modalities=config.image_generation.response_modalities,
             aspect_ratio=config.image_generation.aspect_ratio,
         )
-        for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
+        for attempt in get_retrying_iterator():
             with attempt:
                 return _generate_banner_image(client, input_data, image_model, generation_request)
     except Exception as e:
@@ -162,11 +161,3 @@ def generate_banner(
         return BannerOutput(error=type(e).__name__, error_code="GENERATION_FAILED")
 
 
-def is_banner_generation_available() -> bool:
-    """Check if banner generation is available (GOOGLE_API_KEY is set).
-
-    Returns:
-        True if GOOGLE_API_KEY environment variable is set
-
-    """
-    return google_api_key_status()

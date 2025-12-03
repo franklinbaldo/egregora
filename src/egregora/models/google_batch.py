@@ -89,7 +89,8 @@ class GoogleBatchModel(Model):
                 status_code=code or 0, model_name=self.model_name, body=message or str(first.error)
             )
         if not first.response:
-            raise ModelAPIError(f"No response returned for {self.model_name}")
+            msg = f"No response returned for {self.model_name}"
+            raise ModelAPIError(msg)
 
         text = self._extract_text(first.response)
         usage = RequestUsage()
@@ -116,6 +117,9 @@ class GoogleBatchModel(Model):
             List of BatchResult objects containing responses or errors.
 
         """
+        # Import here to avoid circular dependencies
+        from egregora.utils.network import get_retry_decorator
+
         if not requests:
             return []
 
@@ -145,17 +149,24 @@ class GoogleBatchModel(Model):
             temp_path = f.name
 
         try:
+            # Helper to wrap calls with retry
+            retry_call = get_retry_decorator()
+
             # Upload file (blocking IO)
-            uploaded_file = client.files.upload(
-                file=temp_path,
-                config=types.UploadFileConfig(display_name="pydantic-ai-batch", mime_type="application/json"),
+            uploaded_file = retry_call(
+                lambda: client.files.upload(
+                    file=temp_path,
+                    config=types.UploadFileConfig(display_name="pydantic-ai-batch", mime_type="application/json"),
+                )
             )
 
             # Create batch job (blocking IO)
-            batch_job = client.batches.create(
-                model=self.model_name,
-                src=uploaded_file.name,
-                config=types.CreateBatchJobConfig(display_name="pydantic-ai-batch"),
+            batch_job = retry_call(
+                lambda: client.batches.create(
+                    model=self.model_name,
+                    src=uploaded_file.name,
+                    config=types.CreateBatchJobConfig(display_name="pydantic-ai-batch"),
+                )
             )
 
             # Poll for completion (sync poll)
@@ -165,14 +176,15 @@ class GoogleBatchModel(Model):
             return self._download_results(client, completed_job.output_uri, requests)
 
         except genai.errors.ClientError as e:
-            logger.error("Google GenAI ClientError: %s", e)
+            logger.exception("Google GenAI ClientError: %s", e)
             if e.code == 429:
-                logger.error("429 Details: %s", e.message)
+                logger.exception("429 Details: %s", e.message)
                 # Try to extract more details if available
                 if hasattr(e, "details"):
-                    logger.error("Error Details: %s", e.details)
+                    logger.exception("Error Details: %s", e.details)
 
-                raise UsageLimitExceeded(f"Google Batch API Quota Exceeded: {e.message}") from e
+                msg = f"Google Batch API Quota Exceeded: {e.message}"
+                raise UsageLimitExceeded(msg) from e
             raise ModelHTTPError(status_code=e.code, model_name=self.model_name, body=str(e)) from e
 
         finally:
@@ -194,7 +206,8 @@ class GoogleBatchModel(Model):
 
             return job
 
-        raise ModelAPIError("Batch job polling timed out")
+        msg = "Batch job polling timed out"
+        raise ModelAPIError(msg)
 
     def _download_results(
         self, client: Any, output_uri: str, requests: list[dict[str, Any]]

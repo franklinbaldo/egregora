@@ -163,10 +163,6 @@ class RAGSettings(BaseModel):
     Embedding API uses dual-queue router for optimal throughput.
     """
 
-    enabled: bool = Field(
-        default=True,
-        description="Enable RAG for writer agent",
-    )
     top_k: int = Field(
         default=5,
         ge=1,
@@ -747,12 +743,9 @@ class EgregoraConfig(BaseModel):
     @model_validator(mode="after")
     def validate_cross_field(self) -> EgregoraConfig:
         """Validate cross-field dependencies and warn about potential issues."""
-        # If RAG is enabled, ensure lancedb_dir is set
-        if self.rag.enabled and not self.paths.lancedb_dir:
-            msg = (
-                "RAG is enabled (rag.enabled=true) but paths.lancedb_dir is not set. "
-                "Set paths.lancedb_dir to a valid directory path."
-            )
+        # Ensure lancedb_dir is set (RAG is mandatory)
+        if not self.paths.lancedb_dir:
+            msg = "paths.lancedb_dir is not set. Set paths.lancedb_dir to a valid directory path."
             raise ValueError(msg)
 
         # Warn about very high max_prompt_tokens

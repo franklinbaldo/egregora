@@ -40,7 +40,6 @@ privacy:
     # Load and validate
     config = load_egregora_config(tmp_path)
     assert config.models.writer == DEFAULT_MODEL
-    assert config.rag.enabled is True
     assert config.privacy.enabled is True
 
 
@@ -86,7 +85,7 @@ def test_config_validate_cross_field_rag_requires_lancedb():
     """Test cross-field validation: RAG requires lancedb_dir."""
     # RAG enabled but lancedb_dir empty - should fail
     with pytest.raises(ValidationError) as exc:
-        EgregoraConfig(rag={"enabled": True}, paths={"lancedb_dir": ""})
+        EgregoraConfig(paths={"lancedb_dir": ""})
     assert "lancedb_dir is not set" in str(exc.value)
 
 
@@ -162,7 +161,6 @@ def test_config_creates_default_if_missing(tmp_path: Path):
     # Should return default config
     assert config.models.writer == DEFAULT_MODEL
     assert config.models.embedding == DEFAULT_EMBEDDING_MODEL
-    assert config.rag.enabled is True
 
     # Should have created the file
     config_file = tmp_path / ".egregora" / "config.yml"
@@ -177,7 +175,7 @@ def test_config_yaml_roundtrip(tmp_path: Path):
     custom_model = "google-gla:gemini-pro-latest"
     config = EgregoraConfig(
         models={"writer": custom_model},
-        rag={"enabled": False, "top_k": 10},
+        rag={"top_k": 10},
         privacy={"structural": {"enabled": False}},
     )
 
@@ -188,7 +186,6 @@ def test_config_yaml_roundtrip(tmp_path: Path):
     loaded = load_egregora_config(tmp_path)
 
     assert loaded.models.writer == custom_model
-    assert loaded.rag.enabled is False
     assert loaded.rag.top_k == 10
     assert loaded.privacy.structural.enabled is False
     assert loaded.privacy.enabled is False  # Backward compat property

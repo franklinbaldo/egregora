@@ -19,15 +19,25 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
 
+from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 from egregora.output_adapters.conventions import StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
-from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
+from egregora.output_adapters.mkdocs.scaffolding import (
+    MkDocsSiteScaffolder,
+    load_egregora_config,
+    safe_yaml_load,
+)
+from egregora.output_adapters.mkdocs.site_generator import (
+    _append_author_cards,
+    get_profiles_data,
+    get_recent_media,
+    get_site_stats,
+)
 from egregora.utils.filesystem import (
     ensure_author_entries,
     format_frontmatter_datetime,
@@ -86,7 +96,15 @@ class MkDocsAdapter(OutputAdapter):
 
     def initialize(self, site_root: Path, url_context: UrlContext | None = None) -> None:
         """Initializes the adapter with all necessary paths and dependencies."""
-        site_paths = derive_mkdocs_paths(site_root)
+        try:
+            config_dict = load_egregora_config(site_root)
+            config = EgregoraConfig(**config_dict) if config_dict else EgregoraConfig()
+        except Exception:
+            # Fallback to default config if loading fails (e.g. during init)
+            logger.debug("Could not load config for initialization, using defaults")
+            config = EgregoraConfig()
+
+        site_paths = derive_mkdocs_paths(site_root, config=config)
         self.site_root = site_paths["site_root"]
         self._site_root = self.site_root
         self.docs_dir = site_paths["docs_dir"]
@@ -138,16 +156,6 @@ class MkDocsAdapter(OutputAdapter):
             if existing_doc_id and existing_doc_id != doc_id:
                 path = self._resolve_collision(path, doc_id)
                 logger.warning("Hash collision for %s, using %s", doc_id[:8], path)
-
-        # Phase 2: Add author cards to POST documents - REMOVED per user request
-        # if document.type == DocumentType.POST and document.metadata:
-        #     authors = document.metadata.get("authors", [])
-        #     if authors and isinstance(authors, list):
-        #         # Append author cards using Jinja template
-        #         import dataclasses
-        #
-        #         new_content = self._append_author_cards(document.content, authors)
-        #         document = dataclasses.replace(document, content=new_content)
 
         self._write_document(document, path)
         self._index[doc_id] = path
@@ -869,143 +877,17 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     # Phase 2: Dynamic Data Population for UX Templates
     # ============================================================================
 
-    def get_site_stats(self) -> dict[str, int]:
-        """Calculate site statistics for homepage.
-
-        Returns:
-            Dictionary with post_count, profile_count, media_count, journal_count
-
-        """
-        stats = {
-            "post_count": 0,
-            "profile_count": 0,
-            "media_count": 0,
-            "journal_count": 0,
-        }
-
-        if not hasattr(self, "posts_dir") or not self.posts_dir:
-            return stats
-
-        # Count posts (exclude index.md and tags.md)
-        if self.posts_dir.exists():
-            stats["post_count"] = len(
-                [p for p in self.posts_dir.glob("*.md") if p.name not in {"index.md", "tags.md"}]
-            )
-
-        # Count profiles (exclude index.md)
-        if self.profiles_dir.exists():
-            stats["profile_count"] = len([p for p in self.profiles_dir.glob("*.md") if p.name != "index.md"])
-
-        # Count media (URLs + images + videos + audio - exclude indexes)
-        if self.media_dir.exists():
-            all_media = list(self.media_dir.rglob("*.md"))
-            stats["media_count"] = len([p for p in all_media if p.name != "index.md"])
-
-        # Count journal entries (exclude index.md)
-        if self.journal_dir.exists():
-            stats["journal_count"] = len([p for p in self.journal_dir.glob("*.md") if p.name != "index.md"])
-
-        return stats
+    def get_site_stats(self) -> dict[str, Any]:
+        """Calculate statistics for the site (posts, words, authors)."""
+        return get_site_stats(self)
 
     def get_profiles_data(self) -> list[dict[str, Any]]:
-        """Extract profile metadata for profiles index, including calculated stats."""
-        profiles = []
-        all_posts = list(self.documents())  # Inefficient, but necessary for stats
-
-        if not hasattr(self, "profiles_dir") or not self.profiles_dir.exists():
-            return profiles
-
-        for profile_path in sorted(self.profiles_dir.glob("[!index]*.md")):
-            try:
-                content = profile_path.read_text(encoding="utf-8")
-                metadata, _ = parse_frontmatter(content)
-                author_uuid = profile_path.stem
-
-                author_posts = [
-                    post
-                    for post in all_posts
-                    if post.metadata and author_uuid in post.metadata.get("authors", [])
-                ]
-
-                post_count = len(author_posts)
-                word_count = sum(len(post.content.split()) for post in author_posts)
-
-                topics = {}
-                for post in author_posts:
-                    for tag in post.metadata.get("tags", []):
-                        topics[tag] = topics.get(tag, 0) + 1
-
-                top_topics = sorted(topics.items(), key=lambda item: item[1], reverse=True)
-
-                avatar = metadata.get("avatar", "")
-                # Generate fallback avatar if missing
-                if not avatar:
-                    from egregora.knowledge.profiles import generate_fallback_avatar_url
-
-                    avatar = generate_fallback_avatar_url(author_uuid)
-
-                profiles.append(
-                    {
-                        "uuid": author_uuid,
-                        "name": metadata.get("name", author_uuid[:8]),
-                        "avatar": avatar,
-                        "bio": metadata.get("bio", "Profile pending - first contributions detected"),
-                        "post_count": post_count,
-                        "word_count": word_count,
-                        "topics": [topic for topic, count in top_topics],
-                        "topic_counts": top_topics,
-                        "member_since": metadata.get("member_since", "2024"),  # Placeholder
-                    }
-                )
-            except (OSError, yaml.YAMLError) as e:
-                logger.warning("Failed to parse profile %s: %s", profile_path, e)
-                continue
-
-        return profiles
+        """Get data for all author profiles for templating."""
+        return get_profiles_data(self)
 
     def get_recent_media(self, limit: int = 5) -> list[dict[str, Any]]:
-        """Get recent media items for media index.
-
-        Args:
-            limit: Maximum number of items to return
-
-        Returns:
-            List of media dictionaries with title, url, slug, summary
-
-        """
-        media_items = []
-
-        urls_dir = self.media_dir / "urls" if hasattr(self, "media_dir") else None
-        if not urls_dir or not urls_dir.exists():
-            return media_items
-
-        # Get all URL enrichments, sorted by modification time (newest first)
-        url_files = sorted(urls_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
-
-        for media_path in url_files:
-            try:
-                content = media_path.read_text(encoding="utf-8")
-                metadata, body = parse_frontmatter(content)
-
-                # Extract summary from content
-                summary = ""
-                if "## Summary" in body:
-                    summary_part = body.split("## Summary", 1)[1].split("##", 1)[0]
-                    summary = summary_part.strip()[:200]
-
-                media_items.append(
-                    {
-                        "title": metadata.get("title", media_path.stem),
-                        "url": metadata.get("url", ""),
-                        "slug": metadata.get("slug", media_path.stem),
-                        "summary": summary or metadata.get("description", ""),
-                    }
-                )
-            except (OSError, yaml.YAMLError) as e:
-                logger.warning("Failed to parse media %s: %s", media_path, e)
-                continue
-
-        return media_items
+        """Get recent media items for display."""
+        return get_recent_media(self, limit)
 
     def _append_author_cards(self, content: str, author_ids: list[str]) -> str:
         """Append author cards to post content using Jinja template.
@@ -1018,58 +900,13 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             Content with author cards appended
 
         """
-        if not author_ids:
-            return content
-
-        # Load .authors.yml
-        authors_file = None
-        if hasattr(self, "site_root") and self.site_root:
-            for potential_path in [self.site_root / "docs" / ".authors.yml", self.site_root / ".authors.yml"]:
-                if potential_path.exists():
-                    authors_file = potential_path
-                    break
-
-        if not authors_file:
-            return content
-
-        try:
-            with authors_file.open("r", encoding="utf-8") as f:
-                authors_db = yaml.safe_load(f) or {}
-        except (OSError, yaml.YAMLError) as e:
-            logger.warning("Failed to load .authors.yml: %s", e)
-            return content
-
-        # Build author data for template
-        authors_data = []
-        for author_id in author_ids:
-            author = authors_db.get(author_id, {})
-            name = author.get("name", author_id[:8])
-            avatar = author.get("avatar", "")
-
-            # Generate fallback avatar if not set
-            if not avatar:
-                from egregora.knowledge.profiles import generate_fallback_avatar_url
-
-                avatar = generate_fallback_avatar_url(author_id)
-
-            authors_data.append(
-                {
-                    "uuid": author_id,
-                    "name": name,
-                    "avatar": avatar,
-                }
-            )
-
-        # Render using Jinja template
-        try:
-            templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
-            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
-            template = env.get_template("partials/author_cards.jinja")
-            author_cards_html = template.render(authors=authors_data)
-            return content.rstrip() + "\n" + author_cards_html
-        except (OSError, TemplateError) as e:
-            logger.warning("Failed to render author cards template: %s", e)
-            return content
+        # Moved to site_generator.py but still referenced? No, the plan said to move it.
+        # But _write_post_doc might be calling it?
+        # Let's check _write_post_doc logic below.
+        # It says: # Phase 2: Add author cards to POST documents - REMOVED per user request
+        # So it is commented out. I can remove this method or delegate if needed.
+        # The new site_generator has _append_author_cards.
+        return _append_author_cards(content, self)
 
 
 # ============================================================================

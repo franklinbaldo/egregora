@@ -286,7 +286,6 @@ def check_egregora_config() -> DiagnosticResult:
             message=f"Valid config at {config_file}",
             details={
                 "writer_model": config.models.writer,
-                "rag_enabled": config.rag.enabled,
                 "pipeline_step_unit": config.pipeline.step_unit,
             },
         )

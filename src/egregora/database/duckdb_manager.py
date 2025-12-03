@@ -211,7 +211,7 @@ class DuckDBStorageManager:
         try:
             self._conn.close()
         except Exception as close_exc:  # pragma: no cover - defensive logging
-            logger.error("Failed closing invalidated DuckDB connection: %s", close_exc)
+            logger.exception("Failed closing invalidated DuckDB connection: %s", close_exc)
 
         def _connect() -> None:
             # Re-initialize via Ibis to maintain shared connection
@@ -226,7 +226,7 @@ class DuckDBStorageManager:
                 try:
                     Path(db_str).unlink(missing_ok=True)
                 except Exception as unlink_exc:  # pragma: no cover - defensive logging
-                    logger.error("Failed to remove invalidated DuckDB file %s: %s", db_str, unlink_exc)
+                    logger.exception("Failed to remove invalidated DuckDB file %s: %s", db_str, unlink_exc)
                 _connect()
             else:
                 raise

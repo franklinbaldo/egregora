@@ -80,7 +80,7 @@ class PipelineConfig:
     @property
     def enable_rag(self) -> bool:
         """Check if RAG is enabled in config."""
-        return self.config.rag.enabled
+        return True
 
     @property
     def writer_model(self) -> str:
@@ -96,21 +96,6 @@ class PipelineConfig:
     def embedding_model(self) -> str:
         """Get the configured embedding model."""
         return self.config.models.embedding
-
-    @property
-    def retrieval_mode(self) -> str:
-        """Get the configured RAG retrieval mode."""
-        return self.config.rag.mode
-
-    @property
-    def retrieval_nprobe(self) -> int:
-        """Get the configured RAG nprobe value."""
-        return self.config.rag.nprobe
-
-    @property
-    def retrieval_overfetch(self) -> int:
-        """Get the configured RAG overfetch value."""
-        return self.config.rag.overfetch
 
 
 @dataclass(slots=True)
@@ -277,18 +262,6 @@ class PipelineContext:
     @property
     def embedding_model(self) -> str:
         return self.config_obj.embedding_model
-
-    @property
-    def retrieval_mode(self) -> str:
-        return self.config_obj.retrieval_mode
-
-    @property
-    def retrieval_nprobe(self) -> int:
-        return self.config_obj.retrieval_nprobe
-
-    @property
-    def retrieval_overfetch(self) -> int:
-        return self.config_obj.retrieval_overfetch
 
     def with_adapter(self, adapter: Any) -> PipelineContext:
         """Update adapter in state."""

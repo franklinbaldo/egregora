@@ -171,7 +171,8 @@ def create_fallback_model(
                 provider = GoogleGLAProvider(api_key=get_google_api_key())
                 model = GeminiModel(model_def, provider=provider)
         else:
-            raise ValueError(f"Unknown model type: {type(model_def)}")
+            msg = f"Unknown model type: {type(model_def)}"
+            raise ValueError(msg)
 
         return RateLimitedModel(model)
 

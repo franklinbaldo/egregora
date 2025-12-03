@@ -8,26 +8,18 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TypeVar
 
-import httpx
 from google.genai import types as genai_types
 from pydantic_ai.exceptions import UnexpectedModelBehavior
-from pydantic_core import ValidationError
 from tenacity import (
     RetryCallState,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_random_exponential,
 )
 
 T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
 
-# Shared retry configuration - use tenacity directly with these constants
-RETRYABLE_EXCEPTIONS = (UnexpectedModelBehavior, httpx.HTTPError, ValidationError)
-RETRY_STOP = stop_after_attempt(5)
-RETRY_WAIT = wait_random_exponential(min=2.0, max=60.0)
-RETRY_IF = retry_if_exception_type(RETRYABLE_EXCEPTIONS)
+# Shared retry configuration
+# Constants kept for backward compatibility if any, but logic should use network.py
 
 
 def _log_before_retry(retry_state: RetryCallState) -> None:
@@ -185,7 +177,8 @@ class GeminiBatchClient:
                     values = None
 
                 if values is None:
-                    raise UnexpectedModelBehavior("No embedding returned")
+                    msg = "No embedding returned"
+                    raise UnexpectedModelBehavior(msg)
 
                 results.append(EmbeddingBatchResult(tag=req.tag, embedding=list(values), error=None))
             except Exception as exc:  # pragma: no cover - exercised in integration
