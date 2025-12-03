@@ -320,6 +320,7 @@ def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:  # noq
         DuckDB SQL type string
 
     """
+
     # Ibis dtypes are value objects (not classes) in 9.x, so prefer predicate methods over isinstance.
     def is_kind(name):
         return callable(getattr(ibis_type, name, None)) and getattr(ibis_type, name)()

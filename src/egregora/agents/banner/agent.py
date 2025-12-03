@@ -159,5 +159,3 @@ def generate_banner(
     except Exception as e:
         logger.exception("Banner generation failed")
         return BannerOutput(error=type(e).__name__, error_code="GENERATION_FAILED")
-
-

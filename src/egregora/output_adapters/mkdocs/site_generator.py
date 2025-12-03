@@ -85,14 +85,14 @@ def get_recent_media(adapter: MkDocsAdapter, limit: int = 5) -> list[dict[str, A
 
     images.sort(key=get_date, reverse=True)
 
-    recent = []
-    for doc in images[:limit]:
-        recent.append({
+    return [
+        {
             "path": doc.metadata.get("path", ""),
             "caption": doc.metadata.get("caption", "") or doc.document_id,
             "date": get_date(doc),
-        })
-    return recent
+        }
+        for doc in images[:limit]
+    ]
 
 
 def _append_author_cards(content: str, adapter: MkDocsAdapter) -> str:
@@ -104,7 +104,7 @@ def _append_author_cards(content: str, adapter: MkDocsAdapter) -> str:
     if not profiles:
         return content
 
-    cards_section = "\n\n## Contributors\n\n<div class=\"grid cards\" markdown>\n"
+    cards_section = '\n\n## Contributors\n\n<div class="grid cards" markdown>\n'
 
     for profile in profiles:
         name = profile.get("name", "Unknown Author")

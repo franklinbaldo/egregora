@@ -538,8 +538,6 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
     return saved_posts, saved_profiles
 
 
-
-
 def _validate_prompt_fits(
     prompt: str,
     model_name: str,

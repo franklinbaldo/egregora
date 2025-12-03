@@ -102,7 +102,7 @@ class GeminiBatchClient:
         """Return the default generative model for this batch client."""
         return self._default_model
 
-    def upload_file(self, *, path: str, _display_name: str | None = None) -> File:
+    def upload_file(self, *, path: str, _display_name: str | None = None) -> genai_types.File:
         display_name = _display_name or path
         return self._client.files.upload(file=path, display_name=display_name)
 

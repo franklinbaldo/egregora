@@ -273,6 +273,10 @@ def write(  # noqa: C901, PLR0913
     output_dir = output.expanduser().resolve()
     _ensure_mkdocs_scaffold(output_dir)
 
+    # Load config first to have paths available if needed,
+    # though for initial setup we mainly rely on explicit args.
+    base_config = load_egregora_config(output_dir)
+
     import os
 
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
@@ -293,7 +297,7 @@ def write(  # noqa: C901, PLR0913
         raise typer.Exit(1)
 
     # Load base config and merge CLI overrides
-    base_config = load_egregora_config(output_dir)
+    # base_config is already loaded above
     models_update: dict[str, str] = {}
     if model:
         models_update = {
