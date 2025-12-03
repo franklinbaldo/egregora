@@ -1,5 +1,11 @@
 # Egregora V3 Development Plan
 
+> **⚠️ WARNING: Future Architecture Plan**
+>
+> This document outlines the roadmap for **Egregora V3**. The current active codebase in `src/egregora` primarily reflects V2 architecture with some V3 features (like RAG and Pydantic V2 config) backported.
+>
+> `src/egregora_v3` contains experimental V3 prototypes. Do not confuse this plan with the current stable documentation.
+
 ## Project Goal
 Refactor Egregora into a clean, synchronous, modular architecture (`src/egregora_v3`) following a Test-Driven Development (TDD) approach. The goal is to eliminate technical debt, unify data structures, and simplify the cognitive engine.
 
