@@ -54,7 +54,7 @@ Welcome to the Egregora documentation! Transform your WhatsApp group chats into 
 
     Download the latest consolidated source bundle for offline review or model uploads
 
-    [:octicons-download-24: Download Repomix Build](bundles/code.bundle.md)
+    [:octicons-download-24: Download Repomix Build](bundles/code.bundle.md){: download }
 
 </div>
 
@@ -62,9 +62,9 @@ Welcome to the Egregora documentation! Transform your WhatsApp group chats into 
 
 Download consolidated markdown bundles generated from the repository:
 
-- [Full code bundle](bundles/code.bundle.md)
-- [Tests bundle](bundles/tests.bundle.md)
-- [Documentation bundle](bundles/docs.bundle.md)
+- [Full code bundle](bundles/code.bundle.md){: download }
+- [Tests bundle](bundles/tests.bundle.md){: download }
+- [Documentation bundle](bundles/docs.bundle.md){: download }
 
 ## Architecture Overview
 

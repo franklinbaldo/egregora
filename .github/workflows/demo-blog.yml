@@ -8,7 +8,7 @@ permissions:
 
 # Prevent concurrent deployments
 concurrency:
-  group: "pages"
+  group: "demo-pages"
   cancel-in-progress: false
 
 on:
