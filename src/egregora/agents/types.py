@@ -16,9 +16,10 @@ from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from google import genai
+    from ibis.expr.types import Table
 
     from egregora.agents.shared.annotations import AnnotationStore
-    from egregora.config.settings import RAGSettings
+    from egregora.config.settings import EgregoraConfig, RAGSettings
     from egregora.data_primitives.protocols import OutputSink
     from egregora.database.task_store import TaskStore
     from egregora.output_adapters import OutputAdapterRegistry
@@ -74,6 +75,14 @@ class WriterDeps:
     window_end: datetime
     window_label: str
     model_name: str
+    # Added for dynamic system prompts
+    table: Table | None = None
+    config: EgregoraConfig | None = None
+    # Pre-calculated context parts that are expensive or needed for signature
+    conversation_xml: str = ""
+    active_authors: list[str] = Field(default_factory=list)
+    adapter_content_summary: str = ""
+    adapter_generation_instructions: str = ""
 
     @property
     def output_sink(self) -> OutputSink:
