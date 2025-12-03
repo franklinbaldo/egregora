@@ -147,12 +147,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cd egregora
           uv sync --extra docs
 
       - name: Build Documentation
         run: |
-          cd egregora
           uv run mkdocs build
 
       - name: Setup Node.js
@@ -163,7 +161,6 @@ jobs:
       - name: Generate Repomix bundles
         run: |
           mkdir -p /tmp/bundles
-          cd egregora
           npx repomix -c repomix-docs.json --output /tmp/bundles/docs.bundle.md
           npx repomix -c repomix-tests.json --output /tmp/bundles/tests.bundle.md
           npx repomix -c repomix-code.json --output /tmp/bundles/code.bundle.md
@@ -174,7 +171,7 @@ jobs:
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./egregora/site
+          publish_dir: ./site
 
       - name: Upload bundles artifact
         uses: actions/upload-artifact@v4
