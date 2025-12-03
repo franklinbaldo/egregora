@@ -1,1 +1,17 @@
-{"includes":["docs/**","README.md","SECURITY.md","mkdocs.yml","CHANGELOG.md","LICENSE"],"ignores":[]}
+{
+  "include": [
+    "docs/**",
+    "README.md",
+    "SECURITY.md",
+    "mkdocs.yml",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "ignore": {
+    "useDefaultPatterns": true,
+    "customPatterns": []
+  },
+  "output": {
+    "style": "markdown"
+  }
+}
