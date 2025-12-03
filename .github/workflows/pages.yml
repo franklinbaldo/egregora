@@ -25,6 +25,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -35,6 +40,16 @@ jobs:
 
       - name: Build site
         run: uvx --python 3.12 --with ".[docs]" mkdocs build --clean
+
+      - name: Generate Repomix bundles
+        run: |
+          mkdir -p site/bundles
+          commit_iso=$(git show -s --format=%cI HEAD)
+          commit_iso_safe=${commit_iso//:/-}
+          echo "{\"commit_iso\":\"${commit_iso_safe}\"}" > site/bundles/meta.json
+          npx repomix -c repomix-docs.json --output site/bundles/docs.bundle.md
+          npx repomix -c repomix-tests.json --output site/bundles/tests.bundle.md
+          npx repomix -c repomix-code.json --output site/bundles/code.bundle.md
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

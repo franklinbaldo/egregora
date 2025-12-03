@@ -1,1 +1,22 @@
-{"includes":["**/*"],"ignores":["docs/**","tests/**",".git/**","**/tmp*","**/dist/**","**/site/**","**/*.bundle.md",".venv/**","**/__pycache__/**"]}
+{
+  "include": [
+    "**/*"
+  ],
+  "ignore": {
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      "docs/**",
+      "tests/**",
+      ".git/**",
+      "**/tmp*",
+      "**/dist/**",
+      "**/site/**",
+      "**/*.bundle.md",
+      ".venv/**",
+      "**/__pycache__/**"
+    ]
+  },
+  "output": {
+    "style": "markdown"
+  }
+}
