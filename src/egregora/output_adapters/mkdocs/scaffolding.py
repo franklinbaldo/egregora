@@ -25,6 +25,9 @@ from egregora.resources.prompts import PromptManager
 
 logger = logging.getLogger(__name__)
 
+# Constants
+SCAFFOLD_TEMPLATES_DIR = Path(__file__).resolve().parents[3] / "rendering" / "templates" / "site"
+
 
 class _ConfigLoader(yaml.SafeLoader):
     """YAML loader that ignores unknown tags."""
@@ -36,6 +39,19 @@ _ConfigLoader.add_constructor(None, lambda loader, _node: None)
 def safe_yaml_load(content: str) -> dict[str, Any]:
     """Load YAML safely, ignoring unknown tags like !ENV."""
     return yaml.load(content, Loader=_ConfigLoader) or {}  # noqa: S506
+
+
+def load_egregora_config(site_root: Path) -> dict[str, Any]:
+    """Load config from egregora.toml or pyproject.toml."""
+    # This is a basic helper used during initialization
+    # In the main pipeline, EgregoraConfig is used
+    config_path = site_root / "egregora.toml"
+    if config_path.exists():
+        try:
+            return safe_yaml_load(config_path.read_text(encoding="utf-8"))
+        except yaml.YAMLError:
+            return {}
+    return {}
 
 
 class MkDocsSiteScaffolder:
@@ -58,7 +74,15 @@ class MkDocsSiteScaffolder:
         site_root = site_root.expanduser().resolve()
         site_root.mkdir(parents=True, exist_ok=True)
 
-        site_paths = derive_mkdocs_paths(site_root)
+        # Load or create default config to resolve paths
+        try:
+            config_dict = load_egregora_config(site_root)
+            config = EgregoraConfig(**config_dict) if config_dict else EgregoraConfig()
+        except Exception:
+            logger.debug("Could not load config for scaffolding, using defaults")
+            config = EgregoraConfig()
+
+        site_paths = derive_mkdocs_paths(site_root, config=config)
 
         mkdocs_path = site_paths.get("mkdocs_path")
         site_exists = False
@@ -135,7 +159,9 @@ class MkDocsSiteScaffolder:
             msg = f"{site_root} is not a valid MkDocs site (no mkdocs.yml found)"
             raise ValueError(msg)
         try:
-            site_paths = derive_mkdocs_paths(site_root)
+            config_dict = load_egregora_config(site_root)
+            config = EgregoraConfig(**config_dict) if config_dict else EgregoraConfig()
+            site_paths = derive_mkdocs_paths(site_root, config=config)
         except Exception as e:
             msg = f"Failed to resolve site paths: {e}"
             raise RuntimeError(msg) from e
