@@ -220,5 +220,44 @@ class LanceDBRAGBackend:
         logger.info("Found %d hits for query (top_k=%d)", len(hits), top_k)
         return RAGQueryResponse(hits=hits)
 
+    def get_all_post_vectors(self) -> tuple[list[str], np.ndarray]:
+        """Retrieve IDs and Centroid Vectors for all indexed posts.
+
+        Returns:
+            (doc_ids, vectors_matrix)
+
+        """
+        # Fetch all vectors (Zero-copy Arrow)
+        # In a real scenario, filter by "document_type" metadata if possible
+        arrow_table = self._table.search().limit(None).to_arrow()
+
+        doc_vectors: dict[str, list[np.ndarray]] = {}
+
+        # Aggregate chunks by document ID
+        for batch in arrow_table.to_batches():
+            d = batch.to_pydict()
+            ids = d["document_id"]
+            vecs = d["vector"]
+            # Assume we only process POSTs based on upstream logic or metadata checks
+
+            for i, doc_id in enumerate(ids):
+                if doc_id not in doc_vectors:
+                    doc_vectors[doc_id] = []
+                doc_vectors[doc_id].append(vecs[i])
+
+        if not doc_vectors:
+            return [], np.array([])
+
+        # Compute centroids (Mean of chunk vectors)
+        final_ids = []
+        final_vecs = []
+
+        for doc_id, vec_list in doc_vectors.items():
+            centroid = np.mean(np.stack(vec_list), axis=0)
+            final_ids.append(doc_id)
+            final_vecs.append(centroid)
+
+        return final_ids, np.array(final_vecs)
+
 
 __all__ = ["EmbedFn", "LanceDBRAGBackend", "RagBackendError", "EmbeddingError", "StorageError"]

@@ -845,21 +845,21 @@ __all__ = [
 
 
 def get_google_api_key() -> str:
-    """Get Google API key from environment."""
+    """Get Google API key from environment (checks GOOGLE_API_KEY then GEMINI_API_KEY)."""
     import os
 
-    api_key = os.environ.get("GOOGLE_API_KEY")
+    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        msg = "GOOGLE_API_KEY environment variable is required"
+        msg = "GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable is required"
         raise ValueError(msg)
     return api_key
 
 
 def google_api_key_status() -> bool:
-    """Check if GOOGLE_API_KEY is configured."""
+    """Check if GOOGLE_API_KEY or GEMINI_API_KEY is configured."""
     import os
 
-    return bool(os.environ.get("GOOGLE_API_KEY"))
+    return bool(os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"))
 
 
 def get_openrouter_api_key() -> str:

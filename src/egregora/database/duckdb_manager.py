@@ -63,12 +63,13 @@ class DuckDBStorageManager:
         self.db_path = db_path
         self.checkpoint_dir = checkpoint_dir or Path(".egregora/data")
 
-        # Initialize DuckDB connection
+        # Initialize Ibis backend first (it manages the DuckDB connection)
         db_str = str(db_path) if db_path else ":memory:"
-        self._conn = duckdb.connect(db_str)
-
-        # Initialize Ibis backend
         self.ibis_conn = ibis.duckdb.connect(database=db_str)
+
+        # Use the underlying DuckDB connection from Ibis to ensure we share the same connection
+        # This prevents "read-only transaction" errors caused by multiple connections to the same file
+        self._conn = self.ibis_conn.con
 
         # Initialize SQL template manager
         self.sql = SQLManager()
@@ -93,11 +94,49 @@ class DuckDBStorageManager:
         db_list = conn.execute("PRAGMA database_list").fetchall()
         db_path = db_list[0][2] if db_list else None
         db_str = db_path or ":memory:"
+        # Note: ibis.connect(conn) is not supported in current version, so we create a separate connection.
+        # This might cause concurrency issues if not handled carefully.
+        # Ideally we would use the same connection, but for now we accept the limitation for from_connection.
         instance.ibis_conn = ibis.duckdb.connect(database=db_str)
         instance.sql = SQLManager()
         instance._table_info_cache = {}
         instance._lock = threading.Lock()
         logger.debug("DuckDBStorageManager created from existing connection")
+        return instance
+
+    @classmethod
+    def from_ibis_backend(cls, backend: ibis.BaseBackend, checkpoint_dir: Path | None = None) -> Self:
+        """Create storage manager from an existing Ibis backend.
+
+        This ensures the storage manager shares the exact same connection
+        as the provided backend, preventing multi-connection conflicts.
+
+        Args:
+            backend: Existing Ibis backend (must be DuckDB)
+            checkpoint_dir: Directory for parquet checkpoints
+
+        Returns:
+            Storage manager instance sharing the backend's connection
+
+        """
+        instance = cls.__new__(cls)
+        # Try to determine path from backend if possible, but it's not strictly required
+        # as we use the backend's connection directly.
+        instance.db_path = None
+        instance.checkpoint_dir = checkpoint_dir or Path(".egregora/data")
+
+        instance.ibis_conn = backend
+        # Share the raw connection from the backend
+        if hasattr(backend, "con"):
+            instance._conn = backend.con
+        else:
+            msg = "Provided backend does not expose a raw 'con' attribute (expected DuckDB backend)"
+            raise ValueError(msg)
+
+        instance.sql = SQLManager()
+        instance._table_info_cache = {}
+        instance._lock = threading.Lock()
+        logger.debug("DuckDBStorageManager created from existing Ibis backend")
         return instance
 
     def _is_invalidated_error(self, exc: duckdb.Error) -> bool:
@@ -128,14 +167,9 @@ class DuckDBStorageManager:
             self.ibis_conn = None
 
         def _connect() -> None:
-            self._conn = duckdb.connect(db_str)
-            try:
-                self.ibis_conn = ibis.duckdb.connect(database=db_str)
-            except Exception as e:
-                # If Ibis connection fails (e.g. race condition), we might still have a valid raw connection.
-                # However, the manager is broken without Ibis.
-                logger.error("Failed to reconnect Ibis backend: %s", e)
-                raise
+            # Re-initialize via Ibis to maintain shared connection
+            self.ibis_conn = ibis.duckdb.connect(database=db_str)
+            self._conn = self.ibis_conn.con
 
         try:
             _connect()
@@ -224,25 +258,31 @@ class DuckDBStorageManager:
     ) -> None:
         """Write Ibis table to DuckDB."""
         if checkpoint:
-            parquet_path = self.checkpoint_dir / f"{name}.parquet"
-            parquet_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._lock:
+                # Write checkpoint to parquet
+                parquet_path = self.checkpoint_dir / f"{name}.parquet"
+                parquet_path.parent.mkdir(parents=True, exist_ok=True)
 
-            logger.debug("Writing checkpoint: %s", parquet_path)
-            table.to_parquet(str(parquet_path))
+                logger.debug("Writing checkpoint: %s", parquet_path)
+                table.to_parquet(str(parquet_path))
 
-            sql = self.sql.render(
-                "dml/load_parquet.sql.jinja",
-                table_name=name,
-                mode=mode,
-            )
-            params = [str(parquet_path)] if mode == "replace" else [str(parquet_path), str(parquet_path)]
-            self._conn.execute(sql, params)
-            logger.info("Table '%s' written with checkpoint (%s)", name, mode)
+                # Load into DuckDB from parquet
+                sql = self.sql.render(
+                    "dml/load_parquet.sql.jinja",
+                    table_name=name,
+                    mode=mode,
+                )
+                params = [str(parquet_path)] if mode == "replace" else [str(parquet_path), str(parquet_path)]
+                self._conn.execute(sql, params)
+                logger.info("Table '%s' written with checkpoint (%s)", name, mode)
 
         elif mode == "replace":
-            dataframe = table.execute()
-            self._conn.register(name, dataframe)
-            logger.info("Table '%s' written without checkpoint (%s)", name, mode)
+            with self._lock:
+                # Use Ibis to_sql for direct write
+                # Note: This requires executing the table first
+                dataframe = table.execute()
+                self._conn.register(name, dataframe)
+                logger.info("Table '%s' written without checkpoint (%s)", name, mode)
         else:
             msg = "Append mode requires checkpoint=True"
             raise ValueError(msg)
@@ -292,6 +332,7 @@ class DuckDBStorageManager:
         """Create a sequence if it does not exist."""
         quoted_name = quote_identifier(name)
         self._conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {quoted_name} START {int(start)}")
+        self._conn.commit()
 
     def get_sequence_state(self, name: str) -> SequenceState | None:
         """Return metadata describing the current state of ``name``."""
@@ -332,6 +373,7 @@ class DuckDBStorageManager:
             self._conn.execute(
                 f"ALTER TABLE {quoted_table} ALTER COLUMN {quoted_column} SET DEFAULT {desired_default}"
             )
+            self._conn.commit()
 
     def sync_sequence_with_table(self, sequence_name: str, *, table: str, column: str) -> None:
         """Advance ``sequence_name`` so it is ahead of ``table.column``."""
@@ -371,8 +413,11 @@ class DuckDBStorageManager:
         # when accessed concurrently, and nextval() modifies state.
         with self._lock:
             try:
+                # Ensure any previous transaction is committed
+                self._conn.commit()
                 cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
                 values = [int(row[0]) for row in cursor.fetchall()]
+                self._conn.commit()
             except duckdb.Error as exc:
                 if not self._is_invalidated_error(exc):
                     raise
@@ -380,6 +425,7 @@ class DuckDBStorageManager:
                 self._reset_connection()
                 cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
                 values = [int(row[0]) for row in cursor.fetchall()]
+                self._conn.commit()
 
         if not values:
             state = self.get_sequence_state(sequence_name)
@@ -463,9 +509,25 @@ def temp_storage() -> DuckDBStorageManager:
 
 @contextlib.contextmanager
 def duckdb_backend() -> ibis.BaseBackend:
-    """Context manager for temporary DuckDB backend."""
-    connection = duckdb.connect(":memory:")
-    backend = ibis.duckdb.from_connection(connection)
+    """Context manager for temporary DuckDB backend.
+
+    MODERN (Phase 2.2): Moved from connection.py to storage.py for consolidation.
+
+    Sets up an in-memory DuckDB database as the default Ibis backend,
+    and properly cleans up connections on exit.
+
+    Yields:
+        Ibis backend connected to DuckDB
+
+    Example:
+        >>> with duckdb_backend():
+        ...     table = ibis.read_csv("data.csv")
+        ...     result = table.execute()
+
+    """
+    # In ibis 9.0+, use connect() with database path directly
+    # We don't need to create a raw duckdb connection first
+    backend = ibis.duckdb.connect(":memory:")
     old_backend = getattr(ibis.options, "default_backend", None)
     try:
         ibis.options.default_backend = backend
@@ -473,7 +535,9 @@ def duckdb_backend() -> ibis.BaseBackend:
         yield backend
     finally:
         ibis.options.default_backend = old_backend
-        connection.close()
+        # Close backend to release resources
+        if hasattr(backend, "disconnect"):
+            backend.disconnect()
         logger.debug("DuckDB backend closed")
 
 
