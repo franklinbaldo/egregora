@@ -49,22 +49,13 @@ Welcome to the Egregora documentation! Transform your WhatsApp group chats into 
     [:octicons-arrow-right-24: Development](development/contributing.md)
 
 -   :material-package-down:{ .lg .middle } __Repomix Bundle__
-
-    ---
-
-    Download the latest consolidated source bundle for offline review or model uploads
-
-    [:octicons-download-24: Download Repomix Build](bundles/code.bundle.md){: download data-bundle-name="code" }
+    Download consolidated markdown bundles generated from the repository:
+    
+    - [Full code bundle](bundles/code.bundle.md){: download="egregora-code.md" data-bundle-name="code" }
+    - [Tests bundle](bundles/tests.bundle.md){: download="egregora-tests.md" data-bundle-name="tests" }
+    - [Documentation bundle](bundles/docs.bundle.md){: download="egregora-docs.md" data-bundle-name="docs" }
 
 </div>
-
-## Repomix bundles
-
-Download consolidated markdown bundles generated from the repository:
-
-- [Full code bundle](bundles/code.bundle.md){: download data-bundle-name="code" }
-- [Tests bundle](bundles/tests.bundle.md){: download data-bundle-name="tests" }
-- [Documentation bundle](bundles/docs.bundle.md){: download data-bundle-name="docs" }
 
 ## Architecture Overview
 
