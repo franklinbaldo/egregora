@@ -675,7 +675,7 @@ def write_posts_with_pydantic_agent(
 
     # Define a simple provider to wrap the SDK client
     class SimpleProvider:
-        def __init__(self, client):
+        def __init__(self, client) -> None:
             self._client = client
             self.model_profile = None
 
@@ -683,11 +683,11 @@ def write_posts_with_pydantic_agent(
         def client(self):
             return self._client
 
-        def name(self):
+        def name(self) -> str:
             return "google-gla"
 
         @property
-        def base_url(self):
+        def base_url(self) -> str:
             return "https://generativelanguage.googleapis.com/v1beta/"
 
     from egregora.utils.model_fallback import create_fallback_model
@@ -722,7 +722,8 @@ def write_posts_with_pydantic_agent(
                 return await agent.run(prompt, deps=context)
 
         # Should be unreachable due to reraise=True
-        raise RuntimeError("Agent failed after retries")
+        msg = "Agent failed after retries"
+        raise RuntimeError(msg)
 
     reset_backend()
     try:

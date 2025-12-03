@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import json
 import logging
-import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
@@ -90,7 +89,8 @@ class GoogleBatchModel(Model):
                 status_code=code or 0, model_name=self.model_name, body=message or str(first.error)
             )
         if not first.response:
-            raise ModelAPIError(f"No response returned for {self.model_name}")
+            msg = f"No response returned for {self.model_name}"
+            raise ModelAPIError(msg)
 
         text = self._extract_text(first.response)
         usage = RequestUsage()
@@ -166,14 +166,15 @@ class GoogleBatchModel(Model):
             return self._download_results(client, completed_job.output_uri, requests)
 
         except genai.errors.ClientError as e:
-            logger.error("Google GenAI ClientError: %s", e)
+            logger.exception("Google GenAI ClientError: %s", e)
             if e.code == 429:
-                logger.error("429 Details: %s", e.message)
+                logger.exception("429 Details: %s", e.message)
                 # Try to extract more details if available
                 if hasattr(e, "details"):
-                    logger.error("Error Details: %s", e.details)
+                    logger.exception("Error Details: %s", e.details)
 
-                raise UsageLimitExceeded(f"Google Batch API Quota Exceeded: {e.message}") from e
+                msg = f"Google Batch API Quota Exceeded: {e.message}"
+                raise UsageLimitExceeded(msg) from e
             raise ModelHTTPError(status_code=e.code, model_name=self.model_name, body=str(e)) from e
 
         finally:
@@ -207,7 +208,8 @@ class GoogleBatchModel(Model):
             # Ideally tenacity raises RetryError if it stops without success condition
             # But here success condition is "NOT processing", so it returns the job
             # If it times out, it raises RetryError.
-            raise ModelAPIError("Batch job polling timed out") from None
+            msg = "Batch job polling timed out"
+            raise ModelAPIError(msg) from None
 
         if job.state.name != "SUCCEEDED":
             raise ModelHTTPError(status_code=0, model_name=self.model_name, body=str(job.error))
