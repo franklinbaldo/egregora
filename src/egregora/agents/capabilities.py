@@ -12,14 +12,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from pydantic_ai import Agent, RunContext
 
-from egregora.agents.types import WriterDeps
-from egregora.agents.writer_tools import (
-    BannerContext,
-    BannerResult,
-    SearchMediaResult,
-    generate_banner_impl,
-    search_media_impl,
-)
+from egregora.agents.types import BannerResult, SearchMediaResult, WriterDeps
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +36,7 @@ class RagCapability:
         @agent.tool
         def search_media(ctx: RunContext[WriterDeps], query: str, top_k: int = 5) -> SearchMediaResult:
             """Search for relevant media (images, videos, audio) in the knowledge base."""
-            return search_media_impl(query, top_k)
+            return ctx.deps.search_media(query, top_k)
 
 
 class BannerCapability:
@@ -57,8 +50,7 @@ class BannerCapability:
             ctx: RunContext[WriterDeps], post_slug: str, title: str, summary: str
         ) -> BannerResult:
             """Generate a banner image for a post."""
-            banner_ctx = BannerContext(output_sink=ctx.deps.output_sink)
-            return generate_banner_impl(banner_ctx, post_slug, title, summary)
+            return ctx.deps.generate_banner(post_slug, title, summary)
 
 
 class BackgroundBannerCapability:
