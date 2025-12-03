@@ -215,6 +215,20 @@ class OutputSink(Protocol):
 
         """
 
+    def get_format_instructions(self) -> str:
+        """Get instructions on how to format content for this sink."""
+        ...
+
+    def finalize_window(
+        self,
+        window_label: str,
+        posts_created: list[str],
+        profiles_updated: list[str],
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Hook called after processing a window."""
+        ...
+
 
 @runtime_checkable
 class SiteScaffolder(Protocol):
