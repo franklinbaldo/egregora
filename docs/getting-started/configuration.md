@@ -242,7 +242,7 @@ client = create_gemini_client(
 ### High-Quality Blog
 
 ```bash
-egregora process export.zip \
+egregora write export.zip \
   --model=models/gemini-flash-latest \
   --step-size=7 --step-unit=days \
   --enrich \
@@ -252,7 +252,7 @@ egregora process export.zip \
 ### Fast, Cost-Effective
 
 ```bash
-egregora process export.zip \
+egregora write export.zip \
   --model=models/gemini-flash-latest \
   --step-size=7 --step-unit=days \
   --retrieval-mode=exact \
@@ -262,7 +262,7 @@ egregora process export.zip \
 ### Privacy-Focused
 
 ```bash
-egregora process export.zip \
+egregora write export.zip \
   --anonymize \
   --detect-pii \
   --no-enrich

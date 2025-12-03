@@ -33,35 +33,7 @@ paths:
 
 ## Data Models
 
-### RAGQueryRequest
-
-::: egregora.rag.models.RAGQueryRequest
-    options:
-      show_source: true
-      show_root_heading: true
-      show_category_heading: true
-      members_order: source
-      heading_level: 4
-
-### RAGQueryResponse
-
-::: egregora.rag.models.RAGQueryResponse
-    options:
-      show_source: true
-      show_root_heading: true
-      show_category_heading: true
-      members_order: source
-      heading_level: 4
-
-### RAGHit
-
-::: egregora.rag.models.RAGHit
-    options:
-      show_source: true
-      show_root_heading: true
-      show_category_heading: true
-      members_order: source
-      heading_level: 4
+See [RAG Data Models](models.md)
 
 ## Usage Examples
 
@@ -145,14 +117,9 @@ await index_documents(
 
 ::: egregora.rag.lancedb_backend.LanceDBRAGBackend
     options:
-      show_source: false
+      show_source: true
       show_root_heading: true
       heading_level: 4
-      members:
-        - __init__
-        - index_documents
-        - search
-        - delete_documents
 
 ## Embedding Router
 
@@ -165,12 +132,9 @@ The dual-queue embedding router optimizes API quota utilization:
 
 ::: egregora.rag.embedding_router
     options:
-      show_source: false
+      show_source: true
       show_root_heading: true
       heading_level: 4
-      members:
-        - EmbeddingRouter
-        - embed_texts_batch
 
 ## Performance Tips
 

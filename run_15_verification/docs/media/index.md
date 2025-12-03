@@ -1,0 +1,56 @@
+---
+title: Media Library
+description: Shared content with AI enrichment
+---
+
+# Media Library
+
+> **Every attachment enriched with context**
+> Images, videos, audio, and URLs from conversations—each with AI-generated summaries and analysis.
+
+
+
+---
+
+## Browse All Media
+
+### 📂 By Type
+
+| Category | Description | Count |
+|----------|-------------|-------|
+| **URLs** | Shared links with enrichment | 0 |
+| **Images** | Photos, screenshots, diagrams | 0 |
+| **Videos** | Short clips, recordings | 0 |
+| **Audio** | Voice notes, podcasts | 0 |
+
+---
+
+## How Media Enrichment Works
+
+1. **Auto-Detection** – When URLs or files are shared, the pipeline captures them
+2. **AI Analysis** – An enrichment agent:
+   - Summarizes the content
+   - Extracts key takeaways
+   - Provides context for the conversation
+   - Tags topics and themes
+3. **Markdown Generation** – Each item gets a dedicated page
+4. **Cross-Linking** – Media referenced in posts are automatically linked
+
+### Search & Filter
+
+Use the site search (top right) to find media by:
+- URL domain (e.g., "lesswrong.com")
+- Topic keywords (e.g., "AI safety")
+- File type
+- Content description
+
+---
+
+## Privacy Notes
+
+- URLs are public content (already shared in chat)
+- Images/videos checked for PII before enrichment
+- Sensitive media flagged but not deleted (manual review possible)
+- All enrichment metadata is AI-generated, may contain errors
+
+[View media enrichment logs →](../journal/index.md)

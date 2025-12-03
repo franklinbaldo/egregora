@@ -151,13 +151,8 @@ def test_site_generation_e2e(clean_blog_dir, monkeypatch, pipeline_test_config):
         refresh="writer",  # Force writer to run
     )
 
-    # Run the pipeline with mocked dynamic regex and writer agent
-    with (
-        patch("egregora.input_adapters.whatsapp.parsing.generate_dynamic_regex") as mock_dynamic,
-        patch("egregora.agents.writer.write_posts_with_pydantic_agent") as mock_writer_agent,
-    ):
-        mock_dynamic.return_value = None  # Force fallback to static regex
-
+    # Run the pipeline with mocked writer agent
+    with patch("egregora.agents.writer.write_posts_with_pydantic_agent") as mock_writer_agent:
         # Mock writer agent side effect: write a dummy post file
         def mock_writer_side_effect(*args, **kwargs):
             # kwargs['context'] is WriterDeps
@@ -221,7 +216,7 @@ tags:
         with patch("egregora.input_adapters.whatsapp.adapter.WhatsAppAdapter.parse") as mock_parse:
             mock_parse.return_value = MagicMock()  # Mocked dataframe
             # We also need to mock the enrichment pipeline to return something
-            with patch("egregora.agents.enricher.enrich_table") as mock_enrich:
+            with patch("egregora.agents.enricher.schedule_enrichment") as mock_enrich:
                 mock_enrich.return_value = MagicMock()
 
                 # Execute pipeline logic manually or via a simplified runner if available
