@@ -539,40 +539,6 @@ def _extract_tool_results(messages: MessageHistory) -> tuple[list[str], list[str
     return saved_posts, saved_profiles
 
 
-def _prepare_deps(
-    ctx: PipelineContext,
-    window_start: datetime,
-    window_end: datetime,
-) -> WriterDeps:
-    """Prepare writer dependencies from pipeline context."""
-    # Ensure output sink is initialized
-    if not ctx.output_format:
-        msg = "Output format not initialized in context"
-        raise ValueError(msg)
-
-    prompts_dir = ctx.site_root / ".egregora" / "prompts" if ctx.site_root else None
-
-    # Construct WriterResources using existing context
-    resources = WriterResources(
-        output=ctx.output_format,
-        annotations_store=ctx.annotations_store,
-        storage=ctx.storage,
-        task_store=getattr(ctx, "task_store", None),
-        embedding_model=ctx.config.models.embedding,
-        retrieval_config=ctx.config.rag,
-        profiles_dir=ctx.site_root / "profiles" if ctx.site_root else None,
-        journal_dir=ctx.site_root / "journal" if ctx.site_root else None,
-        prompts_dir=prompts_dir,
-        client=getattr(ctx, "client", None),
-        quota=ctx.quota_tracker,
-        usage=ctx.usage_tracker,
-        output_registry=getattr(ctx, "output_registry", None),
-        run_id=ctx.run_id,
-    )
-
-    return _prepare_writer_dependencies(window_start, window_end, resources, ctx.config.models.writer)
-
-
 def _validate_prompt_fits(
     prompt: str,
     model_name: str,
