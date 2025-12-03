@@ -10,9 +10,11 @@ import logging
 from pathlib import Path
 from typing import cast
 
+from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import SiteScaffolder
 from egregora.output_adapters import create_default_output_registry, create_output_format
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
+from egregora.output_adapters.mkdocs.scaffolding import load_egregora_config
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +70,13 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
         raise
 
     # Return docs_dir for backward compatibility
-    site_paths = derive_mkdocs_paths(site_root)
+    try:
+        config_dict = load_egregora_config(site_root)
+        config = EgregoraConfig(**config_dict) if config_dict else EgregoraConfig()
+    except Exception:
+        config = EgregoraConfig()
+
+    site_paths = derive_mkdocs_paths(site_root, config=config)
     docs_dir = site_paths["docs_dir"]
     docs_dir.mkdir(parents=True, exist_ok=True)
 

@@ -44,7 +44,6 @@ def _build_config_summary(config: EgregoraConfig) -> str:
         f"  Enricher: {config.models.enricher}\n"
         f"  Embedding: {config.models.embedding}\n\n"
         f"[cyan]RAG:[/cyan]\n"
-        f"  Enabled: {config.rag.enabled}\n"
         f"  Top-K: {config.rag.top_k}\n"
         f"  Min Similarity: {config.rag.min_similarity_threshold}\n\n"
         f"[cyan]Privacy:[/cyan]\n"
@@ -69,7 +68,7 @@ def _collect_config_warnings(config: EgregoraConfig, site_root: Path) -> list[st
     """
     warnings = []
 
-    if config.rag.enabled and not (site_root / config.paths.lancedb_dir).exists():
+    if not (site_root / config.paths.lancedb_dir).exists():
         warnings.append(f"LanceDB directory does not exist: {config.paths.lancedb_dir}")
 
     if config.rag.top_k > RAG_TOP_K_WARNING_THRESHOLD:

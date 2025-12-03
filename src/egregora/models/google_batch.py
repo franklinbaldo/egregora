@@ -116,6 +116,9 @@ class GoogleBatchModel(Model):
             List of BatchResult objects containing responses or errors.
 
         """
+        # Import here to avoid circular dependencies
+        from egregora.utils.network import get_retry_decorator
+
         if not requests:
             return []
 
@@ -145,17 +148,24 @@ class GoogleBatchModel(Model):
             temp_path = f.name
 
         try:
+            # Helper to wrap calls with retry
+            retry_call = get_retry_decorator()
+
             # Upload file (blocking IO)
-            uploaded_file = client.files.upload(
-                file=temp_path,
-                config=types.UploadFileConfig(display_name="pydantic-ai-batch", mime_type="application/json"),
+            uploaded_file = retry_call(
+                lambda: client.files.upload(
+                    file=temp_path,
+                    config=types.UploadFileConfig(display_name="pydantic-ai-batch", mime_type="application/json"),
+                )
             )
 
             # Create batch job (blocking IO)
-            batch_job = client.batches.create(
-                model=self.model_name,
-                src=uploaded_file.name,
-                config=types.CreateBatchJobConfig(display_name="pydantic-ai-batch"),
+            batch_job = retry_call(
+                lambda: client.batches.create(
+                    model=self.model_name,
+                    src=uploaded_file.name,
+                    config=types.CreateBatchJobConfig(display_name="pydantic-ai-batch"),
+                )
             )
 
             # Poll for completion (sync poll)

@@ -287,10 +287,6 @@ def _process_single_window(
     resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
 
-    print(f"DEBUG: Calling write_posts_for_window for {window_label}")
-    print(f"DEBUG: Enriched table rows: {enriched_table.count().execute()}")
-    print(f"DEBUG: Resources: {resources}")
-
     result = write_posts_for_window(
         table=enriched_table,
         window_start=window.start_time,
@@ -1063,23 +1059,22 @@ def _prepare_pipeline_data(
     ctx = ctx.with_adapter(adapter)
 
     # Index existing documents into RAG
-    if ctx.config.rag.enabled:
-        logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
-        try:
-            # Get existing documents from output format
-            existing_docs = list(output_format.documents())
-            if existing_docs:
-                index_documents(existing_docs)
-                logger.info("[green]✓ Indexed %d existing documents into RAG[/]", len(existing_docs))
-                reset_backend()
-            else:
-                logger.info("[dim]No existing documents to index[/]")
-        except (ConnectionError, TimeoutError) as exc:
-            logger.warning("[yellow]⚠️ RAG backend unavailable for indexing (non-critical): %s[/]", exc)
-        except (ValueError, TypeError) as exc:
-            logger.warning("[yellow]⚠️ Invalid document data for RAG indexing (non-critical): %s[/]", exc)
-        except (OSError, PermissionError) as exc:
-            logger.warning("[yellow]⚠️ Cannot access RAG storage for indexing (non-critical): %s[/]", exc)
+    logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
+    try:
+        # Get existing documents from output format
+        existing_docs = list(output_format.documents())
+        if existing_docs:
+            index_documents(existing_docs)
+            logger.info("[green]✓ Indexed %d existing documents into RAG[/]", len(existing_docs))
+            reset_backend()
+        else:
+            logger.info("[dim]No existing documents to index[/]")
+    except (ConnectionError, TimeoutError) as exc:
+        logger.warning("[yellow]⚠️ RAG backend unavailable for indexing (non-critical): %s[/]", exc)
+    except (ValueError, TypeError) as exc:
+        logger.warning("[yellow]⚠️ Invalid document data for RAG indexing (non-critical): %s[/]", exc)
+    except (OSError, PermissionError) as exc:
+        logger.warning("[yellow]⚠️ Cannot access RAG storage for indexing (non-critical): %s[/]", exc)
 
     return PreparedPipelineData(
         messages_table=messages_table,
@@ -1381,19 +1376,18 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             )
 
             # 2. Taxonomy Generation (New)
-            if dataset.context.config.rag.enabled:
-                from egregora.ops.taxonomy import generate_semantic_taxonomy
+            from egregora.ops.taxonomy import generate_semantic_taxonomy
 
-                logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
-                try:
-                    tagged_count = generate_semantic_taxonomy(
-                        dataset.context.output_format, dataset.context.config
-                    )
-                    if tagged_count > 0:
-                        logger.info(f"[green]✓ Applied semantic tags to {tagged_count} posts[/]")
-                except Exception as e:
-                    # Non-critical failure
-                    logger.warning(f"Auto-taxonomy failed: {e}")
+            logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
+            try:
+                tagged_count = generate_semantic_taxonomy(
+                    dataset.context.output_format, dataset.context.config
+                )
+                if tagged_count > 0:
+                    logger.info(f"[green]✓ Applied semantic tags to {tagged_count} posts[/]")
+            except Exception as e:
+                # Non-critical failure
+                logger.warning(f"Auto-taxonomy failed: {e}")
 
             # Save checkpoint first (critical path)
             _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)

@@ -14,20 +14,16 @@ from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_core import ValidationError
 from tenacity import (
     RetryCallState,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_random_exponential,
 )
+
+from egregora.utils.network import get_retrying_iterator
 
 T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
 
-# Shared retry configuration - use tenacity directly with these constants
-RETRYABLE_EXCEPTIONS = (UnexpectedModelBehavior, httpx.HTTPError, ValidationError)
-RETRY_STOP = stop_after_attempt(5)
-RETRY_WAIT = wait_random_exponential(min=2.0, max=60.0)
-RETRY_IF = retry_if_exception_type(RETRYABLE_EXCEPTIONS)
+# Shared retry configuration
+# Constants kept for backward compatibility if any, but logic should use network.py
 
 
 def _log_before_retry(retry_state: RetryCallState) -> None:

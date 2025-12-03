@@ -10,17 +10,15 @@ import logging
 from typing import Annotated, Any
 
 import httpx
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from egregora.config import EMBEDDING_DIM, get_google_api_key, google_api_key_status
+from egregora.utils.network import get_retry_decorator
 
 logger = logging.getLogger(__name__)
 
 # Constants
 GENAI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 MAX_BATCH_SIZE = 100  # Google API limit for batchEmbedContents
-HTTP_TOO_MANY_REQUESTS = 429  # Rate limit status code
-HTTP_SERVER_ERROR = 500  # Server error status code threshold
 
 
 def _get_timeout() -> float:
@@ -29,26 +27,10 @@ def _get_timeout() -> float:
     return 60.0
 
 
-@retry(
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=1, min=2, max=60),
-    retry=retry_if_exception_type(httpx.HTTPError),
-    reraise=True,
-)
+@get_retry_decorator()
 def _call_with_retries(func: Any) -> Any:
     """Retry wrapper for HTTP calls with tenacity."""
-    try:
-        return func()
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == HTTP_TOO_MANY_REQUESTS:
-            # Parse retry-after if available, but tenacity handles backoff
-            logger.warning("Rate limit exceeded (429). Retrying...")
-        elif e.response.status_code >= HTTP_SERVER_ERROR:
-            logger.warning("Server error %s. Retrying...", e.response.status_code)
-        else:
-            # Don't retry client errors (4xx) except 429
-            raise
-        raise
+    return func()
 
 
 def _validate_embedding_response(data: dict[str, Any]) -> dict[str, Any]:

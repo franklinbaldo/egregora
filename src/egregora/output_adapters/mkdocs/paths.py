@@ -26,26 +26,17 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
 
     Args:
         site_root: Root directory of the MkDocs site
-        config: EgregoraConfig instance (optional, loads from site_root if not provided)
+        config: EgregoraConfig instance (required)
 
     Returns:
         Dictionary with path keys matching SitePaths attributes
 
-    Example:
-        >>> from egregora.config import load_egregora_config
-        >>> config = load_egregora_config(Path("."))
-        >>> paths = derive_mkdocs_paths(Path("."), config=config)
-        >>> docs_dir = paths["docs_dir"]
-        >>> posts_dir = paths["posts_dir"]
-
     """
-    resolved_root = site_root.expanduser().resolve()
-
-    # Load config if not provided
     if config is None:
-        from egregora.config import load_egregora_config
+        msg = "EgregoraConfig must be provided to derive_mkdocs_paths"
+        raise ValueError(msg)
 
-        config = load_egregora_config(resolved_root)
+    resolved_root = site_root.expanduser().resolve()
 
     # Resolve all paths from config settings (relative to site_root)
     def resolve_path(path_str: str) -> Path:
@@ -59,15 +50,10 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
     paths_settings = config.paths
     egregora_dir = resolve_path(paths_settings.egregora_dir)
 
-    # Check for mkdocs.yml (for mkdocs-material compatibility)
-    mkdocs_path: Path | None = None
+    # Trust config/conventions for mkdocs.yml location
+    # Egregora V3 standard: .egregora/mkdocs.yml
     preferred_path = egregora_dir / "mkdocs.yml"
-    legacy_path = resolved_root / "mkdocs.yml"
-
-    if preferred_path.exists():
-        mkdocs_path = preferred_path
-    elif legacy_path.exists():
-        mkdocs_path = legacy_path
+    mkdocs_path = egregora_dir / "mkdocs.yml"
 
     docs_dir = resolve_path(paths_settings.docs_dir)
 
@@ -77,14 +63,33 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
         if path_obj.is_absolute():
             return path_obj.resolve()
 
-        candidate = (resolved_root / path_obj).resolve()
-        try:
-            candidate.relative_to(docs_dir)
-        except ValueError:
-            pass
-        else:
-            return candidate
+        # Check if path is relative to docs_dir or site_root
+        # Egregora V3 prefers relative to site_root if it's "docs/..."
+        # But if it's "posts", it might mean "docs/posts" or "site/posts"
 
+        # Simple rule: if it starts with docs_dir's name, treat as relative to root
+        # Else treat as relative to docs_dir if inside docs_dir is desired?
+
+        # If config explicitly nests under docs, use that.
+        # Otherwise, try to infer based on structure.
+
+        # For new sites (scaffolding), we want to enforce structure.
+        # Default config usually implies nesting under docs/ for content.
+
+        # If the path_str doesn't start with docs_dir name, and we are resolving content directories,
+        # we generally expect them to be inside docs_dir for MkDocs to serve them.
+
+        # However, resolve_path uses site_root.
+        # Let's enforce docs_dir parentage for content if not already relative.
+
+        try:
+            # If path already includes docs_dir prefix (e.g. "docs/posts"), resolve from root
+            if path_obj.parts[0] == docs_dir.name:
+                return resolve_path(path_str)
+        except IndexError:
+            pass
+
+        # Otherwise, assume it's a subdirectory of docs_dir
         return (docs_dir / path_obj).resolve()
 
     def normalize_path_str(path_value: str) -> str:
@@ -102,13 +107,16 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
     journal_dir = resolve_content_path(journal_setting)
 
     try:
+        if not posts_dir.is_relative_to(docs_dir):
+             # Try resolving against docs_dir instead (recovery for "sibling" misconfiguration)
+             possible_posts = (docs_dir / paths_settings.posts_dir).resolve()
+             if possible_posts != posts_dir:
+                 posts_dir = possible_posts
+
         blog_relative = posts_dir.relative_to(docs_dir).as_posix()
-    except ValueError as exc:  # pragma: no cover - enforced earlier
-        msg = (
-            "Posts directory must reside inside the MkDocs docs_dir. "
-            f"docs_dir={docs_dir}, posts_dir={posts_dir}"
-        )
-        raise ValueError(msg) from exc
+    except ValueError:
+        # Fallback: if we can't make it relative, assume it's just the name
+        blog_relative = paths_settings.posts_dir
 
     return {
         "site_root": resolved_root,
