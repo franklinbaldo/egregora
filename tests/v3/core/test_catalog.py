@@ -54,3 +54,15 @@ def test_collection_repository_access():
 
     # Ensure we can access the repo through the collection
     assert col.repository is repo
+
+def test_collection_rag_policy():
+    repo = StubRepo()
+    col_public = Collection(
+        id="public", title="Public", accepts=[], repository=repo, index_in_rag=True
+    )
+    col_raw = Collection(
+        id="raw", title="Raw", accepts=[], repository=repo, index_in_rag=False
+    )
+
+    assert col_public.index_in_rag is True
+    assert col_raw.index_in_rag is False
