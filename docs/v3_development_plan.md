@@ -41,10 +41,16 @@ Raw Feed → EnricherAgent → WriterAgent
 
 **Why:** Maximum flexibility, composable pipeline, removes core complexity, broader use cases.
 
-### 2. Synchronous-First
-The core pipeline and internal interfaces are synchronous (`def`). Concurrency is handled explicitly via `ThreadPoolExecutor` for I/O-bound tasks, never `async`/`await` in core logic.
+### 2. Pragmatic Async/Sync - No Dogma
+Use `async`/`await` when it provides clear benefits (parallel I/O, LLM calls, streaming). Use sync for pure transformations. No forced patterns - choose what makes sense for each operation.
 
-**Why:** Simpler mental model, better for CLI/library use, no event loop required.
+**Guidelines:**
+- **Async for I/O:** LLM calls, HTTP requests, database operations, file I/O
+- **Sync for pure transforms:** Data validation, ID generation, XML serialization
+- **Async generators:** For streaming large datasets or enabling backpressure
+- **Core types stay sync:** Entry, Document, Feed are pure data models (no I/O)
+
+**Why:** Modern Python supports both async and sync well. Fighting async with wrappers adds unnecessary complexity. Use the right tool for each job.
 
 ### 3. Atom Compliance
 All content is modeled using Atom (RFC 4287) vocabulary: `Entry`, `Document`, `Feed`, `Link`, `Author`. This enables RSS/Atom export and interoperability.
@@ -168,7 +174,7 @@ Infrastructure dependencies are defined as protocols (structural typing), not co
 3. Add `documents_to_feed()` aggregation function
 4. 100% unit test coverage for all core types
 5. Document threading support (RFC 4685 `in_reply_to`)
-6. **NEW: Implement PipelineContext for request-scoped state**
+6. **Implement PipelineContext** for request-scoped state (used as `RunContext[PipelineContext]` in Pydantic-AI)
 
 #### 1.5 Phase 1 Refinements
 Before moving to Phase 2, address these design clarifications:
@@ -439,111 +445,334 @@ output_feed = writer.run(enriched_feed, context)
 
 **Components:**
 
-#### 3.1 Synchronous LLM Client
-```python
-# egregora_v3/engine/llm/sync_client.py
-class SyncLLMClient:
-    """Synchronous wrapper for pydantic-ai agents."""
-    def __init__(self, agent: Agent, model: str): ...
+#### 3.1 Pydantic-AI Integration
 
-    def run(self, prompt: str, deps: Any) -> str:
-        """Execute agent synchronously using ThreadPoolExecutor internally."""
-        ...
+V3 uses Pydantic-AI agents directly for LLM interactions. No wrappers needed.
+
+**Key Features:**
+- **Structured output:** Use `result_type=Document` to enforce Atom data model
+- **Dependency injection:** Tools access `PipelineContext` via `RunContext`
+- **Native async:** Agents are async-native, compose naturally with async generators
+- **Type safety:** LLM responses validated as Pydantic models
+
+```python
+from pydantic_ai import Agent, RunContext
+
+# Agent with structured output
+writer_agent = Agent(
+    'google-gla:gemini-2.0-flash',
+    result_type=Document,  # Enforces Atom schema at LLM boundary
+    system_prompt="Generate blog posts..."
+)
+
+# Tool with dependency injection
+@tool
+async def search_prior_work(
+    ctx: RunContext[PipelineContext],
+    query: str
+) -> str:
+    """Search past documents via RAG."""
+    docs = await ctx.deps.library.vector_store.search(query, top_k=5)
+    return format_results(docs)
 ```
 
-**Why:** Pydantic-AI agents can run in threads. V3 core stays sync, concurrency handled internally.
+**Benefits:**
+- Invalid LLM outputs rejected before entering pipeline
+- Type-safe access to ContentLibrary in tools
+- Testable with `TestModel` (no live API calls in tests)
 
-#### 3.2 Core Agents (Feed → Feed Pattern with Configurable Step Size)
-Each agent can configure its own processing step size:
+#### 3.2 Core Agents (Streaming with Async Generators)
+
+Agents process entry streams using async generators. Each agent can buffer/batch as needed for efficiency.
 
 ```python
 # egregora_v3/engine/agents/enricher.py
+from pydantic_ai import Agent
+
 class EnricherAgent:
-    """Enriches Feed entries: media descriptions, URL metadata."""
+    """Enriches entries: media descriptions, URL metadata."""
 
-    def __init__(self, step_size: int = 10):
+    def __init__(self, batch_size: int = 10):
+        self.batch_size = batch_size
+        # Pydantic-AI agent with structured output
+        self.agent = Agent(
+            'google-gla:gemini-2.0-flash-vision',
+            result_type=Entry,
+            system_prompt=self._load_system_prompt()
+        )
+
+    async def run(
+        self,
+        entries: AsyncIterator[Entry],
+        context: PipelineContext
+    ) -> AsyncIterator[Entry]:
+        """Stream enriched entries.
+
+        - Buffers entries for parallel processing
+        - Downloads media from enclosure links
+        - Runs vision models for descriptions
+        - Yields enriched entries immediately
         """
-        Args:
-            step_size: Number of entries to process at once (default: 10)
-        """
-        self.step_size = step_size
+        async for batch in abatch(entries, self.batch_size):
+            # Check cache first
+            uncached = [
+                e for e in batch
+                if not await context.library.has_enrichment(e.id)
+            ]
 
-    def run(self, feed: Feed, context: PipelineContext) -> Feed:
-        """Transform Feed by enriching entries.
+            if uncached:
+                # Process batch in parallel
+                tasks = [self._enrich(entry) for entry in uncached]
+                enriched = await asyncio.gather(*tasks)
+            else:
+                enriched = batch
 
-        - Downloads media files from enclosure links
-        - Runs vision/audio models to get descriptions
-        - Updates entry.content with enrichment
-        - Caches results to avoid redundant LLM calls
-        """
-        enriched_entries = []
-
-        # Process in steps for memory efficiency
-        for chunk in batch(feed.entries, self.step_size):
-            for entry in chunk:
-                # Check cache first
-                if cached := context.repository.get_enrichment(entry.id):
-                    entry.content = cached.content
-                else:
-                    # Process media/URLs, update entry.content
-                    entry = self._enrich_entry(entry)
-                enriched_entries.append(entry)
-
-        return Feed(entries=enriched_entries, ...)
+            # Stream results immediately
+            for entry in enriched:
+                yield entry
 
 # egregora_v3/engine/agents/writer.py
 class WriterAgent:
     """Generates blog posts from enriched entries."""
 
-    def __init__(self, step_size: int = 50):
+    def __init__(self, window_size: int = 50):
         """
         Args:
-            step_size: Number of entries to aggregate into one post (default: 50)
+            window_size: Number of entries to aggregate into one post
         """
-        self.step_size = step_size
+        self.window_size = window_size
+        # Pydantic-AI agent with structured output
+        self.agent = Agent(
+            'google-gla:gemini-2.0-flash',
+            result_type=Document,  # Enforces Atom schema
+            system_prompt=self._load_system_prompt()
+        )
 
-    def run(self, feed: Feed, context: PipelineContext) -> Feed:
-        """Transform enriched Feed into output documents.
+    async def run(
+        self,
+        entries: AsyncIterator[Entry],
+        context: PipelineContext
+    ) -> AsyncIterator[Document]:
+        """Generate documents from entry windows.
 
-        Groups entries into steps and generates one post per step.
-        Receives entries already enriched by EnricherAgent.
+        Aggregates N entries into one post. Yields posts as generated.
         """
-        documents = []
+        async for window in abatch(entries, self.window_size):
+            # Render prompt from Jinja2 template
+            prompt = self.post_template.render(
+                entries=window,
+                style=context.config.writing_style,
+                previous_posts=await context.library.posts.list(limit=5)
+            )
 
-        # Process entries in steps (many entries → one post)
-        for step_entries in batch(feed.entries, self.step_size):
-            post = self._generate_post(step_entries)  # LLM call
-            documents.append(post)
-
-        return Feed(entries=documents, ...)
+            # Generate post (Pydantic-AI guarantees valid Document)
+            result = await self.agent.run(prompt, deps=context)
+            yield result.data  # Document instance
 ```
 
-**Key Concept:**
-- **Step Size:** Number of entries an agent processes in one iteration
-- Different agents have different strategies:
-  - `EnricherAgent(step_size=10)`: Process 10 entries at a time
-  - `WriterAgent(step_size=50)`: Aggregate 50 entries into 1 post
-  - `PrivacyAgent(step_size=100)`: Fast rule-based, larger steps
+**Key Concepts:**
+- **Streaming:** `AsyncIterator[Entry]` → `AsyncIterator[Entry]` pattern
+- **Memory efficient:** Process entries as they arrive, don't materialize entire feed
+- **Batching:** Use `abatch()` helper to buffer for parallel LLM calls
+- **Composable:** Chain generators like Unix pipes
+- **Pydantic-AI integration:** Use `result_type` for structured output validation
 
-**Porting Strategy:** Copy V2 agent logic, adapt to **Feed → Feed** pattern.
+**Porting Strategy:** Copy V2 agent logic, wrap in async generator pattern with Pydantic-AI.
 
 #### 3.3 Tools with Dependency Injection
+
+Tools access ContentLibrary and config through `PipelineContext` as `RunContext` dependency.
+
 ```python
+# egregora_v3/core/context.py
+from dataclasses import dataclass
+
+@dataclass
+class PipelineContext:
+    """Request-scoped state for agent execution."""
+    library: ContentLibrary
+    config: EgregoraConfig
+    request_id: str
+
 # egregora_v3/engine/tools/search.py
+from pydantic_ai import RunContext, tool
+
 @tool
-def search_rag(ctx: RunContext[ContentLibrary], query: str) -> str:
-    """Search past documents."""
-    docs = ctx.deps.vector_store.search(query)
+async def search_prior_work(
+    ctx: RunContext[PipelineContext],
+    query: str
+) -> str:
+    """Search past documents via RAG."""
+    docs = await ctx.deps.library.vector_store.search(query, top_k=5)
     return format_results(docs)
+
+@tool
+async def get_recent_posts(
+    ctx: RunContext[PipelineContext],
+    limit: int = 5
+) -> str:
+    """Get recent posts for context."""
+    posts = await ctx.deps.library.posts.list(limit=limit)
+    return format_post_summaries(posts)
 ```
 
-**Pattern:** Tools receive ContentLibrary as dependency, access typed repositories.
+**Pattern:**
+- All tools receive `RunContext[PipelineContext]`
+- Access repositories via `ctx.deps.library.posts`, `ctx.deps.library.vector_store`, etc.
+- Access config via `ctx.deps.config`
+- Type-safe dependency injection
+
+#### 3.4 Prompt Management with Jinja2
+
+All agent prompts are managed as **Jinja2 templates** for maintainability and reusability.
+
+**Directory Structure:**
+```
+src/egregora_v3/engine/
+├── agents/
+│   ├── writer.py
+│   ├── enricher.py
+│   └── privacy.py
+├── prompts/
+│   ├── base.jinja2           # Shared base template
+│   ├── writer/
+│   │   ├── system.jinja2     # System prompt
+│   │   ├── generate_post.jinja2
+│   │   └── summarize.jinja2
+│   ├── enricher/
+│   │   ├── describe_image.jinja2
+│   │   ├── describe_audio.jinja2
+│   │   └── extract_metadata.jinja2
+│   └── privacy/
+│       └── detect_pii.jinja2
+└── llm/
+    └── template_loader.py    # Jinja2 environment
+```
+
+**Implementation:**
+```python
+# egregora_v3/engine/llm/template_loader.py
+from jinja2 import Environment, PackageLoader, select_autoescape
+
+# Global template environment
+prompt_env = Environment(
+    loader=PackageLoader('egregora_v3', 'engine/prompts'),
+    autoescape=select_autoescape(),
+    trim_blocks=True,
+    lstrip_blocks=True
+)
+
+# Custom filters for prompts
+def format_datetime(dt: datetime, fmt: str = "%Y-%m-%d") -> str:
+    return dt.strftime(fmt)
+
+prompt_env.filters['datetime'] = format_datetime
+
+# egregora_v3/engine/agents/writer.py
+from egregora_v3.engine.llm.template_loader import prompt_env
+
+class WriterAgent:
+    def __init__(self, config: AgentConfig):
+        # Load templates
+        self.system_template = prompt_env.get_template('writer/system.jinja2')
+        self.post_template = prompt_env.get_template('writer/generate_post.jinja2')
+
+        # Initialize Pydantic-AI agent with rendered system prompt
+        self.agent = Agent(
+            'google-gla:gemini-2.0-flash',
+            result_type=Document,
+            system_prompt=self.system_template.render(
+                guidelines=config.writing_guidelines,
+                output_format="markdown",
+                tone=config.tone
+            )
+        )
+
+    async def run(
+        self,
+        entries: AsyncIterator[Entry],
+        context: PipelineContext
+    ) -> AsyncIterator[Document]:
+        """Generate posts from entry windows."""
+        async for window in abatch(entries, self.window_size):
+            # Render prompt from template with context
+            prompt = self.post_template.render(
+                entries=window,
+                style=context.config.writing_style,
+                previous_posts=await context.library.posts.list(limit=5)
+            )
+
+            # Execute agent
+            result = await self.agent.run(prompt, deps=context)
+            yield result.data
+```
+
+**Example Template:**
+```jinja2
+{# engine/prompts/writer/generate_post.jinja2 #}
+{% extends "base.jinja2" %}
+
+{% block task %}
+Generate a blog post from {{ entries|length }} conversation entries.
+{% endblock %}
+
+{% block instructions %}
+Writing style: {{ style }}
+Target length: 500-1000 words
+Format: Markdown with YAML frontmatter
+Tone: Informative and engaging
+
+Requirements:
+- Extract key themes and insights
+- Maintain chronological flow
+- Preserve author attributions
+- Include relevant media references
+{% endblock %}
+
+{% block context %}
+## Recent Posts (for style consistency)
+{% for post in previous_posts %}
+### {{ post.title }}
+Published: {{ post.published|datetime }}
+{% endfor %}
+
+## Source Entries
+{% for entry in entries %}
+---
+**{{ entry.title }}**
+Published: {{ entry.published|datetime }}
+{% if entry.authors %}
+Authors: {{ entry.authors|map(attribute='name')|join(', ') }}
+{% endif %}
+
+{{ entry.content }}
+
+{% if entry.links %}
+**Attachments:**
+{% for link in entry.links %}
+- [{{ link.type }}] {{ link.href }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endblock %}
+```
+
+**Benefits:**
+- ✅ **Separation of concerns** - Prompts separate from code
+- ✅ **Version control friendly** - Easy to diff and review prompt changes
+- ✅ **Reusability** - Template inheritance and composition
+- ✅ **Testing** - Validate rendering independently of LLM calls
+- ✅ **Iteration** - Prompt engineers can edit without touching Python
+- ✅ **Context injection** - Dynamic data from PipelineContext
 
 **Success Criteria:**
-- [ ] Writer agent generates posts from entries
-- [ ] Enricher agent processes URLs and media
-- [ ] Tool registry with 5+ tools (search, write, read, etc.)
-- [ ] Mock-free testing (use fake dependencies)
+- [ ] Writer agent generates posts from entries using async generators
+- [ ] Enricher agent processes URLs and media with parallel batching
+- [ ] All agents use Pydantic-AI with `result_type` for structured output
+- [ ] Tool registry with 5+ tools using `RunContext[PipelineContext]`
+- [ ] Jinja2 template environment configured with all agent prompts
+- [ ] Prompt rendering tests at 100% coverage
+- [ ] Mock-free testing with `TestModel` (no live API calls)
 
 **Timeline:** Q3-Q4 2026 (6 months)
 
@@ -553,67 +782,170 @@ def search_rag(ctx: RunContext[ContentLibrary], query: str) -> str:
 
 **Goal:** Assemble full pipeline with CLI.
 
-**Pipeline Architecture: Feed Transformations**
+**Pipeline Architecture: Streaming Transformations**
 
-The pipeline is a chain of **Feed → Agent → Feed** transformations:
+The pipeline is a chain of **async generator** transformations:
 
 ```
-Raw Feed (minimal content)
+AsyncIterator[Entry] (raw entries)
     ↓
 EnricherAgent (adds context: media descriptions, URL metadata)
     ↓
-Enriched Feed (same entries, enhanced content)
+AsyncIterator[Entry] (enriched entries)
     ↓
 WriterAgent (generates posts from enriched entries)
     ↓
-Output Feed (final documents)
+AsyncIterator[Document] (final documents)
 ```
 
 **Key Pattern:**
-- Each agent receives a **Feed** as input
-- Each agent returns a **Feed** as output
-- Database/caching prevents redundant LLM calls (check if entry already enriched)
-- Next agent receives already-processed entries
-- **Each agent controls its own step_size** for processing:
-  - EnricherAgent(step_size=10): Process 10 entries at a time
-  - WriterAgent(step_size=50): Aggregate 50 entries into 1 post
-  - PrivacyAgent(step_size=100): Fast rule-based processing
+- Each agent receives `AsyncIterator[Entry]` as input
+- Each agent yields entries/documents as they're ready
+- Memory efficient - don't materialize entire feed
+- Natural backpressure - slow consumers control rate
+- Agents buffer/batch internally as needed
 
-**Example - Full Pipeline with Output Transformation:**
+**Example - Streaming Pipeline:**
 ```python
-# 1. Raw feed from input adapter
-raw_feed = adapter.read_feed()  # Entries have minimal content
+# egregora_v3/pipeline/runner.py
+async def run_pipeline(
+    adapter: InputAdapter,
+    config: PipelineConfig
+) -> AsyncIterator[Document]:
+    """Streaming pipeline - entries flow through stages."""
 
-# 2. Optional: Privacy pass (Feed → Feed)
-if config.privacy_enabled:
-    raw_feed = privacy_agent.run(raw_feed, context)  # Anonymize authors, redact PII
+    # Build pipeline chain
+    entries = adapter.read_entries()  # AsyncIterator[Entry]
 
-# 3. Enrichment pass (Feed → Feed)
-enriched_feed = enricher_agent.run(raw_feed, context)  # Entries now have descriptions
+    # Optional privacy stage
+    if config.privacy_enabled:
+        entries = privacy_agent.run(entries, context)
 
-# 4. Writing pass (Feed → Feed)
-output_feed = writer_agent.run(enriched_feed, context)  # Generate blog posts
+    # Enrichment stage
+    entries = enricher_agent.run(entries, context)
 
-# 5. Persist to repository (internal storage)
-library.save_all(output_feed.entries)
+    # Writing stage
+    documents = writer_agent.run(entries, context)  # AsyncIterator[Document]
 
-# 6. Transform to desired output formats (Feed → Format)
-mkdocs_sink.publish(output_feed)    # Generate blog
-atom_sink.publish(output_feed)      # Generate RSS feed
-sqlite_sink.publish(output_feed)    # Export to database
+    # Consume and persist stream
+    async for doc in documents:
+        await context.library.save(doc)
+        yield doc  # For progress tracking
+
+# CLI usage
+@app.command()
+async def write(source: Path, output: Path):
+    """Generate documents from source."""
+    config = load_config()
+    adapter = resolve_adapter(source)
+
+    count = 0
+    async for doc in run_pipeline(adapter, config):
+        count += 1
+        print(f"✓ {doc.title}")
+
+    print(f"Generated {count} documents")
+
+# Or with sync wrapper if preferred
+@app.command()
+def write_sync(source: Path, output: Path):
+    """Sync CLI wrapper."""
+    asyncio.run(write(source, output))
 ```
 
-**Alternative - Privacy after enrichment:**
+**Multiple Output Formats:**
 ```python
-raw_feed = adapter.read_feed()
-enriched_feed = enricher_agent.run(raw_feed, context)
-anonymized_feed = privacy_agent.run(enriched_feed, context)  # Keep descriptions, hide authors
-output_feed = writer_agent.run(anonymized_feed, context)
+async def run_and_publish(adapter, config):
+    """Collect stream and publish to multiple formats."""
+    documents = []
+
+    async for doc in run_pipeline(adapter, config):
+        documents.append(doc)
+        print(f"✓ {doc.title}")
+
+    # Create feed from documents
+    feed = documents_to_feed(documents, ...)
+
+    # Publish to multiple sinks
+    mkdocs_sink.publish(feed)    # Generate blog
+    atom_sink.publish(feed)      # Generate RSS feed
+    sqlite_sink.publish(feed)    # Export to database
 ```
 
 **Components:**
 
-#### 4.1 Windowing Engine
+#### 4.1 Batching Utilities
+
+Helper functions for working with async generators:
+
+```python
+# egregora_v3/pipeline/utils.py
+from typing import AsyncIterator, TypeVar
+
+T = TypeVar('T')
+
+async def abatch(
+    stream: AsyncIterator[T],
+    size: int
+) -> AsyncIterator[list[T]]:
+    """Buffer async stream into batches.
+
+    Example:
+        async for batch in abatch(entries, size=10):
+            # Process 10 entries at a time
+            results = await asyncio.gather(*[process(e) for e in batch])
+    """
+    batch = []
+    async for item in stream:
+        batch.append(item)
+        if len(batch) >= size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
+
+async def materialize(stream: AsyncIterator[T]) -> list[T]:
+    """Collect entire stream into list.
+
+    Use when agent needs full context (e.g., ranking all entries).
+
+    Example:
+        all_entries = await materialize(entries)
+        ranked = elo_rank(all_entries)
+    """
+    return [item async for item in stream]
+
+async def afilter(
+    stream: AsyncIterator[T],
+    predicate: callable
+) -> AsyncIterator[T]:
+    """Filter async stream.
+
+    Example:
+        images_only = afilter(entries, lambda e: has_media(e))
+    """
+    async for item in stream:
+        if predicate(item):
+            yield item
+
+async def atake(
+    stream: AsyncIterator[T],
+    n: int
+) -> AsyncIterator[T]:
+    """Take first N items from stream.
+
+    Example:
+        first_100 = atake(entries, 100)
+    """
+    count = 0
+    async for item in stream:
+        if count >= n:
+            break
+        yield item
+        count += 1
+```
+
+#### 4.2 Windowing Engine
 ```python
 # egregora_v3/pipeline/windowing.py
 class WindowingEngine:
@@ -690,8 +1022,9 @@ def write(
 
 ### Unit Tests
 - **Core:** Pure Pydantic validation, no I/O
-- **Engine:** Agents with mocked LLM responses
+- **Engine:** Agents with `TestModel` (Pydantic-AI test utilities)
 - **Infra:** Protocols tested with fakes
+- **Prompts:** Template rendering validation
 
 ### Property-Based Testing
 Use `hypothesis` to verify invariants across random inputs:
@@ -710,6 +1043,92 @@ Use `hypothesis` to verify invariants across random inputs:
 - **Pipeline:** Full run with fake LLM (no API calls)
 - **CLI:** Subprocess invocation, validate outputs
 - **Performance:** Benchmark against V2 baseline
+
+### Pydantic-AI Testing
+All agent tests MUST use `TestModel` or `FunctionModel` - **no live API calls in unit tests**.
+
+```python
+from pydantic_ai.models.test import TestModel, FunctionModel
+
+async def test_writer_agent_structure():
+    """Verify WriterAgent returns valid Documents."""
+    test_model = TestModel()
+    agent = WriterAgent(model=test_model)
+
+    # Create test stream
+    entries = async_iter([Entry(...), Entry(...)])
+
+    # Collect results
+    documents = [doc async for doc in agent.run(entries, context)]
+
+    # Verify structure, not content
+    assert all(isinstance(d, Document) for d in documents)
+    assert all(d.doc_type == DocumentType.POST for d in documents)
+    assert all(d.title and d.content for d in documents)
+
+async def test_enricher_calls_tools():
+    """Verify EnricherAgent calls expected tools."""
+    # Mock tool responses
+    def mock_tool_handler(tool_name: str, **kwargs):
+        if tool_name == "describe_image":
+            return "A sunset over the ocean"
+        return ""
+
+    test_model = FunctionModel(function=mock_tool_handler)
+    agent = EnricherAgent(model=test_model)
+
+    entries = async_iter([Entry(links=[Link(rel="enclosure", href="photo.jpg")])])
+    enriched = [e async for e in agent.run(entries, context)]
+
+    assert enriched[0].content == "A sunset over the ocean"
+```
+
+**Requirements:**
+- Deterministic tests (no fuzzy text matching)
+- Verify tool calls and structured outputs
+- No API keys or live LLM calls required for CI
+
+### Prompt Testing
+
+Validate template rendering and detect unintended prompt changes.
+
+```python
+from egregora_v3.engine.llm.template_loader import prompt_env
+
+def test_writer_prompt_renders():
+    """Verify writer template renders with valid data."""
+    template = prompt_env.get_template('writer/generate_post.jinja2')
+
+    entries = [Entry(id="1", title="Test", content="Content", updated=datetime.now(UTC))]
+    prompt = template.render(entries=entries, style="casual", previous_posts=[])
+
+    assert "Test" in prompt
+    assert "casual" in prompt
+    assert len(prompt) > 100  # Sanity check
+
+def test_all_templates_compile():
+    """Ensure all templates compile without syntax errors."""
+    templates = [
+        'writer/system.jinja2',
+        'writer/generate_post.jinja2',
+        'enricher/describe_image.jinja2',
+    ]
+
+    for name in templates:
+        template = prompt_env.get_template(name)
+        assert template is not None
+
+def test_prompt_snapshot(snapshot):
+    """Detect unintended prompt changes (using syrupy or pytest-snapshot)."""
+    template = prompt_env.get_template('writer/generate_post.jinja2')
+    prompt = template.render(entries=FIXTURE_ENTRIES, style="casual", previous_posts=[])
+    assert prompt == snapshot
+```
+
+**Benefits:**
+- Catch template syntax errors early
+- Detect unintended prompt changes in code review
+- Validate rendering with edge cases (empty lists, missing fields)
 
 ### Test Coverage Target
 - Core: 100%
@@ -809,155 +1228,104 @@ Full guide to be written during Phase 3, covering:
 **Decision:** Implement during Phase 2, benchmark vs pure sync.
 
 ### Q4: Push vs Pull Pipeline Model
-**Question:** Should agents push complete Feeds or support lazy pull-based iteration?
+**Decision:** **Use async generators (pull-based streaming) as the default pattern.**
 
-**Current Model (Push-based):**
-```python
-def run(self, feed: Feed, context: PipelineContext) -> Feed:
-    """Process entire feed, return complete feed."""
-    ...
-```
+**Rationale:**
+- V3 adopts pragmatic async approach (no sync dogma)
+- Async generators are idiomatic Python for streaming
+- Memory efficient for large feeds (1M+ entries)
+- Natural composition via async iteration
+- Batching via buffering utilities (see Section 4.1)
 
-**Problem Scenario:**
-- Feed has 1000 text entries + 10 image entries
-- EnricherAgent wants to batch 10 images for parallel processing
-- Must iterate through 100 text entries to accumulate 10 images
-- Inefficient memory usage for large feeds
-
-**Alternative: Pull-based (Lazy Iteration)**
-```python
-def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterator[Entry]:
-    """Yield enriched entries as ready. Lazy evaluation."""
-
-    image_buffer = []
-
-    for entry in entries:
-        if has_media(entry):
-            image_buffer.append(entry)
-
-            # Process 10 images in parallel when buffer full
-            if len(image_buffer) >= self.step_size:
-                enriched = self._enrich_parallel(image_buffer)
-                yield from enriched
-                image_buffer.clear()
-        else:
-            # Text entries pass through immediately
-            yield entry
-```
-
-**Benefits of Pull-based:**
-- **Lazy evaluation:** Don't process until needed
-- **Memory efficient:** Stream entries, don't load entire feed
-- **Selective processing:** Skip/filter entries easily
-- **Backpressure:** Downstream controls rate
-- **Smart buffering:** Accumulate specific types (images, videos) for batch processing
-
-**Trade-offs:**
-- More complex than simple Feed → Feed
-- Harder to debug (no complete Feed snapshot between stages)
-- Need to handle partial failures/rollback
-- Iterator exhaustion issues
-
-**Hybrid Proposal:**
-```python
-# Agents can choose eager or lazy
-class Agent(Protocol):
-    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterable[Entry]:
-        """Transform entries. Implementation chooses eager/lazy."""
-        ...
-
-# Eager agent (needs full context)
-class WriterAgent:
-    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterator[Entry]:
-        all_entries = list(entries)  # Materialize
-        for window in batch(all_entries, self.step_size):
-            yield self._generate_post(window)
-
-# Lazy agent (streaming transformation)
-class EnricherAgent:
-    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterator[Entry]:
-        for entry in self._process_lazy(entries):  # Never materializes full feed
-            yield entry
-```
-
-**Proposed Solution: Configurable Agent Pairing**
-
-Let each **agent pair** declare their compatibility mode via configuration:
-
-```yaml
-# .egregora/pipeline.yml
-pipeline:
-  - agent: privacy
-    type: PrivacyAgent
-    step_size: 100
-    output_mode: push  # Materializes complete feed
-
-  - agent: enricher
-    type: EnricherAgent
-    step_size: 10
-    input_mode: pull   # Streams from privacy (will materialize if needed)
-    output_mode: pull  # Streams to writer
-
-  - agent: writer
-    type: WriterAgent
-    step_size: 50
-    input_mode: push   # Needs complete feed (will materialize from enricher)
-```
-
-**Agent Implementation:**
+**Agent Pattern:**
 ```python
 class Agent(Protocol):
-    """Agents declare what modes they support."""
-    supports_push: bool = True   # Can process complete Feed
-    supports_pull: bool = False  # Can stream entries lazily
-
-    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterable[Entry]:
-        """Single interface, implementation chooses eager/lazy."""
+    async def run(
+        self,
+        entries: AsyncIterator[Entry],
+        context: PipelineContext
+    ) -> AsyncIterator[Entry]:
+        """Transform entry stream."""
         ...
-
-class EnricherAgent:
-    supports_push = True
-    supports_pull = True  # Supports both!
-
-    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterator[Entry]:
-        """Lazy by default, caller can materialize if needed."""
-        for entry in self._process_streaming(entries):
-            yield entry
-
-class WriterAgent:
-    supports_push = True
-    supports_pull = False  # Requires complete feed
-
-    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterator[Entry]:
-        all_entries = list(entries)  # Force materialization
-        for window in batch(all_entries, self.step_size):
-            yield self._generate_post(window)
 ```
 
-**Pipeline Orchestration:**
+**Streaming Example:**
 ```python
-class PipelineRunner:
-    def connect(self, agent_a: Agent, agent_b: Agent):
-        """Connect agents with compatible mode."""
+# Lazy streaming - process entries as they arrive
+class EnricherAgent:
+    async def run(
+        self,
+        entries: AsyncIterator[Entry],
+        context: PipelineContext
+    ) -> AsyncIterator[Entry]:
+        """Stream enriched entries."""
+        async for batch in abatch(entries, 10):
+            # Process batch in parallel
+            tasks = [self._enrich(e) for e in batch]
+            enriched = await asyncio.gather(*tasks)
 
-        # Both support pull → use streaming (most efficient)
-        if agent_a.supports_pull and agent_b.supports_pull:
-            return agent_b.run(agent_a.run(entries, ctx), ctx)
+            # Yield immediately
+            for entry in enriched:
+                yield entry
+```
 
-        # Agent B needs push → materialize between agents
-        if not agent_b.supports_pull:
-            feed_a = list(agent_a.run(entries, ctx))  # Materialize
-            return agent_b.run(feed_a, ctx)
+**Materialization When Needed:**
+```python
+# Agent needing full context (e.g., ranking all entries)
+class ReaderAgent:
+    async def run(
+        self,
+        entries: AsyncIterator[Entry],
+        context: PipelineContext
+    ) -> AsyncIterator[Entry]:
+        # Materialize only for this agent
+        all_entries = await materialize(entries)
+        ranked = self._elo_rank(all_entries)
+
+        # Stream results
+        for entry in ranked:
+            yield entry
+```
+
+**Selective Buffering:**
+```python
+# Buffer images, stream text
+class EnricherAgent:
+    async def run(
+        self,
+        entries: AsyncIterator[Entry],
+        context: PipelineContext
+    ) -> AsyncIterator[Entry]:
+        """Smart buffering by entry type."""
+        image_buffer = []
+
+        async for entry in entries:
+            if has_media(entry):
+                image_buffer.append(entry)
+
+                # Process 10 images in parallel
+                if len(image_buffer) >= 10:
+                    enriched = await self._enrich_batch(image_buffer)
+                    for e in enriched:
+                        yield e
+                    image_buffer.clear()
+            else:
+                # Text entries pass through immediately
+                yield entry
+
+        # Flush remaining
+        if image_buffer:
+            enriched = await self._enrich_batch(image_buffer)
+            for e in enriched:
+                yield e
 ```
 
 **Benefits:**
-- **Per-pair optimization:** PrivacyAgent→EnricherAgent streams, EnricherAgent→WriterAgent materializes
-- **Automatic negotiation:** Pipeline runner handles compatibility
-- **Configuration-driven:** Change modes without code changes
-- **Profiling-friendly:** Switch modes, benchmark, optimize
-- **Backward compatible:** All agents support push (eager) as fallback
-
-**Decision:** Defer to Phase 4. Start with eager Feed → Feed, add lazy support incrementally with configuration-driven pairing.
+- Memory efficient (stream, don't materialize)
+- Low latency (start downstream immediately)
+- Natural backpressure (slow consumers control rate)
+- Composable (`entries |> privacy |> enricher |> writer`)
+- Flexible (agents can materialize when needed)
 
 ---
 
