@@ -37,7 +37,34 @@ The core pipeline and internal interfaces are synchronous (`def`). Concurrency i
 ### 3. Atom Compliance
 All content is modeled using Atom (RFC 4287) vocabulary: `Entry`, `Document`, `Feed`, `Link`, `Author`. This enables RSS/Atom export and interoperability.
 
-**Why:** Standard vocabulary, well-defined semantics, easy integration with feed readers.
+**Why:**
+- **Standard vocabulary:** Well-defined semantics, easy integration with feed readers
+- **Agent clarity:** Entry gives Agents complete context for each item flowing through Feed
+  - Not just raw text, but structured metadata: title, authors, dates, links, categories
+  - Agents can reason about metadata, not just content
+  - Self-contained units with full provenance and context
+
+**Example - Agent receives structured Entry, not raw text:**
+```python
+# Agent sees complete context
+entry = Entry(
+    title="Team standup notes",
+    content="Discussed API refactoring...",
+    authors=[Author(name="Alice")],
+    published=datetime(2024, 12, 4),
+    categories=["engineering", "standup"],
+    links=[Link(rel="enclosure", href="meeting-recording.mp3", type="audio/mpeg")]
+)
+
+# Agent can reason:
+# - Who said it? (authors)
+# - When? (published)
+# - What type of content? (categories)
+# - Any attachments? (links)
+# - Context for generating output (all metadata available)
+```
+
+This structured approach is superior to passing raw strings to Agents.
 
 ### 4. ContentLibrary Organization
 Documents are organized by type-specific repositories via a `ContentLibrary` facade:
