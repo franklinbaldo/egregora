@@ -1,7 +1,7 @@
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 from uuid import UUID
 
 from egregora_v3.core.ports import (
@@ -21,17 +21,19 @@ class MockInputAdapter(InputAdapter):
         yield Entry(id="1", updated=datetime.now(UTC), title="test", content="content")
 
 class MockRepo(DocumentRepository):
-    def save(self, doc: Document) -> None: pass
+    # Updated signature to return Document
+    def save(self, doc: Document) -> Document: return doc
     def get(self, doc_id: str) -> Document | None: return None
-    def list_by_type(self, doc_type: DocumentType) -> list[Document]: return []
+    # Updated signature to list by kwargs
+    def list(self, *, doc_type: DocumentType | None = None) -> List[Document]: return []
     def exists(self, doc_id: str) -> bool: return False
 
     def save_entry(self, item: Entry) -> None: pass
     def get_entry(self, item_id: str) -> Entry | None: return None
-    def get_entries_by_source(self, source_id: str) -> list[Entry]: return []
+    def get_entries_by_source(self, source_id: str) -> List[Entry]: return []
 
 class MockAgent(Agent):
-    def process(self, entries: list[Entry]) -> list[Document]:
+    def process(self, entries: List[Entry]) -> List[Document]:
         return [Document.create(content="generated", doc_type=DocumentType.POST, title="Gen")]
 
 class MockOutputSink(OutputSink):

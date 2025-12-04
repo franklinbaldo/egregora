@@ -195,3 +195,157 @@ O adaptador recebe o feed completo. Ele pode filtrar (ex: publicar apenas status
 2.  **Feed Generation:** Testar `documents_to_feed` com lista vazia (deve gerar feed válido com updated atual) e lista populada (updated = max(entries)).
 3.  **Adapter Contract:** Criar um FakeAdapter que consome um Feed e verificar se ele acessa os campos corretos de `Document` (como `url_path`).
 4.  **Roundtrip:** Testar Serialização/Deserialização Pydantic para garantir que nada se perde.
+
+## 8. Organização e Persistência (AtomPub-style)
+
+Até aqui, o v3 definiu o **modelo de dados** (Atom: `Feed` / `Entry` / `Document`).
+Falta responder de forma padronizada:
+
+- *Onde* documentos são salvos?
+- *Que tipos de documentos* cada área aceita?
+- *Como* um agente descobre isso sem “adivinhar” paths de arquivos?
+
+Para isso, adotamos a **semântica do AtomPub (RFC 5023)** como modelo conceitual, sem obrigatoriedade de usar HTTP/XML internamente:
+
+- **Service Document** → catálogo de workspaces e coleções.
+- **Workspace** → um conjunto lógico de coleções.
+- **Collection** → um endpoint lógico onde se pode criar/ler entradas (`Entry`/`Document`).
+- **Media Resources / Media Link Entries** → padrão para lidar com binários (imagens, PDFs, etc.).
+
+### 8.1. Conceitos: Workspace e Collection
+
+Um **Workspace** representa um “espaço lógico” de publicação (ex.: site principal, diário privado, área de rascunhos).
+
+Uma **Collection** representa um conjunto de documentos do mesmo “tipo funcional” (ex.: posts de blog, notas, mídia).
+
+```python
+from pydantic import BaseModel, Field
+from typing import Protocol
+
+class DocumentRepository(Protocol):
+    def save(self, doc: Document) -> Document: ...
+    def get(self, doc_id: str) -> Document | None: ...
+    def list(self, *, doc_type: DocumentType | None = None) -> list[Document]: ...
+
+class Collection(BaseModel):
+    id: str                       # ex: "posts", "journal", "media"
+    title: str                    # ex: "Blog Posts"
+    accepts: list[DocumentType]   # ex: [DocumentType.POST]
+
+    # Backend que sabe persistir e listar Documents desta coleção
+    repository: DocumentRepository
+
+class Workspace(BaseModel):
+    title: str                    # ex: "Egregora Main Site"
+    collections: list[Collection] = Field(default_factory=list)
+```
+
+Regra: agentes não “chutam” paths de arquivo ou tabelas.
+Eles sempre falam com coleções por id ("posts", "journal", "media"), e o backend decide se isso é MkDocs, SQL, S3, etc.
+
+### 8.2. Service Catalog (equivalente ao Service Document)
+
+No AtomPub, o cliente faz GET /service para descobrir coleções.
+No Egregora v3, expomos isso como um catálogo em memória/objeto:
+
+```python
+class Service(BaseModel):
+    """
+    Catalogo de workspaces e coleções disponíveis no Egregora.
+    Equivalente conceitual ao Service Document do AtomPub.
+    """
+    workspaces: list[Workspace] = Field(default_factory=list)
+
+    def find_collection(self, collection_id: str) -> Collection | None:
+        for ws in self.workspaces:
+            for col in ws.collections:
+                if col.id == collection_id:
+                    return col
+        return None
+```
+
+Um Agente pode receber (ou consultar) um Service e perguntar:
+
+“Quais coleções existem?”
+
+“Quais tipos de Document cada coleção aceita?”
+
+
+Isso remove acoplamento a estrutura física (diretórios, nomes de tabelas, etc.).
+
+### 8.3. Operações CRUD estilo AtomPub
+
+Em AtomPub, há operações como POST (criar entry), PUT (atualizar), GET feed (listar), etc.
+No v3, definimos uma API de alto nível para agentes, inspirada nesses verbos:
+
+```python
+class WorkspaceService(Protocol):
+    def create_document(self, collection_id: str, doc: Document) -> Document: ...
+    def update_document(self, doc_id: str, doc: Document) -> Document: ...
+    def list_documents(
+        self,
+        collection_id: str,
+        doc_type: DocumentType | None = None,
+    ) -> list[Document]: ...
+```
+
+Fluxo típico para um agente:
+
+1. Descobrir coleções: `lê Service.workspaces[*].collections[*]`.
+2. Encontrar onde criar: ex.: coleção "posts" aceita DocumentType.POST.
+3. Criar documento: `chama create_document("posts", doc)`; o backend decide: qual url_path usar, onde gravar o .md, como atualizar índices RAG.
+4. Atualizar documento: `chama update_document(doc_id, doc)`.
+
+
+### 8.4. Mídia (Media Resources e Media Link Entries)
+
+AtomPub também define como tratar mídia binária:
+- Media Resource → o arquivo em si (JPEG, PDF, etc.).
+- Media Link Entry → uma entry/Documento que descreve essa mídia e aponta para o arquivo.
+
+No v3, isso vira uma convenção:
+- Binário não vai em content (Entry.content é texto).
+- Binário vai: para o backend de mídia (filesystem/S3/etc.), e é referenciado por um Document de tipo MEDIA com link rel="enclosure".
+
+Exemplo de API:
+
+```python
+class MediaStore(Protocol):
+    def upload(self, data: bytes, mime_type: str) -> Link:
+        """
+        Faz o upload do binário e retorna um Link com href/type/length preenchidos.
+        href pode ser um path local, URL HTTP, ou esquema customizado (ex: s3://...)
+        """
+
+class WorkspaceServiceWithMedia(WorkspaceService, Protocol):
+    def upload_media_document(
+        self,
+        collection_id: str,
+        data: bytes,
+        mime_type: str,
+        title: str,
+        alt_text: str | None = None,
+    ) -> Document:
+        """
+        1. Faz upload do binário via MediaStore.
+        2. Cria um Document(doc_type=MEDIA) com link rel="enclosure".
+        3. Persiste nas coleções configuradas.
+        """
+```
+
+Convenção:
+- Document.doc_type == MEDIA
+- Document.links contém pelo menos um Link com rel="enclosure" apontando para o arquivo.
+- Document.content pode conter descrição longa, legenda, etc.
+
+### 8.5. Benefícios
+
+Adotar essa camada “AtomPub-style” traz:
+
+1. Descoberta explícita: agentes não precisam conhecer paths; apenas ids de coleção.
+2. Separação papel dado / papel blob: tudo que é texto/semântica é Document (Entry Atom), binário é tratado como mídia, ligado via rel="enclosure".
+3. Multi-Workspace nativo: é fácil ter um Workspace “Blog Público” e outro “Diário Privado” usando as mesmas primitivas.
+4. Evolução futura (servidor): se no futuro o Egregora virar um servidor HTTP, essa camada casa bem com um AtomPub “de verdade” (Service Document, Collections, ETags, etc.), sem refator pesada no core.
+
+Resumo:
+O v3 usa Atom para modelar dados, e usa uma camada inspirada em AtomPub para modelar onde e como esses dados vivem e são manipulados (Workspaces, Collections, Service). Isso dá uma semântica robusta para agentes e para a própria organização interna do Egregora.
