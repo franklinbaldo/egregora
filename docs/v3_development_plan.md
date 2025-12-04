@@ -316,19 +316,56 @@ class LanceDBVectorStore(VectorStore):
 
 **Testing:** Port existing V2 tests, adapt to V3 Document model.
 
-#### 2.4 Output Sinks
+#### 2.4 Output Sinks (Feed → Format Transformation)
+Output sinks transform the final Feed into any desired format. Multiple sinks can be used simultaneously.
+
 ```python
 # egregora_v3/infra/output/mkdocs.py
 class MkDocsOutputSink(OutputSink):
-    """Generate MkDocs site structure."""
-    def publish(self, feed: Feed) -> None: ...
+    """Generate MkDocs blog: markdown files + navigation."""
+    def publish(self, feed: Feed) -> None:
+        for entry in feed.entries:
+            # Create docs/posts/entry-slug.md
+            self._write_markdown(entry)
+        # Generate mkdocs.yml navigation
+        self._generate_nav(feed)
 
 # egregora_v3/infra/output/atom_xml.py
 class AtomXMLOutputSink(OutputSink):
-    """Export Atom XML feeds."""
+    """Export Atom/RSS XML feed."""
     def publish(self, feed: Feed) -> None:
-        xml = feed.to_xml()
+        xml = feed.to_xml()  # Atom RFC 4287 compliant
         self.path.write_text(xml)
+
+# egregora_v3/infra/output/sqlite.py
+class SQLiteOutputSink(OutputSink):
+    """Export to SQLite database."""
+    def publish(self, feed: Feed) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            for entry in feed.entries:
+                conn.execute("INSERT INTO entries ...", entry.to_dict())
+
+# egregora_v3/infra/output/csv.py
+class CSVOutputSink(OutputSink):
+    """Export to CSV files (flat format)."""
+    def publish(self, feed: Feed) -> None:
+        df = pd.DataFrame([e.to_dict() for e in feed.entries])
+        df.to_csv(self.path, index=False)
+```
+
+**Multiple Output Formats:**
+```python
+# Transform final feed into multiple formats simultaneously
+output_feed = writer_agent.run(enriched_feed, context)
+
+# Generate blog
+mkdocs_sink.publish(output_feed)
+
+# Generate RSS feed
+atom_sink.publish(output_feed)
+
+# Export to database
+sqlite_sink.publish(output_feed)
 ```
 
 **Testing:** E2E tests generating actual files, validate structure.
@@ -509,7 +546,7 @@ Output Feed (final documents)
 - Database/caching prevents redundant LLM calls (check if entry already enriched)
 - Next agent receives already-processed entries
 
-**Example - Pipeline with Optional Privacy:**
+**Example - Full Pipeline with Output Transformation:**
 ```python
 # 1. Raw feed from input adapter
 raw_feed = adapter.read_feed()  # Entries have minimal content
@@ -524,8 +561,13 @@ enriched_feed = enricher_agent.run(raw_feed, context)  # Entries now have descri
 # 4. Writing pass (Feed → Feed)
 output_feed = writer_agent.run(enriched_feed, context)  # Generate blog posts
 
-# 5. Persist output
+# 5. Persist to repository (internal storage)
 library.save_all(output_feed.entries)
+
+# 6. Transform to desired output formats (Feed → Format)
+mkdocs_sink.publish(output_feed)    # Generate blog
+atom_sink.publish(output_feed)      # Generate RSS feed
+sqlite_sink.publish(output_feed)    # Export to database
 ```
 
 **Alternative - Privacy after enrichment:**
