@@ -65,6 +65,8 @@ class Entry(BaseModel):
     # Internal system metadata (not serialized to public Atom)
     internal_metadata: dict[str, Any] = Field(default_factory=dict)
 
+    # Public extensions (Atom compliant)
+    extensions: dict[str, Any] = Field(default_factory=dict)
 
 # --- Application Domain ---
 
