@@ -85,7 +85,7 @@ Infrastructure dependencies are defined as protocols (structural typing), not co
 ┌─────────────────────────────────────────────────────────────┐
 │ Layer 1: Core Domain (core/)                                │
 │ Pure domain logic: types, config, protocols                 │
-│ Components: Entry, Document, Feed, Ports (NO I/O)           │
+│ Components: Entry, Document, Feed, Context, Ports (NO I/O)  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -117,6 +117,26 @@ Infrastructure dependencies are defined as protocols (structural typing), not co
 3. Add `documents_to_feed()` aggregation function
 4. 100% unit test coverage for all core types
 5. Document threading support (RFC 4685 `in_reply_to`)
+6. **NEW: Implement PipelineContext for request-scoped state**
+
+#### 1.5 Phase 1 Refinements
+Before moving to Phase 2, address these design clarifications:
+
+**Media Handling Strategy:**
+- Clarify `DocumentType.MEDIA` semantics: Is `content` a file path, content hash, or base64?
+- Proposed: `content` = content hash (SHA-256), `metadata["path"]` = file location
+- Validate approach with example media document
+
+**Identity Strategy (Hybrid Approach):**
+- **Immutable data** (FeedItems, enrichments, vector chunks) → UUIDv5 (content-addressed)
+- **Mutable content** (Posts, Profiles) → Semantic IDs (slugs, paths via UrlConvention)
+- Rationale: Posts have human-meaningful identity (slug), chunks need deduplication (hash)
+- Add `Document.slug` property for mutable types
+
+**Config Loader Hardening:**
+- Refactor `EgregoraConfig.load()` to dedicated loader class
+- Better error reporting for malformed YAML (line numbers, validation failures)
+- Environment variable override support
 
 **Success Criteria:**
 - [ ] All core types validated via Pydantic
@@ -390,10 +410,18 @@ def write(
 - **Engine:** Agents with mocked LLM responses
 - **Infra:** Protocols tested with fakes
 
+### Property-Based Testing
+Use `hypothesis` to verify invariants across random inputs:
+- **ID Stability:** Same content → same Document ID (idempotency)
+- **Serialization:** Round-trip through JSON preserves data
+- **Feed Composition:** Adding entries preserves feed structure
+- **Example:** Generate 1000 random Documents, verify `Document.create()` always produces valid UUIDs
+
 ### Integration Tests
 - **Repository:** Real DuckDB (in-memory)
 - **Vector Store:** Real LanceDB (temp directory)
 - **Adapters:** Real files (test fixtures)
+- **Serialization:** JSON round-trips for all core types (UUID, datetime, Path fields)
 
 ### E2E Tests
 - **Pipeline:** Full run with fake LLM (no API calls)
