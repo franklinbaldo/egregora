@@ -453,14 +453,23 @@ class SyncLLMClient:
 
 **Why:** Pydantic-AI agents can run in threads. V3 core stays sync, concurrency handled internally.
 
-#### 3.2 Core Agents (Feed → Feed Pattern)
+#### 3.2 Core Agents (Feed → Feed Pattern with Configurable Batch Sizes)
+Each agent can configure its own processing batch size or window size:
+
 ```python
 # egregora_v3/engine/agents/enricher.py
 class EnricherAgent:
     """Enriches Feed entries: media descriptions, URL metadata."""
 
+    def __init__(self, batch_size: int = 10):
+        """
+        Args:
+            batch_size: Number of entries to process in parallel (default: 10)
+        """
+        self.batch_size = batch_size
+
     def run(self, feed: Feed, context: PipelineContext) -> Feed:
-        """Transform Feed by enriching entries.
+        """Transform Feed by enriching entries in batches.
 
         - Downloads media files from enclosure links
         - Runs vision/audio models to get descriptions
@@ -468,14 +477,17 @@ class EnricherAgent:
         - Caches results to avoid redundant LLM calls
         """
         enriched_entries = []
-        for entry in feed.entries:
-            # Check cache first
-            if cached := context.repository.get_enrichment(entry.id):
-                entry.content = cached.content
-            else:
-                # Process media/URLs, update entry.content
-                entry = self._enrich_entry(entry)
-            enriched_entries.append(entry)
+
+        # Process in batches for memory efficiency
+        for batch in chunk(feed.entries, self.batch_size):
+            for entry in batch:
+                # Check cache first
+                if cached := context.repository.get_enrichment(entry.id):
+                    entry.content = cached.content
+                else:
+                    # Process media/URLs, update entry.content
+                    entry = self._enrich_entry(entry)
+                enriched_entries.append(entry)
 
         return Feed(entries=enriched_entries, ...)
 
@@ -483,18 +495,36 @@ class EnricherAgent:
 class WriterAgent:
     """Generates blog posts from enriched entries."""
 
+    def __init__(self, window_size: int = 50):
+        """
+        Args:
+            window_size: Number of entries to aggregate into one post (default: 50)
+        """
+        self.window_size = window_size
+
     def run(self, feed: Feed, context: PipelineContext) -> Feed:
         """Transform enriched Feed into output documents.
 
+        Groups entries into windows and generates one post per window.
         Receives entries already enriched by EnricherAgent.
         """
         documents = []
-        for window in windowing.create_windows(feed.entries):
+
+        # Process entries in windows (many entries → one post)
+        for window in create_windows(feed.entries, self.window_size):
             post = self._generate_post(window)  # LLM call
             documents.append(post)
 
         return Feed(entries=documents, ...)
 ```
+
+**Key Concepts:**
+- **Batch Size:** Number of entries to process at once (memory management)
+- **Window Size:** Number of entries to aggregate (semantic grouping)
+- Different agents have different needs:
+  - `EnricherAgent`: Small batches (10) for parallel enrichment
+  - `WriterAgent`: Large windows (50) to generate comprehensive posts
+  - `PrivacyAgent`: Large batches (100+) since rule-based processing is fast
 
 **Porting Strategy:** Copy V2 agent logic, adapt to **Feed → Feed** pattern.
 
@@ -545,6 +575,10 @@ Output Feed (final documents)
 - Each agent returns a **Feed** as output
 - Database/caching prevents redundant LLM calls (check if entry already enriched)
 - Next agent receives already-processed entries
+- **Each agent controls its own batch/window size** for processing:
+  - EnricherAgent: batch_size=10 (process 10 entries at a time)
+  - WriterAgent: window_size=50 (aggregate 50 entries into 1 post)
+  - PrivacyAgent: batch_size=100 (fast rule-based processing)
 
 **Example - Full Pipeline with Output Transformation:**
 ```python
