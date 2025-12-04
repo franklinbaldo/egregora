@@ -24,10 +24,22 @@ Build a general-purpose document processing library (`src/egregora_v3`) that sup
 
 ## Core Principles
 
-### 1. Public Data First
-**V3 assumes data is already privacy-ready or public.** Privacy is the user's responsibility - V3 provides optional helper utilities but doesn't enforce privacy.
+### 1. Privacy as Optional Agent
+**V3 doesn't enforce privacy.** Privacy can be added as an optional agent anywhere in the pipeline. Privacy agents don't need to be LLM-based (can use rule-based anonymization).
 
-**Why:** Removes UUID mapping overhead, simpler data model, broader use cases, clearer contracts.
+**Examples:**
+```python
+# Privacy before enrichment (anonymize raw data)
+Raw Feed → PrivacyAgent → EnricherAgent → WriterAgent
+
+# Privacy after enrichment (keep descriptions, anonymize authors)
+Raw Feed → EnricherAgent → PrivacyAgent → WriterAgent
+
+# No privacy (trusted/public data)
+Raw Feed → EnricherAgent → WriterAgent
+```
+
+**Why:** Maximum flexibility, composable pipeline, removes core complexity, broader use cases.
 
 ### 2. Synchronous-First
 The core pipeline and internal interfaces are synchronous (`def`). Concurrency is handled explicitly via `ThreadPoolExecutor` for I/O-bound tasks, never `async`/`await` in core logic.
@@ -321,43 +333,57 @@ class AtomXMLOutputSink(OutputSink):
 
 **Testing:** E2E tests generating actual files, validate structure.
 
-#### 2.5 Privacy Utilities (Optional Helpers)
+#### 2.5 Privacy Agent (Optional Pipeline Component)
 ```python
-# egregora_v3/utils/privacy.py
-def anonymize_entry(entry: Entry, namespace: str) -> Entry:
-    """Helper to anonymize Entry before processing.
+# egregora_v3/infra/agents/privacy.py
+class PrivacyAgent:
+    """Optional privacy agent - Feed → Feed transformer.
 
-    User's responsibility to call if needed.
+    Not LLM-based - uses rule-based anonymization.
+    Can be inserted anywhere in pipeline.
     """
-    # Replace author names with deterministic IDs
-    ...
 
-def deterministic_author_id(name: str, namespace: str) -> str:
-    """Generate stable pseudonymous ID from name."""
-    return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{namespace}:{name}"))
+    def __init__(self, namespace: str, strategies: list[PrivacyStrategy]):
+        self.namespace = namespace
+        self.strategies = strategies  # e.g., AnonymizeAuthors, RedactPII
 
-def detect_pii(text: str) -> list[PIIMatch]:
-    """Scan text for PII (emails, phones, addresses)."""
-    # Regex-based detection
-    ...
+    def run(self, feed: Feed, context: PipelineContext) -> Feed:
+        """Anonymize entries in feed."""
+        anonymized_entries = []
+        for entry in feed.entries:
+            entry = self._anonymize_entry(entry)
+            anonymized_entries.append(entry)
+        return Feed(entries=anonymized_entries, ...)
 
-def redact_pii(text: str, matches: list[PIIMatch]) -> str:
-    """Replace PII with placeholders."""
-    ...
+    def _anonymize_entry(self, entry: Entry) -> Entry:
+        """Apply privacy strategies to entry."""
+        # Replace author names with deterministic IDs
+        if entry.authors:
+            entry.authors = [
+                Author(name=self._anonymize_name(a.name))
+                for a in entry.authors
+            ]
+        # Redact PII from content
+        entry.content = self._redact_pii(entry.content)
+        return entry
 ```
 
 **Usage Example:**
 ```python
-from egregora_v3.utils.privacy import anonymize_entry
+# Configure pipeline with privacy agent
+privacy = PrivacyAgent(
+    namespace="my-project",
+    strategies=[AnonymizeAuthors(), RedactPII()]
+)
 
-# User's code - their responsibility
-for entry in whatsapp.read_entries():
-    if entry.authors:  # Has author names
-        entry = anonymize_entry(entry, namespace="my-chat")
-    yield entry  # Now privacy-ready for V3
+# Insert privacy at any point
+raw_feed = adapter.read_feed()
+anonymized_feed = privacy.run(raw_feed, context)  # Feed → Feed
+enriched_feed = enricher.run(anonymized_feed, context)
+output_feed = writer.run(enriched_feed, context)
 ```
 
-**Testing:** Unit tests for utility functions, no integration with core.
+**Testing:** Unit tests for privacy strategies, integration tests for Feed transformation.
 
 **Success Criteria:**
 - [ ] At least 3 input adapters working (RSS, API, WhatsApp)
@@ -483,19 +509,31 @@ Output Feed (final documents)
 - Database/caching prevents redundant LLM calls (check if entry already enriched)
 - Next agent receives already-processed entries
 
-**Example:**
+**Example - Pipeline with Optional Privacy:**
 ```python
 # 1. Raw feed from input adapter
 raw_feed = adapter.read_feed()  # Entries have minimal content
 
-# 2. Enrichment pass (Feed → Feed)
-enriched_feed = enricher_agent.run(raw_feed)  # Entries now have descriptions
+# 2. Optional: Privacy pass (Feed → Feed)
+if config.privacy_enabled:
+    raw_feed = privacy_agent.run(raw_feed, context)  # Anonymize authors, redact PII
 
-# 3. Writing pass (Feed → Feed)
-output_feed = writer_agent.run(enriched_feed)  # Generate blog posts from enriched entries
+# 3. Enrichment pass (Feed → Feed)
+enriched_feed = enricher_agent.run(raw_feed, context)  # Entries now have descriptions
 
-# 4. Persist output
+# 4. Writing pass (Feed → Feed)
+output_feed = writer_agent.run(enriched_feed, context)  # Generate blog posts
+
+# 5. Persist output
 library.save_all(output_feed.entries)
+```
+
+**Alternative - Privacy after enrichment:**
+```python
+raw_feed = adapter.read_feed()
+enriched_feed = enricher_agent.run(raw_feed, context)
+anonymized_feed = privacy_agent.run(enriched_feed, context)  # Keep descriptions, hide authors
+output_feed = writer_agent.run(anonymized_feed, context)
 ```
 
 **Components:**
