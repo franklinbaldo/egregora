@@ -880,7 +880,84 @@ class EnricherAgent:
             yield entry
 ```
 
-**Decision:** Defer to Phase 4. Start with eager Feed → Feed, profile performance, consider lazy iteration if memory/performance issues arise. Pipeline orchestration layer can provide both interfaces.
+**Proposed Solution: Configurable Agent Pairing**
+
+Let each **agent pair** declare their compatibility mode via configuration:
+
+```yaml
+# .egregora/pipeline.yml
+pipeline:
+  - agent: privacy
+    type: PrivacyAgent
+    step_size: 100
+    output_mode: push  # Materializes complete feed
+
+  - agent: enricher
+    type: EnricherAgent
+    step_size: 10
+    input_mode: pull   # Streams from privacy (will materialize if needed)
+    output_mode: pull  # Streams to writer
+
+  - agent: writer
+    type: WriterAgent
+    step_size: 50
+    input_mode: push   # Needs complete feed (will materialize from enricher)
+```
+
+**Agent Implementation:**
+```python
+class Agent(Protocol):
+    """Agents declare what modes they support."""
+    supports_push: bool = True   # Can process complete Feed
+    supports_pull: bool = False  # Can stream entries lazily
+
+    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterable[Entry]:
+        """Single interface, implementation chooses eager/lazy."""
+        ...
+
+class EnricherAgent:
+    supports_push = True
+    supports_pull = True  # Supports both!
+
+    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterator[Entry]:
+        """Lazy by default, caller can materialize if needed."""
+        for entry in self._process_streaming(entries):
+            yield entry
+
+class WriterAgent:
+    supports_push = True
+    supports_pull = False  # Requires complete feed
+
+    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterator[Entry]:
+        all_entries = list(entries)  # Force materialization
+        for window in batch(all_entries, self.step_size):
+            yield self._generate_post(window)
+```
+
+**Pipeline Orchestration:**
+```python
+class PipelineRunner:
+    def connect(self, agent_a: Agent, agent_b: Agent):
+        """Connect agents with compatible mode."""
+
+        # Both support pull → use streaming (most efficient)
+        if agent_a.supports_pull and agent_b.supports_pull:
+            return agent_b.run(agent_a.run(entries, ctx), ctx)
+
+        # Agent B needs push → materialize between agents
+        if not agent_b.supports_pull:
+            feed_a = list(agent_a.run(entries, ctx))  # Materialize
+            return agent_b.run(feed_a, ctx)
+```
+
+**Benefits:**
+- **Per-pair optimization:** PrivacyAgent→EnricherAgent streams, EnricherAgent→WriterAgent materializes
+- **Automatic negotiation:** Pipeline runner handles compatibility
+- **Configuration-driven:** Change modes without code changes
+- **Profiling-friendly:** Switch modes, benchmark, optimize
+- **Backward compatible:** All agents support push (eager) as fallback
+
+**Decision:** Defer to Phase 4. Start with eager Feed → Feed, add lazy support incrementally with configuration-driven pairing.
 
 ---
 
