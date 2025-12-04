@@ -258,8 +258,14 @@ class EnrichmentWorker(BaseWorker):
                         "nav_exclude": True,
                         "hide": ["navigation"],
                     },
+                    id=slug_value,  # Semantic ID
                 )
-                self.ctx.output_format.persist(doc)
+
+                # V3 Architecture: Use ContentLibrary if available
+                if self.ctx.library:
+                    self.ctx.library.save(doc)
+                else:
+                    self.ctx.output_format.persist(doc)
 
                 # Create DB row
                 metadata = payload["message_metadata"]
@@ -404,9 +410,42 @@ class EnrichmentWorker(BaseWorker):
                 payload = task["_parsed_payload"]
                 filename = payload["filename"]
                 media_type = payload["media_type"]
+                media_id = payload.get("media_id")  # Original UUID
 
                 slug_value = _normalize_slug(slug, filename)
 
+                # 1. Update Media Document to use Semantic ID
+                # We try to load the original media doc to update its ID (rename it)
+                if media_id:
+                    try:
+                        # Try to load existing media doc
+                        # Note: We use payload['media_id'] which was the UUID
+                        # MkDocsAdapter might not support finding by UUID if it only indexed paths?
+                        # But let's assume get() works or we can reconstruct it.
+                        # If get(MEDIA, media_id) fails, we might skip renaming or try path.
+
+                        # Actually, we don't strictly need to load it if we have content.
+                        # But we want to RENAME the existing file on disk if it exists.
+                        # OutputAdapter.persist handles rename if we pass the NEW doc with NEW ID.
+                        # But we need the content.
+
+                        media_doc = self.ctx.output_format.get(DocumentType.MEDIA, media_id)
+                        if media_doc:
+                            # Update with new semantic ID
+                            new_media_doc = media_doc.with_metadata(slug=slug_value)
+                            # Force new ID (Semantic)
+                            # The Document dataclass computes ID from slug if type is MEDIA.
+                            # So just persisting it should trigger the rename in adapter.
+                            if self.ctx.library:
+                                self.ctx.library.save(new_media_doc)
+                            else:
+                                self.ctx.output_format.persist(new_media_doc)
+
+                            logger.info("Renamed media %s -> %s", media_id, new_media_doc.document_id)
+                    except Exception as e:
+                        logger.warning("Failed to rename media document %s: %s", media_id, e)
+
+                # 2. Persist Enrichment Document
                 enrichment_metadata = {
                     "filename": filename,
                     "media_type": media_type,
@@ -420,8 +459,15 @@ class EnrichmentWorker(BaseWorker):
                     content=markdown,
                     type=DocumentType.ENRICHMENT_MEDIA,
                     metadata=enrichment_metadata,
+                    id=slug_value, # Explicitly match media ID if possible, or just use slug
+                    parent_id=slug_value, # Link to the (now renamed) media
                 )
-                self.ctx.output_format.persist(doc)
+
+                # V3 Architecture: Use ContentLibrary
+                if self.ctx.library:
+                    self.ctx.library.save(doc)
+                else:
+                    self.ctx.output_format.persist(doc)
 
                 # Create DB row
                 metadata = payload["message_metadata"]
