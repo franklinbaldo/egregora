@@ -42,9 +42,20 @@ All content is modeled using Atom (RFC 4287) vocabulary: `Entry`, `Document`, `F
 ### 4. ContentLibrary Organization
 Documents are organized by type-specific repositories via a `ContentLibrary` facade:
 ```python
-library.posts.save(post_doc)
-library.media.save(media_doc)
+# Posts with media attachments (primary pattern)
+post = Document(
+    doc_type=DocumentType.POST,
+    content="Check out this photo!",
+    links=[Link(rel="enclosure", href="file://media/photo.jpg", type="image/jpeg")]
+)
+library.posts.save(post)
+
+# Optional: Index media files separately for tracking/deduplication
+library.media.index(path="media/photo.jpg", metadata={...})
+
+# Other document types
 library.profiles.save(profile_doc)
+library.journal.save(journal_doc)
 ```
 
 **Why:** Simpler and more direct than AtomPub's Service/Workspace/Collection hierarchy. AtomPub can be layered on top for HTTP APIs if needed later.
@@ -123,10 +134,32 @@ Infrastructure dependencies are defined as protocols (structural typing), not co
 #### 1.5 Phase 1 Refinements
 Before moving to Phase 2, address these design clarifications:
 
-**Media Handling Strategy:**
-- Clarify `DocumentType.MEDIA` semantics: Is `content` a file path, content hash, or base64?
-- Proposed: `content` = content hash (SHA-256), `metadata["path"]` = file location
-- Validate approach with example media document
+**Media Handling Strategy (Atom-Compliant):**
+Follow Atom RFC 4287's enclosure pattern - media is referenced via Links, not embedded:
+
+```python
+# Example: Photo post with media attachment
+entry = Entry(
+    title="Summer Sunset",
+    content="Beautiful sunset at the beach",  # Description/caption
+    links=[
+        Link(
+            rel="enclosure",
+            href="file://media/photos/sunset-2024.jpg",  # Path or URL
+            type="image/jpeg",  # MIME type
+            length=245760  # Size in bytes (optional)
+        )
+    ]
+)
+```
+
+**Pattern:**
+- Entry/Document `content` = description/caption (text)
+- Media file referenced via `Link(rel="enclosure")`
+- Link attributes: `href` (path/URL), `type` (MIME), `length` (bytes)
+- Actual media file stored in filesystem/object storage
+
+**Decision:** `DocumentType.MEDIA` may not be needed - media is Links, not Documents
 
 **Identity Strategy (Hybrid Approach):**
 - **Immutable data** (FeedItems, enrichments, vector chunks) → UUIDv5 (content-addressed)
