@@ -25,9 +25,9 @@ Build a general-purpose document processing library (`src/egregora_v3`) that sup
 ## Core Principles
 
 ### 1. Public Data First
-**V3 assumes data is already privacy-ready or public.** Applications needing anonymization use a composable `PrivacyAdapter` wrapper, not core pipeline logic.
+**V3 assumes data is already privacy-ready or public.** Privacy is the user's responsibility - V3 provides optional helper utilities but doesn't enforce privacy.
 
-**Why:** Removes UUID mapping overhead, simpler data model, broader use cases.
+**Why:** Removes UUID mapping overhead, simpler data model, broader use cases, clearer contracts.
 
 ### 2. Synchronous-First
 The core pipeline and internal interfaces are synchronous (`def`). Concurrency is handled explicitly via `ThreadPoolExecutor` for I/O-bound tasks, never `async`/`await` in core logic.
@@ -151,11 +151,9 @@ class WhatsAppAdapter(InputAdapter):
     """WhatsApp parser (reused from V2)."""
     def read_entries(self) -> Iterator[Entry]: ...
 
-# egregora_v3/infra/adapters/privacy.py
-class PrivacyAdapter(InputAdapter):
-    """Composable wrapper for anonymization."""
-    def __init__(self, upstream: InputAdapter, anonymize: bool = True): ...
 ```
+
+**Note:** Privacy is NOT an adapter in V3. Users handle privacy preparation before feeding data to V3.
 
 **Testing:** Contract tests ensuring all adapters return valid Entry objects.
 
@@ -200,11 +198,50 @@ class AtomXMLOutputSink(OutputSink):
 
 **Testing:** E2E tests generating actual files, validate structure.
 
+#### 2.5 Privacy Utilities (Optional Helpers)
+```python
+# egregora_v3/utils/privacy.py
+def anonymize_entry(entry: Entry, namespace: str) -> Entry:
+    """Helper to anonymize Entry before processing.
+
+    User's responsibility to call if needed.
+    """
+    # Replace author names with deterministic IDs
+    ...
+
+def deterministic_author_id(name: str, namespace: str) -> str:
+    """Generate stable pseudonymous ID from name."""
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{namespace}:{name}"))
+
+def detect_pii(text: str) -> list[PIIMatch]:
+    """Scan text for PII (emails, phones, addresses)."""
+    # Regex-based detection
+    ...
+
+def redact_pii(text: str, matches: list[PIIMatch]) -> str:
+    """Replace PII with placeholders."""
+    ...
+```
+
+**Usage Example:**
+```python
+from egregora_v3.utils.privacy import anonymize_entry
+
+# User's code - their responsibility
+for entry in whatsapp.read_entries():
+    if entry.authors:  # Has author names
+        entry = anonymize_entry(entry, namespace="my-chat")
+    yield entry  # Now privacy-ready for V3
+```
+
+**Testing:** Unit tests for utility functions, no integration with core.
+
 **Success Criteria:**
 - [ ] At least 3 input adapters working (RSS, API, WhatsApp)
 - [ ] DuckDB repository with full CRUD + tests
 - [ ] LanceDB RAG integration ported from V2
 - [ ] MkDocs + AtomXML output sinks functional
+- [ ] Privacy utilities documented with examples
 
 **Timeline:** Q2-Q3 2026 (6 months)
 
@@ -395,14 +432,15 @@ egregora doctor --v2-compat
 - Config format (`.egregora/config.yml` structure)
 - CLI flags (`--refresh` becomes `--cache-policy`)
 - Output directory structure (ContentLibrary routing)
-- Privacy is opt-in via adapter (not automatic)
+- Privacy is user's responsibility (V3 provides helpers, not enforcement)
 
 ### Migration Guide
 Full guide to be written during Phase 3, covering:
-- Adapter wrapping (WhatsApp + PrivacyAdapter)
+- Privacy helpers (extracting V2's anonymization into v3.utils.privacy)
 - Config translation
 - Custom agent porting
 - Data migration
+- User responsibility for data preparation
 
 ---
 

@@ -30,7 +30,7 @@ In V3, Egregora adopts the **Atom protocol** (RFC 4287) as the conceptual founda
 3. **Format agnostic** - Publication works with MkDocs, JSON API, Hugo, etc.
 
 **Key Difference from V2:**
-V3 assumes data is **already privacy-ready or public**. Privacy is not a core concern - applications needing anonymization use a composable `PrivacyAdapter`.
+V3 assumes data is **already privacy-ready or public**. Privacy is not a core concern - it's the user's responsibility. V3 provides optional helper utilities for users who need to anonymize data.
 
 ---
 
@@ -474,7 +474,21 @@ Adopting an "AtomPub-style" layer provides:
 **V3 Targets:**
 - Public data sources (RSS feeds, APIs, public archives)
 - Data assumed privacy-ready (no built-in anonymization)
-- Applications needing privacy use PrivacyAdapter wrapper
+- Users needing privacy use optional helper utilities (`egregora_v3.utils.privacy`)
+
+**Privacy Helper Utilities:**
+V3 provides optional tools for users who need to prepare privacy-sensitive data:
+
+```python
+# egregora_v3/utils/privacy.py (optional utilities)
+from egregora_v3.utils.privacy import anonymize_entry, detect_pii
+
+# User's responsibility to anonymize if needed
+for entry in adapter.read_entries():
+    if has_sensitive_data(entry):  # User decides
+        entry = anonymize_entry(entry, namespace="my-project")
+    yield entry  # Now ready for V3 core
+```
 
 V3 uses Atom to model data, and uses ContentLibrary to organize where and how that data lives and is manipulated. This provides robust semantics for agents and internal organization without AtomPub's complexity.
 

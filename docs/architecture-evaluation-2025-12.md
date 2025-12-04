@@ -122,18 +122,27 @@ Several V3 concepts have been integrated into V2:
 **Rationale:**
 - V3 targets public data (RSS feeds, APIs, public archives)
 - Data is assumed to be **already privacy-ready** when it enters V3
-- Applications needing privacy (like V2's chat processing) handle it in their input adapters
+- Privacy is user's **responsibility** - V3 provides optional helper utilities
 - Removes complexity: No UUID mapping, no reverse lookups, no namespace management
 
-**Migration Impact:**
-When V2 applications move to V3, they'll include a **privacy adapter layer**:
+**V3 Approach - Privacy as Responsibility:**
 ```python
-# V2 approach (privacy in core)
-Input → [Anonymize] → Core Pipeline → Output
+# V2 approach (privacy enforced by core)
+Input → [Core Anonymizes] → Pipeline → Output
 
-# V3 approach (privacy in application)
-Input → [Privacy Adapter] → V3 Core (public data assumed) → Output
+# V3 approach (privacy is user's responsibility)
+from egregora_v3.utils.privacy import anonymize_entry  # Optional helper
+
+for entry in adapter.read_entries():
+    # User decides if/how to anonymize
+    if entry_needs_privacy(entry):  # User's logic
+        entry = anonymize_entry(entry, namespace="my-project")
+
+    # V3 core assumes data is ready
+    yield entry
 ```
+
+**Contract:** V3 says "give me ready-to-use data." How you prepare it is your business.
 
 ### 3.2 Atom Data Model (Keep)
 
@@ -451,43 +460,46 @@ def write(
 
 In V3, this becomes:
 ```python
-# V3 with privacy adapter
+# V3 with privacy helpers (user's responsibility)
 from egregora_v3 import PipelineRunner
 from egregora_v3.infra.adapters import WhatsAppAdapter
-from egregora_v3.infra.privacy import PrivacyAdapter
+from egregora_v3.utils.privacy import anonymize_entry, detect_pii
 
-# Wrap WhatsApp adapter with privacy layer
+# User ensures data is privacy-ready before V3 processes it
 whatsapp = WhatsAppAdapter("export.zip")
-privacy_adapter = PrivacyAdapter(
-    upstream=whatsapp,
-    anonymize=True,
-    namespace="my-chat-archive"
-)
 
-# Run V3 pipeline
+def privacy_ready_entries():
+    for entry in whatsapp.read_entries():
+        # User's responsibility to anonymize if needed
+        anonymized = anonymize_entry(entry, namespace="my-chat")
+        # Could also: detect_pii(entry.content) and redact
+        yield anonymized
+
+# Run V3 pipeline with ready-to-use data
 runner = PipelineRunner(library, agents)
-feed = runner.run(privacy_adapter, config)
+feed = runner.run(privacy_ready_entries(), config)
 ```
 
 **Key Points:**
-- Privacy is now **optional** via adapter composition
-- V3 core doesn't know about privacy (simpler)
-- Applications needing privacy can use PrivacyAdapter
-- Public data use cases skip privacy layer entirely
+- Privacy is user's **responsibility**, not V3's concern
+- V3 provides **helper utilities** (anonymize_entry, detect_pii, etc.)
+- User decides when/how/if to use privacy helpers
+- V3 core assumes data is already ready to use
 
 ### 5.3 Code Reuse
 
 **What Can Be Reused from V2:**
 - ✅ Agents (Writer, Enricher, Reader) - Port to V3's synchronous API
-- ✅ Input adapters (WhatsApp parser) - Wrap with privacy adapter
+- ✅ Input adapters (WhatsApp parser) - Reuse directly
 - ✅ RAG backend (LanceDB) - Already synchronous
 - ✅ Prompts and templates - Copy directly
 - ✅ Tests (logic) - Adapt to V3 structure
+- ✅ Privacy utilities - Extract as v3.utils.privacy helpers
 
 **What Needs Rewrite:**
 - ❌ Pipeline orchestration - V3 has different layering
 - ❌ Context/State management - V3 uses ContentLibrary + dependency injection
-- ❌ Privacy layer - Moves to adapter pattern
+- ❌ Privacy enforcement - V3 core doesn't enforce, provides utilities instead
 - ❌ Configuration - V3 config will differ
 
 ### 5.4 Breaking Changes
@@ -515,12 +527,19 @@ feed = runner.run(privacy_adapter, config)
 **Architectural Benefit:**
 - Removes V2's UUID mapping overhead
 - Simpler data model (no reverse lookups)
-- Applications choose privacy level (not forced)
+- Users choose privacy level (not forced)
+- Core assumes data is ready-to-use
 
 **When Privacy is Needed:**
-V3 applications can add privacy via adapter composition:
+V3 provides optional helper utilities:
 ```python
-adapter = PrivacyAdapter(RSSAdapter(url), anonymize=True)
+from egregora_v3.utils.privacy import anonymize_entry, detect_pii
+
+# User's responsibility to prepare data
+for entry in rss_adapter.read_entries():
+    if has_author_names(entry):
+        entry = anonymize_entry(entry, namespace="project-x")
+    yield entry
 ```
 
 ### 6.2 Why ContentLibrary Over AtomPub
