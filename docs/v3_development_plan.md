@@ -390,20 +390,50 @@ class SyncLLMClient:
 
 **Why:** Pydantic-AI agents can run in threads. V3 core stays sync, concurrency handled internally.
 
-#### 3.2 Core Agents
+#### 3.2 Core Agents (Feed → Feed Pattern)
 ```python
-# egregora_v3/engine/agents/writer.py
-def create_writer_agent(model: str) -> Agent:
-    """Generate blog posts from entry windows."""
-    ...
-
 # egregora_v3/engine/agents/enricher.py
-def create_enricher_agent(model: str) -> Agent:
-    """Enrich URLs and media with descriptions."""
-    ...
+class EnricherAgent:
+    """Enriches Feed entries: media descriptions, URL metadata."""
+
+    def run(self, feed: Feed, context: PipelineContext) -> Feed:
+        """Transform Feed by enriching entries.
+
+        - Downloads media files from enclosure links
+        - Runs vision/audio models to get descriptions
+        - Updates entry.content with enrichment
+        - Caches results to avoid redundant LLM calls
+        """
+        enriched_entries = []
+        for entry in feed.entries:
+            # Check cache first
+            if cached := context.repository.get_enrichment(entry.id):
+                entry.content = cached.content
+            else:
+                # Process media/URLs, update entry.content
+                entry = self._enrich_entry(entry)
+            enriched_entries.append(entry)
+
+        return Feed(entries=enriched_entries, ...)
+
+# egregora_v3/engine/agents/writer.py
+class WriterAgent:
+    """Generates blog posts from enriched entries."""
+
+    def run(self, feed: Feed, context: PipelineContext) -> Feed:
+        """Transform enriched Feed into output documents.
+
+        Receives entries already enriched by EnricherAgent.
+        """
+        documents = []
+        for window in windowing.create_windows(feed.entries):
+            post = self._generate_post(window)  # LLM call
+            documents.append(post)
+
+        return Feed(entries=documents, ...)
 ```
 
-**Porting Strategy:** Copy V2 agent logic, adapt to V3's Entry/Document types.
+**Porting Strategy:** Copy V2 agent logic, adapt to **Feed → Feed** pattern.
 
 #### 3.3 Tools with Dependency Injection
 ```python
@@ -430,6 +460,43 @@ def search_rag(ctx: RunContext[ContentLibrary], query: str) -> str:
 ### Phase 4: Pipeline Orchestration 🔄 Not Started
 
 **Goal:** Assemble full pipeline with CLI.
+
+**Pipeline Architecture: Feed Transformations**
+
+The pipeline is a chain of **Feed → Agent → Feed** transformations:
+
+```
+Raw Feed (minimal content)
+    ↓
+EnricherAgent (adds context: media descriptions, URL metadata)
+    ↓
+Enriched Feed (same entries, enhanced content)
+    ↓
+WriterAgent (generates posts from enriched entries)
+    ↓
+Output Feed (final documents)
+```
+
+**Key Pattern:**
+- Each agent receives a **Feed** as input
+- Each agent returns a **Feed** as output
+- Database/caching prevents redundant LLM calls (check if entry already enriched)
+- Next agent receives already-processed entries
+
+**Example:**
+```python
+# 1. Raw feed from input adapter
+raw_feed = adapter.read_feed()  # Entries have minimal content
+
+# 2. Enrichment pass (Feed → Feed)
+enriched_feed = enricher_agent.run(raw_feed)  # Entries now have descriptions
+
+# 3. Writing pass (Feed → Feed)
+output_feed = writer_agent.run(enriched_feed)  # Generate blog posts from enriched entries
+
+# 4. Persist output
+library.save_all(output_feed.entries)
+```
 
 **Components:**
 
