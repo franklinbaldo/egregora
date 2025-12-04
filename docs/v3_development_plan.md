@@ -24,10 +24,22 @@ Build a general-purpose document processing library (`src/egregora_v3`) that sup
 
 ## Core Principles
 
-### 1. Public Data First
-**V3 assumes data is already privacy-ready or public.** Privacy is the user's responsibility - V3 provides optional helper utilities but doesn't enforce privacy.
+### 1. Privacy as Optional Agent
+**V3 doesn't enforce privacy.** Privacy can be added as an optional agent anywhere in the pipeline. Privacy agents don't need to be LLM-based (can use rule-based anonymization).
 
-**Why:** Removes UUID mapping overhead, simpler data model, broader use cases, clearer contracts.
+**Examples:**
+```python
+# Privacy before enrichment (anonymize raw data)
+Raw Feed → PrivacyAgent → EnricherAgent → WriterAgent
+
+# Privacy after enrichment (keep descriptions, anonymize authors)
+Raw Feed → EnricherAgent → PrivacyAgent → WriterAgent
+
+# No privacy (trusted/public data)
+Raw Feed → EnricherAgent → WriterAgent
+```
+
+**Why:** Maximum flexibility, composable pipeline, removes core complexity, broader use cases.
 
 ### 2. Synchronous-First
 The core pipeline and internal interfaces are synchronous (`def`). Concurrency is handled explicitly via `ThreadPoolExecutor` for I/O-bound tasks, never `async`/`await` in core logic.
@@ -37,14 +49,52 @@ The core pipeline and internal interfaces are synchronous (`def`). Concurrency i
 ### 3. Atom Compliance
 All content is modeled using Atom (RFC 4287) vocabulary: `Entry`, `Document`, `Feed`, `Link`, `Author`. This enables RSS/Atom export and interoperability.
 
-**Why:** Standard vocabulary, well-defined semantics, easy integration with feed readers.
+**Why:**
+- **Standard vocabulary:** Well-defined semantics, easy integration with feed readers
+- **Agent clarity:** Entry gives Agents complete context for each item flowing through Feed
+  - Not just raw text, but structured metadata: title, authors, dates, links, categories
+  - Agents can reason about metadata, not just content
+  - Self-contained units with full provenance and context
+
+**Example - Agent receives structured Entry, not raw text:**
+```python
+# Agent sees complete context
+entry = Entry(
+    title="Team standup notes",
+    content="Discussed API refactoring...",
+    authors=[Author(name="Alice")],
+    published=datetime(2024, 12, 4),
+    categories=["engineering", "standup"],
+    links=[Link(rel="enclosure", href="meeting-recording.mp3", type="audio/mpeg")]
+)
+
+# Agent can reason:
+# - Who said it? (authors)
+# - When? (published)
+# - What type of content? (categories)
+# - Any attachments? (links)
+# - Context for generating output (all metadata available)
+```
+
+This structured approach is superior to passing raw strings to Agents.
 
 ### 4. ContentLibrary Organization
 Documents are organized by type-specific repositories via a `ContentLibrary` facade:
 ```python
-library.posts.save(post_doc)
-library.media.save(media_doc)
+# Posts with media attachments (primary pattern)
+post = Document(
+    doc_type=DocumentType.POST,
+    content="Check out this photo!",
+    links=[Link(rel="enclosure", href="file://media/photo.jpg", type="image/jpeg")]
+)
+library.posts.save(post)
+
+# Optional: Index media files separately for tracking/deduplication
+library.media.index(path="media/photo.jpg", metadata={...})
+
+# Other document types
 library.profiles.save(profile_doc)
+library.journal.save(journal_doc)
 ```
 
 **Why:** Simpler and more direct than AtomPub's Service/Workspace/Collection hierarchy. AtomPub can be layered on top for HTTP APIs if needed later.
@@ -85,7 +135,8 @@ Infrastructure dependencies are defined as protocols (structural typing), not co
 ┌─────────────────────────────────────────────────────────────┐
 │ Layer 1: Core Domain (core/)                                │
 │ Pure domain logic: types, config, protocols                 │
-│ Components: Entry, Document, Feed, Ports (NO I/O)           │
+│ Components: Entry, Document, Feed, Context, Ports           │
+│ Ports: Agent, InputAdapter, OutputSink, Repository, etc.    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -117,6 +168,90 @@ Infrastructure dependencies are defined as protocols (structural typing), not co
 3. Add `documents_to_feed()` aggregation function
 4. 100% unit test coverage for all core types
 5. Document threading support (RFC 4685 `in_reply_to`)
+6. **NEW: Implement PipelineContext for request-scoped state**
+
+#### 1.5 Phase 1 Refinements
+Before moving to Phase 2, address these design clarifications:
+
+**Media Handling Strategy (Atom-Compliant):**
+Follow Atom RFC 4287's enclosure pattern - media is referenced via Links, not embedded:
+
+```python
+# Example: Photo post with media attachment
+entry = Entry(
+    title="Summer Sunset",
+    content="Beautiful sunset at the beach",  # Description/caption
+    links=[
+        Link(
+            rel="enclosure",
+            href="file://media/photos/sunset-2024.jpg",  # Path or URL
+            type="image/jpeg",  # MIME type
+            length=245760  # Size in bytes (optional)
+        )
+    ]
+)
+```
+
+**Pattern:**
+- Entry/Document `content` = description/caption (text)
+- Media file referenced via `Link(rel="enclosure")`
+- Link attributes: `href` (path/URL), `type` (MIME), `length` (bytes)
+- Actual media file stored in filesystem/object storage
+
+**Enrichment Workflow:**
+```python
+# 1. Entry arrives with media link but minimal description
+entry = Entry(
+    title="Photo from vacation",
+    content="",  # Empty or minimal
+    links=[Link(rel="enclosure", href="http://example.org/photo.jpg", type="image/jpeg")]
+)
+
+# 2. EnricherAgent downloads media and processes it
+media_path = download_media(entry.links[0].href)
+enrichment = enrich_media(media_path)  # Vision model: "Sunset over ocean..."
+
+# 3. Store enrichment result
+enrichment_doc = Document(
+    doc_type=DocumentType.ENRICHMENT,
+    content=enrichment.description,
+    metadata={"source_entry_id": entry.id, "model": "gemini-2.0-flash-vision"}
+)
+library.enrichments.save(enrichment_doc)
+
+# 4. Update entry content directly with enrichment
+entry.content = enrichment.description  # "A sunset over the ocean with orange clouds"
+```
+
+**Benefits:**
+- **Caching:** Process media once, reuse description many times (cheaper/faster)
+- **Search/RAG:** Text descriptions are indexable and searchable in vector stores
+- **Hybrid approach:** Use enrichment text for quick operations, original file for detailed analysis
+- **Fallback:** Works when file unavailable or model doesn't support format
+- **Cost optimization:** Not every LLM call needs vision/audio - use cached text when sufficient
+
+**When to use multimodal LLMs directly:**
+- Detailed analysis requiring full visual/audio context
+- Questions about specific details not captured in enrichment
+- Creative tasks needing direct media access (image editing, audio mixing)
+
+**When to use enrichment text:**
+- RAG search across large media collections
+- Summarization and aggregation tasks
+- Cheap/fast operations (filtering, categorization)
+
+**Decision:** `DocumentType.MEDIA` may not be needed - media is Links, not Documents
+
+**Identity Strategy (Hybrid Approach):**
+- **Immutable data** (FeedItems, enrichments, vector chunks) → UUIDv5 (content-addressed)
+- **Mutable content** (Posts, Profiles) → Semantic IDs (slugs, paths via UrlConvention)
+- Rationale: Posts have human-meaningful identity (slug), chunks need deduplication (hash)
+- Add `Document.slug` property for mutable types
+
+**Config Loader Hardening:**
+- Refactor `EgregoraConfig.load()` to dedicated loader class
+- Better error reporting for malformed YAML (line numbers, validation failures)
+- Environment variable override support
 
 **Success Criteria:**
 - [ ] All core types validated via Pydantic
@@ -181,60 +316,111 @@ class LanceDBVectorStore(VectorStore):
 
 **Testing:** Port existing V2 tests, adapt to V3 Document model.
 
-#### 2.4 Output Sinks
+#### 2.4 Output Sinks (Feed → Format Transformation)
+Output sinks transform the final Feed into any desired format. Multiple sinks can be used simultaneously.
+
 ```python
 # egregora_v3/infra/output/mkdocs.py
 class MkDocsOutputSink(OutputSink):
-    """Generate MkDocs site structure."""
-    def publish(self, feed: Feed) -> None: ...
+    """Generate MkDocs blog: markdown files + navigation."""
+    def publish(self, feed: Feed) -> None:
+        for entry in feed.entries:
+            # Create docs/posts/entry-slug.md
+            self._write_markdown(entry)
+        # Generate mkdocs.yml navigation
+        self._generate_nav(feed)
 
 # egregora_v3/infra/output/atom_xml.py
 class AtomXMLOutputSink(OutputSink):
-    """Export Atom XML feeds."""
+    """Export Atom/RSS XML feed."""
     def publish(self, feed: Feed) -> None:
-        xml = feed.to_xml()
+        xml = feed.to_xml()  # Atom RFC 4287 compliant
         self.path.write_text(xml)
+
+# egregora_v3/infra/output/sqlite.py
+class SQLiteOutputSink(OutputSink):
+    """Export to SQLite database."""
+    def publish(self, feed: Feed) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            for entry in feed.entries:
+                conn.execute("INSERT INTO entries ...", entry.to_dict())
+
+# egregora_v3/infra/output/csv.py
+class CSVOutputSink(OutputSink):
+    """Export to CSV files (flat format)."""
+    def publish(self, feed: Feed) -> None:
+        df = pd.DataFrame([e.to_dict() for e in feed.entries])
+        df.to_csv(self.path, index=False)
+```
+
+**Multiple Output Formats:**
+```python
+# Transform final feed into multiple formats simultaneously
+output_feed = writer_agent.run(enriched_feed, context)
+
+# Generate blog
+mkdocs_sink.publish(output_feed)
+
+# Generate RSS feed
+atom_sink.publish(output_feed)
+
+# Export to database
+sqlite_sink.publish(output_feed)
 ```
 
 **Testing:** E2E tests generating actual files, validate structure.
 
-#### 2.5 Privacy Utilities (Optional Helpers)
+#### 2.5 Privacy Agent (Optional Pipeline Component)
 ```python
-# egregora_v3/utils/privacy.py
-def anonymize_entry(entry: Entry, namespace: str) -> Entry:
-    """Helper to anonymize Entry before processing.
+# egregora_v3/infra/agents/privacy.py
+class PrivacyAgent:
+    """Optional privacy agent - Feed → Feed transformer.
 
-    User's responsibility to call if needed.
+    Not LLM-based - uses rule-based anonymization.
+    Can be inserted anywhere in pipeline.
     """
-    # Replace author names with deterministic IDs
-    ...
 
-def deterministic_author_id(name: str, namespace: str) -> str:
-    """Generate stable pseudonymous ID from name."""
-    return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{namespace}:{name}"))
+    def __init__(self, namespace: str, strategies: list[PrivacyStrategy]):
+        self.namespace = namespace
+        self.strategies = strategies  # e.g., AnonymizeAuthors, RedactPII
 
-def detect_pii(text: str) -> list[PIIMatch]:
-    """Scan text for PII (emails, phones, addresses)."""
-    # Regex-based detection
-    ...
+    def run(self, feed: Feed, context: PipelineContext) -> Feed:
+        """Anonymize entries in feed."""
+        anonymized_entries = []
+        for entry in feed.entries:
+            entry = self._anonymize_entry(entry)
+            anonymized_entries.append(entry)
+        return Feed(entries=anonymized_entries, ...)
 
-def redact_pii(text: str, matches: list[PIIMatch]) -> str:
-    """Replace PII with placeholders."""
-    ...
+    def _anonymize_entry(self, entry: Entry) -> Entry:
+        """Apply privacy strategies to entry."""
+        # Replace author names with deterministic IDs
+        if entry.authors:
+            entry.authors = [
+                Author(name=self._anonymize_name(a.name))
+                for a in entry.authors
+            ]
+        # Redact PII from content
+        entry.content = self._redact_pii(entry.content)
+        return entry
 ```
 
 **Usage Example:**
 ```python
-from egregora_v3.utils.privacy import anonymize_entry
+# Configure pipeline with privacy agent
+privacy = PrivacyAgent(
+    namespace="my-project",
+    strategies=[AnonymizeAuthors(), RedactPII()]
+)
 
-# User's code - their responsibility
-for entry in whatsapp.read_entries():
-    if entry.authors:  # Has author names
-        entry = anonymize_entry(entry, namespace="my-chat")
-    yield entry  # Now privacy-ready for V3
+# Insert privacy at any point
+raw_feed = adapter.read_feed()
+anonymized_feed = privacy.run(raw_feed, context)  # Feed → Feed
+enriched_feed = enricher.run(anonymized_feed, context)
+output_feed = writer.run(enriched_feed, context)
 ```
 
-**Testing:** Unit tests for utility functions, no integration with core.
+**Testing:** Unit tests for privacy strategies, integration tests for Feed transformation.
 
 **Success Criteria:**
 - [ ] At least 3 input adapters working (RSS, API, WhatsApp)
@@ -267,20 +453,79 @@ class SyncLLMClient:
 
 **Why:** Pydantic-AI agents can run in threads. V3 core stays sync, concurrency handled internally.
 
-#### 3.2 Core Agents
-```python
-# egregora_v3/engine/agents/writer.py
-def create_writer_agent(model: str) -> Agent:
-    """Generate blog posts from entry windows."""
-    ...
+#### 3.2 Core Agents (Feed → Feed Pattern with Configurable Step Size)
+Each agent can configure its own processing step size:
 
+```python
 # egregora_v3/engine/agents/enricher.py
-def create_enricher_agent(model: str) -> Agent:
-    """Enrich URLs and media with descriptions."""
-    ...
+class EnricherAgent:
+    """Enriches Feed entries: media descriptions, URL metadata."""
+
+    def __init__(self, step_size: int = 10):
+        """
+        Args:
+            step_size: Number of entries to process at once (default: 10)
+        """
+        self.step_size = step_size
+
+    def run(self, feed: Feed, context: PipelineContext) -> Feed:
+        """Transform Feed by enriching entries.
+
+        - Downloads media files from enclosure links
+        - Runs vision/audio models to get descriptions
+        - Updates entry.content with enrichment
+        - Caches results to avoid redundant LLM calls
+        """
+        enriched_entries = []
+
+        # Process in steps for memory efficiency
+        for chunk in batch(feed.entries, self.step_size):
+            for entry in chunk:
+                # Check cache first
+                if cached := context.repository.get_enrichment(entry.id):
+                    entry.content = cached.content
+                else:
+                    # Process media/URLs, update entry.content
+                    entry = self._enrich_entry(entry)
+                enriched_entries.append(entry)
+
+        return Feed(entries=enriched_entries, ...)
+
+# egregora_v3/engine/agents/writer.py
+class WriterAgent:
+    """Generates blog posts from enriched entries."""
+
+    def __init__(self, step_size: int = 50):
+        """
+        Args:
+            step_size: Number of entries to aggregate into one post (default: 50)
+        """
+        self.step_size = step_size
+
+    def run(self, feed: Feed, context: PipelineContext) -> Feed:
+        """Transform enriched Feed into output documents.
+
+        Groups entries into steps and generates one post per step.
+        Receives entries already enriched by EnricherAgent.
+        """
+        documents = []
+
+        # Process entries in steps (many entries → one post)
+        for step_entries in batch(feed.entries, self.step_size):
+            post = self._generate_post(step_entries)  # LLM call
+            documents.append(post)
+
+        return Feed(entries=documents, ...)
 ```
 
-**Porting Strategy:** Copy V2 agent logic, adapt to V3's Entry/Document types.
+**Key Concept:**
+- **Step Size:** Number of entries an agent processes in one iteration
+- Different agents have different strategies:
+  - `EnricherAgent(step_size=10)`: Process 10 entries at a time
+  - `WriterAgent(step_size=50)`: Aggregate 50 entries into 1 post
+  - `PrivacyAgent(step_size=100)`: Fast rule-based, larger steps
+
+**Porting Strategy:** Copy V2 agent logic, adapt to **Feed → Feed** pattern.
 
 #### 3.3 Tools with Dependency Injection
 ```python
@@ -307,6 +552,64 @@ def search_rag(ctx: RunContext[ContentLibrary], query: str) -> str:
 ### Phase 4: Pipeline Orchestration 🔄 Not Started
 
 **Goal:** Assemble full pipeline with CLI.
+
+**Pipeline Architecture: Feed Transformations**
+
+The pipeline is a chain of **Feed → Agent → Feed** transformations:
+
+```
+Raw Feed (minimal content)
+    ↓
+EnricherAgent (adds context: media descriptions, URL metadata)
+    ↓
+Enriched Feed (same entries, enhanced content)
+    ↓
+WriterAgent (generates posts from enriched entries)
+    ↓
+Output Feed (final documents)
+```
+
+**Key Pattern:**
+- Each agent receives a **Feed** as input
+- Each agent returns a **Feed** as output
+- Database/caching prevents redundant LLM calls (check if entry already enriched)
+- Next agent receives already-processed entries
+- **Each agent controls its own step_size** for processing:
+  - EnricherAgent(step_size=10): Process 10 entries at a time
+  - WriterAgent(step_size=50): Aggregate 50 entries into 1 post
+  - PrivacyAgent(step_size=100): Fast rule-based processing
+
+**Example - Full Pipeline with Output Transformation:**
+```python
+# 1. Raw feed from input adapter
+raw_feed = adapter.read_feed()  # Entries have minimal content
+
+# 2. Optional: Privacy pass (Feed → Feed)
+if config.privacy_enabled:
+    raw_feed = privacy_agent.run(raw_feed, context)  # Anonymize authors, redact PII
+
+# 3. Enrichment pass (Feed → Feed)
+enriched_feed = enricher_agent.run(raw_feed, context)  # Entries now have descriptions
+
+# 4. Writing pass (Feed → Feed)
+output_feed = writer_agent.run(enriched_feed, context)  # Generate blog posts
+
+# 5. Persist to repository (internal storage)
+library.save_all(output_feed.entries)
+
+# 6. Transform to desired output formats (Feed → Format)
+mkdocs_sink.publish(output_feed)    # Generate blog
+atom_sink.publish(output_feed)      # Generate RSS feed
+sqlite_sink.publish(output_feed)    # Export to database
+```
+
+**Alternative - Privacy after enrichment:**
+```python
+raw_feed = adapter.read_feed()
+enriched_feed = enricher_agent.run(raw_feed, context)
+anonymized_feed = privacy_agent.run(enriched_feed, context)  # Keep descriptions, hide authors
+output_feed = writer_agent.run(anonymized_feed, context)
+```
 
 **Components:**
 
@@ -390,10 +693,18 @@ def write(
 - **Engine:** Agents with mocked LLM responses
 - **Infra:** Protocols tested with fakes
 
+### Property-Based Testing
+Use `hypothesis` to verify invariants across random inputs:
+- **ID Stability:** Same content → same Document ID (idempotency)
+- **Serialization:** Round-trip through JSON preserves data
+- **Feed Composition:** Adding entries preserves feed structure
+- **Example:** Generate 1000 random Documents, verify `Document.create()` always produces valid UUIDs
+
 ### Integration Tests
 - **Repository:** Real DuckDB (in-memory)
 - **Vector Store:** Real LanceDB (temp directory)
 - **Adapters:** Real files (test fixtures)
+- **Serialization:** JSON round-trips for all core types (UUID, datetime, Path fields)
 
 ### E2E Tests
 - **Pipeline:** Full run with fake LLM (no API calls)
@@ -496,6 +807,157 @@ Full guide to be written during Phase 3, covering:
 **Proposal:** Yes, but wrapped synchronously via `asyncio.run()`. Core stays sync.
 
 **Decision:** Implement during Phase 2, benchmark vs pure sync.
+
+### Q4: Push vs Pull Pipeline Model
+**Question:** Should agents push complete Feeds or support lazy pull-based iteration?
+
+**Current Model (Push-based):**
+```python
+def run(self, feed: Feed, context: PipelineContext) -> Feed:
+    """Process entire feed, return complete feed."""
+    ...
+```
+
+**Problem Scenario:**
+- Feed has 1000 text entries + 10 image entries
+- EnricherAgent wants to batch 10 images for parallel processing
+- Must iterate through 100 text entries to accumulate 10 images
+- Inefficient memory usage for large feeds
+
+**Alternative: Pull-based (Lazy Iteration)**
+```python
+def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterator[Entry]:
+    """Yield enriched entries as ready. Lazy evaluation."""
+
+    image_buffer = []
+
+    for entry in entries:
+        if has_media(entry):
+            image_buffer.append(entry)
+
+            # Process 10 images in parallel when buffer full
+            if len(image_buffer) >= self.step_size:
+                enriched = self._enrich_parallel(image_buffer)
+                yield from enriched
+                image_buffer.clear()
+        else:
+            # Text entries pass through immediately
+            yield entry
+```
+
+**Benefits of Pull-based:**
+- **Lazy evaluation:** Don't process until needed
+- **Memory efficient:** Stream entries, don't load entire feed
+- **Selective processing:** Skip/filter entries easily
+- **Backpressure:** Downstream controls rate
+- **Smart buffering:** Accumulate specific types (images, videos) for batch processing
+
+**Trade-offs:**
+- More complex than simple Feed → Feed
+- Harder to debug (no complete Feed snapshot between stages)
+- Need to handle partial failures/rollback
+- Iterator exhaustion issues
+
+**Hybrid Proposal:**
+```python
+# Agents can choose eager or lazy
+class Agent(Protocol):
+    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterable[Entry]:
+        """Transform entries. Implementation chooses eager/lazy."""
+        ...
+
+# Eager agent (needs full context)
+class WriterAgent:
+    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterator[Entry]:
+        all_entries = list(entries)  # Materialize
+        for window in batch(all_entries, self.step_size):
+            yield self._generate_post(window)
+
+# Lazy agent (streaming transformation)
+class EnricherAgent:
+    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterator[Entry]:
+        for entry in self._process_lazy(entries):  # Never materializes full feed
+            yield entry
+```
+
+**Proposed Solution: Configurable Agent Pairing**
+
+Let each **agent pair** declare their compatibility mode via configuration:
+
+```yaml
+# .egregora/pipeline.yml
+pipeline:
+  - agent: privacy
+    type: PrivacyAgent
+    step_size: 100
+    output_mode: push  # Materializes complete feed
+
+  - agent: enricher
+    type: EnricherAgent
+    step_size: 10
+    input_mode: pull   # Streams from privacy (will materialize if needed)
+    output_mode: pull  # Streams to writer
+
+  - agent: writer
+    type: WriterAgent
+    step_size: 50
+    input_mode: push   # Needs complete feed (will materialize from enricher)
+```
+
+**Agent Implementation:**
+```python
+class Agent(Protocol):
+    """Agents declare what modes they support."""
+    supports_push: bool = True   # Can process complete Feed
+    supports_pull: bool = False  # Can stream entries lazily
+
+    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterable[Entry]:
+        """Single interface, implementation chooses eager/lazy."""
+        ...
+
+class EnricherAgent:
+    supports_push = True
+    supports_pull = True  # Supports both!
+
+    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterator[Entry]:
+        """Lazy by default, caller can materialize if needed."""
+        for entry in self._process_streaming(entries):
+            yield entry
+
+class WriterAgent:
+    supports_push = True
+    supports_pull = False  # Requires complete feed
+
+    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterator[Entry]:
+        all_entries = list(entries)  # Force materialization
+        for window in batch(all_entries, self.step_size):
+            yield self._generate_post(window)
+```
+
+**Pipeline Orchestration:**
+```python
+class PipelineRunner:
+    def connect(self, agent_a: Agent, agent_b: Agent):
+        """Connect agents with compatible mode."""
+
+        # Both support pull → use streaming (most efficient)
+        if agent_a.supports_pull and agent_b.supports_pull:
+            return agent_b.run(agent_a.run(entries, ctx), ctx)
+
+        # Agent B needs push → materialize between agents
+        if not agent_b.supports_pull:
+            feed_a = list(agent_a.run(entries, ctx))  # Materialize
+            return agent_b.run(feed_a, ctx)
+```
+
+**Benefits:**
+- **Per-pair optimization:** PrivacyAgent→EnricherAgent streams, EnricherAgent→WriterAgent materializes
+- **Automatic negotiation:** Pipeline runner handles compatibility
+- **Configuration-driven:** Change modes without code changes
+- **Profiling-friendly:** Switch modes, benchmark, optimize
+- **Backward compatible:** All agents support push (eager) as fallback
+
+**Decision:** Defer to Phase 4. Start with eager Feed → Feed, add lazy support incrementally with configuration-driven pairing.
 
 ---
 
