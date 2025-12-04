@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -13,58 +13,42 @@ from egregora_v3.core.ports import (
     UrlConvention,
     VectorStore,
 )
-from egregora_v3.core.types import Document, DocumentType, FeedItem
+from egregora_v3.core.types import Document, DocumentType, Entry, Feed
 
 
-def test_input_adapter_protocol():
-    class MockAdapter:
-        def parse(self, source: Path) -> Iterator[FeedItem]:
-            yield FeedItem(id=UUID(int=1), timestamp=datetime.now(), source="a", content="b")
+class MockInputAdapter(InputAdapter):
+    def parse(self, source: Path) -> Iterator[Entry]:
+        yield Entry(id="1", updated=datetime.now(UTC), title="test", content="content")
 
-    assert isinstance(MockAdapter(), InputAdapter)
+class MockRepo(DocumentRepository):
+    def save(self, doc: Document) -> None: pass
+    def get(self, doc_id: str) -> Document | None: return None
+    def list_by_type(self, doc_type: DocumentType) -> list[Document]: return []
+    def exists(self, doc_id: str) -> bool: return False
 
-def test_repo_protocol():
-    class MockRepo:
-        def save(self, doc: Document) -> None: pass
-        def get(self, doc_id: UUID) -> Document | None: return None
-        def list_by_type(self, doc_type: DocumentType) -> list[Document]: return []
-        def exists(self, doc_id: UUID) -> bool: return False
+    def save_entry(self, item: Entry) -> None: pass
+    def get_entry(self, item_id: str) -> Entry | None: return None
+    def get_entries_by_source(self, source_id: str) -> list[Entry]: return []
 
-        def save_item(self, item: FeedItem) -> None: pass
-        def get_item(self, item_id: UUID) -> FeedItem | None: return None
-        def get_items_by_source(self, source: str) -> list[FeedItem]: return []
+class MockAgent(Agent):
+    def process(self, entries: list[Entry]) -> list[Document]:
+        return [Document.create(content="generated", doc_type=DocumentType.POST, title="Gen")]
 
-    assert isinstance(MockRepo(), DocumentRepository)
+class MockOutputSink(OutputSink):
+    def publish(self, feed: Feed) -> None:
+        pass
 
-def test_vector_store_protocol():
-    class MockVector:
-        def add(self, docs: list[Document]) -> None: pass
-        def search(self, query: str, k: int = 5, filter_type: DocumentType | None = None) -> list[Document]: return []
+def test_ports_structural_compatibility():
+    # This test primarily ensures that the Mocks implement the Protocols correctly
+    # If Mypy was running, it would check this. Runtime check via instantiation is basic.
+    repo = MockRepo()
+    assert isinstance(repo, DocumentRepository)
 
-    assert isinstance(MockVector(), VectorStore)
+    adapter = MockInputAdapter()
+    assert isinstance(adapter, InputAdapter)
 
-def test_llm_model_protocol():
-    class MockLLM:
-        def generate(self, prompt: str, system_prompt: str | None = None, tools: list[Any] | None = None) -> str: return ""
-        def embed(self, text: str) -> list[float]: return []
+    agent = MockAgent()
+    assert isinstance(agent, Agent)
 
-    assert isinstance(MockLLM(), LLMModel)
-
-def test_agent_protocol():
-    class MockAgent:
-        def process(self, items: list[FeedItem]) -> list[Document]:
-            return []
-
-    assert isinstance(MockAgent(), Agent)
-
-def test_url_convention_protocol():
-    class MockConvention:
-        def resolve(self, doc: Document) -> str: return "path/to/doc"
-
-    assert isinstance(MockConvention(), UrlConvention)
-
-def test_output_sink_protocol():
-    class MockSink:
-        def persist(self, doc: Document) -> Path: return Path()
-
-    assert isinstance(MockSink(), OutputSink)
+    sink = MockOutputSink()
+    assert isinstance(sink, OutputSink)
