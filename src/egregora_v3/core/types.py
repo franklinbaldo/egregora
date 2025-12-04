@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from egregora.utils.paths import slugify
+from egregora_v3.core.utils import slugify
 
 
 # --- Atom Core Domain ---
@@ -66,9 +66,6 @@ class Entry(BaseModel):
 
     # Internal system metadata (not serialized to public Atom)
     internal_metadata: dict[str, Any] = Field(default_factory=dict)
-
-    # Public extensions (Atom compliant)
-    extensions: dict[str, Any] = Field(default_factory=dict)
 
 # --- Application Domain ---
 
@@ -147,9 +144,7 @@ class Document(Entry):
             content=content,
             doc_type=doc_type,
             status=status,
-            internal_metadata=internal_metadata,
-            in_reply_to=in_reply_to,
-            searchable=searchable
+            internal_metadata=internal_metadata
         )
 
 
