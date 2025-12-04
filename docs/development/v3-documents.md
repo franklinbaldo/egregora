@@ -1,39 +1,58 @@
-# RFC: Egregora v3 Data Model - Documents & Feeds
+# RFC: Egregora V3 Data Model - Documents & Feeds
 
-**Status:** Proposed
-**Context:** Egregora v3 Re-architecture
-**Date:** 2025-11-28
+**Status:** Approved (with revisions)
+**Context:** Egregora V3 Re-architecture
+**Date:** 2025-11-28 (Updated: December 2025)
 
-## 1. Contexto e Objetivo
+> **🔄 Revision Notice (December 2025)**
+>
+> This RFC has been updated to reflect lessons learned during planning:
+> - **AtomPub complexity (Sections 8-8.5) is ABANDONED** - Too complex, replaced by ContentLibrary
+> - **Atom data model (Sections 1-7) is APPROVED** - Entry/Document/Feed are core to V3
+> - **Privacy assumptions revised** - V3 targets public/privacy-ready data
+>
+> Historical AtomPub sections preserved for reference but marked deprecated.
 
-No v3, Egregora passa a adotar o protocolo **Atom** como modelo conceitual único para entrada e saída de dados. Isso elimina a distinção arbitrária entre "mensagens de chat", "posts de blog" e "arquivos", tratando tudo como entradas em um feed.
+---
 
-*   **Input:** Adapters convertem qualquer fonte (Chat, RSS, API Judicial) em `Feed` + `Entry`.
-*   **Processamento:** O núcleo cognitivo processa esses `Entry`.
-*   **Output:** O Egregora produz `Documents`.
+## 1. Context and Objective
 
-Este RFC define o tipo `Document` e a estratégia de Output Feeds. O objetivo é garantir que:
-1.  Exista um **único tipo de saída** (simplificação).
-2.  O sistema seja **Atom-compliant**, facilitando a integração com leitores e ferramentas externas.
-3.  A publicação seja agnóstica ao formato final (MkDocs, JSON API, Hugo, etc.).
+In V3, Egregora adopts the **Atom protocol** (RFC 4287) as the conceptual foundation for input and output data. This eliminates arbitrary distinctions between "chat messages", "blog posts", and "files", treating everything as entries in a feed.
 
-## 2. Princípio de Simetria
+**Data Flow:**
+- **Input:** Adapters convert any source (RSS, Chat, API) into `Feed` + `Entry`
+- **Processing:** The cognitive engine processes these `Entry` objects
+- **Output:** Egregora produces `Document` objects (specialized Entries)
 
-A arquitetura v3 segue um fluxo linear e simétrico:
+**Design Goals:**
+1. **Single output type** - Simplification through unification
+2. **Atom compliance** - Easy integration with feed readers and external tools
+3. **Format agnostic** - Publication works with MkDocs, JSON API, Hugo, etc.
+
+**Key Difference from V2:**
+V3 assumes data is **already privacy-ready or public**. Privacy is not a core concern - applications needing anonymization use a composable `PrivacyAdapter`.
+
+---
+
+## 2. Symmetry Principle
+
+V3 follows a linear, symmetric flow:
 
 > **Input Feed → Processing → Output Feed**
 
-1.  Egregora ingere feeds externos → normaliza para `Feed` + `Entry`.
-2.  Egregora "pensa" e gera artefatos (posts, notas, planos) → cria objetos `Document`.
-3.  Esses `Documents` são agregados em feeds de saída (ex: `egregora:documents`).
+1. Egregora ingests external feeds → normalizes to `Feed` + `Entry`
+2. Egregora "thinks" and generates artifacts (posts, notes, plans) → creates `Document` objects
+3. Documents are aggregated into output feeds (e.g., `egregora:documents`)
 
-**Axioma:** Tudo que entra é Atom; tudo que sai é Atom (enriquecido).
+**Axiom:** Everything that enters is Atom; everything that exits is Atom (enriched).
 
-## 3. Modelo de Dados
+---
 
-### 3.1. Base Atom (Core Domain)
+## 3. Data Model
 
-O v3 define modelos Pydantic puros espelhando a especificação Atom (RFC 4287), sem prefixos de legado.
+### 3.1 Atom Base (Core Domain)
+
+V3 defines pure Pydantic models mirroring the Atom specification (RFC 4287), without legacy prefixes.
 
 ```python
 from datetime import datetime
@@ -41,31 +60,42 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 class Link(BaseModel):
+    """Atom link element."""
     href: str
-    rel: str | None = None        # ex: "alternate", "enclosure", "self"
-    type: str | None = None       # ex: "text/html", "image/jpeg"
+    rel: str | None = None        # e.g., "alternate", "enclosure", "self"
+    type: str | None = None       # e.g., "text/html", "image/jpeg"
     hreflang: str | None = None
     title: str | None = None
     length: int | None = None
 
 class Author(BaseModel):
+    """Atom author/contributor."""
     name: str
     email: str | None = None
     uri: str | None = None
 
 class Category(BaseModel):
-    term: str                     # A tag ou categoria
-    scheme: str | None = None     # URI do esquema de taxonomia
-    label: str | None = None      # Label legível
+    """Atom category/tag."""
+    term: str                     # Tag or category
+    scheme: str | None = None     # URI of taxonomy scheme
+    label: str | None = None      # Human-readable label
 
 class Source(BaseModel):
+    """Atom source metadata (for aggregated entries)."""
     id: str | None = None
     title: str | None = None
     updated: datetime | None = None
     links: list[Link] = Field(default_factory=list)
 
+class InReplyTo(BaseModel):
+    """Atom Threading Extension (RFC 4685)."""
+    ref: str                      # ID of parent entry
+    href: str | None = None       # Link to parent entry
+    type: str | None = None
+
 class Entry(BaseModel):
-    id: str                       # URI ou UUID único e estável
+    """Atom entry - base unit of content."""
+    id: str                       # Stable unique ID (URI or UUID)
     title: str
     updated: datetime
     published: datetime | None = None
@@ -75,69 +105,92 @@ class Entry(BaseModel):
     contributors: list[Author] = Field(default_factory=list)
     categories: list[Category] = Field(default_factory=list)
 
-    summary: str | None = None    # Texto curto / Teaser
-    content: str | None = None    # Corpo principal (geralmente Markdown/HTML)
-    content_type: str | None = None # ex: "text/markdown"
+    summary: str | None = None    # Short text / teaser
+    content: str | None = None    # Main body (Markdown/HTML)
+    content_type: str | None = None # e.g., "text/markdown"
 
     source: Source | None = None
 
-    # Extensões públicas do padrão Atom (ex: Media RSS)
+    # Threading (RFC 4685)
+    in_reply_to: InReplyTo | None = None
+
+    # Public Atom extensions (e.g., Media RSS)
     extensions: dict[str, Any] = Field(default_factory=dict)
 
-    # Metadados internos do sistema (não serializados em Atom público)
+    # Internal system metadata (not serialized to public Atom)
     internal_metadata: dict[str, Any] = Field(default_factory=dict)
 ```
 
-### 3.2. Document: A Unidade de Saída
+### 3.2 Document: The Output Unit
 
-`Document` é a especialização de `Entry` gerada pelo Egregora. Ele carrega semântica específica do domínio da aplicação.
+`Document` is Egregora's specialization of `Entry`. It carries application-specific semantics.
 
 ```python
 from enum import Enum
 
 class DocumentType(str, Enum):
-    RECAP = "recap"      # Resumos de janelas de tempo
-    NOTE = "note"        # Notas atômicas ou anotações de contexto
-    PLAN = "plan"        # Planejamento de agentes
-    POST = "post"        # Artigos completos para publicação
-    MEDIA = "media"      # Metadados de mídia (o binário fica em links[rel=enclosure])
+    """Document types in Egregora."""
+    RECAP = "recap"           # Summaries of time windows
+    NOTE = "note"             # Atomic notes or context annotations
+    PLAN = "plan"             # Agent planning documents
+    POST = "post"             # Complete articles for publication
+    MEDIA = "media"           # Media metadata (binary in links[rel=enclosure])
+    PROFILE = "profile"       # Author/participant profiles
+    ENRICHMENT = "enrichment" # URL/media enrichment results
 
 class DocumentStatus(str, Enum):
+    """Publication status."""
     DRAFT = "draft"
     PUBLISHED = "published"
     ARCHIVED = "archived"
 
 class Document(Entry):
     """
-    Representa um artefato gerado pelo Egregora.
-    Herda de Entry para garantir compatibilidade com Atom.
+    Artifact generated by Egregora.
+    Inherits from Entry to ensure Atom compatibility.
     """
     doc_type: DocumentType
     status: DocumentStatus = DocumentStatus.DRAFT
 
-    # Sugestão de caminho para OutputAdapters baseados em arquivo (MkDocs/Hugo)
-    # Ex: "posts/2025/meu-artigo"
+    # RAG indexing policy
+    searchable: bool = True
+
+    # Suggested path for file-based OutputAdapters (MkDocs/Hugo)
+    # e.g., "posts/2025/my-article"
     url_path: str | None = None
 ```
 
-#### Notas de Implementação
-1.  **Herança:** Como `Document` é um `Entry`, qualquer função de persistência ou indexação que aceite `Entry` aceita `Document`.
-2.  **Conteúdo:** `content` deve ser preferencialmente texto (Markdown). Binários (imagens, PDFs gerados) devem ser referenciados via `links` com `rel="enclosure"`, mantendo o objeto `Document` leve.
-3.  **Metadados:**
-    *   `extensions`: Use para dados que fariam sentido em um feed RSS público (ex: coordenadas geo, licença).
-    *   `internal_metadata`: Use para dados de controle do Egregora (ex: `tokens_used`, `model_version`, `source_window_id`).
+**Implementation Notes:**
 
-## 4. Feeds de Saída (`documents_to_feed`)
+1. **Inheritance:** Since `Document` is an `Entry`, any persistence or indexing function accepting `Entry` accepts `Document`.
 
-Para manter a simetria, o output final de um ciclo de execução não é uma lista solta de arquivos, mas um objeto `Feed`.
+2. **Content:** `content` should preferably be text (Markdown). Binaries (images, generated PDFs) should be referenced via `links` with `rel="enclosure"`, keeping the `Document` object lightweight.
+
+3. **Metadata:**
+   - `extensions`: Use for data that makes sense in a public RSS feed (e.g., geo coordinates, license)
+   - `internal_metadata`: Use for Egregora control data (e.g., `tokens_used`, `model_version`, `source_window_id`)
+
+4. **Semantic Identity:**
+   - Posts/Media: ID = slug (human-readable, e.g., "my-first-post")
+   - Profiles: ID = UUID or explicit ID (stable across renames)
+   - Enrichments: ID = content hash (automatic deduplication)
+
+---
+
+## 4. Output Feeds (`documents_to_feed`)
+
+To maintain symmetry, the final output of an execution cycle is not a loose list of files, but a `Feed` object.
 
 ```python
 class Feed(BaseModel):
+    """Atom feed container."""
     id: str
     title: str
     updated: datetime
     entries: list[Entry] = Field(default_factory=list)
-    # ... outros campos Atom (authors, links, etc.)
+    authors: list[Author] = Field(default_factory=list)
+    links: list[Link] = Field(default_factory=list)
+    subtitle: str | None = None
 
 def documents_to_feed(
     docs: list[Document],
@@ -145,78 +198,104 @@ def documents_to_feed(
     title: str,
     *,
     authors: list[Author] | None = None,
-    # ... outros opcionais
 ) -> Feed:
-    """Agrega documentos em um Feed Atom válido."""
-    # Lógica:
-    # 1. Calcula updated = max(doc.updated) dos documentos
-    # 2. Define entradas
-    # 3. Garante invariantes de feed
-    ...
+    """Aggregate documents into a valid Atom Feed."""
+    if not docs:
+        updated = datetime.now(UTC)
+    else:
+        updated = max(doc.updated for doc in docs)
+
+    return Feed(
+        id=feed_id,
+        title=title,
+        updated=updated,
+        authors=authors or [],
+        entries=docs
+    )
 ```
 
-**Uso:**
-Isso permite que um `OutputAdapter` receba um `Feed` e decida como persistir:
-*   **MkDocsAdapter:** Itera sobre `feed.entries`, olha `url_path` e escreve arquivos `.md`.
-*   **APIAdapter:** Retorna o JSON do Feed diretamente.
-*   **RSSAdapter:** Serializa o objeto para XML.
+**Usage:**
+This allows an `OutputAdapter` to receive a `Feed` and decide how to persist:
+- **MkDocsAdapter:** Iterates over `feed.entries`, checks `url_path`, writes `.md` files
+- **APIAdapter:** Returns the Feed JSON directly
+- **AtomXMLAdapter:** Serializes the object to XML
 
-## 5. Invariantes
+---
 
-### 5.1. Entry / Document
-*   **ID Estável:** O `id` deve ser não-vazio e, idealmente, determinístico (ex: UUIDv5 baseado no conteúdo ou slug + data) para permitir atualizações idempotentes.
-*   **Title:** Não vazio.
-*   **Updated:** Obrigatório (UTC).
-*   **Content Rule:** Deve ter `content` OU pelo menos um `link` (ex: para documentos que são apenas referências a algo externo).
+## 5. Invariants
 
-### 5.2. Document Específico
-*   **Type:** `doc_type` obrigatório.
-*   **Status:** `status` obrigatório (default DRAFT).
+### 5.1 Entry / Document
 
-## 6. Interações
+- **Stable ID:** The `id` must be non-empty and ideally deterministic (e.g., UUIDv5 based on content or slug + date) to enable idempotent updates
+- **Title:** Non-empty
+- **Updated:** Required (UTC timezone)
+- **Content Rule:** Must have `content` OR at least one `link` (for documents that are references only)
 
-### 6.1. Input Adapters
-Ignorantes sobre `Document`. Eles produzem apenas `Feed` contendo `Entry`.
+### 5.2 Document-Specific
 
-### 6.2. Memory / RAG
-A memória indexa `Entry`. Como `Document` é um `Entry`, ele é indexado nativamente, permitindo que o Egregora "lembre" do que ele mesmo escreveu no passado (self-reflection) sem código especial.
+- **Type:** `doc_type` is required
+- **Status:** `status` is required (default DRAFT)
+- **Searchable:** Defaults to `True` for RAG indexing
 
-### 6.3. Output Adapters
-Assinatura da porta:
+---
+
+## 6. Interactions
+
+### 6.1 Input Adapters
+
+Input adapters are **ignorant about `Document`**. They produce only `Feed` containing `Entry` objects.
+
+Example:
+```python
+class RSSAdapter(InputAdapter):
+    def read_entries(self) -> Iterator[Entry]:
+        # Parse RSS feed, yield Entry objects
+        ...
+```
+
+### 6.2 Memory / RAG
+
+The memory system indexes `Entry`. Since `Document` is an `Entry`, it's indexed natively, allowing Egregora to "remember" what it wrote in the past (self-reflection) without special code.
+
+### 6.3 Output Adapters
+
+Port signature:
 ```python
 class OutputSink(Protocol):
     def publish(self, feed: Feed) -> None: ...
 ```
-O adaptador recebe o feed completo. Ele pode filtrar (ex: publicar apenas status=PUBLISHED) e decidir o layout físico.
 
-## 7. Estratégia de TDD
+The adapter receives the complete feed. It can filter (e.g., publish only status=PUBLISHED) and decide the physical layout.
 
-1.  **Core Types:** Testar instanciação e validação de `Entry` e `Document` (garantir campos obrigatórios).
-2.  **Feed Generation:** Testar `documents_to_feed` com lista vazia (deve gerar feed válido com updated atual) e lista populada (updated = max(entries)).
-3.  **Adapter Contract:** Criar um FakeAdapter que consome um Feed e verificar se ele acessa os campos corretos de `Document` (como `url_path`).
-4.  **Roundtrip:** Testar Serialização/Deserialização Pydantic para garantir que nada se perde.
+---
 
-## 8. Organização e Persistência (AtomPub-style)
+## 7. TDD Strategy
 
-Até aqui, o v3 definiu o **modelo de dados** (Atom: `Feed` / `Entry` / `Document`).
-Falta responder de forma padronizada:
+1. **Core Types:** Test instantiation and validation of `Entry` and `Document` (ensure required fields)
+2. **Feed Generation:** Test `documents_to_feed` with empty list (should generate valid feed with current updated time) and populated list (updated = max(entries))
+3. **Adapter Contract:** Create a FakeAdapter that consumes a Feed and verify it accesses the correct fields of `Document` (like `url_path`)
+4. **Roundtrip:** Test Pydantic serialization/deserialization to ensure nothing is lost
 
-- *Onde* documentos são salvos?
-- *Que tipos de documentos* cada área aceita?
-- *Como* um agente descobre isso sem “adivinhar” paths de arquivos?
+---
 
-Para isso, adotamos a **semântica do AtomPub (RFC 5023)** como modelo conceitual, sem obrigatoriedade de usar HTTP/XML internamente:
+## 8. Organization and Persistence
 
-- **Service Document** → catálogo de workspaces e coleções.
-- **Workspace** → um conjunto lógico de coleções.
-- **Collection** → um endpoint lógico onde se pode criar/ler entradas (`Entry`/`Document`).
-- **Media Resources / Media Link Entries** → padrão para lidar com binários (imagens, PDFs, etc.).
+> **⚠️ DEPRECATED: AtomPub Sections (8-8.5)**
+>
+> The following sections describe an AtomPub-style organization (Service/Workspace/Collection) that was deemed **too complex** during implementation planning (December 2025).
+>
+> **Decision:** Use **ContentLibrary** pattern instead - a simpler facade with typed repositories.
+>
+> These sections are preserved for historical reference but should NOT be implemented as described.
 
-### 8.1. Conceitos: Workspace e Collection
+### ~~8.1 Concepts: Workspace and Collection~~ (DEPRECATED)
 
-Um **Workspace** representa um “espaço lógico” de publicação (ex.: site principal, diário privado, área de rascunhos).
+<details>
+<summary>Click to view deprecated AtomPub design (Historical reference only)</summary>
 
-Uma **Collection** representa um conjunto de documentos do mesmo “tipo funcional” (ex.: posts de blog, notas, mídia).
+A **Workspace** represents a "logical space" for publication (e.g., main site, private diary, draft area).
+
+A **Collection** represents a set of documents of the same "functional type" (e.g., blog posts, notes, media).
 
 ```python
 from pydantic import BaseModel, Field
@@ -228,31 +307,58 @@ class DocumentRepository(Protocol):
     def list(self, *, doc_type: DocumentType | None = None) -> list[Document]: ...
 
 class Collection(BaseModel):
-    id: str                       # ex: "posts", "journal", "media"
-    title: str                    # ex: "Blog Posts"
-    accepts: list[DocumentType]   # ex: [DocumentType.POST]
+    id: str                       # e.g., "posts", "journal", "media"
+    title: str                    # e.g., "Blog Posts"
+    accepts: list[DocumentType]   # e.g., [DocumentType.POST]
 
-    # Backend que sabe persistir e listar Documents desta coleção
+    # Backend that knows how to persist and list Documents in this collection
     repository: DocumentRepository
 
 class Workspace(BaseModel):
-    title: str                    # ex: "Egregora Main Site"
+    title: str                    # e.g., "Egregora Main Site"
     collections: list[Collection] = Field(default_factory=list)
 ```
 
-Regra: agentes não “chutam” paths de arquivo ou tabelas.
-Eles sempre falam com coleções por id ("posts", "journal", "media"), e o backend decide se isso é MkDocs, SQL, S3, etc.
+**Rule:** Agents don't "guess" file paths or table names. They always talk to collections by ID ("posts", "journal", "media"), and the backend decides if it's MkDocs, SQL, S3, etc.
 
-### 8.2. Service Catalog (equivalente ao Service Document)
+</details>
 
-No AtomPub, o cliente faz GET /service para descobrir coleções.
-No Egregora v3, expomos isso como um catálogo em memória/objeto:
+**Actual Implementation (ContentLibrary):**
+
+```python
+# egregora_v3/core/catalog.py
+class ContentLibrary(BaseModel):
+    """Simplified repository facade."""
+    posts: DocumentRepository
+    media: DocumentRepository
+    profiles: DocumentRepository
+    journal: DocumentRepository
+    enrichments: DocumentRepository
+
+    def save(self, doc: Document) -> None:
+        """Route document to correct repository based on type."""
+        repo = self._get_repo(doc.doc_type)
+        repo.save(doc)
+```
+
+**Why Simpler:**
+- Direct access: `library.posts.save(doc)` vs AtomPub's `service.find_collection("posts").repository.save(doc)`
+- No discovery overhead (Service Document, workspace traversal)
+- Type-safe via mypy/pyright
+- Multi-workspace support can be added later via constructor: `ContentLibrary(workspace_id="public")`
+
+### ~~8.2 Service Catalog~~ (DEPRECATED)
+
+<details>
+<summary>Click to view deprecated Service Document design (Historical reference only)</summary>
+
+In AtomPub, the client does GET /service to discover collections. In Egregora V3, this would be exposed as an in-memory catalog:
 
 ```python
 class Service(BaseModel):
     """
-    Catalogo de workspaces e coleções disponíveis no Egregora.
-    Equivalente conceitual ao Service Document do AtomPub.
+    Catalog of workspaces and collections.
+    Conceptual equivalent to AtomPub's Service Document.
     """
     workspaces: list[Workspace] = Field(default_factory=list)
 
@@ -264,19 +370,16 @@ class Service(BaseModel):
         return None
 ```
 
-Um Agente pode receber (ou consultar) um Service e perguntar:
+</details>
 
-“Quais coleções existem?”
+**Not Implemented:** ContentLibrary provides direct typed access instead.
 
-“Quais tipos de Document cada coleção aceita?”
+### ~~8.3 CRUD Operations AtomPub-style~~ (DEPRECATED)
 
+<details>
+<summary>Click to view deprecated CRUD operations (Historical reference only)</summary>
 
-Isso remove acoplamento a estrutura física (diretórios, nomes de tabelas, etc.).
-
-### 8.3. Operações CRUD estilo AtomPub
-
-Em AtomPub, há operações como POST (criar entry), PUT (atualizar), GET feed (listar), etc.
-No v3, definimos uma API de alto nível para agentes, inspirada nesses verbos:
+In AtomPub, operations include POST (create entry), PUT (update), GET feed (list), etc. In V3, this would define a high-level API inspired by these verbs:
 
 ```python
 class WorkspaceService(Protocol):
@@ -289,33 +392,29 @@ class WorkspaceService(Protocol):
     ) -> list[Document]: ...
 ```
 
-Fluxo típico para um agente:
+</details>
 
-1. Descobrir coleções: `lê Service.workspaces[*].collections[*]`.
-2. Encontrar onde criar: ex.: coleção "posts" aceita DocumentType.POST.
-3. Criar documento: `chama create_document("posts", doc)`; o backend decide: qual url_path usar, onde gravar o .md, como atualizar índices RAG.
-4. Atualizar documento: `chama update_document(doc_id, doc)`.
+**Actual Implementation:** Repository pattern with protocol-based interfaces.
 
+### ~~8.4 Media (Media Resources and Media Link Entries)~~ (DEPRECATED)
 
-### 8.4. Mídia (Media Resources e Media Link Entries)
+<details>
+<summary>Click to view deprecated media handling (Historical reference only)</summary>
 
-AtomPub também define como tratar mídia binária:
-- Media Resource → o arquivo em si (JPEG, PDF, etc.).
-- Media Link Entry → uma entry/Documento que descreve essa mídia e aponta para o arquivo.
+AtomPub defines how to handle binary media:
+- Media Resource → the file itself (JPEG, PDF, etc.)
+- Media Link Entry → an entry/Document describing the media, pointing to the file
 
-No v3, isso vira uma convenção:
-- Binário não vai em content (Entry.content é texto).
-- Binário vai: para o backend de mídia (filesystem/S3/etc.), e é referenciado por um Document de tipo MEDIA com link rel="enclosure".
+In V3, this becomes a convention:
+- Binary doesn't go in content (Entry.content is text)
+- Binary goes to media backend (filesystem/S3), referenced by a Document of type MEDIA with link rel="enclosure"
 
-Exemplo de API:
+Example API:
 
 ```python
 class MediaStore(Protocol):
     def upload(self, data: bytes, mime_type: str) -> Link:
-        """
-        Faz o upload do binário e retorna um Link com href/type/length preenchidos.
-        href pode ser um path local, URL HTTP, ou esquema customizado (ex: s3://...)
-        """
+        """Upload binary and return Link with href/type/length filled."""
 
 class WorkspaceServiceWithMedia(WorkspaceService, Protocol):
     def upload_media_document(
@@ -326,26 +425,61 @@ class WorkspaceServiceWithMedia(WorkspaceService, Protocol):
         title: str,
         alt_text: str | None = None,
     ) -> Document:
-        """
-        1. Faz upload do binário via MediaStore.
-        2. Cria um Document(doc_type=MEDIA) com link rel="enclosure".
-        3. Persiste nas coleções configuradas.
-        """
+        """1. Upload binary via MediaStore
+        2. Create Document(doc_type=MEDIA) with link rel="enclosure"
+        3. Persist in configured collections"""
 ```
 
-Convenção:
-- Document.doc_type == MEDIA
-- Document.links contém pelo menos um Link com rel="enclosure" apontando para o arquivo.
-- Document.content pode conter descrição longa, legenda, etc.
+</details>
 
-### 8.5. Benefícios
+**Actual Implementation:** Media handling via ContentLibrary.media repository. Binaries stored separately, referenced via `Link` with `rel="enclosure"`.
 
-Adotar essa camada “AtomPub-style” traz:
+### ~~8.5 Benefits~~ (DEPRECATED - refers to AtomPub)
 
-1. Descoberta explícita: agentes não precisam conhecer paths; apenas ids de coleção.
-2. Separação papel dado / papel blob: tudo que é texto/semântica é Document (Entry Atom), binário é tratado como mídia, ligado via rel="enclosure".
-3. Multi-Workspace nativo: é fácil ter um Workspace “Blog Público” e outro “Diário Privado” usando as mesmas primitivas.
-4. Evolução futura (servidor): se no futuro o Egregora virar um servidor HTTP, essa camada casa bem com um AtomPub “de verdade” (Service Document, Collections, ETags, etc.), sem refator pesada no core.
+<details>
+<summary>Click to view deprecated benefits section (Historical reference only)</summary>
 
-Resumo:
-O v3 usa Atom para modelar dados, e usa uma camada inspirada em AtomPub para modelar onde e como esses dados vivem e são manipulados (Workspaces, Collections, Service). Isso dá uma semântica robusta para agentes e para a própria organização interna do Egregora.
+Adopting an "AtomPub-style" layer provides:
+
+1. Explicit discovery: Agents don't need to know paths; just collection IDs
+2. Data/blob separation: Everything textual/semantic is Document (Atom Entry), binaries treated as media, linked via rel="enclosure"
+3. Native multi-workspace: Easy to have "Public Blog" and "Private Diary" workspaces using same primitives
+4. Future evolution (server): If Egregora becomes an HTTP server, this layer works well with real AtomPub (Service Document, Collections, ETags, etc.) without heavy refactoring
+
+</details>
+
+**Actual Benefits (ContentLibrary):**
+1. ✅ Simpler API - direct typed access
+2. ✅ No discovery overhead - repositories known at compile time
+3. ✅ Type-safe - mypy/pyright validation
+4. ✅ Extensible - can add AtomPub HTTP layer on top later if needed
+
+---
+
+## Summary
+
+**Approved for V3:**
+- ✅ Atom data model (Entry, Document, Feed, Link, Author, Category)
+- ✅ Symmetric data flow (Input Feed → Processing → Output Feed)
+- ✅ Document as specialized Entry with Egregora semantics
+- ✅ Semantic identity (slugs for posts/media, UUIDs for profiles)
+- ✅ Threading support (RFC 4685)
+- ✅ Media handling via `rel="enclosure"` links
+
+**Simplified/Replaced:**
+- ❌ AtomPub Service/Workspace/Collection → Use ContentLibrary instead
+- ❌ Service Document discovery → Direct repository access
+- ❌ Complex CRUD operations → Simple repository protocol
+
+**V3 Targets:**
+- Public data sources (RSS feeds, APIs, public archives)
+- Data assumed privacy-ready (no built-in anonymization)
+- Applications needing privacy use PrivacyAdapter wrapper
+
+V3 uses Atom to model data, and uses ContentLibrary to organize where and how that data lives and is manipulated. This provides robust semantics for agents and internal organization without AtomPub's complexity.
+
+---
+
+**Status:** Living document
+**Last Updated:** December 2025
+**Next Review:** March 2026 (Phase 1 completion)
