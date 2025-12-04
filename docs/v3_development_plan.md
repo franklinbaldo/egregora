@@ -808,6 +808,80 @@ Full guide to be written during Phase 3, covering:
 
 **Decision:** Implement during Phase 2, benchmark vs pure sync.
 
+### Q4: Push vs Pull Pipeline Model
+**Question:** Should agents push complete Feeds or support lazy pull-based iteration?
+
+**Current Model (Push-based):**
+```python
+def run(self, feed: Feed, context: PipelineContext) -> Feed:
+    """Process entire feed, return complete feed."""
+    ...
+```
+
+**Problem Scenario:**
+- Feed has 1000 text entries + 10 image entries
+- EnricherAgent wants to batch 10 images for parallel processing
+- Must iterate through 100 text entries to accumulate 10 images
+- Inefficient memory usage for large feeds
+
+**Alternative: Pull-based (Lazy Iteration)**
+```python
+def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterator[Entry]:
+    """Yield enriched entries as ready. Lazy evaluation."""
+
+    image_buffer = []
+
+    for entry in entries:
+        if has_media(entry):
+            image_buffer.append(entry)
+
+            # Process 10 images in parallel when buffer full
+            if len(image_buffer) >= self.step_size:
+                enriched = self._enrich_parallel(image_buffer)
+                yield from enriched
+                image_buffer.clear()
+        else:
+            # Text entries pass through immediately
+            yield entry
+```
+
+**Benefits of Pull-based:**
+- **Lazy evaluation:** Don't process until needed
+- **Memory efficient:** Stream entries, don't load entire feed
+- **Selective processing:** Skip/filter entries easily
+- **Backpressure:** Downstream controls rate
+- **Smart buffering:** Accumulate specific types (images, videos) for batch processing
+
+**Trade-offs:**
+- More complex than simple Feed → Feed
+- Harder to debug (no complete Feed snapshot between stages)
+- Need to handle partial failures/rollback
+- Iterator exhaustion issues
+
+**Hybrid Proposal:**
+```python
+# Agents can choose eager or lazy
+class Agent(Protocol):
+    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterable[Entry]:
+        """Transform entries. Implementation chooses eager/lazy."""
+        ...
+
+# Eager agent (needs full context)
+class WriterAgent:
+    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterator[Entry]:
+        all_entries = list(entries)  # Materialize
+        for window in batch(all_entries, self.step_size):
+            yield self._generate_post(window)
+
+# Lazy agent (streaming transformation)
+class EnricherAgent:
+    def run(self, entries: Iterable[Entry], context: PipelineContext) -> Iterator[Entry]:
+        for entry in self._process_lazy(entries):  # Never materializes full feed
+            yield entry
+```
+
+**Decision:** Defer to Phase 4. Start with eager Feed → Feed, profile performance, consider lazy iteration if memory/performance issues arise. Pipeline orchestration layer can provide both interfaces.
+
 ---
 
 ## Conclusion
