@@ -1,33 +1,32 @@
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
-from uuid import UUID
 
-from egregora_v3.core.types import Document, DocumentType, FeedItem
+from egregora_v3.core.types import Document, DocumentType, Entry, Feed
 
 
 @runtime_checkable
 class InputAdapter(Protocol):
-    """Parses a source input into a stream of FeedItems."""
+    """Parses a source input into a stream of Entries."""
 
-    def parse(self, source: Path) -> Iterator[FeedItem]:
+    def parse(self, source: Path) -> Iterator[Entry]:
         ...
 
 
 @runtime_checkable
 class DocumentRepository(Protocol):
-    """Persists and retrieves Document and FeedItem primitives."""
+    """Persists and retrieves Document and Entry primitives."""
 
     # Documents
     def save(self, doc: Document) -> None: ...
-    def get(self, doc_id: UUID) -> Document | None: ...
+    def get(self, doc_id: str) -> Document | None: ...
     def list_by_type(self, doc_type: DocumentType) -> list[Document]: ...
-    def exists(self, doc_id: UUID) -> bool: ...
+    def exists(self, doc_id: str) -> bool: ...
 
-    # FeedItems (Messages)
-    def save_item(self, item: FeedItem) -> None: ...
-    def get_item(self, item_id: UUID) -> FeedItem | None: ...
-    def get_items_by_source(self, source: str) -> list[FeedItem]: ...
+    # Entries (Input)
+    def save_entry(self, entry: Entry) -> None: ...
+    def get_entry(self, entry_id: str) -> Entry | None: ...
+    def get_entries_by_source(self, source_id: str) -> list[Entry]: ...
 
 
 @runtime_checkable
@@ -61,10 +60,10 @@ class LLMModel(Protocol):
 
 @runtime_checkable
 class Agent(Protocol):
-    """Cognitive Agent that processes FeedItems into Documents."""
+    """Cognitive Agent that processes Entries into Documents."""
 
-    def process(self, items: list[FeedItem]) -> list[Document]:
-        """Processes a batch of items (e.g. a window of chat messages) and produces derived Documents.
+    def process(self, entries: list[Entry]) -> list[Document]:
+        """Processes a batch of entries (e.g. a window of chat messages) and produces derived Documents.
 
         Example: Post, Journal entry.
         """
@@ -87,6 +86,6 @@ class UrlConvention(Protocol):
 class OutputSink(Protocol):
     """Final destination for published Documents (e.g. Markdown files)."""
 
-    def persist(self, doc: Document) -> Path:
-        """Writes document to disk/storage and returns the location."""
+    def publish(self, feed: Feed) -> None:
+        """Writes feed/documents to disk/storage."""
         ...
