@@ -184,7 +184,22 @@ library.enrichments.save(enrichment_doc)
 entry.content = enrichment.description  # "A sunset over the ocean with orange clouds"
 ```
 
-**Benefits:** Media becomes semantically searchable, LLMs can understand content without seeing files
+**Benefits:**
+- **Caching:** Process media once, reuse description many times (cheaper/faster)
+- **Search/RAG:** Text descriptions are indexable and searchable in vector stores
+- **Hybrid approach:** Use enrichment text for quick operations, original file for detailed analysis
+- **Fallback:** Works when file unavailable or model doesn't support format
+- **Cost optimization:** Not every LLM call needs vision/audio - use cached text when sufficient
+
+**When to use multimodal LLMs directly:**
+- Detailed analysis requiring full visual/audio context
+- Questions about specific details not captured in enrichment
+- Creative tasks needing direct media access (image editing, audio mixing)
+
+**When to use enrichment text:**
+- RAG search across large media collections
+- Summarization and aggregation tasks
+- Cheap/fast operations (filtering, categorization)
 
 **Decision:** `DocumentType.MEDIA` may not be needed - media is Links, not Documents
 
