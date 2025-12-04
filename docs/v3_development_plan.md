@@ -159,6 +159,33 @@ entry = Entry(
 - Link attributes: `href` (path/URL), `type` (MIME), `length` (bytes)
 - Actual media file stored in filesystem/object storage
 
+**Enrichment Workflow:**
+```python
+# 1. Entry arrives with media link but minimal description
+entry = Entry(
+    title="Photo from vacation",
+    content="",  # Empty or minimal
+    links=[Link(rel="enclosure", href="http://example.org/photo.jpg", type="image/jpeg")]
+)
+
+# 2. EnricherAgent downloads media and processes it
+media_path = download_media(entry.links[0].href)
+enrichment = enrich_media(media_path)  # Vision model: "Sunset over ocean..."
+
+# 3. Store enrichment result
+enrichment_doc = Document(
+    doc_type=DocumentType.ENRICHMENT,
+    content=enrichment.description,
+    metadata={"source_entry_id": entry.id, "model": "gemini-2.0-flash-vision"}
+)
+library.enrichments.save(enrichment_doc)
+
+# 4. Update entry content directly with enrichment
+entry.content = enrichment.description  # "A sunset over the ocean with orange clouds"
+```
+
+**Benefits:** Media becomes semantically searchable, LLMs can understand content without seeing files
+
 **Decision:** `DocumentType.MEDIA` may not be needed - media is Links, not Documents
 
 **Identity Strategy (Hybrid Approach):**
