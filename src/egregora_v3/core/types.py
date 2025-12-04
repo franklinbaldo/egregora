@@ -6,6 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from egregora.utils.paths import slugify
+
 
 # --- Atom Core Domain ---
 
@@ -106,23 +108,36 @@ class Document(Entry):
                status: DocumentStatus = DocumentStatus.DRAFT,
                internal_metadata: dict[str, Any] | None = None,
                id_override: str | None = None,
-               in_reply_to: InReplyTo | None = None,
-               searchable: bool = True) -> "Document":
+               slug: str | None = None) -> "Document":
         """Factory method to create a Document.
 
-        If id_override is not provided, generates a content-addressed ID (UUIDv5).
+        V3 CHANGE: Supports Semantic Identity.
+        If `slug` is provided (and type is POST/MEDIA), it acts as the ID.
+        If `id_override` is provided, it acts as the ID.
+        Otherwise, generates a content-addressed ID (UUIDv5).
         """
         if internal_metadata is None:
             internal_metadata = {}
 
+        # Update metadata with slug if provided
+        if slug:
+            internal_metadata["slug"] = slug
+
+        # Determine ID
+        doc_id = None
         if id_override:
             doc_id = id_override
-        else:
-            # Content-addressed ID based on content + type
+        elif slug and doc_type in (DocumentType.POST, DocumentType.MEDIA):
+            # Semantic Identity
+            clean_slug = slugify(slug, max_len=60)
+            if clean_slug:
+                doc_id = clean_slug
+
+        # Fallback to UUIDv5
+        if not doc_id:
             hasher = hashlib.sha256()
             hasher.update(content.encode('utf-8'))
             hasher.update(doc_type.value.encode('utf-8'))
-            # We use the hash to generate a UUIDv5
             doc_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, hasher.hexdigest()))
 
         return cls(
