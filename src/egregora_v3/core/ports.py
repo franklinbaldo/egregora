@@ -2,7 +2,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, List, Protocol, runtime_checkable
 
-from egregora_v3.core.types import Document, DocumentType, Entry, Feed, Link
+from egregora_v3.core.types import Document, DocumentType, Entry, Feed
 
 
 @runtime_checkable
@@ -17,58 +17,21 @@ class InputAdapter(Protocol):
 class DocumentRepository(Protocol):
     """Persists and retrieves Document and Entry primitives."""
 
-    # Documents
-    def save(self, doc: Document) -> Document: ...
-    def get(self, doc_id: str) -> Document | None: ...
-    def list(self, *, doc_type: DocumentType | None = None) -> List[Document]: ...
-    def exists(self, doc_id: str) -> bool: ...
-
-    # Entries (Input)
-    def save_entry(self, entry: Entry) -> None: ...
-    def get_entry(self, entry_id: str) -> Entry | None: ...
-    def get_entries_by_source(self, source_id: str) -> List[Entry]: ...
-
-
-@runtime_checkable
-class MediaStore(Protocol):
-    def upload(self, data: bytes, mime_type: str) -> Link:
-        """
-        Uploads binary data and returns a Link with href/type/length.
-        href can be a local path, HTTP URL, or custom scheme (e.g. s3://...).
-        """
+    # Core Persistence
+    def save(self, doc: Document) -> None:
+        """Upsert a document."""
         ...
 
+    def get(self, doc_id: str) -> Document | None:
+        """Retrieve by ID."""
+        ...
 
-@runtime_checkable
-class WorkspaceService(Protocol):
-    """High-level API for agents to interact with collections."""
+    def list_collection(self, collection_name: str) -> Iterator[Document]:
+        """List all documents in a specific collection."""
+        ...
 
-    def create_document(self, collection_id: str, doc: Document) -> Document: ...
-    def update_document(self, doc_id: str, doc: Document) -> Document: ...
-    def list_documents(
-        self,
-        collection_id: str,
-        doc_type: DocumentType | None = None,
-    ) -> List[Document]: ...
-
-
-@runtime_checkable
-class WorkspaceServiceWithMedia(WorkspaceService, Protocol):
-    """Extension of WorkspaceService that supports media uploads."""
-
-    def upload_media_document(
-        self,
-        collection_id: str,
-        data: bytes,
-        mime_type: str,
-        title: str,
-        alt_text: str | None = None,
-    ) -> Document:
-        """
-        1. Uploads binary via MediaStore.
-        2. Creates a Document(doc_type=MEDIA) with link rel="enclosure".
-        3. Persists in the configured collection.
-        """
+    def get_high_water_mark(self, collection_name: str) -> Any | None:
+        """Get the maximum 'updated' timestamp for resumption."""
         ...
 
 
@@ -110,25 +73,4 @@ class Agent(Protocol):
 
         Example: Post, Journal entry.
         """
-        ...
-
-
-@runtime_checkable
-class UrlConvention(Protocol):
-    """Pure logical protocol for determining URL paths for Documents.
-
-    Separate from I/O.
-    """
-
-    def resolve(self, doc: Document) -> str:
-        """Returns the logical URL path (e.g., 'posts/2023/my-post')."""
-        ...
-
-
-@runtime_checkable
-class OutputSink(Protocol):
-    """Final destination for published Documents (e.g. Markdown files)."""
-
-    def publish(self, feed: Feed) -> None:
-        """Writes feed/documents to disk/storage."""
         ...

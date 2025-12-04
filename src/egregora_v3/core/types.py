@@ -97,6 +97,31 @@ class Document(Entry):
     # Suggestion for path for file-based OutputAdapters (MkDocs/Hugo)
     url_path: str | None = None
 
+    def with_metadata(self, **updates: Any) -> "Document":
+        """Return new document with updated metadata."""
+        # This method is expected by some parts of the pipeline (e.g. workers.py)
+        # Since this is a Pydantic model (and frozen?), we should use model_copy with update.
+        # But `internal_metadata` is a dict. We want to update keys inside it or top-level fields?
+        # The legacy behavior updated `metadata` dict.
+        # Here `internal_metadata` is the closest equivalent for random bags of data.
+        # But `updates` might also target top-level fields like `title`.
+
+        # Helper to merge dicts
+        new_internal = self.internal_metadata.copy()
+        top_level_updates = {}
+
+        for k, v in updates.items():
+            if k in self.model_fields:
+                top_level_updates[k] = v
+            else:
+                new_internal[k] = v
+
+        # Merge existing internal_metadata update if present in updates (edge case)
+        if "internal_metadata" in updates:
+            new_internal.update(updates["internal_metadata"])
+
+        return self.model_copy(update={**top_level_updates, "internal_metadata": new_internal})
+
     @classmethod
     def create(cls,
                content: str,
