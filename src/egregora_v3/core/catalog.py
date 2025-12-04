@@ -12,6 +12,9 @@ class Collection(BaseModel):
     title: str                    # ex: "Blog Posts"
     accepts: list[DocumentType]   # ex: [DocumentType.POST]
 
+    # RAG Indexing Policy
+    index_in_rag: bool = True     # Whether items in this collection should be indexed
+
     # Backend that knows how to persist and list Documents of this collection
     repository: DocumentRepository
 

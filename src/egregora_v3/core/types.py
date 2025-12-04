@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 class Link(BaseModel):
     href: str
-    rel: str | None = None        # ex: "alternate", "enclosure", "self"
+    rel: str | None = None        # ex: "alternate", "enclosure", "self", "in-reply-to"
     type: str | None = None       # ex: "text/html", "image/jpeg"
     hreflang: str | None = None
     title: str | None = None
@@ -33,6 +33,12 @@ class Source(BaseModel):
     updated: datetime | None = None
     links: list[Link] = Field(default_factory=list)
 
+class InReplyTo(BaseModel):
+    """Atom Threading Extension (RFC 4685)"""
+    ref: str                      # ID of the parent entry
+    href: str | None = None       # Link to the parent entry
+    type: str | None = None
+
 class Entry(BaseModel):
     id: str                       # URI or stable unique ID
     title: str
@@ -50,12 +56,17 @@ class Entry(BaseModel):
 
     source: Source | None = None
 
+    # Threading (RFC 4685)
+    in_reply_to: InReplyTo | None = None
+
     # Public extensions (Atom compliant)
     extensions: dict[str, Any] = Field(default_factory=dict)
 
     # Internal system metadata (not serialized to public Atom)
     internal_metadata: dict[str, Any] = Field(default_factory=dict)
 
+    # Public extensions (Atom compliant)
+    extensions: dict[str, Any] = Field(default_factory=dict)
 
 # --- Application Domain ---
 
@@ -66,6 +77,7 @@ class DocumentType(str, Enum):
     POST = "post"
     MEDIA = "media"
     PROFILE = "profile"
+    ENRICHMENT = "enrichment"
 
 class DocumentStatus(str, Enum):
     DRAFT = "draft"
@@ -80,6 +92,9 @@ class Document(Entry):
     doc_type: DocumentType
     status: DocumentStatus = DocumentStatus.DRAFT
 
+    # RAG Indexing Policy
+    searchable: bool = True
+
     # Suggestion for path for file-based OutputAdapters (MkDocs/Hugo)
     url_path: str | None = None
 
@@ -90,7 +105,9 @@ class Document(Entry):
                title: str,
                status: DocumentStatus = DocumentStatus.DRAFT,
                internal_metadata: dict[str, Any] | None = None,
-               id_override: str | None = None) -> "Document":
+               id_override: str | None = None,
+               in_reply_to: InReplyTo | None = None,
+               searchable: bool = True) -> "Document":
         """Factory method to create a Document.
 
         If id_override is not provided, generates a content-addressed ID (UUIDv5).
@@ -116,6 +133,8 @@ class Document(Entry):
             doc_type=doc_type,
             status=status,
             internal_metadata=internal_metadata,
+            in_reply_to=in_reply_to,
+            searchable=searchable
         )
 
 
