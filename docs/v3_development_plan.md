@@ -85,7 +85,8 @@ Infrastructure dependencies are defined as protocols (structural typing), not co
 ┌─────────────────────────────────────────────────────────────┐
 │ Layer 1: Core Domain (core/)                                │
 │ Pure domain logic: types, config, protocols                 │
-│ Components: Entry, Document, Feed, Context, Ports (NO I/O)  │
+│ Components: Entry, Document, Feed, Context, Ports           │
+│ Ports: Agent, InputAdapter, OutputSink, Repository, etc.    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
