@@ -453,23 +453,23 @@ class SyncLLMClient:
 
 **Why:** Pydantic-AI agents can run in threads. V3 core stays sync, concurrency handled internally.
 
-#### 3.2 Core Agents (Feed → Feed Pattern with Configurable Batch Sizes)
-Each agent can configure its own processing batch size or window size:
+#### 3.2 Core Agents (Feed → Feed Pattern with Configurable Step Size)
+Each agent can configure its own processing step size:
 
 ```python
 # egregora_v3/engine/agents/enricher.py
 class EnricherAgent:
     """Enriches Feed entries: media descriptions, URL metadata."""
 
-    def __init__(self, batch_size: int = 10):
+    def __init__(self, step_size: int = 10):
         """
         Args:
-            batch_size: Number of entries to process in parallel (default: 10)
+            step_size: Number of entries to process at once (default: 10)
         """
-        self.batch_size = batch_size
+        self.step_size = step_size
 
     def run(self, feed: Feed, context: PipelineContext) -> Feed:
-        """Transform Feed by enriching entries in batches.
+        """Transform Feed by enriching entries.
 
         - Downloads media files from enclosure links
         - Runs vision/audio models to get descriptions
@@ -478,9 +478,9 @@ class EnricherAgent:
         """
         enriched_entries = []
 
-        # Process in batches for memory efficiency
-        for batch in chunk(feed.entries, self.batch_size):
-            for entry in batch:
+        # Process in steps for memory efficiency
+        for chunk in batch(feed.entries, self.step_size):
+            for entry in chunk:
                 # Check cache first
                 if cached := context.repository.get_enrichment(entry.id):
                     entry.content = cached.content
@@ -495,36 +495,35 @@ class EnricherAgent:
 class WriterAgent:
     """Generates blog posts from enriched entries."""
 
-    def __init__(self, window_size: int = 50):
+    def __init__(self, step_size: int = 50):
         """
         Args:
-            window_size: Number of entries to aggregate into one post (default: 50)
+            step_size: Number of entries to aggregate into one post (default: 50)
         """
-        self.window_size = window_size
+        self.step_size = step_size
 
     def run(self, feed: Feed, context: PipelineContext) -> Feed:
         """Transform enriched Feed into output documents.
 
-        Groups entries into windows and generates one post per window.
+        Groups entries into steps and generates one post per step.
         Receives entries already enriched by EnricherAgent.
         """
         documents = []
 
-        # Process entries in windows (many entries → one post)
-        for window in create_windows(feed.entries, self.window_size):
-            post = self._generate_post(window)  # LLM call
+        # Process entries in steps (many entries → one post)
+        for step_entries in batch(feed.entries, self.step_size):
+            post = self._generate_post(step_entries)  # LLM call
             documents.append(post)
 
         return Feed(entries=documents, ...)
 ```
 
-**Key Concepts:**
-- **Batch Size:** Number of entries to process at once (memory management)
-- **Window Size:** Number of entries to aggregate (semantic grouping)
-- Different agents have different needs:
-  - `EnricherAgent`: Small batches (10) for parallel enrichment
-  - `WriterAgent`: Large windows (50) to generate comprehensive posts
-  - `PrivacyAgent`: Large batches (100+) since rule-based processing is fast
+**Key Concept:**
+- **Step Size:** Number of entries an agent processes in one iteration
+- Different agents have different strategies:
+  - `EnricherAgent(step_size=10)`: Process 10 entries at a time
+  - `WriterAgent(step_size=50)`: Aggregate 50 entries into 1 post
+  - `PrivacyAgent(step_size=100)`: Fast rule-based, larger steps
 
 **Porting Strategy:** Copy V2 agent logic, adapt to **Feed → Feed** pattern.
 
@@ -575,10 +574,10 @@ Output Feed (final documents)
 - Each agent returns a **Feed** as output
 - Database/caching prevents redundant LLM calls (check if entry already enriched)
 - Next agent receives already-processed entries
-- **Each agent controls its own batch/window size** for processing:
-  - EnricherAgent: batch_size=10 (process 10 entries at a time)
-  - WriterAgent: window_size=50 (aggregate 50 entries into 1 post)
-  - PrivacyAgent: batch_size=100 (fast rule-based processing)
+- **Each agent controls its own step_size** for processing:
+  - EnricherAgent(step_size=10): Process 10 entries at a time
+  - WriterAgent(step_size=50): Aggregate 50 entries into 1 post
+  - PrivacyAgent(step_size=100): Fast rule-based processing
 
 **Example - Full Pipeline with Output Transformation:**
 ```python
