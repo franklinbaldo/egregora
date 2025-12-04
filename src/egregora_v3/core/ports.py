@@ -1,44 +1,86 @@
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
-from uuid import UUID
+from typing import Any, List, Protocol, runtime_checkable
 
-from egregora_v3.core.types import Document, DocumentType, FeedItem
+from egregora_v3.core.types import Document, DocumentType, Entry, Feed, Link
 
 
 @runtime_checkable
 class InputAdapter(Protocol):
-    """Parses a source input into a stream of FeedItems."""
+    """Parses a source input into a stream of Entries."""
 
-    def parse(self, source: Path) -> Iterator[FeedItem]:
+    def parse(self, source: Path) -> Iterator[Entry]:
         ...
 
 
 @runtime_checkable
 class DocumentRepository(Protocol):
-    """Persists and retrieves Document and FeedItem primitives."""
+    """Persists and retrieves Document and Entry primitives."""
 
     # Documents
-    def save(self, doc: Document) -> None: ...
-    def get(self, doc_id: UUID) -> Document | None: ...
-    def list_by_type(self, doc_type: DocumentType) -> list[Document]: ...
-    def exists(self, doc_id: UUID) -> bool: ...
+    def save(self, doc: Document) -> Document: ...
+    def get(self, doc_id: str) -> Document | None: ...
+    def list(self, *, doc_type: DocumentType | None = None) -> List[Document]: ...
+    def exists(self, doc_id: str) -> bool: ...
 
-    # FeedItems (Messages)
-    def save_item(self, item: FeedItem) -> None: ...
-    def get_item(self, item_id: UUID) -> FeedItem | None: ...
-    def get_items_by_source(self, source: str) -> list[FeedItem]: ...
+    # Entries (Input)
+    def save_entry(self, entry: Entry) -> None: ...
+    def get_entry(self, entry_id: str) -> Entry | None: ...
+    def get_entries_by_source(self, source_id: str) -> List[Entry]: ...
+
+
+@runtime_checkable
+class MediaStore(Protocol):
+    def upload(self, data: bytes, mime_type: str) -> Link:
+        """
+        Uploads binary data and returns a Link with href/type/length.
+        href can be a local path, HTTP URL, or custom scheme (e.g. s3://...).
+        """
+        ...
+
+
+@runtime_checkable
+class WorkspaceService(Protocol):
+    """High-level API for agents to interact with collections."""
+
+    def create_document(self, collection_id: str, doc: Document) -> Document: ...
+    def update_document(self, doc_id: str, doc: Document) -> Document: ...
+    def list_documents(
+        self,
+        collection_id: str,
+        doc_type: DocumentType | None = None,
+    ) -> List[Document]: ...
+
+
+@runtime_checkable
+class WorkspaceServiceWithMedia(WorkspaceService, Protocol):
+    """Extension of WorkspaceService that supports media uploads."""
+
+    def upload_media_document(
+        self,
+        collection_id: str,
+        data: bytes,
+        mime_type: str,
+        title: str,
+        alt_text: str | None = None,
+    ) -> Document:
+        """
+        1. Uploads binary via MediaStore.
+        2. Creates a Document(doc_type=MEDIA) with link rel="enclosure".
+        3. Persists in the configured collection.
+        """
+        ...
 
 
 @runtime_checkable
 class VectorStore(Protocol):
     """Manages vector embeddings for Documents (RAG)."""
 
-    def add(self, docs: list[Document]) -> None:
+    def add(self, docs: List[Document]) -> None:
         """Embeds and indexes documents."""
         ...
 
-    def search(self, query: str, k: int = 5, filter_type: DocumentType | None = None) -> list[Document]:
+    def search(self, query: str, k: int = 5, filter_type: DocumentType | None = None) -> List[Document]:
         """Semantic search."""
         ...
 
@@ -50,21 +92,21 @@ class LLMModel(Protocol):
     Wraps pydantic-ai.Agent or other engines.
     """
 
-    def generate(self, prompt: str, system_prompt: str | None = None, tools: list[Any] | None = None) -> str:
+    def generate(self, prompt: str, system_prompt: str | None = None, tools: List[Any] | None = None) -> str:
         """Generates text completion synchronously."""
         ...
 
-    def embed(self, text: str) -> list[float]:
+    def embed(self, text: str) -> List[float]:
         """Generates vector embedding synchronously."""
         ...
 
 
 @runtime_checkable
 class Agent(Protocol):
-    """Cognitive Agent that processes FeedItems into Documents."""
+    """Cognitive Agent that processes Entries into Documents."""
 
-    def process(self, items: list[FeedItem]) -> list[Document]:
-        """Processes a batch of items (e.g. a window of chat messages) and produces derived Documents.
+    def process(self, entries: List[Entry]) -> List[Document]:
+        """Processes a batch of entries (e.g. a window of chat messages) and produces derived Documents.
 
         Example: Post, Journal entry.
         """
@@ -87,6 +129,6 @@ class UrlConvention(Protocol):
 class OutputSink(Protocol):
     """Final destination for published Documents (e.g. Markdown files)."""
 
-    def persist(self, doc: Document) -> Path:
-        """Writes document to disk/storage and returns the location."""
+    def publish(self, feed: Feed) -> None:
+        """Writes feed/documents to disk/storage."""
         ...
