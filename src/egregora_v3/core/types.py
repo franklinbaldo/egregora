@@ -156,6 +156,141 @@ class Feed(BaseModel):
     authors: list[Author] = Field(default_factory=list)
     links: list[Link] = Field(default_factory=list)
 
+    def to_xml(self) -> str:
+        """Generate Atom XML feed (RFC 4287 compliant).
+
+        Returns:
+            Valid Atom 1.0 XML string
+        """
+        from xml.etree.ElementTree import Element, SubElement, tostring
+
+        # Create root feed element with Atom namespace
+        feed = Element("feed", xmlns="http://www.w3.org/2005/Atom")
+
+        # Required feed elements
+        SubElement(feed, "id").text = self.id
+        SubElement(feed, "title").text = self.title
+        SubElement(feed, "updated").text = self._format_datetime(self.updated)
+
+        # Authors
+        for author in self.authors:
+            author_elem = SubElement(feed, "author")
+            SubElement(author_elem, "name").text = author.name
+            if author.email:
+                SubElement(author_elem, "email").text = author.email
+            if author.uri:
+                SubElement(author_elem, "uri").text = author.uri
+
+        # Links
+        for link in self.links:
+            link_elem = SubElement(feed, "link")
+            link_elem.set("href", link.href)
+            if link.rel:
+                link_elem.set("rel", link.rel)
+            if link.type:
+                link_elem.set("type", link.type)
+            if link.hreflang:
+                link_elem.set("hreflang", link.hreflang)
+            if link.title:
+                link_elem.set("title", link.title)
+            if link.length:
+                link_elem.set("length", str(link.length))
+
+        # Entries
+        for entry in self.entries:
+            self._add_entry_to_feed(feed, entry)
+
+        # Convert to string with XML declaration
+        xml_bytes = tostring(feed, encoding="utf-8", xml_declaration=True)
+        return xml_bytes.decode("utf-8")
+
+    def _add_entry_to_feed(self, feed_elem: "Element", entry: Entry) -> None:
+        """Add an Entry to the feed XML element."""
+        from xml.etree.ElementTree import SubElement
+
+        entry_elem = SubElement(feed_elem, "entry")
+
+        # Required entry elements
+        SubElement(entry_elem, "id").text = entry.id
+        SubElement(entry_elem, "title").text = entry.title
+        SubElement(entry_elem, "updated").text = self._format_datetime(entry.updated)
+
+        # Optional elements
+        if entry.published:
+            SubElement(entry_elem, "published").text = self._format_datetime(entry.published)
+
+        if entry.summary:
+            SubElement(entry_elem, "summary").text = entry.summary
+
+        if entry.content:
+            content_elem = SubElement(entry_elem, "content")
+            content_elem.text = entry.content
+            if entry.content_type:
+                # Normalize content type for Atom
+                content_type = entry.content_type
+                if content_type == "text/markdown":
+                    content_type = "text"
+                elif content_type == "text/html":
+                    content_type = "html"
+                content_elem.set("type", content_type)
+
+        # Authors
+        for author in entry.authors:
+            author_elem = SubElement(entry_elem, "author")
+            SubElement(author_elem, "name").text = author.name
+            if author.email:
+                SubElement(author_elem, "email").text = author.email
+            if author.uri:
+                SubElement(author_elem, "uri").text = author.uri
+
+        # Links
+        for link in entry.links:
+            link_elem = SubElement(entry_elem, "link")
+            link_elem.set("href", link.href)
+            if link.rel:
+                link_elem.set("rel", link.rel)
+            if link.type:
+                link_elem.set("type", link.type)
+            if link.hreflang:
+                link_elem.set("hreflang", link.hreflang)
+            if link.title:
+                link_elem.set("title", link.title)
+            if link.length:
+                link_elem.set("length", str(link.length))
+
+        # Categories
+        for category in entry.categories:
+            cat_elem = SubElement(entry_elem, "category")
+            cat_elem.set("term", category.term)
+            if category.scheme:
+                cat_elem.set("scheme", category.scheme)
+            if category.label:
+                cat_elem.set("label", category.label)
+
+        # Threading (RFC 4685)
+        if entry.in_reply_to:
+            in_reply_to_elem = SubElement(
+                entry_elem,
+                "{http://purl.org/syndication/thread/1.0}in-reply-to"
+            )
+            in_reply_to_elem.set("ref", entry.in_reply_to.ref)
+            if entry.in_reply_to.href:
+                in_reply_to_elem.set("href", entry.in_reply_to.href)
+            if entry.in_reply_to.type:
+                in_reply_to_elem.set("type", entry.in_reply_to.type)
+
+    @staticmethod
+    def _format_datetime(dt: datetime) -> str:
+        """Format datetime as RFC 3339 (Atom requirement)."""
+        # Convert to UTC if not already
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        elif dt.tzinfo != UTC:
+            dt = dt.astimezone(UTC)
+
+        # Format as RFC 3339: 2024-12-04T15:30:45Z
+        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
 
 def documents_to_feed(
     docs: list[Document],
