@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 
 import httpx
@@ -10,7 +11,6 @@ from pydantic_ai.exceptions import ModelAPIError, UsageLimitExceeded
 from pydantic_ai.models import Model
 from pydantic_ai.models.fallback import FallbackModel
 
-from egregora.config.settings import get_google_api_key
 from egregora.models import GoogleBatchModel
 
 logger = logging.getLogger(__name__)
@@ -176,7 +176,9 @@ def create_fallback_model(
         return RateLimitedModel(model)
 
     # Prepare models
-    api_key = get_google_api_key()
+    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY required for fallback")
 
     # 1. Prepare Primary
     primary: Model
