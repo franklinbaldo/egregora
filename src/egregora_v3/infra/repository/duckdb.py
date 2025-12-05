@@ -129,15 +129,17 @@ class DuckDBDocumentRepository(DocumentRepository):
         if hasattr(self.conn, "con"):
              query = f"DELETE FROM {self.table_name} WHERE id = ?"
              self.conn.con.execute(query, [doc_id])
-        elif hasattr(self.conn, "raw_sql"):
-            # Fallback to string interpolation but validate ID safety (simple check)
-            safe_id = doc_id.replace("'", "''")
-            self.conn.raw_sql(f"DELETE FROM {self.table_name} WHERE id = '{safe_id}'")
-        elif hasattr(self.conn, "sql"):
-             safe_id = doc_id.replace("'", "''")
-             self.conn.sql(f"DELETE FROM {self.table_name} WHERE id = '{safe_id}'")
         else:
-             raise NotImplementedError("Backend does not support raw SQL execution for delete.")
+             # Fallback to Ibis delete if available, otherwise raise error
+             # Refusing to use unsafe raw SQL interpolation.
+             try:
+                 t = self._get_table()
+                 # Ibis does not have a standard 'delete' method exposed on Table/Expression in all versions/backends
+                 # But some backends might support it via extension or future versions.
+                 # If this fails, we must error out rather than be unsafe.
+                 t.filter(t.id == doc_id).delete()
+             except Exception:
+                 raise NotImplementedError("Backend does not support a safe delete operation via Ibis or parameterized SQL.")
 
     def exists(self, doc_id: str) -> bool:
         """Checks if a document exists."""
@@ -148,11 +150,13 @@ class DuckDBDocumentRepository(DocumentRepository):
     # Entry methods (stubbed for now or can reuse same table with different type/logic if we want single table)
 
     def save_entry(self, entry: Entry) -> None:
-        # For now, we focus on Document as per tests.
+        # TODO: Implement Entry persistence
         pass
 
     def get_entry(self, entry_id: str) -> Entry | None:
+        # TODO: Implement Entry retrieval
         return None
 
     def get_entries_by_source(self, source_id: str) -> List[Entry]:
+        # TODO: Implement Entry listing by source
         return []
