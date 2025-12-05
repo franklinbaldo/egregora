@@ -14,14 +14,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STUBS_PATH = Path(__file__).resolve().parent / "_stubs"
 SRC_PATH = PROJECT_ROOT / "src"
 
-if str(STUBS_PATH) not in sys.path:
-    sys.path.insert(0, str(STUBS_PATH))
+# Ensure stub modules take precedence over the real package to avoid heavy
+# optional dependencies during core-only test runs.
+for path in (STUBS_PATH, PROJECT_ROOT, SRC_PATH):
+    path_str = str(path)
+    try:
+        sys.path.remove(path_str)
+    except ValueError:
+        pass
 
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-if str(SRC_PATH) not in sys.path:
-    sys.path.insert(0, str(SRC_PATH))
+sys.path[:0] = [str(STUBS_PATH), str(PROJECT_ROOT), str(SRC_PATH)]
 
 from egregora.config.settings import (  # noqa: E402
     ModelSettings,

@@ -1,10 +1,9 @@
 """Pipeline execution context for V3.
 
-PipelineContext carries request-scoped state through the pipeline
-without using global variables.
-"""
+Provides request-scoped state without using globals."""
 import uuid
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any
 
 from egregora_v3.core.config import EgregoraConfig
@@ -31,7 +30,6 @@ class PipelineContext:
 
     def __post_init__(self):
         """Ensure metadata is frozen (immutable)."""
-        # Convert metadata dict to frozen dict for immutability
-        if self.metadata and not isinstance(self.metadata, frozenset):
-            # Use object.__setattr__ since dataclass is frozen
-            object.__setattr__(self, 'metadata', dict(self.metadata))
+        # Convert metadata dict to an immutable mapping to prevent mutation
+        if not isinstance(self.metadata, MappingProxyType):
+            object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))

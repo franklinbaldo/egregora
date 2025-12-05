@@ -269,8 +269,23 @@ class Feed(BaseModel):
             if link.length:
                 link_elem.set("length", str(link.length))
 
-        # Categories
-        for category in entry.categories:
+        # Categories (including derived metadata for Documents)
+        categories = list(entry.categories)
+        if isinstance(entry, Document):
+            categories.extend(
+                [
+                    Category(
+                        term=entry.doc_type.value,
+                        scheme="https://egregora.app/schema#doc_type",
+                    ),
+                    Category(
+                        term=entry.status.value,
+                        scheme="https://egregora.app/schema#status",
+                    ),
+                ]
+            )
+
+        for category in categories:
             cat_elem = SubElement(entry_elem, "category")
             cat_elem.set("term", category.term)
             if category.scheme:
@@ -310,15 +325,16 @@ def documents_to_feed(
     authors: list[Author] | None = None,
 ) -> Feed:
     """Aggregates documents into a valid Atom Feed."""
-    if not docs:
+    sorted_docs = sorted(docs, key=lambda doc: doc.updated, reverse=True)
+    if not sorted_docs:
         updated = datetime.now(UTC)
     else:
-        updated = max(doc.updated for doc in docs)
+        updated = sorted_docs[0].updated
 
     return Feed(
         id=feed_id,
         title=title,
         updated=updated,
         authors=authors or [],
-        entries=docs
+        entries=sorted_docs
     )

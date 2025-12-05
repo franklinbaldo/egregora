@@ -20,12 +20,12 @@
 
 ### Remaining Work
 
-- [ ] Complete semantic identity logic in `Document.create()` - [Plan:172](docs/v3_development_plan.md#L172)
-- [ ] Implement `Feed.to_xml()` for Atom feed export (tests stubbed in `tests/v3/core/test_feed_todo.py`) - [Plan:173](docs/v3_development_plan.md#L173)
-- [ ] Add `documents_to_feed()` aggregation function (tests stubbed in `tests/v3/core/test_feed_todo.py`) - [Plan:174](docs/v3_development_plan.md#L174)
+- [x] Complete semantic identity logic in `Document.create()` - [Plan:172](docs/v3_development_plan.md#L172)
+- [x] Implement `Feed.to_xml()` for Atom feed export (tests stubbed in `tests/v3/core/test_feed_todo.py`) - [Plan:173](docs/v3_development_plan.md#L173)
+- [x] Add `documents_to_feed()` aggregation function (tests stubbed in `tests/v3/core/test_feed_todo.py`) - [Plan:174](docs/v3_development_plan.md#L174)
 - [ ] 100% unit test coverage for all core types - [Plan:175](docs/v3_development_plan.md#L175)
 - [ ] Document threading support (RFC 4685 `in_reply_to`) - [Plan:176](docs/v3_development_plan.md#L176)
-- [ ] Implement PipelineContext for request-scoped state - [Plan:177](docs/v3_development_plan.md#L177)
+- [x] Implement PipelineContext for request-scoped state - [Plan:177](docs/v3_development_plan.md#L177)
 
 ### Phase 1.5: Refinements
 

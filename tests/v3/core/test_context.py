@@ -1,9 +1,11 @@
 """Tests for PipelineContext (Phase 1.4)."""
 import pytest
-from egregora_v3.core.context import PipelineContext
-from egregora_v3.core.config import EgregoraConfig
 from pathlib import Path
 
+import pytest
+
+from egregora_v3.core.context import PipelineContext
+from egregora_v3.core.config import EgregoraConfig
 
 def test_pipeline_context_creation():
     """Test basic PipelineContext creation."""
@@ -58,3 +60,11 @@ def test_pipeline_context_comparison():
 
     assert ctx1 == ctx2
     assert ctx1 != ctx3
+
+
+def test_pipeline_context_metadata_is_immutable():
+    """Metadata should be immutable after creation."""
+    ctx = PipelineContext(run_id="with-metadata", metadata={"a": 1})
+
+    with pytest.raises(Exception):
+        ctx.metadata["a"] = 2
