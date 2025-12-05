@@ -141,8 +141,9 @@ def create_fallback_model(
         # Start with Google fallback models
         fallback_models = [m for m in GOOGLE_FALLBACK_MODELS if m != primary_model]
 
-        # Add OpenRouter free models if requested
-        if include_openrouter:
+        # Add OpenRouter free models if requested (ONLY if API key is available)
+        import os
+        if include_openrouter and os.environ.get("OPENROUTER_API_KEY"):
             try:
                 openrouter_models = get_openrouter_free_models(modality=modality)
                 # Only add if we got models back (vision may return empty list)
@@ -155,6 +156,8 @@ def create_fallback_model(
                     logger.info("No free OpenRouter vision models available, using Google models only")
             except (httpx.HTTPError, httpx.TimeoutException) as e:
                 logger.warning("Failed to add OpenRouter models to fallback: %s", e)
+        elif include_openrouter:
+            logger.debug("OPENROUTER_API_KEY not set, skipping OpenRouter fallback models")
 
     from pydantic_ai.models.gemini import GeminiModel
     from pydantic_ai.models.openai import OpenAIModel
