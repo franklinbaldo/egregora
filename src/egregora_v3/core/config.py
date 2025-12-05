@@ -3,6 +3,7 @@ from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ModelSettings(BaseModel):
@@ -21,9 +22,13 @@ class PathsSettings(BaseModel):
     """Path configuration.
 
     All paths are relative to the 'site_root' unless absolute.
+    site_root defaults to current working directory.
     """
 
-    site_root: Path = Field(default=Path(), description="Root directory of the site")
+    site_root: Path = Field(
+        default_factory=Path.cwd,
+        description="Root directory of the site (defaults to current working directory)"
+    )
 
     # Content
     posts_dir: Path = Field(default=Path("posts"), description="Posts directory")
@@ -69,40 +74,52 @@ class PipelineSettings(BaseModel):
     max_tokens: int = 100_000
 
 
-class EgregoraConfig(BaseModel):
-    """Root configuration for Egregora V3."""
+class EgregoraConfig(BaseSettings):
+    """Root configuration for Egregora V3.
+
+    Supports environment variable overrides with the pattern:
+    EGREGORA_SECTION__KEY (e.g., EGREGORA_MODELS__WRITER)
+    """
 
     models: ModelSettings = Field(default_factory=ModelSettings)
     paths: PathsSettings = Field(default_factory=PathsSettings)
     pipeline: PipelineSettings = Field(default_factory=PipelineSettings)
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = SettingsConfigDict(
+        extra="ignore",
+        env_prefix="EGREGORA_",
+        env_nested_delimiter="__",
+    )
 
     @classmethod
-    def load(cls, site_root: Path) -> "EgregoraConfig":
-        """Loads configuration from .egregora/config.yml in the site_root.
+    def load(cls, site_root: Path | None = None) -> "EgregoraConfig":
+        """Loads configuration from .egregora/config.yml and environment variables.
 
-        If file doesn't exist, returns default config.
-        Raises error if file exists but is invalid.
+        Uses ConfigLoader to handle YAML file loading. Environment variables
+        automatically override file values via Pydantic Settings.
+
+        Priority (highest to lowest):
+        1. Environment variables (EGREGORA_SECTION__KEY)
+        2. Config file (.egregora/config.yml)
+        3. Defaults
+
+        Args:
+            site_root: Root directory of the site. If None, uses current working directory.
+                      Can be overridden by CLI with --site-root flag.
+
+        Returns:
+            EgregoraConfig: Fully loaded and validated configuration.
+
+        Raises:
+            ValueError: If config file exists but contains invalid YAML.
+
+        Examples:
+            # Use current working directory
+            config = EgregoraConfig.load()
+
+            # Use explicit path (e.g., from CLI --site-root flag)
+            config = EgregoraConfig.load(Path("/path/to/site"))
         """
-        config_path = site_root / ".egregora" / "config.yml"
+        from egregora_v3.core.config_loader import ConfigLoader
 
-        data = {}
-        if config_path.exists():
-            with config_path.open(encoding="utf-8") as f:
-                data = yaml.safe_load(f) or {}
-
-        # Inject site_root into paths config
-        # We modify the dictionary before instantiation to ensure immutability/clean construction
-        paths_data = data.get("paths")
-
-        if paths_data is None:
-            paths_data = {}
-        elif not isinstance(paths_data, dict):
-            msg = f"Configuration 'paths' must be a dictionary, got {type(paths_data).__name__}"
-            raise ValueError(msg)
-
-        paths_data["site_root"] = site_root
-        data["paths"] = paths_data
-
-        return cls(**data)
+        return ConfigLoader(site_root).load()

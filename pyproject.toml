@@ -19,6 +19,7 @@ dependencies = [
     "pillow>=11.3.0",
     "pyarrow",
     "pydantic>=2.12.3",
+    "pydantic-settings>=2.7.0",
     "pydantic-ai>=1.25.1",
     "pydantic-evals>=1.25.1",
     "python-dateutil>=2.9.0.post0",

@@ -28,6 +28,7 @@ from typing import Annotated, Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from egregora.config.overrides import ConfigOverrideBuilder
 
@@ -649,10 +650,13 @@ class QuotaSettings(BaseModel):
     )
 
 
-class EgregoraConfig(BaseModel):
+class EgregoraConfig(BaseSettings):
     """Root configuration for Egregora.
 
     This model defines the complete .egregora/config.yml schema.
+
+    Supports environment variable overrides with the pattern:
+    EGREGORA_SECTION__KEY (e.g., EGREGORA_MODELS__WRITER)
 
     Example config.yml:
     ```yaml
@@ -739,9 +743,11 @@ class EgregoraConfig(BaseModel):
         description="LLM usage quota tracking",
     )
 
-    model_config = ConfigDict(
+    model_config = SettingsConfigDict(
         extra="forbid",  # Reject unknown fields
         validate_assignment=True,  # Validate on attribute assignment
+        env_prefix="EGREGORA_",
+        env_nested_delimiter="__",
     )
 
     @model_validator(mode="after")
@@ -834,13 +840,14 @@ def find_egregora_config(start_dir: Path) -> Path | None:
     return None
 
 
-def load_egregora_config(site_root: Path) -> EgregoraConfig:
+def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
     """Load Egregora configuration from .egregora/config.yml.
 
     SIMPLE: Just load .egregora/config.yml, create if missing.
+    Environment variables automatically override file values via Pydantic Settings.
 
     Args:
-        site_root: Root directory of the site
+        site_root: Root directory of the site. If None, uses current working directory.
 
     Returns:
         Validated EgregoraConfig instance
@@ -848,7 +855,16 @@ def load_egregora_config(site_root: Path) -> EgregoraConfig:
     Raises:
         ValidationError: If config file contains invalid data
 
+    Examples:
+        # Use current working directory
+        config = load_egregora_config()
+
+        # Use explicit path (e.g., from CLI --site-root flag)
+        config = load_egregora_config(Path("/path/to/site"))
     """
+    if site_root is None:
+        site_root = Path.cwd()
+
     config_path = site_root / ".egregora" / "config.yml"
 
     if not config_path.exists():

@@ -41,10 +41,11 @@
 - [ ] Implement hybrid identity approach (UUIDv5 for immutable, slugs for mutable) - [Plan:251-255](docs/v3_development_plan.md#L251-L255)
 - [ ] Add `Document.slug` property for mutable types - [Plan:255](docs/v3_development_plan.md#L255)
 
-#### Config Loader
-- [ ] Refactor `EgregoraConfig.load()` to dedicated loader class - [Plan:257-260](docs/v3_development_plan.md#L257-L260)
-- [ ] Better error reporting for malformed YAML (line numbers, validation) - [Plan:258](docs/v3_development_plan.md#L258)
-- [ ] Environment variable override support - [Plan:260](docs/v3_development_plan.md#L260)
+#### Config Loader ✅ COMPLETE (PR #1133)
+- [x] Refactor `EgregoraConfig.load()` to dedicated loader class - [Plan:257-260](docs/v3_development_plan.md#L257-L260) - ✅ Implemented `ConfigLoader` class
+- [x] Better error reporting for malformed YAML (line numbers, validation) - [Plan:258](docs/v3_development_plan.md#L258) - ✅ ValueError with YAML error details
+- [x] Environment variable override support - [Plan:260](docs/v3_development_plan.md#L260) - ✅ Implemented via `pydantic-settings` with `EGREGORA_SECTION__KEY` pattern
+- [x] **Bonus:** CWD default pattern for `site_root` (conventional CLI behavior)
 
 #### Success Criteria
 - [ ] All core types validated via Pydantic - [Plan:263](docs/v3_development_plan.md#L263)
