@@ -10,11 +10,11 @@ from egregora_v3.core.types import Document, DocumentType, Entry
 class DuckDBDocumentRepository(DocumentRepository):
     """DuckDB-backed document storage."""
 
-    def __init__(self, conn: ibis.BaseBackend):
+    def __init__(self, conn: ibis.BaseBackend) -> None:
         self.conn = conn
         self.table_name = "documents"
 
-    def initialize(self):
+    def initialize(self) -> None:
         """Creates the table if it doesn't exist."""
         # Check if table exists
         if self.table_name not in self.conn.list_tables():
@@ -68,13 +68,13 @@ class DuckDBDocumentRepository(DocumentRepository):
                 if "ON CONFLICT is a no-op" in str(e):
                     self._manual_upsert(doc, json_data)
                 else:
-                    raise e
+                    raise
         else:
             self._manual_upsert(doc, json_data)
 
         return doc
 
-    def _manual_upsert(self, doc: Document, json_data: str):
+    def _manual_upsert(self, doc: Document, json_data: str) -> None:
         """Manual delete + insert for backends/tables without PK constraint."""
         # Safe delete first
         self.delete(doc.id)
@@ -138,10 +138,9 @@ class DuckDBDocumentRepository(DocumentRepository):
                 # But some backends might support it via extension or future versions.
                 # If this fails, we must error out rather than be unsafe.
                 t.filter(t.id == doc_id).delete()
-            except Exception:
-                raise NotImplementedError(
-                    "Backend does not support a safe delete operation via Ibis or parameterized SQL."
-                )
+            except Exception as err:
+                msg = "Backend does not support a safe delete operation via Ibis or parameterized SQL."
+                raise NotImplementedError(msg) from err
 
     def exists(self, doc_id: str) -> bool:
         """Checks if a document exists."""

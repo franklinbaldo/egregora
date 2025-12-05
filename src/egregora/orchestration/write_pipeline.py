@@ -1389,7 +1389,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
                         logger.info(f"[green]✓ Applied semantic tags to {tagged_count} posts[/]")
                 except Exception as e:
                     # Non-critical failure
-                    logger.warning(f"Auto-taxonomy failed: {e}")
+                    logger.warning("Auto-taxonomy failed: %s", e)
 
             # Save checkpoint first (critical path)
             _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
@@ -1407,15 +1407,13 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             logger.warning("[yellow]⚠️  Pipeline cancelled by user (Ctrl+C)[/]")
             # Mark run as cancelled (using failed status with specific error message)
             if run_store:
-                try:
+                with contextlib.suppress(Exception):
                     run_store.mark_run_failed(
                         run_id=run_id,
                         finished_at=datetime.now(UTC),
                         duration_seconds=(datetime.now(UTC) - started_at).total_seconds(),
                         error="Cancelled by user (KeyboardInterrupt)",
                     )
-                except Exception:
-                    pass  # Don't let tracking errors mask the interruption
             raise  # Re-raise to allow proper cleanup
         except Exception as exc:
             # Broad catch is intentional: record failure for any exception, then re-raise
