@@ -121,8 +121,10 @@ class Document(Entry):
 
         # Derive slug for semantic types only when absent
         if slug is None and doc_type in semantic_types:
-            derived_slug = slugify(title, max_len=60)
-            slug = derived_slug if derived_slug else None
+            title_for_slug = title.strip()
+            if title_for_slug:
+                derived_slug = slugify(title_for_slug, max_len=60)
+                slug = derived_slug if derived_slug else None
 
         # Sanitize and persist slug for downstream consumers
         clean_slug: str | None = None
