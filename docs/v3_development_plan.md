@@ -22,6 +22,66 @@ Build a general-purpose document processing library (`src/egregora_v3`) that sup
 
 ---
 
+## Design Philosophy
+
+Egregora V3 draws inspiration from the golden age of open, composable feed processing:
+
+### Yahoo Pipes (2007-2015)
+The original visual programming environment for RSS/data feeds. Pipes pioneered:
+- **Graph-based pipelines** - Drag-and-drop nodes (Fetch, Filter, Sort, Union, Loop)
+- **Composable operations** - Complex data transformations without code
+- **Declarative flow** - Pipeline structure as visible data
+- **Feed in, feed out** - RSS/Atom as universal exchange format
+
+### Google Reader (2005-2013)
+The definitive RSS/Atom aggregator that proved feeds could be a universal content layer:
+- **Atom/RSS as first-class** - Standardized content model (Entry/Feed)
+- **Aggregation at scale** - Unified interface for distributed content
+- **State management** - Read/unread, tagging, organization
+- **OPML for collections** - Workspace/subscription organization
+
+### V3's Vision: Modern Pipes + Reader
+
+Egregora V3 combines these philosophies for the LLM era:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Yahoo Pipes (2007)              →  V3 Graph Pipelines       │
+│ - Visual node graph             →  Pydantic AI Graph        │
+│ - Fetch/Transform/Output        →  Ingest/Process/Publish   │
+│ - Composable operators          →  Agents as nodes          │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│ Google Reader (2005)            →  V3 Content Model         │
+│ - Atom Entry/Feed primitives    →  Entry/Document/Feed      │
+│ - RSS aggregation               →  Multi-source ingestion   │
+│ - OPML collections              →  ContentLibrary           │
+└─────────────────────────────────────────────────────────────┘
+
+            ↓
+
+    V3 = Pipes + Reader + LLMs
+
+    Graph-based pipelines transforming Atom feeds,
+    with AI agents as processing nodes
+```
+
+**What this means:**
+- **Atom compliance** (Reader) - Entry/Feed as universal content model
+- **Graph pipelines** (Pipes) - Composable, declarative transformations
+- **Agent nodes** (V3) - LLM-powered processing steps
+- **RSS in, RSS out** (Both) - Interoperable with feed ecosystem
+
+**Why it matters:**
+1. Proven design patterns (not reinventing the wheel)
+2. Familiar mental model for RSS/feed users
+3. Interoperability with existing feed ecosystem
+4. Graph abstraction enables visual pipeline builders (future)
+5. Atom/RSS standard prevents vendor lock-in
+
+---
+
 ## Core Principles
 
 ### 1. Privacy as Optional Agent
@@ -780,99 +840,225 @@ Authors: {{ entry.authors|map(attribute='name')|join(', ') }}
 
 ### Phase 4: Pipeline Orchestration 🔄 Not Started
 
-**Goal:** Assemble full pipeline with CLI.
+**Goal:** Assemble full pipeline with CLI using graph-based orchestration.
 
-**Pipeline Architecture: Streaming Transformations**
+**Pipeline Architecture: Graph-Based (Inspired by Yahoo Pipes)**
 
-The pipeline is a chain of **async generator** transformations:
+The pipeline is a **directed graph** of processing nodes, following Yahoo Pipes' composable operator model:
 
 ```
-AsyncIterator[Entry] (raw entries)
-    ↓
-EnricherAgent (adds context: media descriptions, URL metadata)
-    ↓
-AsyncIterator[Entry] (enriched entries)
-    ↓
-WriterAgent (generates posts from enriched entries)
-    ↓
-AsyncIterator[Document] (final documents)
+                    ┌─────────────┐
+                    │   Ingest    │  (Input Adapter)
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+                    │  Privacy?   │  (Conditional Node)
+                    └─┬─────────┬─┘
+                      │         │
+         (if enabled) │         │ (if disabled)
+                      │         │
+              ┌───────▼──┐   ┌──▼────────┐
+              │ Privacy  │   │  Enrich   │
+              └───────┬──┘   └──┬────────┘
+                      │         │
+                      └────┬────┘
+                           │
+                    ┌──────▼──────┐
+                    │   Enrich    │  (Media descriptions, metadata)
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+                    │    Write    │  (Generate posts)
+                    └──────┬──────┘
+                           │
+                    ┌──────▼──────┐
+                    │   Persist   │  (Save to ContentLibrary)
+                    └─────────────┘
 ```
 
-**Key Pattern:**
-- Each agent receives `AsyncIterator[Entry]` as input
-- Each agent yields entries/documents as they're ready
-- Memory efficient - don't materialize entire feed
-- Natural backpressure - slow consumers control rate
-- Agents buffer/batch internally as needed
+**Graph-Based Approach (Pydantic AI Graph):**
+- **Nodes** = Processing steps (agents, transforms)
+- **Edges** = Data flow + conditions
+- **Declarative** = Pipeline structure is data
+- **Composable** = Subgraphs can be reused
+- **Visualizable** = Can generate diagrams
+- **Non-linear** = Branching, merging, parallel paths
 
-**Example - Streaming Pipeline:**
+**Why Graph > Linear Pipeline:**
+- ✅ Conditional execution (privacy only when needed)
+- ✅ Parallel processing (enrich media + text simultaneously)
+- ✅ Clear visualization (see full pipeline structure)
+- ✅ Testable (test nodes + flow separately)
+- ✅ Reusable (compose subgraphs)
+- ✅ Aligns with Pydantic AI architecture
+
+**Example - Graph Pipeline:**
 ```python
-# egregora_v3/pipeline/runner.py
-async def run_pipeline(
-    adapter: InputAdapter,
-    config: PipelineConfig
-) -> AsyncIterator[Document]:
-    """Streaming pipeline - entries flow through stages."""
+# egregora_v3/pipeline/graph.py
+from pydantic_ai import Graph, Node
 
-    # Build pipeline chain
-    entries = adapter.read_entries()  # AsyncIterator[Entry]
+class EgregoraPipeline:
+    """Yahoo Pipes-inspired graph pipeline for Egregora V3."""
 
-    # Optional privacy stage
-    if config.privacy_enabled:
-        entries = privacy_agent.run(entries, context)
+    def __init__(self, config: PipelineConfig):
+        self.config = config
+        self.graph = Graph()
 
-    # Enrichment stage
-    entries = enricher_agent.run(entries, context)
+        # Define nodes (processing steps)
+        self.graph.add_node("ingest", self._ingest_node)
+        self.graph.add_node("privacy", self._privacy_node)
+        self.graph.add_node("enrich", self._enrich_node)
+        self.graph.add_node("write", self._write_node)
+        self.graph.add_node("persist", self._persist_node)
 
-    # Writing stage
-    documents = writer_agent.run(entries, context)  # AsyncIterator[Document]
+        # Define edges (data flow with conditions)
+        # Conditional branching: privacy if enabled
+        self.graph.add_edge(
+            "ingest", "privacy",
+            condition=lambda ctx: ctx.config.privacy_enabled
+        )
+        self.graph.add_edge(
+            "ingest", "enrich",
+            condition=lambda ctx: not ctx.config.privacy_enabled
+        )
 
-    # Consume and persist stream
-    async for doc in documents:
-        await context.library.save(doc)
-        yield doc  # For progress tracking
+        # Converge after privacy
+        self.graph.add_edge("privacy", "enrich")
+
+        # Linear flow after convergence
+        self.graph.add_edge("enrich", "write")
+        self.graph.add_edge("write", "persist")
+
+    async def _ingest_node(self, adapter: InputAdapter, ctx) -> AsyncIterator[Entry]:
+        """Read entries from adapter."""
+        async for entry in adapter.read_entries():
+            yield entry
+
+    async def _privacy_node(self, entries: AsyncIterator[Entry], ctx) -> AsyncIterator[Entry]:
+        """Optional privacy transformation."""
+        async for entry in entries:
+            anonymized = await ctx.privacy_agent.run(entry)
+            yield anonymized
+
+    async def _enrich_node(self, entries: AsyncIterator[Entry], ctx) -> AsyncIterator[Entry]:
+        """Enrich with media descriptions, metadata."""
+        async for batch in abatch(entries, ctx.config.batch_size):
+            enriched = await asyncio.gather(*[
+                ctx.enricher_agent.run(entry) for entry in batch
+            ])
+            for entry in enriched:
+                yield entry
+
+    async def _write_node(self, entries: AsyncIterator[Entry], ctx) -> AsyncIterator[Document]:
+        """Generate posts from entry windows."""
+        async for window in abatch(entries, ctx.config.window_size):
+            doc = await ctx.writer_agent.run(window)
+            yield doc
+
+    async def _persist_node(self, documents: AsyncIterator[Document], ctx) -> list[Document]:
+        """Save documents to ContentLibrary."""
+        saved = []
+        async for doc in documents:
+            await ctx.library.posts.save(doc)
+            saved.append(doc)
+        return saved
+
+    async def run(
+        self,
+        adapter: InputAdapter,
+        context: PipelineContext
+    ) -> list[Document]:
+        """Execute the pipeline graph."""
+        return await self.graph.run(
+            initial_state={"adapter": adapter},
+            context=context
+        )
 
 # CLI usage
 @app.command()
-async def write(source: Path, output: Path):
-    """Generate documents from source."""
-    config = load_config()
+async def write(source: Path, output: Path, config_path: Path = ".egregora/config.yml"):
+    """Generate documents from source using graph pipeline."""
+    config = load_config(config_path)
     adapter = resolve_adapter(source)
+    context = PipelineContext(
+        library=ContentLibrary(config),
+        config=config,
+        privacy_agent=PrivacyAgent(config.privacy),
+        enricher_agent=EnricherAgent(config.enricher),
+        writer_agent=WriterAgent(config.writer)
+    )
 
-    count = 0
-    async for doc in run_pipeline(adapter, config):
-        count += 1
-        print(f"✓ {doc.title}")
+    pipeline = EgregoraPipeline(config)
+    documents = await pipeline.run(adapter, context)
 
-    print(f"Generated {count} documents")
+    print(f"✓ Generated {len(documents)} documents")
+    for doc in documents:
+        print(f"  - {doc.title}")
 
-# Or with sync wrapper if preferred
+# Sync wrapper for CLI
 @app.command()
 def write_sync(source: Path, output: Path):
     """Sync CLI wrapper."""
     asyncio.run(write(source, output))
 ```
 
+**Advanced: Parallel Processing Branches**
+```python
+# Graph with parallel processing (like Yahoo Pipes' "Union" operator)
+class AdvancedPipeline:
+    def __init__(self, config):
+        self.graph = Graph()
+
+        # Split processing by media type
+        self.graph.add_node("ingest", self._ingest)
+        self.graph.add_node("filter_text", lambda entries: filter(is_text, entries))
+        self.graph.add_node("filter_media", lambda entries: filter(has_media, entries))
+
+        # Parallel enrichment paths
+        self.graph.add_node("enrich_text", self._enrich_text)  # Fast, no vision model
+        self.graph.add_node("enrich_media", self._enrich_media)  # Slow, needs vision
+
+        # Merge branches
+        self.graph.add_node("merge", self._merge_streams)
+        self.graph.add_node("write", self._write)
+
+        # Define parallel flow
+        self.graph.add_edge("ingest", "filter_text")
+        self.graph.add_edge("ingest", "filter_media")
+        self.graph.add_edge("filter_text", "enrich_text")
+        self.graph.add_edge("filter_media", "enrich_media")
+        self.graph.add_edge("enrich_text", "merge")
+        self.graph.add_edge("enrich_media", "merge")
+        self.graph.add_edge("merge", "write")
+```
+
 **Multiple Output Formats:**
 ```python
-async def run_and_publish(adapter, config):
-    """Collect stream and publish to multiple formats."""
-    documents = []
+# Add output nodes to graph
+pipeline.graph.add_node("output_mkdocs", mkdocs_sink.publish)
+pipeline.graph.add_node("output_atom", atom_sink.publish)
+pipeline.graph.add_node("output_sqlite", sqlite_sink.publish)
 
-    async for doc in run_pipeline(adapter, config):
-        documents.append(doc)
-        print(f"✓ {doc.title}")
-
-    # Create feed from documents
-    feed = documents_to_feed(documents, ...)
-
-    # Publish to multiple sinks
-    mkdocs_sink.publish(feed)    # Generate blog
-    atom_sink.publish(feed)      # Generate RSS feed
-    sqlite_sink.publish(feed)    # Export to database
+# All outputs run in parallel after write
+pipeline.graph.add_edge("write", "output_mkdocs")
+pipeline.graph.add_edge("write", "output_atom")
+pipeline.graph.add_edge("write", "output_sqlite")
 ```
 
 **Components:**
+
+#### 4.0 Graph Runtime (Pydantic AI Graph)
+
+**Reference:** https://ai.pydantic.dev/graph/beta/
+
+The graph runtime provides:
+- **Node execution** - Run async functions as nodes
+- **Edge routing** - Conditional data flow between nodes
+- **State management** - Pass context through graph
+- **Error handling** - Retry and fallback strategies
+- **Visualization** - Generate Mermaid/DOT diagrams
+
+This is the foundation for Yahoo Pipes-style composability.
 
 #### 4.1 Batching Utilities
 
