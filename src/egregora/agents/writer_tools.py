@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
+from pydantic_ai import ModelRetry
 
 from egregora.agents.banner.agent import generate_banner
 from egregora.data_primitives.document import Document, DocumentType
@@ -213,6 +214,9 @@ def search_media_impl(query: str, top_k: int = 5) -> SearchMediaResult:
     Returns:
         SearchMediaResult with matching media items
 
+    Raises:
+        ModelRetry: If RAG backend is unavailable (transient error)
+
     """
     try:
         # Execute RAG search
@@ -244,8 +248,9 @@ def search_media_impl(query: str, top_k: int = 5) -> SearchMediaResult:
         return SearchMediaResult(results=media_items)
 
     except (ConnectionError, TimeoutError, RuntimeError) as exc:
-        logger.warning("RAG backend unavailable for media search: %s", exc)
-        return SearchMediaResult(results=[])
+        msg = f"RAG backend unavailable: {exc}. Try writing the post without media lookup."
+        logger.warning(msg)
+        raise ModelRetry(msg) from exc
     except ValueError as exc:
         logger.warning("Invalid query for media search: %s", exc)
         return SearchMediaResult(results=[])

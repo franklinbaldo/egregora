@@ -154,6 +154,8 @@ def create_fallback_model(
             return model_def
 
         model: Model
+        # When using FallbackModel, we must disable internal SDK retries on the sub-models
+        # so they fail fast (e.g. on 429) and trigger the FallbackModel logic.
         if isinstance(model_def, Model):
             model = model_def
         elif isinstance(model_def, str):
@@ -161,15 +163,27 @@ def create_fallback_model(
                 from pydantic_ai.providers.google_gla import GoogleGLAProvider
 
                 provider = GoogleGLAProvider(api_key=get_google_api_key())
-                model = GeminiModel(model_def.removeprefix("google-gla:"), provider=provider)
+                model = GeminiModel(
+                    model_def.removeprefix("google-gla:"),
+                    provider=provider,
+                    retries=0,
+                )
             elif model_def.startswith("openrouter:"):
-                model = OpenAIModel(model_def.removeprefix("openrouter:"), provider="openrouter")
+                model = OpenAIModel(
+                    model_def.removeprefix("openrouter:"),
+                    provider="openrouter",
+                    retries=0,
+                )
             else:
                 # Default to Gemini for unknown strings in this context
                 from pydantic_ai.providers.google_gla import GoogleGLAProvider
 
                 provider = GoogleGLAProvider(api_key=get_google_api_key())
-                model = GeminiModel(model_def, provider=provider)
+                model = GeminiModel(
+                    model_def,
+                    provider=provider,
+                    retries=0,
+                )
         else:
             raise ValueError(f"Unknown model type: {type(model_def)}")
 
