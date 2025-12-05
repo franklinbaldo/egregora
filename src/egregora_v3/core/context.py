@@ -8,6 +8,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from egregora_v3.core.catalog import ContentLibrary
 from egregora_v3.core.config import EgregoraConfig
 
 
@@ -19,6 +20,7 @@ class PipelineContext:
     the agent pipeline without global state.
 
     Attributes:
+        library: Content library facade (required)
         run_id: Unique identifier for this pipeline run
         config: Egregora configuration (optional)
         workspace_id: Workspace identifier (optional, for multi-workspace)
@@ -26,6 +28,7 @@ class PipelineContext:
 
     """
 
+    library: ContentLibrary
     run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     config: EgregoraConfig | None = None
     workspace_id: str | None = None
