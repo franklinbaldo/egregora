@@ -185,7 +185,8 @@ class GeminiBatchClient:
                     values = None
 
                 if values is None:
-                    raise UnexpectedModelBehavior("No embedding returned")
+                    msg = "No embedding returned"
+                    raise UnexpectedModelBehavior(msg)
 
                 results.append(EmbeddingBatchResult(tag=req.tag, embedding=list(values), error=None))
             except Exception as exc:  # pragma: no cover - exercised in integration

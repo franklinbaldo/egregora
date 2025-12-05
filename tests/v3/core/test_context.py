@@ -12,6 +12,7 @@ def test_pipeline_context_init():
     assert ctx.config is None
     assert ctx.metadata == {}
 
+
 def test_pipeline_context_metadata_is_frozen():
     ctx = PipelineContext(metadata={"key": "value"})
     assert ctx.metadata["key"] == "value"
@@ -20,10 +21,12 @@ def test_pipeline_context_metadata_is_frozen():
     with pytest.raises(FrozenInstanceError):
         ctx.metadata = {"new": "val"}
 
+
 def test_pipeline_context_with_config():
     cfg = EgregoraConfig()
     ctx = PipelineContext(config=cfg)
     assert ctx.config is cfg
+
 
 def test_pipeline_context_immutability():
     ctx = PipelineContext()

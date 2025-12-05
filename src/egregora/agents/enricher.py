@@ -186,7 +186,8 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentDeps, Enrichme
     # Wrap the Google batch model so we still satisfy the Agent interface
     api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY required for enrichment")
+        msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for enrichment"
+        raise ValueError(msg)
     model_instance = GoogleBatchModel(api_key=api_key, model_name=model)
 
     agent = Agent[UrlEnrichmentDeps, EnrichmentOutput](
@@ -222,7 +223,8 @@ def create_media_enrichment_agent(model: str) -> Agent[MediaEnrichmentDeps, Enri
     """
     api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY required for enrichment")
+        msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for enrichment"
+        raise ValueError(msg)
     model_instance = GoogleBatchModel(api_key=api_key, model_name=model)
     agent = Agent[MediaEnrichmentDeps, EnrichmentOutput](
         model=model_instance,

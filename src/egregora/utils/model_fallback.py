@@ -178,13 +178,11 @@ def create_fallback_model(
                 model = GeminiModel(
                     model_def.removeprefix("google-gla:"),
                     provider=provider,
-                    retries=0,
                 )
             elif model_def.startswith("openrouter:"):
                 model = OpenAIModel(
                     model_def.removeprefix("openrouter:"),
                     provider="openrouter",
-                    retries=0,
                 )
             else:
                 # Default to Gemini for unknown strings in this context
@@ -194,10 +192,10 @@ def create_fallback_model(
                 model = GeminiModel(
                     model_def,
                     provider=provider,
-                    retries=0,
                 )
         else:
-            raise ValueError(f"Unknown model type: {type(model_def)}")
+            msg = f"Unknown model type: {type(model_def)}"
+            raise ValueError(msg)
 
         return RateLimitedModel(model)
 

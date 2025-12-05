@@ -10,8 +10,7 @@ from egregora_v3.core.types import Document, DocumentType, Entry, Feed, Link
 class InputAdapter(Protocol):
     """Parses a source input into a stream of Entries."""
 
-    def parse(self, source: Path) -> Iterator[Entry]:
-        ...
+    def parse(self, source: Path) -> Iterator[Entry]: ...
 
 
 @runtime_checkable

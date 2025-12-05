@@ -648,7 +648,30 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if "authors" in metadata:
             ensure_author_entries(path.parent, metadata.get("authors"))
 
-        # Add enriched authors data
+        # Add related posts based on shared tags
+        current_tags = set(metadata.get("tags", []))
+        current_slug = metadata.get("slug")
+        if current_tags and current_slug:
+            all_posts = list(self.documents())
+            related_posts_list = []
+            for post in all_posts:
+                if post.type != DocumentType.POST:
+                    continue
+                post_slug = post.metadata.get("slug")
+                if post_slug == current_slug:
+                    continue
+                post_tags = set(post.metadata.get("tags", []))
+                shared_tags = current_tags & post_tags
+                if shared_tags:
+                    related_posts_list.append(
+                        {
+                            "title": post.metadata.get("title"),
+                            "url": self.url_convention.canonical_url(post, self._ctx),
+                            "reading_time": post.metadata.get("reading_time", 5),
+                        }
+                    )
+            if related_posts_list:
+                metadata["related_posts"] = related_posts_list
 
         yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"

@@ -145,6 +145,7 @@ class WriterDeps:
         - conversation_xml, active_authors, and adapter fields are pre-calculated
           to avoid expensive recomputation during agent execution
         - All fields with default values are safe to access without null checks
+
     """
 
     resources: WriterResources

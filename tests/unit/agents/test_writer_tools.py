@@ -10,7 +10,6 @@ from egregora.agents.writer_tools import (
     AnnotationResult,
     BannerContext,
     ReadProfileResult,
-    SearchMediaResult,
     ToolContext,
     WritePostResult,
     WriteProfileResult,
