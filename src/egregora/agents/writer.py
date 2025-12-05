@@ -699,11 +699,12 @@ def write_posts_with_pydantic_agent(
     from egregora.utils.model_fallback import create_fallback_model
 
     # Create model with automatic fallback
-    configured_model = test_model if test_model is not None else config.models.writer
-    model = create_fallback_model(configured_model, use_google_batch=False)
-
-    # Validate prompt fits (using the initial prompt, dynamic parts are checked during run by usage limits or provider)
-    _validate_prompt_fits(prompt, configured_model, config, context.window_label)
+    if test_model is not None:
+        model = test_model
+    else:
+        model = create_fallback_model(config.models.writer, use_google_batch=False)
+        # Validate prompt fits (only check for real models)
+        _validate_prompt_fits(prompt, config.models.writer, config, context.window_label)
 
     # Create agent
     agent = Agent[WriterDeps, WriterAgentReturn](
