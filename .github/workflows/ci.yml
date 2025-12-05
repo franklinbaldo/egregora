@@ -63,7 +63,16 @@ jobs:
         run: uv sync --all-extras
 
       - name: Run unit tests with coverage
-        run: uv run pytest tests/unit/ -v --cov=src --cov-report=xml --cov-report=term
+        run: uv run pytest tests/unit/ -v --cov=src --cov-branch --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unit
+          name: unit-tests
+          fail_ci_if_error: false
 
       - name: Upload coverage artifact
         if: always()
@@ -103,7 +112,16 @@ jobs:
         run: uv sync --all-extras
 
       - name: Run E2E tests with coverage
-        run: uv run pytest tests/e2e/ -v --cov=src --cov-report=xml --cov-report=term
+        run: uv run pytest tests/e2e/ -v --cov=src --cov-branch --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: e2e
+          name: e2e-tests
+          fail_ci_if_error: false
 
       - name: Upload coverage artifact
         if: always()
