@@ -168,5 +168,5 @@ The dual-queue embedding router optimizes API quota utilization:
 ## See Also
 
 - [Chunked RAG Augmentation](../features/chunked-rag-augmentation.md)
-- [Configuration Reference](../configuration.md)
-- [Writer Agent](../features/writer.md)
+- [Configuration Reference](../api/configuration.md)
+- [Writer Agent](../api/generation/writer.md)

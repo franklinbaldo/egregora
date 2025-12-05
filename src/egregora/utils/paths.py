@@ -92,9 +92,9 @@ def safe_path_join(base_dir: Path, *parts: str) -> Path:
 
     try:
         candidate_resolved.relative_to(base_resolved)
-    except ValueError:
+    except ValueError as err:
         msg = f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"
-        raise PathTraversalError(msg)
+        raise PathTraversalError(msg) from err
 
     return candidate_resolved
 

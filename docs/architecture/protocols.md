@@ -396,7 +396,7 @@ assert isinstance(MockOutputAdapter(), OutputAdapter)
 
 ## Related Documentation
 
-- [CLAUDE.md](../../CLAUDE.md) - Quick reference and key patterns
-- [Architecture Overview](./README.md) - System architecture
-- [RAG Architecture](./rag.md) - RAG implementation details
-- [Pipeline Design](./pipeline.md) - Pipeline stages and transforms
+- [CLAUDE.md](../CLAUDE.md) - Quick reference and key patterns
+- [Architecture Overview](../guide/architecture.md) - System architecture
+- [RAG Architecture](../api/knowledge/rag.md) - RAG implementation details
+- [Pipeline Design](../api/orchestration/pipeline.md) - Pipeline stages and transforms

@@ -56,7 +56,7 @@ class ContentLibrary(BaseModel):
         # Fallback or error
         # Assuming posts is a safe default or raising error
         # For now, return posts to avoid crash if unexpected type
-        logger.warning(f"Unknown document type {doc_type}, defaulting to posts repo")
+        logger.warning("Unknown document type %s, defaulting to posts repo", doc_type)
         return self.posts
 
 

@@ -175,11 +175,11 @@ class TestImportFix:
     def test_rag_imports_work(self):
         """Test that RAG imports don't raise ModuleNotFoundError."""
         # This test will fail if imports are broken
-        from egregora.agents.writer_tools import search_media_impl
-        from egregora.rag import search
-        from egregora.rag.models import RAGQueryRequest
+        import egregora.agents.writer_tools as writer_tools
+        import egregora.rag as rag_pkg
+        import egregora.rag.models as rag_models
 
         # If we get here, imports work
-        assert callable(search_media_impl)
-        assert callable(search)
-        assert RAGQueryRequest is not None
+        assert callable(writer_tools.search_media_impl)
+        assert callable(rag_pkg.search)
+        assert rag_models.RAGQueryRequest is not None
