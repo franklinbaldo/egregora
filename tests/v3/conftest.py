@@ -2,6 +2,7 @@
 
 This conftest prevents V2 dependencies from loading.
 """
+
 import sys
 from pathlib import Path
 

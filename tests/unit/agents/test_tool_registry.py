@@ -21,7 +21,7 @@ profiles:
 """,
     )
 
-    with pytest.raises(ToolRegistryError, match="default.*mapping"):
+    with pytest.raises(ToolRegistryError, match=r"default.*mapping"):
         ToolRegistry(egregora_path)
 
 
@@ -36,5 +36,5 @@ profiles:
 """,
     )
 
-    with pytest.raises(ToolRegistryError, match="allow.*list|sequence"):
+    with pytest.raises(ToolRegistryError, match=r"allow.*list|sequence"):
         ToolRegistry(egregora_path)

@@ -3,6 +3,7 @@
 PipelineContext carries request-scoped state through the pipeline
 without using global variables.
 """
+
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
@@ -34,4 +35,4 @@ class PipelineContext:
         """Ensure metadata is copied to avoid external mutation."""
         # Use object.__setattr__ since dataclass is frozen
         # We copy the dict to ensure the context holds its own version
-        object.__setattr__(self, 'metadata', dict(self.metadata))
+        object.__setattr__(self, "metadata", dict(self.metadata))

@@ -1,4 +1,5 @@
 """V3 utility functions - independent of V2."""
+
 import re
 from unicodedata import normalize
 
@@ -31,13 +32,13 @@ def slugify(text: str, max_len: int = 60) -> str:
     normalized = normalized.lower()
 
     # Replace non-alphanumeric characters with hyphens
-    slug = re.sub(r'[^a-z0-9]+', '-', normalized)
+    slug = re.sub(r"[^a-z0-9]+", "-", normalized)
 
     # Remove leading/trailing hyphens
-    slug = slug.strip('-')
+    slug = slug.strip("-")
 
     # Collapse consecutive hyphens
-    slug = re.sub(r'-+', '-', slug)
+    slug = re.sub(r"-+", "-", slug)
 
     # Return default if empty
     if not slug:
@@ -45,6 +46,6 @@ def slugify(text: str, max_len: int = 60) -> str:
 
     # Trim to max length
     if len(slug) > max_len:
-        slug = slug[:max_len].rstrip('-')
+        slug = slug[:max_len].rstrip("-")
 
     return slug

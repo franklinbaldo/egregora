@@ -70,7 +70,6 @@ def test_full_pipeline_smoke_test(
 
     # Verify at least one post was generated
     post_files = list(posts_dir.glob("*.md"))
-    print(f"DEBUG: Found post files: {post_files}")
     assert len(post_files) > 0, "At least one post should be generated"
 
     # Verify writer agent was called (implicitly by checking output)

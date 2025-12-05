@@ -17,7 +17,7 @@ def test_content_library_routing():
         media=media_repo,
         profiles=profiles_repo,
         journal=journal_repo,
-        enrichments=enrichments_repo
+        enrichments=enrichments_repo,
     )
 
     # Test POST routing

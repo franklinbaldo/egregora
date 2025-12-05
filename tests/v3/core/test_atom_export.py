@@ -1,4 +1,5 @@
 """Tests for Atom XML feed export (RFC 4287)."""
+
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 
@@ -21,18 +22,19 @@ def test_feed_to_xml_basic():
         title="Test Feed",
         updated=datetime(2024, 12, 4, 12, 0, 0, tzinfo=UTC),
         authors=[Author(name="Alice", email="alice@example.org")],
-        entries=[]
+        entries=[],
     )
 
     xml = feed.to_xml()
 
     # Check XML declaration (ElementTree uses single quotes)
-    assert xml.startswith('<?xml version') and 'encoding' in xml[:50]
+    assert xml.startswith("<?xml version")
+    assert "encoding" in xml[:50]
     assert '<feed xmlns="http://www.w3.org/2005/Atom">' in xml
-    assert '<id>http://example.org/feed</id>' in xml
-    assert '<title>Test Feed</title>' in xml
-    assert '<author>' in xml
-    assert '<name>Alice</name>' in xml
+    assert "<id>http://example.org/feed</id>" in xml
+    assert "<title>Test Feed</title>" in xml
+    assert "<author>" in xml
+    assert "<name>Alice</name>" in xml
 
 
 def test_feed_with_entries():
@@ -42,23 +44,23 @@ def test_feed_with_entries():
         title="First Post",
         updated=datetime(2024, 12, 4, 12, 0, 0, tzinfo=UTC),
         content="Hello World",
-        published=datetime(2024, 12, 4, 10, 0, 0, tzinfo=UTC)
+        published=datetime(2024, 12, 4, 10, 0, 0, tzinfo=UTC),
     )
 
     feed = Feed(
         id="http://example.org/feed",
         title="Test Feed",
         updated=datetime(2024, 12, 4, 12, 0, 0, tzinfo=UTC),
-        entries=[entry]
+        entries=[entry],
     )
 
     xml = feed.to_xml()
 
-    assert '<entry>' in xml
-    assert '<id>entry-1</id>' in xml
-    assert '<title>First Post</title>' in xml
-    assert '<content' in xml
-    assert 'Hello World' in xml
+    assert "<entry>" in xml
+    assert "<id>entry-1</id>" in xml
+    assert "<title>First Post</title>" in xml
+    assert "<content" in xml
+    assert "Hello World" in xml
 
 
 def test_entry_with_links():
@@ -69,25 +71,16 @@ def test_entry_with_links():
         updated=datetime(2024, 12, 4, 12, 0, 0, tzinfo=UTC),
         content="Check out this photo",
         links=[
-            Link(
-                rel="enclosure",
-                href="http://example.org/photo.jpg",
-                type="image/jpeg",
-                length=245760
-            ),
-            Link(
-                rel="alternate",
-                href="http://example.org/posts/photo-post",
-                type="text/html"
-            )
-        ]
+            Link(rel="enclosure", href="http://example.org/photo.jpg", type="image/jpeg", length=245760),
+            Link(rel="alternate", href="http://example.org/posts/photo-post", type="text/html"),
+        ],
     )
 
     feed = Feed(
         id="http://example.org/feed",
         title="Test Feed",
         updated=datetime(2024, 12, 4, 12, 0, 0, tzinfo=UTC),
-        entries=[entry]
+        entries=[entry],
     )
 
     xml = feed.to_xml()
@@ -107,15 +100,15 @@ def test_entry_with_categories():
         updated=datetime(2024, 12, 4, 12, 0, 0, tzinfo=UTC),
         categories=[
             Category(term="python", label="Python"),
-            Category(term="tdd", label="Test-Driven Development")
-        ]
+            Category(term="tdd", label="Test-Driven Development"),
+        ],
     )
 
     feed = Feed(
         id="http://example.org/feed",
         title="Test Feed",
         updated=datetime(2024, 12, 4, 12, 0, 0, tzinfo=UTC),
-        entries=[entry]
+        entries=[entry],
     )
 
     xml = feed.to_xml()
@@ -127,17 +120,10 @@ def test_entry_with_categories():
 
 def test_feed_parses_as_valid_xml():
     """Test that generated XML is valid and parseable."""
-    doc = Document.create(
-        content="Test content",
-        doc_type=DocumentType.POST,
-        title="Test Post"
-    )
+    doc = Document.create(content="Test content", doc_type=DocumentType.POST, title="Test Post")
 
     feed = documents_to_feed(
-        [doc],
-        feed_id="http://example.org/feed",
-        title="Test Feed",
-        authors=[Author(name="Alice")]
+        [doc], feed_id="http://example.org/feed", title="Test Feed", authors=[Author(name="Alice")]
     )
 
     xml = feed.to_xml()
@@ -157,9 +143,7 @@ def test_feed_parses_as_valid_xml():
 def test_datetime_formatting():
     """Test that datetimes are formatted as RFC 3339."""
     feed = Feed(
-        id="http://example.org/feed",
-        title="Test Feed",
-        updated=datetime(2024, 12, 4, 15, 30, 45, tzinfo=UTC)
+        id="http://example.org/feed", title="Test Feed", updated=datetime(2024, 12, 4, 15, 30, 45, tzinfo=UTC)
     )
 
     xml = feed.to_xml()
@@ -175,14 +159,14 @@ def test_content_type_handling():
         title="HTML Post",
         updated=datetime(2024, 12, 4, 12, 0, 0, tzinfo=UTC),
         content="<p>HTML content</p>",
-        content_type="text/html"
+        content_type="text/html",
     )
 
     feed = Feed(
         id="http://example.org/feed",
         title="Test Feed",
         updated=datetime(2024, 12, 4, 12, 0, 0, tzinfo=UTC),
-        entries=[entry]
+        entries=[entry],
     )
 
     xml = feed.to_xml()

@@ -23,6 +23,8 @@ from egregora.utils.batch import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from google.genai.types import File
+
 
 class MockGeminiBatchClient:
     """Mock batch client that returns instant fake responses."""

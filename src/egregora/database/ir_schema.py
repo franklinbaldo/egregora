@@ -320,8 +320,10 @@ def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:  # noq
         DuckDB SQL type string
 
     """
+
     # Ibis dtypes are value objects (not classes) in 9.x, so prefer predicate methods over isinstance.
-    is_kind = lambda name: callable(getattr(ibis_type, name, None)) and getattr(ibis_type, name)()
+    def is_kind(name):
+        return callable(getattr(ibis_type, name, None)) and getattr(ibis_type, name)()
 
     if is_kind("is_timestamp"):
         return "TIMESTAMP WITH TIME ZONE"
