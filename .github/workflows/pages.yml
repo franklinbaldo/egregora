@@ -94,7 +94,7 @@ jobs:
       - name: Build demo MkDocs site
         run: |
           cd demo-output
-          uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs build
+          uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs build -f .egregora/mkdocs.yml
           echo "✅ Demo MkDocs site built successfully"
 
       - name: Integrate demo into docs site
