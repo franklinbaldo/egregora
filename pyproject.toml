@@ -57,6 +57,11 @@ docs = [
 rss = [
     "mkdocs-rss-plugin>=1.17.7",
 ]
+test = [
+    "ibis-framework[duckdb]==9.0.0",
+    "pytest>=9.0.1",
+    "respx>=0.22.0",
+]
 
 [build-system]
 requires = ["hatchling>=1.21.0"]
@@ -249,7 +254,4 @@ dev = [
     "radon>=6.0.1",
     "ruff>=0.14.7",
     "vulture>=2.14",
-]
-test = [
-    "respx>=0.22.0",
 ]

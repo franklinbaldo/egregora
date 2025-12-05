@@ -1,5 +1,7 @@
 # Egregora V3 Development TODO
 
+> **Testing Approach:** We are practicing TDD. Tests for upcoming tasks are added first and may be marked as expected failures until implementations land.
+
 > **Reference:** [V3 Development Plan](docs/v3_development_plan.md)
 >
 > **Note:** This file is generated from the v3 development plan. To propose substantive changes to the roadmap or implementation strategy, please update `docs/v3_development_plan.md` first to maintain consistency.
@@ -19,8 +21,8 @@
 ### Remaining Work
 
 - [ ] Complete semantic identity logic in `Document.create()` - [Plan:172](docs/v3_development_plan.md#L172)
-- [ ] Implement `Feed.to_xml()` for Atom feed export - [Plan:173](docs/v3_development_plan.md#L173)
-- [ ] Add `documents_to_feed()` aggregation function - [Plan:174](docs/v3_development_plan.md#L174)
+- [ ] Implement `Feed.to_xml()` for Atom feed export (tests stubbed in `tests/v3/core/test_feed_todo.py`) - [Plan:173](docs/v3_development_plan.md#L173)
+- [ ] Add `documents_to_feed()` aggregation function (tests stubbed in `tests/v3/core/test_feed_todo.py`) - [Plan:174](docs/v3_development_plan.md#L174)
 - [ ] 100% unit test coverage for all core types - [Plan:175](docs/v3_development_plan.md#L175)
 - [ ] Document threading support (RFC 4685 `in_reply_to`) - [Plan:176](docs/v3_development_plan.md#L176)
 - [ ] Implement PipelineContext for request-scoped state - [Plan:177](docs/v3_development_plan.md#L177)
