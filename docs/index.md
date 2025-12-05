@@ -4,11 +4,6 @@
 
 Welcome to the Egregora documentation! Transform your WhatsApp group chats into intelligent, privacy-first blogs where collective conversations emerge as beautifully written articles.
 
-!!! tip "🌟 Try the Live Demo"
-    **See Egregora in action!** Check out our [**live demo blog**](demo/) generated from real WhatsApp conversations. Experience how collective chats transform into beautifully organized articles.
-
-    [:octicons-arrow-right-24: Explore the Demo Blog](demo/){ .md-button .md-button--primary }
-
 ## Features
 
 - 🧠 **Emergent Intelligence**: Collective conversations synthesize into coherent articles
@@ -52,13 +47,6 @@ Welcome to the Egregora documentation! Transform your WhatsApp group chats into 
     Contributing guidelines and development setup instructions
 
     [:octicons-arrow-right-24: Development](development/contributing.md)
-
--   :material-package-down:{ .lg .middle } __Repomix Bundle__
-    Download consolidated markdown bundles generated from the repository:
-    
-    - [Full code bundle](bundles/code.bundle.md){: download="egregora-code.md" data-bundle-name="code" }
-    - [Tests bundle](bundles/tests.bundle.md){: download="egregora-tests.md" data-bundle-name="tests" }
-    - [Documentation bundle](bundles/docs.bundle.md){: download="egregora-docs.md" data-bundle-name="docs" }
 
 </div>
 

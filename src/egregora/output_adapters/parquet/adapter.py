@@ -140,7 +140,7 @@ class ParquetAdapter(OutputAdapter):
                         metadata=json.loads(meta["metadata_json"]),
                     )
                 except Exception as e:
-                    logger.warning(f"Failed to read parquet {p_file}: {e}")
+                    logger.warning("Failed to read parquet %s: %s", p_file, e)
 
     def documents(self) -> Iterator[Document]:
         for meta in self.list():

@@ -1,0 +1,90 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-9.0.1, pluggy-1.6.0
+rootdir: /app
+configfile: pytest.ini (WARNING: ignoring pytest config in pyproject.toml!)
+plugins: respx-0.22.0, logfire-4.15.1
+collected 290 items
+
+tests/e2e/cli/test_init_command.py .......                               [  2%]
+tests/e2e/cli/test_runs_command.py .......................               [ 10%]
+tests/e2e/cli/test_utilities_command.py .........                        [ 13%]
+tests/e2e/cli/test_write_command.py ......................               [ 21%]
+tests/e2e/database/test_duckdb_sequences.py ..                           [ 21%]
+tests/e2e/database/test_duckdb_upsert_helper.py .                        [ 22%]
+tests/e2e/input_adapters/test_iperon_tjro_adapter.py .                   [ 22%]
+tests/e2e/input_adapters/test_self_reflection_adapter.py .               [ 22%]
+tests/e2e/input_adapters/test_whatsapp_adapter.py ..............         [ 27%]
+tests/e2e/output_adapters/test_parquet_adapter.py .                      [ 27%]
+tests/e2e/pipeline/test_write_pipeline_e2e.py .......                    [ 30%]
+tests/e2e/test_extended_e2e.py .                                         [ 30%]
+tests/e2e/test_fast_with_mock.py ..                                      [ 31%]
+tests/e2e/test_mkdocs_adapter_coverage.py ....                           [ 32%]
+tests/test_caching.py ...                                                [ 33%]
+tests/unit/agents/banner/test_banner_image_generation.py .               [ 34%]
+tests/unit/agents/banner/test_gemini_provider.py ...                     [ 35%]
+tests/unit/agents/test_rag_exception_handling.py .......                 [ 37%]
+tests/unit/agents/test_tool_registry.py ..                               [ 38%]
+tests/unit/agents/test_writer_capabilities.py ..                         [ 38%]
+tests/unit/agents/test_writer_tools.py ............                      [ 43%]
+tests/unit/config/test_validation.py .........                           [ 46%]
+tests/unit/dev_tools/test_check_private_imports.py .......               [ 48%]
+tests/unit/input_adapters/test_registry.py .                             [ 48%]
+tests/unit/output_adapters/mkdocs/test_scaffolding.py ....               [ 50%]
+tests/unit/output_adapters/mkdocs/test_url_convention.py .               [ 50%]
+tests/unit/output_adapters/test_conventions.py ..............            [ 55%]
+tests/unit/privacy/test_privacy_config.py ....                           [ 56%]
+tests/unit/rag/test_duckdb_integration.py ........                       [ 59%]
+tests/unit/rag/test_embedding_router.py ..............                   [ 64%]
+tests/unit/rag/test_lancedb_backend.py .....                             [ 66%]
+tests/unit/rag/test_rag_backend_factory.py .                             [ 66%]
+tests/unit/rag/test_rag_comprehensive.py ............................... [ 77%]
+                                                                         [ 77%]
+tests/unit/test_taxonomy.py ....                                         [ 78%]
+tests/unit/utils/test_network.py ......                                  [ 80%]
+tests/utils/test_no_cassettes.py .                                       [ 81%]
+tests/v3/core/test_atom_export.py .......                                [ 83%]
+tests/v3/core/test_config.py .....                                       [ 85%]
+tests/v3/core/test_context.py ....                                       [ 86%]
+tests/v3/core/test_feed_todo.py ..                                       [ 87%]
+tests/v3/core/test_library.py .                                          [ 87%]
+tests/v3/core/test_ports.py .                                            [ 87%]
+tests/v3/core/test_semantic_identity.py .............                    [ 92%]
+tests/v3/core/test_types.py ...........                                  [ 96%]
+tests/v3/core/test_utils.py ......                                       [ 98%]
+tests/v3/infra/test_duckdb_repo.py .....                                 [100%]
+
+=============================== warnings summary ===============================
+tests/e2e/pipeline/test_write_pipeline_e2e.py:10
+  /app/tests/e2e/pipeline/test_write_pipeline_e2e.py:10: PytestUnknownMarkWarning: Unknown pytest.mark.e2e - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.e2e
+
+tests/e2e/pipeline/test_write_pipeline_e2e.py:80
+  /app/tests/e2e/pipeline/test_write_pipeline_e2e.py:80: PytestUnknownMarkWarning: Unknown pytest.mark.e2e - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.e2e
+
+tests/e2e/pipeline/test_write_pipeline_e2e.py:120
+  /app/tests/e2e/pipeline/test_write_pipeline_e2e.py:120: PytestUnknownMarkWarning: Unknown pytest.mark.e2e - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.e2e
+
+tests/e2e/pipeline/test_write_pipeline_e2e.py:173
+  /app/tests/e2e/pipeline/test_write_pipeline_e2e.py:173: PytestUnknownMarkWarning: Unknown pytest.mark.e2e - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.e2e
+
+tests/e2e/pipeline/test_write_pipeline_e2e.py:198
+  /app/tests/e2e/pipeline/test_write_pipeline_e2e.py:198: PytestUnknownMarkWarning: Unknown pytest.mark.e2e - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.e2e
+
+tests/e2e/pipeline/test_write_pipeline_e2e.py:215
+  /app/tests/e2e/pipeline/test_write_pipeline_e2e.py:215: PytestUnknownMarkWarning: Unknown pytest.mark.e2e - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.e2e
+
+tests/e2e/pipeline/test_write_pipeline_e2e.py:232
+  /app/tests/e2e/pipeline/test_write_pipeline_e2e.py:232: PytestUnknownMarkWarning: Unknown pytest.mark.e2e - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.e2e
+
+tests/e2e/pipeline/test_write_pipeline_e2e.py:233
+  /app/tests/e2e/pipeline/test_write_pipeline_e2e.py:233: PytestUnknownMarkWarning: Unknown pytest.mark.benchmark - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.benchmark
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================== 290 passed, 8 warnings in 80.16s (0:01:20) ==================

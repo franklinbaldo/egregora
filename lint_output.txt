@@ -1,0 +1,3063 @@
+warning: `TCH001` has been remapped to `TC001`.
+warning: `TCH002` has been remapped to `TC002`.
+warning: `TCH003` has been remapped to `TC003`.
+C901 `generate` is too complex (15 > 10)
+  --> src/egregora/agents/banner/gemini_provider.py:27:9
+   |
+25 |         self._timeout = 600.0  # 10 minutes for batch
+26 |
+27 |     def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult:
+   |         ^^^^^^^^
+28 |         """Generate image using Batch API lifecycle."""
+29 |         import json
+   |
+
+PLR0912 Too many branches (17 > 12)
+  --> src/egregora/agents/banner/gemini_provider.py:27:9
+   |
+25 |         self._timeout = 600.0  # 10 minutes for batch
+26 |
+27 |     def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult:
+   |         ^^^^^^^^
+28 |         """Generate image using Batch API lifecycle."""
+29 |         import json
+   |
+
+PLR0915 Too many statements (56 > 50)
+  --> src/egregora/agents/banner/gemini_provider.py:27:9
+   |
+25 |         self._timeout = 600.0  # 10 minutes for batch
+26 |
+27 |     def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult:
+   |         ^^^^^^^^
+28 |         """Generate image using Batch API lifecycle."""
+29 |         import json
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> src/egregora/agents/banner/gemini_provider.py:29:9
+   |
+27 |     def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult:
+28 |         """Generate image using Batch API lifecycle."""
+29 |         import json
+   |         ^^^^^^^^^^^
+30 |         import os
+31 |         import tempfile
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> src/egregora/agents/banner/gemini_provider.py:30:9
+   |
+28 |         """Generate image using Batch API lifecycle."""
+29 |         import json
+30 |         import os
+   |         ^^^^^^^^^
+31 |         import tempfile
+32 |         import time
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> src/egregora/agents/banner/gemini_provider.py:31:9
+   |
+29 |         import json
+30 |         import os
+31 |         import tempfile
+   |         ^^^^^^^^^^^^^^^
+32 |         import time
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> src/egregora/agents/banner/gemini_provider.py:32:9
+   |
+30 |         import os
+31 |         import tempfile
+32 |         import time
+   |         ^^^^^^^^^^^
+33 |
+34 |         from google.genai import types
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> src/egregora/agents/banner/gemini_provider.py:34:9
+   |
+32 |         import time
+33 |
+34 |         from google.genai import types
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+35 |
+36 |         # 1. Prepare JSONL payload
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> src/egregora/agents/banner/gemini_provider.py:91:13
+   |
+89 |             # 5. Download and parse results
+90 |             # The output_uri is a URL we can GET
+91 |             import httpx
+   |             ^^^^^^^^^^^^
+92 |
+93 |             resp = httpx.get(job.output_uri)
+   |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/agents/banner/gemini_provider.py:126:29
+    |
+124 |                         data_field = inline.get("data")
+125 |                         if isinstance(data_field, str):
+126 |                             import base64
+    |                             ^^^^^^^^^^^^^
+127 |
+128 |                             image_bytes = base64.b64decode(data_field)
+    |
+
+PTH110 `os.path.exists()` should be replaced by `Path.exists()`
+   --> src/egregora/agents/banner/gemini_provider.py:147:16
+    |
+146 |         finally:
+147 |             if os.path.exists(temp_path):
+    |                ^^^^^^^^^^^^^^
+148 |                 os.remove(temp_path)
+    |
+help: Replace with `Path(...).exists()`
+
+PTH107 `os.remove()` should be replaced by `Path.unlink()`
+   --> src/egregora/agents/banner/gemini_provider.py:148:17
+    |
+146 |         finally:
+147 |             if os.path.exists(temp_path):
+148 |                 os.remove(temp_path)
+    |                 ^^^^^^^^^
+    |
+help: Replace with `Path(...).unlink()`
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/agents/enricher.py:201:9
+    |
+199 |     @agent.system_prompt
+200 |     def system_prompt(ctx: RunContext[UrlEnrichmentDeps]) -> str:
+201 |         from egregora.resources.prompts import render_prompt
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+202 |
+203 |         return render_prompt(
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/agents/enricher.py:319:5
+    |
+317 | def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
+318 |     """Stream table rows as batches of dictionaries without loading entire table into memory."""
+319 |     from egregora.database.streaming import ensure_deterministic_order, stream_ibis
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+320 |
+321 |     try:
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> src/egregora/agents/enricher.py:323:29
+    |
+321 |     try:
+322 |         backend = table._find_backend()
+323 |     except (AttributeError, Exception):  # pragma: no cover - fallback path
+    |                             ^^^^^^^^^
+324 |         backend = None
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> src/egregora/agents/enricher.py:329:33
+    |
+327 |         try:
+328 |             ordered_table = ensure_deterministic_order(table)
+329 |         except (AttributeError, Exception):  # pragma: no cover - fallback path
+    |                                 ^^^^^^^^^
+330 |             logger.debug("Falling back to pandas streaming for enrichment batches", exc_info=True)
+331 |         else:
+    |
+
+C901 `schedule_enrichment` is too complex (18 > 10)
+   --> src/egregora/agents/enricher.py:349:5
+    |
+349 | def schedule_enrichment(
+    |     ^^^^^^^^^^^^^^^^^^^
+350 |     messages_table: Table,
+351 |     media_mapping: MediaMapping,
+    |
+
+PLR0912 Too many branches (17 > 12)
+   --> src/egregora/agents/enricher.py:349:5
+    |
+349 | def schedule_enrichment(
+    |     ^^^^^^^^^^^^^^^^^^^
+350 |     messages_table: Table,
+351 |     media_mapping: MediaMapping,
+    |
+
+PLC0415 `import` should be at the top-level of a file
+  --> src/egregora/agents/reader/agent.py:94:5
+   |
+92 |     system_prompt = render_prompt("reader_system.jinja")
+93 |
+94 |     from egregora.utils.model_fallback import create_fallback_model
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+95 |
+96 |     # Create model with automatic fallback
+   |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/agents/reader/agent.py:102:5
+    |
+100 |     logger.debug("Comparing posts: %s vs %s", request.post_a_slug, request.post_b_slug)
+101 |
+102 |     from tenacity import Retrying
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+103 |
+104 |     for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
+    |
+
+C901 `_load_profiles` is too complex (12 > 10)
+   --> src/egregora/agents/registry.py:250:9
+    |
+248 |         return tools
+249 |
+250 |     def _load_profiles(self) -> dict[str, Any]:
+    |         ^^^^^^^^^^^^^^
+251 |         """Load tool profiles from profiles.yaml.
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/agents/tools/skill_injection.py:111:5
+    |
+110 |     # Create sub-agent with skill context injected
+111 |     from egregora.resources.prompts import render_prompt
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+112 |
+113 |     truncate_limit = 500
+    |
+
+RUF009 Do not perform function call `Field` in dataclass defaults
+   --> src/egregora/agents/types.py:162:33
+    |
+160 |     # Pre-calculated context parts that are expensive or needed for signature
+161 |     conversation_xml: str = ""
+162 |     active_authors: list[str] = Field(default_factory=list)
+    |                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+163 |     adapter_content_summary: str = ""
+164 |     adapter_generation_instructions: str = ""
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/agents/types.py:244:78
+    |
+242 |             return SearchMediaResult(results=[])
+243 |         except (AttributeError, KeyError) as exc:
+244 |             logger.exception("Malformed response from RAG media search: %s", exc)
+    |                                                                              ^^^
+245 |             return SearchMediaResult(results=[])
+    |
+
+PLR0911 Too many return statements (7 > 6)
+   --> src/egregora/agents/writer.py:155:5
+    |
+155 | def build_rag_context_for_prompt(  # noqa: PLR0913
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+156 |     table_markdown: str,
+157 |     store: Any = None,
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/agents/writer.py:184:9
+    |
+183 |     try:
+184 |         from egregora.rag import RAGQueryRequest, search
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+185 |
+186 |         # Use conversation content as search query (truncate if too long)
+    |
+
+TRY300 Consider moving this statement to an `else` block
+   --> src/egregora/agents/writer.py:226:9
+    |
+225 |         logger.info("Built RAG context with %d similar posts", len(response.hits))
+226 |         return context
+    |         ^^^^^^^^^^^^^^
+227 |
+228 |     except (ConnectionError, TimeoutError) as exc:
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/agents/writer.py:235:84
+    |
+233 |         return ""
+234 |     except (AttributeError, KeyError, TypeError) as exc:
+235 |         logger.exception("Malformed RAG response, continuing without context: %s", exc)
+    |                                                                                    ^^^
+236 |         return ""
+    |
+
+ANN001 Missing type annotation for function argument `timestamp`
+   --> src/egregora/agents/writer.py:414:49
+    |
+414 | def _create_tool_call_entry(part: ToolCallPart, timestamp) -> JournalEntry:
+    |                                                 ^^^^^^^^^
+415 |     """Create a journal entry for a tool call part.
+    |
+
+C901 `_extract_intercalated_log` is too complex (11 > 10)
+   --> src/egregora/agents/writer.py:434:5
+    |
+434 | def _extract_intercalated_log(messages: MessageHistory) -> list[JournalEntry]:
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+435 |     """Extract intercalated journal log preserving actual execution order."""
+436 |     entries: list[JournalEntry] = []
+    |
+
+PERF401 Use `list.extend` to create a transformed list
+   --> src/egregora/agents/writer.py:465:21
+    |
+463 |             for part in message.parts:
+464 |                 if isinstance(part, ToolCallPart):
+465 |                     entries.append(_create_tool_call_entry(part, timestamp))
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+466 |
+467 |     return entries
+    |
+help: Replace for loop with list.extend
+
+PLR0911 Too many return statements (8 > 6)
+   --> src/egregora/agents/writer.py:470:5
+    |
+470 | def _save_journal_to_file(  # noqa: PLR0913
+    |     ^^^^^^^^^^^^^^^^^^^^^
+471 |     intercalated_log: list[JournalEntry],
+472 |     window_label: str,
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/agents/writer.py:491:60
+    |
+489 |         template = env.get_template(JOURNAL_TEMPLATE_NAME)
+490 |     except TemplateNotFound as exc:
+491 |         logger.exception("Journal template not found: %s", exc)
+    |                                                            ^^^
+492 |         return None
+493 |     except (OSError, PermissionError) as exc:
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/agents/writer.py:494:66
+    |
+492 |         return None
+493 |     except (OSError, PermissionError) as exc:
+494 |         logger.exception("Cannot access template directory: %s", exc)
+    |                                                                  ^^^
+495 |         return None
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/agents/writer.py:515:67
+    |
+513 |         )
+514 |     except TemplateError as exc:
+515 |         logger.exception("Journal template rendering failed: %s", exc)
+    |                                                                   ^^^
+516 |         return None
+517 |     except (TypeError, AttributeError) as exc:
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/agents/writer.py:518:67
+    |
+516 |         return None
+517 |     except (TypeError, AttributeError) as exc:
+518 |         logger.exception("Invalid template data for journal: %s", exc)
+    |                                                                   ^^^
+519 |         return None
+520 |     journal_content = journal_content.replace("../media/", "/media/")
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/agents/writer.py:540:65
+    |
+538 |         output_format.persist(doc)
+539 |     except (OSError, PermissionError) as exc:
+540 |         logger.exception("Failed to write journal to disk: %s", exc)
+    |                                                                 ^^^
+541 |         return None
+542 |     except ValueError as exc:
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/agents/writer.py:543:58
+    |
+541 |         return None
+542 |     except ValueError as exc:
+543 |         logger.exception("Invalid journal document: %s", exc)
+    |                                                          ^^^
+544 |         return None
+545 |     logger.info("Saved journal entry: %s", doc.document_id)
+    |
+
+C901 `write_posts_with_pydantic_agent` is too complex (20 > 10)
+   --> src/egregora/agents/writer.py:658:5
+    |
+656 | @sleep_and_retry
+657 | @limits(calls=100, period=60)
+658 | def write_posts_with_pydantic_agent(
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+659 |     *,
+660 |     prompt: str,
+    |
+
+PLR0912 Too many branches (14 > 12)
+   --> src/egregora/agents/writer.py:658:5
+    |
+656 | @sleep_and_retry
+657 | @limits(calls=100, period=60)
+658 | def write_posts_with_pydantic_agent(
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+659 |     *,
+660 |     prompt: str,
+    |
+
+PLR0915 Too many statements (52 > 50)
+   --> src/egregora/agents/writer.py:658:5
+    |
+656 | @sleep_and_retry
+657 | @limits(calls=100, period=60)
+658 | def write_posts_with_pydantic_agent(
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+659 |     *,
+660 |     prompt: str,
+    |
+
+ANN001 Missing type annotation for function argument `client`
+   --> src/egregora/agents/writer.py:684:28
+    |
+682 |     # Define a simple provider to wrap the SDK client
+683 |     class SimpleProvider:
+684 |         def __init__(self, client) -> None:
+    |                            ^^^^^^
+685 |             self._client = client
+686 |             self.model_profile = None
+    |
+
+ANN202 Missing return type annotation for private function `client`
+   --> src/egregora/agents/writer.py:689:13
+    |
+688 |         @property
+689 |         def client(self):
+    |             ^^^^^^
+690 |             return self._client
+    |
+help: Add return type annotation
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/agents/writer.py:699:5
+    |
+697 |             return "https://generativelanguage.googleapis.com/v1beta/"
+698 |
+699 |     from egregora.utils.model_fallback import create_fallback_model
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+700 |
+701 |     # Create model with automatic fallback
+    |
+
+PLR0913 Too many arguments in function definition (10 > 5)
+   --> src/egregora/agents/writer.py:908:5
+    |
+908 | def _prepare_writer_dependencies(
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+909 |     window_start: datetime,
+910 |     window_end: datetime,
+    |
+
+PLR0913 Too many arguments in function definition (8 > 5)
+   --> src/egregora/agents/writer.py:939:5
+    |
+939 | def _build_context_and_signature(
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+940 |     table: Table,
+941 |     resources: WriterResources,
+    |
+
+PLR0913 Too many arguments in function definition (6 > 5)
+    --> src/egregora/agents/writer.py:1010:5
+     |
+1010 | def _finalize_writer_results(
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^
+1011 |     saved_posts: list[str],
+1012 |     saved_profiles: list[str],
+     |
+
+PLC0415 `import` should be at the top-level of a file
+    --> src/egregora/agents/writer.py:1065:9
+     |
+1063 |     if run_id and resources.run_id is None:
+1064 |         # Create new resources with run_id
+1065 |         import dataclasses
+     |         ^^^^^^^^^^^^^^^^^^
+1066 |
+1067 |         resources = dataclasses.replace(resources, run_id=run_id)
+     |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/agents/writer_tools.py:258:74
+    |
+256 |         return SearchMediaResult(results=[])
+257 |     except (AttributeError, KeyError) as exc:
+258 |         logger.exception("Malformed response from RAG media search: %s", exc)
+    |                                                                          ^^^
+259 |         return SearchMediaResult(results=[])
+    |
+
+PLC0415 `import` should be at the top-level of a file
+  --> src/egregora/cli/main.py:88:5
+   |
+86 | def _resolve_gemini_key() -> str | None:
+87 |     """Resolve Google Gemini API key from environment."""
+88 |     import os
+   |     ^^^^^^^^^
+89 |
+90 |     return os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+   |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/cli/main.py:106:5
+    |
+104 | ) -> None:
+105 |     """Initialize a new MkDocs site scaffold for serving Egregora posts."""
+106 |     import sys
+    |     ^^^^^^^^^^
+107 |
+108 |     site_root = output_dir.resolve()
+    |
+
+PLR0915 Too many statements (54 > 50)
+   --> src/egregora/cli/main.py:143:5
+    |
+142 | @app.command()
+143 | def write(  # noqa: C901, PLR0913
+    |     ^^^^^
+144 |     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
+145 |     *,
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/cli/main.py:276:5
+    |
+274 |     _ensure_mkdocs_scaffold(output_dir)
+275 |
+276 |     import os
+    |     ^^^^^^^^^
+277 |
+278 |     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/cli/main.py:281:9
+    |
+279 |     if not api_key:
+280 |         # Try loading from .env
+281 |         from dotenv import load_dotenv
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+282 |
+283 |         load_dotenv(output_dir / ".env")
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/cli/main.py:358:9
+    |
+356 |         console.print("[green]Processing completed successfully.[/green]")
+357 |     except Exception as e:
+358 |         import traceback
+    |         ^^^^^^^^^^^^^^^^
+359 |
+360 |         traceback.print_exc()
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/cli/main.py:389:5
+    |
+388 |     """
+389 |     from rich.table import Table
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+390 |
+391 |     site_root = site_root.expanduser().resolve()
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/cli/main.py:472:5
+    |
+471 |     """
+472 |     from rich.table import Table
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+473 |
+474 |     site_root = site_root.expanduser().resolve()
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/cli/main.py:537:5
+    |
+535 | ) -> None:
+536 |     """Run diagnostic checks to verify Egregora setup."""
+537 |     from egregora.diagnostics import HealthStatus, run_diagnostics
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+538 |
+539 |     console.print("[bold cyan]Running diagnostics...[/bold cyan]")
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/cli/read.py:98:5
+    |
+ 97 |     # Get posts directory from config using standard resolution logic
+ 98 |     from egregora.output_adapters.mkdocs import derive_mkdocs_paths
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 99 |
+100 |     paths = derive_mkdocs_paths(site_root, config=config)
+    |
+
+ANN202 Missing return type annotation for private function `connection`
+  --> src/egregora/cli/runs.py:32:9
+   |
+31 |     @contextlib.contextmanager
+32 |     def connection(self):
+   |         ^^^^^^^^^^
+33 |         yield self._conn
+   |
+help: Add return type annotation
+
+ANN202 Missing return type annotation for private function `execute_query`
+  --> src/egregora/cli/runs.py:35:9
+   |
+33 |         yield self._conn
+34 |
+35 |     def execute_query(self, sql: str, params: list | None = None):
+   |         ^^^^^^^^^^^^^
+36 |         return self._conn.execute(sql, params or []).fetchall()
+   |
+help: Add return type annotation
+
+ANN202 Missing return type annotation for private function `execute_query_single`
+  --> src/egregora/cli/runs.py:38:9
+   |
+36 |         return self._conn.execute(sql, params or []).fetchall()
+37 |
+38 |     def execute_query_single(self, sql: str, params: list | None = None):
+   |         ^^^^^^^^^^^^^^^^^^^^
+39 |         return self._conn.execute(sql, params or []).fetchone()
+   |
+help: Add return type annotation
+
+PLR2004 Magic value used in comparison, consider replacing `15` with a constant variable
+   --> src/egregora/config/settings.py:211:16
+    |
+209 |     def validate_top_k(cls, v: int) -> int:
+210 |         """Validate top_k is reasonable and warn if too high."""
+211 |         if v > 15:
+    |                ^^
+212 |             logger.warning(
+213 |                 f"RAG top_k={v} is unusually high. "
+    |
+
+G004 Logging statement uses f-string
+   --> src/egregora/config/settings.py:213:17
+    |
+211 |           if v > 15:
+212 |               logger.warning(
+213 | /                 f"RAG top_k={v} is unusually high. "
+214 | |                 f"Consider values between 5-10 for better performance and relevance."
+    | |_____________________________________________________________________________________^
+215 |               )
+216 |           return v
+    |
+help: Convert to lazy `%` formatting
+
+PLR2004 Magic value used in comparison, consider replacing `200_000` with a constant variable
+   --> src/egregora/config/settings.py:759:46
+    |
+758 |         # Warn about very high max_prompt_tokens
+759 |         if self.pipeline.max_prompt_tokens > 200_000:
+    |                                              ^^^^^^^
+760 |             logger.warning(
+761 |                 f"pipeline.max_prompt_tokens={self.pipeline.max_prompt_tokens} exceeds most model limits. "
+    |
+
+G004 Logging statement uses f-string
+   --> src/egregora/config/settings.py:761:17
+    |
+759 |           if self.pipeline.max_prompt_tokens > 200_000:
+760 |               logger.warning(
+761 | /                 f"pipeline.max_prompt_tokens={self.pipeline.max_prompt_tokens} exceeds most model limits. "
+762 | |                 "Consider using pipeline.use_full_context_window=true instead of setting a high token limit."
+    | |_____________________________________________________________________________________________________________^
+763 |               )
+    |
+help: Convert to lazy `%` formatting
+
+PLC0415 `import` should be at the top-level of a file
+    --> src/egregora/config/settings.py:1073:5
+     |
+1071 | def get_openrouter_api_key() -> str:
+1072 |     """Get OpenRouter API key from environment."""
+1073 |     import os
+     |     ^^^^^^^^^
+1074 |
+1075 |     api_key = os.environ.get("OPENROUTER_API_KEY")
+     |
+
+PLC0415 `import` should be at the top-level of a file
+    --> src/egregora/config/settings.py:1085:5
+     |
+1083 | def openrouter_api_key_status() -> bool:
+1084 |     """Check if OPENROUTER_API_KEY is configured."""
+1085 |     import os
+     |     ^^^^^^^^^
+1086 |
+1087 |     return bool(os.environ.get("OPENROUTER_API_KEY"))
+     |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/database/duckdb_manager.py:214:82
+    |
+212 |             self._conn.close()
+213 |         except Exception as close_exc:  # pragma: no cover - defensive logging
+214 |             logger.exception("Failed closing invalidated DuckDB connection: %s", close_exc)
+    |                                                                                  ^^^^^^^^^
+215 |
+216 |         def _connect() -> None:
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/database/duckdb_manager.py:229:97
+    |
+227 |                     Path(db_str).unlink(missing_ok=True)
+228 |                 except Exception as unlink_exc:  # pragma: no cover - defensive logging
+229 |                     logger.exception("Failed to remove invalidated DuckDB file %s: %s", db_str, unlink_exc)
+    |                                                                                                 ^^^^^^^^^^
+230 |                 _connect()
+231 |             else:
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+   --> src/egregora/database/duckdb_manager.py:324:17
+    |
+322 |                   try:
+323 |                       return self.ibis_conn.table(name)
+324 | /                 except Exception:
+325 | |                     pass
+    | |________________________^
+326 |               msg = f"Table '{name}' not found in database"
+327 |               logger.exception(msg)
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> src/egregora/database/duckdb_manager.py:324:24
+    |
+322 |                 try:
+323 |                     return self.ibis_conn.table(name)
+324 |                 except Exception:
+    |                        ^^^^^^^^^
+325 |                     pass
+326 |             msg = f"Table '{name}' not found in database"
+    |
+
+PLC0415 `import` should be at the top-level of a file
+  --> src/egregora/database/init.py:46:5
+   |
+45 |     """
+46 |     from egregora.database.ir_schema import IR_MESSAGE_SCHEMA, create_table_if_not_exists
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+47 |
+48 |     logger.info("Initializing database tables...")
+   |
+
+ANN202 Missing return type annotation for private function `is_kind`
+   --> src/egregora/database/ir_schema.py:325:9
+    |
+324 |     # Ibis dtypes are value objects (not classes) in 9.x, so prefer predicate methods over isinstance.
+325 |     def is_kind(name):
+    |         ^^^^^^^
+326 |         return callable(getattr(ibis_type, name, None)) and getattr(ibis_type, name)()
+    |
+help: Add return type annotation
+
+ANN001 Missing type annotation for function argument `name`
+   --> src/egregora/database/ir_schema.py:325:17
+    |
+324 |     # Ibis dtypes are value objects (not classes) in 9.x, so prefer predicate methods over isinstance.
+325 |     def is_kind(name):
+    |                 ^^^^
+326 |         return callable(getattr(ibis_type, name, None)) and getattr(ibis_type, name)()
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/database/run_store.py:116:9
+    |
+114 |         # Use database.tracking.record_run for initial run creation
+115 |         # This ensures proper initialization of all run metadata
+116 |         from egregora.database.tracking import record_run
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+117 |
+118 |         with self.storage.connection() as conn:
+    |
+
+S701 Using jinja2 templates with `autoescape=False` is dangerous and can lead to XSS. Ensure `autoescape=True` or use the `select_autoescape` function.
+  --> src/egregora/database/sql.py:30:13
+   |
+28 |         self.env = Environment(
+29 |             loader=PackageLoader("egregora.resources", "sql"),
+30 |             autoescape=False,  # SQL isn't HTML
+   |             ^^^^^^^^^^^^^^^^
+31 |         )
+32 |         # Register the existing secure quoting function as a filter
+   |
+
+ANN003 Missing type annotation for `**kwargs`
+  --> src/egregora/database/sql.py:35:42
+   |
+33 |         self.env.filters["quote"] = quote_identifier
+34 |
+35 |     def render(self, template_name: str, **kwargs) -> str:
+   |                                          ^^^^^^^^
+36 |         """Render a SQL template with the given context.
+   |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/database/tracking.py:193:5
+    |
+191 |     """
+192 |     # Ensure runs table exists (idempotent)
+193 |     from egregora.database.ir_schema import ensure_runs_table_exists
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+194 |
+195 |     with _connection_scope(conn) as resolved_conn:
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/database/tracking.py:257:5
+    |
+256 |     # Ensure lineage table exists (idempotent)
+257 |     from egregora.database.ir_schema import ensure_lineage_table_exists
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+258 |
+259 |     with _connection_scope(conn) as resolved_conn:
+    |
+
+PLC0415 `import` should be at the top-level of a file
+  --> src/egregora/diagnostics.py:58:5
+   |
+56 | def check_python_version() -> DiagnosticResult:
+57 |     """Check if Python version meets minimum requirement (3.12+)."""
+58 |     import sys
+   |     ^^^^^^^^^^
+59 |
+60 |     version = sys.version_info
+   |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/diagnostics.py:279:9
+    |
+277 |     try:
+278 |         # Try loading config
+279 |         from egregora.config import load_egregora_config
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+280 |
+281 |         config = load_egregora_config(config_file.parent.parent)  # Pass site root
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/diagnostics.py:305:9
+    |
+303 |     """Check available source adapters."""
+304 |     try:
+305 |         from egregora.input_adapters import list_adapters
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+306 |
+307 |         sources = list_adapters()
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+  --> src/egregora/init/scaffolding.py:52:16
+   |
+50 |             site_paths = derive_mkdocs_paths(site_root)
+51 |             return (site_paths["docs_dir"], False)
+52 |         except Exception:
+   |                ^^^^^^^^^
+53 |             return (site_root / "docs", False)
+   |
+
+TRY401 Redundant exception object included in `logging.exception` call
+  --> src/egregora/init/scaffolding.py:67:57
+   |
+65 |             created = True
+66 |     except Exception as e:
+67 |         logger.exception("Failed to scaffold site: %s", e)
+   |                                                         ^
+68 |         raise
+   |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/input_adapters/iperon_tjro.py:243:17
+    |
+241 |         if tz_name:
+242 |             try:
+243 |                 from zoneinfo import ZoneInfo
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+244 |
+245 |                 tz = ZoneInfo(tz_name)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/input_adapters/registry.py:106:9
+    |
+104 |         not already been registered via plugins.
+105 |         """
+106 |         from egregora.input_adapters import IperonTJROAdapter, SelfInputAdapter, WhatsAppAdapter
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+107 |
+108 |         builtin_adapters = (
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/input_adapters/whatsapp/adapter.py:217:9
+    |
+216 |     def _detect_media_type(self, media_path: Path) -> str | None:
+217 |         from egregora.ops.media import detect_media_type
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+218 |
+219 |         return detect_media_type(media_path)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/knowledge/profiles.py:190:5
+    |
+189 |     # Write profile with front-matter
+190 |     import yaml
+    |     ^^^^^^^^^^^
+191 |
+192 |     yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/knowledge/profiles.py:237:5
+    |
+236 |     """
+237 |     import hashlib
+    |     ^^^^^^^^^^^^^^
+238 |
+239 |     # Deterministically select options based on UUID hash
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/knowledge/profiles.py:650:5
+    |
+648 |         return {}
+649 |
+650 |     import yaml
+    |     ^^^^^^^^^^^
+651 |
+652 |     content = profile_path.read_text(encoding="utf-8")
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/knowledge/profiles.py:706:5
+    |
+705 |     """
+706 |     import yaml
+    |     ^^^^^^^^^^^
+707 |
+708 |     authors_yml_path = site_root / ".authors.yml"
+    |
+
+PLR2004 Magic value used in comparison, consider replacing `429` with a constant variable
+  --> src/egregora/models/google_batch.py:86:24
+   |
+84 |             message = first.error.get("message") if isinstance(first.error, dict) else str(first.error)
+85 |             code = first.error.get("code") if isinstance(first.error, dict) else None
+86 |             if code == 429 or (message and "RESOURCE_EXHAUSTED" in message):
+   |                        ^^^
+87 |                 raise UsageLimitExceeded(message or "Quota exceeded")
+88 |             raise ModelHTTPError(
+   |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/models/google_batch.py:135:9
+    |
+133 |         jsonl_body = "\n".join(jsonl_lines)
+134 |
+135 |         from google import genai
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^
+136 |         from google.genai import types
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/models/google_batch.py:136:9
+    |
+135 |         from google import genai
+136 |         from google.genai import types
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+137 |
+138 |         client = genai.Client(api_key=self.api_key)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/models/google_batch.py:141:9
+    |
+140 |         # Create a temporary file for upload
+141 |         import os
+    |         ^^^^^^^^^
+142 |         import tempfile
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/models/google_batch.py:142:9
+    |
+140 |         # Create a temporary file for upload
+141 |         import os
+142 |         import tempfile
+    |         ^^^^^^^^^^^^^^^
+143 |
+144 |         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".jsonl") as f:
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/models/google_batch.py:169:62
+    |
+168 |         except genai.errors.ClientError as e:
+169 |             logger.exception("Google GenAI ClientError: %s", e)
+    |                                                              ^
+170 |             if e.code == 429:
+171 |                 logger.exception("429 Details: %s", e.message)
+    |
+
+PLR2004 Magic value used in comparison, consider replacing `429` with a constant variable
+   --> src/egregora/models/google_batch.py:170:26
+    |
+168 |         except genai.errors.ClientError as e:
+169 |             logger.exception("Google GenAI ClientError: %s", e)
+170 |             if e.code == 429:
+    |                          ^^^
+171 |                 logger.exception("429 Details: %s", e.message)
+172 |                 # Try to extract more details if available
+    |
+
+PTH110 `os.path.exists()` should be replaced by `Path.exists()`
+   --> src/egregora/models/google_batch.py:181:16
+    |
+180 |         finally:
+181 |             if os.path.exists(temp_path):
+    |                ^^^^^^^^^^^^^^
+182 |                 os.remove(temp_path)
+    |
+help: Replace with `Path(...).exists()`
+
+PTH107 `os.remove()` should be replaced by `Path.unlink()`
+   --> src/egregora/models/google_batch.py:182:17
+    |
+180 |         finally:
+181 |             if os.path.exists(temp_path):
+182 |                 os.remove(temp_path)
+    |                 ^^^^^^^^^
+183 |
+184 |     def _poll_job(self, client: Any, job_name: str) -> Any:
+    |
+help: Replace with `Path(...).unlink()`
+
+PERF401 Use `list.extend` to create a transformed list
+   --> src/egregora/models/google_batch.py:286:21
+    |
+284 |             for part in content.get("parts") or []:
+285 |                 if "text" in part:
+286 |                     texts.append(part["text"])
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+287 |         return "\n".join(texts)
+    |
+help: Replace for loop with list.extend
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/ops/media.py:398:5
+    |
+397 |     """
+398 |     import hashlib
+    |     ^^^^^^^^^^^^^^
+399 |     import mimetypes
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/ops/media.py:399:5
+    |
+397 |     """
+398 |     import hashlib
+399 |     import mimetypes
+    |     ^^^^^^^^^^^^^^^^
+400 |
+401 |     content = document.content
+    |
+
+C901 `generate_semantic_taxonomy` is too complex (20 > 10)
+  --> src/egregora/ops/taxonomy.py:18:5
+   |
+18 | def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) -> int:
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+19 |     backend = get_backend()
+   |
+
+PLR0912 Too many branches (20 > 12)
+  --> src/egregora/ops/taxonomy.py:18:5
+   |
+18 | def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) -> int:
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+19 |     backend = get_backend()
+   |
+
+PLR0915 Too many statements (66 > 50)
+  --> src/egregora/ops/taxonomy.py:18:5
+   |
+18 | def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) -> int:
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+19 |     backend = get_backend()
+   |
+
+N806 Variable `X` in function should be lowercase
+  --> src/egregora/ops/taxonomy.py:26:14
+   |
+24 |         return 0
+25 |
+26 |     doc_ids, X = backend.get_all_post_vectors()
+   |              ^
+27 |     n_docs = len(doc_ids)
+28 |     if n_docs < 5:
+   |
+
+PLR2004 Magic value used in comparison, consider replacing `5` with a constant variable
+  --> src/egregora/ops/taxonomy.py:28:17
+   |
+26 |     doc_ids, X = backend.get_all_post_vectors()
+27 |     n_docs = len(doc_ids)
+28 |     if n_docs < 5:
+   |                 ^
+29 |         logger.info("Insufficient posts for clustering (<5). Skipping taxonomy.")
+30 |         return 0
+   |
+
+BLE001 Do not catch blind exception: `Exception`
+  --> src/egregora/ops/taxonomy.py:97:16
+   |
+95 |             result = agent.run_sync(prompt)
+96 |             batch_results.append(result.data.mappings)
+97 |         except Exception as e:
+   |                ^^^^^^^^^
+98 |             logger.warning("Batch taxonomy generation failed: %s", e)
+99 |             batch_results.append([])
+   |
+
+C901 `_process_url_batch` is too complex (15 > 10)
+   --> src/egregora/orchestration/workers.py:184:9
+    |
+182 |         return processed_count
+183 |
+184 |     def _process_url_batch(self, tasks: list[dict[str, Any]]) -> int:
+    |         ^^^^^^^^^^^^^^^^^^
+185 |         # Prepare requests
+186 |         tasks_data = []
+    |
+
+PLR0912 Too many branches (15 > 12)
+   --> src/egregora/orchestration/workers.py:184:9
+    |
+182 |         return processed_count
+183 |
+184 |     def _process_url_batch(self, tasks: list[dict[str, Any]]) -> int:
+    |         ^^^^^^^^^^^^^^^^^^
+185 |         # Prepare requests
+186 |         tasks_data = []
+    |
+
+PLR0915 Too many statements (57 > 50)
+   --> src/egregora/orchestration/workers.py:184:9
+    |
+182 |         return processed_count
+183 |
+184 |     def _process_url_batch(self, tasks: list[dict[str, Any]]) -> int:
+    |         ^^^^^^^^^^^^^^^^^^
+185 |         # Prepare requests
+186 |         tasks_data = []
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/orchestration/workers.py:206:88
+    |
+204 |                 tasks_data.append({"task": task, "url": url, "prompt": prompt})
+205 |             except Exception as e:
+206 |                 logger.exception("Failed to prepare URL task %s: %s", task["task_id"], e)
+    |                                                                                        ^
+207 |                 self.task_store.mark_failed(task["task_id"], f"Preparation failed: {e!s}")
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/orchestration/workers.py:234:87
+    |
+232 |                 except Exception as e:
+233 |                     task = future_to_task[future]["task"]
+234 |                     logger.exception("Enrichment failed for %s: %s", task["task_id"], e)
+    |                                                                                       ^
+235 |                     results.append((task, None, str(e)))
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/orchestration/workers.py:278:94
+    |
+276 |                 self.task_store.mark_completed(task["task_id"])
+277 |             except Exception as e:
+278 |                 logger.exception("Failed to persist enrichment for %s: %s", task["task_id"], e)
+    |                                                                                              ^
+279 |                 self.task_store.mark_failed(task["task_id"], f"Persistence error: {e!s}")
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/orchestration/workers.py:287:74
+    |
+285 |                 logger.info("Inserted %d enrichment rows", len(new_rows))
+286 |             except Exception as e:
+287 |                 logger.exception("Failed to insert enrichment rows: %s", e)
+    |                                                                          ^
+288 |
+289 |         return len(results)
+    |
+
+TRY300 Consider moving this statement to an `else` block
+   --> src/egregora/orchestration/workers.py:304:13
+    |
+302 |             # Use run_sync to execute the async agent synchronously
+303 |             result = agent.run_sync(prompt)
+304 |             return task, result.output, None
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+305 |         except Exception as e:
+306 |             logger.exception("Failed to enrich URL %s: %s", url, e)
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/orchestration/workers.py:306:66
+    |
+304 |             return task, result.output, None
+305 |         except Exception as e:
+306 |             logger.exception("Failed to enrich URL %s: %s", url, e)
+    |                                                                  ^
+307 |             return task, None, str(e)
+    |
+
+C901 `_process_media_batch` is too complex (25 > 10)
+   --> src/egregora/orchestration/workers.py:309:9
+    |
+307 |             return task, None, str(e)
+308 |
+309 |     def _process_media_batch(self, tasks: list[dict[str, Any]]) -> int:
+    |         ^^^^^^^^^^^^^^^^^^^^
+310 |         requests = []
+311 |         task_map = {}
+    |
+
+PLR0912 Too many branches (26 > 12)
+   --> src/egregora/orchestration/workers.py:309:9
+    |
+307 |             return task, None, str(e)
+308 |
+309 |     def _process_media_batch(self, tasks: list[dict[str, Any]]) -> int:
+    |         ^^^^^^^^^^^^^^^^^^^^
+310 |         requests = []
+311 |         task_map = {}
+    |
+
+PLR0915 Too many statements (98 > 50)
+   --> src/egregora/orchestration/workers.py:309:9
+    |
+307 |             return task, None, str(e)
+308 |
+309 |     def _process_media_batch(self, tasks: list[dict[str, Any]]) -> int:
+    |         ^^^^^^^^^^^^^^^^^^^^
+310 |         requests = []
+311 |         task_map = {}
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/orchestration/workers.py:365:90
+    |
+364 |             except Exception as e:
+365 |                 logger.exception("Failed to prepare media task %s: %s", task["task_id"], e)
+    |                                                                                          ^
+366 |                 self.task_store.mark_failed(task["task_id"], str(e))
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/orchestration/workers.py:383:67
+    |
+381 |             results = asyncio.run(model.run_batch(requests))
+382 |         except Exception as e:
+383 |             logger.exception("Media enrichment batch failed: %s", e)
+    |                                                                   ^
+384 |             for t in tasks:
+385 |                 if t["task_id"] in task_map:
+    |
+
+TRY301 Abstract `raise` to an inner function
+   --> src/egregora/orchestration/workers.py:413:21
+    |
+411 |                 if not slug or not markdown:
+412 |                     msg = "Missing slug or markdown"
+413 |                     raise ValueError(msg)
+    |                     ^^^^^^^^^^^^^^^^^^^^^
+414 |
+415 |                 payload = task["_parsed_payload"]
+    |
+
+BLE001 Do not catch blind exception: `Exception`
+   --> src/egregora/orchestration/workers.py:450:28
+    |
+449 |                             logger.info("Renamed media %s -> %s", media_id, new_media_doc.document_id)
+450 |                     except Exception as e:
+    |                            ^^^^^^^^^
+451 |                         logger.warning("Failed to rename media document %s: %s", media_id, e)
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/orchestration/workers.py:486:90
+    |
+485 |             except Exception as e:
+486 |                 logger.exception("Failed to parse media result %s: %s", task["task_id"], e)
+    |                                                                                          ^
+487 |                 self.task_store.mark_failed(task["task_id"], f"Parse error: {e!s}")
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/orchestration/workers.py:494:80
+    |
+492 |                 logger.info("Inserted %d media enrichment rows", len(new_rows))
+493 |             except Exception as e:
+494 |                 logger.exception("Failed to insert media enrichment rows: %s", e)
+    |                                                                                ^
+495 |
+496 |         return len(results)
+    |
+
+PERF401 Use `list.extend` to create a transformed list
+   --> src/egregora/orchestration/workers.py:508:21
+    |
+506 |             for part in content.get("parts") or []:
+507 |                 if "text" in part:
+508 |                     texts.append(part["text"])
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+509 |         return "\n".join(texts)
+    |
+help: Replace for loop with list.extend
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/orchestration/write_pipeline.py:275:107
+    |
+273 |                 output_sink.persist(media_doc)
+274 |             except (OSError, PermissionError) as exc:  # pragma: no cover - defensive
+275 |                 logger.exception("Failed to write media file %s: %s", media_doc.metadata.get("filename"), exc)
+    |                                                                                                           ^^^
+276 |             except ValueError as exc:  # pragma: no cover - defensive
+277 |                 logger.exception("Invalid media document %s: %s", media_doc.metadata.get("filename"), exc)
+    |
+
+TRY401 Redundant exception object included in `logging.exception` call
+   --> src/egregora/orchestration/write_pipeline.py:277:103
+    |
+275 |                 logger.exception("Failed to write media file %s: %s", media_doc.metadata.get("filename"), exc)
+276 |             except ValueError as exc:  # pragma: no cover - defensive
+277 |                 logger.exception("Invalid media document %s: %s", media_doc.metadata.get("filename"), exc)
+    |                                                                                                       ^^^
+278 |
+279 |     # Enrichment (Schedule tasks)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/orchestration/write_pipeline.py:785:5
+    |
+784 |     # Initialize global rate limiter
+785 |     from egregora.utils.rate_limit import init_rate_limiter
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+786 |
+787 |     init_rate_limiter(
+    |
+
+C901 `run` is too complex (11 > 10)
+    --> src/egregora/orchestration/write_pipeline.py:1325:5
+     |
+1325 | def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
+     |     ^^^
+1326 |     """Run the complete write pipeline workflow.
+     |
+
+PLC0415 `import` should be at the top-level of a file
+    --> src/egregora/orchestration/write_pipeline.py:1381:17
+     |
+1379 |             # 2. Taxonomy Generation (New)
+1380 |             if dataset.context.config.rag.enabled:
+1381 |                 from egregora.ops.taxonomy import generate_semantic_taxonomy
+     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1382 |
+1383 |                 logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
+     |
+
+G004 Logging statement uses f-string
+    --> src/egregora/orchestration/write_pipeline.py:1389:37
+     |
+1387 |                     )
+1388 |                     if tagged_count > 0:
+1389 |                         logger.info(f"[green]✓ Applied semantic tags to {tagged_count} posts[/]")
+     |                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1390 |                 except Exception as e:
+1391 |                     # Non-critical failure
+     |
+help: Convert to lazy `%` formatting
+
+BLE001 Do not catch blind exception: `Exception`
+    --> src/egregora/orchestration/write_pipeline.py:1390:24
+     |
+1388 |                     if tagged_count > 0:
+1389 |                         logger.info(f"[green]✓ Applied semantic tags to {tagged_count} posts[/]")
+1390 |                 except Exception as e:
+     |                        ^^^^^^^^^
+1391 |                     # Non-critical failure
+1392 |                     logger.warning(f"Auto-taxonomy failed: {e}")
+     |
+
+G004 Logging statement uses f-string
+    --> src/egregora/orchestration/write_pipeline.py:1392:36
+     |
+1390 |                 except Exception as e:
+1391 |                     # Non-critical failure
+1392 |                     logger.warning(f"Auto-taxonomy failed: {e}")
+     |                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1393 |
+1394 |             # Save checkpoint first (critical path)
+     |
+help: Convert to lazy `%` formatting
+
+SIM105 Use `contextlib.suppress(Exception)` instead of `try`-`except`-`pass`
+    --> src/egregora/orchestration/write_pipeline.py:1410:17
+     |
+1408 |               # Mark run as cancelled (using failed status with specific error message)
+1409 |               if run_store:
+1410 | /                 try:
+1411 | |                     run_store.mark_run_failed(
+1412 | |                         run_id=run_id,
+1413 | |                         finished_at=datetime.now(UTC),
+1414 | |                         duration_seconds=(datetime.now(UTC) - started_at).total_seconds(),
+1415 | |                         error="Cancelled by user (KeyboardInterrupt)",
+1416 | |                     )
+1417 | |                 except Exception:
+1418 | |                     pass  # Don't let tracking errors mask the interruption
+     | |________________________^
+1419 |               raise  # Re-raise to allow proper cleanup
+1420 |           except Exception as exc:
+     |
+help: Replace `try`-`except`-`pass` with `with contextlib.suppress(Exception): ...`
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+    --> src/egregora/orchestration/write_pipeline.py:1417:17
+     |
+1415 |                           error="Cancelled by user (KeyboardInterrupt)",
+1416 |                       )
+1417 | /                 except Exception:
+1418 | |                     pass  # Don't let tracking errors mask the interruption
+     | |________________________^
+1419 |               raise  # Re-raise to allow proper cleanup
+1420 |           except Exception as exc:
+     |
+
+BLE001 Do not catch blind exception: `Exception`
+    --> src/egregora/orchestration/write_pipeline.py:1417:24
+     |
+1415 |                         error="Cancelled by user (KeyboardInterrupt)",
+1416 |                     )
+1417 |                 except Exception:
+     |                        ^^^^^^^^^
+1418 |                     pass  # Don't let tracking errors mask the interruption
+1419 |             raise  # Re-raise to allow proper cleanup
+     |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/output_adapters/base.py:176:9
+    |
+174 |     def normalize_slug(slug: str) -> str:
+175 |         """Normalize slug to be URL-safe and filesystem-safe."""
+176 |         from egregora.utils import slugify
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+177 |
+178 |         return slugify(slug)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/output_adapters/base.py:214:9
+    |
+212 |     def generate_unique_filename(base_dir: Path, filename_pattern: str, max_attempts: int = 1000) -> Path:
+213 |         """Generate unique filename by adding suffix if file exists."""
+214 |         from egregora.utils import safe_path_join
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+215 |
+216 |         # Try original filename first
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/output_adapters/base.py:245:9
+    |
+243 |     def parse_frontmatter(self, content: str) -> tuple[dict, str]:
+244 |         """Parse frontmatter from markdown content."""
+245 |         import yaml
+    |         ^^^^^^^^^^^
+246 |
+247 |         if not content.startswith("---\n"):
+    |
+
+PLR2004 Magic value used in comparison, consider replacing `2` with a constant variable
+  --> src/egregora/output_adapters/conventions.py:81:22
+   |
+79 |     parts = url_path.rsplit("/", 1)
+80 |
+81 |     if len(parts) == 2 and "." in parts[1]:
+   |                      ^
+82 |         # Has a path and a filename with extension
+83 |         # Remove extension from the filename only
+   |
+
+C901 `canonical_url` is too complex (11 > 10)
+   --> src/egregora/output_adapters/conventions.py:180:9
+    |
+178 |         return url
+179 |
+180 |     def canonical_url(self, document: Document, ctx: UrlContext) -> str:  # noqa: PLR0911
+    |         ^^^^^^^^^^^^^
+181 |         """Generate a canonical URL based on the standard convention."""
+182 |         # 1. Blog Posts
+    |
+
+C901 `persist` is too complex (11 > 10)
+   --> src/egregora/output_adapters/mkdocs/adapter.py:102:9
+    |
+100 |         return self._ctx
+101 |
+102 |     def persist(self, document: Document) -> None:
+    |         ^^^^^^^
+103 |         doc_id = document.document_id
+104 |         url = self._url_convention.canonical_url(document, self._ctx)
+    |
+
+PLR0911 Too many return statements (8 > 6)
+   --> src/egregora/output_adapters/mkdocs/adapter.py:142:9
+    |
+140 |         logger.debug("Served document %s at %s", doc_id, path)
+141 |
+142 |     def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path | None:
+    |         ^^^^^^^^^^^^^^^^^^^^^^
+143 |         """Resolve filesystem path for a document based on its type.
+    |
+
+PLR0911 Too many return statements (8 > 6)
+   --> src/egregora/output_adapters/mkdocs/adapter.py:592:9
+    |
+590 |         return Document(content=body.strip(), type=doc_type, metadata=metadata)
+591 |
+592 |     def _url_to_path(self, url: str, document: Document) -> Path:
+    |         ^^^^^^^^^^^^
+593 |         base = self._ctx.base_url.rstrip("/")
+594 |         if url.startswith(base):
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/output_adapters/mkdocs/adapter.py:643:9
+    |
+642 |     def _write_post_doc(self, document: Document, path: Path) -> None:
+643 |         import yaml as _yaml
+    |         ^^^^^^^^^^^^^^^^^^^^
+644 |
+645 |         metadata = dict(document.metadata or {})
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/output_adapters/mkdocs/adapter.py:681:9
+    |
+680 |     def _write_journal_doc(self, document: Document, path: Path) -> None:
+681 |         import yaml as _yaml
+    |         ^^^^^^^^^^^^^^^^^^^^
+682 |
+683 |         metadata = self._ensure_hidden(dict(document.metadata or {}))
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/output_adapters/mkdocs/adapter.py:689:9
+    |
+688 |     def _write_profile_doc(self, document: Document, path: Path) -> None:
+689 |         import yaml as _yaml
+    |         ^^^^^^^^^^^^^^^^^^^^
+690 |
+691 |         from egregora.knowledge.profiles import generate_fallback_avatar_url
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/output_adapters/mkdocs/adapter.py:691:9
+    |
+689 |         import yaml as _yaml
+690 |
+691 |         from egregora.knowledge.profiles import generate_fallback_avatar_url
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+692 |
+693 |         # Ensure UUID is in metadata
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/output_adapters/mkdocs/adapter.py:730:9
+    |
+729 |     def _write_enrichment_doc(self, document: Document, path: Path) -> None:
+730 |         import yaml as _yaml
+    |         ^^^^^^^^^^^^^^^^^^^^
+731 |
+732 |         metadata = self._ensure_hidden(document.metadata.copy())
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/output_adapters/mkdocs/adapter.py:904:21
+    |
+902 |                 # Generate fallback avatar if missing
+903 |                 if not avatar:
+904 |                     from egregora.knowledge.profiles import generate_fallback_avatar_url
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+905 |
+906 |                     avatar = generate_fallback_avatar_url(author_uuid)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+    --> src/egregora/output_adapters/mkdocs/adapter.py:1012:17
+     |
+1010 |             # Generate fallback avatar if not set
+1011 |             if not avatar:
+1012 |                 from egregora.knowledge.profiles import generate_fallback_avatar_url
+     |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1013 |
+1014 |                 avatar = generate_fallback_avatar_url(author_id)
+     |
+
+PLC0415 `import` should be at the top-level of a file
+  --> src/egregora/output_adapters/mkdocs/paths.py:46:9
+   |
+44 |     # Load config if not provided
+45 |     if config is None:
+46 |         from egregora.config import load_egregora_config
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+47 |
+48 |         config = load_egregora_config(resolved_root)
+   |
+
+INP001 File `src/egregora/output_adapters/parquet/adapter.py` is part of an implicit namespace package. Add an `__init__.py`.
+--> src/egregora/output_adapters/parquet/adapter.py:1:1
+
+G004 Logging statement uses f-string
+  --> src/egregora/output_adapters/parquet/adapter.py:89:22
+   |
+87 |         table.to_parquet(output_path)
+88 |
+89 |         logger.debug(f"Persisted parquet: {output_path}")
+   |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+90 |
+91 |     def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
+   |
+help: Convert to lazy `%` formatting
+
+BLE001 Do not catch blind exception: `Exception`
+   --> src/egregora/output_adapters/parquet/adapter.py:142:24
+    |
+140 |                         metadata=json.loads(meta["metadata_json"]),
+141 |                     )
+142 |                 except Exception as e:
+    |                        ^^^^^^^^^
+143 |                     logger.warning(f"Failed to read parquet {p_file}: {e}")
+    |
+
+G004 Logging statement uses f-string
+   --> src/egregora/output_adapters/parquet/adapter.py:143:36
+    |
+141 |                     )
+142 |                 except Exception as e:
+143 |                     logger.warning(f"Failed to read parquet {p_file}: {e}")
+    |                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+144 |
+145 |     def documents(self) -> Iterator[Document]:
+    |
+help: Convert to lazy `%` formatting
+
+ANN003 Missing type annotation for `**kwargs`
+   --> src/egregora/output_adapters/parquet/adapter.py:173:62
+    |
+171 |         return "Focus on rich metadata."
+172 |
+173 |     def scaffold_site(self, site_root: Path, site_name: str, **kwargs) -> tuple[Path, bool]:
+    |                                                              ^^^^^^^^
+174 |         self.initialize(site_root)
+175 |         if self.data_dir is None:
+    |
+
+INP001 File `src/egregora/output_adapters/parquet/schema.py` is part of an implicit namespace package. Add an `__init__.py`.
+--> src/egregora/output_adapters/parquet/schema.py:1:1
+
+BLE001 Do not catch blind exception: `Exception`
+   --> src/egregora/rag/embedding_router.py:260:20
+    |
+258 |                     offset += count
+259 |
+260 |             except Exception as e:
+    |                    ^^^^^^^^^
+261 |                 # Propagate error to all waiting futures
+262 |                 for req in group_requests:
+    |
+
+TRY300 Consider moving this statement to an `else` block
+   --> src/egregora/rag/embedding_router.py:334:17
+    |
+332 |                     embeddings.append(list(values))
+333 |
+334 |                 return embeddings
+    |                 ^^^^^^^^^^^^^^^^^
+335 |
+336 |             except httpx.HTTPStatusError as e:
+    |
+
+PLW0603 Using the global statement to update `_router` is discouraged
+   --> src/egregora/rag/embedding_router.py:492:12
+    |
+490 |     management. This helper is kept for backwards compatibility.
+491 |     """
+492 |     global _router
+    |            ^^^^^^^
+493 |     with _router_lock:
+494 |         if _router is None:
+    |
+
+PLW0603 Using the global statement to update `_router` is discouraged
+   --> src/egregora/rag/embedding_router.py:506:12
+    |
+504 | def shutdown_router() -> None:
+505 |     """Shutdown global router (for cleanup)."""
+506 |     global _router
+    |            ^^^^^^^
+507 |     with _router_lock:
+508 |         if _router is not None:
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/rag/embeddings.py:304:5
+    |
+303 |     """
+304 |     from egregora.utils.env import google_api_key_available
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+305 |
+306 |     return google_api_key_available()
+    |
+
+D104 Missing docstring in public package
+--> src/egregora/resources/__init__.py:1:1
+
+F401 `egregora.transformations.windowing.Window` imported but unused; consider removing, adding to `__all__`, or using a redundant alias
+  --> src/egregora/transformations/__init__.py:58:5
+   |
+56 | )
+57 | from egregora.transformations.windowing import (
+58 |     Window,
+   |     ^^^^^^
+59 |     create_windows,
+60 |     load_checkpoint,
+   |
+help: Add unused import `Window` to __all__
+
+F821 Undefined name `File`
+   --> src/egregora/utils/batch.py:113:78
+    |
+111 |         return self._default_model
+112 |
+113 |     def upload_file(self, *, path: str, _display_name: str | None = None) -> File:
+    |                                                                              ^^^^
+114 |         display_name = _display_name or path
+115 |         return self._client.files.upload(file=path, display_name=display_name)
+    |
+
+TRY301 Abstract `raise` to an inner function
+   --> src/egregora/utils/batch.py:189:21
+    |
+187 |                 if values is None:
+188 |                     msg = "No embedding returned"
+189 |                     raise UnexpectedModelBehavior(msg)
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+190 |
+191 |                 results.append(EmbeddingBatchResult(tag=req.tag, embedding=list(values), error=None))
+    |
+
+ANN001 Missing type annotation for function argument `default_timezone`
+  --> src/egregora/utils/datetime_utils.py:15:5
+   |
+13 |     value: datetime | date | str | Any | None,
+14 |     *,
+15 |     default_timezone=UTC,
+   |     ^^^^^^^^^^^^^^^^
+16 |     parser_kwargs: Mapping[str, Any] | None = None,
+17 | ) -> datetime | None:
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> src/egregora/utils/filesystem.py:31:5
+   |
+29 | def _extract_clean_date(date_str: str) -> str:
+30 |     """Extract a clean ``YYYY-MM-DD`` date from user-provided strings."""
+31 |     import datetime
+   |     ^^^^^^^^^^^^^^^
+32 |
+33 |     date_str = date_str.strip()
+   |
+
+C901 `get_openrouter_free_models` is too complex (11 > 10)
+  --> src/egregora/utils/model_fallback.py:36:5
+   |
+36 | def get_openrouter_free_models(modality: str = "text") -> list[str]:
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+37 |     """Fetch list of free OpenRouter models from their API.
+   |
+
+PLW0602 Using global for `_free_models_cache` but no assignment is done
+  --> src/egregora/utils/model_fallback.py:49:12
+   |
+48 |     """
+49 |     global _free_models_cache, _cache_timestamp
+   |            ^^^^^^^^^^^^^^^^^^
+50 |
+51 |     current_time = time.time()
+   |
+
+PLW0603 Using the global statement to update `_cache_timestamp` is discouraged
+  --> src/egregora/utils/model_fallback.py:49:32
+   |
+48 |     """
+49 |     global _free_models_cache, _cache_timestamp
+   |                                ^^^^^^^^^^^^^^^^
+50 |
+51 |     current_time = time.time()
+   |
+
+C901 `create_fallback_model` is too complex (17 > 10)
+   --> src/egregora/utils/model_fallback.py:103:5
+    |
+103 | def create_fallback_model(
+    |     ^^^^^^^^^^^^^^^^^^^^^
+104 |     primary_model: str | Model,
+105 |     fallback_models: list[str | Model] | None = None,
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/utils/model_fallback.py:159:5
+    |
+157 |                 logger.warning("Failed to add OpenRouter models to fallback: %s", e)
+158 |
+159 |     from pydantic_ai.models.gemini import GeminiModel
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+160 |     from pydantic_ai.models.openai import OpenAIModel
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/utils/model_fallback.py:160:5
+    |
+159 |     from pydantic_ai.models.gemini import GeminiModel
+160 |     from pydantic_ai.models.openai import OpenAIModel
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+161 |
+162 |     from egregora.models.rate_limited import RateLimitedModel
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/utils/model_fallback.py:162:5
+    |
+160 |     from pydantic_ai.models.openai import OpenAIModel
+161 |
+162 |     from egregora.models.rate_limited import RateLimitedModel
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+163 |
+164 |     def _resolve_and_wrap(model_def: str | Model) -> Model:
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/utils/model_fallback.py:175:17
+    |
+173 |         elif isinstance(model_def, str):
+174 |             if model_def.startswith("google-gla:"):
+175 |                 from pydantic_ai.providers.google_gla import GoogleGLAProvider
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+176 |
+177 |                 provider = GoogleGLAProvider(api_key=get_google_api_key())
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/utils/model_fallback.py:189:17
+    |
+187 |             else:
+188 |                 # Default to Gemini for unknown strings in this context
+189 |                 from pydantic_ai.providers.google_gla import GoogleGLAProvider
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+190 |
+191 |                 provider = GoogleGLAProvider(api_key=get_google_api_key())
+    |
+
+TRY004 Prefer `TypeError` exception for invalid type
+   --> src/egregora/utils/model_fallback.py:198:13
+    |
+196 |         else:
+197 |             msg = f"Unknown model type: {type(model_def)}"
+198 |             raise ValueError(msg)
+    |             ^^^^^^^^^^^^^^^^^^^^^
+199 |
+200 |         return RateLimitedModel(model)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora/utils/model_fallback.py:223:5
+    |
+221 |             wrapped_fallbacks.append(_resolve_and_wrap(m))
+222 |
+223 |     from pydantic_core import ValidationError
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+224 |
+225 |     return FallbackModel(
+    |
+
+PLR2004 Magic value used in comparison, consider replacing `6` with a constant variable
+  --> src/egregora/utils/network.py:31:27
+   |
+29 |     blocked_ranges: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...],
+30 | ) -> None:
+31 |     if ip_addr.version == 6 and ip_addr.ipv4_mapped:
+   |                           ^
+32 |         ipv4_addr = ip_addr.ipv4_mapped
+33 |         logger.debug("Detected IPv4-mapped IPv6 address: %s maps to %s", ip_addr, ipv4_addr)
+   |
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+  --> src/egregora/utils/paths.py:97:9
+   |
+95 |     except ValueError:
+96 |         msg = f"Path traversal detected: joining {parts} to {base_dir} would escape base directory"
+97 |         raise PathTraversalError(msg)
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+98 |
+99 |     return candidate_resolved
+   |
+
+ANN204 Missing return type annotation for special method `__post_init__`
+  --> src/egregora/utils/rate_limit.py:25:9
+   |
+23 |     _semaphore: threading.Semaphore = field(init=False)
+24 |
+25 |     def __post_init__(self):
+   |         ^^^^^^^^^^^^^
+26 |         self._semaphore = threading.Semaphore(self.max_concurrency)
+27 |         self._tokens = self.requests_per_second
+   |
+help: Add return type annotation
+
+PLW0603 Using the global statement to update `_limiter` is discouraged
+  --> src/egregora/utils/rate_limit.py:71:12
+   |
+69 | def get_rate_limiter() -> GlobalRateLimiter:
+70 |     """Get or create the global rate limiter singleton."""
+71 |     global _limiter
+   |            ^^^^^^^^
+72 |     with _limiter_lock:
+73 |         if _limiter is None:
+   |
+
+PLW0603 Using the global statement to update `_limiter` is discouraged
+  --> src/egregora/utils/rate_limit.py:81:12
+   |
+79 | def init_rate_limiter(requests_per_second: float, max_concurrency: int) -> None:
+80 |     """Initialize the global rate limiter with specific config."""
+81 |     global _limiter
+   |            ^^^^^^^^
+82 |     with _limiter_lock:
+83 |         _limiter = GlobalRateLimiter(requests_per_second=requests_per_second, max_concurrency=max_concurrency)
+   |
+
+G004 Logging statement uses f-string
+  --> src/egregora_v3/core/catalog.py:59:24
+   |
+57 |         # Assuming posts is a safe default or raising error
+58 |         # For now, return posts to avoid crash if unexpected type
+59 |         logger.warning(f"Unknown document type {doc_type}, defaulting to posts repo")
+   |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+60 |         return self.posts
+   |
+help: Convert to lazy `%` formatting
+
+ANN204 Missing return type annotation for special method `__post_init__`
+  --> src/egregora_v3/core/context.py:37:9
+   |
+35 |     metadata: dict[str, Any] = field(default_factory=dict)
+36 |
+37 |     def __post_init__(self):
+   |         ^^^^^^^^^^^^^
+38 |         """Ensure metadata is copied to avoid external mutation."""
+39 |         # Use object.__setattr__ since dataclass is frozen
+   |
+help: Add return type annotation
+
+D205 1 blank line required between summary line and description
+  --> src/egregora_v3/core/ports.py:35:9
+   |
+33 |   class MediaStore(Protocol):
+34 |       def upload(self, data: bytes, mime_type: str) -> Link:
+35 | /         """Uploads binary data and returns a Link with href/type/length.
+36 | |         href can be a local path, HTTP URL, or custom scheme (e.g. s3://...).
+37 | |         """
+   | |___________^
+38 |           ...
+   |
+help: Insert single blank line
+
+D205 1 blank line required between summary line and description
+  --> src/egregora_v3/core/ports.py:66:9
+   |
+64 |           alt_text: str | None = None,
+65 |       ) -> Document:
+66 | /         """1. Uploads binary via MediaStore.
+67 | |         2. Creates a Document(doc_type=MEDIA) with link rel="enclosure".
+68 | |         3. Persists in the configured collection.
+69 | |         """
+   | |___________^
+70 |           ...
+   |
+help: Insert single blank line
+
+PLR0913 Too many arguments in function definition (9 > 5)
+   --> src/egregora_v3/core/types.py:118:9
+    |
+117 |     @classmethod
+118 |     def create(
+    |         ^^^^^^
+119 |         cls,
+120 |         content: str,
+    |
+
+FBT001 Boolean-typed positional argument in function definition
+   --> src/egregora_v3/core/types.py:127:9
+    |
+125 |         id_override: str | None = None,
+126 |         slug: str | None = None,
+127 |         searchable: bool = True,
+    |         ^^^^^^^^^^
+128 |         in_reply_to: InReplyTo | None = None,
+129 |     ) -> "Document":
+    |
+
+FBT002 Boolean default positional argument in function definition
+   --> src/egregora_v3/core/types.py:127:9
+    |
+125 |         id_override: str | None = None,
+126 |         slug: str | None = None,
+127 |         searchable: bool = True,
+    |         ^^^^^^^^^^
+128 |         in_reply_to: InReplyTo | None = None,
+129 |     ) -> "Document":
+    |
+
+C901 `to_xml` is too complex (11 > 10)
+   --> src/egregora_v3/core/types.py:193:9
+    |
+191 |     links: list[Link] = Field(default_factory=list)
+192 |
+193 |     def to_xml(self) -> str:
+    |         ^^^^^^
+194 |         """Generate Atom XML feed (RFC 4287 compliant).
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora_v3/core/types.py:200:9
+    |
+199 |         """
+200 |         from xml.etree.ElementTree import SubElement, tostring
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+201 |
+202 |         # Create root feed element with Atom namespace
+    |
+
+C901 `_add_entry_to_feed` is too complex (23 > 10)
+   --> src/egregora_v3/core/types.py:242:9
+    |
+240 |         return xml_bytes.decode("utf-8")
+241 |
+242 |     def _add_entry_to_feed(self, feed_elem: Element, entry: Entry) -> None:
+    |         ^^^^^^^^^^^^^^^^^^
+243 |         """Add an Entry to the feed XML element."""
+244 |         from xml.etree.ElementTree import SubElement
+    |
+
+PLR0912 Too many branches (22 > 12)
+   --> src/egregora_v3/core/types.py:242:9
+    |
+240 |         return xml_bytes.decode("utf-8")
+241 |
+242 |     def _add_entry_to_feed(self, feed_elem: Element, entry: Entry) -> None:
+    |         ^^^^^^^^^^^^^^^^^^
+243 |         """Add an Entry to the feed XML element."""
+244 |         from xml.etree.ElementTree import SubElement
+    |
+
+PLR0915 Too many statements (54 > 50)
+   --> src/egregora_v3/core/types.py:242:9
+    |
+240 |         return xml_bytes.decode("utf-8")
+241 |
+242 |     def _add_entry_to_feed(self, feed_elem: Element, entry: Entry) -> None:
+    |         ^^^^^^^^^^^^^^^^^^
+243 |         """Add an Entry to the feed XML element."""
+244 |         from xml.etree.ElementTree import SubElement
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> src/egregora_v3/core/types.py:244:9
+    |
+242 |     def _add_entry_to_feed(self, feed_elem: Element, entry: Entry) -> None:
+243 |         """Add an Entry to the feed XML element."""
+244 |         from xml.etree.ElementTree import SubElement
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+245 |
+246 |         entry_elem = SubElement(feed_elem, "entry")
+    |
+
+INP001 File `src/egregora_v3/infra/repository/duckdb.py` is part of an implicit namespace package. Add an `__init__.py`.
+--> src/egregora_v3/infra/repository/duckdb.py:1:1
+
+UP035 `typing.List` is deprecated, use `list` instead
+ --> src/egregora_v3/infra/repository/duckdb.py:1:1
+  |
+1 | from typing import Any, List
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2 |
+3 | import ibis
+  |
+
+F401 [*] `typing.Any` imported but unused
+ --> src/egregora_v3/infra/repository/duckdb.py:1:20
+  |
+1 | from typing import Any, List
+  |                    ^^^
+2 |
+3 | import ibis
+  |
+help: Remove unused import: `typing.Any`
+
+ANN204 Missing return type annotation for special method `__init__`
+  --> src/egregora_v3/infra/repository/duckdb.py:13:9
+   |
+11 |     """DuckDB-backed document storage."""
+12 |
+13 |     def __init__(self, conn: ibis.BaseBackend):
+   |         ^^^^^^^^
+14 |         self.conn = conn
+15 |         self.table_name = "documents"
+   |
+help: Add return type annotation: `None`
+
+ANN201 Missing return type annotation for public function `initialize`
+  --> src/egregora_v3/infra/repository/duckdb.py:17:9
+   |
+15 |         self.table_name = "documents"
+16 |
+17 |     def initialize(self):
+   |         ^^^^^^^^^^
+18 |         """Creates the table if it doesn't exist."""
+19 |         # Check if table exists
+   |
+help: Add return type annotation: `None`
+
+TRY201 Use `raise` without specifying exception name
+  --> src/egregora_v3/infra/repository/duckdb.py:71:27
+   |
+69 |                     self._manual_upsert(doc, json_data)
+70 |                 else:
+71 |                     raise e
+   |                           ^
+72 |         else:
+73 |             self._manual_upsert(doc, json_data)
+   |
+help: Remove exception name
+
+ANN202 Missing return type annotation for private function `_manual_upsert`
+  --> src/egregora_v3/infra/repository/duckdb.py:77:9
+   |
+75 |         return doc
+76 |
+77 |     def _manual_upsert(self, doc: Document, json_data: str):
+   |         ^^^^^^^^^^^^^^
+78 |         """Manual delete + insert for backends/tables without PK constraint."""
+79 |         # Safe delete first
+   |
+help: Add return type annotation: `None`
+
+UP006 [*] Use `list` instead of `List` for type annotation
+   --> src/egregora_v3/infra/repository/duckdb.py:107:64
+    |
+105 |         return Document.model_validate_json(json_val)
+106 |
+107 |     def list(self, *, doc_type: DocumentType | None = None) -> List[Document]:
+    |                                                                ^^^^
+108 |         """Lists documents, optionally filtered by type."""
+109 |         t = self._get_table()
+    |
+help: Replace with `list`
+
+BLE001 Do not catch blind exception: `Exception`
+   --> src/egregora_v3/infra/repository/duckdb.py:141:21
+    |
+139 |                  # If this fails, we must error out rather than be unsafe.
+140 |                  t.filter(t.id == doc_id).delete()
+141 |              except Exception:
+    |                     ^^^^^^^^^
+142 |                  raise NotImplementedError("Backend does not support a safe delete operation via Ibis or parameterized SQL.")
+    |
+
+B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   --> src/egregora_v3/infra/repository/duckdb.py:142:18
+    |
+140 |                  t.filter(t.id == doc_id).delete()
+141 |              except Exception:
+142 |                  raise NotImplementedError("Backend does not support a safe delete operation via Ibis or parameterized SQL.")
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+143 |
+144 |     def exists(self, doc_id: str) -> bool:
+    |
+
+EM101 Exception must not use a string literal, assign to variable first
+   --> src/egregora_v3/infra/repository/duckdb.py:142:44
+    |
+140 |                  t.filter(t.id == doc_id).delete()
+141 |              except Exception:
+142 |                  raise NotImplementedError("Backend does not support a safe delete operation via Ibis or parameterized SQL.")
+    |                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+143 |
+144 |     def exists(self, doc_id: str) -> bool:
+    |
+help: Assign to variable; remove string literal
+
+UP006 [*] Use `list` instead of `List` for type annotation
+   --> src/egregora_v3/infra/repository/duckdb.py:160:56
+    |
+158 |         return None
+159 |
+160 |     def get_entries_by_source(self, source_id: str) -> List[Entry]:
+    |                                                        ^^^^
+161 |         # TODO: Implement Entry listing by source
+162 |         return []
+    |
+help: Replace with `list`
+
+BLE001 Do not catch blind exception: `Exception`
+  --> tests/conftest.py:56:12
+   |
+54 |         # In ibis 9.0+, use connect() with database path directly
+55 |         backend = ibis.duckdb.connect(":memory:")
+56 |     except Exception as exc:  # pragma: no cover - guard against broken ibis deps
+   |            ^^^^^^^^^
+57 |         pytest.skip(f"ibis backend unavailable: {exc}")
+   |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/cli/test_init_command.py:103:5
+    |
+101 | def test_config_yml_structure(tmp_path: Path):
+102 |     """Test that generated config.yml has correct structure."""
+103 |     from egregora.config.settings import load_egregora_config
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+104 |
+105 |     # Create and scaffold MkDocs site using OutputAdapter
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/cli/test_init_command.py:131:5
+    |
+129 | def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
+130 |     """Test that mkdocs.yml doesn't have extra.egregora."""
+131 |     from egregora.init.scaffolding import ensure_mkdocs_project
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+132 |     from egregora.output_adapters.mkdocs.scaffolding import safe_yaml_load
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/cli/test_init_command.py:132:5
+    |
+130 |     """Test that mkdocs.yml doesn't have extra.egregora."""
+131 |     from egregora.init.scaffolding import ensure_mkdocs_project
+132 |     from egregora.output_adapters.mkdocs.scaffolding import safe_yaml_load
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+133 |
+134 |     # Create site
+    |
+
+PLC0415 `import` should be at the top-level of a file
+  --> tests/e2e/cli/test_utilities_command.py:81:13
+   |
+79 |         # This test mocks the diagnostics to all return OK
+80 |         with patch("egregora.diagnostics.run_diagnostics") as mock_diagnostics:
+81 |             from egregora.diagnostics import DiagnosticResult, HealthStatus
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+82 |
+83 |             mock_diagnostics.return_value = [
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> tests/e2e/cli/test_utilities_command.py:96:13
+   |
+94 |         """Test doctor exits with 1 when errors are found (mocked)."""
+95 |         with patch("egregora.diagnostics.run_diagnostics") as mock_diagnostics:
+96 |             from egregora.diagnostics import DiagnosticResult, HealthStatus
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+97 |
+98 |             mock_diagnostics.return_value = [
+   |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/cli/test_utilities_command.py:110:13
+    |
+108 |         """Test doctor exits with 0 even when warnings are found."""
+109 |         with patch("egregora.diagnostics.run_diagnostics") as mock_diagnostics:
+110 |             from egregora.diagnostics import DiagnosticResult, HealthStatus
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+111 |
+112 |             mock_diagnostics.return_value = [
+    |
+
+S110 `try`-`except`-`pass` detected, consider logging the exception
+  --> tests/e2e/conftest.py:43:5
+   |
+41 |                       # Ignore cleanup errors - they shouldn't fail the test
+42 |                       pass
+43 | /     except Exception:
+44 | |         # Ignore any cleanup errors
+45 | |         pass
+   | |____________^
+   |
+
+BLE001 Do not catch blind exception: `Exception`
+  --> tests/e2e/conftest.py:43:12
+   |
+41 |                     # Ignore cleanup errors - they shouldn't fail the test
+42 |                     pass
+43 |     except Exception:
+   |            ^^^^^^^^^
+44 |         # Ignore any cleanup errors
+45 |         pass
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> tests/e2e/conftest.py:92:5
+   |
+90 |     between test runs or parallel executions.
+91 |     """
+92 |     import time
+   |     ^^^^^^^^^^^
+93 |
+94 |     timestamp = int(time.time() * 1000000)  # Microsecond precision
+   |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/conftest.py:139:5
+    |
+137 |       realistic responses from the whatsapp_sample fixture.
+138 |       """
+139 | /     from tests.e2e.mocks.enrichment_mocks import (
+140 | |         async_mock_media_enrichment,
+141 | |         async_mock_url_enrichment,
+142 | |     )
+    | |_____^
+143 |       from tests.e2e.mocks.llm_responses import (
+144 |           FIXTURE_MEDIA_ENRICHMENTS,
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/conftest.py:143:5
+    |
+141 |           async_mock_url_enrichment,
+142 |       )
+143 | /     from tests.e2e.mocks.llm_responses import (
+144 | |         FIXTURE_MEDIA_ENRICHMENTS,
+145 | |         FIXTURE_URL_ENRICHMENTS,
+146 | |         FIXTURE_WRITER_POST,
+147 | |     )
+    | |_____^
+148 |
+149 |       # Patch enrichment functions
+    |
+
+SIM105 Use `contextlib.suppress(AttributeError)` instead of `try`-`except`-`pass`
+   --> tests/e2e/conftest.py:151:5
+    |
+149 |       # Patch enrichment functions
+150 |       # Note: These paths may need adjustment based on actual implementation
+151 | /     try:
+152 | |         monkeypatch.setattr(
+153 | |             "egregora.agents.enricher._run_url_enrichment_async",
+154 | |             async_mock_url_enrichment,
+155 | |         )
+156 | |     except AttributeError:
+157 | |         # Enrichment implementation may vary - this is optional
+158 | |         pass
+    | |____________^
+159 |
+160 |       try:
+    |
+help: Replace `try`-`except`-`pass` with `with contextlib.suppress(AttributeError): ...`
+
+SIM105 Use `contextlib.suppress(AttributeError)` instead of `try`-`except`-`pass`
+   --> tests/e2e/conftest.py:160:5
+    |
+158 |           pass
+159 |
+160 | /     try:
+161 | |         monkeypatch.setattr(
+162 | |             "egregora.agents.enricher._run_media_enrichment_async",
+163 | |             async_mock_media_enrichment,
+164 | |         )
+165 | |     except AttributeError:
+166 | |         # Enrichment implementation may vary - this is optional
+167 | |         pass
+    | |____________^
+168 |
+169 |       return {
+    |
+help: Replace `try`-`except`-`pass` with `with contextlib.suppress(AttributeError): ...`
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/conftest.py:183:5
+    |
+181 |     deterministic results without requiring real embeddings or vector search.
+182 |     """
+183 |     from egregora.rag import RAGHit, RAGQueryResponse
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+184 |
+185 |     # Track what's been indexed for assertions
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/conftest.py:209:9
+    |
+207 |     # Patch the new RAG API
+208 |     try:
+209 |         import egregora.rag
+    |         ^^^^^^^^^^^^^^^^^^^
+210 |
+211 |         monkeypatch.setattr(egregora.rag, "index_documents", mock_index_documents)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/conftest.py:233:5
+    |
+231 |     to provide deterministic writer agent responses for E2E tests.
+232 |     """
+233 |     from tests.utils.pydantic_test_models import install_writer_test_model
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+234 |
+235 |     # Install deterministic writer that avoids network calls
+    |
+
+E402 Module level import not at top of file
+  --> tests/e2e/database/test_duckdb_sequences.py:41:1
+   |
+41 | from egregora.database.tracking import record_run
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/input_adapters/test_whatsapp_adapter.py:175:5
+    |
+173 | def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture):
+174 |     """Test that anonymized UUIDs follow expected format (full UUID format)."""
+175 |     import uuid
+    |     ^^^^^^^^^^^
+176 |
+177 |     export = create_export_from_fixture(whatsapp_fixture)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/input_adapters/test_whatsapp_adapter.py:199:5
+    |
+197 | def test_media_extraction_creates_expected_files(whatsapp_fixture: WhatsAppFixture):
+198 |     """Test that media files are correctly extracted from the ZIP."""
+199 |     from egregora.data_primitives.document import DocumentType
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+200 |     from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/input_adapters/test_whatsapp_adapter.py:200:5
+    |
+198 |     """Test that media files are correctly extracted from the ZIP."""
+199 |     from egregora.data_primitives.document import DocumentType
+200 |     from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+201 |
+202 |     adapter = WhatsAppAdapter()
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/input_adapters/test_whatsapp_adapter.py:223:5
+    |
+221 | ):
+222 |     """Test that media references in messages are converted to markdown via pipeline ops."""
+223 |     from egregora.data_primitives.document import Document
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+224 |     from egregora.data_primitives.protocols import UrlContext, UrlConvention
+225 |     from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/input_adapters/test_whatsapp_adapter.py:224:5
+    |
+222 |     """Test that media references in messages are converted to markdown via pipeline ops."""
+223 |     from egregora.data_primitives.document import Document
+224 |     from egregora.data_primitives.protocols import UrlContext, UrlConvention
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+225 |     from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
+226 |     from egregora.ops.media import process_media_for_window
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/input_adapters/test_whatsapp_adapter.py:225:5
+    |
+223 |     from egregora.data_primitives.document import Document
+224 |     from egregora.data_primitives.protocols import UrlContext, UrlConvention
+225 |     from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+226 |     from egregora.ops.media import process_media_for_window
+227 |     from egregora.transformations.windowing import Window
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/input_adapters/test_whatsapp_adapter.py:226:5
+    |
+224 |     from egregora.data_primitives.protocols import UrlContext, UrlConvention
+225 |     from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
+226 |     from egregora.ops.media import process_media_for_window
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+227 |     from egregora.transformations.windowing import Window
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/input_adapters/test_whatsapp_adapter.py:227:5
+    |
+225 |     from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
+226 |     from egregora.ops.media import process_media_for_window
+227 |     from egregora.transformations.windowing import Window
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+228 |
+229 |     adapter = WhatsAppAdapter()
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/input_adapters/test_whatsapp_adapter.py:297:5
+    |
+295 |     augmented = table.union(ibis.memtable([synthetic], schema=table.schema()))
+296 |
+297 |     from egregora.input_adapters.whatsapp.commands import filter_egregora_messages
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+298 |
+299 |     filtered, removed_count = filter_egregora_messages(augmented)
+    |
+
+PLR0913 Too many arguments in function definition (7 > 5)
+  --> tests/e2e/pipeline/test_write_pipeline_e2e.py:11:5
+   |
+10 | @pytest.mark.e2e
+11 | def test_full_pipeline_smoke_test(
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+12 |     whatsapp_fixture,
+13 |     llm_response_mocks,
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> tests/e2e/pipeline/test_write_pipeline_e2e.py:29:5
+   |
+27 |       - Media is processed
+28 |       """
+29 | /     from egregora.orchestration.write_pipeline import (
+30 | |         WhatsAppProcessOptions,
+31 | |         process_whatsapp_export,
+32 | |     )
+   | |_____^
+33 |
+34 |       # Setup output directory
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> tests/e2e/pipeline/test_write_pipeline_e2e.py:39:5
+   |
+38 |     # Initialize site structure (required by pipeline)
+39 |     from egregora.output_adapters.mkdocs import MkDocsAdapter
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+40 |
+41 |     output_format = MkDocsAdapter()
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> tests/e2e/pipeline/test_write_pipeline_e2e.py:61:5
+   |
+60 |     # Resolve paths dynamically using the same logic as the adapter
+61 |     from egregora.output_adapters.mkdocs.paths import derive_mkdocs_paths
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+62 |
+63 |     site_paths = derive_mkdocs_paths(site_root)
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> tests/e2e/pipeline/test_write_pipeline_e2e.py:92:5
+   |
+90 |     - Responses are deterministic and repeatable
+91 |     """
+92 |     from tests.e2e.mocks.enrichment_mocks import mock_media_enrichment, mock_url_enrichment
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+93 |
+94 |     # Test URL enrichment returns fixture data
+   |
+
+PLR0913 Too many arguments in function definition (7 > 5)
+   --> tests/e2e/pipeline/test_write_pipeline_e2e.py:121:5
+    |
+120 | @pytest.mark.e2e
+121 | def test_pipeline_with_rag_enabled(
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+122 |     whatsapp_fixture,
+123 |     llm_response_mocks,
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/pipeline/test_write_pipeline_e2e.py:137:5
+    |
+135 |       - Pipeline completes with RAG enabled
+136 |       """
+137 | /     from egregora.orchestration.write_pipeline import (
+138 | |         WhatsAppProcessOptions,
+139 | |         process_whatsapp_export,
+140 | |     )
+    | |_____^
+141 |       from egregora.output_adapters.mkdocs import MkDocsAdapter
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/pipeline/test_write_pipeline_e2e.py:141:5
+    |
+139 |         process_whatsapp_export,
+140 |     )
+141 |     from egregora.output_adapters.mkdocs import MkDocsAdapter
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+142 |
+143 |     # Setup output directory
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/pipeline/test_write_pipeline_e2e.py:191:5
+    |
+190 |     # Verify the new RAG API functions are mocked
+191 |     from egregora import rag
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+192 |
+193 |     # The functions should be mocked (they won't raise ImportError)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/pipeline/test_write_pipeline_e2e.py:201:5
+    |
+199 | def test_url_enrichment_mock_returns_fixture_data(llm_response_mocks):
+200 |     """Verify URL enrichment mock returns expected fixture data."""
+201 |     from tests.e2e.mocks.enrichment_mocks import mock_url_enrichment
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+202 |
+203 |     # Test known URL
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/pipeline/test_write_pipeline_e2e.py:218:5
+    |
+216 | def test_media_enrichment_mock_returns_fixture_data(llm_response_mocks):
+217 |     """Verify media enrichment mock returns expected fixture data."""
+218 |     from tests.e2e.mocks.enrichment_mocks import mock_media_enrichment
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+219 |
+220 |     # Test known image
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/pipeline/test_write_pipeline_e2e.py:240:5
+    |
+238 |     """
+239 |     # Simple performance check - mocks should be instant
+240 |     import time
+    |     ^^^^^^^^^^^
+241 |
+242 |     from tests.e2e.mocks.enrichment_mocks import mock_url_enrichment
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/e2e/pipeline/test_write_pipeline_e2e.py:242:5
+    |
+240 |     import time
+241 |
+242 |     from tests.e2e.mocks.enrichment_mocks import mock_url_enrichment
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+243 |
+244 |     start = time.time()
+    |
+
+C901 `build_write_command_args` is too complex (11 > 10)
+   --> tests/e2e/test_config.py:105:5
+    |
+105 | def build_write_command_args(
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+106 |     test_zip_file: str,
+107 |     output_dir: str,
+    |
+
+PLR0913 Too many arguments in function definition (13 > 5)
+   --> tests/e2e/test_config.py:105:5
+    |
+105 | def build_write_command_args(
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^
+106 |     test_zip_file: str,
+107 |     output_dir: str,
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/evals/writer_evals.py:120:5
+    |
+119 |     """
+120 |     from pydantic_evals.evaluators import LLMJudge
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+121 |
+122 |     cases = create_writer_dataset().cases
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/helpers/storage.py:249:9
+    |
+248 |         """
+249 |         from egregora.data_primitives.document import DocumentType
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+250 |
+251 |         if document.type == DocumentType.ENRICHMENT_URL:
+    |
+
+FBT002 Boolean default positional argument in function definition
+  --> tests/unit/agents/test_rag_exception_handling.py:20:17
+   |
+18 |     """
+19 |
+20 |     def _create(enabled=True, **kwargs):
+   |                 ^^^^^^^
+21 |         return RAGSettings(enabled=enabled, **kwargs)
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> tests/unit/agents/test_rag_exception_handling.py:31:9
+   |
+29 |     def test_exception_during_indexing_is_caught(self, rag_settings_factory):
+30 |         """Verify exceptions during RAG indexing don't crash post generation."""
+31 |         from egregora.agents.writer import _index_new_content_in_rag
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+32 |
+33 |         # Use factory to create RAG settings
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> tests/unit/agents/test_rag_exception_handling.py:58:9
+   |
+56 |     def test_successful_indexing_logs_count(self, caplog, rag_settings_factory):
+57 |         """Verify successful indexing logs the indexed document count."""
+58 |         from egregora.agents.writer import _index_new_content_in_rag
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+59 |
+60 |         # Use factory to create RAG settings
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> tests/unit/agents/test_rag_exception_handling.py:91:9
+   |
+89 |     def test_no_indexing_when_rag_disabled(self, rag_settings_factory):
+90 |         """Verify indexing is skipped when RAG is disabled."""
+91 |         from egregora.agents.writer import _index_new_content_in_rag
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+92 |
+93 |         # Use factory to create RAG settings with RAG disabled
+   |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/unit/agents/test_rag_exception_handling.py:106:9
+    |
+104 |     def test_no_indexing_when_no_posts_saved(self, rag_settings_factory):
+105 |         """Verify indexing is skipped when no posts were saved."""
+106 |         from egregora.agents.writer import _index_new_content_in_rag
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+107 |
+108 |         # Use factory to create RAG settings
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/unit/agents/test_rag_exception_handling.py:131:9
+    |
+129 |     def test_prepare_pipeline_catches_exceptions(self):
+130 |         """Verify pipeline catches exceptions during RAG indexing."""
+131 |         import inspect
+    |         ^^^^^^^^^^^^^^
+132 |
+133 |         from egregora.orchestration.write_pipeline import _prepare_pipeline_data
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/unit/agents/test_rag_exception_handling.py:133:9
+    |
+131 |         import inspect
+132 |
+133 |         from egregora.orchestration.write_pipeline import _prepare_pipeline_data
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+134 |
+135 |         source = inspect.getsource(_prepare_pipeline_data)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/unit/agents/test_rag_exception_handling.py:146:9
+    |
+144 |     def test_index_media_is_disabled(self):
+145 |         """Verify media indexing is currently disabled (will be re-implemented)."""
+146 |         import inspect
+    |         ^^^^^^^^^^^^^^
+147 |
+148 |         from egregora.orchestration.write_pipeline import _index_media_into_rag
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/unit/agents/test_rag_exception_handling.py:148:9
+    |
+146 |         import inspect
+147 |
+148 |         from egregora.orchestration.write_pipeline import _index_media_into_rag
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+149 |
+150 |         source = inspect.getsource(_index_media_into_rag)
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/unit/agents/test_writer_tools.py:178:9
+    |
+176 |         """Test that RAG imports don't raise ModuleNotFoundError."""
+177 |         # This test will fail if imports are broken
+178 |         from egregora.agents.writer_tools import search_media_impl
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+179 |         from egregora.rag import search
+180 |         from egregora.rag.models import RAGQueryRequest
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/unit/agents/test_writer_tools.py:179:9
+    |
+177 |         # This test will fail if imports are broken
+178 |         from egregora.agents.writer_tools import search_media_impl
+179 |         from egregora.rag import search
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+180 |         from egregora.rag.models import RAGQueryRequest
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/unit/agents/test_writer_tools.py:180:9
+    |
+178 |         from egregora.agents.writer_tools import search_media_impl
+179 |         from egregora.rag import search
+180 |         from egregora.rag.models import RAGQueryRequest
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+181 |
+182 |         # If we get here, imports work
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/unit/config/test_validation.py:174:5
+    |
+172 | def test_config_yaml_roundtrip(tmp_path: Path):
+173 |     """Test config can be saved and loaded."""
+174 |     from egregora.config.settings import save_egregora_config
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+175 |
+176 |     # Create config with non-default values
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/unit/output_adapters/test_conventions.py:126:9
+    |
+124 |     def test_no_path_import_in_conventions_module(self):
+125 |         """Verify conventions.py does not import pathlib.Path."""
+126 |         import egregora.output_adapters.conventions as conventions_module
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+127 |
+128 |         # Check module doesn't have Path in its namespace
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/unit/rag/test_embedding_router.py:224:5
+    |
+223 |     # Submit multiple requests concurrently
+224 |     import concurrent.futures
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+225 |
+226 |     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/unit/rag/test_embedding_router.py:302:5
+    |
+301 |     # Submit 3 requests that should be batched
+302 |     import concurrent.futures
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+303 |
+304 |     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+    |
+
+PLC0415 `import` should be at the top-level of a file
+   --> tests/unit/rag/test_embedding_router.py:416:5
+    |
+415 |     # Submit 3 concurrent requests
+416 |     import concurrent.futures
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+417 |
+418 |     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+    |
+
+PERF401 Use a list comprehension to create a transformed list
+  --> tests/unit/test_taxonomy.py:25:9
+   |
+23 |       docs = []
+24 |       for i in range(10):
+25 | /         docs.append(
+26 | |             Document(
+27 | |                 content=f"Content {i}",
+28 | |                 type=DocumentType.POST,
+29 | |                 metadata={
+30 | |                     "title": f"Post {i}",
+31 | |                     "summary": f"Summary {i}",
+32 | |                     "tags": ["original"],
+33 | |                     "path": f"posts/post_{i}.md",
+34 | |                 },
+35 | |             )
+36 | |         )
+   | |_________^
+37 |       sink.documents.return_value = docs
+38 |       return sink
+   |
+help: Replace for loop with list comprehension
+
+NPY002 Replace legacy `np.random.rand` call with `np.random.Generator`
+  --> tests/unit/test_taxonomy.py:53:15
+   |
+51 |     # Return 10 doc IDs and random vectors
+52 |     doc_ids = [f"post_{i}" for i in range(10)]
+53 |     vectors = np.random.rand(10, 768)
+   |               ^^^^^^^^^^^^^^
+54 |     backend.get_all_post_vectors = MagicMock(return_value=(doc_ids, vectors))
+55 |     return backend
+   |
+
+NPY002 Replace legacy `np.random.rand` call with `np.random.Generator`
+  --> tests/unit/test_taxonomy.py:62:76
+   |
+60 |     with patch("egregora.ops.taxonomy.get_backend") as mock_get_backend:
+61 |         backend = MagicMock()
+62 |         backend.get_all_post_vectors = MagicMock(return_value=(["1", "2"], np.random.rand(2, 768)))
+   |                                                                            ^^^^^^^^^^^^^^
+63 |         mock_get_backend.return_value = backend
+   |
+
+NPY002 Replace legacy `np.random.rand` call with `np.random.Generator`
+  --> tests/unit/test_taxonomy.py:79:19
+   |
+77 |         real_docs = list(mock_output_sink.documents())
+78 |         doc_ids = [d.document_id for d in real_docs]
+79 |         vectors = np.random.rand(len(doc_ids), 10)
+   |                   ^^^^^^^^^^^^^^
+80 |         backend.get_all_post_vectors = MagicMock(return_value=(doc_ids, vectors))
+81 |         mock_get_backend.return_value = backend
+   |
+
+PLC0415 `import` should be at the top-level of a file
+  --> tests/unit/test_taxonomy.py:87:9
+   |
+85 |         mock_result = MagicMock()
+86 |
+87 |         from egregora.agents.taxonomy import ClusterTags
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+88 |
+89 |         mappings = [
+   |
+
+NPY002 Replace legacy `np.random.rand` call with `np.random.Generator`
+   --> tests/unit/test_taxonomy.py:117:19
+    |
+115 |         real_docs = list(mock_output_sink.documents())
+116 |         doc_ids = [d.document_id for d in real_docs]
+117 |         vectors = np.random.rand(len(doc_ids), 10)
+    |                   ^^^^^^^^^^^^^^
+118 |         backend.get_all_post_vectors = MagicMock(return_value=(doc_ids, vectors))
+119 |         mock_get_backend.return_value = backend
+    |
+
+NPY002 Replace legacy `np.random.rand` call with `np.random.Generator`
+   --> tests/unit/test_taxonomy.py:150:19
+    |
+148 |         real_docs = list(mock_output_sink.documents())
+149 |         doc_ids = [d.document_id for d in real_docs]
+150 |         vectors = np.random.rand(len(doc_ids), 10)
+    |                   ^^^^^^^^^^^^^^
+151 |         backend.get_all_post_vectors = MagicMock(return_value=(doc_ids, vectors))
+152 |         mock_get_backend.return_value = backend
+    |
+
+PLC0415 `import` should be at the top-level of a file
+  --> tests/utils/pydantic_test_models.py:76:9
+   |
+74 |     original_func = None
+75 |     try:
+76 |         from egregora.agents.writer import write_posts_with_pydantic_agent as original
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+77 |
+78 |         original_func = original
+   |
+
+S314 Using `xml` to parse untrusted data is known to be vulnerable to XML attacks; use `defusedxml` equivalents
+   --> tests/v3/core/test_atom_export.py:132:12
+    |
+131 |     # Should parse without error
+132 |     root = ET.fromstring(xml)
+    |            ^^^^^^^^^^^^^^^^^^
+133 |
+134 |     # Check namespace
+    |
+
+S314 Using `xml` to parse untrusted data is known to be vulnerable to XML attacks; use `defusedxml` equivalents
+  --> tests/v3/core/test_feed_todo.py:30:12
+   |
+29 |     xml_output = feed.to_xml()
+30 |     root = ET.fromstring(xml_output)
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+31 |     entry = root.find("{http://www.w3.org/2005/Atom}entry")
+32 |     assert entry is not None
+   |
+
+S314 Using `xml` to parse untrusted data is known to be vulnerable to XML attacks; use `defusedxml` equivalents
+   --> tests/v3/core/test_types.py:133:12
+    |
+131 |     feed = documents_to_feed([reply], feed_id="test", title="Thread Test")
+132 |     xml = feed.to_xml()
+133 |     root = ET.fromstring(xml)
+    |            ^^^^^^^^^^^^^^^^^^
+134 |     entry = root.find("{http://www.w3.org/2005/Atom}entry")
+135 |     in_reply_to = entry.find("{http://purl.org/syndication/thread/1.0}in-reply-to")
+    |
+
+Found 286 errors.
+[*] 3 fixable with the `--fix` option (5 hidden fixes can be enabled with the `--unsafe-fixes` option).

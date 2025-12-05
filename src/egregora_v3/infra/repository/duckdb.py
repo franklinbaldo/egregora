@@ -1,4 +1,4 @@
-from typing import Any, List
+import builtins
 
 import ibis
 from ibis.expr.types import Table
@@ -10,11 +10,11 @@ from egregora_v3.core.types import Document, DocumentType, Entry
 class DuckDBDocumentRepository(DocumentRepository):
     """DuckDB-backed document storage."""
 
-    def __init__(self, conn: ibis.BaseBackend):
+    def __init__(self, conn: ibis.BaseBackend) -> None:
         self.conn = conn
         self.table_name = "documents"
 
-    def initialize(self):
+    def initialize(self) -> None:
         """Creates the table if it doesn't exist."""
         # Check if table exists
         if self.table_name not in self.conn.list_tables():
@@ -68,13 +68,13 @@ class DuckDBDocumentRepository(DocumentRepository):
                 if "ON CONFLICT is a no-op" in str(e):
                     self._manual_upsert(doc, json_data)
                 else:
-                    raise e
+                    raise
         else:
             self._manual_upsert(doc, json_data)
 
         return doc
 
-    def _manual_upsert(self, doc: Document, json_data: str):
+    def _manual_upsert(self, doc: Document, json_data: str) -> None:
         """Manual delete + insert for backends/tables without PK constraint."""
         # Safe delete first
         self.delete(doc.id)
@@ -104,7 +104,7 @@ class DuckDBDocumentRepository(DocumentRepository):
 
         return Document.model_validate_json(json_val)
 
-    def list(self, *, doc_type: DocumentType | None = None) -> List[Document]:
+    def list(self, *, doc_type: DocumentType | None = None) -> list[Document]:
         """Lists documents, optionally filtered by type."""
         t = self._get_table()
         query = t
@@ -127,19 +127,20 @@ class DuckDBDocumentRepository(DocumentRepository):
         """Deletes a document by ID."""
         # Use parameterized query if possible via underlying connection
         if hasattr(self.conn, "con"):
-             query = f"DELETE FROM {self.table_name} WHERE id = ?"
-             self.conn.con.execute(query, [doc_id])
+            query = f"DELETE FROM {self.table_name} WHERE id = ?"
+            self.conn.con.execute(query, [doc_id])
         else:
-             # Fallback to Ibis delete if available, otherwise raise error
-             # Refusing to use unsafe raw SQL interpolation.
-             try:
-                 t = self._get_table()
-                 # Ibis does not have a standard 'delete' method exposed on Table/Expression in all versions/backends
-                 # But some backends might support it via extension or future versions.
-                 # If this fails, we must error out rather than be unsafe.
-                 t.filter(t.id == doc_id).delete()
-             except Exception:
-                 raise NotImplementedError("Backend does not support a safe delete operation via Ibis or parameterized SQL.")
+            # Fallback to Ibis delete if available, otherwise raise error
+            # Refusing to use unsafe raw SQL interpolation.
+            try:
+                t = self._get_table()
+                # Ibis does not have a standard 'delete' method exposed on Table/Expression in all versions/backends
+                # But some backends might support it via extension or future versions.
+                # If this fails, we must error out rather than be unsafe.
+                t.filter(t.id == doc_id).delete()
+            except Exception as err:
+                msg = "Backend does not support a safe delete operation via Ibis or parameterized SQL."
+                raise NotImplementedError(msg) from err
 
     def exists(self, doc_id: str) -> bool:
         """Checks if a document exists."""
@@ -157,6 +158,6 @@ class DuckDBDocumentRepository(DocumentRepository):
         # TODO: Implement Entry retrieval
         return None
 
-    def get_entries_by_source(self, source_id: str) -> List[Entry]:
+    def get_entries_by_source(self, source_id: str) -> builtins.list[Entry]:
         # TODO: Implement Entry listing by source
         return []

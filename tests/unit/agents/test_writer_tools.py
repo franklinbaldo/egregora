@@ -136,11 +136,22 @@ class TestWriterToolsExtraction:
 
     def test_generate_banner_impl_handles_failure(self):
         """Test generate_banner_impl returns failure result when generation fails."""
-        # This would require mocking the banner generator
-        # For now, just verify the function signature exists and is callable
-        BannerContext(output_sink=Mock())
-        # Function exists and accepts correct parameters
-        assert callable(generate_banner_impl)
+        # Arrange
+        mock_output_sink = Mock()
+        ctx = BannerContext(output_sink=mock_output_sink, banner_capability=None)
+
+        # Mock the generate_banner function to return a failed result
+        mock_result = Mock(success=False, error="Banner generation failed", document=None)
+
+        with patch("egregora.agents.writer_tools.generate_banner", return_value=mock_result):
+            # Act
+            result = generate_banner_impl(ctx, "test-slug", "Test Title", "Test summary")
+
+            # Assert
+            assert result.status == "failed"
+            assert result.error == "Banner generation failed"
+            assert result.path is None
+            assert result.image_path is None
 
 
 class TestToolContexts:
@@ -175,11 +186,11 @@ class TestImportFix:
     def test_rag_imports_work(self):
         """Test that RAG imports don't raise ModuleNotFoundError."""
         # This test will fail if imports are broken
-        from egregora.agents.writer_tools import search_media_impl
-        from egregora.rag import search
-        from egregora.rag.models import RAGQueryRequest
+        import egregora.agents.writer_tools as writer_tools
+        import egregora.rag as rag_pkg
+        import egregora.rag.models as rag_models
 
         # If we get here, imports work
-        assert callable(search_media_impl)
-        assert callable(search)
-        assert RAGQueryRequest is not None
+        assert callable(writer_tools.search_media_impl)
+        assert callable(rag_pkg.search)
+        assert rag_models.RAGQueryRequest is not None

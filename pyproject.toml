@@ -121,9 +121,9 @@ ignore = [
     "ARG002",  # Unused method argument (needed for interface compatibility)
     "ARG005",  # Unused lambda argument (needed for interface compatibility)
     "ANN401",  # Any type (sometimes necessary for flexibility)
-    "TCH001",  # Type-checking-only imports (can cause circular imports)
-    "TCH002",  # Type-checking-only third-party imports
-    "TCH003",  # Type-checking-only standard library imports
+    "TC001",  # Type-checking-only imports (can cause circular imports)
+    "TC002",  # Type-checking-only third-party imports
+    "TC003",  # Type-checking-only standard library imports
     "SIM102",  # Collapsible if (explicit can be clearer)
     "SIM108",  # Ternary operator (not always clearer)
 
