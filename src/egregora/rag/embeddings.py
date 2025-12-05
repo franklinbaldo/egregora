@@ -7,22 +7,15 @@ and batch processing support.
 from __future__ import annotations
 
 import logging
-import os
 from typing import Annotated, Any
 
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from egregora.config import EMBEDDING_DIM
+from egregora.utils.env import get_google_api_key
 
 logger = logging.getLogger(__name__)
-
-
-def _get_api_key_from_env() -> str:
-    key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-    if not key:
-        raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY required")
-    return key
 
 
 # Constants
@@ -111,7 +104,7 @@ def embed_text(
         httpx.HTTPError: If API request fails after retries
 
     """
-    effective_api_key = api_key or _get_api_key_from_env()
+    effective_api_key = api_key or get_google_api_key()
     effective_timeout = timeout or _get_timeout()
     google_model = model
     payload: dict[str, Any] = {
@@ -160,7 +153,7 @@ def _embed_batch_chunk(
         httpx.HTTPError: If API request fails after retries
 
     """
-    effective_api_key = api_key or _get_api_key_from_env()
+    effective_api_key = api_key or get_google_api_key()
     effective_timeout = timeout or _get_timeout()
     google_model = model
     requests = []
@@ -308,7 +301,9 @@ def is_rag_available() -> bool:
         True if GOOGLE_API_KEY environment variable is set
 
     """
-    return bool(os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY"))
+    from egregora.utils.env import google_api_key_available
+
+    return google_api_key_available()
 
 
 __all__ = [

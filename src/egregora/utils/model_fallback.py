@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import time
 
 import httpx
@@ -12,6 +11,7 @@ from pydantic_ai.models import Model
 from pydantic_ai.models.fallback import FallbackModel
 
 from egregora.models import GoogleBatchModel
+from egregora.utils.env import get_google_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -110,15 +110,27 @@ def create_fallback_model(
 ) -> Model:
     """Create a FallbackModel with automatic fallback on 429 errors.
 
+    IMPORTANT: All sub-models have retries=0 to enable fast failover.
+    This means transient errors (network blips, temporary 500s) will trigger
+    fallback rather than retrying the same model. This is intentional to maximize
+    availability by quickly switching to alternative models.
+
     Args:
         primary_model: The primary model to use (can be model name string or Model instance)
         fallback_models: List of fallback models. If None, uses FALLBACK_MODELS + OpenRouter free models.
         include_openrouter: If True, automatically include free OpenRouter models in fallback list.
         modality: Model modality required. Options: "text", "vision", "any".
                   For media enrichment use "vision", for text use "text".
+        use_google_batch: If True, use GoogleBatchModel for Google models (experimental)
 
     Returns:
         A FallbackModel that will automatically fall back on API errors.
+        Sub-models are wrapped with RateLimitedModel and have retries=0 for fast failover.
+
+    Note:
+        The retries=0 configuration means that any API error will immediately
+        trigger fallback to the next model rather than retrying. This optimizes
+        for availability over retry persistence.
 
     Example:
         >>> model = create_fallback_model("google-gla:gemini-2.0-flash")
@@ -154,8 +166,8 @@ def create_fallback_model(
             return model_def
 
         model: Model
-        # When using FallbackModel, we must disable internal SDK retries on the sub-models
-        # so they fail fast (e.g. on 429) and trigger the FallbackModel logic.
+        # Set retries=0 on sub-models for fast failover (see function docstring)
+        # This allows FallbackModel to quickly try alternative models on any error
         if isinstance(model_def, Model):
             model = model_def
         elif isinstance(model_def, str):
@@ -189,10 +201,8 @@ def create_fallback_model(
 
         return RateLimitedModel(model)
 
-    # Prepare models
-    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY required for fallback")
+    # Prepare models - get API key for batch models
+    api_key = get_google_api_key()
 
     # 1. Prepare Primary
     primary: Model
