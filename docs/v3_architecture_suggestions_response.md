@@ -6,14 +6,14 @@
 
 ## Summary
 
-After reviewing the suggested architectural refinements for V3, we've **agreed to adopt 5 out of 6 suggestions** with modifications:
+After reviewing the suggested architectural refinements for V3, we've **agreed to adopt 4 out of 6 suggestions** with modifications:
 
 | Suggestion | Status | Notes |
 |-----------|--------|-------|
 | 1. Async-Native Core | ✅ **Already in plan** | Phase 3 already uses async generators. Docs needed consistency fixes. |
 | 2. Registry Pattern for ContentLibrary | ✅ **Adopt** | Enable dynamic repository registration for plugins |
 | 3. ~~Middleware~~ **Graph-Based Pipeline** | ✅ **Adopt Graph instead** | Pydantic AI Graph > linear middleware (Yahoo Pipes inspiration) |
-| 4. Window to Core Domain | ⚠️ **Partially adopt** | Move `Window` type to Core, keep `WindowingEngine` in Pipeline |
+| 4. Window to Core Domain | ❌ **Rejected** | Unnecessary - Graph + Feed + `abatch()` are sufficient |
 | 5. Composition over Inheritance | ⚠️ **Explore simpler approach** | Problem is real, but solution may be over-engineered |
 | 6. State Backend Protocol | ✅ **Adopt** | Separate content storage from pipeline state |
 
@@ -101,24 +101,37 @@ class EgregoraPipeline:
 
 ---
 
-### ⚠️ 4. Window to Core Domain (Partially)
+### ❌ 4. Window to Core Domain (Rejected - Unnecessary)
 
 **Original Suggestion:** Move `Window` definitions from Pipeline layer to Core layer.
 
-**Rationale:** If `WriterAgent` needs to maintain state across windows, it needs to understand what a `Window` is. Type hints would require Core to know about `Window`.
+**Counter-Analysis:** `Window` is **unnecessary complexity** in graph-based V3.
 
-**Our Refinement:**
-- ✅ Move `Window` **type** to Core (domain concept)
-- ❌ Keep `WindowingEngine` in Pipeline (strategy implementation)
+**Why Window is Redundant:**
+1. **Feed** already groups entries semantically (collection abstraction)
+2. **`abatch()` utility** handles mechanical batching (efficiency)
+3. **Graph structure** handles logical grouping (routing/filtering)
+4. **DAG** naturally expresses complex grouping scenarios
 
-**Why:**
-- `Window` is a domain concept (like `Entry` or `Document`)
-- `WindowingEngine` is orchestration logic (belongs in Pipeline)
-- Agents need to type-hint against `Window`, not create them
+**What Window tried to solve:**
+- Batch N entries → **`abatch(entries, N)`** (simpler)
+- Group by time → **Graph node filters** (more flexible)
+- Group by topic → **Multiple graph branches** (clearer)
+- Overlapping groups → **DAG with shared nodes** (more powerful)
 
-**Verdict:** ⚠️ Partially adopt. Move type only, not engine.
+**Example - No Window Needed:**
+```python
+# Instead of WindowingEngine:
+async def _write_node(self, entries: AsyncIterator[Entry], ctx):
+    """Writer batches internally as needed."""
+    async for batch in abatch(entries, ctx.config.posts_per_batch):
+        doc = await ctx.writer_agent.run(batch)  # batch IS the "window"
+        yield doc
+```
 
-**Action:** Add `Window` to `src/egregora_v3/core/types.py` in Phase 1.
+**Verdict:** ❌ Window abstraction removed entirely from V3.
+
+**Action:** Removed from plan. Graph + Feed + `abatch()` are sufficient.
 
 ---
 
@@ -207,7 +220,6 @@ This makes V3's architecture clearer: we're reviving the composable feed process
 ## Implementation Plan
 
 ### Phase 1 Additions (Core Foundation)
-- [ ] Add `Window` type to Core
 - [ ] Implement dynamic repository registry for ContentLibrary
 - [ ] Explore metadata filtering approach for internal state
 

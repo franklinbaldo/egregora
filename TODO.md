@@ -147,7 +147,7 @@
 
 #### WriterAgent
 - [ ] Implement `WriterAgent` with async generator pattern - [Plan:534-570](docs/v3_development_plan.md#L534-L570)
-  - [ ] Aggregate N entries into one post (window_size configurable)
+  - [ ] Aggregate N entries into one post (batch_size configurable)
   - [ ] Use Pydantic-AI with `result_type=Document` for structured output
   - [ ] Render prompts from Jinja2 templates
   - [ ] Stream generated documents as ready
@@ -230,16 +230,7 @@
 - [ ] Implement `afilter()` - Filter async stream - [Plan:918-926](docs/v3_development_plan.md#L918-L926)
 - [ ] Implement `atake()` - Take first N items from stream - [Plan:928-938](docs/v3_development_plan.md#L928-L938)
 
-### 4.2 Windowing Engine
-
-**Reference:** [Plan:948-958](docs/v3_development_plan.md#L948-L958)
-
-- [ ] Implement `WindowingEngine` - [Plan:951-957](docs/v3_development_plan.md#L951-L957)
-  - [ ] Time-based windowing strategy
-  - [ ] Count-based windowing strategy
-  - [ ] Semantic windowing strategy
-
-### 4.3 Pipeline Runner
+### 4.2 Pipeline Runner
 
 **Reference:** [Plan:808-873](docs/v3_development_plan.md#L808-L873)
 
@@ -248,7 +239,7 @@
 - [ ] Implement multi-format publishing - [Plan:857-873](docs/v3_development_plan.md#L857-L873)
 - [ ] Create `PipelineRunner` class - [Plan:961-985](docs/v3_development_plan.md#L961-L985)
 
-### 4.4 CLI
+### 4.3 CLI
 
 **Reference:** [Plan:987-1009](docs/v3_development_plan.md#L987-L1009)
 
