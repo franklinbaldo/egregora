@@ -1,6 +1,6 @@
 """Tests for Atom XML feed export (RFC 4287)."""
-from datetime import UTC, datetime
 import xml.etree.ElementTree as ET
+from datetime import UTC, datetime
 
 from egregora_v3.core.types import (
     Author,

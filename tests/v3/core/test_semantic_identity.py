@@ -1,5 +1,4 @@
 """Tests for semantic identity with slugs (Phase 1.5)."""
-import pytest
 from egregora_v3.core.types import Document, DocumentType
 
 
@@ -93,6 +92,19 @@ def test_empty_slug_fallback_to_uuid():
 
     # Should use UUID since slug is empty
     assert len(doc.id) == 36
+
+
+def test_empty_title_without_slug_falls_back_to_uuid():
+    """Empty titles without slugs should fall back to UUID."""
+    doc = Document.create(
+        content="Content",
+        doc_type=DocumentType.POST,
+        title="",
+        slug=None,
+    )
+
+    assert len(doc.id) == 36
+    assert "slug" not in doc.internal_metadata
 
 
 def test_id_override_takes_precedence():

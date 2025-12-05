@@ -1,17 +1,13 @@
+import builtins
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, List
-from uuid import UUID
 
 from egregora_v3.core.ports import (
     Agent,
     DocumentRepository,
     InputAdapter,
-    LLMModel,
     OutputSink,
-    UrlConvention,
-    VectorStore,
 )
 from egregora_v3.core.types import Document, DocumentType, Entry, Feed
 
@@ -25,15 +21,15 @@ class MockRepo(DocumentRepository):
     def save(self, doc: Document) -> Document: return doc
     def get(self, doc_id: str) -> Document | None: return None
     # Updated signature to list by kwargs
-    def list(self, *, doc_type: DocumentType | None = None) -> List[Document]: return []
+    def list(self, *, doc_type: DocumentType | None = None) -> list[Document]: return []
     def exists(self, doc_id: str) -> bool: return False
 
     def save_entry(self, item: Entry) -> None: pass
     def get_entry(self, item_id: str) -> Entry | None: return None
-    def get_entries_by_source(self, source_id: str) -> List[Entry]: return []
+    def get_entries_by_source(self, source_id: str) -> builtins.list[Entry]: return []
 
 class MockAgent(Agent):
-    def process(self, entries: List[Entry]) -> List[Document]:
+    def process(self, entries: list[Entry]) -> list[Document]:
         return [Document.create(content="generated", doc_type=DocumentType.POST, title="Gen")]
 
 class MockOutputSink(OutputSink):

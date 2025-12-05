@@ -1,4 +1,8 @@
-name: Demo Blog (Auto-Deploy)
+name: Demo Blog (DEPRECATED - Integrated into pages.yml)
+
+# DEPRECATED: This workflow has been integrated into pages.yml
+# The demo blog is now built and deployed together with the main documentation
+# Keeping this file for reference but it will never trigger
 
 # Security: Limit permissions to minimum required for deployment
 permissions:
@@ -12,15 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 on:
-  # Rebuild demo on every push to main
-  push:
-    branches: [main]
-
-  # Nightly rebuild to catch regressions
-  schedule:
-    - cron: '0 2 * * *'  # 2 AM UTC daily
-
-  # Allow manual trigger from Actions UI
+  # Disabled - only manual trigger available for testing/reference
   workflow_dispatch:
 
 jobs:

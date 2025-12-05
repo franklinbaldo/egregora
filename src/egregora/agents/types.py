@@ -68,14 +68,22 @@ class WriterResources:
 
 @dataclass(frozen=True)
 class WriterDeps:
-    """Immutable dependencies passed to agent tools."""
+    """Immutable dependencies passed to agent tools.
+
+    Note:
+        - table and config are reserved for future dynamic system prompt use
+        - conversation_xml, active_authors, and adapter fields are pre-calculated
+          to avoid expensive recomputation during agent execution
+        - All fields with default values are safe to access without null checks
+    """
 
     resources: WriterResources
     window_start: datetime
     window_end: datetime
     window_label: str
     model_name: str
-    # Added for dynamic system prompts
+    # Reserved for future dynamic system prompt expansion
+    # If used in system prompts, add appropriate null checks
     table: Table | None = None
     config: EgregoraConfig | None = None
     # Pre-calculated context parts that are expensive or needed for signature

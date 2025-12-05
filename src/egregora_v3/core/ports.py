@@ -1,6 +1,7 @@
+import builtins
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, List, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from egregora_v3.core.types import Document, DocumentType, Entry, Feed, Link
 
@@ -20,20 +21,19 @@ class DocumentRepository(Protocol):
     # Documents
     def save(self, doc: Document) -> Document: ...
     def get(self, doc_id: str) -> Document | None: ...
-    def list(self, *, doc_type: DocumentType | None = None) -> List[Document]: ...
+    def list(self, *, doc_type: DocumentType | None = None) -> list[Document]: ...
     def exists(self, doc_id: str) -> bool: ...
 
     # Entries (Input)
     def save_entry(self, entry: Entry) -> None: ...
     def get_entry(self, entry_id: str) -> Entry | None: ...
-    def get_entries_by_source(self, source_id: str) -> List[Entry]: ...
+    def get_entries_by_source(self, source_id: str) -> builtins.list[Entry]: ...
 
 
 @runtime_checkable
 class MediaStore(Protocol):
     def upload(self, data: bytes, mime_type: str) -> Link:
-        """
-        Uploads binary data and returns a Link with href/type/length.
+        """Uploads binary data and returns a Link with href/type/length.
         href can be a local path, HTTP URL, or custom scheme (e.g. s3://...).
         """
         ...
@@ -49,7 +49,7 @@ class WorkspaceService(Protocol):
         self,
         collection_id: str,
         doc_type: DocumentType | None = None,
-    ) -> List[Document]: ...
+    ) -> list[Document]: ...
 
 
 @runtime_checkable
@@ -64,8 +64,7 @@ class WorkspaceServiceWithMedia(WorkspaceService, Protocol):
         title: str,
         alt_text: str | None = None,
     ) -> Document:
-        """
-        1. Uploads binary via MediaStore.
+        """1. Uploads binary via MediaStore.
         2. Creates a Document(doc_type=MEDIA) with link rel="enclosure".
         3. Persists in the configured collection.
         """
@@ -76,11 +75,11 @@ class WorkspaceServiceWithMedia(WorkspaceService, Protocol):
 class VectorStore(Protocol):
     """Manages vector embeddings for Documents (RAG)."""
 
-    def add(self, docs: List[Document]) -> None:
+    def add(self, docs: list[Document]) -> None:
         """Embeds and indexes documents."""
         ...
 
-    def search(self, query: str, k: int = 5, filter_type: DocumentType | None = None) -> List[Document]:
+    def search(self, query: str, k: int = 5, filter_type: DocumentType | None = None) -> list[Document]:
         """Semantic search."""
         ...
 
@@ -92,11 +91,11 @@ class LLMModel(Protocol):
     Wraps pydantic-ai.Agent or other engines.
     """
 
-    def generate(self, prompt: str, system_prompt: str | None = None, tools: List[Any] | None = None) -> str:
+    def generate(self, prompt: str, system_prompt: str | None = None, tools: list[Any] | None = None) -> str:
         """Generates text completion synchronously."""
         ...
 
-    def embed(self, text: str) -> List[float]:
+    def embed(self, text: str) -> list[float]:
         """Generates vector embedding synchronously."""
         ...
 
@@ -105,7 +104,7 @@ class LLMModel(Protocol):
 class Agent(Protocol):
     """Cognitive Agent that processes Entries into Documents."""
 
-    def process(self, entries: List[Entry]) -> List[Document]:
+    def process(self, entries: list[Entry]) -> list[Document]:
         """Processes a batch of entries (e.g. a window of chat messages) and produces derived Documents.
 
         Example: Post, Journal entry.

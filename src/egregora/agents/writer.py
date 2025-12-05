@@ -211,9 +211,9 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
                 return cached
 
         # Execute RAG search
-        # Reset backend to ensure it attaches to the new event loop created by asyncio.run
-        # NOTE: No longer switching loops so explicit reset might not be needed, but harmless.
-        # reset_backend()
+        # NOTE: reset_backend() not strictly needed in sync mode but included as defensive
+        # programming to clear any loop-bound clients from previous async operations
+        reset_backend()
 
         request = RAGQueryRequest(text=query_text, top_k=top_k)
         response = search(request)
@@ -337,21 +337,25 @@ def _build_writer_context(  # noqa: PLR0913
     messages_table = table_with_str_uuids.to_pyarrow()
     conversation_xml = build_conversation_xml(messages_table, resources.annotations_store)
 
-    # Note: RAG and Profiles context building moved to dynamic system prompts,
-    # but we still placeholders here if needed, or we rely on them being empty strings in static prompt
-    # and injected dynamically.
-    # However, signature calculation (which uses this context) should ideally include RAG/Profile context
-    # if we want cache invalidation when RAG/Profiles change.
-    # BUT, the user instruction implies we want to lazy load them.
-    # If we lazy load, we can't include them in the signature computed BEFORE the run.
-    # This is a trade-off. We accept that signature doesn't cover dynamic RAG/Profile context,
-    # or we accept that we only check signature for the *static* part.
-    # Given the previous implementation DID include them, removing them from signature might result in stale cache
-    # if RAG results change but conversation doesn't.
-    # For now, we will leave them empty here to satisfy the requirement of "Move Context Building to Dynamic System Prompts".
+    # CACHE INVALIDATION STRATEGY:
+    # RAG and Profiles context building moved to dynamic system prompts for lazy evaluation.
+    # This creates a cache trade-off:
+    #
+    # Trade-off: Cache signature includes conversation XML but NOT RAG/Profile results
+    # - Pro: Avoids expensive RAG/Profile computation for signature calculation
+    # - Con: Cache hit may use stale data if RAG index changes but conversation doesn't
+    #
+    # Mitigation strategies (not currently implemented):
+    # 1. Include RAG index version/timestamp in signature
+    # 2. Add cache TTL for RAG-enabled runs
+    # 3. Manual cache invalidation when RAG index is updated
+    #
+    # Current behavior: Cache is conversation-scoped only. If RAG data changes
+    # but conversation is identical, cached results will be used.
+    # This is acceptable for most use cases where conversation changes drive cache invalidation.
 
-    rag_context = "" # Dynamically injected
-    profiles_context = "" # Dynamically injected
+    rag_context = ""  # Dynamically injected via @agent.system_prompt
+    profiles_context = ""  # Dynamically injected via @agent.system_prompt
 
     journal_memory = load_journal_memory(resources.output)
     active_authors = get_active_authors(table_with_str_uuids)
@@ -893,9 +897,9 @@ def _index_new_content_in_rag(
     except (OSError, PermissionError) as exc:
         logger.warning("Cannot access RAG storage, skipping indexing: %s", exc)
     finally:
-        # CRITICAL: Reset backend to clear loop-bound clients (httpx)
-        # preventing "bound to different event loop" errors in next window
-        # Reset backend not needed in sync mode, but good practice
+        # Reset backend to clear loop-bound clients (httpx) as defensive programming
+        # NOTE: Not strictly needed in sync mode but prevents potential issues
+        # if async operations are added in the future or called from async contexts
         reset_backend()
 
 
