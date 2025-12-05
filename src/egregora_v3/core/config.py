@@ -3,6 +3,7 @@ from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ModelSettings(BaseModel):
@@ -69,20 +70,40 @@ class PipelineSettings(BaseModel):
     max_tokens: int = 100_000
 
 
-class EgregoraConfig(BaseModel):
-    """Root configuration for Egregora V3."""
+class EgregoraConfig(BaseSettings):
+    """Root configuration for Egregora V3.
+
+    Supports environment variable overrides with the pattern:
+    EGREGORA_SECTION__KEY (e.g., EGREGORA_MODELS__WRITER)
+    """
 
     models: ModelSettings = Field(default_factory=ModelSettings)
     paths: PathsSettings = Field(default_factory=PathsSettings)
     pipeline: PipelineSettings = Field(default_factory=PipelineSettings)
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = SettingsConfigDict(
+        extra="ignore",
+        env_prefix="EGREGORA_",
+        env_nested_delimiter="__",
+    )
 
     @classmethod
     def load(cls, site_root: Path) -> "EgregoraConfig":
-        """Loads configuration from .egregora/config.yml in the site_root.
+        """Loads configuration from .egregora/config.yml and environment variables.
 
-        Uses ConfigLoader to handle file loading and env var overrides.
+        Uses ConfigLoader to handle YAML file loading. Environment variables
+        automatically override file values via Pydantic Settings.
+
+        Priority (highest to lowest):
+        1. Environment variables (EGREGORA_SECTION__KEY)
+        2. Config file (.egregora/config.yml)
+        3. Defaults
+
+        Returns:
+            EgregoraConfig: Fully loaded and validated configuration.
+
+        Raises:
+            ValueError: If config file exists but contains invalid YAML.
         """
         from egregora_v3.core.config_loader import ConfigLoader
 
