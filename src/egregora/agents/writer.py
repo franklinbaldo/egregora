@@ -68,7 +68,6 @@ from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.utils.cache import CacheTier, PipelineCache
 from egregora.utils.metrics import UsageTracker
-from egregora.utils.quota import QuotaExceededError
 
 if TYPE_CHECKING:
     from egregora.data_primitives.protocols import OutputSink
@@ -712,7 +711,7 @@ def write_posts_with_pydantic_agent(
         deps_type=WriterDeps,
         # Allow a few validation retries so transient schema hiccups don't abort the run
         retries=3,
-        system_prompt=prompt, # Static instructions
+        system_prompt=prompt,  # Static instructions
     )
     register_writer_tools(agent, capabilities=active_capabilities)
 
@@ -726,7 +725,7 @@ def write_posts_with_pydantic_agent(
             return build_rag_context_for_prompt(
                 table_markdown,
                 top_k=ctx.deps.resources.retrieval_config.top_k,
-                cache=None, # Cache not available inside system prompt easily, or we could pass it if we attached it to Deps
+                cache=None,  # Cache not available inside system prompt easily, or we could pass it if we attached it to Deps
             )
         return ""
 
@@ -738,9 +737,11 @@ def write_posts_with_pydantic_agent(
     if context.resources.quota:
         context.resources.quota.reserve(1)
 
-        # Should be unreachable due to reraise=True
-        msg = "Agent failed after retries"
-        raise RuntimeError(msg)
+    # Define usage limits
+    usage_limits = UsageLimits(
+        request_limit=15,  # Reasonable limit for tool loops
+        # response_tokens_limit=... # Optional
+    )
 
     result = None
     # Use tenacity for retries
@@ -750,12 +751,13 @@ def write_posts_with_pydantic_agent(
             result = agent.run_sync(
                 "Analyze the conversation context provided and write posts/profiles as needed.",
                 deps=context,
-                usage_limits=usage_limits
+                usage_limits=usage_limits,
             )
 
     if not result:
-         # Should be unreachable due to reraise=True
-        raise RuntimeError("Agent failed after retries")
+        # Should be unreachable due to reraise=True
+        msg = "Agent failed after retries"
+        raise RuntimeError(msg)
 
     usage = result.usage()
     if context.resources.usage:
@@ -1078,7 +1080,9 @@ def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
     )
 
     # 3. Check L3 cache
-    cached_result = _check_writer_cache(cache, signature, f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}", resources.usage)
+    cached_result = _check_writer_cache(
+        cache, signature, f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}", resources.usage
+    )
     if cached_result:
         return cached_result
 
@@ -1095,7 +1099,7 @@ def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
         conversation_xml=writer_context.conversation_xml,
         active_authors=writer_context.active_authors,
         adapter_content_summary=adapter_content_summary,
-        adapter_generation_instructions=adapter_generation_instructions
+        adapter_generation_instructions=adapter_generation_instructions,
     )
 
     # 5. Render prompt and execute agent

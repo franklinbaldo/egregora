@@ -203,7 +203,7 @@ class EnrichmentWorker(BaseWorker):
 
                 tasks_data.append({"task": task, "url": url, "prompt": prompt})
             except Exception as e:
-                logger.error("Failed to prepare URL task %s: %s", task["task_id"], e)
+                logger.exception("Failed to prepare URL task %s: %s", task["task_id"], e)
                 self.task_store.mark_failed(task["task_id"], f"Preparation failed: {e!s}")
 
         if not tasks_data:
@@ -231,7 +231,7 @@ class EnrichmentWorker(BaseWorker):
                     results.append(result)
                 except Exception as e:
                     task = future_to_task[future]["task"]
-                    logger.error("Enrichment failed for %s: %s", task["task_id"], e)
+                    logger.exception("Enrichment failed for %s: %s", task["task_id"], e)
                     results.append((task, None, str(e)))
 
         # Process results and create documents
@@ -275,7 +275,7 @@ class EnrichmentWorker(BaseWorker):
 
                 self.task_store.mark_completed(task["task_id"])
             except Exception as e:
-                logger.error("Failed to persist enrichment for %s: %s", task["task_id"], e)
+                logger.exception("Failed to persist enrichment for %s: %s", task["task_id"], e)
                 self.task_store.mark_failed(task["task_id"], f"Persistence error: {e!s}")
 
         # Insert rows into DB
@@ -284,7 +284,7 @@ class EnrichmentWorker(BaseWorker):
                 self.ctx.storage.ibis_conn.insert("messages", new_rows)
                 logger.info("Inserted %d enrichment rows", len(new_rows))
             except Exception as e:
-                logger.error("Failed to insert enrichment rows: %s", e)
+                logger.exception("Failed to insert enrichment rows: %s", e)
 
         return len(results)
 
@@ -303,7 +303,7 @@ class EnrichmentWorker(BaseWorker):
             result = agent.run_sync(prompt)
             return task, result.output, None
         except Exception as e:
-            logger.error("Failed to enrich URL %s: %s", url, e)
+            logger.exception("Failed to enrich URL %s: %s", url, e)
             return task, None, str(e)
 
     def _process_media_batch(self, tasks: list[dict[str, Any]]) -> int:
@@ -362,7 +362,7 @@ class EnrichmentWorker(BaseWorker):
                 task_map[tag] = task
 
             except Exception as e:
-                logger.error("Failed to prepare media task %s: %s", task["task_id"], e)
+                logger.exception("Failed to prepare media task %s: %s", task["task_id"], e)
                 self.task_store.mark_failed(task["task_id"], str(e))
 
         if not requests:
@@ -372,14 +372,15 @@ class EnrichmentWorker(BaseWorker):
         model_name = self.ctx.config.models.enricher_vision
         api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if not api_key:
-            raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment")
+            msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment"
+            raise ValueError(msg)
         model = GoogleBatchModel(api_key=api_key, model_name=model_name)
 
         try:
             # Use asyncio.run to execute the async batch method synchronously
             results = asyncio.run(model.run_batch(requests))
         except Exception as e:
-            logger.error("Media enrichment batch failed: %s", e)
+            logger.exception("Media enrichment batch failed: %s", e)
             for t in tasks:
                 if t["task_id"] in task_map:
                     self.task_store.mark_failed(t["task_id"], f"Batch failed: {e!s}")
@@ -408,7 +409,8 @@ class EnrichmentWorker(BaseWorker):
                 markdown = data.get("markdown")
 
                 if not slug or not markdown:
-                    raise ValueError("Missing slug or markdown")
+                    msg = "Missing slug or markdown"
+                    raise ValueError(msg)
 
                 payload = task["_parsed_payload"]
                 filename = payload["filename"]
@@ -462,8 +464,8 @@ class EnrichmentWorker(BaseWorker):
                     content=markdown,
                     type=DocumentType.ENRICHMENT_MEDIA,
                     metadata=enrichment_metadata,
-                    id=slug_value, # Explicitly match media ID if possible, or just use slug
-                    parent_id=slug_value, # Link to the (now renamed) media
+                    id=slug_value,  # Explicitly match media ID if possible, or just use slug
+                    parent_id=slug_value,  # Link to the (now renamed) media
                 )
 
                 # V3 Architecture: Use ContentLibrary
@@ -481,7 +483,7 @@ class EnrichmentWorker(BaseWorker):
                 self.task_store.mark_completed(task["task_id"])
 
             except Exception as e:
-                logger.error("Failed to parse media result %s: %s", task["task_id"], e)
+                logger.exception("Failed to parse media result %s: %s", task["task_id"], e)
                 self.task_store.mark_failed(task["task_id"], f"Parse error: {e!s}")
 
         if new_rows:
@@ -489,7 +491,7 @@ class EnrichmentWorker(BaseWorker):
                 self.ctx.storage.ibis_conn.insert("messages", new_rows)
                 logger.info("Inserted %d media enrichment rows", len(new_rows))
             except Exception as e:
-                logger.error("Failed to insert media enrichment rows: %s", e)
+                logger.exception("Failed to insert media enrichment rows: %s", e)
 
         return len(results)
 

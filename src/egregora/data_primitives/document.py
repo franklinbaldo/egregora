@@ -123,7 +123,7 @@ class Document:
             # Do NOT call self.slug property here to avoid recursion fallback loop
             meta_slug = self.metadata.get("slug")
             if meta_slug and isinstance(meta_slug, str) and meta_slug.strip():
-                 return _slugify(meta_slug.strip(), max_len=60)
+                return _slugify(meta_slug.strip(), max_len=60)
 
         # 3. Fallback: Content-addressed UUIDv5
         if isinstance(self.content, bytes):

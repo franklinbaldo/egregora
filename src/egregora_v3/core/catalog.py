@@ -59,6 +59,7 @@ class ContentLibrary(BaseModel):
         logger.warning(f"Unknown document type {doc_type}, defaulting to posts repo")
         return self.posts
 
+
 # Legacy aliases for backward compatibility if needed,
 # but the instruction was to remove them.
 # We intentionally do NOT export Service/Workspace/Collection.

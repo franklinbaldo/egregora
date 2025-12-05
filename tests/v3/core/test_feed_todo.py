@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from xml.etree import ElementTree
+from xml.etree import ElementTree as ET
 
 from egregora_v3.core.types import (
     Document,
@@ -27,7 +27,7 @@ def test_feed_to_xml_exposes_doc_type_and_status_categories():
     )
 
     xml_output = feed.to_xml()
-    root = ElementTree.fromstring(xml_output)
+    root = ET.fromstring(xml_output)
     entry = root.find("{http://www.w3.org/2005/Atom}entry")
     assert entry is not None
 
@@ -59,10 +59,14 @@ def test_documents_to_feed_sorts_entries_newest_first():
     older.updated = datetime(2024, 1, 1, tzinfo=UTC)
     newer.updated = datetime(2024, 1, 2, tzinfo=UTC)
 
-    feed = documents_to_feed([
-        older,
-        newer,
-    ], feed_id="urn:egregora:feed:test", title="Test Feed")
+    feed = documents_to_feed(
+        [
+            older,
+            newer,
+        ],
+        feed_id="urn:egregora:feed:test",
+        title="Test Feed",
+    )
 
     assert feed.updated == newer.updated
     assert feed.entries[0].id == newer.id

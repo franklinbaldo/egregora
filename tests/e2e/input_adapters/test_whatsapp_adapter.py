@@ -230,7 +230,7 @@ def test_media_references_replaced_in_messages(
     table = adapter.parse(whatsapp_fixture.zip_path, timezone=whatsapp_fixture.timezone)
 
     # Create a dummy window for processing
-    window = Window(
+    Window(
         table=table,
         start_time=table["ts"].min().execute(),
         end_time=table["ts"].max().execute(),

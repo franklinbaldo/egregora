@@ -287,10 +287,6 @@ def _process_single_window(
     resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
 
-    print(f"DEBUG: Calling write_posts_for_window for {window_label}")
-    print(f"DEBUG: Enriched table rows: {enriched_table.count().execute()}")
-    print(f"DEBUG: Resources: {resources}")
-
     result = write_posts_for_window(
         table=enriched_table,
         window_start=window.start_time,

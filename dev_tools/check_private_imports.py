@@ -70,14 +70,8 @@ def main() -> int:
         all_errors.extend(check_private_imports(file_path))
 
     if all_errors:
-        print("❌ Private function anti-patterns detected:\n")
-        for error in all_errors:
-            print(f"  {error}")
-        print(f"\n{len(all_errors)} error(s) found.")
-        print("\nFix:")
-        print("  - Remove underscore prefix from public functions")
-        print("  - Don't export private functions in __all__")
-        print("  - Don't import private functions across modules")
+        for _error in all_errors:
+            pass
         return 1
 
     return 0
