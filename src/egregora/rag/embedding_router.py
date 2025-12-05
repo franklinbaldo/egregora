@@ -25,9 +25,11 @@ from typing import Annotated, Any
 
 import httpx
 
-from egregora.config import EMBEDDING_DIM, get_google_api_key
+from egregora.config import EMBEDDING_DIM
+from egregora.utils.env import get_google_api_key
 
 logger = logging.getLogger(__name__)
+
 
 # Constants
 GENAI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"

@@ -20,6 +20,19 @@ egregora write export.zip --from-date=2025-01-01 --to-date=2025-01-31
 egregora write export.zip --resume
 ```
 
+### Reader Agent (Ranking)
+The `read` command evaluates and ranks blog posts using the Reader Agent.
+
+```bash
+# Evaluate posts in a site
+egregora read ./my-blog
+
+# Show top 20 rankings
+egregora read ./my-blog --limit 20
+```
+
+**Note:** The `read` command requires the path to the **site root** (the directory containing `.egregora/config.yml`), not the posts directory itself. It automatically resolves the posts directory from the configuration.
+
 ### Multiple Input Sources
 ```bash
 # WhatsApp (default)
@@ -54,14 +67,16 @@ The default configuration is generated at `.egregora/config.yml`.
 
 ```yaml
 models:
+  # Agents use provider-prefixed IDs (pydantic-ai style)
   writer: google-gla:gemini-2.0-flash
   enricher: google-gla:gemini-2.0-flash
+
+  # API calls use direct Google GenAI IDs
   embedding: models/gemini-embedding-001
 
 rag:
   enabled: true
   top_k: 5
-  # Note: Retrieval mode is now handled automatically by LanceDB
 
 pipeline:
   step_size: 1
@@ -75,6 +90,8 @@ To override the default prompts, place Jinja2 templates in `.egregora/prompts/`.
 
 ## 📂 Output Structure
 
+When initialized, Egregora creates the following structure (scaffolded by `egregora init`):
+
 ```
 my-blog/
 ├── docs/
@@ -83,15 +100,16 @@ my-blog/
 │   ├── media/              # Enriched media descriptions
 │   ├── journal/            # Continuity journals
 │   └── index.md            # Home page
-├── .egregora/
+├── .egregora/              # Internal data & config
 │   ├── config.yml          # Local config
 │   ├── runs.duckdb         # Run tracking
 │   ├── lancedb/            # Vector embeddings (RAG)
-│   ├── enrichment.duckdb   # Asset metadata (L1 cache)
-│   ├── writer_cache.duckdb # Generated posts (L3 cache)
-│   └── checkpoint.json     # Resume state
-└── mkdocs.yml              # Site config
+│   ├── mkdocs.yml          # Real MkDocs config
+│   └── ...
+└── mkdocs.yml              # Symlink to .egregora/mkdocs.yml (for convenience)
 ```
+
+**Note on `mkdocs.yml`**: Egregora manages the real configuration in `.egregora/mkdocs.yml` to keep the root clean, but creates a symlink at the root so standard tools like `mkdocs serve` work out of the box.
 
 ---
 
@@ -116,7 +134,7 @@ Egregora uses a modular architecture designed for performance and flexibility.
 ### Data Flow
 
 1.  **Ingestion:** Raw data (e.g., WhatsApp ZIP) is parsed into structured tables.
-2.  **Privacy:** PII is redacted and authors are anonymized.
+2.  **Privacy:** PII is redacted and authors are anonymized (within the Adapter).
 3.  **Enrichment:** Media and links are analyzed by AI agents.
 4.  **RAG:** Content is indexed in LanceDB for historical context.
 5.  **Generation:** The Writer Agent synthesizes posts using the enriched context.

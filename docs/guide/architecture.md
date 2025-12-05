@@ -6,23 +6,21 @@ Egregora uses a **functional pipeline architecture** that processes conversation
 
 ```mermaid
 graph LR
-    A[Ingestion] --> B[Privacy]
-    B --> C[Enrichment]
-    C --> D[Generation]
-    D --> E[Publication]
-    C -.-> F[RAG Index]
-    F -.-> D
+    A[Ingestion + Privacy] --> B[Enrichment]
+    B --> C[Generation]
+    C --> D[Publication]
+    B -.-> E[RAG Index]
+    E -.-> C
 ```
 
 Egregora processes conversations through these stages:
 
-1. **Ingestion**: Input adapters parse exports into structured IR (Intermediate Representation)
-2. **Privacy**: Anonymize names with deterministic UUIDs
-3. **Enrichment**: Optionally enrich URLs and media with LLM descriptions
-4. **Generation**: Writer agent generates blog posts with RAG retrieval
-5. **Publication**: Output adapters persist to MkDocs site
+1. **Ingestion**: Input adapters parse exports into structured IR (Intermediate Representation) and apply privacy strategies.
+2. **Enrichment**: Optionally enrich URLs and media with LLM descriptions.
+3. **Generation**: Writer agent generates blog posts with RAG retrieval.
+4. **Publication**: Output adapters persist to MkDocs site.
 
-**Critical Invariant:** Privacy stage runs BEFORE any LLM processing.
+**Critical Invariant:** Privacy stage runs WITHIN the adapter, BEFORE any data enters the pipeline or reaches LLMs.
 
 ## Three-Layer Functional Architecture
 
@@ -69,9 +67,9 @@ src/egregora/
 │   ├── sql.py               # SQLManager (Jinja2 templates)
 │   └── init.py              # Database initialization
 ├── rag/                     # RAG implementation (Layer 2)
-│   ├── lancedb_backend.py   # LanceDB backend (async)
+│   ├── lancedb_backend.py   # LanceDB backend (sync)
 │   ├── embedding_router.py  # Dual-queue embedding router
-│   ├── embeddings_async.py  # Async embedding API
+│   ├── embeddings.py        # Embedding API
 │   ├── backend.py           # RAGBackend protocol
 │   └── models.py            # Pydantic models (RAGQueryRequest, etc.)
 ├── data_primitives/         # Layer 1
@@ -128,7 +126,7 @@ All adapters produce data conforming to `IR_MESSAGE_SCHEMA`.
 
 **Module:** `egregora.privacy`
 
-Ensures real names never reach the LLM.
+Ensures real names never reach the LLM. Privacy logic is integrated into the input adapters.
 
 **Key components:**
 
@@ -139,7 +137,7 @@ Ensures real names never reach the LLM.
 **Process:**
 
 1. Input adapter calls `deterministic_author_uuid()` during parsing
-2. Core pipeline validates anonymized IR
+2. Core pipeline receives anonymized IR
 3. LLM only sees UUIDs, never real names
 4. Reverse mapping stored locally (never sent to API)
 
@@ -153,7 +151,6 @@ Pure functional transformations on Ibis tables.
 
 - `create_windows()`: Group messages into time/count-based windows
 - `enrich_window()`: Add URL/media enrichments
-- `apply_privacy()`: Validate anonymization
 
 **Pattern:**
 
@@ -184,7 +181,7 @@ graph LR
 
 **Key features:**
 
-- Async API (`async def index_documents`, `async def search`)
+- **Synchronous API** (`index_documents`, `search`)
 - Dual-queue router: single endpoint (low-latency) + batch endpoint (high-throughput)
 - Automatic rate limit handling with exponential backoff
 - Asymmetric embeddings: `RETRIEVAL_DOCUMENT` vs `RETRIEVAL_QUERY`
@@ -207,12 +204,12 @@ rag:
 ```python
 from egregora.rag import index_documents, search, RAGQueryRequest
 
-# Index documents (async)
-await index_documents([doc1, doc2])
+# Index documents
+index_documents([doc1, doc2])
 
-# Search (async)
+# Search
 request = RAGQueryRequest(text="search query", top_k=5)
-response = await search(request)
+response = search(request)
 ```
 
 ## Agents
@@ -413,7 +410,7 @@ def transform(data: Table) -> Table:
 - **Batching**: Embeddings and enrichments are batched
 - **Caching**: Three-tier cache (L1: enrichment, L2: RAG, L3: writer)
 - **Vectorized**: DuckDB enables fast analytics
-- **Async RAG**: Full async API for embedding and search
+- **Concurrency**: ThreadPoolExecutor for I/O bound tasks
 
 ## Next Steps
 

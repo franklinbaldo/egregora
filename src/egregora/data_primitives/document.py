@@ -44,35 +44,37 @@ class DocumentType(Enum):
 class Document:
     r"""Content-addressed document produced by the pipeline.
 
-    Core abstraction for all generated content. The document ID is deterministic
-    based on content hash, enabling deduplication and cache invalidation.
+    Core abstraction for all generated content.
 
-    Output formats decide storage paths and filenames. Core has no opinions.
+    V3 CHANGE (2025-11-28): Adopts "Semantic Identity".
+    - Posts: ID = Slug
+    - Media: ID = Semantic Slug
+    - Others: ID = UUID (or specific logic)
 
     Examples:
-        >>> # Create a post document
+        >>> # Create a post document with semantic ID
         >>> doc = Document(
-        ...     content="# My Post\n\nContent...",
+        ...     content="# My Post...",
         ...     type=DocumentType.POST,
-        ...     metadata={"title": "My Post", "date": "2025-01-10", "slug": "my-post"},
+        ...     metadata={"slug": "my-post"},
         ... )
-        >>> doc.document_id  # Content-addressed ID
-        'abc123...'
+        >>> doc.document_id
+        'my-post'
 
-        >>> # Create enrichment with parent
-        >>> enrichment = Document(
-        ...     content="Article summary...",
-        ...     type=DocumentType.ENRICHMENT_URL,
-        ...     metadata={"url": "https://example.com"},
-        ...     parent_id="parent-doc-id",
+        >>> # Create a profile (still uses UUID)
+        >>> doc = Document(
+        ...     content="...",
+        ...     type=DocumentType.PROFILE,
+        ...     id="abc-123", # Explicit ID
         ... )
-        >>> enrichment.parent_id
-        'parent-doc-id'
+        >>> doc.document_id
+        'abc-123'
 
     Attributes:
         content: Markdown (str) or binary (bytes) content of the document
         type: Type of document (post, profile, journal, enrichment, media)
         metadata: Format-agnostic metadata (title, date, author, etc.)
+        id: Explicit ID override (Semantic Identity)
         parent_id: Document ID of parent (for enrichments)
         parent: Optional in-memory parent Document reference
         created_at: Timestamp when document was created
@@ -88,6 +90,9 @@ class Document:
     # Metadata (format-agnostic)
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    # V3: Explicit ID (Semantic Identity)
+    id: str | None = field(default=None)
+
     # Parent relationship (for enrichments)
     parent_id: str | None = None
     parent: Document | None = field(default=None, repr=False, compare=False)
@@ -101,28 +106,26 @@ class Document:
 
     @property
     def document_id(self) -> str:
-        """UUID v5 of content hash. Deterministic and deduplicatable.
+        """Return the document's stable identifier.
 
-        The document ID is computed from a SHA256 hash of the content,
-        which is then used to generate a UUID v5. This ensures:
-
-        1. Same content → same ID (deduplication)
-        2. Content changes → ID changes (cache invalidation)
-        3. Reproducibility across runs
-
-        Returns:
-            36-character UUID string
-
-        Examples:
-            >>> doc1 = Document(content="Hello", type=DocumentType.POST)
-            >>> doc2 = Document(content="Hello", type=DocumentType.POST)
-            >>> doc1.document_id == doc2.document_id
-            True
-            >>> doc3 = Document(content="World", type=DocumentType.POST)
-            >>> doc1.document_id == doc3.document_id
-            False
-
+        Strategy (V3):
+        1. Explicit ID (self.id)
+        2. Semantic Slug (for POST/MEDIA if present)
+        3. Content-based UUIDv5 (Fallback)
         """
+        # 1. Explicit ID
+        if self.id:
+            return self.id
+
+        # 2. Semantic Identity (Slug)
+        # Only for Posts and Media, as per V3 spec
+        if self.type in (DocumentType.POST, DocumentType.MEDIA):
+            # Do NOT call self.slug property here to avoid recursion fallback loop
+            meta_slug = self.metadata.get("slug")
+            if meta_slug and isinstance(meta_slug, str) and meta_slug.strip():
+                 return _slugify(meta_slug.strip(), max_len=60)
+
+        # 3. Fallback: Content-addressed UUIDv5
         if isinstance(self.content, bytes):
             payload = self.content
         else:
@@ -138,26 +141,22 @@ class Document:
             cleaned = _slugify(slug_value.strip(), max_len=60)
             if cleaned:
                 return cleaned
-        return self.document_id[:8]
+
+        # Fallback: if we have an explicit ID, use it (it might be a slug)
+        if self.id:
+            return self.id
+
+        # Fallback: calculate hash-based ID and take first 8 chars
+        # We manually calculate UUID to avoid recursion
+        if isinstance(self.content, bytes):
+            payload = self.content
+        else:
+            payload = self.content.encode("utf-8")
+        content_hash = hashlib.sha256(payload).hexdigest()
+        return str(uuid5(NAMESPACE_DOCUMENT, content_hash))[:8]
 
     def with_parent(self, parent: Document | str) -> Document:
-        """Return new document with parent relationship.
-
-        Useful for creating enrichments that reference parent media.
-
-        Args:
-            parent: Parent Document instance or ID string
-
-        Returns:
-            New Document instance with parent_id set
-
-        Examples:
-            >>> doc = Document(content="...", type=DocumentType.ENRICHMENT_URL)
-            >>> enrichment = doc.with_parent("media-doc-id")
-            >>> enrichment.parent_id
-            'media-doc-id'
-
-        """
+        """Return new document with parent relationship."""
         parent_id = parent.document_id if isinstance(parent, Document) else parent
         parent_obj = parent if isinstance(parent, Document) else self.parent
         cls = self.__class__
@@ -165,6 +164,7 @@ class Document:
             content=self.content,
             type=self.type,
             metadata=self.metadata.copy(),
+            id=self.id,
             parent_id=parent_id,
             parent=parent_obj,
             created_at=self.created_at,
@@ -173,25 +173,7 @@ class Document:
         )
 
     def with_metadata(self, **updates: Any) -> Document:
-        """Return new document with updated metadata.
-
-        Args:
-            **updates: Metadata fields to update
-
-        Returns:
-            New Document instance with updated metadata
-
-        Examples:
-            >>> doc = Document(
-            ...     content="...",
-            ...     type=DocumentType.POST,
-            ...     metadata={"title": "Original"},
-            ... )
-            >>> updated = doc.with_metadata(title="Updated", author="Alice")
-            >>> updated.metadata["title"]
-            'Updated'
-
-        """
+        """Return new document with updated metadata."""
         new_metadata = self.metadata.copy()
         new_metadata.update(updates)
         cls = self.__class__
@@ -199,6 +181,7 @@ class Document:
             content=self.content,
             type=self.type,
             metadata=new_metadata,
+            id=self.id,
             parent_id=self.parent_id,
             parent=self.parent,
             created_at=self.created_at,
@@ -209,106 +192,33 @@ class Document:
 
 @dataclass
 class DocumentCollection:
-    """Batch of documents produced by a single operation (e.g., one window).
-
-    Collections group related documents and provide filtering/querying methods.
-
-    Examples:
-        >>> docs = [
-        ...     Document(content="Post 1", type=DocumentType.POST),
-        ...     Document(content="Post 2", type=DocumentType.POST),
-        ...     Document(content="Profile", type=DocumentType.PROFILE),
-        ... ]
-        >>> collection = DocumentCollection(documents=docs, window_label="2025-01-10")
-        >>> posts = collection.by_type(DocumentType.POST)
-        >>> len(posts)
-        2
-
-    Attributes:
-        documents: List of documents in this collection
-        window_label: Optional label for the window that produced these documents
-
-    """
+    """Batch of documents produced by a single operation (e.g., one window)."""
 
     documents: list[Document]
     window_label: str | None = None
 
     def by_type(self, doc_type: DocumentType) -> list[Document]:
-        """Filter documents by type.
-
-        Args:
-            doc_type: Type of documents to filter
-
-        Returns:
-            List of documents matching the type
-
-        Examples:
-            >>> collection.by_type(DocumentType.POST)
-            [Document(...), Document(...)]
-
-        """
         return [doc for doc in self.documents if doc.type == doc_type]
 
     def find_children(self, parent_id: str) -> list[Document]:
-        """Find all documents with given parent.
-
-        Useful for finding enrichments associated with a media file.
-
-        Args:
-            parent_id: Document ID of parent
-
-        Returns:
-            List of documents with matching parent_id
-
-        Examples:
-            >>> enrichments = collection.find_children("media-doc-id")
-            >>> all(e.parent_id == "media-doc-id" for e in enrichments)
-            True
-
-        """
         return [doc for doc in self.documents if doc.parent_id == parent_id]
 
     def find_by_id(self, document_id: str) -> Document | None:
-        """Find document by ID.
-
-        Args:
-            document_id: Document ID to search for
-
-        Returns:
-            Document if found, None otherwise
-
-        """
         for doc in self.documents:
             if doc.document_id == document_id:
                 return doc
         return None
 
     def __len__(self) -> int:
-        """Return number of documents in collection."""
         return len(self.documents)
 
     def __iter__(self) -> Iterator[Document]:
-        """Iterate over documents."""
         return iter(self.documents)
 
 
 @dataclass(frozen=True, slots=True)
 class MediaAsset(Document):
-    r"""Specialized Document for binary media assets managed by the pipeline.
-
-    MediaAsset is a Document subclass for binary content (images, videos, audio).
-    It inherits all Document behavior but is semantically distinct.
-
-    Examples:
-        >>> media = MediaAsset(
-        ...     content=b"\x89PNG...",  # Binary image data
-        ...     type=DocumentType.MEDIA,
-        ...     metadata={"filename": "photo.jpg", "mime_type": "image/jpeg"},
-        ... )
-        >>> isinstance(media, Document)
-        True
-
-    """
+    r"""Specialized Document for binary media assets managed by the pipeline."""
 
     def __post_init__(self) -> None:
         if self.type != DocumentType.MEDIA:

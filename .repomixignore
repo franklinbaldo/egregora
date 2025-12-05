@@ -1,9 +1,7 @@
 # Repomix ignore file
-# Exclude documentation, distribution, and test directories
+# Exclude distribution directories and local Claude metadata
 .claude/
-docs/
 dist/
-tests/
 
 GEMINI.md
 AGENTS.md
@@ -63,8 +61,4 @@ temp/
 *.eot
 
 # Documentation that may be too large
-CHANGELOG.md
 CONTRIBUTING.md
-LICENSE
-README.md
-uv.lock

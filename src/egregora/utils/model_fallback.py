@@ -10,8 +10,8 @@ from pydantic_ai.exceptions import ModelAPIError, UsageLimitExceeded
 from pydantic_ai.models import Model
 from pydantic_ai.models.fallback import FallbackModel
 
-from egregora.config.settings import get_google_api_key
 from egregora.models import GoogleBatchModel
+from egregora.utils.env import get_google_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -110,15 +110,27 @@ def create_fallback_model(
 ) -> Model:
     """Create a FallbackModel with automatic fallback on 429 errors.
 
+    IMPORTANT: All sub-models have retries=0 to enable fast failover.
+    This means transient errors (network blips, temporary 500s) will trigger
+    fallback rather than retrying the same model. This is intentional to maximize
+    availability by quickly switching to alternative models.
+
     Args:
         primary_model: The primary model to use (can be model name string or Model instance)
         fallback_models: List of fallback models. If None, uses FALLBACK_MODELS + OpenRouter free models.
         include_openrouter: If True, automatically include free OpenRouter models in fallback list.
         modality: Model modality required. Options: "text", "vision", "any".
                   For media enrichment use "vision", for text use "text".
+        use_google_batch: If True, use GoogleBatchModel for Google models (experimental)
 
     Returns:
         A FallbackModel that will automatically fall back on API errors.
+        Sub-models are wrapped with RateLimitedModel and have retries=0 for fast failover.
+
+    Note:
+        The retries=0 configuration means that any API error will immediately
+        trigger fallback to the next model rather than retrying. This optimizes
+        for availability over retry persistence.
 
     Example:
         >>> model = create_fallback_model("google-gla:gemini-2.0-flash")
@@ -154,6 +166,8 @@ def create_fallback_model(
             return model_def
 
         model: Model
+        # Set retries=0 on sub-models for fast failover (see function docstring)
+        # This allows FallbackModel to quickly try alternative models on any error
         if isinstance(model_def, Model):
             model = model_def
         elif isinstance(model_def, str):
@@ -161,21 +175,33 @@ def create_fallback_model(
                 from pydantic_ai.providers.google_gla import GoogleGLAProvider
 
                 provider = GoogleGLAProvider(api_key=get_google_api_key())
-                model = GeminiModel(model_def.removeprefix("google-gla:"), provider=provider)
+                model = GeminiModel(
+                    model_def.removeprefix("google-gla:"),
+                    provider=provider,
+                    retries=0,
+                )
             elif model_def.startswith("openrouter:"):
-                model = OpenAIModel(model_def.removeprefix("openrouter:"), provider="openrouter")
+                model = OpenAIModel(
+                    model_def.removeprefix("openrouter:"),
+                    provider="openrouter",
+                    retries=0,
+                )
             else:
                 # Default to Gemini for unknown strings in this context
                 from pydantic_ai.providers.google_gla import GoogleGLAProvider
 
                 provider = GoogleGLAProvider(api_key=get_google_api_key())
-                model = GeminiModel(model_def, provider=provider)
+                model = GeminiModel(
+                    model_def,
+                    provider=provider,
+                    retries=0,
+                )
         else:
             raise ValueError(f"Unknown model type: {type(model_def)}")
 
         return RateLimitedModel(model)
 
-    # Prepare models
+    # Prepare models - get API key for batch models
     api_key = get_google_api_key()
 
     # 1. Prepare Primary
