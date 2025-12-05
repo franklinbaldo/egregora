@@ -1,4 +1,4 @@
-from typing import Any, List
+import builtins
 
 import ibis
 from ibis.expr.types import Table
@@ -104,7 +104,7 @@ class DuckDBDocumentRepository(DocumentRepository):
 
         return Document.model_validate_json(json_val)
 
-    def list(self, *, doc_type: DocumentType | None = None) -> List[Document]:
+    def list(self, *, doc_type: DocumentType | None = None) -> list[Document]:
         """Lists documents, optionally filtered by type."""
         t = self._get_table()
         query = t
@@ -127,19 +127,21 @@ class DuckDBDocumentRepository(DocumentRepository):
         """Deletes a document by ID."""
         # Use parameterized query if possible via underlying connection
         if hasattr(self.conn, "con"):
-             query = f"DELETE FROM {self.table_name} WHERE id = ?"
-             self.conn.con.execute(query, [doc_id])
+            query = f"DELETE FROM {self.table_name} WHERE id = ?"
+            self.conn.con.execute(query, [doc_id])
         else:
-             # Fallback to Ibis delete if available, otherwise raise error
-             # Refusing to use unsafe raw SQL interpolation.
-             try:
-                 t = self._get_table()
-                 # Ibis does not have a standard 'delete' method exposed on Table/Expression in all versions/backends
-                 # But some backends might support it via extension or future versions.
-                 # If this fails, we must error out rather than be unsafe.
-                 t.filter(t.id == doc_id).delete()
-             except Exception:
-                 raise NotImplementedError("Backend does not support a safe delete operation via Ibis or parameterized SQL.")
+            # Fallback to Ibis delete if available, otherwise raise error
+            # Refusing to use unsafe raw SQL interpolation.
+            try:
+                t = self._get_table()
+                # Ibis does not have a standard 'delete' method exposed on Table/Expression in all versions/backends
+                # But some backends might support it via extension or future versions.
+                # If this fails, we must error out rather than be unsafe.
+                t.filter(t.id == doc_id).delete()
+            except Exception:
+                raise NotImplementedError(
+                    "Backend does not support a safe delete operation via Ibis or parameterized SQL."
+                )
 
     def exists(self, doc_id: str) -> bool:
         """Checks if a document exists."""
@@ -157,6 +159,6 @@ class DuckDBDocumentRepository(DocumentRepository):
         # TODO: Implement Entry retrieval
         return None
 
-    def get_entries_by_source(self, source_id: str) -> List[Entry]:
+    def get_entries_by_source(self, source_id: str) -> builtins.list[Entry]:
         # TODO: Implement Entry listing by source
         return []

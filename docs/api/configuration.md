@@ -287,6 +287,6 @@ config = overrides.build(base_config)
 
 ## See Also
 
-- [Configuration Guide](../configuration.md)
-- [Privacy Settings](../features/privacy.md)
+- [Getting Started - Configuration](../getting-started/configuration.md)
+- [Privacy Guide](../guide/privacy.md)
 - [RAG Configuration](./rag.md)

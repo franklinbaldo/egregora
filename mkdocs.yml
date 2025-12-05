@@ -185,13 +185,18 @@ nav:
       - Schema: api/core/schema.md
       - Models: api/core/models.md
       - Types: api/core/types.md
+      - Data Primitives: api/data-primitives.md
     - Orchestration:
       - Pipeline: api/orchestration/pipeline.md
       - CLI: api/orchestration/cli.md
+  - Architecture:
+      - Protocols: architecture/protocols.md
+      - URL Conventions: architecture/url-conventions.md
   - Development:
     - Contributing: development/contributing.md
     - Testing: development/testing.md
     - Project Structure: development/structure.md
+    - Documentation Overview: development/docs-overview.md
 
 extra:
   social:
