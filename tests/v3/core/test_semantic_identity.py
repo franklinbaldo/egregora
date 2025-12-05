@@ -43,6 +43,18 @@ def test_profile_with_slug_uses_uuid():
     assert doc.internal_metadata.get("slug") == "alice-profile"
 
 
+def test_post_without_slug_uses_title_slug():
+    """Posts without explicit slug should derive it from the title."""
+    doc = Document.create(
+        content="Hello World",
+        doc_type=DocumentType.POST,
+        title="My Awesome Post",
+    )
+
+    assert doc.id == "my-awesome-post"
+    assert doc.internal_metadata.get("slug") == "my-awesome-post"
+
+
 def test_enrichment_uses_uuid_not_slug():
     """Enrichments are immutable, should always use UUID."""
     doc = Document.create(
@@ -67,6 +79,7 @@ def test_slug_sanitization():
 
     # Should be sanitized by slugify
     assert doc.id == "my-awesome-post"
+    assert doc.internal_metadata.get("slug") == "my-awesome-post"
 
 
 def test_empty_slug_fallback_to_uuid():
