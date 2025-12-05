@@ -18,7 +18,7 @@ permissions:
 jobs:
   gemini-review:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     # Run if:
     # 1. It's a non-draft PR (automatic trigger)
@@ -84,8 +84,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Ensure we have the base ref locally (works for forks and shallow clones)
-          git fetch origin "${BASE_REF}" --depth=1
+          # Ensure we have the base ref locally (works for forks and distant branches)
+          # No --depth flag since we already did fetch-depth: 0 in checkout
+          git fetch origin "${BASE_REF}"
 
           # Get unified diff between base and head
           git diff --unified=3 "origin/${BASE_REF}" "${HEAD_SHA}" > pr.diff

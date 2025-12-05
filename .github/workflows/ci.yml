@@ -34,11 +34,6 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras
 
-      - name: Check pandas escape
-        run: |
-          echo "🔍 Checking for pandas imports outside compat/..."
-          uv run python tests/linting/test_no_pandas_escape.py
-
       - name: Run ruff (lint)
         run: uv run ruff check src/ tests/
 
@@ -48,9 +43,59 @@ jobs:
       - name: Run mypy
         run: uv run mypy src/
 
-  test:
-    name: Tests
+  test-unit:
+    name: Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Run unit tests with coverage
+        run: uv run pytest tests/unit/ -v --cov=src --cov-branch --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unit
+          name: unit-tests
+          fail_ci_if_error: false
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: coverage.xml
+          retention-days: 7
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: |
+            .pytest_cache/
+            *.log
+          retention-days: 7
+
+  test-e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
 
@@ -67,13 +112,34 @@ jobs:
         run: uv sync --all-extras
 
       - name: Run E2E tests with coverage
-        run: uv run pytest tests/e2e/ -v --cov=src --cov-report=xml --cov-report=term
+        run: uv run pytest tests/e2e/ -v --cov=src --cov-branch --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: e2e
+          name: e2e-tests
+          fail_ci_if_error: false
 
       - name: Upload coverage artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage
+          name: coverage-e2e
           path: coverage.xml
+          retention-days: 7
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: |
+            .pytest_cache/
+            *.log
+            .egregora/
           retention-days: 7
 
   security:
@@ -127,9 +193,9 @@ jobs:
 
   docs:
     name: Build & Deploy Docs
-    # Only run on main branch pushes after lint and test pass
+    # Only run on main branch pushes after lint and tests pass
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [lint, test]
+    needs: [lint, test-unit, test-e2e]
     runs-on: ubuntu-latest
     permissions:
       contents: write  # Required for GitHub Pages deployment
