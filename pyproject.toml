@@ -9,7 +9,7 @@ dependencies = [
     "diskcache>=5.6.3",
     "duckdb",
     "httpx>=0.28.1",
-    "ibis-framework[duckdb]==9.0.0",
+    "ibis-framework[duckdb]==11.0.0",
     "jinja2>=3.1.6",
     "lancedb>=0.25.3",
     "mkdocs>=1.6.1",
@@ -58,7 +58,7 @@ rss = [
     "mkdocs-rss-plugin>=1.17.7",
 ]
 test = [
-    "ibis-framework[duckdb]==9.0.0",
+    "ibis-framework[duckdb]==11.0.0",
     "pytest>=9.0.1",
     "respx>=0.22.0",
 ]
@@ -250,6 +250,7 @@ dev = [
     "deptry>=0.24.0",
     "pre-commit>=4.5.0",
     "pytest>=9.0.1",
+    "pytest-cov>=6.0.0",
 
     "radon>=6.0.1",
     "ruff>=0.14.7",
