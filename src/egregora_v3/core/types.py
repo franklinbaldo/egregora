@@ -110,25 +110,34 @@ class Document(Entry):
 
         V3 CHANGE: Supports Semantic Identity.
         If `slug` is provided (and type is POST/MEDIA), it acts as the ID.
+        If no slug is provided for semantic types, derive it from the title.
         If `id_override` is provided, it acts as the ID.
         Otherwise, generates a content-addressed ID (UUIDv5).
         """
         if internal_metadata is None:
             internal_metadata = {}
 
-        # Update metadata with slug if provided
+        semantic_types = (DocumentType.POST, DocumentType.MEDIA)
+
+        # Derive slug for semantic types only when absent
+        if slug is None and doc_type in semantic_types:
+            derived_slug = slugify(title, max_len=60)
+            slug = derived_slug if derived_slug else None
+
+        # Sanitize and persist slug for downstream consumers
+        clean_slug: str | None = None
         if slug:
-            internal_metadata["slug"] = slug
+            clean_slug = slugify(slug, max_len=60)
+            if clean_slug:
+                internal_metadata["slug"] = clean_slug
 
         # Determine ID
         doc_id = None
         if id_override:
             doc_id = id_override
-        elif slug and doc_type in (DocumentType.POST, DocumentType.MEDIA):
+        elif clean_slug and doc_type in semantic_types:
             # Semantic Identity
-            clean_slug = slugify(slug, max_len=60)
-            if clean_slug:
-                doc_id = clean_slug
+            doc_id = clean_slug
 
         # Fallback to UUIDv5
         if not doc_id:
