@@ -182,8 +182,8 @@ Infrastructure dependencies are defined as protocols (structural typing), not co
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Layer 4: Pipeline (pipeline/)                               │
-│ Orchestrates workflow: Ingest → Window → Enrich → Write     │
-│ Components: PipelineRunner, WindowingEngine, CLI            │
+│ Graph-based orchestration: Nodes + Edges                    │
+│ Components: Graph, PipelineRunner, Batching Utils, CLI      │
 └─────────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────────┐
@@ -595,12 +595,12 @@ class EnricherAgent:
 class WriterAgent:
     """Generates blog posts from enriched entries."""
 
-    def __init__(self, window_size: int = 50):
+    def __init__(self, batch_size: int = 50):
         """
         Args:
-            window_size: Number of entries to aggregate into one post
+            batch_size: Number of entries to aggregate into one post
         """
-        self.window_size = window_size
+        self.batch_size = batch_size
         # Pydantic-AI agent with structured output
         self.agent = Agent(
             'google-gla:gemini-2.0-flash',
@@ -613,14 +613,14 @@ class WriterAgent:
         entries: AsyncIterator[Entry],
         context: PipelineContext
     ) -> AsyncIterator[Document]:
-        """Generate documents from entry windows.
+        """Generate documents from entry batches.
 
         Aggregates N entries into one post. Yields posts as generated.
         """
-        async for window in abatch(entries, self.window_size):
+        async for batch in abatch(entries, self.batch_size):
             # Render prompt from Jinja2 template
             prompt = self.post_template.render(
-                entries=window,
+                entries=batch,
                 style=context.config.writing_style,
                 previous_posts=await context.library.posts.list(limit=5)
             )
@@ -753,11 +753,11 @@ class WriterAgent:
         entries: AsyncIterator[Entry],
         context: PipelineContext
     ) -> AsyncIterator[Document]:
-        """Generate posts from entry windows."""
-        async for window in abatch(entries, self.window_size):
+        """Generate posts from entry batches."""
+        async for batch in abatch(entries, self.batch_size):
             # Render prompt from template with context
             prompt = self.post_template.render(
-                entries=window,
+                entries=batch,
                 style=context.config.writing_style,
                 previous_posts=await context.library.posts.list(limit=5)
             )
@@ -843,6 +843,13 @@ Authors: {{ entry.authors|map(attribute='name')|join(', ') }}
 **Goal:** Assemble full pipeline with CLI using graph-based orchestration.
 
 **Pipeline Architecture: Graph-Based (Inspired by Yahoo Pipes)**
+
+> **Note on "Windowing":** V3 does **not** need a separate `Window` abstraction. Grouping is handled by:
+> - **Feed** - Semantic collections of entries (what)
+> - **Graph structure** - Logical routing and branching (how)
+> - **`abatch()` utility** - Mechanical batching for efficiency (implementation detail)
+>
+> The graph model is sufficient. Agents batch entries internally as needed.
 
 The pipeline is a **directed graph** of processing nodes, following Yahoo Pipes' composable operator model:
 
@@ -950,9 +957,9 @@ class EgregoraPipeline:
                 yield entry
 
     async def _write_node(self, entries: AsyncIterator[Entry], ctx) -> AsyncIterator[Document]:
-        """Generate posts from entry windows."""
-        async for window in abatch(entries, ctx.config.window_size):
-            doc = await ctx.writer_agent.run(window)
+        """Generate posts from entry batches."""
+        async for batch in abatch(entries, ctx.config.posts_per_batch):
+            doc = await ctx.writer_agent.run(batch)
             yield doc
 
     async def _persist_node(self, documents: AsyncIterator[Document], ctx) -> list[Document]:
@@ -1131,46 +1138,7 @@ async def atake(
         count += 1
 ```
 
-#### 4.2 Windowing Engine
-```python
-# egregora_v3/pipeline/windowing.py
-class WindowingEngine:
-    """Split entry streams into processable windows."""
-    def create_windows(
-        self,
-        entries: Iterator[Entry],
-        strategy: WindowStrategy  # time-based, count-based, semantic
-    ) -> Iterator[list[Entry]]: ...
-```
-
-#### 4.2 Pipeline Runner
-```python
-# egregora_v3/pipeline/runner.py
-class PipelineRunner:
-    def __init__(
-        self,
-        library: ContentLibrary,
-        agents: dict[str, Agent],
-        config: PipelineConfig
-    ): ...
-
-    def run(self, adapter: InputAdapter) -> Feed:
-        """Execute full pipeline: Ingest → Window → Enrich → Write → Persist."""
-        entries = adapter.read_entries()
-        windows = self.windowing.create_windows(entries)
-
-        documents = []
-        for window in windows:
-            enriched = self.enrich_window(window)
-            post = self.writer_agent.generate(enriched)
-            documents.append(post)
-
-        feed = documents_to_feed(documents)
-        self.library.save_all(documents)
-        return feed
-```
-
-#### 4.3 CLI
+#### 4.2 CLI
 ```python
 # egregora_v3/cli/main.py
 app = typer.Typer()
