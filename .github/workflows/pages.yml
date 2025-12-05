@@ -96,9 +96,11 @@ jobs:
           cd demo-output
           uvx --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin mkdocs build -f .egregora/mkdocs.yml
           echo "✅ Demo MkDocs site built successfully"
+          ls -R
 
       - name: Integrate demo into docs site
         run: |
+          ls -R demo-output
           # Move demo site to /demo subfolder in the main site
           mv demo-output/site site/demo
           echo "✅ Demo blog integrated at /demo path"
