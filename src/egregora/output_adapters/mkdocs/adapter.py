@@ -65,25 +65,6 @@ class MkDocsAdapter(OutputAdapter):
         self._index: dict[str, Path] = {}
         self._ctx: UrlContext | None = None
 
-        # Dispatch tables for strategy pattern
-        self._path_resolvers = {
-            DocumentType.POST: self._resolve_post_path,
-            DocumentType.PROFILE: self._resolve_profile_path,
-            DocumentType.JOURNAL: self._resolve_journal_path,
-            DocumentType.ENRICHMENT_URL: self._resolve_enrichment_url_path,
-            DocumentType.ENRICHMENT_MEDIA: self._resolve_enrichment_media_path,
-            DocumentType.MEDIA: self._resolve_media_path,
-        }
-
-        self._writers = {
-            DocumentType.POST: self._write_post_doc,
-            DocumentType.JOURNAL: self._write_journal_doc,
-            DocumentType.PROFILE: self._write_profile_doc,
-            DocumentType.ENRICHMENT_URL: self._write_enrichment_doc,
-            DocumentType.ENRICHMENT_MEDIA: self._write_enrichment_doc,
-            DocumentType.MEDIA: self._write_media_doc,
-        }
-
     def initialize(self, site_root: Path, url_context: UrlContext | None = None) -> None:
         """Initializes the adapter with all necessary paths and dependencies."""
         site_paths = derive_mkdocs_paths(site_root)
@@ -139,17 +120,22 @@ class MkDocsAdapter(OutputAdapter):
                 path = self._resolve_collision(path, doc_id)
                 logger.warning("Hash collision for %s, using %s", doc_id[:8], path)
 
-        # Phase 2: Add author cards to POST documents - REMOVED per user request
-        # if document.type == DocumentType.POST and document.metadata:
-        #     authors = document.metadata.get("authors", [])
-        #     if authors and isinstance(authors, list):
-        #         # Append author cards using Jinja template
-        #         import dataclasses
-        #
-        #         new_content = self._append_author_cards(document.content, authors)
-        #         document = dataclasses.replace(document, content=new_content)
+        path.parent.mkdir(parents=True, exist_ok=True)
 
-        self._write_document(document, path)
+        match document.type:
+            case DocumentType.POST:
+                self._write_post_doc(document, path)
+            case DocumentType.JOURNAL:
+                self._write_journal_doc(document, path)
+            case DocumentType.PROFILE:
+                self._write_profile_doc(document, path)
+            case DocumentType.ENRICHMENT_URL | DocumentType.ENRICHMENT_MEDIA:
+                self._write_enrichment_doc(document, path)
+            case DocumentType.MEDIA:
+                self._write_media_doc(document, path)
+            case _:
+                self._write_generic_doc(document, path)
+
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
 
@@ -164,22 +150,24 @@ class MkDocsAdapter(OutputAdapter):
             Path to document or None if type unsupported
 
         """
-        # Dispatch table for document type to path resolution
-        path_resolvers = {
-            DocumentType.PROFILE: lambda: self.profiles_dir / f"{identifier}.md",
-            DocumentType.POST: lambda: (
-                max(self.posts_dir.glob(f"*-{identifier}.md"), key=lambda p: p.stat().st_mtime)
-                if (_matches := list(self.posts_dir.glob(f"*-{identifier}.md")))
-                else None
-            ),
-            DocumentType.JOURNAL: lambda: self.journal_dir / f"{identifier.replace('/', '-')}.md",
-            DocumentType.ENRICHMENT_URL: lambda: self.urls_dir / f"{identifier}.md",
-            DocumentType.ENRICHMENT_MEDIA: lambda: self.media_dir / f"{identifier}.md",
-            DocumentType.MEDIA: lambda: self.media_dir / identifier,
-        }
-
-        resolver = path_resolvers.get(doc_type)
-        return resolver() if resolver else None
+        match doc_type:
+            case DocumentType.PROFILE:
+                return self.profiles_dir / f"{identifier}.md"
+            case DocumentType.POST:
+                matches = list(self.posts_dir.glob(f"*-{identifier}.md"))
+                if matches:
+                    return max(matches, key=lambda p: p.stat().st_mtime)
+                return None
+            case DocumentType.JOURNAL:
+                return self.journal_dir / f"{identifier.replace('/', '-')}.md"
+            case DocumentType.ENRICHMENT_URL:
+                return self.urls_dir / f"{identifier}.md"
+            case DocumentType.ENRICHMENT_MEDIA:
+                return self.media_dir / f"{identifier}.md"
+            case DocumentType.MEDIA:
+                return self.media_dir / identifier
+            case _:
+                return None
 
     def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
         path = self._resolve_document_path(doc_type, identifier)
@@ -610,39 +598,31 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         url_path = url_path.strip("/")
 
-        # Use strategy pattern to resolve path based on document type
-        resolver = self._path_resolvers.get(document.type, self._resolve_generic_path)
-        return resolver(url_path)
-
-    # Path Resolution Strategies ----------------------------------------------
-
-    def _resolve_post_path(self, url_path: str) -> Path:
-        return self.posts_dir / f"{url_path.split('/')[-1]}.md"
-
-    def _resolve_profile_path(self, url_path: str) -> Path:
-        return self.profiles_dir / f"{url_path.split('/')[-1]}.md"
-
-    def _resolve_journal_path(self, url_path: str) -> Path:
-        # When url_path is just "journal" (root journal URL), return journal.md in docs root
-        # Otherwise, extract the slug and put it in journal/
-        slug = url_path.split("/")[-1]
-        if url_path == "journal":
-            return self.docs_dir / "journal.md"
-        return self.journal_dir / f"{slug}.md"
-
-    def _resolve_enrichment_url_path(self, url_path: str) -> Path:
-        # url_path might be 'media/urls/slug' -> we want 'slug.md' inside urls_dir
-        slug = url_path.split("/")[-1]
-        return self.urls_dir / f"{slug}.md"
-
-    def _resolve_enrichment_media_path(self, url_path: str) -> Path:
-        # url_path is like 'media/images/foo' -> we want 'docs/media/images/foo.md'
-        rel_path = self._strip_media_prefix(url_path)
-        return self.media_dir / f"{rel_path}.md"
-
-    def _resolve_media_path(self, url_path: str) -> Path:
-        rel_path = self._strip_media_prefix(url_path)
-        return self.media_dir / rel_path
+        match document.type:
+            case DocumentType.POST:
+                return self.posts_dir / f"{url_path.split('/')[-1]}.md"
+            case DocumentType.PROFILE:
+                return self.profiles_dir / f"{url_path.split('/')[-1]}.md"
+            case DocumentType.JOURNAL:
+                # When url_path is just "journal" (root journal URL), return journal.md in docs root
+                # Otherwise, extract the slug and put it in journal/
+                slug = url_path.split("/")[-1]
+                if url_path == "journal":
+                    return self.docs_dir / "journal.md"
+                return self.journal_dir / f"{slug}.md"
+            case DocumentType.ENRICHMENT_URL:
+                # url_path might be 'media/urls/slug' -> we want 'slug.md' inside urls_dir
+                slug = url_path.split("/")[-1]
+                return self.urls_dir / f"{slug}.md"
+            case DocumentType.ENRICHMENT_MEDIA:
+                # url_path is like 'media/images/foo' -> we want 'docs/media/images/foo.md'
+                rel_path = self._strip_media_prefix(url_path)
+                return self.media_dir / f"{rel_path}.md"
+            case DocumentType.MEDIA:
+                rel_path = self._strip_media_prefix(url_path)
+                return self.media_dir / rel_path
+            case _:
+                return self._resolve_generic_path(url_path)
 
     def _resolve_generic_path(self, url_path: str) -> Path:
         return self.site_root / f"{url_path}.md"
@@ -657,38 +637,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             rel_path = rel_path[6:]
         return rel_path
 
-    def _write_document(self, document: Document, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Use strategy pattern to write document
-        writer = self._writers.get(document.type, self._write_generic_doc)
-        writer(document, path)
-
     # Document Writing Strategies ---------------------------------------------
-
-    def _get_related_posts(
-        self, current_post: Document, all_posts: list[Document], limit: int = 3
-    ) -> list[Document]:
-        """Get a list of related posts based on shared tags."""
-        if not current_post.metadata or "tags" not in current_post.metadata:
-            return []
-
-        current_tags = set(current_post.metadata["tags"])
-        related = []
-        for post in all_posts:
-            if (
-                post.document_id == current_post.document_id
-                or not post.metadata
-                or "tags" not in post.metadata
-            ):
-                continue
-
-            shared_tags = current_tags.intersection(set(post.metadata["tags"]))
-            if shared_tags:
-                related.append((post, len(shared_tags)))
-
-        related.sort(key=lambda x: x[1], reverse=True)
-        return [post for post, score in related[:limit]]
 
     def _write_post_doc(self, document: Document, path: Path) -> None:
         import yaml as _yaml
@@ -698,17 +647,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             metadata["date"] = format_frontmatter_datetime(metadata["date"])
         if "authors" in metadata:
             ensure_author_entries(path.parent, metadata.get("authors"))
-
-        # Add related posts based on shared tags
-        all_posts = list(self.documents())  # This is inefficient, but will work for now
-        related_posts_docs = self._get_related_posts(document, all_posts)
-        metadata["related_posts"] = [
-            {
-                "title": post.metadata.get("title"),
-                "url": self.url_convention.canonical_url(post, self._ctx),
-            }
-            for post in related_posts_docs
-        ]
 
         # Add enriched authors data
 

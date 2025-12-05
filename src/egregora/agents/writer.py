@@ -48,18 +48,15 @@ from egregora.agents.model_limits import (
     get_model_context_limit,
     validate_prompt_fits,
 )
-from egregora.agents.types import PostMetadata, WriterAgentReturn, WriterDeps, WriterResources
-from egregora.agents.writer_tools import (
-    AnnotationContext,
+from egregora.agents.types import (
     AnnotationResult,
+    PostMetadata,
     ReadProfileResult,
-    ToolContext,
     WritePostResult,
     WriteProfileResult,
-    annotate_conversation_impl,
-    read_profile_impl,
-    write_post_impl,
-    write_profile_impl,
+    WriterAgentReturn,
+    WriterDeps,
+    WriterResources,
 )
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
@@ -75,6 +72,7 @@ from egregora.utils.quota import QuotaExceededError
 
 if TYPE_CHECKING:
     from egregora.data_primitives.protocols import OutputSink
+    from egregora.orchestration.context import PipelineContext
 
 logger = logging.getLogger(__name__)
 
@@ -118,37 +116,24 @@ def register_writer_tools(
 
     @agent.tool
     def write_post_tool(ctx: RunContext[WriterDeps], metadata: PostMetadata, content: str) -> WritePostResult:
-        tool_ctx = ToolContext(
-            output_sink=ctx.deps.resources.output,
-            window_label=ctx.deps.window_label,
-        )
         meta_dict = metadata.model_dump(exclude_none=True)
         meta_dict["model"] = ctx.deps.model_name
-        return write_post_impl(tool_ctx, meta_dict, content)
+        return ctx.deps.write_post(meta_dict, content)
 
     @agent.tool
     def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str) -> ReadProfileResult:
-        tool_ctx = ToolContext(
-            output_sink=ctx.deps.resources.output,
-            window_label=ctx.deps.window_label,
-        )
-        return read_profile_impl(tool_ctx, author_uuid)
+        return ctx.deps.read_profile(author_uuid)
 
     @agent.tool
     def write_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str, content: str) -> WriteProfileResult:
-        tool_ctx = ToolContext(
-            output_sink=ctx.deps.resources.output,
-            window_label=ctx.deps.window_label,
-        )
-        return write_profile_impl(tool_ctx, author_uuid, content)
+        return ctx.deps.write_profile(author_uuid, content)
 
     @agent.tool
     def annotate_conversation_tool(
         ctx: RunContext[WriterDeps], parent_id: str, parent_type: str, commentary: str
     ) -> AnnotationResult:
         """Annotate a message or another annotation with commentary."""
-        annot_ctx = AnnotationContext(annotations_store=ctx.deps.resources.annotations_store)
-        return annotate_conversation_impl(annot_ctx, parent_id, parent_type, commentary)
+        return ctx.deps.annotate(parent_id, parent_type, commentary)
 
     for capability in capabilities:
         logger.debug("Registering capability: %s", capability.name)
@@ -695,6 +680,23 @@ def write_posts_with_pydantic_agent(
         caps_list = ", ".join(capability.name for capability in active_capabilities)
         logger.info("Writer capabilities enabled: %s", caps_list)
 
+    # Define a simple provider to wrap the SDK client
+    class SimpleProvider:
+        def __init__(self, client) -> None:
+            self._client = client
+            self.model_profile = None
+
+        @property
+        def client(self):
+            return self._client
+
+        def name(self) -> str:
+            return "google-gla"
+
+        @property
+        def base_url(self) -> str:
+            return "https://generativelanguage.googleapis.com/v1beta/"
+
     from egregora.utils.model_fallback import create_fallback_model
 
     # Create model with automatic fallback
@@ -736,11 +738,9 @@ def write_posts_with_pydantic_agent(
     if context.resources.quota:
         context.resources.quota.reserve(1)
 
-    # Define usage limits
-    usage_limits = UsageLimits(
-        request_limit=15, # Reasonable limit for tool loops
-        # response_tokens_limit=... # Optional
-    )
+        # Should be unreachable due to reraise=True
+        msg = "Agent failed after retries"
+        raise RuntimeError(msg)
 
     result = None
     # Use tenacity for retries
