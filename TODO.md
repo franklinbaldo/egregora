@@ -2,6 +2,8 @@
 
 > **Reference:** [V3 Development Plan](docs/v3_development_plan.md)
 >
+> **Note:** This file is generated from the v3 development plan. To propose substantive changes to the roadmap or implementation strategy, please update `docs/v3_development_plan.md` first to maintain consistency.
+>
 > **Status:** Planning phase with core types defined
 >
 > **Target Timeline:** Alpha in 12 months, feature parity in 24 months
@@ -25,7 +27,7 @@
 
 ### Phase 1.5: Refinements
 
-**Reference:** [docs/v3_development_plan.md:179-268](docs/v3_development_plan.md#L179-L268)
+**Reference:** [docs/v3_development_plan.md#15-phase-1-refinements](docs/v3_development_plan.md#15-phase-1-refinements)
 
 #### Media Handling Strategy
 - [ ] Document media handling via `Link(rel="enclosure")` pattern - [Plan:182-249](docs/v3_development_plan.md#L182-L249)
