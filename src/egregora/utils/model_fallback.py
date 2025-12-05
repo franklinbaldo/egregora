@@ -214,7 +214,6 @@ def create_fallback_model(
         primary = RateLimitedModel(primary)
     else:
         primary = _resolve_and_wrap(primary_model)
-    primary = _resolve_and_wrap(primary_model)
     wrapped_fallbacks = []
 
     for m in fallback_models:
