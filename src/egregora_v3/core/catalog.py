@@ -27,6 +27,7 @@ class ContentLibrary(BaseModel):
 
     Replaces the complex Service/Workspace/Collection hierarchy.
     """
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     posts: DocumentRepository

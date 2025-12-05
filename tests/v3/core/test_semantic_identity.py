@@ -1,5 +1,4 @@
 """Tests for semantic identity with slugs (Phase 1.5)."""
-import pytest
 from egregora_v3.core.types import Document, DocumentType
 
 

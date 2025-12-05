@@ -22,6 +22,7 @@ def slugify(text: str, max_len: int = 60) -> str:
         'cafe'
         >>> slugify("A" * 100, max_len=20)
         'aaaaaaaaaaaaaaaaaaaa'
+
     """
     # Normalize unicode (NFD) and convert to ASCII
     normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
