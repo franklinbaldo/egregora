@@ -12,9 +12,11 @@ from typing import Annotated, Any
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from egregora.config import EMBEDDING_DIM, get_google_api_key, google_api_key_status
+from egregora.config import EMBEDDING_DIM
+from egregora.utils.env import get_google_api_key
 
 logger = logging.getLogger(__name__)
+
 
 # Constants
 GENAI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
@@ -299,7 +301,9 @@ def is_rag_available() -> bool:
         True if GOOGLE_API_KEY environment variable is set
 
     """
-    return google_api_key_status()
+    from egregora.utils.env import google_api_key_available
+
+    return google_api_key_available()
 
 
 __all__ = [
