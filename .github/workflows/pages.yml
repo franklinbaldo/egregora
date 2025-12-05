@@ -71,6 +71,7 @@ jobs:
       - name: Generate demo blog
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           echo "🚀 Generating demo blog from fixture..."
           uv run egregora write \
