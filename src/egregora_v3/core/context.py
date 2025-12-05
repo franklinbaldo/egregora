@@ -31,8 +31,7 @@ class PipelineContext:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
-        """Ensure metadata is frozen (immutable)."""
-        # Convert metadata dict to frozen dict for immutability
-        if self.metadata and not isinstance(self.metadata, frozenset):
-            # Use object.__setattr__ since dataclass is frozen
-            object.__setattr__(self, 'metadata', dict(self.metadata))
+        """Ensure metadata is copied to avoid external mutation."""
+        # Use object.__setattr__ since dataclass is frozen
+        # We copy the dict to ensure the context holds its own version
+        object.__setattr__(self, 'metadata', dict(self.metadata))
