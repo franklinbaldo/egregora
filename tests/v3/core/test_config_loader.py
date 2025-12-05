@@ -36,6 +36,45 @@ def test_load_defaults(tmp_path):
     assert config.paths.site_root == tmp_path
 
 
+def test_load_defaults_from_cwd(tmp_path, monkeypatch):
+    """Test loading defaults using current working directory."""
+    # Change to tmp_path directory
+    monkeypatch.chdir(tmp_path)
+
+    # Load without specifying site_root - should use CWD
+    loader = ConfigLoader()
+    config = loader.load()
+
+    assert isinstance(config, EgregoraConfig)
+    assert config.models.writer == "google-gla:gemini-2.0-flash"
+    assert config.paths.site_root == tmp_path
+
+
+def test_load_from_cwd_with_yaml(tmp_path, monkeypatch):
+    """Test loading YAML configuration from current working directory."""
+    # Setup config in tmp_path
+    config_dir = tmp_path / ".egregora"
+    config_dir.mkdir()
+    config_file = config_dir / "config.yml"
+    config_file.write_text("""
+models:
+  writer: "cwd-custom-model"
+pipeline:
+  step_size: 5
+    """)
+
+    # Change to tmp_path directory
+    monkeypatch.chdir(tmp_path)
+
+    # Load without specifying site_root - should find config.yml in CWD
+    loader = ConfigLoader()
+    config = loader.load()
+
+    assert config.models.writer == "cwd-custom-model"
+    assert config.pipeline.step_size == 5
+    assert config.paths.site_root == tmp_path
+
+
 def test_env_var_override_string(tmp_path, monkeypatch):
     """Test overriding string configuration with environment variables."""
     monkeypatch.setenv("EGREGORA_MODELS__WRITER", "env-writer-model")

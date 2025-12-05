@@ -22,9 +22,13 @@ class PathsSettings(BaseModel):
     """Path configuration.
 
     All paths are relative to the 'site_root' unless absolute.
+    site_root defaults to current working directory.
     """
 
-    site_root: Path = Field(default=Path(), description="Root directory of the site")
+    site_root: Path = Field(
+        default_factory=Path.cwd,
+        description="Root directory of the site (defaults to current working directory)"
+    )
 
     # Content
     posts_dir: Path = Field(default=Path("posts"), description="Posts directory")
@@ -88,7 +92,7 @@ class EgregoraConfig(BaseSettings):
     )
 
     @classmethod
-    def load(cls, site_root: Path) -> "EgregoraConfig":
+    def load(cls, site_root: Path | None = None) -> "EgregoraConfig":
         """Loads configuration from .egregora/config.yml and environment variables.
 
         Uses ConfigLoader to handle YAML file loading. Environment variables
@@ -99,11 +103,22 @@ class EgregoraConfig(BaseSettings):
         2. Config file (.egregora/config.yml)
         3. Defaults
 
+        Args:
+            site_root: Root directory of the site. If None, uses current working directory.
+                      Can be overridden by CLI with --site-root flag.
+
         Returns:
             EgregoraConfig: Fully loaded and validated configuration.
 
         Raises:
             ValueError: If config file exists but contains invalid YAML.
+
+        Examples:
+            # Use current working directory
+            config = EgregoraConfig.load()
+
+            # Use explicit path (e.g., from CLI --site-root flag)
+            config = EgregoraConfig.load(Path("/path/to/site"))
         """
         from egregora_v3.core.config_loader import ConfigLoader
 

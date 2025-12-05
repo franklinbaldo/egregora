@@ -13,17 +13,36 @@ class ConfigLoader:
     to automatically apply environment variable overrides.
     """
 
-    def __init__(self, site_root: Path):
-        self.site_root = site_root
+    def __init__(self, site_root: Path | None = None):
+        """Initialize config loader.
+
+        Args:
+            site_root: Root directory of the site. If None, uses current working directory.
+        """
+        self.site_root = site_root if site_root is not None else Path.cwd()
 
     def load(self) -> EgregoraConfig:
         """Loads configuration from file and environment variables.
 
+        Looks for .egregora/config.yml relative to site_root (or CWD if not specified).
         Environment variables automatically override file values via Pydantic Settings.
+
         Priority (highest to lowest):
         1. Environment variables (EGREGORA_SECTION__KEY)
-        2. Config file (.egregora/config.yml)
+        2. Config file (.egregora/config.yml relative to site_root)
         3. Defaults
+
+        Returns:
+            EgregoraConfig: Fully loaded and validated configuration.
+
+        Examples:
+            # Default: use current working directory
+            loader = ConfigLoader()
+            config = loader.load()  # Looks for .egregora/config.yml in CWD
+
+            # Explicit: use specific directory (e.g., from CLI --site-root)
+            loader = ConfigLoader(Path("/path/to/site"))
+            config = loader.load()  # Looks for .egregora/config.yml in /path/to/site
         """
         config_data = self._load_from_file()
 
