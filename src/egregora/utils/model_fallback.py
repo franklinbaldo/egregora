@@ -1,9 +1,12 @@
+```
 """Model fallback utility using pydantic-ai's native FallbackModel."""
 
 from __future__ import annotations
 
 import logging
+import os
 import time
+from typing import Literal
 
 import httpx
 from pydantic_ai.exceptions import ModelAPIError, UsageLimitExceeded
@@ -142,7 +145,6 @@ def create_fallback_model(
         fallback_models = [m for m in GOOGLE_FALLBACK_MODELS if m != primary_model]
 
         # Add OpenRouter free models if requested (ONLY if API key is available)
-        import os
         if include_openrouter and os.environ.get("OPENROUTER_API_KEY"):
             try:
                 openrouter_models = get_openrouter_free_models(modality=modality)
@@ -213,17 +215,15 @@ def create_fallback_model(
         primary = RateLimitedModel(primary)
     else:
         primary = _resolve_and_wrap(primary_model)
+    primary = _resolve_and_wrap(primary_model)
+    wrapped_fallbacks = []
 
-    # 2. Prepare Fallbacks
-    wrapped_fallbacks: list[Model] = []
     for m in fallback_models:
         if use_google_batch and isinstance(m, str) and m.startswith("google-gla:"):
             batch_model = GoogleBatchModel(api_key=api_key, model_name=m)
             wrapped_fallbacks.append(RateLimitedModel(batch_model))
         else:
             wrapped_fallbacks.append(_resolve_and_wrap(m))
-
-    from pydantic_core import ValidationError
 
     return FallbackModel(
         primary,
