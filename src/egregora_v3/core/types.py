@@ -105,7 +105,9 @@ class Document(Entry):
                status: DocumentStatus = DocumentStatus.DRAFT,
                internal_metadata: dict[str, Any] | None = None,
                id_override: str | None = None,
-               slug: str | None = None) -> "Document":
+               slug: str | None = None,
+               in_reply_to: InReplyTo | None = None,
+               searchable: bool = True) -> "Document":
         """Factory method to create a Document.
 
         V3 CHANGE: Supports Semantic Identity.
@@ -155,7 +157,9 @@ class Document(Entry):
             content=content,
             doc_type=doc_type,
             status=status,
-            internal_metadata=internal_metadata
+            internal_metadata=internal_metadata,
+            in_reply_to=in_reply_to,
+            searchable=searchable
         )
 
 

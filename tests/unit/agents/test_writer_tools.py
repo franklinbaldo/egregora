@@ -3,6 +3,7 @@
 from unittest.mock import Mock, patch
 
 import pytest
+from pydantic_ai import ModelRetry
 
 from egregora.agents.writer_tools import (
     AnnotationContext,
@@ -100,11 +101,11 @@ class TestWriterToolsExtraction:
         # Patch search to raise an error
         with patch("egregora.agents.writer_tools.search", side_effect=RuntimeError("RAG error")):
             # Act
-            result = search_media_impl("test query", top_k=5)
+            with pytest.raises(ModelRetry) as excinfo:
+                search_media_impl("test query", top_k=5)
 
-        # Assert - should return empty results on connection error
-        assert isinstance(result, SearchMediaResult)
-        assert result.results == []
+            # Assert - should raise ModelRetry on connection error
+            assert "RAG backend unavailable" in str(excinfo.value)
 
     def test_annotate_conversation_impl_raises_without_store(self):
         """Test annotate_conversation_impl raises error when store is None."""

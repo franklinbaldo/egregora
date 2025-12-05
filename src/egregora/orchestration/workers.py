@@ -10,6 +10,7 @@ import asyncio
 import base64
 import json
 import logging
+import os
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING, Any
@@ -19,7 +20,6 @@ from pydantic_ai import Agent
 
 from egregora.agents.banner.agent import generate_banner
 from egregora.agents.enricher import _create_enrichment_row, _normalize_slug
-from egregora.config.settings import get_google_api_key
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.models.google_batch import GoogleBatchModel
 from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
@@ -370,7 +370,10 @@ class EnrichmentWorker(BaseWorker):
 
         # Execute batch
         model_name = self.ctx.config.models.enricher_vision
-        model = GoogleBatchModel(api_key=get_google_api_key(), model_name=model_name)
+        api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment")
+        model = GoogleBatchModel(api_key=api_key, model_name=model_name)
 
         try:
             # Use asyncio.run to execute the async batch method synchronously
