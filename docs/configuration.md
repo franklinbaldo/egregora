@@ -22,21 +22,22 @@ Egregora uses Pydantic V2 for configuration with 13 settings classes:
 - [`WriterAgentSettings`](#writeragentsettings) - Blog post writer configuration.
 - [`PrivacySettings`](#privacysettings) - Privacy and data protection settings (YAML configuration).
 
-    .. note::
-       Currently all privacy features (anonymization, PII detection) are always enabled.
-       This config section is reserved for future configurable privacy controls.
+    Two-level privacy model:
+    1. **Structural** (Level 1): Deterministic preprocessing of raw input data
+    2. **PII Prevention** (Level 2): LLM-native PII understanding in agent outputs
 
     .. warning::
-       This Pydantic model (for YAML config) has the same name as the dataclass in
-       ``egregora.privacy.config.PrivacySettings`` (for runtime policy). They are NOT
-       duplicates - they serve different purposes:
+       Disabling privacy features should only be done for public datasets
+       (e.g., judicial records, public archives, news articles).
 
-       - **This class**: YAML configuration placeholder (persisted to config.yml)
-       - **privacy.config.PrivacySettings**: Runtime policy with tenant isolation, PII
-         detection settings, and re-identification escrow (never persisted)
+       For private conversations, always keep privacy enabled to protect PII.
 
-       When privacy configuration becomes user-configurable, this class will hold the
-       YAML settings which get mapped to runtime PrivacySettings instances.
+    This Pydantic model (for YAML config) has the same name as the dataclass in
+    ``egregora.privacy.config.PrivacySettings`` (for runtime policy). They serve
+    different purposes:
+
+    - **This class**: YAML configuration (persisted to config.yml)
+    - **privacy.config.PrivacySettings**: Runtime policy with tenant isolation
 
 - [`EnrichmentSettings`](#enrichmentsettings) - Enrichment settings for URLs and media.
 - [`PipelineSettings`](#pipelinesettings) - Pipeline execution settings.
@@ -101,6 +102,7 @@ Root configuration for Egregora.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `models` | `ModelSettings` | `PydanticUndefined` | LLM model configuration |
+| `image_generation` | `ImageGenerationSettings` | `PydanticUndefined` | Image generation request settings |
 | `rag` | `RAGSettings` | `PydanticUndefined` | RAG configuration |
 | `writer` | `WriterAgentSettings` | `PydanticUndefined` | Writer configuration |
 | `reader` | `ReaderSettings` | `PydanticUndefined` | Reader agent configuration |
@@ -124,12 +126,12 @@ LLM model configuration for different tasks.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `writer` | `str` | `"google-gla:gemini-flash-latest"` | Model for blog post generation (pydantic-ai format) |
-| `enricher` | `str` | `"google-gla:gemini-flash-latest"` | Model for URL/text enrichment (pydantic-ai format) |
-| `enricher_vision` | `str` | `"google-gla:gemini-flash-latest"` | Model for image/video enrichment (pydantic-ai format) |
-| `ranking` | `str` | `"google-gla:gemini-flash-latest"` | Model for post ranking (pydantic-ai format) |
-| `editor` | `str` | `"google-gla:gemini-flash-latest"` | Model for interactive post editing (pydantic-ai format) |
-| `reader` | `str` | `"google-gla:gemini-flash-latest"` | Model for reader agent (pydantic-ai format) |
+| `writer` | `str` | `"google-gla:gemini-2.0-flash"` | Model for blog post generation (pydantic-ai format) |
+| `enricher` | `str` | `"google-gla:gemini-2.0-flash"` | Model for URL/text enrichment (pydantic-ai format) |
+| `enricher_vision` | `str` | `"google-gla:gemini-2.0-flash"` | Model for image/video enrichment (pydantic-ai format) |
+| `ranking` | `str` | `"google-gla:gemini-2.0-flash"` | Model for post ranking (pydantic-ai format) |
+| `editor` | `str` | `"google-gla:gemini-2.0-flash"` | Model for interactive post editing (pydantic-ai format) |
+| `reader` | `str` | `"google-gla:gemini-2.0-flash"` | Model for reader agent (pydantic-ai format) |
 | `embedding` | `str` | `"models/gemini-embedding-001"` | Model for vector embeddings (Google GenAI format: models/...) |
 | `banner` | `str` | `"models/gemini-2.5-flash-image"` | Model for banner/cover image generation (Google GenAI format) |
 
@@ -162,24 +164,27 @@ Blog post writer configuration.
 
 Privacy and data protection settings (YAML configuration).
 
-    .. note::
-       Currently all privacy features (anonymization, PII detection) are always enabled.
-       This config section is reserved for future configurable privacy controls.
+    Two-level privacy model:
+    1. **Structural** (Level 1): Deterministic preprocessing of raw input data
+    2. **PII Prevention** (Level 2): LLM-native PII understanding in agent outputs
 
     .. warning::
-       This Pydantic model (for YAML config) has the same name as the dataclass in
-       ``egregora.privacy.config.PrivacySettings`` (for runtime policy). They are NOT
-       duplicates - they serve different purposes:
+       Disabling privacy features should only be done for public datasets
+       (e.g., judicial records, public archives, news articles).
 
-       - **This class**: YAML configuration placeholder (persisted to config.yml)
-       - **privacy.config.PrivacySettings**: Runtime policy with tenant isolation, PII
-         detection settings, and re-identification escrow (never persisted)
+       For private conversations, always keep privacy enabled to protect PII.
 
-       When privacy configuration becomes user-configurable, this class will hold the
-       YAML settings which get mapped to runtime PrivacySettings instances.
+    This Pydantic model (for YAML config) has the same name as the dataclass in
+    ``egregora.privacy.config.PrivacySettings`` (for runtime policy). They serve
+    different purposes:
+
+    - **This class**: YAML configuration (persisted to config.yml)
+    - **privacy.config.PrivacySettings**: Runtime policy with tenant isolation
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
+| `structural` | `StructuralPrivacySettings` | `PydanticUndefined` | Structural anonymization settings (adapter-level) |
+| `pii_prevention` | `PIIPreventionSettings` | `PydanticUndefined` | PII prevention in LLM outputs (per-agent, LLM-native) |
 
 ### EnrichmentSettings
 
@@ -191,6 +196,7 @@ Enrichment settings for URLs and media.
 | `enable_url` | `bool` | `True` | Enrich URLs with LLM-generated descriptions |
 | `enable_media` | `bool` | `True` | Enrich images/videos with LLM-generated descriptions |
 | `max_enrichments` | `int` | `50` | Maximum number of enrichments per run |
+| `max_concurrent_enrichments` | `int` | `5` | Maximum concurrent enrichment requests to prevent rate limiting |
 
 ### PipelineSettings
 

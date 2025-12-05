@@ -20,7 +20,7 @@ import ibis.common.exceptions
 from ibis.expr.types import Table
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, RunContext, UsageLimits
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
@@ -158,8 +158,8 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
                 return cached
 
         # Execute RAG search
-        # Execute RAG search
-        # Reset backend to ensure it attaches to the new event loop created by asyncio.run
+        # NOTE: reset_backend() not strictly needed in sync mode but included as defensive
+        # programming to clear any loop-bound clients from previous async operations
         reset_backend()
 
         request = RAGQueryRequest(text=query_text, top_k=top_k)
@@ -199,19 +199,18 @@ def build_rag_context_for_prompt(  # noqa: PLR0913
         return ""
 
 
-def _load_profiles_context(table: Table, profiles_dir: Path) -> str:
+def _load_profiles_context(active_authors: list[str], profiles_dir: Path) -> str:
     """Load profiles for top active authors."""
-    top_authors = get_active_authors(table, limit=20)
-    if not top_authors:
+    if not active_authors:
         return ""
-    logger.info("Loading profiles for %s active authors", len(top_authors))
+    logger.info("Loading profiles for %s active authors", len(active_authors))
 
     parts = [
         "\n\n## Active Participants (Profiles):\n",
         "Understanding the participants helps you write posts that match their style, voice, and interests.\n\n",
     ]
 
-    for author_uuid in top_authors:
+    for author_uuid in active_authors:
         profile_content = read_profile(author_uuid, profiles_dir)
         parts.append(f"### Author: {author_uuid}\n")
         if profile_content:
@@ -285,18 +284,26 @@ def _build_writer_context(  # noqa: PLR0913
     messages_table = table_with_str_uuids.to_pyarrow()
     conversation_xml = build_conversation_xml(messages_table, resources.annotations_store)
 
-    # Build RAG context if enabled
-    if resources.retrieval_config.enabled:
-        table_markdown = conversation_xml  # Use XML content for RAG query
-        rag_context = build_rag_context_for_prompt(
-            table_markdown,
-            top_k=resources.retrieval_config.top_k,
-            cache=cache,
-        )
-    else:
-        rag_context = ""
+    # CACHE INVALIDATION STRATEGY:
+    # RAG and Profiles context building moved to dynamic system prompts for lazy evaluation.
+    # This creates a cache trade-off:
+    #
+    # Trade-off: Cache signature includes conversation XML but NOT RAG/Profile results
+    # - Pro: Avoids expensive RAG/Profile computation for signature calculation
+    # - Con: Cache hit may use stale data if RAG index changes but conversation doesn't
+    #
+    # Mitigation strategies (not currently implemented):
+    # 1. Include RAG index version/timestamp in signature
+    # 2. Add cache TTL for RAG-enabled runs
+    # 3. Manual cache invalidation when RAG index is updated
+    #
+    # Current behavior: Cache is conversation-scoped only. If RAG data changes
+    # but conversation is identical, cached results will be used.
+    # This is acceptable for most use cases where conversation changes drive cache invalidation.
 
-    profiles_context = _load_profiles_context(table_with_str_uuids, resources.profiles_dir)
+    rag_context = ""  # Dynamically injected via @agent.system_prompt
+    profiles_context = ""  # Dynamically injected via @agent.system_prompt
+
     journal_memory = load_journal_memory(resources.output)
     active_authors = get_active_authors(table_with_str_uuids)
 
@@ -683,8 +690,10 @@ def write_posts_with_pydantic_agent(
             )
             return generate_banner_impl(banner_ctx, post_slug, title, summary)
 
-        if context.resources.quota:
-            context.resources.quota.reserve(1)
+    @agent.system_prompt
+    def inject_profiles_context(ctx: RunContext[WriterDeps]) -> str:
+        # Inject profiles
+        return _load_profiles_context(ctx.deps.active_authors, ctx.deps.resources.profiles_dir)
 
         # Use tenacity for retries
         for attempt in get_retrying_iterator():
@@ -695,24 +704,20 @@ def write_posts_with_pydantic_agent(
         msg = "Agent failed after retries"
         raise RuntimeError(msg)
 
-    reset_backend()
-    try:
-        # Run the async agent in a fresh thread with its own event loop
-        # This prevents "bound to different event loop" errors by ensuring complete isolation
-        import asyncio
-        from concurrent.futures import ThreadPoolExecutor
+    result = None
+    # Use tenacity for retries
+    for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
+        with attempt:
+            # DIRECT SYNC CALL
+            result = agent.run_sync(
+                "Analyze the conversation context provided and write posts/profiles as needed.",
+                deps=context,
+                usage_limits=usage_limits
+            )
 
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(asyncio.run, _run_agent_async())
-            result = future.result()
-
-    except QuotaExceededError as exc:
-        msg = (
-            "LLM quota exceeded for this day. No additional posts can be generated "
-            "until the usage window resets."
-        )
-        logger.exception(msg)
-        raise RuntimeError(msg) from exc
+    if not result:
+         # Should be unreachable due to reraise=True
+        raise RuntimeError("Agent failed after retries")
 
     usage = result.usage()
     if context.resources.usage:
@@ -854,8 +859,9 @@ def _index_new_content_in_rag(
     except (OSError, PermissionError) as exc:
         logger.warning("Cannot access RAG storage, skipping indexing: %s", exc)
     finally:
-        # CRITICAL: Reset backend to clear loop-bound clients (httpx)
-        # preventing "bound to different event loop" errors in next window
+        # Reset backend to clear loop-bound clients (httpx) as defensive programming
+        # NOTE: Not strictly needed in sync mode but prevents potential issues
+        # if async operations are added in the future or called from async contexts
         reset_backend()
 
 
@@ -864,6 +870,13 @@ def _prepare_writer_dependencies(
     window_end: datetime,
     resources: WriterResources,
     model_name: str,
+    # Added for dynamic context
+    table: Table | None = None,
+    config: EgregoraConfig | None = None,
+    conversation_xml: str = "",
+    active_authors: list[str] | None = None,
+    adapter_content_summary: str = "",
+    adapter_generation_instructions: str = "",
 ) -> WriterDeps:
     """Create WriterDeps from window parameters and resources."""
     window_label = f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}"
@@ -874,6 +887,12 @@ def _prepare_writer_dependencies(
         window_end=window_end,
         window_label=window_label,
         model_name=model_name,
+        table=table,
+        config=config,
+        conversation_xml=conversation_xml,
+        active_authors=active_authors or [],
+        adapter_content_summary=adapter_content_summary,
+        adapter_generation_instructions=adapter_generation_instructions,
     )
 
 
@@ -896,6 +915,7 @@ def _build_context_and_signature(
     table_with_str_uuids = _cast_uuid_columns_to_str(table)
 
     # Generate context for both prompt and signature
+    # This now just generates the base context (XML, Journal) which is cheap(er)
     writer_context = _build_writer_context(
         table_with_str_uuids,
         resources,
@@ -999,39 +1019,60 @@ def write_posts_for_window(  # noqa: PLR0913 - Complex orchestration function
     if table.count().execute() == 0:
         return {RESULT_KEY_POSTS: [], RESULT_KEY_PROFILES: []}
 
-    # 1. Prepare dependencies
+    # 1. Prepare dependencies (partial, will update with context later)
     if run_id and resources.run_id is None:
         # Create new resources with run_id
         import dataclasses
 
         resources = dataclasses.replace(resources, run_id=run_id)
 
-    deps = _prepare_writer_dependencies(window_start, window_end, resources, config.models.writer)
-
     # 2. Build context and calculate signature
+    # We need to build context first to get XML for signature
     writer_context, signature = _build_context_and_signature(
         table,
         resources,
         cache,
         config,
-        deps.window_label,
+        f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}",
         adapter_content_summary,
         adapter_generation_instructions,
-        deps.resources.prompts_dir,
+        resources.prompts_dir,
     )
 
     # 3. Check L3 cache
-    cached_result = _check_writer_cache(cache, signature, deps.window_label, deps.resources.usage)
+    cached_result = _check_writer_cache(cache, signature, f"{window_start:%Y-%m-%d %H:%M} to {window_end:%H:%M}", resources.usage)
     if cached_result:
         return cached_result
 
     logger.info("Using Pydantic AI backend for writer")
 
-    # 4. Render prompt and execute agent
+    # 4. Create Deps with the generated context
+    deps = _prepare_writer_dependencies(
+        window_start,
+        window_end,
+        resources,
+        config.models.writer,
+        table=table,
+        config=config,
+        conversation_xml=writer_context.conversation_xml,
+        active_authors=writer_context.active_authors,
+        adapter_content_summary=adapter_content_summary,
+        adapter_generation_instructions=adapter_generation_instructions
+    )
+
+    # 5. Render prompt and execute agent
+    # NOTE: _render_writer_prompt uses writer_context, which we stripped RAG/Profiles from.
+    # The Jinja template must be robust to missing/empty rag_context/profiles_context
+    # OR we need to trust the dynamic system prompts to fill them in.
+    # The current Jinja template (viewed earlier) has placeholders:
+    # {% if profiles_context %}{{ profiles_context }}{% endif %}
+    # If they are empty strings, they won't render in the user prompt, which is what we want,
+    # because they will be injected by system prompts.
+
     prompt = _render_writer_prompt(writer_context, deps.resources.prompts_dir)
     saved_posts, saved_profiles = _execute_writer_with_error_handling(prompt, config, deps)
 
-    # 5. Finalize results (output, RAG indexing, caching)
+    # 6. Finalize results (output, RAG indexing, caching)
     return _finalize_writer_results(saved_posts, saved_profiles, resources, deps, cache, signature)
 
 

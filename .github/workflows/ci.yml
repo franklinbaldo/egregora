@@ -1,8 +1,13 @@
 name: CI
-# Security: Limit GITHUB_TOKEN permissions to minimum required
-# See: https://docs.github.com/en/actions/security-guides/automatic-token-authentication#permissions-for-the-github_token
+
+# Cancel outdated runs on new pushes to same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Minimal permissions by default
 permissions:
-  contents: write  # Allow checkout and pages deploy
+  contents: read
 
 on:
   push:
@@ -11,14 +16,9 @@ on:
     branches: [main, develop]
 
 jobs:
-  lint-and-test:
-    permissions:
-      contents: write  # Checkout code and deploy docs
+  lint:
+    name: Lint (ruff + mypy)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.12"]
-
     steps:
       - uses: actions/checkout@v6
 
@@ -26,9 +26,10 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
+      - name: Set up Python
+        run: uv python install 3.12
 
       - name: Install dependencies
         run: uv sync --all-extras
@@ -37,7 +38,6 @@ jobs:
         run: |
           echo "🔍 Checking for pandas imports outside compat/..."
           uv run python tests/linting/test_no_pandas_escape.py
-        continue-on-error: false
 
       - name: Run ruff (lint)
         run: uv run ruff check src/ tests/
@@ -47,52 +47,46 @@ jobs:
 
       - name: Run mypy
         run: uv run mypy src/
-        continue-on-error: true  # Don't fail CI on type errors yet
 
-      - name: Run E2E tests
-        run: uv run pytest tests/e2e/ -v
-
-      - name: Build Documentation
-        run: |
-          cd egregora
-          uv sync --extra docs  # Ensure deps
-          uv run mkdocs build
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Generate Repomix bundles
-        run: |
-          mkdir -p /tmp/bundles site/bundles
-          cd egregora
-          npx repomix -c repomix-docs.json --output /tmp/bundles/docs.bundle.md
-          npx repomix -c repomix-tests.json --output /tmp/bundles/tests.bundle.md
-          npx repomix -c repomix-code.json --output /tmp/bundles/code.bundle.md
-          cp /tmp/bundles/*.bundle.md site/bundles/
-
-      - name: Deploy Docs to GitHub Pages
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./egregora/site
-
-      - name: Upload bundles artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: bundles
-          path: /tmp/bundles/
-  security:
-    permissions:
-      contents: read  # Checkout code
+  test:
+    name: Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Run E2E tests with coverage
+        run: uv run pytest tests/e2e/ -v --cov=src --cov-report=xml --cov-report=term
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
+          retention-days: 7
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Set up Python
         run: uv python install 3.12
@@ -103,19 +97,20 @@ jobs:
       - name: Run safety check
         run: |
           uv pip install safety
-          uv run safety check --json || true
-        continue-on-error: true
+          uv run safety check --json
+        # Remove continue-on-error - let security issues fail the build
 
   build:
-    permissions:
-      contents: read   # Checkout code
-      actions: write   # Upload artifacts
+    name: Build Package
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Set up Python
         run: uv python install 3.12
@@ -123,8 +118,64 @@ jobs:
       - name: Build package
         run: uv build
 
-      - name: Upload artifacts
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
+          retention-days: 30
+
+  docs:
+    name: Build & Deploy Docs
+    # Only run on main branch pushes after lint and test pass
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for GitHub Pages deployment
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: |
+          uv sync --extra docs
+
+      - name: Build Documentation
+        run: |
+          uv run mkdocs build
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Generate Repomix bundles
+        run: |
+          mkdir -p /tmp/bundles
+          npx repomix -c repomix-docs.json --output /tmp/bundles/docs.bundle.md
+          npx repomix -c repomix-tests.json --output /tmp/bundles/tests.bundle.md
+          npx repomix -c repomix-code.json --output /tmp/bundles/code.bundle.md
+          mkdir -p site/bundles
+          cp /tmp/bundles/*.bundle.md site/bundles/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+
+      - name: Upload bundles artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundles
+          path: /tmp/bundles/
+          retention-days: 7

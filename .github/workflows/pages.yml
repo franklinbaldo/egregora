@@ -25,6 +25,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -33,8 +38,70 @@ jobs:
       - name: Set up Python 3.12
         run: uv python install 3.12
 
-      - name: Build site
+      - name: Build documentation site
         run: uvx --python 3.12 --with ".[docs]" mkdocs build --clean
+
+      - name: Generate Repomix bundles
+        run: |
+          mkdir -p site/bundles
+          commit_iso=$(git show -s --format=%cI HEAD)
+          commit_iso_safe=${commit_iso//:/-}
+          echo "{\"commit_iso\":\"${commit_iso_safe}\"}" > site/bundles/meta.json
+          npx repomix -c repomix-docs.json --output site/bundles/docs.bundle.md
+          npx repomix -c repomix-tests.json --output site/bundles/tests.bundle.md
+          npx repomix -c repomix-code.json --output site/bundles/code.bundle.md
+
+      # Build demo blog and add to /demo path
+      - name: Install egregora with all dependencies
+        run: uv sync --all-extras
+
+      - name: Restore pipeline cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            pipeline.duckdb
+            pipeline.duckdb.wal
+            .egregora-cache/
+            .egregora/lancedb/
+          key: demo-pipeline-${{ hashFiles('tests/fixtures/Conversa do WhatsApp com Teste.zip') }}-v2
+          restore-keys: |
+            demo-pipeline-${{ hashFiles('tests/fixtures/Conversa do WhatsApp com Teste.zip') }}-
+            demo-pipeline-
+
+      - name: Generate demo blog
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          echo "🚀 Generating demo blog from fixture..."
+          uv run egregora write \
+            "tests/fixtures/Conversa do WhatsApp com Teste.zip" \
+            --output=./demo-output \
+            --resume
+          echo "✅ Blog generation complete"
+
+      - name: Validate demo output quality
+        run: |
+          POST_COUNT=$(find demo-output/posts -name "*.md" -type f ! -name "index.md" | wc -l)
+          echo "📊 Generated $POST_COUNT blog posts"
+          if [ "$POST_COUNT" -lt 6 ]; then
+            echo "⚠️  WARNING: Only $POST_COUNT posts generated (minimum: 6)"
+            echo "Demo blog may be incomplete but continuing deployment"
+          else
+            echo "✅ Quality check passed: $POST_COUNT posts generated"
+          fi
+
+      - name: Build demo MkDocs site
+        run: |
+          cd demo-output
+          uvx --with mkdocs-material --with mkdocs-blogging-plugin mkdocs build
+          echo "✅ Demo MkDocs site built successfully"
+
+      - name: Integrate demo into docs site
+        run: |
+          # Move demo site to /demo subfolder in the main site
+          mv demo-output/site site/demo
+          echo "✅ Demo blog integrated at /demo path"
+          ls -lah site/demo/ | head -20
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

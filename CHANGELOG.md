@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 2025-11-28 - De-Async Refactor & Privacy Alignment
+
+#### Changed
+- **BREAKING:** RAG APIs (`index_documents`, `search`) are now fully synchronous.
+  - Reverted the previous "Async RAG" direction to align with the core synchronous architecture.
+  - Concurrency is now handled via thread pools rather than asyncio event loops.
+- **Documentation:** Updated architecture guides to reflect that Privacy is an integral part of the Input Adapter stage, not a standalone pipeline step.
+- **Documentation:** Updated configuration reference with explicit warnings about model prefixes (`google-gla:` vs `models/`).
+- **Documentation:** Updated RAG documentation to remove all `async`/`await` references.
+
 ### 2025-11-27 - MkDocs Scaffold Defaults
 
 #### Changed

@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from egregora.agents.shared.annotations import AnnotationStore
-    from egregora.config.settings import RAGSettings
+    from egregora.config.settings import EgregoraConfig, RAGSettings
     from egregora.data_primitives.protocols import OutputSink
     from egregora.database.task_store import TaskStore
     from egregora.utils.metrics import UsageTracker
@@ -59,13 +59,29 @@ class WriterResources:
 
 @dataclass(frozen=True)
 class WriterDeps:
-    """Immutable dependencies passed to agent tools."""
+    """Immutable dependencies passed to agent tools.
+
+    Note:
+        - table and config are reserved for future dynamic system prompt use
+        - conversation_xml, active_authors, and adapter fields are pre-calculated
+          to avoid expensive recomputation during agent execution
+        - All fields with default values are safe to access without null checks
+    """
 
     resources: WriterResources
     window_start: datetime
     window_end: datetime
     window_label: str
     model_name: str
+    # Reserved for future dynamic system prompt expansion
+    # If used in system prompts, add appropriate null checks
+    table: Table | None = None
+    config: EgregoraConfig | None = None
+    # Pre-calculated context parts that are expensive or needed for signature
+    conversation_xml: str = ""
+    active_authors: list[str] = Field(default_factory=list)
+    adapter_content_summary: str = ""
+    adapter_generation_instructions: str = ""
 
     @property
     def output_sink(self) -> OutputSink:

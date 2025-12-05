@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = "==3.12.*"
 
 [[package]]
@@ -639,6 +639,11 @@ docs = [
 rss = [
     { name = "mkdocs-rss-plugin" },
 ]
+test = [
+    { name = "ibis-framework", extra = ["duckdb"] },
+    { name = "pytest" },
+    { name = "respx" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -650,9 +655,6 @@ dev = [
     { name = "ruff" },
     { name = "vulture" },
 ]
-test = [
-    { name = "respx" },
-]
 
 [package.metadata]
 requires-dist = [
@@ -661,6 +663,7 @@ requires-dist = [
     { name = "duckdb" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "ibis-framework", extras = ["duckdb"], specifier = "==9.0.0" },
+    { name = "ibis-framework", extras = ["duckdb"], marker = "extra == 'test'", specifier = "==9.0.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "lancedb", specifier = ">=0.25.3" },
     { name = "mkdocs", specifier = ">=1.6.1" },
@@ -683,17 +686,19 @@ requires-dist = [
     { name = "pydantic-evals", specifier = ">=1.25.1" },
     { name = "pymdown-extensions", specifier = ">=10.17.2" },
     { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=10.17.2" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=9.0.1" },
     { name = "python-dateutil", specifier = ">=2.9.0.post0" },
     { name = "python-frontmatter", specifier = ">=1.1.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "ratelimit", specifier = ">=2.2.1" },
+    { name = "respx", marker = "extra == 'test'", specifier = ">=0.22.0" },
     { name = "rich", specifier = ">=13.9.4" },
     { name = "scikit-learn", specifier = ">=1.7.2" },
     { name = "tenacity", specifier = ">=9.1.2" },
     { name = "tiktoken", specifier = ">=0.12.0" },
     { name = "typer", specifier = ">=0.20.0" },
 ]
-provides-extras = ["docs", "rss"]
+provides-extras = ["docs", "rss", "test"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -705,7 +710,6 @@ dev = [
     { name = "ruff", specifier = ">=0.14.7" },
     { name = "vulture", specifier = ">=2.14" },
 ]
-test = [{ name = "respx", specifier = ">=0.22.0" }]
 
 [[package]]
 name = "email-validator"

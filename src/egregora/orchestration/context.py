@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from egregora.agents.shared.annotations import AnnotationStore
     from egregora.database.protocols import StorageProtocol
     from egregora.database.task_store import TaskStore
+    from egregora_v3.core.catalog import ContentLibrary
 
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import OutputSink, UrlContext
@@ -121,6 +122,9 @@ class PipelineState:
     annotations_store: AnnotationStore | None = None
     task_store: TaskStore | None = None
 
+    # V3 Content Library Facade
+    library: ContentLibrary | None = None
+
     # Quota tracking
     quota_tracker: QuotaTracker | None = None
 
@@ -211,6 +215,10 @@ class PipelineContext:
     @property
     def task_store(self) -> TaskStore | None:
         return self.state.task_store
+
+    @property
+    def library(self) -> ContentLibrary | None:
+        return self.state.library
 
     @property
     def output_format(self) -> OutputSink | None:

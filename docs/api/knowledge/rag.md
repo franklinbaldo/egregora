@@ -7,30 +7,29 @@ The RAG module provides LanceDB-based vector storage and retrieval for enriched 
 Egregora's RAG system uses:
 
 - **LanceDB**: Fast vector storage with native filtering
-- **Async API**: All operations are async for better performance
+- **Synchronous API**: All operations are synchronous, using thread pools for concurrency
 - **Dual-Queue Router**: Intelligent routing between single and batch embedding endpoints
 - **Asymmetric Embeddings**: Different task types for documents vs queries
 
 ## Quick Start
 
 ```python
-import asyncio
 from egregora.rag import index_documents, search, RAGQueryRequest
 from egregora.data_primitives import Document, DocumentType
 
-async def example():
+def example():
     # Index documents
     doc = Document(content="# Post\n\nContent", type=DocumentType.POST)
-    await index_documents([doc])
+    index_documents([doc])
 
     # Search
     request = RAGQueryRequest(text="search query", top_k=5)
-    response = await search(request)
+    response = search(request)
 
     for hit in response.hits:
         print(f"{hit.score:.2f}: {hit.text[:50]}")
 
-asyncio.run(example())
+example()
 ```
 
 ## Configuration
@@ -86,7 +85,7 @@ rag:
 
 ### Dual-Queue Embedding Router
 
-The embedding router intelligently routes requests to optimal endpoints:
+The embedding router intelligently routes requests to optimal endpoints using thread pools for concurrency:
 
 - **Single Endpoint**: Low-latency, preferred for queries (1 request/sec)
 - **Batch Endpoint**: High-throughput, used for bulk indexing (1000 embeddings/min)
@@ -112,11 +111,10 @@ This improves retrieval quality by using different embedding strategies for docu
 ### Basic Indexing
 
 ```python
-import asyncio
 from egregora.rag import index_documents
 from egregora.data_primitives import Document, DocumentType
 
-async def index_posts():
+def index_posts():
     docs = [
         Document(
             content="# First Post\n\nContent here",
@@ -130,19 +128,18 @@ async def index_posts():
         )
     ]
 
-    await index_documents(docs)
+    index_documents(docs)
     print(f"Indexed {len(docs)} documents")
 
-asyncio.run(index_posts())
+index_posts()
 ```
 
 ### Advanced Search
 
 ```python
-import asyncio
 from egregora.rag import search, RAGQueryRequest
 
-async def search_posts():
+def search_posts():
     # Search with SQL filters
     request = RAGQueryRequest(
         text="machine learning",
@@ -151,7 +148,7 @@ async def search_posts():
         min_similarity=0.7
     )
 
-    response = await search(request)
+    response = search(request)
 
     print(f"Found {len(response.hits)} results in {response.query_time_ms}ms")
     for hit in response.hits:
@@ -160,18 +157,17 @@ async def search_posts():
         print(f"Text: {hit.text[:100]}...")
         print()
 
-asyncio.run(search_posts())
+search_posts()
 ```
 
 ### Custom Embedding Function
 
 ```python
-import asyncio
 from typing import Sequence
 from egregora.rag import index_documents
 from egregora.data_primitives import Document, DocumentType
 
-async def custom_embed(texts: Sequence[str], task_type: str) -> list[list[float]]:
+def custom_embed(texts: Sequence[str], task_type: str) -> list[list[float]]:
     """Custom embedding function."""
     # Use your own embedding model
     embeddings = []
@@ -180,13 +176,13 @@ async def custom_embed(texts: Sequence[str], task_type: str) -> list[list[float]
         embeddings.append([0.1] * 768)  # Example
     return embeddings
 
-async def index_with_custom_embeddings():
+def index_with_custom_embeddings():
     docs = [Document(content="Test", type=DocumentType.POST)]
 
     # Pass custom embedding function
-    await index_documents(docs, embedding_fn=custom_embed)
+    index_documents(docs, embedding_fn=custom_embed)
 
-asyncio.run(index_with_custom_embeddings())
+index_with_custom_embeddings()
 ```
 
 ## Performance
@@ -227,18 +223,17 @@ results = store.query_media(query, media_types=types)
 **After (New):**
 
 ```python
-import asyncio
 from egregora.rag import index_documents, search, RAGQueryRequest
 
-async def migrate():
+def migrate():
     # Index documents
-    await index_documents(docs)
+    index_documents(docs)
 
     # Search
     request = RAGQueryRequest(text=query, top_k=5)
-    response = await search(request)
+    response = search(request)
 
-asyncio.run(migrate())
+migrate()
 ```
 
 ## See Also
