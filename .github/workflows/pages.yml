@@ -107,7 +107,7 @@ jobs:
           ls -lah site/demo/ | head -20
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: site
 
