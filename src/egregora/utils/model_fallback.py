@@ -1,4 +1,3 @@
-```
 """Model fallback utility using pydantic-ai's native FallbackModel."""
 
 from __future__ import annotations
