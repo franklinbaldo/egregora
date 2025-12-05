@@ -82,27 +82,8 @@ class EgregoraConfig(BaseModel):
     def load(cls, site_root: Path) -> "EgregoraConfig":
         """Loads configuration from .egregora/config.yml in the site_root.
 
-        If file doesn't exist, returns default config.
-        Raises error if file exists but is invalid.
+        Uses ConfigLoader to handle file loading and env var overrides.
         """
-        config_path = site_root / ".egregora" / "config.yml"
+        from egregora_v3.core.config_loader import ConfigLoader
 
-        data = {}
-        if config_path.exists():
-            with config_path.open(encoding="utf-8") as f:
-                data = yaml.safe_load(f) or {}
-
-        # Inject site_root into paths config
-        # We modify the dictionary before instantiation to ensure immutability/clean construction
-        paths_data = data.get("paths")
-
-        if paths_data is None:
-            paths_data = {}
-        elif not isinstance(paths_data, dict):
-            msg = f"Configuration 'paths' must be a dictionary, got {type(paths_data).__name__}"
-            raise ValueError(msg)
-
-        paths_data["site_root"] = site_root
-        data["paths"] = paths_data
-
-        return cls(**data)
+        return ConfigLoader(site_root).load()
