@@ -1,8 +1,6 @@
 from datetime import UTC, datetime
 from xml.etree import ElementTree
 
-import pytest
-
 from egregora_v3.core.types import (
     Document,
     DocumentStatus,
@@ -12,7 +10,6 @@ from egregora_v3.core.types import (
 )
 
 
-@pytest.mark.xfail(reason="Awaiting Atom export of document type and status", strict=True)
 def test_feed_to_xml_exposes_doc_type_and_status_categories():
     doc = Document.create(
         content="Example body",
@@ -47,7 +44,6 @@ def test_feed_to_xml_exposes_doc_type_and_status_categories():
     ) in exported_terms
 
 
-@pytest.mark.xfail(reason="documents_to_feed should sort entries by updated timestamp", strict=True)
 def test_documents_to_feed_sorts_entries_newest_first():
     older = Document.create(
         content="Older entry",

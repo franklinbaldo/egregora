@@ -22,6 +22,7 @@ class PipelineContext:
         config: Egregora configuration (optional)
         workspace_id: Workspace identifier (optional, for multi-workspace)
         metadata: Additional run metadata (frozen dict)
+
     """
 
     run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
