@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+from pydantic_core import ValidationError
+import http
 import logging
 import os
 import time
@@ -222,6 +225,7 @@ def create_fallback_model(
             wrapped_fallbacks.append(RateLimitedModel(batch_model))
         else:
             wrapped_fallbacks.append(_resolve_and_wrap(m))
+
 
     return FallbackModel(
         primary,
