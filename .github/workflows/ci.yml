@@ -34,11 +34,6 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras
 
-      - name: Check pandas escape
-        run: |
-          echo "🔍 Checking for pandas imports outside compat/..."
-          uv run python tests/linting/test_no_pandas_escape.py
-
       - name: Run ruff (lint)
         run: uv run ruff check src/ tests/
 
