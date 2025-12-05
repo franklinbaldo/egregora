@@ -192,3 +192,75 @@ def test_config_yaml_roundtrip(tmp_path: Path):
     assert loaded.rag.top_k == 10
     assert loaded.privacy.structural.enabled is False
     assert loaded.privacy.enabled is False  # Backward compat property
+
+
+def test_config_load_from_cwd(tmp_path: Path, monkeypatch):
+    """Test loading config from current working directory."""
+    # Create config in tmp_path
+    config_dir = tmp_path / ".egregora"
+    config_dir.mkdir()
+    config_file = config_dir / "config.yml"
+    config_file.write_text(
+        """
+models:
+  writer: google-gla:gemini-pro-latest
+rag:
+  enabled: false
+"""
+    )
+
+    # Change to tmp_path directory
+    monkeypatch.chdir(tmp_path)
+
+    # Load without specifying site_root - should use CWD
+    config = load_egregora_config()
+
+    assert config.models.writer == "google-gla:gemini-pro-latest"
+    assert config.rag.enabled is False
+
+
+def test_config_env_var_override_string(tmp_path: Path, monkeypatch):
+    """Test environment variable override for string values."""
+    monkeypatch.setenv("EGREGORA_MODELS__WRITER", "google-gla:gemini-experimental")
+
+    # Create minimal config file
+    config_dir = tmp_path / ".egregora"
+    config_dir.mkdir()
+    config_file = config_dir / "config.yml"
+    config_file.write_text("models:\n  writer: google-gla:gemini-flash-latest\n")
+
+    config = load_egregora_config(tmp_path)
+
+    # Env var should override file value
+    assert config.models.writer == "google-gla:gemini-experimental"
+
+
+def test_config_env_var_override_boolean(tmp_path: Path, monkeypatch):
+    """Test environment variable override for boolean values."""
+    monkeypatch.setenv("EGREGORA_RAG__ENABLED", "false")
+
+    config_dir = tmp_path / ".egregora"
+    config_dir.mkdir()
+    config_file = config_dir / "config.yml"
+    config_file.write_text("rag:\n  enabled: true\n")
+
+    config = load_egregora_config(tmp_path)
+
+    # Env var should override file value
+    assert config.rag.enabled is False
+
+
+def test_config_env_var_override_integer(tmp_path: Path, monkeypatch):
+    """Test environment variable override for integer values."""
+    monkeypatch.setenv("EGREGORA_RAG__TOP_K", "15")
+
+    config_dir = tmp_path / ".egregora"
+    config_dir.mkdir()
+    config_file = config_dir / "config.yml"
+    config_file.write_text("rag:\n  top_k: 5\n")
+
+    config = load_egregora_config(tmp_path)
+
+    # Env var should override file value
+    assert config.rag.top_k == 15
+    assert isinstance(config.rag.top_k, int)
