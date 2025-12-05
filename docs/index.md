@@ -4,6 +4,11 @@
 
 Welcome to the Egregora documentation! Transform your WhatsApp group chats into intelligent, privacy-first blogs where collective conversations emerge as beautifully written articles.
 
+!!! tip "🌟 Try the Live Demo"
+    **See Egregora in action!** Check out our [**live demo blog**](demo/) generated from real WhatsApp conversations. Experience how collective chats transform into beautifully organized articles.
+
+    [:octicons-arrow-right-24: Explore the Demo Blog](demo/){ .md-button .md-button--primary }
+
 ## Features
 
 - 🧠 **Emergent Intelligence**: Collective conversations synthesize into coherent articles
