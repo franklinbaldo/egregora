@@ -18,6 +18,24 @@
 **Timeline:** Q1 2026 (2-3 months)
 **Reference:** [docs/v3_development_plan.md:159-268](docs/v3_development_plan.md#L159-L268)
 
+### Testing & Production Dependencies ✅ COMPLETE
+
+**Testing Libraries Added:**
+- `hypothesis` - Property-based testing for Pydantic models and data validation
+- `pytest-asyncio` - Async testing support for pydantic-ai agents
+- `pytest-mock` - Enhanced mocking with fixture-based API
+- `faker` - Realistic test data generation for Atom feeds
+- `freezegun` - Time travel for deterministic timestamp testing
+- `pytest-xdist` - Parallel test execution for faster CI
+- `syrupy` - Snapshot testing for Atom XML and prompt templates
+
+**Production Libraries Added:**
+- `structlog` - Structured logging for async pipeline debugging
+- `xmlschema` - Atom feed validation (RFC 4287 compliance)
+- `asyncstdlib` - Async itertools (replaces custom batching utilities in Phase 4)
+- `cattrs` - Advanced serialization for complex conversions
+- `lxml` - High-performance XML processing for Atom feeds
+
 ### Remaining Work
 
 - [ ] Complete semantic identity logic in `Document.create()` - [Plan:172](docs/v3_development_plan.md#L172)
