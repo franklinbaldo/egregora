@@ -179,9 +179,6 @@ class InputAdapterRegistry:
 
 
 # Global registry instance (lazy-loaded)
-_global_registry: InputAdapterRegistry | None = None
-
-
 def get_global_registry() -> InputAdapterRegistry:
     """Get the global adapter registry (singleton pattern).
 
@@ -197,7 +194,6 @@ def get_global_registry() -> InputAdapterRegistry:
         >>> adapter = registry.get("whatsapp")
 
     """
-    global _global_registry  # noqa: PLW0603
-    if _global_registry is None:
-        _global_registry = InputAdapterRegistry()
-    return _global_registry
+    if not hasattr(get_global_registry, "_instance") or get_global_registry._instance is None:
+        get_global_registry._instance = InputAdapterRegistry()
+    return get_global_registry._instance

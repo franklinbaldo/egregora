@@ -240,12 +240,16 @@ class IperonTJROAdapter(InputAdapter):
 
         if tz_name:
             try:
-                from zoneinfo import ZoneInfo
+                from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
                 tz = ZoneInfo(tz_name)
                 ts = ts.astimezone(tz).astimezone(UTC)
-            except Exception:  # noqa: BLE001
+            except ZoneInfoNotFoundError:
                 logger.warning("Invalid timezone %s, defaulting to UTC", tz_name)
+                ts = ts.astimezone(UTC)
+            except ValueError:
+                # Catch offset-naive datetime conversion errors
+                logger.warning("Timezone conversion error for %s, defaulting to UTC", tz_name)
                 ts = ts.astimezone(UTC)
         else:
             ts = ts.astimezone(UTC)

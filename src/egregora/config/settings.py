@@ -31,6 +31,13 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from egregora.config.overrides import ConfigOverrideBuilder
+from egregora.constants import (
+    AuthorPrivacyStrategy,
+    MentionPrivacyStrategy,
+    PIIScope,
+    TextPIIStrategy,
+    WindowUnit,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -224,15 +231,6 @@ class WriterAgentSettings(BaseModel):
         default=None,
         description="Custom instructions to guide the writer agent",
     )
-
-
-# Import privacy enums early for use in privacy settings classes
-from egregora.constants import (  # noqa: E402
-    AuthorPrivacyStrategy,
-    MentionPrivacyStrategy,
-    PIIScope,
-    TextPIIStrategy,
-)
 
 
 class AgentPIISettings(BaseModel):
@@ -433,9 +431,6 @@ class EnrichmentSettings(BaseModel):
         le=20,
         description="Maximum concurrent enrichment requests to prevent rate limiting",
     )
-
-
-from egregora.constants import WindowUnit  # noqa: E402
 
 
 class PipelineSettings(BaseModel):
@@ -952,9 +947,6 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
 # ============================================================================
 # These dataclasses are used for function parameters (not persisted to YAML).
 # They replace parameter soup (12-16 params → 3-6 params).
-
-
-from egregora.constants import WindowUnit  # noqa: E402
 
 
 @dataclass

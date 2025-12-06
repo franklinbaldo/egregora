@@ -416,7 +416,10 @@ def _enrich_avatar(
         if context.cache:
             context.cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
 
-    except Exception as exc:  # pragma: no cover - enrichment failures are logged  # noqa: BLE001
+    except Exception as exc:  # pragma: no cover - enrichment failures are logged
+        # We catch all exceptions here because avatar enrichment is an optional enhancement.
+        # If it fails (e.g., API error, model refusal, file I/O), we log a warning
+        # and proceed without the enrichment file, ensuring the pipeline doesn't crash.
         logger.warning("Failed to enrich avatar %s: %s", avatar_path.name, exc)
 
 

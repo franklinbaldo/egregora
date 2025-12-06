@@ -310,7 +310,7 @@ def create_table_if_not_exists(
         conn.execute(create_sql)
 
 
-def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:  # noqa: PLR0911, C901
+def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:
     """Convert Ibis data type to DuckDB SQL type string.
 
     Args:
@@ -320,34 +320,30 @@ def _ibis_to_duckdb_type(ibis_type: ibis.expr.datatypes.DataType) -> str:  # noq
         DuckDB SQL type string
 
     """
+    # Mapping of predicate method names to DuckDB type strings
+    simple_types = {
+        "is_timestamp": "TIMESTAMP WITH TIME ZONE",
+        "is_date": "DATE",
+        "is_string": "VARCHAR",
+        "is_int64": "BIGINT",
+        "is_int32": "INTEGER",
+        "is_float64": "DOUBLE PRECISION",
+        "is_boolean": "BOOLEAN",
+        "is_binary": "BLOB",
+        "is_uuid": "UUID",
+        "is_json": "JSON",
+    }
 
     # Ibis dtypes are value objects (not classes) in 9.x, so prefer predicate methods over isinstance.
-    def is_kind(name):
-        return callable(getattr(ibis_type, name, None)) and getattr(ibis_type, name)()
+    for predicate, sql_type in simple_types.items():
+        if callable(getattr(ibis_type, predicate, None)) and getattr(ibis_type, predicate)():
+            return sql_type
 
-    if is_kind("is_timestamp"):
-        return "TIMESTAMP WITH TIME ZONE"
-    if is_kind("is_date"):
-        return "DATE"
-    if is_kind("is_string"):
-        return "VARCHAR"
-    if is_kind("is_int64"):
-        return "BIGINT"
-    if is_kind("is_int32"):
-        return "INTEGER"
-    if is_kind("is_float64"):
-        return "DOUBLE PRECISION"
-    if is_kind("is_boolean"):
-        return "BOOLEAN"
-    if is_kind("is_binary"):
-        return "BLOB"
-    if is_kind("is_uuid"):
-        return "UUID"
-    if is_kind("is_json"):
-        return "JSON"
-    if is_kind("is_array"):
+    # Handle nested types
+    if callable(getattr(ibis_type, "is_array", None)) and ibis_type.is_array():
         value_type = _ibis_to_duckdb_type(ibis_type.value_type)
         return f"{value_type}[]"
+
     # Fallback to string representation
     return str(ibis_type).upper()
 
@@ -395,7 +391,8 @@ def ensure_identity_column(
             conn.raw_sql(sql)
         else:
             conn.execute(sql)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
+        # Identity column setup failure is non-fatal (might already exist or not supported by backend)
         logger.debug(
             "Could not set identity on %s.%s (generated=%s): %s", table_name, column_name, generated, e
         )
@@ -495,7 +492,8 @@ def ensure_runs_table_exists(conn: Any) -> None:
             ).fetchone()
             if result and result[0] == 0:
                 create_runs_table(conn)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
+        # Table check failed, attempt creation anyway
         logger.warning("Error checking for runs table existence: %s, attempting creation...", e)
         create_runs_table(conn)
 
@@ -604,7 +602,8 @@ def ensure_lineage_table_exists(conn: Any) -> None:
             ).fetchone()
             if result and result[0] == 0:
                 create_lineage_table(conn)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
+        # Table check failed, attempt creation anyway
         logger.warning("Error checking for lineage table existence: %s, attempting creation...", e)
         create_lineage_table(conn)
 

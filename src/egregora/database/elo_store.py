@@ -70,6 +70,22 @@ class EloRating:
     created_at: datetime
 
 
+@dataclass(frozen=True, slots=True)
+class ComparisonRecord:
+    """Record of a pairwise comparison."""
+
+    comparison_id: str
+    post_a_slug: str
+    post_b_slug: str
+    winner: str
+    rating_a_before: float
+    rating_b_before: float
+    rating_a_after: float
+    rating_b_after: float
+    timestamp: datetime
+    reader_feedback: str | None
+
+
 class EloStore:
     """Persistent storage for ELO ratings using DuckDB."""
 
@@ -140,105 +156,95 @@ class EloStore:
             created_at=row["created_at"],
         )
 
-    def update_ratings(  # noqa: PLR0913
-        self,
-        post_a_slug: str,
-        post_b_slug: str,
-        rating_a_new: float,
-        rating_b_new: float,
-        winner: str,
-        comparison_id: str,
-        reader_feedback: str | None = None,
-    ) -> None:
+    @dataclass
+    class UpdateParams:
+        """Parameters for updating ratings."""
+
+        post_a_slug: str
+        post_b_slug: str
+        rating_a_new: float
+        rating_b_new: float
+        winner: str
+        comparison_id: str
+        reader_feedback: str | None = None
+
+    def update_ratings(self, params: UpdateParams) -> None:
         """Update ratings after a comparison.
 
         Args:
-            post_a_slug: First post identifier
-            post_b_slug: Second post identifier
-            rating_a_new: New rating for post A
-            rating_b_new: New rating for post B
-            winner: Comparison result ("a", "b", or "tie")
-            comparison_id: Unique identifier for this comparison
-            reader_feedback: Optional JSON string with reader comments/ratings
+            params: Update parameters object
 
         """
         # Get current ratings
-        rating_a = self.get_rating(post_a_slug)
-        rating_b = self.get_rating(post_b_slug)
+        rating_a = self.get_rating(params.post_a_slug)
+        rating_b = self.get_rating(params.post_b_slug)
 
         now = datetime.now(UTC)
 
         # Update post A
-        self._upsert_rating(
-            post_slug=post_a_slug,
-            rating=rating_a_new,
+        rating_a_data = EloRating(
+            post_slug=params.post_a_slug,
+            rating=params.rating_a_new,
             comparisons=rating_a.comparisons + 1,
-            wins=rating_a.wins + (1 if winner == "a" else 0),
-            losses=rating_a.losses + (1 if winner == "b" else 0),
-            ties=rating_a.ties + (1 if winner == "tie" else 0),
+            wins=rating_a.wins + (1 if params.winner == "a" else 0),
+            losses=rating_a.losses + (1 if params.winner == "b" else 0),
+            ties=rating_a.ties + (1 if params.winner == "tie" else 0),
             last_updated=now,
             created_at=rating_a.created_at,
         )
+        self._upsert_rating(rating_a_data)
 
         # Update post B
-        self._upsert_rating(
-            post_slug=post_b_slug,
-            rating=rating_b_new,
+        rating_b_data = EloRating(
+            post_slug=params.post_b_slug,
+            rating=params.rating_b_new,
             comparisons=rating_b.comparisons + 1,
-            wins=rating_b.wins + (1 if winner == "b" else 0),
-            losses=rating_b.losses + (1 if winner == "a" else 0),
-            ties=rating_b.ties + (1 if winner == "tie" else 0),
+            wins=rating_b.wins + (1 if params.winner == "b" else 0),
+            losses=rating_b.losses + (1 if params.winner == "a" else 0),
+            ties=rating_b.ties + (1 if params.winner == "tie" else 0),
             last_updated=now,
             created_at=rating_b.created_at,
         )
+        self._upsert_rating(rating_b_data)
 
         # Record comparison history
-        self._record_comparison(
-            comparison_id=comparison_id,
-            post_a_slug=post_a_slug,
-            post_b_slug=post_b_slug,
-            winner=winner,
+        comparison_data = ComparisonRecord(
+            comparison_id=params.comparison_id,
+            post_a_slug=params.post_a_slug,
+            post_b_slug=params.post_b_slug,
+            winner=params.winner,
             rating_a_before=rating_a.rating,
             rating_b_before=rating_b.rating,
-            rating_a_after=rating_a_new,
-            rating_b_after=rating_b_new,
+            rating_a_after=params.rating_a_new,
+            rating_b_after=params.rating_b_new,
             timestamp=now,
-            reader_feedback=reader_feedback,
+            reader_feedback=params.reader_feedback,
         )
+        self._record_comparison(comparison_data)
 
         logger.info(
             "Updated ratings: %s (%.1f → %.1f), %s (%.1f → %.1f)",
-            post_a_slug,
+            params.post_a_slug,
             rating_a.rating,
-            rating_a_new,
-            post_b_slug,
+            params.rating_a_new,
+            params.post_b_slug,
             rating_b.rating,
-            rating_b_new,
+            params.rating_b_new,
         )
 
-    def _upsert_rating(  # noqa: PLR0913
-        self,
-        post_slug: str,
-        rating: float,
-        comparisons: int,
-        wins: int,
-        losses: int,
-        ties: int,
-        last_updated: datetime,
-        created_at: datetime,
-    ) -> None:
+    def _upsert_rating(self, rating_data: EloRating) -> None:
         """Insert or update a rating record."""
         new_row = ibis.memtable(
             [
                 {
-                    "post_slug": post_slug,
-                    "rating": rating,
-                    "comparisons": comparisons,
-                    "wins": wins,
-                    "losses": losses,
-                    "ties": ties,
-                    "last_updated": last_updated,
-                    "created_at": created_at,
+                    "post_slug": rating_data.post_slug,
+                    "rating": rating_data.rating,
+                    "comparisons": rating_data.comparisons,
+                    "wins": rating_data.wins,
+                    "losses": rating_data.losses,
+                    "ties": rating_data.ties,
+                    "last_updated": rating_data.last_updated,
+                    "created_at": rating_data.created_at,
                 }
             ],
             schema=ELO_RATINGS_SCHEMA,
@@ -248,36 +254,24 @@ class EloStore:
             "elo_ratings",
             new_row,
             where_clause="post_slug = ?",
-            params=[post_slug],
+            params=[rating_data.post_slug],
         )
 
-    def _record_comparison(  # noqa: PLR0913
-        self,
-        comparison_id: str,
-        post_a_slug: str,
-        post_b_slug: str,
-        winner: str,
-        rating_a_before: float,
-        rating_b_before: float,
-        rating_a_after: float,
-        rating_b_after: float,
-        timestamp: datetime,
-        reader_feedback: str | None,
-    ) -> None:
+    def _record_comparison(self, record: ComparisonRecord) -> None:
         """Record a comparison in history."""
         new_comparison = ibis.memtable(
             [
                 {
-                    "comparison_id": comparison_id,
-                    "post_a_slug": post_a_slug,
-                    "post_b_slug": post_b_slug,
-                    "winner": winner,
-                    "rating_a_before": rating_a_before,
-                    "rating_b_before": rating_b_before,
-                    "rating_a_after": rating_a_after,
-                    "rating_b_after": rating_b_after,
-                    "timestamp": timestamp,
-                    "reader_feedback": reader_feedback or "",
+                    "comparison_id": record.comparison_id,
+                    "post_a_slug": record.post_a_slug,
+                    "post_b_slug": record.post_b_slug,
+                    "winner": record.winner,
+                    "rating_a_before": record.rating_a_before,
+                    "rating_b_before": record.rating_b_before,
+                    "rating_a_after": record.rating_a_after,
+                    "rating_b_after": record.rating_b_after,
+                    "timestamp": record.timestamp,
+                    "reader_feedback": record.reader_feedback or "",
                 }
             ],
             schema=COMPARISON_HISTORY_SCHEMA,

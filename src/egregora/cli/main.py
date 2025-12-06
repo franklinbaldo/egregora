@@ -1,9 +1,10 @@
 """Main Typer application for Egregora."""
 
 import logging
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
@@ -93,7 +94,7 @@ def _resolve_gemini_key() -> str | None:
 @app.command()
 def init(
     output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
-    interactive: Annotated[  # noqa: FBT002
+    interactive: Annotated[
         bool,
         typer.Option(
             "--interactive/--no-interactive",
@@ -139,8 +140,92 @@ def init(
         )
 
 
+@dataclass
+class WriteCommandOptions:
+    """Options for the write command."""
+
+    input_file: Path
+    source: SourceType
+    output: Path
+    step_size: int
+    step_unit: WindowUnit
+    overlap: float
+    enable_enrichment: bool
+    from_date: str | None
+    to_date: str | None
+    timezone: str | None
+    model: str | None
+    max_prompt_tokens: int
+    use_full_context_window: bool
+    max_windows: int | None
+    resume: bool
+    refresh: str | None
+    force: bool
+    debug: bool
+
+
+def _validate_api_key(output_dir: Path) -> None:
+    """Validate that API key is set."""
+    import os
+
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        # Try loading from .env
+        from dotenv import load_dotenv
+
+        load_dotenv(output_dir / ".env")
+        load_dotenv()  # Check CWD as well
+        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
+        console.print(
+            "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
+        )
+        console.print("You can also create a .env file in the output directory or current directory.")
+        raise typer.Exit(1)
+
+
+def _prepare_write_config(
+    options: WriteCommandOptions, from_date_obj: date | None, to_date_obj: date | None
+) -> Any:
+    """Prepare Egregora configuration from options."""
+    base_config = load_egregora_config(options.output)
+    models_update: dict[str, str] = {}
+    if options.model:
+        models_update = {
+            "writer": options.model,
+            "enricher": options.model,
+            "enricher_vision": options.model,
+            "ranking": options.model,
+            "editor": options.model,
+        }
+    return base_config.model_copy(
+        deep=True,
+        update={
+            "pipeline": base_config.pipeline.model_copy(
+                update={
+                    "step_size": options.step_size,
+                    "step_unit": options.step_unit,
+                    "overlap_ratio": options.overlap,
+                    "timezone": options.timezone,
+                    "from_date": from_date_obj.isoformat() if from_date_obj else None,
+                    "to_date": to_date_obj.isoformat() if to_date_obj else None,
+                    "max_prompt_tokens": options.max_prompt_tokens,
+                    "use_full_context_window": options.use_full_context_window,
+                    "max_windows": options.max_windows,
+                    "checkpoint_enabled": options.resume,
+                }
+            ),
+            "enrichment": base_config.enrichment.model_copy(update={"enabled": options.enable_enrichment}),
+            "rag": base_config.rag,
+            **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
+        },
+    )
+
+
 @app.command()
-def write(  # noqa: C901, PLR0913
+def write(
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     source: Annotated[
@@ -182,8 +267,6 @@ def write(  # noqa: C901, PLR0913
     model: Annotated[
         str | None, typer.Option(help="Gemini model to use (or configure in mkdocs.yml)")
     ] = None,
-    # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch removed (legacy DuckDB VSS settings)
-    # RAG now uses LanceDB with settings from .egregora/config.yml
     max_prompt_tokens: Annotated[
         int, typer.Option(help="Maximum tokens per prompt (default 100k cap, prevents overflow)")
     ] = 100_000,
@@ -216,131 +299,71 @@ def write(  # noqa: C901, PLR0913
     ] = False,
     debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
 ) -> None:
-    """Write blog posts from chat exports using LLM-powered synthesis.
-
-    Supports multiple sources (WhatsApp, Slack, etc.) via the --source flag.
-
-    Windowing:
-        Control how messages are grouped into posts using --step-size and --step-unit:
-
-        By time (default):
-            egregora write export.zip --step-size=1 --step-unit=days
-            egregora write export.zip --step-size=7 --step-unit=days
-            egregora write export.zip --step-size=24 --step-unit=hours
-
-        By message count:
-            egregora write export.zip --step-size=100 --step-unit=messages
-
-    The LLM decides:
-    - What's worth writing about (filters noise automatically)
-    - How many posts per window (0-N)
-    - All metadata (title, slug, tags, summary, etc)
-    - Which author profiles to update based on contributions
-    """
-    # Setup debug logging
-    if debug:
-        logging.getLogger().setLevel(logging.DEBUG)
-
-    # Parse and validate date arguments
-    from_date_obj: date | None = None
-    to_date_obj: date | None = None
-    if from_date:
-        try:
-            from_date_obj = parse_date_arg(from_date, "from_date")
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(1) from e
-    if to_date:
-        try:
-            to_date_obj = parse_date_arg(to_date, "to_date")
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(1) from e
-
-    # Validate timezone
-    if timezone:
-        try:
-            validate_timezone(timezone)
-            console.print(f"[green]Using timezone: {timezone}[/green]")
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(1) from e
-
-    # Note: retrieval config validation removed (legacy DuckDB VSS settings)
-    # RAG now uses LanceDB with settings from .egregora/config.yml
-
-    # Resolve paths
-    output_dir = output.expanduser().resolve()
-    _ensure_mkdocs_scaffold(output_dir)
-
-    import os
-
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        # Try loading from .env
-        from dotenv import load_dotenv
-
-        load_dotenv(output_dir / ".env")
-        load_dotenv()  # Check CWD as well
-        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-
-    if not api_key:
-        console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
-        console.print(
-            "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
-        )
-        console.print("You can also create a .env file in the output directory or current directory.")
-        raise typer.Exit(1)
-
-    # Load base config and merge CLI overrides
-    base_config = load_egregora_config(output_dir)
-    models_update: dict[str, str] = {}
-    if model:
-        models_update = {
-            "writer": model,
-            "enricher": model,
-            "enricher_vision": model,
-            "ranking": model,
-            "editor": model,
-        }
-    egregora_config = base_config.model_copy(
-        deep=True,
-        update={
-            "pipeline": base_config.pipeline.model_copy(
-                update={
-                    "step_size": step_size,
-                    "step_unit": step_unit,
-                    "overlap_ratio": overlap,
-                    "timezone": timezone,
-                    "from_date": from_date_obj.isoformat() if from_date_obj else None,
-                    "to_date": to_date_obj.isoformat() if to_date_obj else None,
-                    "max_prompt_tokens": max_prompt_tokens,
-                    "use_full_context_window": use_full_context_window,
-                    "max_windows": max_windows,
-                    "checkpoint_enabled": resume,
-                }
-            ),
-            "enrichment": base_config.enrichment.model_copy(update={"enabled": enable_enrichment}),
-            # RAG settings: no runtime overrides needed (uses config from .egregora/config.yml)
-            # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch were legacy DuckDB VSS settings
-            "rag": base_config.rag,
-            **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
-        },
-    )
-
-    # Create runtime context
-    runtime = RuntimeContext(
-        output_dir=output_dir,
+    """Write blog posts from chat exports using LLM-powered synthesis."""
+    # Consolidate options
+    options = WriteCommandOptions(
         input_file=input_file,
-        model_override=model,
+        source=source,
+        output=output,
+        step_size=step_size,
+        step_unit=step_unit,
+        overlap=overlap,
+        enable_enrichment=enable_enrichment,
+        from_date=from_date,
+        to_date=to_date,
+        timezone=timezone,
+        model=model,
+        max_prompt_tokens=max_prompt_tokens,
+        use_full_context_window=use_full_context_window,
+        max_windows=max_windows,
+        resume=resume,
+        refresh=refresh,
+        force=force,
         debug=debug,
     )
 
-    # Run pipeline
+    if options.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    from_date_obj, to_date_obj = None, None
+    if options.from_date:
+        try:
+            from_date_obj = parse_date_arg(options.from_date, "from_date")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(1) from e
+    if options.to_date:
+        try:
+            to_date_obj = parse_date_arg(options.to_date, "to_date")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(1) from e
+
+    if options.timezone:
+        try:
+            validate_timezone(options.timezone)
+            console.print(f"[green]Using timezone: {options.timezone}[/green]")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(1) from e
+
+    output_dir = options.output.expanduser().resolve()
+    _ensure_mkdocs_scaffold(output_dir)
+    _validate_api_key(output_dir)
+
+    egregora_config = _prepare_write_config(options, from_date_obj, to_date_obj)
+
+    runtime = RuntimeContext(
+        output_dir=output_dir,
+        input_file=options.input_file,
+        model_override=options.model,
+        debug=options.debug,
+    )
+
     try:
         console.print(
             Panel(
-                f"[cyan]Source:[/cyan] {source.value}\n[cyan]Input:[/cyan] {input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {step_size} {step_unit.value}",
+                f"[cyan]Source:[/cyan] {options.source.value}\n[cyan]Input:[/cyan] {options.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {options.step_size} {options.step_unit.value}",
                 title="⚙️  Egregora Pipeline",
                 border_style="cyan",
             )
@@ -348,9 +371,9 @@ def write(  # noqa: C901, PLR0913
         run_params = PipelineRunParams(
             output_dir=runtime.output_dir,
             config=egregora_config,
-            source_type=source.value,
+            source_type=options.source.value,
             input_path=runtime.input_file,
-            refresh="all" if force else refresh,
+            refresh="all" if options.force else options.refresh,
         )
         write_pipeline.run(run_params)
         console.print("[green]Processing completed successfully.[/green]")
@@ -556,7 +579,7 @@ def doctor(
             icon = "❌"
             color = "red"
         else:
-            icon = "ℹ️"  # noqa: RUF001
+            icon = "ℹ️"
             color = "cyan"
 
         console.print(f"[{color}]{icon} {result.check}:[/{color}] {result.message}")

@@ -128,14 +128,21 @@ class Window:
     size: int  # Number of messages
 
 
-def create_windows(  # noqa: PLR0913
+@dataclass
+class WindowConfig:
+    """Configuration for window creation."""
+
+    step_size: int = 100
+    step_unit: str = "messages"
+    overlap_ratio: float = 0.2
+    max_window_time: timedelta | None = None
+    max_bytes_per_window: int = 320_000
+
+
+def create_windows(
     table: Table,
     *,
-    step_size: int = 100,
-    step_unit: str = "messages",
-    overlap_ratio: float = 0.2,
-    max_window_time: timedelta | None = None,
-    max_bytes_per_window: int = 320_000,
+    config: WindowConfig | None = None,
 ) -> Iterator[Window]:
     """Create processing windows from messages with overlap for context continuity.
 
@@ -155,39 +162,30 @@ def create_windows(  # noqa: PLR0913
 
     Args:
         table: Table with timestamp column
-        step_size: Size of each window (ignored for bytes mode)
-        step_unit: Unit for windowing ("messages", "hours", "days", "bytes")
-        overlap_ratio: Fraction of window to overlap (0.0-0.5, default 0.2 = 20%).
-            Values outside this range are clamped before processing.
-        max_window_time: Optional maximum time span per window **step** (not
-            including overlap). Actual window duration will be
-            max_window_time x (1 + overlap_ratio). To strictly bound total
-            duration, set max_window_time = desired_max / (1 + overlap_ratio)
-        max_bytes_per_window: Max bytes per window (for bytes mode, ~4 bytes/token)
+        config: Window creation configuration
 
     Yields:
         Window objects with overlapping message sets
 
     Examples:
         >>> # 100 messages per window with 20% overlap
-        >>> for window in create_windows(table, step_size=100, step_unit="messages"):
+        >>> config = WindowConfig(step_size=100, step_unit="messages")
+        >>> for window in create_windows(table, config=config):
         ...     print(f"Processing window {window.window_index}: {window.size} messages")
-        >>>
-        >>> # No overlap (old behavior)
-        >>> for window in create_windows(table, step_size=100, overlap_ratio=0.0):
-        ...     pass
 
     """
+    if config is None:
+        config = WindowConfig()
     if table.count().execute() == 0:
         return
 
-    normalized_unit = step_unit.lower()
-    normalized_ratio = max(0.0, min(overlap_ratio, 0.5))
+    normalized_unit = config.step_unit.lower()
+    normalized_ratio = max(0.0, min(config.overlap_ratio, 0.5))
 
-    if normalized_ratio != overlap_ratio:
+    if normalized_ratio != config.overlap_ratio:
         logger.info(
             "Adjusted overlap_ratio from %s to %s (supported range: 0.0-0.5)",
-            overlap_ratio,
+            config.overlap_ratio,
             normalized_ratio,
         )
 
@@ -196,26 +194,26 @@ def create_windows(  # noqa: PLR0913
     if normalized_unit == "messages":
         yield from _prepare_message_windows(
             sorted_table,
-            step_size=step_size,
+            step_size=config.step_size,
             overlap_ratio=normalized_ratio,
-            max_window_time=max_window_time,
+            max_window_time=config.max_window_time,
         )
     elif normalized_unit in {"hours", "days"}:
         yield from _prepare_time_windows(
             sorted_table,
-            step_size=step_size,
+            step_size=config.step_size,
             step_unit=normalized_unit,
             overlap_ratio=normalized_ratio,
-            max_window_time=max_window_time,
+            max_window_time=config.max_window_time,
         )
     elif normalized_unit == "bytes":
         yield from _prepare_byte_windows(
             sorted_table,
-            max_bytes_per_window=max_bytes_per_window,
+            max_bytes_per_window=config.max_bytes_per_window,
             overlap_ratio=normalized_ratio,
         )
     else:
-        msg = f"Unknown step_unit: {step_unit}. Must be 'messages', 'hours', 'days', or 'bytes'."
+        msg = f"Unknown step_unit: {config.step_unit}. Must be 'messages', 'hours', 'days', or 'bytes'."
         raise ValueError(msg)
 
 
