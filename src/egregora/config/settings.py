@@ -835,11 +835,54 @@ def find_egregora_config(start_dir: Path) -> Path | None:
     return None
 
 
+def _collect_env_override_paths() -> set[tuple[str, ...]]:
+    """Return the set of config paths defined via environment variables."""
+    import os
+
+    prefix = "EGREGORA_"
+    env_paths: set[tuple[str, ...]] = set()
+
+    for key in os.environ:
+        if not key.startswith(prefix):
+            continue
+        parts = [part.lower() for part in key[len(prefix) :].split("__") if part]
+        if parts:
+            env_paths.add(tuple(parts))
+
+    return env_paths
+
+
+def _merge_config(
+    base: dict[str, Any],
+    override: dict[str, Any],
+    env_override_paths: set[tuple[str, ...]],
+    current_path: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    """Merge override into base, skipping keys provided via env vars."""
+    from copy import deepcopy
+
+    merged = deepcopy(base)
+
+    for key, value in override.items():
+        path = current_path + (str(key).lower(),)
+        if path in env_override_paths:
+            continue
+
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _merge_config(merged[key], value, env_override_paths, path)
+        else:
+            merged[key] = value
+
+    return merged
+
+
 def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
     """Load Egregora configuration from .egregora/config.yml.
 
-    SIMPLE: Just load .egregora/config.yml, create if missing.
-    Environment variables automatically override file values via Pydantic Settings.
+    Configuration priority (highest to lowest):
+    1. Environment variables (EGREGORA_SECTION__KEY)
+    2. Config file (.egregora/config.yml)
+    3. Defaults
 
     Args:
         site_root: Root directory of the site. If None, uses current working directory.
@@ -875,13 +918,22 @@ def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
         raise
 
     try:
-        data = yaml.safe_load(raw_config) or {}
+        file_data = yaml.safe_load(raw_config) or {}
     except yaml.YAMLError:
         logger.exception("Failed to parse YAML in %s", config_path)
         raise
 
     try:
-        return EgregoraConfig(**data)
+        # Create base config with defaults and environment variables
+        base_config = EgregoraConfig()
+        base_dict = base_config.model_dump(mode="json")
+
+        # Merge file config into base, skipping env var overrides
+        env_override_paths = _collect_env_override_paths()
+        merged = _merge_config(base_dict, file_data, env_override_paths)
+
+        # Validate and return
+        return EgregoraConfig.model_validate(merged)
     except ValidationError as e:
         logger.exception("Configuration validation failed for %s:", config_path)
         for error in e.errors():
