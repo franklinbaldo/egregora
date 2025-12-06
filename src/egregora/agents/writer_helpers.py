@@ -7,6 +7,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from pydantic_ai import RunContext
+
 from egregora.agents.model_limits import (
     PromptTooLargeError,
     get_model_context_limit,
@@ -18,7 +20,7 @@ from egregora.knowledge.profiles import read_profile
 from egregora.rag import RAGQueryRequest, reset_backend, search
 
 if TYPE_CHECKING:
-    from pydantic_ai import Agent, RunContext
+    from pydantic_ai import Agent
 
     from egregora.agents.capabilities import AgentCapability
     from egregora.agents.types import (
