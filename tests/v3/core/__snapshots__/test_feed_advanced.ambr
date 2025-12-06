@@ -1,0 +1,7 @@
+# serializer version: 1
+# name: test_feed_xml_snapshot_regression
+  '''
+  <?xml version='1.0' encoding='utf-8'?>
+  <feed xmlns="http://www.w3.org/2005/Atom"><id>test-feed-id</id><title>Test Feed</title><updated>2025-12-06T10:00:00Z</updated><entry><category term="post" scheme="https://egregora.app/schema#doc_type" label="Document Type" /><category term="draft" scheme="https://egregora.app/schema#status" label="Document Status" /><id>deterministic-post</id><title>Deterministic Post</title><updated>2025-12-06T10:00:00Z</updated><content>Deterministic content</content><author><name>Test Author</name></author></entry></feed>
+  '''
+# ---

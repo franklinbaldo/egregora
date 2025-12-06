@@ -666,7 +666,11 @@ def temp_storage() -> DuckDBStorageManager:
         ...     result = storage.read_table("temp")
 
     """
-    return DuckDBStorageManager(db_path=None, checkpoint_dir=Path("/tmp/.egregora-temp"))  # noqa: S108
+    # Use standard temporary directory instead of hardcoded /tmp path
+    import tempfile
+
+    temp_dir = Path(tempfile.gettempdir()) / ".egregora-temp"
+    return DuckDBStorageManager(db_path=None, checkpoint_dir=temp_dir)
 
 
 @contextlib.contextmanager

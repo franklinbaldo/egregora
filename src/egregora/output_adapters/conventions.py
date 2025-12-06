@@ -177,54 +177,55 @@ class StandardUrlConvention(UrlConvention):
             return url.rstrip("/") + "/"
         return url
 
-    def canonical_url(self, document: Document, ctx: UrlContext) -> str:  # noqa: PLR0911
+    def canonical_url(self, document: Document, ctx: UrlContext) -> str:
         """Generate a canonical URL based on the standard convention."""
-        # 1. Blog Posts
-        if document.type == DocumentType.POST:
-            return self._format_post_url(ctx, document)
+        handlers = {
+            DocumentType.POST: self._format_post_url,
+            DocumentType.PROFILE: self._format_profile_url,
+            DocumentType.JOURNAL: self._format_journal_url,
+            DocumentType.MEDIA: self._format_media_url,
+            DocumentType.ENRICHMENT_MEDIA: self._format_media_enrichment_url,
+            DocumentType.ENRICHMENT_URL: self._format_url_enrichment_url,
+        }
 
-        # 2. Author Profiles
-        if document.type == DocumentType.PROFILE:
-            author_uuid = document.metadata.get("uuid") or document.metadata.get("author_uuid")
-            if not author_uuid:
-                # Fallback to document ID if metadata missing, though rare
-                author_uuid = document.document_id
-            return self._join(ctx, self.routes.profiles_prefix, author_uuid)
-
-        # 3. Journals (Agent Memory)
-        if document.type == DocumentType.JOURNAL:
-            window_label = document.metadata.get("window_label")
-            if window_label:
-                safe_label = slugify(window_label)
-                return self._join(ctx, self.routes.journal_prefix, safe_label)
-            slug_value = document.metadata.get("slug")
-            if slug_value:
-                safe_label = slugify(slug_value)
-                return self._join(ctx, self.routes.journal_prefix, safe_label)
-            # Fallback: no window_label or slug, return journal root
-            return self._join(ctx, self.routes.journal_prefix)
-
-        if document.type == DocumentType.MEDIA:
-            return self._format_media_url(ctx, document)
-
-        if document.type == DocumentType.ENRICHMENT_MEDIA:
-            return self._format_media_enrichment_url(ctx, document)
-
-        if document.type == DocumentType.ENRICHMENT_URL:
-            if document.suggested_path:
-                # Pure string manipulation - no Path operations
-                clean_path = _remove_url_extension(document.suggested_path.strip("/"))
-                return self._join(ctx, clean_path, trailing_slash=True)
-            url_slug = self._slug_with_identifier(document)
-            return self._join(
-                ctx,
-                self.routes.media_prefix,
-                "urls",
-                url_slug,
-            )
+        handler = handlers.get(document.type)
+        if handler:
+            return handler(ctx, document)
 
         # Fallback
         return self._join(ctx, "documents", document.document_id)
+
+    def _format_profile_url(self, ctx: UrlContext, document: Document) -> str:
+        author_uuid = document.metadata.get("uuid") or document.metadata.get("author_uuid")
+        if not author_uuid:
+            # Fallback to document ID if metadata missing, though rare
+            author_uuid = document.document_id
+        return self._join(ctx, self.routes.profiles_prefix, author_uuid)
+
+    def _format_journal_url(self, ctx: UrlContext, document: Document) -> str:
+        window_label = document.metadata.get("window_label")
+        if window_label:
+            safe_label = slugify(window_label)
+            return self._join(ctx, self.routes.journal_prefix, safe_label)
+        slug_value = document.metadata.get("slug")
+        if slug_value:
+            safe_label = slugify(slug_value)
+            return self._join(ctx, self.routes.journal_prefix, safe_label)
+        # Fallback: no window_label or slug, return journal root
+        return self._join(ctx, self.routes.journal_prefix)
+
+    def _format_url_enrichment_url(self, ctx: UrlContext, document: Document) -> str:
+        if document.suggested_path:
+            # Pure string manipulation - no Path operations
+            clean_path = _remove_url_extension(document.suggested_path.strip("/"))
+            return self._join(ctx, clean_path, trailing_slash=True)
+        url_slug = self._slug_with_identifier(document)
+        return self._join(
+            ctx,
+            self.routes.media_prefix,
+            "urls",
+            url_slug,
+        )
 
     def _format_post_url(self, ctx: UrlContext, document: Document) -> str:
         slug = document.metadata.get("slug", document.document_id[:8])

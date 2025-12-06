@@ -25,8 +25,9 @@ def mock_embed_fn():
     """Create a mock embedding function that returns fixed-size vectors."""
 
     def embed(texts: list[str], task_type: str) -> list[list[float]]:
-        # Return random 768-dimensional embeddings
-        return [np.random.rand(768).tolist() for _ in texts]  # noqa: NPY002
+        # Return random 768-dimensional embeddings using a Generator
+        rng = np.random.default_rng(seed=42)
+        return [rng.random(768).tolist() for _ in texts]
 
     return embed
 

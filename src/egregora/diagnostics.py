@@ -184,7 +184,8 @@ def check_duckdb_zipfs() -> DiagnosticResult:
         finally:
             conn.close()
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
+        # Diagnostic check failure shouldn't crash the tool, just report as INFO/ERROR
         return DiagnosticResult(
             check="DuckDB ZipFS Extension",
             status=HealthStatus.INFO,
@@ -195,8 +196,15 @@ def check_duckdb_zipfs() -> DiagnosticResult:
 def check_git() -> DiagnosticResult:
     """Check if git is available for code_ref tracking."""
     try:
+        # Resolve full path to git to avoid S607 (partial executable path)
+        import shutil
+
+        git_path = shutil.which("git")
+        if not git_path:
+            raise FileNotFoundError("git executable not found")
+
         result = subprocess.run(
-            ["git", "--version"],  # noqa: S607
+            [git_path, "--version"],
             capture_output=True,
             text=True,
             check=True,
@@ -291,7 +299,8 @@ def check_egregora_config() -> DiagnosticResult:
             },
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
+        # Catch configuration loading errors (validation, parsing, etc.)
         return DiagnosticResult(
             check="Egregora Config",
             status=HealthStatus.ERROR,
@@ -320,7 +329,8 @@ def check_adapters() -> DiagnosticResult:
             message="No adapters registered",
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
+        # Adapter listing failure shouldn't crash diagnostics
         return DiagnosticResult(
             check="Source Adapters",
             status=HealthStatus.ERROR,
@@ -356,8 +366,8 @@ def run_diagnostics() -> list[DiagnosticResult]:
         try:
             result = check_func()
             results.append(result)
-        except Exception as e:  # noqa: BLE001
-            # Catch-all for unexpected errors
+        except Exception as e:
+            # Catch-all for unexpected check failures to ensure report is generated
             check_name = getattr(check_func, "__name__", "Unknown Check")
             check_name = check_name.replace("check_", "").replace("_", " ").title()
             results.append(

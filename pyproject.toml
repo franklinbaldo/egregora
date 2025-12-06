@@ -8,30 +8,41 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "diskcache>=5.6.3",
     "duckdb",
-    "httpx>=0.28.1",
-    "ibis-framework[duckdb]==11.0.0",
-    "jinja2>=3.1.6",
-    "lancedb>=0.25.3",
-    "mkdocs>=1.6.1",
-    "mkdocs-macros-plugin>=1.5.0",
-    "mkdocs-material[imaging]>=9.7.0",
-    "mkdocs-rss-plugin>=1.17.7",
-    "pillow>=11.3.0",
+    "httpx>=0.28",
+    "ibis-framework[duckdb]>=11.0",
+    "jinja2>=3.1",
+    "lancedb>=0.25",
+    "mkdocs>=1.6",
+    "mkdocs-macros-plugin>=1.5",
+    "mkdocs-material[imaging]>=9.7",
+    "mkdocs-rss-plugin>=1.17",
+    "pillow>=11.3",
     "pyarrow",
-    "pydantic>=2.12.3",
-    "pydantic-settings>=2.7.0",
-    "pydantic-ai>=1.25.1",
-    "pydantic-evals>=1.25.1",
-    "python-dateutil>=2.9.0.post0",
-    "python-frontmatter>=1.1.0",
-    "pyyaml>=6.0.3",
-    "pymdown-extensions>=10.17.2",
-    "ratelimit>=2.2.1",
-    "rich>=13.9.4",
-    "tenacity>=9.1.2",
-    "tiktoken>=0.12.0",
-    "typer>=0.20.0",
-    "scikit-learn>=1.7.2",
+    "pydantic>=2.12",
+    "pydantic-settings>=2.7",
+    "pydantic-ai>=1.25",
+    "pydantic-evals>=1.25",
+    "python-dateutil>=2.9",
+    "python-frontmatter>=1.1",
+    "pyyaml>=6.0",
+    "pymdown-extensions>=10.17",
+    "ratelimit>=2.2",
+    "rich>=13.9",
+    "tenacity>=9.1",
+    "tiktoken>=0.12",
+    "typer>=0.20",
+    "scikit-learn>=1.7",
+    # V3 Production Dependencies
+    # Structured logging for async pipeline debugging
+    "structlog>=24.4",
+    # Atom feed validation (RFC 4287 compliance)
+    "xmlschema>=3.6",
+    # Async itertools (replaces custom batching utilities)
+    "asyncstdlib>=3.13",
+    # Advanced serialization for complex conversions
+    "cattrs>=24.2",
+    # High-performance XML processing for Atom feeds
+    "lxml>=5.4",
 ]
 
 [project.scripts]
@@ -59,9 +70,23 @@ rss = [
     "mkdocs-rss-plugin>=1.17.7",
 ]
 test = [
-    "ibis-framework[duckdb]==11.0.0",
-    "pytest>=9.0.1",
-    "respx>=0.22.0",
+    "ibis-framework[duckdb]>=11.0",
+    "pytest>=9.0",
+    "respx>=0.22",
+    # Property-based testing for Pydantic models and data validation
+    "hypothesis>=6.134",
+    # Async testing support for pydantic-ai agents and async pipelines
+    "pytest-asyncio>=0.25",
+    # Enhanced mocking with cleaner fixture-based API
+    "pytest-mock>=3.14",
+    # Realistic test data generation for Atom feeds and documents
+    "faker>=34.1",
+    # Time travel for deterministic timestamp testing
+    "freezegun>=1.5",
+    # Parallel test execution for faster CI
+    "pytest-xdist>=3.6",
+    # Snapshot testing for Atom XML and prompt templates
+    "syrupy>=4.9",
 ]
 
 [build-system]
@@ -247,13 +272,19 @@ addopts = [
 ]
 [dependency-groups]
 dev = [
-    "bandit>=1.9.2",
-    "deptry>=0.24.0",
-    "pre-commit>=4.5.0",
-    "pytest>=9.0.1",
-    "pytest-cov>=6.0.0",
-
-    "radon>=6.0.1",
-    "ruff>=0.14.7",
+    "bandit>=1.9",
+    "deptry>=0.24",
+    "pre-commit>=4.5",
+    "pytest>=9.0",
+    "pytest-cov>=6.0",
+    "pytest-asyncio>=0.25",
+    "pytest-mock>=3.14",
+    "pytest-xdist>=3.6",
+    "hypothesis>=6.134",
+    "faker>=34.1",
+    "freezegun>=1.5",
+    "syrupy>=4.9",
+    "radon>=6.0",
+    "ruff>=0.14",
     "vulture>=2.14",
 ]

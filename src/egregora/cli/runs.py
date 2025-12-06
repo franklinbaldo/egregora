@@ -1,6 +1,7 @@
 """CLI commands for viewing and managing pipeline run history."""
 
 import contextlib
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
@@ -110,68 +111,92 @@ def _format_status(status: str) -> str:
     return status
 
 
-def _build_run_panel_content(  # noqa: C901, PLR0913, PLR0912
-    run_id: str,
-    tenant_id: str | None,
-    stage: str,
-    status: str,
-    error: str | None,
-    parent_run_id: str | None,
-    code_ref: str | None,
-    config_hash: str | None,
-    started_at: str,
-    finished_at: str | None,
-    duration_seconds: float | None,
-    rows_in: int | None,
-    rows_out: int | None,
-    llm_calls: int,
-    tokens: int,
-    attrs: dict | None,
-    trace_id: str | None,
-) -> str:
+@dataclass
+class RunDisplayData:
+    """Structured data for run display."""
+
+    run_id: str
+    tenant_id: str | None
+    stage: str
+    status: str
+    error: str | None
+    parent_run_id: str | None
+    code_ref: str | None
+    config_hash: str | None
+    started_at: str
+    finished_at: str | None
+    duration_seconds: float | None
+    rows_in: int | None
+    rows_out: int | None
+    llm_calls: int
+    tokens: int
+    attrs: dict | None
+    trace_id: str | None
+
+
+def _format_metrics_section(data: RunDisplayData) -> list[str]:
+    lines = []
+    if (
+        data.rows_in is not None
+        or data.rows_out is not None
+        or data.llm_calls
+        or data.tokens
+    ):
+        lines.append("[bold]Metrics:[/bold]")
+        if data.rows_in is not None:
+            lines.append(f"  Rows In:   {data.rows_in:,}")
+        if data.rows_out is not None:
+            lines.append(f"  Rows Out:  {data.rows_out:,}")
+        if data.llm_calls:
+            lines.append(f"  LLM Calls: {data.llm_calls:,}")
+        if data.tokens:
+            lines.append(f"  Tokens:    {data.tokens:,}")
+        lines.append("")
+    return lines
+
+
+def _format_tracking_section(data: RunDisplayData) -> list[str]:
+    lines = []
+    if data.parent_run_id or data.code_ref or data.config_hash:
+        lines.append("[bold]Tracking:[/bold]")
+        if data.parent_run_id:
+            lines.append(f"  Parent: {data.parent_run_id}")
+        if data.code_ref:
+            lines.append(f"  Code:   {data.code_ref}")
+        if data.config_hash:
+            lines.append(f"  Config: {data.config_hash[:32]}...")
+        lines.append("")
+    return lines
+
+
+def _build_run_panel_content(data: RunDisplayData) -> str:
     """Build formatted panel content from run data."""
     lines = []
-    status_display = _format_status(status)
-    lines.append(f"[bold cyan]Run ID:[/bold cyan] {run_id}")
-    if tenant_id:
-        lines.append(f"[bold cyan]Tenant:[/bold cyan] {tenant_id}")
-    lines.append(f"[bold cyan]Stage:[/bold cyan] {stage}")
+    status_display = _format_status(data.status)
+    lines.append(f"[bold cyan]Run ID:[/bold cyan] {data.run_id}")
+    if data.tenant_id:
+        lines.append(f"[bold cyan]Tenant:[/bold cyan] {data.tenant_id}")
+    lines.append(f"[bold cyan]Stage:[/bold cyan] {data.stage}")
     lines.append(f"[bold cyan]Status:[/bold cyan] {status_display}")
     lines.append("")
     lines.append("[bold]Timestamps:[/bold]")
-    lines.append(f"  Started:  {started_at}")
-    if finished_at:
-        lines.append(f"  Finished: {finished_at}")
-    if duration_seconds:
-        lines.append(f"  Duration: {duration_seconds:.2f}s")
+    lines.append(f"  Started:  {data.started_at}")
+    if data.finished_at:
+        lines.append(f"  Finished: {data.finished_at}")
+    if data.duration_seconds:
+        lines.append(f"  Duration: {data.duration_seconds:.2f}s")
     lines.append("")
-    if rows_in is not None or rows_out is not None or llm_calls or tokens:
-        lines.append("[bold]Metrics:[/bold]")
-        if rows_in is not None:
-            lines.append(f"  Rows In:   {rows_in:,}")
-        if rows_out is not None:
-            lines.append(f"  Rows Out:  {rows_out:,}")
-        if llm_calls:
-            lines.append(f"  LLM Calls: {llm_calls:,}")
-        if tokens:
-            lines.append(f"  Tokens:    {tokens:,}")
-        lines.append("")
-    if parent_run_id or code_ref or config_hash:
-        lines.append("[bold]Tracking:[/bold]")
-        if parent_run_id:
-            lines.append(f"  Parent: {parent_run_id}")
-        if code_ref:
-            lines.append(f"  Code:   {code_ref}")
-        if config_hash:
-            lines.append(f"  Config: {config_hash[:32]}...")
-        lines.append("")
-    if error:
+
+    lines.extend(_format_metrics_section(data))
+    lines.extend(_format_tracking_section(data))
+
+    if data.error:
         lines.append("[bold red]Error:[/bold red]")
-        lines.append(f"  {error}")
+        lines.append(f"  {data.error}")
         lines.append("")
-    if trace_id:
+    if data.trace_id:
         lines.append("[bold]Observability:[/bold]")
-        lines.append(f"  Trace ID: {trace_id}")
+        lines.append(f"  Trace ID: {data.trace_id}")
     return "\n".join(lines)
 
 
@@ -195,6 +220,7 @@ def runs_show(
                 console.print(f"[red]Run not found: {run_id}[/red]")
                 raise typer.Exit(1)
 
+            # Unpack result (DuckDB fetchone returns tuple)
             (
                 run_id_full,
                 tenant_id,
@@ -214,25 +240,27 @@ def runs_show(
                 attrs,
                 trace_id,
             ) = result
-            panel_content = _build_run_panel_content(
-                run_id_full,
-                tenant_id,
-                stage,
-                status,
-                error,
-                parent_run_id,
-                code_ref,
-                config_hash,
-                started_at,
-                finished_at,
-                duration_seconds,
-                rows_in,
-                rows_out,
-                llm_calls,
-                tokens,
-                attrs,
-                trace_id,
+
+            display_data = RunDisplayData(
+                run_id=run_id_full,
+                tenant_id=tenant_id,
+                stage=stage,
+                status=status,
+                error=error,
+                parent_run_id=parent_run_id,
+                code_ref=code_ref,
+                config_hash=config_hash,
+                started_at=str(started_at),
+                finished_at=str(finished_at) if finished_at else None,
+                duration_seconds=duration_seconds,
+                rows_in=rows_in,
+                rows_out=rows_out,
+                llm_calls=llm_calls,
+                tokens=tokens,
+                attrs=attrs,
+                trace_id=trace_id,
             )
+            panel_content = _build_run_panel_content(display_data)
             panel = Panel(panel_content, title=f"[bold]Run Details: {stage}[/bold]", border_style="cyan")
             console.print(panel)
     except FileNotFoundError as exc:

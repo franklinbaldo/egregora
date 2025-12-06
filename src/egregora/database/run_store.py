@@ -113,16 +113,17 @@ class RunStore:
         """
         # Use database.tracking.record_run for initial run creation
         # This ensures proper initialization of all run metadata
-        from egregora.database.tracking import record_run
+        from egregora.database.tracking import RunMetadata, record_run
+
+        metadata = RunMetadata(
+            run_id=run_id,
+            stage=stage,
+            status="running",
+            started_at=started_at,
+        )
 
         with self.storage.connection() as conn:
-            record_run(
-                conn=conn,
-                run_id=run_id,
-                stage=stage,
-                status="running",
-                started_at=started_at,
-            )
+            record_run(conn=conn, metadata=metadata)
 
     def mark_run_completed(
         self,

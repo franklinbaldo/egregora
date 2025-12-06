@@ -52,8 +52,8 @@ def mock_embed_fn():
         for text in texts:
             # Simple hash-based deterministic embedding
             seed = hash(text) % 10000
-            rng = np.random.RandomState(seed)
-            emb = rng.rand(768).astype(np.float32)
+            rng = np.random.default_rng(seed=seed)
+            emb = rng.random(768).astype(np.float32)
             embeddings.append(emb.tolist())
         return embeddings
 
@@ -74,8 +74,8 @@ def mock_embed_fn_similar():
             # Add contribution for each word
             for word in words:
                 seed = hash(word) % 10000
-                rng = np.random.RandomState(seed)
-                base += rng.rand(768).astype(np.float32) * 0.1
+                rng = np.random.default_rng(seed=seed)
+                base += rng.random(768).astype(np.float32) * 0.1
 
             # Normalize
             norm = np.linalg.norm(base)
@@ -329,7 +329,8 @@ def test_backend_index_embedding_count_mismatch(temp_db_dir: Path):
 
     def bad_embed_fn(texts: list[str], task_type: str) -> list[list[float]]:
         # Return wrong number of embeddings
-        return [np.random.rand(768).tolist()]  # noqa: NPY002
+        rng = np.random.default_rng(seed=42)
+        return [rng.random(768).tolist()]
 
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -524,7 +525,8 @@ def test_backend_asymmetric_embeddings(temp_db_dir: Path):
         embedding_calls.append({"count": len(texts), "task_type": task_type})
 
         # Return mock embeddings
-        return [np.random.rand(768).tolist() for _ in texts]  # noqa: NPY002
+        rng = np.random.default_rng(seed=42)
+        return [rng.random(768).tolist() for _ in texts]
 
     backend = LanceDBRAGBackend(
         db_dir=temp_db_dir,
@@ -633,7 +635,7 @@ def test_high_level_api_backend_singleton():
         mock_create.return_value = mock_backend1
 
         # Reset global backend
-        egregora.rag._backend = None
+        egregora.rag.reset_backend()
 
         # Get backend twice
         backend1 = get_backend()

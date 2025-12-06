@@ -32,15 +32,16 @@ class ZipValidationSettings:
     max_compression_ratio: float = 100.0  # Detect zip bombs (100:1 ratio)
 
 
-_DEFAULT_LIMITS: ZipValidationSettings = ZipValidationSettings()
+# Use a class-based container for configuration to avoid 'global'
+class _ZipConfig:
+    defaults: ZipValidationSettings = ZipValidationSettings()
 
 
 def configure_default_limits(
     limits: Annotated[ZipValidationSettings, "The new default validation limits"],
 ) -> None:
     """Override module-wide validation limits."""
-    global _DEFAULT_LIMITS  # noqa: PLW0603
-    _DEFAULT_LIMITS = limits
+    _ZipConfig.defaults = limits
 
 
 def get_zip_info(
@@ -83,7 +84,7 @@ def validate_zip_contents(
     - Compression ratio (zip bomb detection)
     - Path traversal prevention
     """
-    limits = limits or _DEFAULT_LIMITS
+    limits = limits or _ZipConfig.defaults
     total_size = 0
     members = zf.infolist()
     if len(members) > limits.max_member_count:
@@ -119,7 +120,7 @@ def ensure_safe_member_size(
     limits: Annotated[ZipValidationSettings | None, "Optional validation limits to use"] = None,
 ) -> None:
     """Ensure an individual member stays within safe boundaries before reading."""
-    limits = limits or _DEFAULT_LIMITS
+    limits = limits or _ZipConfig.defaults
     info = zf.getinfo(member_name)
     if info.file_size > limits.max_member_size:
         msg = f"ZIP member '{member_name}' exceeds maximum size of {limits.max_member_size} bytes"

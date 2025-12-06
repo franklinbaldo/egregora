@@ -200,14 +200,12 @@ class GoogleBatchModel(Model):
             # client.batches.get is blocking
             return client.batches.get(name=job_name)
 
+        from tenacity import RetryError
+
         try:
             job = _get_job_with_retry()
-        except Exception:  # noqa: BLE001
-            # If we exit the retry loop, it might be due to timeout or other error
-            # But we need to handle the case where it simply stopped retrying because of time
-            # Ideally tenacity raises RetryError if it stops without success condition
-            # But here success condition is "NOT processing", so it returns the job
-            # If it times out, it raises RetryError.
+        except RetryError:
+            # Tenacity raises RetryError when retries are exhausted (timeout)
             msg = "Batch job polling timed out"
             raise ModelAPIError(msg) from None
 

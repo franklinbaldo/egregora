@@ -52,9 +52,15 @@ def get_git_commit_sha() -> str | None:
         Git commit SHA (e.g., "a1b2c3d4..."), or None if not in git repo
 
     """
+    import shutil
+
+    git_path = shutil.which("git")
+    if not git_path:
+        return None
+
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],  # noqa: S607
+            [git_path, "rev-parse", "HEAD"],
             capture_output=True,
             text=True,
             check=True,
@@ -148,42 +154,35 @@ def _connection_scope(
         yield conn
 
 
-def record_run(  # noqa: PLR0913
+@dataclass
+class RunMetadata:
+    """Metadata for a single run recording."""
+
+    run_id: uuid.UUID
+    stage: str
+    status: str
+    started_at: datetime
+    finished_at: datetime | None = None
+    tenant_id: str | None = None
+    code_ref: str | None = None
+    config_hash: str | None = None
+    rows_in: int | None = None
+    rows_out: int | None = None
+    llm_calls: int = 0
+    tokens: int = 0
+    error: str | None = None
+    trace_id: str | None = None
+
+
+def record_run(
     conn: duckdb.DuckDBPyConnection | DuckDBStorageManager,
-    run_id: uuid.UUID,
-    stage: str,
-    status: str,
-    started_at: datetime,
-    finished_at: datetime | None = None,
-    *,
-    tenant_id: str | None = None,
-    code_ref: str | None = None,
-    config_hash: str | None = None,
-    rows_in: int | None = None,
-    rows_out: int | None = None,
-    llm_calls: int = 0,
-    tokens: int = 0,
-    error: str | None = None,
-    trace_id: str | None = None,
+    metadata: RunMetadata,
 ) -> None:
     """Record run metadata to runs table.
 
     Args:
         conn: DuckDB connection or :class:`DuckDBStorageManager`
-        run_id: Unique run identifier
-        stage: Pipeline stage (ingestion, privacy, enrichment, etc.)
-        status: Run status (running, completed, failed, degraded)
-        started_at: When run started (UTC)
-        finished_at: When run finished (UTC), None if still running
-        tenant_id: Tenant identifier (optional)
-        code_ref: Git commit SHA
-        config_hash: SHA256 of config
-        rows_in: Number of input rows
-        rows_out: Number of output rows
-        llm_calls: Number of LLM API calls
-        tokens: Total tokens consumed
-        error: Error message if status=failed
-        trace_id: OpenTelemetry trace ID
+        metadata: Run metadata object
 
     Raises:
         duckdb.Error: If insert fails
@@ -196,13 +195,12 @@ def record_run(  # noqa: PLR0913
         ensure_runs_table_exists(resolved_conn)
 
         # Auto-detect code_ref if not provided
-        if code_ref is None:
-            code_ref = get_git_commit_sha()
+        code_ref = metadata.code_ref or get_git_commit_sha()
 
         # Calculate duration if both timestamps provided
         duration_seconds = None
-        if started_at and finished_at:
-            duration_seconds = (finished_at - started_at).total_seconds()
+        if metadata.started_at and metadata.finished_at:
+            duration_seconds = (metadata.finished_at - metadata.started_at).total_seconds()
 
         # Insert run record
         resolved_conn.execute(
@@ -215,21 +213,21 @@ def record_run(  # noqa: PLR0913
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
-                str(run_id),
-                tenant_id,
-                stage,
-                status,
-                error,
+                str(metadata.run_id),
+                metadata.tenant_id,
+                metadata.stage,
+                metadata.status,
+                metadata.error,
                 code_ref,
-                config_hash,
-                started_at,
-                finished_at,
+                metadata.config_hash,
+                metadata.started_at,
+                metadata.finished_at,
                 duration_seconds,
-                rows_in,
-                rows_out,
-                llm_calls,
-                tokens,
-                trace_id,
+                metadata.rows_in,
+                metadata.rows_out,
+                metadata.llm_calls,
+                metadata.tokens,
+                metadata.trace_id,
             ],
         )
 
@@ -321,13 +319,15 @@ def run_stage_with_tracking[T](
     started_at = datetime.now(UTC)
     record_run(
         conn=storage,
-        run_id=context.run_id,
-        stage=context.stage,
-        status="running",
-        started_at=started_at,
-        tenant_id=context.tenant_id,
-        rows_in=rows_in,
-        trace_id=context.trace_id,
+        metadata=RunMetadata(
+            run_id=context.run_id,
+            stage=context.stage,
+            status="running",
+            started_at=started_at,
+            tenant_id=context.tenant_id,
+            rows_in=rows_in,
+            trace_id=context.trace_id,
+        ),
     )
 
     # Record lineage (if parent runs exist)

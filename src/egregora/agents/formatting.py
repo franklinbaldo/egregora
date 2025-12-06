@@ -9,7 +9,7 @@ import math
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 
-import pyarrow as pa  # noqa: TID251
+import pyarrow as pa
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.agents.shared.annotations import Annotation, AnnotationStore

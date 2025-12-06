@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import ibis.expr.types as ir
-import pyarrow as pa  # noqa: TID251
+import pyarrow as pa
 
 logger = logging.getLogger(__name__)
 MAX_ALIAS_LENGTH = 40
@@ -340,7 +340,92 @@ def _validate_alias(alias: str) -> str | None:
     return alias.replace("`", "&#96;")
 
 
-def apply_command_to_profile(  # noqa: C901
+def _handle_alias_command(
+    cmd_type: str,
+    target: str,
+    value: Any,
+    author_uuid: str,
+    timestamp: str,
+    content: str,
+) -> str:
+    """Handle set/remove alias commands."""
+    if cmd_type == "set" and target == "alias":
+        if not isinstance(value, str):
+            logger.warning("Invalid alias for %s (not a string)", author_uuid)
+            return content
+        validated_value = _validate_alias(value)
+        if not validated_value:
+            logger.warning("Invalid alias for %s (rejected)", author_uuid)
+            return content
+        content = _update_profile_metadata(
+            content,
+            "Display Preferences",
+            "alias",
+            f'- Alias: "{validated_value}" (set on {timestamp})\n- Public: true',
+        )
+        logger.info("Set alias for %s", author_uuid)
+    elif cmd_type == "remove" and target == "alias":
+        content = _update_profile_metadata(
+            content,
+            "Display Preferences",
+            "alias",
+            f"- Alias: None (removed on {timestamp})\n- Public: false",
+        )
+        logger.info("Removed alias for %s", author_uuid)
+    return content
+
+
+def _handle_simple_set_command(
+    cmd_type: str,
+    target: str,
+    value: Any,
+    author_uuid: str,
+    timestamp: str,
+    content: str,
+) -> str:
+    """Handle simple set commands (bio, twitter, website)."""
+    if cmd_type != "set":
+        return content
+
+    if target == "bio":
+        content = _update_profile_metadata(content, "User Bio", "bio", f'"{value}"\n\n(Set on {timestamp})')
+        logger.info("Set bio for %s", author_uuid)
+    elif target == "twitter":
+        content = _update_profile_metadata(content, "Links", "twitter", f"- Twitter: {value}")
+        logger.info("Set twitter for %s", author_uuid)
+    elif target == "website":
+        content = _update_profile_metadata(content, "Links", "website", f"- Website: {value}")
+        logger.info("Set website for %s", author_uuid)
+    return content
+
+
+def _handle_privacy_command(
+    cmd_type: str,
+    author_uuid: str,
+    timestamp: str,
+    content: str,
+) -> str:
+    """Handle opt-in/opt-out privacy commands."""
+    if cmd_type == "opt-out":
+        content = _update_profile_metadata(
+            content,
+            "Privacy Preferences",
+            "opted-out",
+            f"- Status: OPTED OUT (on {timestamp})\n- All messages will be excluded from processing",
+        )
+        logger.warning("⚠️  User %s OPTED OUT - all messages will be removed", author_uuid)
+    elif cmd_type == "opt-in":
+        content = _update_profile_metadata(
+            content,
+            "Privacy Preferences",
+            "opted-out",
+            f"- Status: Opted in (on {timestamp})\n- Messages will be included in processing",
+        )
+        logger.info("User %s opted back in", author_uuid)
+    return content
+
+
+def apply_command_to_profile(
     author_uuid: Annotated[str, "The anonymized author UUID"],
     command: Annotated[dict[str, Any], "The command dictionary from the parser"],
     timestamp: Annotated[str, "The timestamp of when the command was issued"],
@@ -367,57 +452,16 @@ def apply_command_to_profile(  # noqa: C901
         content = profile_path.read_text(encoding="utf-8")
     else:
         content = f"# Profile: {author_uuid}\n\n"
+
     cmd_type = command["command"]
     target = command["target"]
     value = command.get("value")
-    if cmd_type == "set" and target == "alias":
-        if not isinstance(value, str):
-            logger.warning("Invalid alias for %s (not a string)", author_uuid)
-            return str(profile_path)
-        validated_value = _validate_alias(value)
-        if not validated_value:
-            logger.warning("Invalid alias for %s (rejected)", author_uuid)
-            return str(profile_path)
-        content = _update_profile_metadata(
-            content,
-            "Display Preferences",
-            "alias",
-            f'- Alias: "{validated_value}" (set on {timestamp})\n- Public: true',
-        )
-        logger.info("Set alias for %s", author_uuid)
-    elif cmd_type == "remove" and target == "alias":
-        content = _update_profile_metadata(
-            content,
-            "Display Preferences",
-            "alias",
-            f"- Alias: None (removed on {timestamp})\n- Public: false",
-        )
-        logger.info("Removed alias for %s", author_uuid)
-    elif cmd_type == "set" and target == "bio":
-        content = _update_profile_metadata(content, "User Bio", "bio", f'"{value}"\n\n(Set on {timestamp})')
-        logger.info("Set bio for %s", author_uuid)
-    elif cmd_type == "set" and target == "twitter":
-        content = _update_profile_metadata(content, "Links", "twitter", f"- Twitter: {value}")
-        logger.info("Set twitter for %s", author_uuid)
-    elif cmd_type == "set" and target == "website":
-        content = _update_profile_metadata(content, "Links", "website", f"- Website: {value}")
-        logger.info("Set website for %s", author_uuid)
-    elif cmd_type == "opt-out":
-        content = _update_profile_metadata(
-            content,
-            "Privacy Preferences",
-            "opted-out",
-            f"- Status: OPTED OUT (on {timestamp})\n- All messages will be excluded from processing",
-        )
-        logger.warning("⚠️  User %s OPTED OUT - all messages will be removed", author_uuid)
-    elif cmd_type == "opt-in":
-        content = _update_profile_metadata(
-            content,
-            "Privacy Preferences",
-            "opted-out",
-            f"- Status: Opted in (on {timestamp})\n- Messages will be included in processing",
-        )
-        logger.info("User %s opted back in", author_uuid)
+
+    # Apply transformations pipeline
+    content = _handle_alias_command(cmd_type, target, value, author_uuid, timestamp, content)
+    content = _handle_simple_set_command(cmd_type, target, value, author_uuid, timestamp, content)
+    content = _handle_privacy_command(cmd_type, author_uuid, timestamp, content)
+
     profile_path.write_text(content, encoding="utf-8")
     return str(profile_path)
 
@@ -632,7 +676,51 @@ def remove_profile_avatar(
     return str(profile_path)
 
 
-def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:  # noqa: C901
+def _parse_frontmatter(content: str) -> dict[str, Any]:
+    """Extract YAML front-matter from content."""
+    import yaml
+
+    if content.startswith("---"):
+        try:
+            parts = content.split("---", 2)
+            if len(parts) >= YAML_FRONTMATTER_PARTS_COUNT:
+                front_matter = yaml.safe_load(parts[1])
+                if isinstance(front_matter, dict):
+                    return front_matter
+        except yaml.YAMLError:
+            pass
+    return {}
+
+
+def _extract_legacy_metadata(content: str, metadata: dict[str, Any]) -> None:
+    """Extract metadata from legacy profile sections."""
+    alias_match = re.search('Alias: "([^"]+)".*Public: true', content, re.DOTALL)
+    if alias_match and "alias" not in metadata:
+        metadata["alias"] = alias_match.group(1)
+        metadata["name"] = alias_match.group(1)
+
+    avatar_match = re.search("- URL:\\s*(.+)", content)
+    if avatar_match and "avatar" not in metadata:
+        metadata["avatar"] = avatar_match.group(1).strip()
+
+    bio_match = re.search('## User Bio\\s*\\n"([^"]+)"', content)
+    if bio_match and "bio" not in metadata:
+        metadata["bio"] = bio_match.group(1)
+
+    social = {}
+    twitter_match = re.search("- Twitter:\\s*(.+)", content)
+    if twitter_match:
+        social["twitter"] = twitter_match.group(1).strip()
+
+    website_match = re.search("- Website:\\s*(.+)", content)
+    if website_match:
+        social["website"] = website_match.group(1).strip()
+
+    if social and "social" not in metadata:
+        metadata["social"] = social
+
+
+def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:
     """Extract metadata from an existing profile file.
 
     Reads YAML front-matter and profile sections to build metadata dict.
@@ -647,49 +735,9 @@ def _extract_profile_metadata(profile_path: Path) -> dict[str, Any]:  # noqa: C9
     if not profile_path.exists():
         return {}
 
-    import yaml
-
     content = profile_path.read_text(encoding="utf-8")
-    metadata: dict[str, Any] = {}
-
-    # Try to parse YAML front-matter first
-    if content.startswith("---"):
-        try:
-            # Extract YAML between --- delimiters
-            parts = content.split("---", 2)
-            if len(parts) >= YAML_FRONTMATTER_PARTS_COUNT:
-                front_matter = yaml.safe_load(parts[1])
-                if isinstance(front_matter, dict):
-                    metadata.update(front_matter)
-        except yaml.YAMLError:
-            pass
-
-    # Extract metadata from profile sections (legacy format)
-    alias_match = re.search('Alias: "([^"]+)".*Public: true', content, re.DOTALL)
-    if alias_match and "alias" not in metadata:
-        metadata["alias"] = alias_match.group(1)
-        metadata["name"] = alias_match.group(1)  # Use alias as name
-
-    avatar_match = re.search("- URL:\\s*(.+)", content)
-    if avatar_match and "avatar" not in metadata:
-        metadata["avatar"] = avatar_match.group(1).strip()
-
-    bio_match = re.search('## User Bio\\s*\\n"([^"]+)"', content)
-    if bio_match and "bio" not in metadata:
-        metadata["bio"] = bio_match.group(1)
-
-    # Extract social links
-    social = {}
-    twitter_match = re.search("- Twitter:\\s*(.+)", content)
-    if twitter_match:
-        social["twitter"] = twitter_match.group(1).strip()
-
-    website_match = re.search("- Website:\\s*(.+)", content)
-    if website_match:
-        social["website"] = website_match.group(1).strip()
-
-    if social and "social" not in metadata:
-        metadata["social"] = social
+    metadata = _parse_frontmatter(content)
+    _extract_legacy_metadata(content, metadata)
 
     return metadata
 

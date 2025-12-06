@@ -38,7 +38,7 @@ def test_annotation_store_initialization(tmp_path: Path):
         assert sequence_state.start_value == 1
 
 
-from egregora.database.tracking import record_run
+from egregora.database.tracking import RunMetadata, record_run
 
 
 def test_run_tracking_with_sequences(tmp_path: Path):
@@ -49,13 +49,13 @@ def test_run_tracking_with_sequences(tmp_path: Path):
         run_id = uuid.uuid4()
         started_at = datetime.now(UTC)
 
-        record_run(
-            conn=storage,
+        metadata = RunMetadata(
             run_id=run_id,
             stage="write",
             status="running",
             started_at=started_at,
         )
+        record_run(conn=storage, metadata=metadata)
 
         result = storage._conn.execute(
             "SELECT stage, status FROM runs WHERE run_id = ?", [str(run_id)]
