@@ -73,8 +73,25 @@ def ensure_author_entries(output_dir: Path, author_ids: list[str] | None) -> Non
     if not author_ids:
         return
 
-    site_root = output_dir.resolve().parent
-    authors_path = site_root / ".authors.yml"
+    # Navigate up from output_dir to find docs directory
+    # output_dir might be: docs/posts/posts/ (for posts with blog plugin structure)
+    # We need to find docs/.authors.yml
+    current = output_dir.resolve()
+    docs_dir = None
+    for _ in range(5):  # Limit traversal depth
+        if current.name == "docs" or (current / ".authors.yml").exists():
+            docs_dir = current
+            break
+        parent = current.parent
+        if parent == current:  # Reached filesystem root
+            break
+        current = parent
+    
+    if docs_dir is None:
+        # Fallback: assume output_dir's grandparent is docs (posts/posts -> docs)
+        docs_dir = output_dir.resolve().parent.parent
+    
+    authors_path = docs_dir / ".authors.yml"
 
     try:
         authors = yaml.safe_load(authors_path.read_text(encoding="utf-8")) or {}
