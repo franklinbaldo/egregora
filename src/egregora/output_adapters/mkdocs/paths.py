@@ -15,7 +15,38 @@ __all__ = [
 ]
 
 
-def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[str, Path | str | None]:  # noqa: C901
+def _resolve_mkdocs_yml_path(resolved_root: Path, egregora_dir: Path) -> tuple[Path | None, Path]:
+    """Find the mkdocs.yml file path."""
+    mkdocs_path: Path | None = None
+    preferred_path = egregora_dir / "mkdocs.yml"
+    legacy_path = resolved_root / "mkdocs.yml"
+
+    if preferred_path.exists():
+        mkdocs_path = preferred_path
+    elif legacy_path.exists():
+        mkdocs_path = legacy_path
+    return mkdocs_path, preferred_path
+
+
+def _resolve_journal_dir(
+    paths_settings: Any,
+    resolve_content_path: Any,
+) -> Path:
+    """Resolve journal directory, handling legacy path normalization logic."""
+
+    def normalize_path_str(path_value: str) -> str:
+        return path_value.replace("\\", "/").strip("./")
+
+    journal_setting = paths_settings.journal_dir
+    posts_norm = normalize_path_str(paths_settings.posts_dir)
+    journal_norm = normalize_path_str(journal_setting)
+    legacy_norm = f"{posts_norm}/journal".strip("./")
+    if journal_norm == legacy_norm:
+        journal_setting = "journal"
+    return resolve_content_path(journal_setting)
+
+
+def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[str, Path | str | None]:
     """Derive MkDocs paths from configuration settings.
 
     This is a simplified alternative to load_site_paths() that:
@@ -30,13 +61,6 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
 
     Returns:
         Dictionary with path keys matching SitePaths attributes
-
-    Example:
-        >>> from egregora.config import load_egregora_config
-        >>> config = load_egregora_config(Path("."))
-        >>> paths = derive_mkdocs_paths(Path("."), config=config)
-        >>> docs_dir = paths["docs_dir"]
-        >>> posts_dir = paths["posts_dir"]
 
     """
     resolved_root = site_root.expanduser().resolve()
@@ -55,20 +79,9 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
             return path.resolve()
         return (resolved_root / path).resolve()
 
-    # Get paths from config settings
     paths_settings = config.paths
     egregora_dir = resolve_path(paths_settings.egregora_dir)
-
-    # Check for mkdocs.yml (for mkdocs-material compatibility)
-    mkdocs_path: Path | None = None
-    preferred_path = egregora_dir / "mkdocs.yml"
-    legacy_path = resolved_root / "mkdocs.yml"
-
-    if preferred_path.exists():
-        mkdocs_path = preferred_path
-    elif legacy_path.exists():
-        mkdocs_path = legacy_path
-
+    mkdocs_path, preferred_path = _resolve_mkdocs_yml_path(resolved_root, egregora_dir)
     docs_dir = resolve_path(paths_settings.docs_dir)
 
     def resolve_content_path(path_str: str) -> Path:
@@ -87,19 +100,10 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
 
         return (docs_dir / path_obj).resolve()
 
-    def normalize_path_str(path_value: str) -> str:
-        return path_value.replace("\\", "/").strip("./")
-
     posts_dir = resolve_content_path(paths_settings.posts_dir)
     profiles_dir = resolve_content_path(paths_settings.profiles_dir)
     media_dir = resolve_content_path(paths_settings.media_dir)
-    journal_setting = paths_settings.journal_dir
-    posts_norm = normalize_path_str(paths_settings.posts_dir)
-    journal_norm = normalize_path_str(journal_setting)
-    legacy_norm = f"{posts_norm}/journal".strip("./")
-    if journal_norm == legacy_norm:
-        journal_setting = "journal"
-    journal_dir = resolve_content_path(journal_setting)
+    journal_dir = _resolve_journal_dir(paths_settings, resolve_content_path)
 
     try:
         blog_relative = posts_dir.relative_to(docs_dir).as_posix()

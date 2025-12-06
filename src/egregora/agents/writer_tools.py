@@ -291,7 +291,9 @@ def annotate_conversation_impl(
             parent_id=annotation.parent_id,
             parent_type=annotation.parent_type,
         )
-    except Exception as exc:  # noqa: BLE001 - defensive catch to avoid pipeline aborts
+    except (RuntimeError, ValueError, OSError, AttributeError) as exc:
+        # We catch expected persistence exceptions here to prevent a single
+        # annotation failure from crashing the entire writer agent process.
         logger.warning("Failed to persist annotation, continuing without it: %s", exc)
         return AnnotationResult(
             status="failed",

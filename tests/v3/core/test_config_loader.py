@@ -1,8 +1,9 @@
-import os
-import pytest
 from pathlib import Path
-from egregora_v3.core.config_loader import ConfigLoader
+
+import pytest
+
 from egregora_v3.core.config import EgregoraConfig
+from egregora_v3.core.config_loader import ConfigLoader
 
 
 def test_load_from_file(tmp_path):
@@ -160,6 +161,18 @@ def test_invalid_yaml(tmp_path):
 
     loader = ConfigLoader(tmp_path)
     with pytest.raises(ValueError, match="Invalid YAML"):
+        loader.load()
+
+
+def test_invalid_root_type(tmp_path):
+    """Test that non-mapping YAML roots raise a clear error."""
+    config_dir = tmp_path / ".egregora"
+    config_dir.mkdir()
+    config_file = config_dir / "config.yml"
+    config_file.write_text("- list-root-value")
+
+    loader = ConfigLoader(tmp_path)
+    with pytest.raises(ValueError, match="root must be a mapping"):
         loader.load()
 
 

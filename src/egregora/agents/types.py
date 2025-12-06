@@ -260,7 +260,10 @@ class WriterDeps:
                 parent_id=annotation.parent_id,
                 parent_type=annotation.parent_type,
             )
-        except Exception as exc:  # noqa: BLE001 - defensive catch to avoid pipeline aborts
+        except Exception as exc:
+            # We catch broad exceptions here intentionally to prevent a single
+            # annotation failure from crashing the entire writer agent process.
+            # The agent should be able to continue writing even if one annotation fails.
             logger.warning("Failed to persist annotation, continuing without it: %s", exc)
             return AnnotationResult(
                 status="failed",

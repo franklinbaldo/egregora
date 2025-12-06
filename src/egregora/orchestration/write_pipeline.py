@@ -15,6 +15,7 @@ Part of the three-layer architecture:
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
 import os
@@ -1037,13 +1038,16 @@ def _prepare_pipeline_data(
     messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
 
     checkpoint_path = ctx.site_root / ".egregora" / "checkpoint.json"
+    filter_options = FilterOptions(
+        from_date=from_date,
+        to_date=to_date,
+        checkpoint_enabled=config.pipeline.checkpoint_enabled,
+    )
     messages_table = _apply_filters(
         messages_table,
         ctx,
-        from_date,
-        to_date,
+        filter_options,
         checkpoint_path,
-        checkpoint_enabled=config.pipeline.checkpoint_enabled,
     )
 
     logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
@@ -1088,7 +1092,8 @@ def _prepare_pipeline_data(
 
 
 def _index_media_into_rag(
-    enable_enrichment: bool,  # noqa: FBT001
+    *,
+    enable_enrichment: bool,
     results: dict,
     ctx: PipelineContext,
     embedding_model: str,
@@ -1137,23 +1142,92 @@ def _save_checkpoint(results: dict, max_processed_timestamp: datetime | None, ch
     )
 
 
-def _apply_filters(  # noqa: C901, PLR0913, PLR0912
+def _apply_date_filters(
+    messages_table: ir.Table, from_date: date_type | None, to_date: date_type | None
+) -> ir.Table:
+    """Apply date range filtering."""
+    if not (from_date or to_date):
+        return messages_table
+
+    original_count = messages_table.count().execute()
+    if from_date and to_date:
+        messages_table = messages_table.filter(
+            (messages_table.ts.date() >= from_date) & (messages_table.ts.date() <= to_date)
+        )
+        logger.info("📅 [cyan]Filtering[/] from %s to %s", from_date, to_date)
+    elif from_date:
+        messages_table = messages_table.filter(messages_table.ts.date() >= from_date)
+        logger.info("📅 [cyan]Filtering[/] from %s onwards", from_date)
+    elif to_date:
+        messages_table = messages_table.filter(messages_table.ts.date() <= to_date)
+        logger.info("📅 [cyan]Filtering[/] up to %s", to_date)
+
+    filtered_count = messages_table.count().execute()
+    removed_by_date = original_count - filtered_count
+    if removed_by_date > 0:
+        logger.info("🗓️  [yellow]Filtered out[/] %s messages (kept %s)", removed_by_date, filtered_count)
+    return messages_table
+
+
+def _apply_checkpoint_filter(
+    messages_table: ir.Table, checkpoint_path: Path, *, checkpoint_enabled: bool
+) -> ir.Table:
+    """Apply checkpoint-based resume logic."""
+    if not checkpoint_enabled:
+        logger.info("🆕 [cyan]Full rebuild[/] (checkpoint disabled - default behavior)")
+        return messages_table
+
+    checkpoint = load_checkpoint(checkpoint_path)
+    if not (checkpoint and "last_processed_timestamp" in checkpoint):
+        logger.info("🆕 [cyan]Starting fresh[/] (checkpoint enabled, but no checkpoint found)")
+        return messages_table
+
+    last_timestamp_str = checkpoint["last_processed_timestamp"]
+    last_timestamp = datetime.fromisoformat(last_timestamp_str)
+
+    # Ensure timezone-aware comparison
+    utc_zone = ZoneInfo("UTC")
+    if last_timestamp.tzinfo is None:
+        last_timestamp = last_timestamp.replace(tzinfo=utc_zone)
+    else:
+        last_timestamp = last_timestamp.astimezone(utc_zone)
+
+    original_count = messages_table.count().execute()
+    messages_table = messages_table.filter(messages_table.ts > last_timestamp)
+    filtered_count = messages_table.count().execute()
+    resumed_count = original_count - filtered_count
+
+    if resumed_count > 0:
+        logger.info(
+            "♻️  [cyan]Resuming:[/] skipped %s already processed messages (last: %s)",
+            resumed_count,
+            last_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        )
+    return messages_table
+
+
+@dataclass
+class FilterOptions:
+    """Options for filtering messages."""
+
+    from_date: date_type | None = None
+    to_date: date_type | None = None
+    checkpoint_enabled: bool = False
+
+
+def _apply_filters(
     messages_table: ir.Table,
     ctx: PipelineContext,
-    from_date: date_type | None,
-    to_date: date_type | None,
+    options: FilterOptions,
     checkpoint_path: Path,
-    checkpoint_enabled: bool = False,  # noqa: FBT001, FBT002
 ) -> ir.Table:
     """Apply all filters: egregora messages, opted-out users, date range, checkpoint resume.
 
     Args:
         messages_table: Input messages table
         ctx: Pipeline context
-        from_date: Filter start date (inclusive)
-        to_date: Filter end date (inclusive)
+        options: Filter configuration
         checkpoint_path: Path to checkpoint file
-        checkpoint_enabled: Enable incremental processing (default: False)
 
     Returns:
         Filtered messages table
@@ -1170,53 +1244,12 @@ def _apply_filters(  # noqa: C901, PLR0913, PLR0912
         logger.warning("⚠️  %s messages removed from opted-out users", removed_count)
 
     # Date range filtering
-    if from_date or to_date:
-        original_count = messages_table.count().execute()
-        if from_date and to_date:
-            messages_table = messages_table.filter(
-                (messages_table.ts.date() >= from_date) & (messages_table.ts.date() <= to_date)
-            )
-            logger.info("📅 [cyan]Filtering[/] from %s to %s", from_date, to_date)
-        elif from_date:
-            messages_table = messages_table.filter(messages_table.ts.date() >= from_date)
-            logger.info("📅 [cyan]Filtering[/] from %s onwards", from_date)
-        elif to_date:
-            messages_table = messages_table.filter(messages_table.ts.date() <= to_date)
-            logger.info("📅 [cyan]Filtering[/] up to %s", to_date)
-        filtered_count = messages_table.count().execute()
-        removed_by_date = original_count - filtered_count
-        if removed_by_date > 0:
-            logger.info("🗓️  [yellow]Filtered out[/] %s messages (kept %s)", removed_by_date, filtered_count)
+    messages_table = _apply_date_filters(messages_table, options.from_date, options.to_date)
 
-    # Checkpoint-based resume logic (OPT-IN)
-    if checkpoint_enabled:
-        checkpoint = load_checkpoint(checkpoint_path)
-        if checkpoint and "last_processed_timestamp" in checkpoint:
-            last_timestamp_str = checkpoint["last_processed_timestamp"]
-            last_timestamp = datetime.fromisoformat(last_timestamp_str)
-
-            # Ensure timezone-aware comparison
-            utc_zone = ZoneInfo("UTC")
-            if last_timestamp.tzinfo is None:
-                last_timestamp = last_timestamp.replace(tzinfo=utc_zone)
-            else:
-                last_timestamp = last_timestamp.astimezone(utc_zone)
-
-            original_count = messages_table.count().execute()
-            messages_table = messages_table.filter(messages_table.ts > last_timestamp)
-            filtered_count = messages_table.count().execute()
-            resumed_count = original_count - filtered_count
-
-            if resumed_count > 0:
-                logger.info(
-                    "♻️  [cyan]Resuming:[/] skipped %s already processed messages (last: %s)",
-                    resumed_count,
-                    last_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                )
-        else:
-            logger.info("🆕 [cyan]Starting fresh[/] (checkpoint enabled, but no checkpoint found)")
-    else:
-        logger.info("🆕 [cyan]Full rebuild[/] (checkpoint disabled - default behavior)")
+    # Checkpoint-based resume logic
+    messages_table = _apply_checkpoint_filter(
+        messages_table, checkpoint_path, checkpoint_enabled=options.checkpoint_enabled
+    )
 
     return messages_table
 

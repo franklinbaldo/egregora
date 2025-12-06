@@ -45,8 +45,8 @@ from egregora.utils.paths import slugify
 from egregora.utils.quota import QuotaTracker
 
 if TYPE_CHECKING:
-    import pandas as pd  # noqa: TID251
-    import pyarrow as pa  # noqa: TID251
+    import pandas as pd
+    import pyarrow as pa
     from ibis.backends.duckdb import Backend as DuckDBBackend
 
 logger = logging.getLogger(__name__)
@@ -532,7 +532,45 @@ def _persist_enrichments(combined: Table, context: EnrichmentRuntimeContext) -> 
             raise
 
 
-def _extract_url_candidates(  # noqa: C901
+def _process_url_row(
+    row: dict[str, Any], url_metadata: dict[str, dict[str, Any]], discovered_count: int, max_enrichments: int
+) -> int:
+    """Process a single row for URL extraction."""
+    message = row.get("text")
+    if not message:
+        return discovered_count
+    urls = extract_urls(message)
+    if not urls:
+        return discovered_count
+
+    timestamp = ensure_datetime(row.get("ts")) if row.get("ts") else None
+    row_metadata = {
+        "ts": timestamp,
+        "event_id": _uuid_to_str(row.get("event_id")),
+        "tenant_id": row.get("tenant_id"),
+        "source": row.get("source"),
+        "thread_id": _uuid_to_str(row.get("thread_id")),
+        "author_uuid": _uuid_to_str(row.get("author_uuid")),
+        "created_at": row.get("created_at"),
+        "created_by_run": _uuid_to_str(row.get("created_by_run")),
+    }
+
+    for url in urls[:3]:
+        existing = url_metadata.get(url)
+        if existing is None:
+            url_metadata[url] = row_metadata.copy()
+            discovered_count += 1
+            if discovered_count >= max_enrichments:
+                return discovered_count
+        else:
+            # Keep earliest timestamp
+            existing_ts = existing.get("ts")
+            if timestamp is not None and (existing_ts is None or timestamp < existing_ts):
+                existing.update(row_metadata)
+    return discovered_count
+
+
+def _extract_url_candidates(
     messages_table: Table, max_enrichments: int
 ) -> list[tuple[str, dict[str, Any]]]:
     """Extract unique URL candidates with metadata, up to max_enrichments."""
@@ -558,37 +596,7 @@ def _extract_url_candidates(  # noqa: C901
         for row in batch:
             if discovered_count >= max_enrichments:
                 break
-            message = row.get("text")
-            if not message:
-                continue
-            urls = extract_urls(message)
-            if not urls:
-                continue
-
-            timestamp = ensure_datetime(row.get("ts")) if row.get("ts") else None
-            row_metadata = {
-                "ts": timestamp,
-                "event_id": _uuid_to_str(row.get("event_id")),
-                "tenant_id": row.get("tenant_id"),
-                "source": row.get("source"),
-                "thread_id": _uuid_to_str(row.get("thread_id")),
-                "author_uuid": _uuid_to_str(row.get("author_uuid")),
-                "created_at": row.get("created_at"),
-                "created_by_run": _uuid_to_str(row.get("created_by_run")),
-            }
-
-            for url in urls[:3]:
-                existing = url_metadata.get(url)
-                if existing is None:
-                    url_metadata[url] = row_metadata.copy()
-                    discovered_count += 1
-                    if discovered_count >= max_enrichments:
-                        break
-                else:
-                    # Keep earliest timestamp
-                    existing_ts = existing.get("ts")
-                    if timestamp is not None and (existing_ts is None or timestamp < existing_ts):
-                        existing.update(row_metadata)
+            discovered_count = _process_url_row(row, url_metadata, discovered_count, max_enrichments)
 
         if discovered_count >= max_enrichments:
             break
@@ -600,7 +608,56 @@ def _extract_url_candidates(  # noqa: C901
     return sorted_items[:max_enrichments]
 
 
-def _extract_media_candidates(  # noqa: C901, PLR0912
+def _process_media_row(
+    row: dict[str, Any],
+    media_filename_lookup: dict[str, tuple[str, Document]],
+    metadata_lookup: dict[str, dict[str, Any]],
+    unique_media: set[str],
+) -> None:
+    """Process a single row for media extraction."""
+    message = row.get("text")
+    if not message:
+        return
+
+    # Regex setup (compiled at module level ideally, but here for locality)
+    markdown_re = re.compile(r"(?:!\[|\[)[^\]]*\]\([^)]*?([^/)]+\.\w+)\)")
+    uuid_re = re.compile(r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)")
+
+    refs = find_media_references(message)
+    refs.extend(markdown_re.findall(message))
+    refs.extend(uuid_re.findall(message))
+
+    if not refs:
+        return
+
+    timestamp = ensure_datetime(row.get("ts")) if row.get("ts") else None
+    row_metadata = {
+        "ts": timestamp,
+        "event_id": _uuid_to_str(row.get("event_id")),
+        "tenant_id": row.get("tenant_id"),
+        "source": row.get("source"),
+        "thread_id": _uuid_to_str(row.get("thread_id")),
+        "author_uuid": _uuid_to_str(row.get("author_uuid")),
+        "created_at": row.get("created_at"),
+        "created_by_run": _uuid_to_str(row.get("created_by_run")),
+    }
+
+    for ref in set(refs):
+        if ref not in media_filename_lookup:
+            continue
+
+        existing = metadata_lookup.get(ref)
+        if existing is None:
+            unique_media.add(ref)
+            metadata_lookup[ref] = row_metadata.copy()
+        else:
+            # Keep earliest timestamp
+            existing_ts = existing.get("ts")
+            if timestamp is not None and (existing_ts is None or timestamp < existing_ts):
+                existing.update(row_metadata)
+
+
+def _extract_media_candidates(
     messages_table: Table, media_mapping: MediaMapping, limit: int
 ) -> list[tuple[str, Document, dict[str, Any]]]:
     """Extract unique Media candidates with metadata."""
@@ -617,11 +674,6 @@ def _extract_media_candidates(  # noqa: C901, PLR0912
     unique_media: set[str] = set()
     metadata_lookup: dict[str, dict[str, Any]] = {}
 
-    # Regex setup
-    # Match any filename in markdown link: ![alt](path/to/filename.ext)
-    markdown_re = re.compile(r"(?:!\[|\[)[^\]]*\]\([^)]*?([^/)]+\.\w+)\)")
-    uuid_re = re.compile(r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)")
-
     for batch in _iter_table_batches(
         messages_table.select(
             "ts",
@@ -636,42 +688,7 @@ def _extract_media_candidates(  # noqa: C901, PLR0912
         )
     ):
         for row in batch:
-            message = row.get("text")
-            if not message:
-                continue
-
-            refs = find_media_references(message)
-            refs.extend(markdown_re.findall(message))
-            refs.extend(uuid_re.findall(message))
-
-            if not refs:
-                continue
-
-            timestamp = ensure_datetime(row.get("ts")) if row.get("ts") else None
-            row_metadata = {
-                "ts": timestamp,
-                "event_id": _uuid_to_str(row.get("event_id")),
-                "tenant_id": row.get("tenant_id"),
-                "source": row.get("source"),
-                "thread_id": _uuid_to_str(row.get("thread_id")),
-                "author_uuid": _uuid_to_str(row.get("author_uuid")),
-                "created_at": row.get("created_at"),
-                "created_by_run": _uuid_to_str(row.get("created_by_run")),
-            }
-
-            for ref in set(refs):
-                if ref not in media_filename_lookup:
-                    continue
-
-                existing = metadata_lookup.get(ref)
-                if existing is None:
-                    unique_media.add(ref)
-                    metadata_lookup[ref] = row_metadata.copy()
-                else:
-                    # Keep earliest timestamp
-                    existing_ts = existing.get("ts")
-                    if timestamp is not None and (existing_ts is None or timestamp < existing_ts):
-                        existing.update(row_metadata)
+            _process_media_row(row, media_filename_lookup, metadata_lookup, unique_media)
 
     sorted_media = sorted(
         unique_media,
