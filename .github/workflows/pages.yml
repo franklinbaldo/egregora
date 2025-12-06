@@ -64,10 +64,8 @@ jobs:
             pipeline.duckdb.wal
             .egregora-cache/
             .egregora/lancedb/
-          key: demo-pipeline-${{ hashFiles('tests/fixtures/Conversa do WhatsApp com Teste.zip') }}-v4
-          restore-keys: |
-            demo-pipeline-${{ hashFiles('tests/fixtures/Conversa do WhatsApp com Teste.zip') }}-
-            demo-pipeline-
+          # No restore-keys to avoid restoring stale posts/index.md from old caches
+          key: demo-pipeline-${{ hashFiles('tests/fixtures/Conversa do WhatsApp com Teste.zip') }}-v5
 
       - name: Generate demo blog
         env:
