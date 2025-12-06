@@ -98,14 +98,26 @@ class FeedBannerGenerator:
         result_feed = generator.generate_from_feed(task_feed)
     """
 
-    def __init__(self, provider: ImageGenerationProvider | None = None):
+    def __init__(
+        self,
+        provider: ImageGenerationProvider | None = None,
+        prompts_dir: Path | None = None,
+    ):
         """Initialize the feed-based banner generator.
 
         Args:
             provider: Optional image generation provider.
                      If None, uses the default generate_banner() function.
+            prompts_dir: Optional directory containing Jinja2 templates.
+                        If None, uses default location (src/egregora/prompts).
+                        Can be configured via Pydantic settings in future versions.
         """
         self.provider = provider
+
+        # Initialize Jinja2 environment once for efficiency
+        if prompts_dir is None:
+            prompts_dir = Path(__file__).parent.parent.parent / "prompts"
+        self.jinja_env = Environment(loader=FileSystemLoader(prompts_dir))
 
     def generate_from_feed(
         self,
@@ -278,10 +290,7 @@ class FeedBannerGenerator:
 
         This uses the same logic as the existing generate_banner function.
         """
-        prompts_dir = Path(__file__).parent.parent.parent / "prompts"
-        env = Environment(loader=FileSystemLoader(prompts_dir))
-        template = env.get_template("banner.jinja")
-
+        template = self.jinja_env.get_template("banner.jinja")
         return template.render(
             post_title=banner_input.post_title,
             post_summary=banner_input.post_summary,

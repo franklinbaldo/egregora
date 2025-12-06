@@ -236,6 +236,7 @@ Failed generations produce NOTE documents with error details.
 
 ```python
 from datetime import UTC, datetime
+from pathlib import Path
 from egregora.agents.banner.feed_generator import FeedBannerGenerator
 from egregora_v3.core.types import Entry, Feed, Author
 
@@ -264,9 +265,14 @@ task_feed = Feed(
     links=[],
 )
 
-# Generate banners
+# Generate banners (default configuration)
 generator = FeedBannerGenerator()
 result_feed = generator.generate_from_feed(task_feed)
+
+# Or with custom prompts directory (useful for testing or customization)
+custom_generator = FeedBannerGenerator(
+    prompts_dir=Path("/custom/prompts")
+)
 
 # Process results
 for entry in result_feed.entries:
@@ -274,6 +280,31 @@ for entry in result_feed.entries:
         print(f"✓ Generated: {entry.title}")
     elif entry.doc_type == DocumentType.NOTE:
         print(f"✗ Failed: {entry.title}")
+```
+
+### Configuration with Pydantic Settings
+
+For production use, you can integrate with Pydantic settings:
+
+```python
+from pathlib import Path
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class BannerSettings(BaseSettings):
+    """Banner generation settings."""
+
+    prompts_dir: Path = Path("src/egregora/prompts")
+    model_config = SettingsConfigDict(env_prefix="EGREGORA_BANNER_")
+
+# Load from environment or .env file
+settings = BannerSettings()
+generator = FeedBannerGenerator(prompts_dir=settings.prompts_dir)
+```
+
+Environment variables:
+```bash
+# Custom prompts directory
+export EGREGORA_BANNER_PROMPTS_DIR=/path/to/prompts
 ```
 
 ### Processing Modes
