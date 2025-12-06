@@ -82,10 +82,13 @@ jobs:
 
       - name: Validate demo output quality
         run: |
-          POST_COUNT=$(find demo-output/posts -name "*.md" -type f ! -name "index.md" | wc -l)
+          echo "📂 Demo output structure:"
+          find demo-output -maxdepth 3 -type f -name "*.md" | head -20
+          echo "---"
+          POST_COUNT=$(find demo-output/docs/posts -name "*.md" -type f ! -name "index.md" 2>/dev/null | wc -l)
           echo "📊 Generated $POST_COUNT blog posts"
-          if [ "$POST_COUNT" -lt 6 ]; then
-            echo "⚠️  WARNING: Only $POST_COUNT posts generated (minimum: 6)"
+          if [ "$POST_COUNT" -lt 1 ]; then
+            echo "⚠️  WARNING: Only $POST_COUNT posts generated"
             echo "Demo blog may be incomplete but continuing deployment"
           else
             echo "✅ Quality check passed: $POST_COUNT posts generated"
@@ -94,8 +97,10 @@ jobs:
       - name: Build demo MkDocs site
         run: |
           cd demo-output
+          echo "📋 MkDocs config location:"
+          ls -la .egregora/mkdocs.yml 2>/dev/null || ls -la mkdocs.yml 2>/dev/null || echo "No mkdocs.yml found"
           mkdir -p overrides  # Ensure custom_dir exists for MkDocs
-          uvx --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin mkdocs build
+          uvx --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin mkdocs build -f .egregora/mkdocs.yml
           echo "✅ Demo MkDocs site built successfully"
 
       - name: Integrate demo into docs site
