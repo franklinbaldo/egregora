@@ -219,4 +219,20 @@ def create_fallback_model(
         primary = _resolve_and_wrap(primary_model)
 
     # Note: Fallbacks are disabled per user request
+    # TODO: Re-enable fallback logic once rate limits are stabilized or
+    # a more robust fallback strategy is implemented.
     return primary
+
+    # wrapped_fallbacks = []
+    # for m in fallback_models:
+    #     if use_google_batch and isinstance(m, str) and m.startswith("google-gla:"):
+    #         batch_model = GoogleBatchModel(api_key=api_key, model_name=m)
+    #         wrapped_fallbacks.append(RateLimitedModel(batch_model))
+    #     else:
+    #         wrapped_fallbacks.append(_resolve_and_wrap(m))
+    #
+    # return FallbackModel(
+    #     primary,
+    #     *wrapped_fallbacks,
+    #     fallback_on=(ModelAPIError, UsageLimitExceeded, ValidationError),
+    # )

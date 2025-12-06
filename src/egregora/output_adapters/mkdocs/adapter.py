@@ -531,6 +531,24 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
 
+    # REMOVED: finalize_window() logic for profile regeneration.
+    # Rationale: Profile regeneration is now handled by the ProfileWorker and site_generator.py
+    # which aggregates stats dynamically. The adapter should focus on persistence (OutputSink)
+    # and not orchestration logic.
+
+    # def finalize_window(
+    #    self,
+    #    window_label: str,
+    #    posts_created: list[str],
+    #    profiles_updated: list[str],
+    #    metadata: dict[str, Any] | None = None,
+    # ) -> None:
+    #    """Post-processing hook called after writer agent completes a window.
+    #
+    #    Regenerates the profiles index page to include any newly created or updated profiles.
+    #    """
+    #    ...
+
     def _list_from_dir(
         self,
         directory: Path,
