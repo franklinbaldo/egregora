@@ -38,7 +38,7 @@ from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.enricher import EnrichmentRuntimeContext, schedule_enrichment
 from egregora.agents.model_limits import PromptTooLargeError, get_model_context_limit
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.writer import write_posts_for_window
+from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
@@ -289,7 +289,7 @@ def _process_single_window(
     resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
 
-    result = write_posts_for_window(
+    params = WindowProcessingParams(
         table=enriched_table,
         window_start=window.start_time,
         window_end=window.end_time,
@@ -300,6 +300,7 @@ def _process_single_window(
         adapter_generation_instructions=adapter_instructions,
         run_id=str(ctx.run_id) if ctx.run_id else None,
     )
+    result = write_posts_for_window(params)
     post_count = len(result.get("posts", []))
     profile_count = len(result.get("profiles", []))
 
