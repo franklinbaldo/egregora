@@ -65,7 +65,7 @@ jobs:
             .egregora-cache/
             .egregora/lancedb/
           # No restore-keys to avoid restoring stale posts/index.md from old caches
-          key: demo-pipeline-${{ hashFiles('tests/fixtures/Conversa do WhatsApp com Teste.zip') }}-v5
+          key: demo-pipeline-${{ hashFiles('tests/fixtures/Conversa do WhatsApp com Teste.zip') }}-v6
 
       - name: Generate demo blog
         env:
