@@ -106,26 +106,35 @@ def extract_commands(messages: Table) -> list[dict]:
     )
 
     command_cases = enriched.mutate(
-        command_name=ibis.cases(
-            ((enriched.action == "set") & enriched.set_has_value, ibis.literal("set")),
-            (enriched.action.isin(["remove", "unset", "opt-out", "opt-in"]), enriched.action),
-            else_=ibis.null(),
+        command_name=ibis.ifelse(
+            (enriched.action == "set") & enriched.set_has_value,
+            ibis.literal("set"),
+            ibis.ifelse(
+                enriched.action.isin(["remove", "unset", "opt-out", "opt-in"]),
+                enriched.action,
+                ibis.null(),
+            ),
         ),
     )
 
     command_cases = command_cases.mutate(
-        command_target=ibis.cases(
-            (command_cases.command_name == "set", command_cases.target_candidate.lower()),
-            (command_cases.command_name == "remove", command_cases.args_trimmed.lower()),
-            (command_cases.command_name == "unset", command_cases.args_trimmed.lower()),
-            else_=ibis.null(),
-        ),
-        command_value=ibis.cases(
-            (
-                command_cases.command_name == "set",
-                strip_wrapping_quotes(command_cases.value_candidate),
+        command_target=ibis.ifelse(
+            command_cases.command_name == "set",
+            command_cases.target_candidate.lower(),
+            ibis.ifelse(
+                command_cases.command_name == "remove",
+                command_cases.args_trimmed.lower(),
+                ibis.ifelse(
+                    command_cases.command_name == "unset",
+                    command_cases.args_trimmed.lower(),
+                    ibis.null(),
+                ),
             ),
-            else_=ibis.null(),
+        ),
+        command_value=ibis.ifelse(
+            command_cases.command_name == "set",
+            strip_wrapping_quotes(command_cases.value_candidate),
+            ibis.null(),
         ),
     )
 
