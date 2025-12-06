@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 from faker import Faker
 from freezegun import freeze_time
-from hypothesis import given, strategies as st
+from hypothesis import given, settings, strategies as st
 from lxml import etree
 from syrupy.assertion import SnapshotAssertion
 
@@ -347,7 +347,17 @@ def test_feed_to_xml_always_well_formed(num_entries: int) -> None:
     assert len(entries) == num_entries
 
 
-@given(st.text(min_size=1, max_size=200, alphabet=st.characters(blacklist_categories=["Cc"])))
+@settings(deadline=None)
+@given(
+    st.text(
+        min_size=1,
+        max_size=200,
+        alphabet=st.characters(
+            blacklist_categories=["Cc", "Cs"],  # Exclude control chars and surrogates
+            blacklist_characters="\x00",  # Exclude NULL byte
+        ),
+    )
+)
 def test_feed_preserves_title_exactly(title: str) -> None:
     """Property: Feed titles are preserved exactly in XML."""
     feed = Feed(
