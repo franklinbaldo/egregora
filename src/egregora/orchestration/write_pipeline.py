@@ -1408,10 +1408,10 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             dataset = _prepare_pipeline_data(adapter, run_params, ctx)
             results, max_processed_timestamp = _process_all_windows(dataset.windows_iterator, dataset.context)
             _index_media_into_rag(
-                dataset.enable_enrichment,
-                results,
-                dataset.context,
-                dataset.embedding_model,
+                enable_enrichment=dataset.enable_enrichment,
+                results=results,
+                ctx=dataset.context,
+                embedding_model=dataset.embedding_model,
             )
 
             # 2. Taxonomy Generation (New)
