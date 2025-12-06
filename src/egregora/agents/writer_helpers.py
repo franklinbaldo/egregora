@@ -18,19 +18,21 @@ from egregora.agents.model_limits import (
 )
 from egregora.knowledge.profiles import read_profile
 from egregora.rag import RAGQueryRequest, reset_backend, search
+from egregora.agents.types import (
+    AnnotationResult,
+    PostMetadata,
+    ReadProfileResult,
+    WritePostResult,
+    WriteProfileResult,
+    WriterDeps,
+)
 
 if TYPE_CHECKING:
     from pydantic_ai import Agent
 
     from egregora.agents.capabilities import AgentCapability
     from egregora.agents.types import (
-        AnnotationResult,
-        PostMetadata,
-        ReadProfileResult,
-        WritePostResult,
-        WriteProfileResult,
         WriterAgentReturn,
-        WriterDeps,
     )
     from egregora.config.settings import EgregoraConfig
 
