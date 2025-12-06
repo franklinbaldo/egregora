@@ -28,10 +28,8 @@ from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 from egregora.output_adapters.conventions import StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
-from egregora.utils.filesystem import (
-    ensure_author_entries,
-    format_frontmatter_datetime,
-)
+from egregora.utils.datetime_utils import parse_datetime_flexible
+from egregora.utils.filesystem import ensure_author_entries
 from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import slugify
 
@@ -644,7 +642,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         metadata = dict(document.metadata or {})
         if "date" in metadata:
-            metadata["date"] = format_frontmatter_datetime(metadata["date"])
+            # Parse to datetime object for proper YAML serialization (unquoted)
+            # Material blog plugin requires native datetime type, not string
+            dt = parse_datetime_flexible(metadata["date"])
+            if dt:
+                metadata["date"] = dt
         if "authors" in metadata:
             ensure_author_entries(path.parent, metadata.get("authors"))
 
