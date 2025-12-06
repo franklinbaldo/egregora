@@ -1,0 +1,14 @@
+@dataclass(frozen=True, slots=True)
+class ComparisonRecord:
+    """Record of a pairwise comparison."""
+
+    comparison_id: str
+    post_a_slug: str
+    post_b_slug: str
+    winner: str
+    rating_a_before: float
+    rating_b_before: float
+    rating_a_after: float
+    rating_b_after: float
+    timestamp: datetime
+    reader_feedback: str | None

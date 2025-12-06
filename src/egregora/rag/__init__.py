@@ -62,9 +62,6 @@ from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
 logger = logging.getLogger(__name__)
 
 # Global backend instance (lazy-initialized)
-_backend: RAGBackend | None = None
-
-
 def _create_backend() -> RAGBackend:
     """Create LanceDB RAG backend based on configuration.
 
@@ -145,10 +142,10 @@ def get_backend() -> RAGBackend:
         RuntimeError: If backend initialization fails
 
     """
-    global _backend  # noqa: PLW0603
-    if _backend is None:
-        _backend = _create_backend()
-    return _backend
+    # Use function attribute for singleton
+    if not hasattr(get_backend, "_instance") or get_backend._instance is None:
+        get_backend._instance = _create_backend()
+    return get_backend._instance
 
 
 def index_documents(docs: Sequence[Document]) -> None:
@@ -218,5 +215,5 @@ def reset_backend() -> None:
     Forces recreation of the backend (and its embedding router) on the next call
     to get_backend().
     """
-    global _backend  # noqa: PLW0603
-    _backend = None
+    if hasattr(get_backend, "_instance"):
+        get_backend._instance = None

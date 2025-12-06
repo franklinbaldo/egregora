@@ -35,7 +35,11 @@ _ConfigLoader.add_constructor(None, lambda loader, _node: None)
 
 def safe_yaml_load(content: str) -> dict[str, Any]:
     """Load YAML safely, ignoring unknown tags like !ENV."""
-    return yaml.load(content, Loader=_ConfigLoader) or {}  # noqa: S506
+    # We use a custom SafeLoader that ignores unknown tags, which is safer than
+    # FullLoader but still triggers S506 in some tools if not explicitly 'safe_load'.
+    # However, standard safe_load doesn't support custom constructors easily without
+    # global state or more complex code. Our _ConfigLoader inherits from SafeLoader.
+    return yaml.load(content, Loader=_ConfigLoader) or {}
 
 
 class MkDocsSiteScaffolder:

@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import os
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -18,86 +22,75 @@ class ConfigLoader:
 
         Args:
             site_root: Root directory of the site. If None, uses current working directory.
+
         """
         self.site_root = site_root if site_root is not None else Path.cwd()
 
     def load(self) -> EgregoraConfig:
-        """Loads configuration from file and environment variables.
-
-        Looks for .egregora/config.yml relative to site_root (or CWD if not specified).
-        Environment variables automatically override file values via Pydantic Settings.
+        """Loads configuration with environment-variable precedence.
 
         Priority (highest to lowest):
         1. Environment variables (EGREGORA_SECTION__KEY)
         2. Config file (.egregora/config.yml relative to site_root)
         3. Defaults
-
-        Returns:
-            EgregoraConfig: Fully loaded and validated configuration.
-
-        Examples:
-            # Default: use current working directory
-            loader = ConfigLoader()
-            config = loader.load()  # Looks for .egregora/config.yml in CWD
-
-            # Explicit: use specific directory (e.g., from CLI --site-root)
-            loader = ConfigLoader(Path("/path/to/site"))
-            config = loader.load()  # Looks for .egregora/config.yml in /path/to/site
         """
-        config_data = self._load_from_file()
+        file_config = self._normalized_config(self._load_from_file())
+        merged = self._merge_config(
+            base=EgregoraConfig().model_dump(mode="json"),
+            override=file_config,
+            env_override_paths=self._collect_env_override_paths(),
+        )
 
-        # Inject site_root
-        paths = config_data.get("paths")
-        if paths is None:
-            paths = {}
-        elif not isinstance(paths, dict):
+        return EgregoraConfig.model_validate(merged)
+
+    def _normalized_config(self, config_data: dict[str, Any]) -> dict[str, Any]:
+        """Ensure file configuration has a paths block and site_root set."""
+        normalized = deepcopy(config_data) if config_data else {}
+
+        paths = normalized.get("paths", {}) or {}
+        if not isinstance(paths, dict):
             msg = f"Configuration 'paths' must be a dictionary, got {type(paths).__name__}"
             raise ValueError(msg)
 
         paths["site_root"] = self.site_root
-        config_data["paths"] = paths
+        normalized["paths"] = paths
+        return normalized
 
-        # Create config from environment variables and defaults FIRST
-        # This ensures env vars have highest priority
-        config = EgregoraConfig()
+    def _collect_env_override_paths(self) -> set[tuple[str, ...]]:
+        """Return the set of config paths defined via environment variables."""
+        prefix = "EGREGORA_"
+        env_paths: set[tuple[str, ...]] = set()
 
-        # Now merge file data for fields that weren't set by environment variables
-        # We do this by comparing each field value to its default
-        if "models" in config_data:
-            file_models = config_data["models"]
-            defaults = ModelSettings()
-            # Only update if current value is default AND file has a value
-            for key, value in file_models.items():
-                current = getattr(config.models, key, None)
-                default = getattr(defaults, key, None)
-                if current == default and value is not None:
-                    setattr(config.models, key, value)
+        for key in os.environ:
+            if not key.startswith(prefix):
+                continue
+            parts = [part.lower() for part in key[len(prefix) :].split("__") if part]
+            if parts:
+                env_paths.add(tuple(parts))
 
-        if "pipeline" in config_data:
-            file_pipeline = config_data["pipeline"]
-            defaults = PipelineSettings()
-            for key, value in file_pipeline.items():
-                current = getattr(config.pipeline, key, None)
-                default = getattr(defaults, key, None)
-                if current == default and value is not None:
-                    setattr(config.pipeline, key, value)
+        return env_paths
 
-        # Always update paths.site_root (this is injected and always set)
-        config.paths.site_root = paths["site_root"]
+    def _merge_config(
+        self,
+        base: dict[str, Any],
+        override: dict[str, Any],
+        env_override_paths: set[tuple[str, ...]],
+        current_path: tuple[str, ...] = (),
+    ) -> dict[str, Any]:
+        """Merge override into base, skipping keys provided via env vars."""
+        merged = deepcopy(base)
 
-        # Update other path fields only if not set by env vars
-        if "paths" in config_data:
-            file_paths = config_data["paths"]
-            defaults = PathsSettings()
-            for key, value in file_paths.items():
-                if key == "site_root":
-                    continue  # Already set above
-                current = getattr(config.paths, key, None)
-                default = getattr(defaults, key, None)
-                if current == default and value is not None:
-                    setattr(config.paths, key, Path(value))
+        for key, value in override.items():
+            path = current_path + (str(key).lower(),)
+            if path in env_override_paths:
+                continue
 
-        return config
+            if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                merged[key] = self._merge_config(merged[key], value, env_override_paths, path)
+            else:
+                merged[key] = value
+
+        return merged
 
     def _load_from_file(self) -> dict[str, Any]:
         """Loads configuration from .egregora/config.yml."""
@@ -109,7 +102,11 @@ class ConfigLoader:
             with config_path.open(encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
                 if not isinstance(data, dict):
-                    return {}
+                    msg = (
+                        "Configuration root must be a mapping (dictionary), "
+                        f"got {type(data).__name__}"
+                    )
+                    raise ValueError(msg)
                 return data
         except yaml.YAMLError as e:
             raise ValueError(f"Invalid YAML in {config_path}: {e}") from e
