@@ -106,8 +106,7 @@ jobs:
       - name: Integrate demo into docs site
         run: |
           # Move demo site to /demo subfolder in the main site
-          # MkDocs with .egregora/mkdocs.yml builds to .egregora/site
-          mv demo-output/.egregora/site site/demo
+          mv demo-output/site site/demo
           echo "✅ Demo blog integrated at /demo path"
 
       - name: Upload artifact
