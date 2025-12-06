@@ -100,17 +100,21 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
 
         return (docs_dir / path_obj).resolve()
 
-    posts_dir = resolve_content_path(paths_settings.posts_dir)
+    # blog_root_dir is where blog artifacts go (e.g., docs/posts/)
+    # posts_dir is where actual post files go (posts/posts/ per Material blog plugin)
+    blog_root_dir = resolve_content_path(paths_settings.posts_dir)
+    # Material blog plugin expects posts in {blog}/posts/ subdirectory
+    posts_dir = blog_root_dir / "posts"
     profiles_dir = resolve_content_path(paths_settings.profiles_dir)
     media_dir = resolve_content_path(paths_settings.media_dir)
     journal_dir = _resolve_journal_dir(paths_settings, resolve_content_path)
 
     try:
-        blog_relative = posts_dir.relative_to(docs_dir).as_posix()
+        blog_relative = blog_root_dir.relative_to(docs_dir).as_posix()
     except ValueError as exc:  # pragma: no cover - enforced earlier
         msg = (
             "Posts directory must reside inside the MkDocs docs_dir. "
-            f"docs_dir={docs_dir}, posts_dir={posts_dir}"
+            f"docs_dir={docs_dir}, blog_root_dir={blog_root_dir}"
         )
         raise ValueError(msg) from exc
 
@@ -125,7 +129,8 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
         "cache_dir": resolve_path(paths_settings.cache_dir),
         "docs_dir": docs_dir,
         "blog_dir": blog_relative,
-        "posts_dir": posts_dir,
+        "blog_root_dir": blog_root_dir,  # Where tags.md and blog artifacts go
+        "posts_dir": posts_dir,  # Where actual post files go (posts/posts/)
         "profiles_dir": profiles_dir,
         "media_dir": media_dir,
         "journal_dir": journal_dir,

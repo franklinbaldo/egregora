@@ -28,10 +28,8 @@ from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 from egregora.output_adapters.conventions import StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
-from egregora.utils.filesystem import (
-    ensure_author_entries,
-    format_frontmatter_datetime,
-)
+from egregora.utils.datetime_utils import parse_datetime_flexible
+from egregora.utils.filesystem import ensure_author_entries
 from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import slugify
 
@@ -533,6 +531,60 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
 
+    def finalize_window(
+        self,
+        window_label: str,
+        posts_created: list[str],
+        profiles_updated: list[str],
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Post-processing hook called after writer agent completes a window.
+
+        Regenerates the profiles index page to include any newly created or updated profiles.
+        """
+        if not self._initialized:
+            logger.warning("Adapter not initialized, skipping finalization")
+            return
+
+        # 1. Collect all profiles
+        profiles = []
+        if self.profiles_dir.exists():
+            for profile_path in self.profiles_dir.glob("*.md"):
+                if profile_path.name == "index.md":
+                    continue
+                
+                try:
+                    meta, _ = parse_frontmatter(profile_path.read_text(encoding="utf-8"))
+                    meta = meta or {}
+                    # Ensure UUID is present (filename stem is the UUID)
+                    meta.setdefault("uuid", profile_path.stem)
+                    # Ensure link is present for template
+                    meta.setdefault("link", f"{profile_path.stem}.md")
+                    profiles.append(meta)
+                except Exception as e:
+                    logger.warning("Failed to parse profile %s: %s", profile_path.name, e)
+
+        # 2. Setup Jinja environment for rendering
+        try:
+            # Locate templates directory relative to this file
+            # src/egregora/output_adapters/mkdocs/adapter.py -> .../rendering/templates/site
+            templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
+            
+            env = Environment(
+                loader=FileSystemLoader(str(templates_dir)),
+                autoescape=select_autoescape()
+            )
+            
+            # 3. Render profiles index
+            template = env.get_template("docs/profiles/index.md.jinja")
+            content = template.render(profiles=profiles)
+            
+            index_path = self.profiles_dir / "index.md"
+            index_path.write_text(content, encoding="utf-8")
+            logger.info("Regenerated profiles index with %d profiles", len(profiles))
+            
+        except Exception as e:
+            logger.error("Failed to regenerate profiles index: %s", e)
     def _list_from_dir(
         self,
         directory: Path,
@@ -644,7 +696,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         metadata = dict(document.metadata or {})
         if "date" in metadata:
-            metadata["date"] = format_frontmatter_datetime(metadata["date"])
+            # Parse to datetime object for proper YAML serialization (unquoted)
+            # Material blog plugin requires native datetime type, not string
+            dt = parse_datetime_flexible(metadata["date"])
+            if dt:
+                metadata["date"] = dt
         if "authors" in metadata:
             ensure_author_entries(path.parent, metadata.get("authors"))
 

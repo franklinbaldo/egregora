@@ -38,7 +38,7 @@ from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.enricher import EnrichmentRuntimeContext, schedule_enrichment
 from egregora.agents.model_limits import PromptTooLargeError, get_model_context_limit
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.writer import write_posts_for_window
+from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
@@ -58,6 +58,7 @@ from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.rag import index_documents, reset_backend
 from egregora.transformations import (
+    WindowConfig,
     create_windows,
     load_checkpoint,
     save_checkpoint,
@@ -288,7 +289,7 @@ def _process_single_window(
     resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
 
-    result = write_posts_for_window(
+    params = WindowProcessingParams(
         table=enriched_table,
         window_start=window.start_time,
         window_end=window.end_time,
@@ -299,6 +300,7 @@ def _process_single_window(
         adapter_generation_instructions=adapter_instructions,
         run_id=str(ctx.run_id) if ctx.run_id else None,
     )
+    result = write_posts_for_window(params)
     post_count = len(result.get("posts", []))
     profile_count = len(result.get("profiles", []))
 
@@ -1051,12 +1053,15 @@ def _prepare_pipeline_data(
     )
 
     logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
-    windows_iterator = create_windows(
-        messages_table,
+    window_config = WindowConfig(
         step_size=step_size,
         step_unit=step_unit,
         overlap_ratio=overlap_ratio,
         max_window_time=max_window_time,
+    )
+    windows_iterator = create_windows(
+        messages_table,
+        config=window_config,
     )
 
     # Update context with adapter
@@ -1403,10 +1408,10 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             dataset = _prepare_pipeline_data(adapter, run_params, ctx)
             results, max_processed_timestamp = _process_all_windows(dataset.windows_iterator, dataset.context)
             _index_media_into_rag(
-                dataset.enable_enrichment,
-                results,
-                dataset.context,
-                dataset.embedding_model,
+                enable_enrichment=dataset.enable_enrichment,
+                results=results,
+                ctx=dataset.context,
+                embedding_model=dataset.embedding_model,
             )
 
             # 2. Taxonomy Generation (New)

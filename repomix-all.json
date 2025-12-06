@@ -1,0 +1,20 @@
+{
+  "include": [
+    "**/*"
+  ],
+  "ignore": {
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      ".git/**",
+      ".venv/**",
+      "**/__pycache__/**",
+      "**/site/**",
+      "site/**",
+      "**/*.bundle.md",
+      "**/tmp*"
+    ]
+  },
+  "output": {
+    "style": "markdown"
+  }
+}
