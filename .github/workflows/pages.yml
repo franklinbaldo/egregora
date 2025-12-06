@@ -47,6 +47,7 @@ jobs:
           commit_iso=$(git show -s --format=%cI HEAD)
           commit_iso_safe=${commit_iso//:/-}
           echo "{\"commit_iso\":\"${commit_iso_safe}\"}" > site/bundles/meta.json
+          npx repomix -c repomix-all.json --output site/bundles/all.bundle.md
           npx repomix -c repomix-docs.json --output site/bundles/docs.bundle.md
           npx repomix -c repomix-tests.json --output site/bundles/tests.bundle.md
           npx repomix -c repomix-code.json --output site/bundles/code.bundle.md
