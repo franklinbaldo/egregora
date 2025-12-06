@@ -63,7 +63,7 @@ jobs:
             pipeline.duckdb.wal
             .egregora-cache/
             .egregora/lancedb/
-          key: demo-pipeline-${{ hashFiles('tests/fixtures/Conversa do WhatsApp com Teste.zip') }}-v2
+          key: demo-pipeline-${{ hashFiles('tests/fixtures/Conversa do WhatsApp com Teste.zip') }}-v3
           restore-keys: |
             demo-pipeline-${{ hashFiles('tests/fixtures/Conversa do WhatsApp com Teste.zip') }}-
             demo-pipeline-
