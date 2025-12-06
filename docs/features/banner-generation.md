@@ -181,6 +181,168 @@ uv run egregora process export.zip --output ./output
 4. **No manual control**: LLM decides when to generate banners
 5. **Single attempt**: No automatic retry on poor generation
 
+## V3 Feed-Based Banner Generation
+
+The v3 implementation introduces a **feed-to-feed transformation** approach for banner generation, enabling batch processing and better integration with the Atom protocol.
+
+### Architecture
+
+**Input**: Feed where each `Entry` represents a banner generation task
+**Output**: Feed where each `Entry` is a generated banner (MEDIA document)
+
+### Components
+
+- **`src/egregora/agents/banner/feed_generator.py`**: Feed-based generator
+  - `FeedBannerGenerator`: Main class for feed-to-feed transformation
+  - `BannerTaskEntry`: Extracts task parameters from feed entries
+  - `BannerGenerationResult`: Wraps generation outcomes
+
+### Task Entry Schema
+
+Each input entry should contain:
+
+```python
+Entry(
+    id="task:unique-id",
+    title="Post Title for Banner",
+    summary="Post summary or description",
+    internal_metadata={
+        "slug": "post-slug",      # Optional: Post slug for banner naming
+        "language": "pt-BR"        # Optional: Language code (default: pt-BR)
+    }
+)
+```
+
+### Output Documents
+
+Successful generations produce MEDIA documents:
+
+```python
+Document(
+    doc_type=DocumentType.MEDIA,
+    title="Banner: Post Title",
+    content="<base64-encoded-image>",
+    content_type="image/png",
+    internal_metadata={
+        "task_id": "task:unique-id",
+        "generated_at": "2025-12-06T17:00:00Z"
+    }
+)
+```
+
+Failed generations produce NOTE documents with error details.
+
+### Usage Example
+
+```python
+from datetime import UTC, datetime
+from egregora.agents.banner.feed_generator import FeedBannerGenerator
+from egregora_v3.core.types import Entry, Feed, Author
+
+# Create task feed
+task_feed = Feed(
+    id="urn:tasks:banner:batch1",
+    title="Banner Generation Tasks",
+    updated=datetime.now(UTC),
+    entries=[
+        Entry(
+            id="task:1",
+            title="The Future of AI",
+            summary="Exploring artificial intelligence trends",
+            updated=datetime.now(UTC),
+            internal_metadata={"slug": "future-of-ai"},
+        ),
+        Entry(
+            id="task:2",
+            title="Machine Learning Basics",
+            summary="Introduction to ML concepts",
+            updated=datetime.now(UTC),
+            internal_metadata={"slug": "ml-basics"},
+        ),
+    ],
+    authors=[Author(name="System")],
+    links=[],
+)
+
+# Generate banners
+generator = FeedBannerGenerator()
+result_feed = generator.generate_from_feed(task_feed)
+
+# Process results
+for entry in result_feed.entries:
+    if entry.doc_type == DocumentType.MEDIA:
+        print(f"✓ Generated: {entry.title}")
+    elif entry.doc_type == DocumentType.NOTE:
+        print(f"✗ Failed: {entry.title}")
+```
+
+### Processing Modes
+
+#### Sequential Mode (Default)
+
+Processes each task entry one at a time:
+
+```python
+result_feed = generator.generate_from_feed(task_feed, batch_mode=False)
+```
+
+- **Pros**: Simple, reliable, immediate feedback
+- **Cons**: Slower for large batches
+- **Use when**: Processing small batches or needing immediate results
+
+#### Batch Mode (Future)
+
+Uses Gemini Batch API for efficient bulk processing:
+
+```python
+from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
+
+provider = GeminiImageGenerationProvider()
+generator = FeedBannerGenerator(provider=provider)
+result_feed = generator.generate_from_feed(task_feed, batch_mode=True)
+```
+
+- **Pros**: Cost-effective, efficient for large batches
+- **Cons**: Higher latency, async processing
+- **Use when**: Processing 10+ banners, cost is a concern
+
+### Integration with Atom Feeds
+
+The feed-based approach enables:
+
+1. **Feed Distribution**: Publish task feeds via Atom for distributed processing
+2. **Result Aggregation**: Combine result feeds from multiple workers
+3. **Threading**: Link banners to original posts using `in_reply_to`
+4. **Syndication**: Export results to feed readers and aggregators
+
+### Error Handling
+
+The generator creates NOTE documents for failures:
+
+```python
+Document(
+    doc_type=DocumentType.NOTE,
+    title="Error: Post Title",
+    content="Failed to generate banner: API error",
+    content_type="text/plain",
+    internal_metadata={
+        "task_id": "task:1",
+        "error_code": "GENERATION_FAILED",
+        "error_message": "API error details..."
+    }
+)
+```
+
+This ensures the output feed always has the same number of entries as the input feed, making it easy to correlate results with tasks.
+
+### Testing
+
+Run feed generator tests:
+
+```bash
+uv run pytest tests/unit/agents/banner/test_feed_generator.py -v
+```
+
 ## Future Enhancements
 
 - [ ] Configuration flag to enable/disable banner generation
@@ -191,6 +353,9 @@ uv run egregora process export.zip --output ./output
 - [ ] Multiple banner options with LLM selection
 - [ ] Custom system instructions per blog configuration
 - [ ] Fallback to stock images on generation failure
+- [ ] True batch API support for GeminiImageGenerationProvider
+- [ ] Feed-based task queue integration
+- [ ] Distributed banner generation across multiple workers
 
 ## References
 
