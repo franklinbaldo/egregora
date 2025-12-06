@@ -10,6 +10,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+from types import TracebackType
 
 import httpx
 from lxml import etree
@@ -47,6 +48,7 @@ class RSSAdapter:
 
         Args:
             timeout: HTTP request timeout in seconds (default: 30.0)
+
         """
         self.timeout = timeout
         self._http_client = httpx.Client(timeout=timeout)
@@ -55,7 +57,12 @@ class RSSAdapter:
         """Enter context manager."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore[no-untyped-def]
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Exit context manager and close HTTP client."""
         self.close()
 
@@ -76,6 +83,7 @@ class RSSAdapter:
         Raises:
             FileNotFoundError: If source file doesn't exist
             etree.XMLSyntaxError: If feed XML is malformed
+
         """
         if not source.exists():
             msg = f"Feed file not found: {source}"
@@ -87,9 +95,11 @@ class RSSAdapter:
             # always carries some risk. lxml disables DTDs and entity expansion by
             # default, making it safer for processing external feeds.
             # See: https://lxml.de/FAQ.html#how-do-i-use-lxml-safely-as-a-web-service-endpoint
-            tree = etree.parse(str(source))  # noqa: S320
+            # We explicitly enforce safe parsing settings
+            parser = etree.XMLParser(resolve_entities=False, no_network=True)
+            tree = etree.parse(str(source), parser=parser)
             root = tree.getroot()
-        except etree.XMLSyntaxError as e:
+        except etree.XMLSyntaxError:
             logger.exception("Failed to parse XML from %s", source)
             raise
 
@@ -108,6 +118,7 @@ class RSSAdapter:
             httpx.HTTPStatusError: If HTTP request fails (4xx, 5xx)
             httpx.ConnectError: If connection fails
             etree.XMLSyntaxError: If feed XML is malformed
+
         """
         response = self._http_client.get(url)
         response.raise_for_status()
@@ -118,8 +129,10 @@ class RSSAdapter:
             # always carries some risk. lxml disables DTDs and entity expansion by
             # default, making it safer for processing external feeds.
             # See: https://lxml.de/FAQ.html#how-do-i-use-lxml-safely-as-a-web-service-endpoint
-            root = etree.fromstring(response.content)  # noqa: S320
-        except etree.XMLSyntaxError as e:
+            # We explicitly enforce safe parsing settings
+            parser = etree.XMLParser(resolve_entities=False, no_network=True)
+            root = etree.fromstring(response.content, parser=parser)
+        except etree.XMLSyntaxError:
             logger.exception("Failed to parse XML from %s", url)
             raise
 
@@ -133,9 +146,10 @@ class RSSAdapter:
 
         Yields:
             Entry objects
+
         """
         # Detect feed type
-        if root.tag == "{%s}feed" % ATOM_NS:
+        if root.tag == f"{{{ATOM_NS}}}feed":
             # Atom feed
             yield from self._parse_atom_feed(root)
         elif root.tag == "rss":
@@ -154,15 +168,16 @@ class RSSAdapter:
 
         Yields:
             Entry objects
+
         """
-        for entry_elem in feed_elem.findall("{%s}entry" % ATOM_NS):
+        for entry_elem in feed_elem.findall(f"{{{ATOM_NS}}}entry"):
             try:
                 entry = self._parse_atom_entry(entry_elem)
                 yield entry
             except (ValueError, ValidationError) as e:
                 logger.warning("Skipping invalid Atom entry: %s", e)
                 continue
-            except Exception as e:
+            except (TypeError, AttributeError, IndexError) as e:
                 logger.warning("Skipping Atom entry due to error: %s", e)
                 continue
 
@@ -177,11 +192,12 @@ class RSSAdapter:
 
         Raises:
             ValidationError: If required fields are missing or invalid
+
         """
         # Required fields (per RFC 4287)
-        entry_id = self._get_text(entry_elem, "{%s}id" % ATOM_NS)
-        title = self._get_text(entry_elem, "{%s}title" % ATOM_NS)
-        updated_str = self._get_text(entry_elem, "{%s}updated" % ATOM_NS)
+        entry_id = self._get_text(entry_elem, f"{{{ATOM_NS}}}id")
+        title = self._get_text(entry_elem, f"{{{ATOM_NS}}}title")
+        updated_str = self._get_text(entry_elem, f"{{{ATOM_NS}}}updated")
 
         if not entry_id or not title or not updated_str:
             msg = "Atom entry missing required fields (id, title, or updated)"
@@ -192,7 +208,7 @@ class RSSAdapter:
 
         # Optional fields
         content = self._get_atom_content(entry_elem)
-        summary = self._get_text(entry_elem, "{%s}summary" % ATOM_NS)
+        summary = self._get_text(entry_elem, f"{{{ATOM_NS}}}summary")
 
         # Use content if available, otherwise use summary
         entry_content = content or summary or ""
@@ -221,8 +237,9 @@ class RSSAdapter:
 
         Returns:
             Content text or None
+
         """
-        content_elem = entry_elem.find("{%s}content" % ATOM_NS)
+        content_elem = entry_elem.find(f"{{{ATOM_NS}}}content")
         if content_elem is None:
             return None
 
@@ -232,12 +249,12 @@ class RSSAdapter:
         if content_type in ("text", "html"):
             # Return text content
             return content_elem.text or ""
-        elif content_type == "xhtml":
+        if content_type == "xhtml":
             # Serialize XHTML content
             return etree.tostring(content_elem, encoding="unicode", method="html")
-        else:
-            # Other types (e.g., base64) - just return text
-            return content_elem.text or ""
+
+        # Other types (e.g., base64) - just return text
+        return content_elem.text or ""
 
     def _parse_atom_authors(self, entry_elem: etree._Element) -> list[Author]:
         """Parse authors from Atom entry.
@@ -247,12 +264,13 @@ class RSSAdapter:
 
         Returns:
             List of Author objects
+
         """
         authors = []
-        for author_elem in entry_elem.findall("{%s}author" % ATOM_NS):
-            name = self._get_text(author_elem, "{%s}name" % ATOM_NS)
-            email = self._get_text(author_elem, "{%s}email" % ATOM_NS)
-            uri = self._get_text(author_elem, "{%s}uri" % ATOM_NS)
+        for author_elem in entry_elem.findall(f"{{{ATOM_NS}}}author"):
+            name = self._get_text(author_elem, f"{{{ATOM_NS}}}name")
+            email = self._get_text(author_elem, f"{{{ATOM_NS}}}email")
+            uri = self._get_text(author_elem, f"{{{ATOM_NS}}}uri")
 
             if name:
                 authors.append(Author(name=name, email=email, uri=uri))
@@ -267,9 +285,10 @@ class RSSAdapter:
 
         Returns:
             List of Link objects
+
         """
         links = []
-        for link_elem in entry_elem.findall("{%s}link" % ATOM_NS):
+        for link_elem in entry_elem.findall(f"{{{ATOM_NS}}}link"):
             href = link_elem.get("href")
             if not href:
                 continue
@@ -294,6 +313,7 @@ class RSSAdapter:
 
         Yields:
             Entry objects
+
         """
         channel = rss_elem.find("channel")
         if channel is None:
@@ -307,7 +327,7 @@ class RSSAdapter:
             except (ValueError, ValidationError) as e:
                 logger.warning("Skipping invalid RSS item: %s", e)
                 continue
-            except Exception as e:
+            except (TypeError, AttributeError, IndexError) as e:
                 logger.warning("Skipping RSS item due to error: %s", e)
                 continue
 
@@ -322,6 +342,7 @@ class RSSAdapter:
 
         Raises:
             ValidationError: If required fields are missing
+
         """
         # Extract fields
         title = self._get_text(item_elem, "title")
@@ -346,7 +367,7 @@ class RSSAdapter:
                     updated = updated.replace(tzinfo=UTC)
                 else:
                     updated = updated.astimezone(UTC)
-            except Exception:
+            except (ValueError, TypeError, AttributeError):
                 logger.warning("Failed to parse pubDate: %s", pub_date_str)
                 updated = datetime.now(UTC)
         else:
@@ -380,6 +401,7 @@ class RSSAdapter:
 
         Returns:
             Text content or None
+
         """
         child = elem.find(tag)
         if child is not None:
@@ -397,6 +419,7 @@ class RSSAdapter:
 
         Raises:
             ValueError: If parsing fails
+
         """
         # Python 3.11+ supports fromisoformat with 'Z'
         if dt_str.endswith("Z"):
