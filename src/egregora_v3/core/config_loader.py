@@ -3,7 +3,7 @@ from typing import Any
 
 import yaml
 
-from egregora_v3.core.config import EgregoraConfig
+from egregora_v3.core.config import EgregoraConfig, ModelSettings, PathsSettings, PipelineSettings
 
 
 class ConfigLoader:
@@ -57,8 +57,47 @@ class ConfigLoader:
         paths["site_root"] = self.site_root
         config_data["paths"] = paths
 
-        # EgregoraConfig (BaseSettings) automatically handles env var overrides
-        return EgregoraConfig(**config_data)
+        # Create config from environment variables and defaults FIRST
+        # This ensures env vars have highest priority
+        config = EgregoraConfig()
+
+        # Now merge file data for fields that weren't set by environment variables
+        # We do this by comparing each field value to its default
+        if "models" in config_data:
+            file_models = config_data["models"]
+            defaults = ModelSettings()
+            # Only update if current value is default AND file has a value
+            for key, value in file_models.items():
+                current = getattr(config.models, key, None)
+                default = getattr(defaults, key, None)
+                if current == default and value is not None:
+                    setattr(config.models, key, value)
+
+        if "pipeline" in config_data:
+            file_pipeline = config_data["pipeline"]
+            defaults = PipelineSettings()
+            for key, value in file_pipeline.items():
+                current = getattr(config.pipeline, key, None)
+                default = getattr(defaults, key, None)
+                if current == default and value is not None:
+                    setattr(config.pipeline, key, value)
+
+        # Always update paths.site_root (this is injected and always set)
+        config.paths.site_root = paths["site_root"]
+
+        # Update other path fields only if not set by env vars
+        if "paths" in config_data:
+            file_paths = config_data["paths"]
+            defaults = PathsSettings()
+            for key, value in file_paths.items():
+                if key == "site_root":
+                    continue  # Already set above
+                current = getattr(config.paths, key, None)
+                default = getattr(defaults, key, None)
+                if current == default and value is not None:
+                    setattr(config.paths, key, Path(value))
+
+        return config
 
     def _load_from_file(self) -> dict[str, Any]:
         """Loads configuration from .egregora/config.yml."""
