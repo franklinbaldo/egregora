@@ -84,6 +84,7 @@ jobs:
         run: |
           POST_COUNT=$(find demo-output/posts -name "*.md" -type f ! -name "index.md" | wc -l)
           echo "📊 Generated $POST_COUNT blog posts"
+          # Quality baseline: Expect at least 6 posts from the 'Conversa do WhatsApp com Teste.zip' fixture to ensure the demo is substantive.
           if [ "$POST_COUNT" -lt 6 ]; then
             echo "⚠️  WARNING: Only $POST_COUNT posts generated (minimum: 6)"
             echo "Demo blog may be incomplete but continuing deployment"
