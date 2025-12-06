@@ -25,7 +25,22 @@ ATOM_NSMAP = {None: ATOM_NS}
 
 
 class RSSAdapter:
-    """Parses RSS/Atom feeds into Entry objects."""
+    """Parses RSS/Atom feeds into Entry objects.
+
+    Supports Atom 1.0 and RSS 2.0 feeds from local files or HTTP(S) URLs.
+
+    Usage:
+        # Preferred: Use as context manager for deterministic cleanup
+        with RSSAdapter() as adapter:
+            entries = list(adapter.parse_url("https://example.com/feed.xml"))
+
+        # Alternative: Manual cleanup
+        adapter = RSSAdapter()
+        try:
+            entries = list(adapter.parse_url("https://example.com/feed.xml"))
+        finally:
+            adapter.close()
+    """
 
     def __init__(self, timeout: float = 30.0) -> None:
         """Initialize RSS adapter.
@@ -35,6 +50,19 @@ class RSSAdapter:
         """
         self.timeout = timeout
         self._http_client = httpx.Client(timeout=timeout)
+
+    def __enter__(self) -> "RSSAdapter":
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore[no-untyped-def]
+        """Exit context manager and close HTTP client."""
+        self.close()
+
+    def close(self) -> None:
+        """Close HTTP client and release resources."""
+        if hasattr(self, "_http_client"):
+            self._http_client.close()
 
     def parse(self, source: Path) -> Iterator[Entry]:
         """Parse RSS/Atom feed from local file.
@@ -54,6 +82,11 @@ class RSSAdapter:
             raise FileNotFoundError(msg)
 
         try:
+            # Security note: Using lxml.etree for XML parsing. While lxml is more
+            # resistant to XML bombs than stdlib xml.etree, parsing untrusted XML
+            # always carries some risk. lxml disables DTDs and entity expansion by
+            # default, making it safer for processing external feeds.
+            # See: https://lxml.de/FAQ.html#how-do-i-use-lxml-safely-as-a-web-service-endpoint
             tree = etree.parse(str(source))  # noqa: S320
             root = tree.getroot()
         except etree.XMLSyntaxError as e:
@@ -80,6 +113,11 @@ class RSSAdapter:
         response.raise_for_status()
 
         try:
+            # Security note: Using lxml.etree for XML parsing. While lxml is more
+            # resistant to XML bombs than stdlib xml.etree, parsing untrusted XML
+            # always carries some risk. lxml disables DTDs and entity expansion by
+            # default, making it safer for processing external feeds.
+            # See: https://lxml.de/FAQ.html#how-do-i-use-lxml-safely-as-a-web-service-endpoint
             root = etree.fromstring(response.content)  # noqa: S320
         except etree.XMLSyntaxError as e:
             logger.exception("Failed to parse XML from %s", url)
@@ -374,7 +412,3 @@ class RSSAdapter:
 
         return dt
 
-    def __del__(self) -> None:
-        """Clean up HTTP client."""
-        if hasattr(self, "_http_client"):
-            self._http_client.close()
