@@ -21,7 +21,7 @@ import ibis.common.exceptions
 from ibis.expr.types import Table
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
-from pydantic_ai import UsageLimits
+from pydantic_ai import Agent, RunContext, UsageLimits
 from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
