@@ -1038,13 +1038,16 @@ def _prepare_pipeline_data(
     messages_table = _process_commands_and_avatars(messages_table, ctx, vision_model)
 
     checkpoint_path = ctx.site_root / ".egregora" / "checkpoint.json"
+    filter_options = FilterOptions(
+        from_date=from_date,
+        to_date=to_date,
+        checkpoint_enabled=config.pipeline.checkpoint_enabled,
+    )
     messages_table = _apply_filters(
         messages_table,
         ctx,
-        from_date,
-        to_date,
+        filter_options,
         checkpoint_path,
-        checkpoint_enabled=config.pipeline.checkpoint_enabled,
     )
 
     logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
