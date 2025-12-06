@@ -94,17 +94,14 @@ jobs:
       - name: Build demo MkDocs site
         run: |
           cd demo-output
-          uvx --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin mkdocs build -f .egregora/mkdocs.yml
+          uvx --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin mkdocs build
           echo "✅ Demo MkDocs site built successfully"
-          ls -R
 
       - name: Integrate demo into docs site
         run: |
-          ls -R demo-output
           # Move demo site to /demo subfolder in the main site
           mv demo-output/site site/demo
           echo "✅ Demo blog integrated at /demo path"
-          ls -lah site/demo/ | head -20
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
