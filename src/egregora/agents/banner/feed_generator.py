@@ -307,7 +307,7 @@ class FeedBannerGenerator:
         )
 
         # Encode binary image data as base64 for text storage
-        content = base64.b64encode(image_data).decode("ascii") if isinstance(image_data, bytes) else image_data
+        content = base64.b64encode(image_data).decode("ascii")
 
         doc = Document.create(
             doc_type=DocumentType.MEDIA,
