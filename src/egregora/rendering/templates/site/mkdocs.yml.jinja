@@ -39,6 +39,8 @@ plugins:
   - macros
   - blog:
       blog_dir: posts
+      # Posts are directly in blog_dir, not in posts/ subfolder
+      post_dir: "{blog}"
       # Post URL structure (uses date and slug)
       # post_url_format: "{date}/{slug}"
       # post_url_date_format: yyyy/MM/dd
