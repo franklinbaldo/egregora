@@ -1,3 +1,11 @@
+"""Helper functions for writer agent."""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+
 def _process_tool_result(content: Any) -> dict[str, Any] | None:
     """Parse tool result content into a dictionary if valid."""
     if isinstance(content, str):
@@ -10,3 +18,4 @@ def _process_tool_result(content: Any) -> dict[str, Any] | None:
     if isinstance(content, dict):
         return content
     return None
+

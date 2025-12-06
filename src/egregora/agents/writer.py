@@ -48,6 +48,7 @@ from egregora.agents.model_limits import (
     get_model_context_limit,
     validate_prompt_fits,
 )
+from egregora.agents.writer_helpers import _process_tool_result
 from egregora.agents.types import (
     AnnotationResult,
     PostMetadata,
@@ -549,20 +550,6 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
         return None
     logger.info("Saved journal entry: %s", doc.document_id)
     return doc.document_id
-
-
-def _process_tool_result(content: Any) -> dict[str, Any] | None:
-    """Parse tool result content into a dictionary if valid."""
-    if isinstance(content, str):
-        try:
-            return json.loads(content)
-        except (ValueError, json.JSONDecodeError):
-            return None
-    if hasattr(content, "model_dump"):
-        return content.model_dump()
-    if isinstance(content, dict):
-        return content
-    return None
 
 
 def _process_single_tool_result(

@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 import ibis
 
 from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.elo_record import ComparisonRecord
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -68,22 +69,6 @@ class EloRating:
     ties: int
     last_updated: datetime
     created_at: datetime
-
-
-@dataclass(frozen=True, slots=True)
-class ComparisonRecord:
-    """Record of a pairwise comparison."""
-
-    comparison_id: str
-    post_a_slug: str
-    post_b_slug: str
-    winner: str
-    rating_a_before: float
-    rating_b_before: float
-    rating_a_after: float
-    rating_b_after: float
-    timestamp: datetime
-    reader_feedback: str | None
 
 
 class EloStore:

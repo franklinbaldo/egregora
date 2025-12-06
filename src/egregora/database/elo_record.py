@@ -1,3 +1,11 @@
+"""Data models for ELO rating records."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime
+
+
 @dataclass(frozen=True, slots=True)
 class ComparisonRecord:
     """Record of a pairwise comparison."""
@@ -12,3 +20,4 @@ class ComparisonRecord:
     rating_b_after: float
     timestamp: datetime
     reader_feedback: str | None
+
