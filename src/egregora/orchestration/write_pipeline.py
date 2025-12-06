@@ -58,6 +58,7 @@ from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.rag import index_documents, reset_backend
 from egregora.transformations import (
+    WindowConfig,
     create_windows,
     load_checkpoint,
     save_checkpoint,
@@ -1051,12 +1052,15 @@ def _prepare_pipeline_data(
     )
 
     logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
-    windows_iterator = create_windows(
-        messages_table,
+    window_config = WindowConfig(
         step_size=step_size,
         step_unit=step_unit,
         overlap_ratio=overlap_ratio,
         max_window_time=max_window_time,
+    )
+    windows_iterator = create_windows(
+        messages_table,
+        config=window_config,
     )
 
     # Update context with adapter
