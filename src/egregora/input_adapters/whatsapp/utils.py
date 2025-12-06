@@ -86,7 +86,7 @@ def build_message_attrs(
     has_metadata = ibis.coalesce(original_line, tagged_line, message_date).notnull()
     attrs_json = attrs_struct.cast(dt.json).cast(dt.string)
     empty_json = ibis.literal(None, type=dt.string)
-    return ibis.case().when(has_metadata, attrs_json).else_(empty_json).end()
+    return ibis.ifelse(has_metadata, attrs_json, empty_json)
 
 
 def convert_media_to_markdown(message: str | None) -> str | None:
