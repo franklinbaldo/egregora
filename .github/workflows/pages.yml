@@ -94,6 +94,7 @@ jobs:
       - name: Build demo MkDocs site
         run: |
           cd demo-output
+          mkdir -p overrides  # Ensure custom_dir exists for MkDocs
           uvx --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin mkdocs build
           echo "✅ Demo MkDocs site built successfully"
 
