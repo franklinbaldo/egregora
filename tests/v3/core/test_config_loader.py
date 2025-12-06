@@ -1,8 +1,9 @@
-import os
-import pytest
 from pathlib import Path
-from egregora_v3.core.config_loader import ConfigLoader
+
+import pytest
+
 from egregora_v3.core.config import EgregoraConfig
+from egregora_v3.core.config_loader import ConfigLoader
 
 
 def test_load_from_file(tmp_path):

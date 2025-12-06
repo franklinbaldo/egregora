@@ -20,20 +20,19 @@ def _ibis_backend():
 def mock_output_sink():
     sink = MagicMock()
     # Create some dummy documents
-    docs = []
-    for i in range(10):
-        docs.append(
-            Document(
-                content=f"Content {i}",
-                type=DocumentType.POST,
-                metadata={
-                    "title": f"Post {i}",
-                    "summary": f"Summary {i}",
-                    "tags": ["original"],
-                    "path": f"posts/post_{i}.md",
-                },
-            )
+    docs = [
+        Document(
+            content=f"Content {i}",
+            type=DocumentType.POST,
+            metadata={
+                "title": f"Post {i}",
+                "summary": f"Summary {i}",
+                "tags": ["original"],
+                "path": f"posts/post_{i}.md",
+            },
         )
+        for i in range(10)
+    ]
     sink.documents.return_value = docs
     return sink
 
@@ -50,7 +49,8 @@ def mock_backend():
     backend = MagicMock()
     # Return 10 doc IDs and random vectors
     doc_ids = [f"post_{i}" for i in range(10)]
-    vectors = np.random.rand(10, 768)
+    rng = np.random.default_rng(seed=42)
+    vectors = rng.random((10, 768))
     backend.get_all_post_vectors = MagicMock(return_value=(doc_ids, vectors))
     return backend
 
@@ -59,7 +59,8 @@ def test_generate_semantic_taxonomy_insufficient_docs(mock_output_sink, mock_con
     """Test early exit when not enough documents."""
     with patch("egregora.ops.taxonomy.get_backend") as mock_get_backend:
         backend = MagicMock()
-        backend.get_all_post_vectors = MagicMock(return_value=(["1", "2"], np.random.rand(2, 768)))
+        rng = np.random.default_rng(seed=42)
+        backend.get_all_post_vectors = MagicMock(return_value=(["1", "2"], rng.random((2, 768))))
         mock_get_backend.return_value = backend
 
         count = generate_semantic_taxonomy(mock_output_sink, mock_config)
@@ -76,7 +77,8 @@ def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config):
         backend = MagicMock()
         real_docs = list(mock_output_sink.documents())
         doc_ids = [d.document_id for d in real_docs]
-        vectors = np.random.rand(len(doc_ids), 10)
+        rng = np.random.default_rng(seed=42)
+        vectors = rng.random((len(doc_ids), 10))
         backend.get_all_post_vectors = MagicMock(return_value=(doc_ids, vectors))
         mock_get_backend.return_value = backend
 
@@ -114,7 +116,8 @@ def test_generate_semantic_taxonomy_batching(mock_output_sink, mock_config):
         backend = MagicMock()
         real_docs = list(mock_output_sink.documents())
         doc_ids = [d.document_id for d in real_docs]
-        vectors = np.random.rand(len(doc_ids), 10)
+        rng = np.random.default_rng(seed=42)
+        vectors = rng.random((len(doc_ids), 10))
         backend.get_all_post_vectors = MagicMock(return_value=(doc_ids, vectors))
         mock_get_backend.return_value = backend
 
@@ -147,7 +150,8 @@ def test_generate_semantic_taxonomy_agent_failure(mock_output_sink, mock_config)
         backend = MagicMock()
         real_docs = list(mock_output_sink.documents())
         doc_ids = [d.document_id for d in real_docs]
-        vectors = np.random.rand(len(doc_ids), 10)
+        rng = np.random.default_rng(seed=42)
+        vectors = rng.random((len(doc_ids), 10))
         backend.get_all_post_vectors = MagicMock(return_value=(doc_ids, vectors))
         mock_get_backend.return_value = backend
 
