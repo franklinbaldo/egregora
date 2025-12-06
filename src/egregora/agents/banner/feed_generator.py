@@ -7,8 +7,12 @@ This module implements a feed-to-feed transformation for banner generation:
 
 from __future__ import annotations
 
+import base64
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
+
+from jinja2 import Environment, FileSystemLoader
 
 from egregora.agents.banner.agent import BannerInput, generate_banner
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
@@ -274,9 +278,6 @@ class FeedBannerGenerator:
 
         This uses the same logic as the existing generate_banner function.
         """
-        from jinja2 import Environment, FileSystemLoader
-        from pathlib import Path
-
         prompts_dir = Path(__file__).parent.parent.parent / "prompts"
         env = Environment(loader=FileSystemLoader(prompts_dir))
         template = env.get_template("banner.jinja")
@@ -296,10 +297,13 @@ class FeedBannerGenerator:
             else None
         )
 
+        # Encode binary image data as base64 for text storage
+        content = base64.b64encode(image_data).decode("ascii") if isinstance(image_data, bytes) else image_data
+
         doc = Document.create(
             doc_type=DocumentType.MEDIA,
             title=f"Banner: {task_entry.title}",
-            content=image_data.decode("utf-8") if isinstance(image_data, bytes) else image_data,
+            content=content,
             slug=slug,
             internal_metadata={
                 "task_id": task_entry.id,
