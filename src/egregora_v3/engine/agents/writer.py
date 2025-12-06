@@ -3,6 +3,7 @@
 Uses Pydantic-AI for structured output with output_type=Document.
 """
 
+import json
 from datetime import UTC, datetime
 
 from pydantic_ai import Agent
@@ -30,7 +31,17 @@ class WriterAgent:
         # Create Pydantic-AI agent with structured output
         # For testing, use TestModel; for production, use actual model
         if model == "test":
-            model_instance = TestModel()
+            # Configure TestModel with valid Document dict for testing
+            # Use custom_output_args for structured output (not custom_output_text)
+            valid_doc_dict = {
+                "id": "test-generated-post",
+                "title": "Generated Blog Post",
+                "content": "# Generated Blog Post\n\nThis is a test blog post generated from entries.",
+                "doc_type": "post",
+                "status": "draft",
+                "updated": datetime.now(UTC).isoformat(),
+            }
+            model_instance = TestModel(custom_output_args=valid_doc_dict)
         else:
             model_instance = model  # type: ignore[assignment]
 
@@ -88,7 +99,7 @@ Return a Document with:
         result = await self._agent.run(user_prompt, deps=context)
 
         # Get structured Document from result
-        doc = result.data
+        doc = result.output
 
         # Ensure proper defaults
         if not doc.doc_type:

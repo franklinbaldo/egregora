@@ -11,7 +11,6 @@ Following TDD Red-Green-Refactor cycle.
 
 import ibis
 import pytest
-from pydantic_ai.models.test import TestModel
 
 from egregora_v3.core.catalog import ContentLibrary
 from egregora_v3.core.context import PipelineContext
@@ -94,11 +93,7 @@ async def test_writer_agent_generates_document(
     # Use TestModel for deterministic testing
     agent = WriterAgent(model="test")
 
-    # Configure TestModel to return valid Document JSON
-    test_model = TestModel()
-    agent._agent.model = test_model
-
-    # Generate document
+    # Generate document (TestModel is already configured in __init__)
     result = await agent.generate(
         entries=sample_entries,
         context=pipeline_context,

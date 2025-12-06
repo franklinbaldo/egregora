@@ -22,9 +22,9 @@ ATOM_NS = "http://www.w3.org/2005/Atom"
 @st.composite
 def atom_entry_xml(draw: st.DrawFn) -> str:
     """Generate valid Atom entry XML with random data."""
-    entry_id = draw(st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=["Cc"])))
-    title = draw(st.text(min_size=1, max_size=200, alphabet=st.characters(blacklist_categories=["Cc"])))
-    content = draw(st.text(max_size=500, alphabet=st.characters(blacklist_categories=["Cc"])))
+    entry_id = draw(st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=["Cc", "Cs"])))
+    title = draw(st.text(min_size=1, max_size=200, alphabet=st.characters(blacklist_categories=["Cc", "Cs"])))
+    content = draw(st.text(max_size=500, alphabet=st.characters(blacklist_categories=["Cc", "Cs"])))
 
     # Generate ISO 8601 datetime
     year = draw(st.integers(min_value=2000, max_value=2030))
@@ -89,7 +89,7 @@ def test_parsing_atom_always_produces_valid_entry(atom_xml: str) -> None:
         assert all(isinstance(e.updated, datetime) for e in entries)
 
 
-@given(st.text(min_size=1, max_size=500, alphabet=st.characters(blacklist_categories=["Cc"])))
+@given(st.text(min_size=1, max_size=500, alphabet=st.characters(blacklist_categories=["Cc", "Cs"])))
 def test_atom_id_preservation(entry_id: str) -> None:
     """Property: Atom entry ID is always preserved exactly (for XML-compatible strings)."""
     import tempfile
@@ -134,7 +134,7 @@ def test_atom_id_preservation(entry_id: str) -> None:
 
 @given(
     st.lists(
-        st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=["Cc"])),
+        st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=["Cc", "Cs"])),
         min_size=0,
         max_size=10,
     )
