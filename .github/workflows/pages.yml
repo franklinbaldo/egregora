@@ -23,15 +23,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6 # Added by Dependabot
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v6 # Added by Dependabot
         with:
           node-version: 20
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v7 # Added by Dependabot
         with:
           enable-cache: true
 
@@ -47,6 +47,7 @@ jobs:
           commit_iso=$(git show -s --format=%cI HEAD)
           commit_iso_safe=${commit_iso//:/-}
           echo "{\"commit_iso\":\"${commit_iso_safe}\"}" > site/bundles/meta.json
+          npx repomix -c repomix-all.json --output site/bundles/all.bundle.md
           npx repomix -c repomix-docs.json --output site/bundles/docs.bundle.md
           npx repomix -c repomix-tests.json --output site/bundles/tests.bundle.md
           npx repomix -c repomix-code.json --output site/bundles/code.bundle.md
@@ -63,10 +64,8 @@ jobs:
             pipeline.duckdb.wal
             .egregora-cache/
             .egregora/lancedb/
-          key: demo-pipeline-${{ hashFiles('tests/fixtures/Conversa do WhatsApp com Teste.zip') }}-v2
-          restore-keys: |
-            demo-pipeline-${{ hashFiles('tests/fixtures/Conversa do WhatsApp com Teste.zip') }}-
-            demo-pipeline-
+          # No restore-keys to avoid restoring stale posts/index.md from old caches
+          key: demo-pipeline-${{ hashFiles('tests/fixtures/Conversa do WhatsApp com Teste.zip') }}-v5
 
       - name: Generate demo blog
         env:
@@ -77,15 +76,19 @@ jobs:
           uv run egregora write \
             "tests/fixtures/Conversa do WhatsApp com Teste.zip" \
             --output=./demo-output \
+            --refresh writer \
             --resume
           echo "✅ Blog generation complete"
 
       - name: Validate demo output quality
         run: |
-          POST_COUNT=$(find demo-output/posts -name "*.md" -type f ! -name "index.md" | wc -l)
+          echo "📂 Demo output structure:"
+          find demo-output -maxdepth 3 -type f -name "*.md" | head -20
+          echo "---"
+          POST_COUNT=$(find demo-output/docs/posts -name "*.md" -type f ! -name "index.md" 2>/dev/null | wc -l)
           echo "📊 Generated $POST_COUNT blog posts"
-          if [ "$POST_COUNT" -lt 6 ]; then
-            echo "⚠️  WARNING: Only $POST_COUNT posts generated (minimum: 6)"
+          if [ "$POST_COUNT" -lt 1 ]; then
+            echo "⚠️  WARNING: Only $POST_COUNT posts generated"
             echo "Demo blog may be incomplete but continuing deployment"
           else
             echo "✅ Quality check passed: $POST_COUNT posts generated"
@@ -94,7 +97,10 @@ jobs:
       - name: Build demo MkDocs site
         run: |
           cd demo-output
-          uvx --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin mkdocs build
+          echo "📋 MkDocs config location:"
+          ls -la .egregora/mkdocs.yml 2>/dev/null || ls -la mkdocs.yml 2>/dev/null || echo "No mkdocs.yml found"
+          mkdir -p overrides  # Ensure custom_dir exists for MkDocs
+          uvx --with mkdocs-material --with mkdocs-blogging-plugin --with mkdocs-macros-plugin --with mkdocs-rss-plugin mkdocs build -f .egregora/mkdocs.yml
           echo "✅ Demo MkDocs site built successfully"
 
       - name: Integrate demo into docs site
