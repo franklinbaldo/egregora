@@ -14,7 +14,9 @@ MODERN (2025-11-18): Imports site path resolution from
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -1063,11 +1065,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             return
 
         # Collect all tags from posts
-        from collections import Counter
-        from datetime import UTC, datetime
-
-        from egregora.utils.paths import slugify
-
         tag_counts: Counter = Counter()
         all_posts = list(self.documents())
 
@@ -1123,8 +1120,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             tags_path.write_text(content, encoding="utf-8")
             logger.info("Regenerated tags page with %d unique tags", len(tags_data))
 
-        except Exception as e:
-            logger.error("Failed to regenerate tags page: %s", e)
+        except (OSError, TemplateError):
+            logger.exception("Failed to regenerate tags page")
 
 
 # ============================================================================

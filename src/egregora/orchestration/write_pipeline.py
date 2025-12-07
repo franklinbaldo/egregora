@@ -1441,7 +1441,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
                 try:
                     logger.info("[bold cyan]🏷️  Regenerating tags page with word cloud...[/]")
                     dataset.context.output_format.regenerate_tags_page()
-                except Exception as e:
+                except (OSError, AttributeError, TypeError) as e:
                     logger.warning("Failed to regenerate tags page: %s", e)
 
             # Update run to completed
