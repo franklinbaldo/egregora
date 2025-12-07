@@ -86,7 +86,7 @@ def sample_documents() -> list[Document]:
 def test_vector_store_creates_database_directory(tmp_path: Path, mock_embed_fn) -> None:
     """Test that vector store creates database directory."""
     db_dir = tmp_path / "new_lancedb"
-    store = LanceDBVectorStore(
+    LanceDBVectorStore(
         db_dir=db_dir,
         table_name="test",
         embed_fn=mock_embed_fn,

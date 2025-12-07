@@ -17,7 +17,7 @@ class ConfigLoader:
     to automatically apply environment variable overrides.
     """
 
-    def __init__(self, site_root: Path | None = None):
+    def __init__(self, site_root: Path | None = None) -> None:
         """Initialize config loader.
 
         Args:
@@ -81,7 +81,7 @@ class ConfigLoader:
         merged = deepcopy(base)
 
         for key, value in override.items():
-            path = current_path + (str(key).lower(),)
+            path = (*current_path, str(key).lower())
             if path in env_override_paths:
                 continue
 
@@ -109,4 +109,5 @@ class ConfigLoader:
                     raise ValueError(msg)
                 return data
         except yaml.YAMLError as e:
-            raise ValueError(f"Invalid YAML in {config_path}: {e}") from e
+            msg = f"Invalid YAML in {config_path}: {e}"
+            raise ValueError(msg) from e

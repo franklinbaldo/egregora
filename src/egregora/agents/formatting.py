@@ -148,13 +148,11 @@ def _table_to_records(
     Arrow-style attributes (`column_names`, `column`, `num_rows`).
     """
     if hasattr(data, "column_names") and hasattr(data, "column") and hasattr(data, "num_rows"):
-        column_names = [str(name) for name in getattr(data, "column_names")]
-        columns = {
-            name: getattr(data, "column")(index).to_pylist() for index, name in enumerate(column_names)
-        }
+        column_names = [str(name) for name in data.column_names]  # type: ignore[union-attr]
+        columns = {name: data.column(index).to_pylist() for index, name in enumerate(column_names)}  # type: ignore[union-attr]
         records = [
             {name: columns[name][row_index] for name in column_names}
-            for row_index in range(getattr(data, "num_rows"))
+            for row_index in range(data.num_rows)  # type: ignore[union-attr]
         ]
         return records, column_names
     if isinstance(data, Mapping):

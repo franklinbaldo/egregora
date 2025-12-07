@@ -258,63 +258,71 @@ class ToolRegistry:
 
         """
         profiles_path = self.tools_path / "profiles.yaml"
-        if profiles_path.exists():
-            try:
-                content = profiles_path.read_text(encoding="utf-8")
-            except OSError as exc:
-                msg = f"Failed to read tool profiles from {profiles_path}"
-                raise ToolRegistryError(msg) from exc
-            try:
-                data = yaml.safe_load(content) or {}
-            except yaml.YAMLError as exc:
-                msg = f"Invalid YAML in tool profiles file {profiles_path}"
-                raise ToolRegistryError(msg) from exc
-            if not isinstance(data, dict):
-                msg = f"Tool profiles in {profiles_path} must be a mapping, got {type(data).__name__}"
+        if not profiles_path.exists():
+            return {}
+
+        data = self._read_profiles_data(profiles_path)
+        profiles = self._extract_profiles_section(data, profiles_path)
+        return self._validate_profiles(profiles, profiles_path)
+
+    def _read_profiles_data(self, profiles_path: Path) -> dict[str, Any]:
+        try:
+            content = profiles_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            msg = f"Failed to read tool profiles from {profiles_path}"
+            raise ToolRegistryError(msg) from exc
+        try:
+            data = yaml.safe_load(content) or {}
+        except yaml.YAMLError as exc:
+            msg = f"Invalid YAML in tool profiles file {profiles_path}"
+            raise ToolRegistryError(msg) from exc
+        if not isinstance(data, dict):
+            msg = f"Tool profiles in {profiles_path} must be a mapping, got {type(data).__name__}"
+            raise ToolRegistryError(msg)
+        return data
+
+    def _extract_profiles_section(self, data: dict[str, Any], profiles_path: Path) -> dict[str, Any]:
+        profiles = data.get("profiles", {})
+        if not isinstance(profiles, dict):
+            msg = f"'profiles' section in {profiles_path} must be a mapping, got {type(profiles).__name__}"
+            raise ToolRegistryError(msg)
+        return profiles
+
+    def _validate_profiles(self, profiles: dict[str, Any], profiles_path: Path) -> dict[str, Any]:
+        validated_profiles: dict[str, Any] = {}
+        for name, profile in profiles.items():
+            if not isinstance(profile, dict):
+                msg = f"Profile '{name}' in {profiles_path} must be a mapping, got {type(profile).__name__}"
                 raise ToolRegistryError(msg)
-            profiles = data.get("profiles", {})
-            if not isinstance(profiles, dict):
+
+            allow = profile.get("allow", []) or []
+            deny = profile.get("deny", []) or []
+
+            if not isinstance(allow, list | tuple):
                 msg = (
-                    f"'profiles' section in {profiles_path} must be a mapping, got {type(profiles).__name__}"
+                    f"'allow' list for profile '{name}' in {profiles_path} must be a sequence of strings, "
+                    f"got {type(allow).__name__}"
                 )
                 raise ToolRegistryError(msg)
-            validated_profiles: dict[str, Any] = {}
-            for name, profile in profiles.items():
-                if not isinstance(profile, dict):
-                    msg = (
-                        f"Profile '{name}' in {profiles_path} must be a mapping, got {type(profile).__name__}"
-                    )
-                    raise ToolRegistryError(msg)
+            if not isinstance(deny, list | tuple):
+                msg = (
+                    f"'deny' list for profile '{name}' in {profiles_path} must be a sequence of strings, "
+                    f"got {type(deny).__name__}"
+                )
+                raise ToolRegistryError(msg)
+            if not all(isinstance(item, str) for item in allow):
+                msg = f"All entries in 'allow' for profile '{name}' in {profiles_path} must be strings"
+                raise ToolRegistryError(msg)
+            if not all(isinstance(item, str) for item in deny):
+                msg = f"All entries in 'deny' for profile '{name}' in {profiles_path} must be strings"
+                raise ToolRegistryError(msg)
 
-                allow = profile.get("allow", []) or []
-                deny = profile.get("deny", []) or []
+            normalized_profile = dict(profile)
+            normalized_profile["allow"] = list(allow)
+            normalized_profile["deny"] = list(deny)
+            validated_profiles[name] = normalized_profile
 
-                if not isinstance(allow, list | tuple):
-                    msg = (
-                        f"'allow' list for profile '{name}' in {profiles_path} must be a sequence of strings, "
-                        f"got {type(allow).__name__}"
-                    )
-                    raise ToolRegistryError(msg)
-                if not isinstance(deny, list | tuple):
-                    msg = (
-                        f"'deny' list for profile '{name}' in {profiles_path} must be a sequence of strings, "
-                        f"got {type(deny).__name__}"
-                    )
-                    raise ToolRegistryError(msg)
-                if not all(isinstance(item, str) for item in allow):
-                    msg = f"All entries in 'allow' for profile '{name}' in {profiles_path} must be strings"
-                    raise ToolRegistryError(msg)
-                if not all(isinstance(item, str) for item in deny):
-                    msg = f"All entries in 'deny' for profile '{name}' in {profiles_path} must be strings"
-                    raise ToolRegistryError(msg)
-
-                normalized_profile = dict(profile)
-                normalized_profile["allow"] = list(allow)
-                normalized_profile["deny"] = list(deny)
-                validated_profiles[name] = normalized_profile
-
-            return validated_profiles
-        return {}
+        return validated_profiles
 
     def resolve_toolset(self, agent_tools_config: AgentTools) -> set[str]:
         """Resolve the final set of tool IDs for an agent.

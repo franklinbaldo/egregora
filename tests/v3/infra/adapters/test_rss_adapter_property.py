@@ -38,29 +38,29 @@ def atom_entry_xml(draw: st.DrawFn) -> str:
     updated = f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:{second:02d}Z"
 
     nsmap = {None: ATOM_NS}
-    feed = etree.Element("{%s}feed" % ATOM_NS, nsmap=nsmap)
+    feed = etree.Element(f"{{{ATOM_NS}}}feed", nsmap=nsmap)
 
-    feed_title = etree.SubElement(feed, "{%s}title" % ATOM_NS)
+    feed_title = etree.SubElement(feed, f"{{{ATOM_NS}}}title")
     feed_title.text = "Test Feed"
 
-    feed_link = etree.SubElement(feed, "{%s}link" % ATOM_NS)
+    feed_link = etree.SubElement(feed, f"{{{ATOM_NS}}}link")
     feed_link.set("href", "https://example.com")
 
-    feed_updated = etree.SubElement(feed, "{%s}updated" % ATOM_NS)
+    feed_updated = etree.SubElement(feed, f"{{{ATOM_NS}}}updated")
     feed_updated.text = updated
 
-    entry = etree.SubElement(feed, "{%s}entry" % ATOM_NS)
+    entry = etree.SubElement(feed, f"{{{ATOM_NS}}}entry")
 
-    entry_id_elem = etree.SubElement(entry, "{%s}id" % ATOM_NS)
+    entry_id_elem = etree.SubElement(entry, f"{{{ATOM_NS}}}id")
     entry_id_elem.text = entry_id
 
-    entry_title_elem = etree.SubElement(entry, "{%s}title" % ATOM_NS)
+    entry_title_elem = etree.SubElement(entry, f"{{{ATOM_NS}}}title")
     entry_title_elem.text = title
 
-    entry_updated_elem = etree.SubElement(entry, "{%s}updated" % ATOM_NS)
+    entry_updated_elem = etree.SubElement(entry, f"{{{ATOM_NS}}}updated")
     entry_updated_elem.text = updated
 
-    entry_content_elem = etree.SubElement(entry, "{%s}content" % ATOM_NS)
+    entry_content_elem = etree.SubElement(entry, f"{{{ATOM_NS}}}content")
     entry_content_elem.text = content
 
     return etree.tostring(feed, encoding="unicode")
@@ -96,26 +96,26 @@ def test_atom_id_preservation(entry_id: str) -> None:
     import tempfile
     # Create minimal valid Atom feed
     nsmap = {None: ATOM_NS}
-    feed = etree.Element("{%s}feed" % ATOM_NS, nsmap=nsmap)
+    feed = etree.Element(f"{{{ATOM_NS}}}feed", nsmap=nsmap)
 
-    feed_title = etree.SubElement(feed, "{%s}title" % ATOM_NS)
+    feed_title = etree.SubElement(feed, f"{{{ATOM_NS}}}title")
     feed_title.text = "Test"
 
-    feed_link = etree.SubElement(feed, "{%s}link" % ATOM_NS)
+    feed_link = etree.SubElement(feed, f"{{{ATOM_NS}}}link")
     feed_link.set("href", "https://example.com")
 
-    feed_updated = etree.SubElement(feed, "{%s}updated" % ATOM_NS)
+    feed_updated = etree.SubElement(feed, f"{{{ATOM_NS}}}updated")
     feed_updated.text = "2025-01-01T00:00:00Z"
 
-    entry = etree.SubElement(feed, "{%s}entry" % ATOM_NS)
+    entry = etree.SubElement(feed, f"{{{ATOM_NS}}}entry")
 
-    entry_id_elem = etree.SubElement(entry, "{%s}id" % ATOM_NS)
+    entry_id_elem = etree.SubElement(entry, f"{{{ATOM_NS}}}id")
     entry_id_elem.text = entry_id
 
-    entry_title_elem = etree.SubElement(entry, "{%s}title" % ATOM_NS)
+    entry_title_elem = etree.SubElement(entry, f"{{{ATOM_NS}}}title")
     entry_title_elem.text = "Test Title"
 
-    entry_updated_elem = etree.SubElement(entry, "{%s}updated" % ATOM_NS)
+    entry_updated_elem = etree.SubElement(entry, f"{{{ATOM_NS}}}updated")
     entry_updated_elem.text = "2025-01-01T00:00:00Z"
 
     atom_xml = etree.tostring(feed, encoding="unicode")
@@ -144,31 +144,31 @@ def test_atom_feed_entry_count_matches(titles: list[str]) -> None:
     """Property: Number of parsed entries equals number of entries in feed."""
     import tempfile
     nsmap = {None: ATOM_NS}
-    feed = etree.Element("{%s}feed" % ATOM_NS, nsmap=nsmap)
+    feed = etree.Element(f"{{{ATOM_NS}}}feed", nsmap=nsmap)
 
-    feed_title = etree.SubElement(feed, "{%s}title" % ATOM_NS)
+    feed_title = etree.SubElement(feed, f"{{{ATOM_NS}}}title")
     feed_title.text = "Test Feed"
 
-    feed_link = etree.SubElement(feed, "{%s}link" % ATOM_NS)
+    feed_link = etree.SubElement(feed, f"{{{ATOM_NS}}}link")
     feed_link.set("href", "https://example.com")
 
-    feed_updated = etree.SubElement(feed, "{%s}updated" % ATOM_NS)
+    feed_updated = etree.SubElement(feed, f"{{{ATOM_NS}}}updated")
     feed_updated.text = "2025-01-01T00:00:00Z"
 
     # Create entries
     for i, title in enumerate(titles):
-        entry = etree.SubElement(feed, "{%s}entry" % ATOM_NS)
+        entry = etree.SubElement(feed, f"{{{ATOM_NS}}}entry")
 
-        entry_id = etree.SubElement(entry, "{%s}id" % ATOM_NS)
+        entry_id = etree.SubElement(entry, f"{{{ATOM_NS}}}id")
         entry_id.text = f"entry-{i}"
 
-        entry_title = etree.SubElement(entry, "{%s}title" % ATOM_NS)
+        entry_title = etree.SubElement(entry, f"{{{ATOM_NS}}}title")
         entry_title.text = title
 
-        entry_updated = etree.SubElement(entry, "{%s}updated" % ATOM_NS)
+        entry_updated = etree.SubElement(entry, f"{{{ATOM_NS}}}updated")
         entry_updated.text = "2025-01-01T00:00:00Z"
 
-        entry_content = etree.SubElement(entry, "{%s}content" % ATOM_NS)
+        entry_content = etree.SubElement(entry, f"{{{ATOM_NS}}}content")
         entry_content.text = f"Content {i}"
 
     atom_xml = etree.tostring(feed, encoding="unicode")
@@ -190,26 +190,26 @@ def test_atom_datetime_always_utc(year: int) -> None:
     """Property: All parsed datetimes are in UTC timezone."""
     import tempfile
     nsmap = {None: ATOM_NS}
-    feed = etree.Element("{%s}feed" % ATOM_NS, nsmap=nsmap)
+    feed = etree.Element(f"{{{ATOM_NS}}}feed", nsmap=nsmap)
 
-    feed_title = etree.SubElement(feed, "{%s}title" % ATOM_NS)
+    feed_title = etree.SubElement(feed, f"{{{ATOM_NS}}}title")
     feed_title.text = "Test"
 
-    feed_link = etree.SubElement(feed, "{%s}link" % ATOM_NS)
+    feed_link = etree.SubElement(feed, f"{{{ATOM_NS}}}link")
     feed_link.set("href", "https://example.com")
 
-    feed_updated = etree.SubElement(feed, "{%s}updated" % ATOM_NS)
+    feed_updated = etree.SubElement(feed, f"{{{ATOM_NS}}}updated")
     feed_updated.text = f"{year}-06-15T12:00:00Z"
 
-    entry = etree.SubElement(feed, "{%s}entry" % ATOM_NS)
+    entry = etree.SubElement(feed, f"{{{ATOM_NS}}}entry")
 
-    entry_id = etree.SubElement(entry, "{%s}id" % ATOM_NS)
+    entry_id = etree.SubElement(entry, f"{{{ATOM_NS}}}id")
     entry_id.text = "test-entry"
 
-    entry_title = etree.SubElement(entry, "{%s}title" % ATOM_NS)
+    entry_title = etree.SubElement(entry, f"{{{ATOM_NS}}}title")
     entry_title.text = "Test"
 
-    entry_updated = etree.SubElement(entry, "{%s}updated" % ATOM_NS)
+    entry_updated = etree.SubElement(entry, f"{{{ATOM_NS}}}updated")
     entry_updated.text = f"{year}-06-15T12:00:00Z"
 
     atom_xml = etree.tostring(feed, encoding="unicode")

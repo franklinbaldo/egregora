@@ -864,7 +864,7 @@ def _merge_config(
     merged = deepcopy(base)
 
     for key, value in override.items():
-        path = current_path + (str(key).lower(),)
+        path = (*current_path, str(key).lower())
         if path in env_override_paths:
             continue
 
