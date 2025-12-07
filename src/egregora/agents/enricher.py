@@ -310,7 +310,7 @@ def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
     return [dict(row) for row in frame]
 
 
-    def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
+def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
     """Stream table rows as batches of dictionaries without loading entire table into memory."""
     from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 
