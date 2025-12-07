@@ -11,7 +11,7 @@ import base64
 from datetime import UTC, datetime
 from pathlib import Path
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.agents.banner.agent import BannerInput, generate_banner
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
@@ -32,7 +32,7 @@ class BannerTaskEntry:
     - internal_metadata.language: Language code (default: pt-BR)
     """
 
-    def __init__(self, entry: Entry):
+    def __init__(self, entry: Entry) -> None:
         self.entry = entry
         self.title = entry.title
         self.summary = entry.summary or ""
@@ -62,7 +62,7 @@ class BannerGenerationResult:
         document: Document | None = None,
         error: str | None = None,
         error_code: str | None = None,
-    ):
+    ) -> None:
         self.task_entry = task_entry
         self.document = document
         self.error = error
@@ -102,7 +102,7 @@ class FeedBannerGenerator:
         self,
         provider: ImageGenerationProvider | None = None,
         prompts_dir: Path | None = None,
-    ):
+    ) -> None:
         """Initialize the feed-based banner generator.
 
         Args:
@@ -118,11 +118,15 @@ class FeedBannerGenerator:
         # Initialize Jinja2 environment once for efficiency
         if prompts_dir is None:
             prompts_dir = Path(__file__).parent.parent.parent / "prompts"
-        self.jinja_env = Environment(loader=FileSystemLoader(prompts_dir))
+        self.jinja_env = Environment(
+            loader=FileSystemLoader(prompts_dir),
+            autoescape=select_autoescape(enabled_extensions=("jinja", "jinja2", "html", "xml")),
+        )
 
     def generate_from_feed(
         self,
         task_feed: Feed,
+        *,
         batch_mode: bool = False,
     ) -> Feed:
         """Generate banners from a feed of tasks.
@@ -204,7 +208,7 @@ class FeedBannerGenerator:
 
         # Process batch (note: current Gemini provider processes one at a time)
         # This is a placeholder for future batch API support
-        for task, request in zip(tasks, requests):
+        for task, request in zip(tasks, requests, strict=True):
             try:
                 batch_result = self.provider.generate(request)
                 if batch_result.has_image and batch_result.image_bytes:
@@ -224,11 +228,11 @@ class FeedBannerGenerator:
                             error_code=batch_result.error_code or "GENERATION_FAILED",
                         )
                     )
-            except Exception as e:
+            except (RuntimeError, ValueError) as exc:
                 results.append(
                     BannerGenerationResult(
                         task.entry,
-                        error=str(e),
+                        error=str(exc),
                         error_code="GENERATION_EXCEPTION",
                     )
                 )
@@ -259,10 +263,10 @@ class FeedBannerGenerator:
                 error=result.error or "Unknown error",
                 error_code=result.error_code or "GENERATION_FAILED",
             )
-        except Exception as e:
+        except (RuntimeError, ValueError) as exc:
             return BannerGenerationResult(
                 task.entry,
-                error=str(e),
+                error=str(exc),
                 error_code="GENERATION_EXCEPTION",
             )
 

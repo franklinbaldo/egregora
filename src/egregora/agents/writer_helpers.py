@@ -151,14 +151,14 @@ def build_rag_context_for_prompt(
             cache.rag.set(cache_key, context)
 
         logger.info("Built RAG context with %d similar posts", len(response.hits))
-        return context
-
     except (ConnectionError, TimeoutError) as exc:
         logger.warning("RAG backend unavailable, continuing without context: %s", exc)
     except ValueError as exc:
         logger.warning("Invalid RAG query, continuing without context: %s", exc)
     except (AttributeError, KeyError, TypeError):
         logger.exception("Malformed RAG response, continuing without context")
+    else:
+        return context
 
     return ""
 

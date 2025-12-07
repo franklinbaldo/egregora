@@ -15,11 +15,13 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
+from tenacity import Retrying
 
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
 from egregora.config.settings import EgregoraConfig
 from egregora.resources.prompts import render_prompt
 from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
+from egregora.utils.model_fallback import create_fallback_model
 
 if TYPE_CHECKING:
     from egregora.agents.reader.models import EvaluationRequest
@@ -91,15 +93,10 @@ Evaluate both posts and determine which is better quality overall.
     model_name = model or config.models.reader
     system_prompt = render_prompt("reader_system.jinja")
 
-    from egregora.utils.model_fallback import create_fallback_model
-
-    # Create model with automatic fallback
     model = create_fallback_model(model_name)
     agent = Agent(model=model, output_type=ComparisonResult, system_prompt=system_prompt)
 
     logger.debug("Comparing posts: %s vs %s", request.post_a_slug, request.post_b_slug)
-
-    from tenacity import Retrying
 
     for attempt in Retrying(stop=RETRY_STOP, wait=RETRY_WAIT, retry=RETRY_IF, reraise=True):
         with attempt:

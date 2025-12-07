@@ -45,8 +45,6 @@ from egregora.utils.paths import slugify
 from egregora.utils.quota import QuotaTracker
 
 if TYPE_CHECKING:
-    import pandas as pd
-    import pyarrow as pa
     from ibis.backends.duckdb import Backend as DuckDBBackend
 
 logger = logging.getLogger(__name__)
@@ -198,8 +196,6 @@ def create_url_enrichment_agent(model: str) -> Agent[UrlEnrichmentDeps, Enrichme
 
     @agent.system_prompt
     def system_prompt(ctx: RunContext[UrlEnrichmentDeps]) -> str:
-        from egregora.resources.prompts import render_prompt
-
         return render_prompt(
             "enrichment.jinja",
             mode="url",
@@ -260,7 +256,7 @@ def _uuid_to_str(value: uuid.UUID | str | None) -> str | None:
     return str(value)
 
 
-def _safe_timestamp_plus_one(timestamp: datetime | pd.Timestamp) -> datetime:
+def _safe_timestamp_plus_one(timestamp: datetime | str | Any) -> datetime:
     dt_value = ensure_datetime(timestamp)
     return dt_value + timedelta(seconds=1)
 
@@ -301,7 +297,7 @@ def _create_enrichment_row(
     }
 
 
-def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
     """Convert backend frames into dict records consistently."""
     if hasattr(frame, "to_dict"):
         return [dict(row) for row in frame.to_dict("records")]
@@ -314,23 +310,19 @@ def _frame_to_records(frame: pd.DataFrame | pa.Table | list[dict[str, Any]]) -> 
     return [dict(row) for row in frame]
 
 
-def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
+    def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
     """Stream table rows as batches of dictionaries without loading entire table into memory."""
     from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 
     try:
         backend = table._find_backend()
-    except (AttributeError, Exception):  # pragma: no cover - fallback path
+    except AttributeError:  # pragma: no cover - fallback path
         backend = None
 
     if backend is not None and hasattr(backend, "con"):
-        try:
-            ordered_table = ensure_deterministic_order(table)
-        except (AttributeError, Exception):  # pragma: no cover - fallback path
-            logger.debug("Falling back to pandas streaming for enrichment batches", exc_info=True)
-        else:
-            yield from stream_ibis(ordered_table, backend, batch_size=batch_size)
-            return
+        ordered_table = ensure_deterministic_order(table)
+        yield from stream_ibis(ordered_table, backend, batch_size=batch_size)
+        return
 
     if "ts" in table.columns:
         table = table.order_by("ts")

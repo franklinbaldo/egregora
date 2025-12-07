@@ -394,8 +394,6 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
         )
         params.output_format.persist(doc)
         logger.info("Saved journal entry: %s", doc.document_id)
-        return doc.document_id
-
     except (TemplateNotFound, TemplateError):
         logger.exception("Journal template error")
     except (OSError, PermissionError):
@@ -404,7 +402,8 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
         logger.exception("Invalid data for journal")
     except ValueError:
         logger.exception("Invalid journal document")
-
+    else:
+        return doc.document_id
     return None
 
 

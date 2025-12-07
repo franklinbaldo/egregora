@@ -159,7 +159,7 @@ class WriterDeps:
     config: EgregoraConfig | None = None
     # Pre-calculated context parts that are expensive or needed for signature
     conversation_xml: str = ""
-    active_authors: list[str] = Field(default_factory=list)
+    active_authors: list[str] | None = None
     adapter_content_summary: str = ""
     adapter_generation_instructions: str = ""
 
@@ -240,8 +240,8 @@ class WriterDeps:
         except ValueError as exc:
             logger.warning("Invalid query for media search: %s", exc)
             return SearchMediaResult(results=[])
-        except (AttributeError, KeyError) as exc:
-            logger.exception("Malformed response from RAG media search: %s", exc)
+        except (AttributeError, KeyError):
+            logger.exception("Malformed response from RAG media search")
             return SearchMediaResult(results=[])
 
     def annotate(self, parent_id: str, parent_type: str, commentary: str) -> AnnotationResult:
@@ -260,7 +260,7 @@ class WriterDeps:
                 parent_id=annotation.parent_id,
                 parent_type=annotation.parent_type,
             )
-        except Exception as exc:
+        except (RuntimeError, ValueError) as exc:
             # We catch broad exceptions here intentionally to prevent a single
             # annotation failure from crashing the entire writer agent process.
             # The agent should be able to continue writing even if one annotation fails.
