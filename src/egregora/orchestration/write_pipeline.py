@@ -1436,6 +1436,14 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             # (In case there are stragglers)
             _process_background_tasks(dataset.context)
 
+            # Regenerate tags page with word cloud visualization
+            if hasattr(dataset.context.output_format, "regenerate_tags_page"):
+                try:
+                    logger.info("[bold cyan]🏷️  Regenerating tags page with word cloud...[/]")
+                    dataset.context.output_format.regenerate_tags_page()
+                except (OSError, AttributeError, TypeError) as e:
+                    logger.warning("Failed to regenerate tags page: %s", e)
+
             # Update run to completed
             _record_run_completion(run_store, run_id, started_at, results)
 

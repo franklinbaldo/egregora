@@ -45,15 +45,15 @@ logger = logging.getLogger(__name__)
 # Constants
 # ============================================================================
 
-DEFAULT_MODEL = "google-gla:gemini-2.0-flash"
+DEFAULT_MODEL = "google-gla:gemini-flash-latest"  # More reliable availability
 DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
 DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash-image"
 EMBEDDING_DIM = 768  # Embedding vector dimensions
 
 # Quota defaults
 # Quota defaults
-DEFAULT_DAILY_LLM_REQUESTS = 220
-DEFAULT_PER_SECOND_LIMIT = 1
+DEFAULT_DAILY_LLM_REQUESTS = 100  # Conservative default
+DEFAULT_PER_SECOND_LIMIT = 0.05   # ~3 requests/min to avoid 429 on free tier
 DEFAULT_CONCURRENCY = 1
 
 # Default database connection strings
@@ -632,9 +632,9 @@ class QuotaSettings(BaseModel):
         ge=1,
         description="Soft limit for daily LLM calls (writer + enrichment).",
     )
-    per_second_limit: int = Field(
+    per_second_limit: float = Field(
         default=DEFAULT_PER_SECOND_LIMIT,
-        ge=1,
+        ge=0.01,
         description="Maximum number of LLM calls allowed per second (for async guard).",
     )
     concurrency: int = Field(

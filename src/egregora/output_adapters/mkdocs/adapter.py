@@ -14,7 +14,9 @@ MODERN (2025-11-18): Imports site path resolution from
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -531,60 +533,24 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
 
-    def finalize_window(
-        self,
-        window_label: str,
-        posts_created: list[str],
-        profiles_updated: list[str],
-        metadata: dict[str, Any] | None = None,
-    ) -> None:
-        """Post-processing hook called after writer agent completes a window.
+    # REMOVED: finalize_window() logic for profile regeneration.
+    # Rationale: Profile regeneration is now handled by the ProfileWorker and site_generator.py
+    # which aggregates stats dynamically. The adapter should focus on persistence (OutputSink)
+    # and not orchestration logic.
 
-        Regenerates the profiles index page to include any newly created or updated profiles.
-        """
-        if not self._initialized:
-            logger.warning("Adapter not initialized, skipping finalization")
-            return
+    # def finalize_window(
+    #    self,
+    #    window_label: str,
+    #    posts_created: list[str],
+    #    profiles_updated: list[str],
+    #    metadata: dict[str, Any] | None = None,
+    # ) -> None:
+    #    """Post-processing hook called after writer agent completes a window.
+    #
+    #    Regenerates the profiles index page to include any newly created or updated profiles.
+    #    """
+    #    ...
 
-        # 1. Collect all profiles
-        profiles = []
-        if self.profiles_dir.exists():
-            for profile_path in self.profiles_dir.glob("*.md"):
-                if profile_path.name == "index.md":
-                    continue
-                
-                try:
-                    meta, _ = parse_frontmatter(profile_path.read_text(encoding="utf-8"))
-                    meta = meta or {}
-                    # Ensure UUID is present (filename stem is the UUID)
-                    meta.setdefault("uuid", profile_path.stem)
-                    # Ensure link is present for template
-                    meta.setdefault("link", f"{profile_path.stem}.md")
-                    profiles.append(meta)
-                except Exception as e:
-                    logger.warning("Failed to parse profile %s: %s", profile_path.name, e)
-
-        # 2. Setup Jinja environment for rendering
-        try:
-            # Locate templates directory relative to this file
-            # src/egregora/output_adapters/mkdocs/adapter.py -> .../rendering/templates/site
-            templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
-            
-            env = Environment(
-                loader=FileSystemLoader(str(templates_dir)),
-                autoescape=select_autoescape()
-            )
-            
-            # 3. Render profiles index
-            template = env.get_template("docs/profiles/index.md.jinja")
-            content = template.render(profiles=profiles)
-            
-            index_path = self.profiles_dir / "index.md"
-            index_path.write_text(content, encoding="utf-8")
-            logger.info("Regenerated profiles index with %d profiles", len(profiles))
-            
-        except Exception as e:
-            logger.error("Failed to regenerate profiles index: %s", e)
     def _list_from_dir(
         self,
         directory: Path,
@@ -1087,6 +1053,75 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         except (OSError, TemplateError) as e:
             logger.warning("Failed to render author cards template: %s", e)
             return content
+
+    def regenerate_tags_page(self) -> None:
+        """Regenerate the tags.md page with current tag frequencies for word cloud visualization.
+
+        Collects all tags from posts, calculates frequencies, and renders an updated
+        tags page with interactive word cloud and alphabetical list.
+        """
+        if not hasattr(self, "posts_dir") or not self.posts_dir.exists():
+            logger.debug("Posts directory not found, skipping tags page regeneration")
+            return
+
+        # Collect all tags from posts
+        tag_counts: Counter = Counter()
+        all_posts = list(self.documents())
+
+        for post in all_posts:
+            if post.type != DocumentType.POST:
+                continue
+            tags = post.metadata.get("tags", [])
+            for tag in tags:
+                if isinstance(tag, str) and tag.strip():
+                    tag_counts[tag.strip()] += 1
+
+        if not tag_counts:
+            logger.info("No tags found in posts, skipping tags page regeneration")
+            return
+
+        # Calculate frequency levels (1-10 scale) for word cloud sizing
+        max_count = max(tag_counts.values())
+        min_count = min(tag_counts.values())
+        count_range = max_count - min_count if max_count > min_count else 1
+
+        tags_data = []
+        for tag_name, count in tag_counts.items():
+            # Normalize to 1-10 scale for CSS data-frequency attribute
+            if count_range > 0:
+                frequency_level = int(((count - min_count) / count_range) * 9) + 1
+            else:
+                frequency_level = 5  # Middle value if all tags have same count
+
+            tags_data.append(
+                {
+                    "name": tag_name,
+                    "slug": slugify(tag_name),
+                    "count": count,
+                    "frequency_level": min(10, max(1, frequency_level)),
+                }
+            )
+
+        # Sort by count (descending) for word cloud
+        tags_data.sort(key=lambda x: x["count"], reverse=True)
+
+        # Render the tags page template
+        try:
+            templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
+            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
+
+            template = env.get_template("docs/posts/tags.md.jinja")
+            content = template.render(
+                tags=tags_data,
+                generated_date=datetime.now(UTC).strftime("%Y-%m-%d"),
+            )
+
+            tags_path = self.posts_dir / "tags.md"
+            tags_path.write_text(content, encoding="utf-8")
+            logger.info("Regenerated tags page with %d unique tags", len(tags_data))
+
+        except (OSError, TemplateError):
+            logger.exception("Failed to regenerate tags page")
 
 
 # ============================================================================

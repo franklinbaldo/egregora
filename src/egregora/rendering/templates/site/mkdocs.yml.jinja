@@ -8,30 +8,38 @@ theme:
   name: material
   custom_dir: {{ overrides_dir }}
   language: en
+  font:
+    text: Roboto
+    code: Roboto Mono
   palette:
     - media: '(prefers-color-scheme: light)'
       scheme: default
-      primary: indigo
-      accent: blue
+      primary: teal
+      accent: amber
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: '(prefers-color-scheme: dark)'
       scheme: slate
-      primary: indigo
-      accent: blue
+      primary: teal
+      accent: amber
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
   features:
     - navigation.tracking
     - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
     - navigation.indexes
     - navigation.top
+    - navigation.instant
+    - toc.integrate
+    - header.autohide
     - search.highlight
     - search.share
     - content.code.copy
+    - content.tabs.link
 
 plugins:
   - search:
