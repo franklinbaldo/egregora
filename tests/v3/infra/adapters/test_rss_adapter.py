@@ -37,51 +37,51 @@ def sample_atom_feed() -> str:
     atom_ns = "http://www.w3.org/2005/Atom"
     nsmap = {None: atom_ns}
 
-    feed = etree.Element("{%s}feed" % atom_ns, nsmap=nsmap)
+    feed = etree.Element(f"{{{atom_ns}}}feed", nsmap=nsmap)
 
     # Feed metadata
-    title = etree.SubElement(feed, "{%s}title" % atom_ns)
+    title = etree.SubElement(feed, f"{{{atom_ns}}}title")
     title.text = fake.catch_phrase()
 
-    link = etree.SubElement(feed, "{%s}link" % atom_ns)
+    link = etree.SubElement(feed, f"{{{atom_ns}}}link")
     link.set("href", fake.url())
 
-    updated = etree.SubElement(feed, "{%s}updated" % atom_ns)
+    updated = etree.SubElement(feed, f"{{{atom_ns}}}updated")
     updated.text = "2025-12-06T10:00:00Z"
 
     # Entry 1
-    entry1 = etree.SubElement(feed, "{%s}entry" % atom_ns)
+    entry1 = etree.SubElement(feed, f"{{{atom_ns}}}entry")
 
-    entry1_id = etree.SubElement(entry1, "{%s}id" % atom_ns)
+    entry1_id = etree.SubElement(entry1, f"{{{atom_ns}}}id")
     entry1_id.text = f"urn:uuid:{fake.uuid4()}"
 
-    entry1_title = etree.SubElement(entry1, "{%s}title" % atom_ns)
+    entry1_title = etree.SubElement(entry1, f"{{{atom_ns}}}title")
     entry1_title.text = fake.sentence()
 
-    entry1_updated = etree.SubElement(entry1, "{%s}updated" % atom_ns)
+    entry1_updated = etree.SubElement(entry1, f"{{{atom_ns}}}updated")
     entry1_updated.text = "2025-12-05T09:00:00Z"
 
-    entry1_content = etree.SubElement(entry1, "{%s}content" % atom_ns)
+    entry1_content = etree.SubElement(entry1, f"{{{atom_ns}}}content")
     entry1_content.set("type", "html")
     entry1_content.text = fake.paragraph()
 
-    entry1_author = etree.SubElement(entry1, "{%s}author" % atom_ns)
-    entry1_author_name = etree.SubElement(entry1_author, "{%s}name" % atom_ns)
+    entry1_author = etree.SubElement(entry1, f"{{{atom_ns}}}author")
+    entry1_author_name = etree.SubElement(entry1_author, f"{{{atom_ns}}}name")
     entry1_author_name.text = fake.name()
 
     # Entry 2
-    entry2 = etree.SubElement(feed, "{%s}entry" % atom_ns)
+    entry2 = etree.SubElement(feed, f"{{{atom_ns}}}entry")
 
-    entry2_id = etree.SubElement(entry2, "{%s}id" % atom_ns)
+    entry2_id = etree.SubElement(entry2, f"{{{atom_ns}}}id")
     entry2_id.text = f"urn:uuid:{fake.uuid4()}"
 
-    entry2_title = etree.SubElement(entry2, "{%s}title" % atom_ns)
+    entry2_title = etree.SubElement(entry2, f"{{{atom_ns}}}title")
     entry2_title.text = fake.sentence()
 
-    entry2_updated = etree.SubElement(entry2, "{%s}updated" % atom_ns)
+    entry2_updated = etree.SubElement(entry2, f"{{{atom_ns}}}updated")
     entry2_updated.text = "2025-12-04T08:00:00Z"
 
-    entry2_content = etree.SubElement(entry2, "{%s}content" % atom_ns)
+    entry2_content = etree.SubElement(entry2, f"{{{atom_ns}}}content")
     entry2_content.set("type", "text")
     entry2_content.text = fake.text()
 

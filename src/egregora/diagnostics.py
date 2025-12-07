@@ -201,7 +201,8 @@ def check_git() -> DiagnosticResult:
 
         git_path = shutil.which("git")
         if not git_path:
-            raise FileNotFoundError("git executable not found")
+            msg = "git executable not found"
+            raise FileNotFoundError(msg)
 
         result = subprocess.run(
             [git_path, "--version"],

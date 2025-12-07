@@ -115,7 +115,7 @@ def test_roundtrip_feed_to_xml_to_entries(sample_feed: Feed, tmp_path: Path) -> 
     # Verify titles match
     for original, parsed in zip(
         sorted(sample_feed.entries, key=lambda e: e.id),
-        sorted(parsed_entries, key=lambda e: e.id),
+        sorted(parsed_entries, key=lambda e: e.id), strict=False,
     ):
         assert original.title == parsed.title
         assert original.content == parsed.content

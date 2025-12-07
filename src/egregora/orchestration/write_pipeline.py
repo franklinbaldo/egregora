@@ -1252,11 +1252,10 @@ def _apply_filters(
     messages_table = _apply_date_filters(messages_table, options.from_date, options.to_date)
 
     # Checkpoint-based resume logic
-    messages_table = _apply_checkpoint_filter(
+    return _apply_checkpoint_filter(
         messages_table, checkpoint_path, checkpoint_enabled=options.checkpoint_enabled
     )
 
-    return messages_table
 
 
 def _record_run_start(run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime) -> None:

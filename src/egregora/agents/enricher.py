@@ -30,6 +30,7 @@ from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
+from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.input_adapters.base import MediaMapping
 from egregora.models.google_batch import GoogleBatchModel
 from egregora.ops.media import (
@@ -310,10 +311,8 @@ def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
     return [dict(row) for row in frame]
 
 
-    def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
+def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
     """Stream table rows as batches of dictionaries without loading entire table into memory."""
-    from egregora.database.streaming import ensure_deterministic_order, stream_ibis
-
     try:
         backend = table._find_backend()
     except AttributeError:  # pragma: no cover - fallback path
@@ -345,16 +344,7 @@ def schedule_enrichment(
     context: EnrichmentRuntimeContext,
     run_id: uuid.UUID | None = None,
 ) -> None:
-    """Schedule enrichment tasks for background processing.
-
-    Args:
-        messages_table: Parsed messages to enrich.
-        media_mapping: Mapping from media reference to associated documents.
-        enrichment_settings: Feature toggles and limits for enrichment.
-        context: Runtime resources (TaskStore is required).
-        run_id: Current pipeline run ID.
-
-    """
+    """Schedule enrichment tasks for background processing."""
     if not hasattr(context, "task_store") or not context.task_store:
         logger.warning("TaskStore not available in context; skipping enrichment scheduling.")
         return
@@ -362,147 +352,16 @@ def schedule_enrichment(
     if messages_table.count().execute() == 0:
         return
 
-    max_enrichments = enrichment_settings.max_enrichments
-    enable_url = enrichment_settings.enable_url
-    enable_media = enrichment_settings.enable_media
-
-    # Use a default run_id if none provided (though it should be)
     current_run_id = run_id or uuid.uuid4()
+    max_enrichments = enrichment_settings.max_enrichments
 
-    url_count = 0
-    media_count = 0
-
-    # 1. Schedule URL enrichment
-    if enable_url:
-        # Extract URLs from messages
-        # This logic mimics _schedule_url_tasks but just enqueues
-        # We need to iterate over messages and extract URLs
-        # Ideally we'd use Ibis to filter messages with URLs, but regex extraction is Python-side currently
-        # For efficiency, let's stream the table
-
-        url_count = 0
-        for batch in _iter_table_batches(messages_table):
-            for row in batch:
-                if url_count >= max_enrichments:
-                    break
-
-                text = row.get("text") or ""
-                urls = extract_urls(text)
-                for url in urls:
-                    if url_count >= max_enrichments:
-                        break
-
-                    # Check cache first to avoid redundant tasks?
-                    # Workers will check cache too, but checking here saves queue space.
-                    cache_key = make_enrichment_cache_key(kind="url", identifier=url)
-                    if context.cache.load(cache_key) is not None:
-                        continue
-
-                    # Enqueue task
-                    payload = {
-                        "type": "url",
-                        "url": url,
-                        "message_metadata": {
-                            "ts": row.get("ts").isoformat() if row.get("ts") else None,
-                            "tenant_id": row.get("tenant_id"),
-                            "source": row.get("source"),
-                            "thread_id": str(row.get("thread_id")),
-                            "author_uuid": str(row.get("author_uuid")),
-                            "created_at": row.get("created_at").isoformat()
-                            if row.get("created_at")
-                            else None,
-                            "created_by_run": str(row.get("created_by_run")),
-                        },
-                    }
-                    context.task_store.enqueue("enrich_url", payload, current_run_id)
-                    url_count += 1
-
-    # 2. Schedule Media enrichment
-    if enable_media and media_mapping:
-        media_count = 0
-        # Iterate over media mapping directly?
-        # Or iterate over messages to find media references?
-        # The original logic used find_media_references on the table.
-        # But media_mapping contains all valid media docs for the window.
-        # Let's iterate media_mapping, but we need message metadata for the enrichment row.
-        # Actually, the enrichment row links to the message.
-        # So we should iterate messages, find media refs, and look up in mapping.
-
-        for batch in _iter_table_batches(messages_table):
-            for row in batch:
-                if media_count >= max_enrichments:
-                    break
-
-                text = row.get("text") or ""
-                refs = find_media_references(text)
-                for ref in refs:
-                    if media_count >= max_enrichments:
-                        break
-
-                    if ref not in media_mapping:
-                        continue
-
-                    media_doc = media_mapping[ref]
-
-                    # Check cache
-                    cache_key = make_enrichment_cache_key(kind="media", identifier=media_doc.document_id)
-                    if context.cache.load(cache_key) is not None:
-                        continue
-
-                    # Enqueue task
-                    # We need to pass enough info for the worker to load the media
-                    # The worker won't have the full media_mapping or the zip file open?
-                    # The worker needs access to the media content.
-                    # If media is already persisted to disk (by write_pipeline), we can pass the path.
-                    # In write_pipeline, media is persisted BEFORE enrichment if it's not PII.
-                    # But PII check happens AFTER enrichment usually?
-                    # Wait, original code:
-                    # 1. process_media_for_window -> returns table and mapping (media in memory/temp)
-                    # 2. enrichment -> checks PII -> marks pii_deleted
-                    # 3. persist media if not pii_deleted
-
-                    # If we move enrichment to background, we must persist media FIRST?
-                    # Or store media in a temporary location accessible to worker?
-                    # The worker runs in the same process/context in the current architecture (just later in pipeline).
-                    # But if we want true "fire and forget" across process restarts, media must be on disk.
-                    # For now, let's assume media is persisted to `media_dir` by the main pipeline
-                    # BEFORE scheduling enrichment?
-                    # In `write_pipeline.py`, media persistence happens AFTER enrichment currently.
-                    # I should change `write_pipeline.py` to persist media first (optimistically),
-                    # and then the worker can delete it if PII is found?
-                    # Or just pass the path to the worker.
-
-                    # Let's assume the media document has a `suggested_path` which is where it WILL be or IS.
-                    # If the pipeline persists it, the worker can read it.
-
-                    payload = {
-                        "type": "media",
-                        "ref": ref,
-                        "media_id": media_doc.document_id,
-                        "filename": media_doc.metadata.get("filename"),
-                        "original_filename": media_doc.metadata.get("original_filename"),
-                        "media_type": media_doc.metadata.get("media_type"),
-                        "suggested_path": str(media_doc.suggested_path) if media_doc.suggested_path else None,
-                        "message_metadata": {
-                            "ts": row.get("ts").isoformat() if row.get("ts") else None,
-                            "tenant_id": row.get("tenant_id"),
-                            "source": row.get("source"),
-                            "thread_id": str(row.get("thread_id")),
-                            "author_uuid": str(row.get("author_uuid")),
-                            "created_at": row.get("created_at").isoformat()
-                            if row.get("created_at")
-                            else None,
-                            "created_by_run": str(row.get("created_by_run")),
-                        },
-                    }
-                    context.task_store.enqueue("enrich_media", payload, current_run_id)
-                    media_count += 1
-
-    logger.info(
-        "Scheduled %d URL tasks and %d Media tasks",
-        url_count if enable_url else 0,
-        media_count if enable_media else 0,
+    url_count = _enqueue_url_enrichments(
+        messages_table, max_enrichments, enrichment_settings.enable_url, context, current_run_id
     )
+    media_count = _enqueue_media_enrichments(
+        messages_table, media_mapping, max_enrichments, enrichment_settings.enable_media, context, current_run_id
+    )
+    logger.info("Scheduled %d URL tasks and %d Media tasks", url_count, media_count)
 
 
 def _persist_enrichments(combined: Table, context: EnrichmentRuntimeContext) -> None:
@@ -522,6 +381,82 @@ def _persist_enrichments(combined: Table, context: EnrichmentRuntimeContext) -> 
         except Exception:
             logger.exception("Failed to persist enrichments using DuckDBStorageManager")
             raise
+
+
+def _enqueue_url_enrichments(
+    messages_table: Table,
+    max_enrichments: int,
+    enable_url: bool,
+    context: EnrichmentRuntimeContext,
+    run_id: uuid.UUID,
+) -> int:
+    if not enable_url or max_enrichments <= 0:
+        return 0
+
+    candidates = _extract_url_candidates(messages_table, max_enrichments)
+    scheduled = 0
+    for url, metadata in candidates:
+        cache_key = make_enrichment_cache_key(kind="url", identifier=url)
+        if context.cache.load(cache_key) is not None:
+            continue
+
+        payload = {
+            "type": "url",
+            "url": url,
+            "message_metadata": _serialize_metadata(metadata),
+        }
+        context.task_store.enqueue("enrich_url", payload, run_id)
+        scheduled += 1
+    return scheduled
+
+
+def _enqueue_media_enrichments(
+    messages_table: Table,
+    media_mapping: MediaMapping,
+    max_enrichments: int,
+    enable_media: bool,
+    context: EnrichmentRuntimeContext,
+    run_id: uuid.UUID,
+) -> int:
+    if not enable_media or max_enrichments <= 0 or not media_mapping:
+        return 0
+
+    candidates = _extract_media_candidates(messages_table, media_mapping, max_enrichments)
+    scheduled = 0
+    for ref, media_doc, metadata in candidates:
+        cache_key = make_enrichment_cache_key(kind="media", identifier=media_doc.document_id)
+        if context.cache.load(cache_key) is not None:
+            continue
+
+        payload = {
+            "type": "media",
+            "ref": ref,
+            "media_id": media_doc.document_id,
+            "filename": media_doc.metadata.get("filename"),
+            "original_filename": media_doc.metadata.get("original_filename"),
+            "media_type": media_doc.metadata.get("media_type"),
+            "suggested_path": str(media_doc.suggested_path) if media_doc.suggested_path else None,
+            "message_metadata": _serialize_metadata(metadata),
+        }
+        context.task_store.enqueue("enrich_media", payload, run_id)
+        scheduled += 1
+        if scheduled >= max_enrichments:
+            break
+    return scheduled
+
+
+def _serialize_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    timestamp = metadata.get("ts")
+    created_at = metadata.get("created_at")
+    return {
+        "ts": timestamp.isoformat() if timestamp else None,
+        "tenant_id": metadata.get("tenant_id"),
+        "source": metadata.get("source"),
+        "thread_id": _uuid_to_str(metadata.get("thread_id")),
+        "author_uuid": _uuid_to_str(metadata.get("author_uuid")),
+        "created_at": created_at.isoformat() if hasattr(created_at, "isoformat") else created_at,
+        "created_by_run": _uuid_to_str(metadata.get("created_by_run")),
+    }
 
 
 def _process_url_row(

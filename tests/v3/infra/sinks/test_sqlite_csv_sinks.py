@@ -142,7 +142,7 @@ def test_sqlite_sink_stores_document_fields(sample_feed: Feed, tmp_path: Path) -
     conn.close()
 
     assert row is not None
-    doc_id, title, content, doc_type, status = row
+    _doc_id, title, content, doc_type, status = row
 
     assert title == "First Post"
     assert "# First Post" in content
