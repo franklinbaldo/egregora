@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import os
-from pydantic_core import ValidationError
-import http
 import logging
 import os
 import time
-from typing import Literal
 
 import httpx
 from pydantic_ai.exceptions import ModelAPIError, UsageLimitExceeded
 from pydantic_ai.models import Model
 from pydantic_ai.models.fallback import FallbackModel
+from pydantic_core import ValidationError
 
 from egregora.models import GoogleBatchModel
 from egregora.utils.env import get_google_api_key

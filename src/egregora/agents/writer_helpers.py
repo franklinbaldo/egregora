@@ -16,8 +16,6 @@ from egregora.agents.model_limits import (
 from egregora.agents.model_limits import (
     validate_prompt_fits as _validate_prompt_fits,
 )
-from egregora.knowledge.profiles import read_profile
-from egregora.rag import RAGQueryRequest, reset_backend, search
 from egregora.agents.types import (
     AnnotationResult,
     PostMetadata,
@@ -26,6 +24,8 @@ from egregora.agents.types import (
     WriteProfileResult,
     WriterDeps,
 )
+from egregora.knowledge.profiles import read_profile
+from egregora.rag import RAGQueryRequest, reset_backend, search
 
 if TYPE_CHECKING:
     from pydantic_ai import Agent
@@ -65,22 +65,22 @@ def register_writer_tools(
     """Attach tool implementations to the agent via core tools and capabilities."""
 
     @agent.tool
-    def write_post_tool(ctx: "RunContext[WriterDeps]", metadata: PostMetadata, content: str) -> WritePostResult:
+    def write_post_tool(ctx: RunContext[WriterDeps], metadata: PostMetadata, content: str) -> WritePostResult:
         meta_dict = metadata.model_dump(exclude_none=True)
         meta_dict["model"] = ctx.deps.model_name
         return ctx.deps.write_post(meta_dict, content)
 
     @agent.tool
-    def read_profile_tool(ctx: "RunContext[WriterDeps]", author_uuid: str) -> ReadProfileResult:
+    def read_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str) -> ReadProfileResult:
         return ctx.deps.read_profile(author_uuid)
 
     @agent.tool
-    def write_profile_tool(ctx: "RunContext[WriterDeps]", author_uuid: str, content: str) -> WriteProfileResult:
+    def write_profile_tool(ctx: RunContext[WriterDeps], author_uuid: str, content: str) -> WriteProfileResult:
         return ctx.deps.write_profile(author_uuid, content)
 
     @agent.tool
     def annotate_conversation_tool(
-        ctx: "RunContext[WriterDeps]", parent_id: str, parent_type: str, commentary: str
+        ctx: RunContext[WriterDeps], parent_id: str, parent_type: str, commentary: str
     ) -> AnnotationResult:
         """Annotate a message or another annotation with commentary."""
         return ctx.deps.annotate(parent_id, parent_type, commentary)

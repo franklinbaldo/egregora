@@ -14,8 +14,8 @@ from pathlib import Path
 
 import pytest
 from faker import Faker
-from freezegun import freeze_time
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from egregora_v3.core.types import (
     Author,
@@ -24,7 +24,6 @@ from egregora_v3.core.types import (
     DocumentStatus,
     DocumentType,
     Feed,
-    Link,
     documents_to_feed,
 )
 from egregora_v3.infra.sinks.csv import CSVOutputSink

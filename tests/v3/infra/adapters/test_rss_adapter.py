@@ -8,7 +8,6 @@ Following TDD Red-Green-Refactor cycle:
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 import httpx
 import pytest

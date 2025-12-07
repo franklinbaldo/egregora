@@ -6,7 +6,8 @@ These tests generate random inputs to verify invariants and edge cases.
 from datetime import datetime
 from pathlib import Path
 
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 from lxml import etree
 
 from egregora_v3.core.types import Entry

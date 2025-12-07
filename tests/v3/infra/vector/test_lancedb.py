@@ -10,7 +10,6 @@ Following TDD Red-Green-Refactor cycle.
 from datetime import UTC, datetime
 from pathlib import Path
 
-import numpy as np
 import pytest
 from faker import Faker
 

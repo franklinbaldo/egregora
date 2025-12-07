@@ -74,7 +74,7 @@ def setup_writer_agent(
 
     # Dynamic System Prompts
     @agent.system_prompt
-    def inject_rag_context(ctx: "RunContext[WriterDeps]") -> str:
+    def inject_rag_context(ctx: RunContext[WriterDeps]) -> str:
         if ctx.deps.resources.retrieval_config.enabled:
             table_markdown = ctx.deps.conversation_xml
             return build_rag_context_for_prompt(
@@ -85,7 +85,7 @@ def setup_writer_agent(
         return ""
 
     @agent.system_prompt
-    def inject_profiles_context(ctx: "RunContext[WriterDeps]") -> str:
+    def inject_profiles_context(ctx: RunContext[WriterDeps]) -> str:
         return load_profiles_context(ctx.deps.active_authors, ctx.deps.resources.profiles_dir)
 
     return agent

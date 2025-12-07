@@ -64,6 +64,7 @@ from egregora.transformations.windowing import (
 )
 
 __all__ = [
+    "WindowConfig",
     "create_windows",
     "extract_media_references",
     "generate_window_signature",
@@ -72,5 +73,4 @@ __all__ = [
     "replace_media_references",
     "save_checkpoint",
     "split_window_into_n_parts",
-    "WindowConfig",
 ]

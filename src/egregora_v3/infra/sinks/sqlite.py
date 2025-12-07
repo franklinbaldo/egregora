@@ -19,6 +19,7 @@ class SQLiteOutputSink:
 
         Args:
             db_path: Path where the SQLite database will be created
+
         """
         self.db_path = Path(db_path)
 
@@ -31,6 +32,7 @@ class SQLiteOutputSink:
         Only publishes documents with status=PUBLISHED.
         Creates parent directories if they don't exist.
         Overwrites existing database.
+
         """
         # Create parent directories if needed
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -80,6 +82,7 @@ class SQLiteOutputSink:
         Args:
             cursor: SQLite cursor
             doc: Document to insert
+
         """
         # Serialize lists to JSON
         authors_json = (

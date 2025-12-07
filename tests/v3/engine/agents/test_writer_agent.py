@@ -18,7 +18,6 @@ from egregora_v3.core.types import Document, DocumentStatus, DocumentType, Entry
 from egregora_v3.engine.agents.writer import WriterAgent
 from egregora_v3.infra.repository.duckdb import DuckDBDocumentRepository
 
-
 # ========== Fixtures ==========
 
 

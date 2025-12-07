@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 import zipfile
 from dataclasses import dataclass
 from datetime import date

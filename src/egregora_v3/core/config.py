@@ -1,8 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -119,6 +118,7 @@ class EgregoraConfig(BaseSettings):
 
             # Use explicit path (e.g., from CLI --site-root flag)
             config = EgregoraConfig.load(Path("/path/to/site"))
+
         """
         from egregora_v3.core.config_loader import ConfigLoader
 

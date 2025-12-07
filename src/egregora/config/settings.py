@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from egregora.config.overrides import ConfigOverrideBuilder
@@ -899,6 +899,7 @@ def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
 
         # Use explicit path (e.g., from CLI --site-root flag)
         config = load_egregora_config(Path("/path/to/site"))
+
     """
     if site_root is None:
         site_root = Path.cwd()

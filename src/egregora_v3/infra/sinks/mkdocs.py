@@ -1,6 +1,5 @@
 """MkDocs Output Sink for publishing feeds as Markdown files."""
 
-import shutil
 from pathlib import Path
 
 from egregora_v3.core.types import Document, DocumentStatus, Feed
@@ -19,6 +18,7 @@ class MkDocsOutputSink:
 
         Args:
             output_dir: Directory where markdown files will be written
+
         """
         self.output_dir = Path(output_dir)
 
@@ -31,6 +31,7 @@ class MkDocsOutputSink:
         Only publishes documents with status=PUBLISHED.
         Creates parent directories if they don't exist.
         Cleans existing .md files before writing new ones.
+
         """
         # Create output directory
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -62,6 +63,7 @@ class MkDocsOutputSink:
 
         Args:
             doc: Document to write
+
         """
         # Determine filename from slug or title
         filename = self._get_filename(doc)
@@ -86,6 +88,7 @@ class MkDocsOutputSink:
 
         Returns:
             Filename (without .md extension)
+
         """
         # Try slug from internal_metadata first
         if doc.slug:
@@ -108,6 +111,7 @@ class MkDocsOutputSink:
 
         Returns:
             YAML frontmatter string with --- delimiters
+
         """
         lines = ["---"]
 
@@ -151,6 +155,7 @@ class MkDocsOutputSink:
         Args:
             feed: The Feed being published
             published_docs: List of published documents
+
         """
         index_file = self.output_dir / "index.md"
 

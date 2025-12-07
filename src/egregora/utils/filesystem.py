@@ -86,11 +86,11 @@ def ensure_author_entries(output_dir: Path, author_ids: list[str] | None) -> Non
         if parent == current:  # Reached filesystem root
             break
         current = parent
-    
+
     if docs_dir is None:
         # Fallback: assume output_dir's grandparent is docs (posts/posts -> docs)
         docs_dir = output_dir.resolve().parent.parent
-    
+
     authors_path = docs_dir / ".authors.yml"
 
     try:

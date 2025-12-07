@@ -10,7 +10,6 @@ from __future__ import annotations
 import base64
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -96,6 +95,7 @@ class FeedBannerGenerator:
             ],
         )
         result_feed = generator.generate_from_feed(task_feed)
+
     """
 
     def __init__(
@@ -111,6 +111,7 @@ class FeedBannerGenerator:
             prompts_dir: Optional directory containing Jinja2 templates.
                         If None, uses default location (src/egregora/prompts).
                         Can be configured via Pydantic settings in future versions.
+
         """
         self.provider = provider
 
@@ -132,6 +133,7 @@ class FeedBannerGenerator:
 
         Returns:
             Feed with MEDIA documents containing generated banners
+
         """
         results: list[BannerGenerationResult] = []
 
@@ -252,12 +254,11 @@ class FeedBannerGenerator:
                     result.mime_type or "image/png",
                 )
                 return BannerGenerationResult(task.entry, document=document)
-            else:
-                return BannerGenerationResult(
-                    task.entry,
-                    error=result.error or "Unknown error",
-                    error_code=result.error_code or "GENERATION_FAILED",
-                )
+            return BannerGenerationResult(
+                task.entry,
+                error=result.error or "Unknown error",
+                error_code=result.error_code or "GENERATION_FAILED",
+            )
         except Exception as e:
             return BannerGenerationResult(
                 task.entry,
@@ -278,12 +279,11 @@ class FeedBannerGenerator:
             result.document.internal_metadata["task_id"] = task.entry.id
 
             return BannerGenerationResult(task.entry, document=result.document)
-        else:
-            return BannerGenerationResult(
-                task.entry,
-                error=result.error or "Unknown error",
-                error_code=result.error_code or "GENERATION_FAILED",
-            )
+        return BannerGenerationResult(
+            task.entry,
+            error=result.error or "Unknown error",
+            error_code=result.error_code or "GENERATION_FAILED",
+        )
 
     def _build_prompt(self, banner_input: BannerInput) -> str:
         """Build the prompt for banner generation.

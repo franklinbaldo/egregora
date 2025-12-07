@@ -19,6 +19,7 @@ class CSVOutputSink:
 
         Args:
             csv_path: Path where the CSV file will be created
+
         """
         self.csv_path = Path(csv_path)
 
@@ -31,6 +32,7 @@ class CSVOutputSink:
         Only publishes documents with status=PUBLISHED.
         Creates parent directories if they don't exist.
         Overwrites existing file.
+
         """
         # Create parent directories if needed
         self.csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -73,6 +75,7 @@ class CSVOutputSink:
 
         Returns:
             Dictionary mapping fieldnames to values
+
         """
         # Serialize lists to JSON
         authors_json = (

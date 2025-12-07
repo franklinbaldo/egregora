@@ -13,7 +13,8 @@ from pathlib import Path
 import pytest
 from faker import Faker
 from freezegun import freeze_time
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 from lxml import etree
 
 from egregora_v3.core.types import (
@@ -22,7 +23,6 @@ from egregora_v3.core.types import (
     DocumentStatus,
     DocumentType,
     Feed,
-    Link,
     documents_to_feed,
 )
 from egregora_v3.infra.adapters.rss import RSSAdapter

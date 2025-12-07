@@ -11,13 +11,13 @@ Following TDD approach - these tests verify existing implementation.
 """
 
 from datetime import UTC, datetime
-from pathlib import Path
 
 import ibis
 import pytest
 from faker import Faker
 from freezegun import freeze_time
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from egregora_v3.core.types import (
     Author,

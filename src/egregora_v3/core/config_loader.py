@@ -7,7 +7,7 @@ from typing import Any
 
 import yaml
 
-from egregora_v3.core.config import EgregoraConfig, ModelSettings, PathsSettings, PipelineSettings
+from egregora_v3.core.config import EgregoraConfig
 
 
 class ConfigLoader:
