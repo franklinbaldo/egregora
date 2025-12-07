@@ -386,9 +386,9 @@ def _persist_enrichments(combined: Table, context: EnrichmentRuntimeContext) -> 
 def _enqueue_url_enrichments(
     messages_table: Table,
     max_enrichments: int,
-    enable_url: bool,
     context: EnrichmentRuntimeContext,
     run_id: uuid.UUID,
+    enable_url: bool,
 ) -> int:
     if not enable_url or max_enrichments <= 0:
         return 0
@@ -414,9 +414,9 @@ def _enqueue_media_enrichments(
     messages_table: Table,
     media_mapping: MediaMapping,
     max_enrichments: int,
-    enable_media: bool,
     context: EnrichmentRuntimeContext,
     run_id: uuid.UUID,
+    enable_media: bool,
 ) -> int:
     if not enable_media or max_enrichments <= 0 or not media_mapping:
         return 0
