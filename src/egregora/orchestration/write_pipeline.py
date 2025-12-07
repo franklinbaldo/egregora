@@ -1437,7 +1437,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             _process_background_tasks(dataset.context)
 
             # Regenerate tags page with word cloud visualization
-            if hasattr(dataset.context.output_format, 'regenerate_tags_page'):
+            if hasattr(dataset.context.output_format, "regenerate_tags_page"):
                 try:
                     logger.info("[bold cyan]🏷️  Regenerating tags page with word cloud...[/]")
                     dataset.context.output_format.regenerate_tags_page()
