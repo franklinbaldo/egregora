@@ -35,10 +35,10 @@ Explore the conversation themes through our interactive tag cloud and complete t
 <div class="tag-list">
 {% if tags %}
 {% for tag in tags|sort(attribute='name') %}
-<a href="../tags/{{ tag.slug }}/" class="tag-list-item" id="{{ tag.slug }}">
+<div class="tag-list-item" id="{{ tag.slug }}">
     <span class="tag-name">{{ tag.name }}</span>
     <span class="tag-count">{{ tag.count }}</span>
-</a>
+</div>
 {% endfor %}
 {% else %}
 <p style="text-align: center; color: var(--md-default-fg-color--light);">

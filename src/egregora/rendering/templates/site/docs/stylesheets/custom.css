@@ -158,15 +158,7 @@ h1, h2, h3 {
     border: 1px solid var(--md-default-fg-color--lightest);
     border-radius: 6px;
     background-color: var(--md-default-bg-color);
-    transition: all 0.2s;
-    text-decoration: none;
     color: var(--md-default-fg-color);
-}
-
-.tag-list-item:hover {
-    border-color: var(--md-primary-fg-color);
-    background-color: var(--md-primary-fg-color--lightest);
-    transform: translateX(4px);
 }
 
 .tag-list-item .tag-name {
