@@ -33,6 +33,38 @@ We prioritized native Material features over custom hacking to ensure maintainab
 *   **Build Success:** The site builds successfully with the new configuration.
 *   **Pipeline Integration:** The `egregora write` pipeline successfully generated content (Journal) using `gemini-flash-latest` under strict rate limits, proving the backend can populate this frontend.
 
-## 4. Next Steps
-*   **Author Profiles:** As content grows, enable a dedicated "People" tab.
-*   **Tags:** Visualize tags as a word cloud on the "Tags & Topics" page.
+## 4. Additional Enhancements Implemented
+
+### Tag Cloud Visualization ✅
+Implemented interactive tag cloud on the "Tags & Topics" page with:
+*   **Word Cloud Display:** Tags sized by frequency (1-10 scale) using CSS data attributes
+*   **Visual Hierarchy:** Larger, bolder text for frequently used tags
+*   **Interactive Design:** Hover effects with scaling and shadow transitions
+*   **Dual View:**
+    *   Cloud view for visual exploration
+    *   Alphabetical grid list with tag counts
+*   **Auto-Generation:** Page regenerates after each pipeline run with current tag frequencies
+*   **Graceful Degradation:** Displays placeholder message when no posts exist yet
+
+### Profiles Tab ✅
+The "Profiles" navigation tab is active and functional, providing access to author profiles with statistics and post history.
+
+## 5. Technical Implementation
+
+### CSS Enhancements (`custom.css`)
+*   Added `.tag-cloud` and `.tag-cloud-item` styles with frequency-based sizing
+*   10-level scaling system with responsive font sizes (0.85rem - 2.4rem)
+*   Opacity and weight variations for visual hierarchy
+*   Grid-based `.tag-list` for alphabetical view
+
+### Template Updates (`tags.md.jinja`)
+*   Dynamic tag rendering with Jinja2 loops
+*   Frequency-level data attributes for CSS targeting
+*   Conditional rendering with helpful placeholder text
+*   Material for MkDocs admonition explaining tag functionality
+
+### Backend Integration (`adapter.py` + `write_pipeline.py`)
+*   `regenerate_tags_page()` method in MkDocsAdapter
+*   Automatic tag frequency calculation with normalization
+*   Integration into pipeline completion workflow
+*   Error handling with graceful degradation

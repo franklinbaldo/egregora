@@ -100,3 +100,84 @@ h1, h2, h3 {
     object-fit: cover;
     box-shadow: none; /* Override general image shadow */
 }
+
+/* 8. Tag Cloud Visualization */
+.tag-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+    margin: 2rem 0;
+}
+
+.tag-cloud-item {
+    display: inline-block;
+    padding: 0.4em 0.8em;
+    margin: 0.2em;
+    border-radius: 6px;
+    background-color: var(--md-primary-fg-color--light);
+    color: var(--md-primary-bg-color);
+    text-decoration: none;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.tag-cloud-item:hover {
+    background-color: var(--md-primary-fg-color);
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+/* Size variations for word cloud based on frequency */
+.tag-cloud-item[data-frequency="1"] { font-size: 0.85rem; opacity: 0.7; }
+.tag-cloud-item[data-frequency="2"] { font-size: 0.95rem; opacity: 0.75; }
+.tag-cloud-item[data-frequency="3"] { font-size: 1.05rem; opacity: 0.8; }
+.tag-cloud-item[data-frequency="4"] { font-size: 1.15rem; opacity: 0.85; }
+.tag-cloud-item[data-frequency="5"] { font-size: 1.3rem; opacity: 0.9; }
+.tag-cloud-item[data-frequency="6"] { font-size: 1.5rem; opacity: 0.95; }
+.tag-cloud-item[data-frequency="7"] { font-size: 1.7rem; opacity: 1.0; }
+.tag-cloud-item[data-frequency="8"] { font-size: 1.9rem; opacity: 1.0; font-weight: 600; }
+.tag-cloud-item[data-frequency="9"] { font-size: 2.1rem; opacity: 1.0; font-weight: 700; }
+.tag-cloud-item[data-frequency="10"] { font-size: 2.4rem; opacity: 1.0; font-weight: 700; }
+
+/* Tag list (alphabetical) styling */
+.tag-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+    margin: 2rem 0;
+}
+
+.tag-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 6px;
+    background-color: var(--md-default-bg-color);
+    transition: all 0.2s;
+    text-decoration: none;
+    color: var(--md-default-fg-color);
+}
+
+.tag-list-item:hover {
+    border-color: var(--md-primary-fg-color);
+    background-color: var(--md-primary-fg-color--lightest);
+    transform: translateX(4px);
+}
+
+.tag-list-item .tag-name {
+    font-weight: 500;
+}
+
+.tag-list-item .tag-count {
+    background-color: var(--md-primary-fg-color);
+    color: var(--md-primary-bg-color);
+    padding: 0.2em 0.6em;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: 600;
+}

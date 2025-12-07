@@ -1052,6 +1052,80 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             logger.warning("Failed to render author cards template: %s", e)
             return content
 
+    def regenerate_tags_page(self) -> None:
+        """Regenerate the tags.md page with current tag frequencies for word cloud visualization.
+
+        Collects all tags from posts, calculates frequencies, and renders an updated
+        tags page with interactive word cloud and alphabetical list.
+        """
+        if not hasattr(self, "posts_dir") or not self.posts_dir.exists():
+            logger.debug("Posts directory not found, skipping tags page regeneration")
+            return
+
+        # Collect all tags from posts
+        from collections import Counter
+        from datetime import UTC, datetime
+
+        from egregora.utils.paths import slugify
+
+        tag_counts: Counter = Counter()
+        all_posts = list(self.documents())
+
+        for post in all_posts:
+            if post.type != DocumentType.POST:
+                continue
+            tags = post.metadata.get("tags", [])
+            for tag in tags:
+                if isinstance(tag, str) and tag.strip():
+                    tag_counts[tag.strip()] += 1
+
+        if not tag_counts:
+            logger.info("No tags found in posts, skipping tags page regeneration")
+            return
+
+        # Calculate frequency levels (1-10 scale) for word cloud sizing
+        max_count = max(tag_counts.values())
+        min_count = min(tag_counts.values())
+        count_range = max_count - min_count if max_count > min_count else 1
+
+        tags_data = []
+        for tag_name, count in tag_counts.items():
+            # Normalize to 1-10 scale for CSS data-frequency attribute
+            if count_range > 0:
+                frequency_level = int(((count - min_count) / count_range) * 9) + 1
+            else:
+                frequency_level = 5  # Middle value if all tags have same count
+
+            tags_data.append(
+                {
+                    "name": tag_name,
+                    "slug": slugify(tag_name),
+                    "count": count,
+                    "frequency_level": min(10, max(1, frequency_level)),
+                }
+            )
+
+        # Sort by count (descending) for word cloud
+        tags_data.sort(key=lambda x: x["count"], reverse=True)
+
+        # Render the tags page template
+        try:
+            templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
+            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
+
+            template = env.get_template("docs/posts/tags.md.jinja")
+            content = template.render(
+                tags=tags_data,
+                generated_date=datetime.now(UTC).strftime("%Y-%m-%d"),
+            )
+
+            tags_path = self.posts_dir / "tags.md"
+            tags_path.write_text(content, encoding="utf-8")
+            logger.info("Regenerated tags page with %d unique tags", len(tags_data))
+
+        except Exception as e:
+            logger.error("Failed to regenerate tags page: %s", e)
+
 
 # ============================================================================
 # MkDocs filesystem storage helpers
