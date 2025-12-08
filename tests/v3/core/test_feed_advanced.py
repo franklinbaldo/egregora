@@ -7,6 +7,7 @@ Tests:
 4. Snapshot testing with syrupy for regression detection
 """
 
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -16,8 +17,6 @@ from freezegun import freeze_time
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from lxml import etree
-import xmlschema
-import re
 from syrupy.assertion import SnapshotAssertion
 
 from egregora_v3.core.types import (

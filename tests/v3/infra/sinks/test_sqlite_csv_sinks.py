@@ -8,8 +8,8 @@ Following TDD Red-Green-Refactor cycle.
 """
 
 import csv
-import sqlite3
 import json
+import sqlite3
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path

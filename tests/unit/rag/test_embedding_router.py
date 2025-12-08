@@ -10,11 +10,12 @@ Tests cover:
 
 from __future__ import annotations
 
+import concurrent.futures
+
 import httpx
 import pytest
 import respx
 
-import concurrent.futures
 from egregora.rag.embedding_router import (
     GENAI_API_BASE,
     EmbeddingRouter,

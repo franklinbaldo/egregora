@@ -7,6 +7,7 @@ Tests for:
 Following TDD Red-Green-Refactor cycle.
 """
 
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -16,7 +17,6 @@ from freezegun import freeze_time
 from hypothesis import given
 from hypothesis import strategies as st
 from lxml import etree
-import tempfile
 
 from egregora_v3.core.types import (
     Author,

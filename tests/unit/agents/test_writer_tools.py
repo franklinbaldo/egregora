@@ -4,9 +4,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 from pydantic_ai import ModelRetry
+
 import egregora.rag as rag_pkg
 import egregora.rag.models as rag_models
-
 from egregora.agents.writer_tools import (
     AnnotationContext,
     AnnotationResult,

@@ -196,7 +196,6 @@ def _validate_api_key(output_dir: Path) -> None:
 
 def _merge_write_options(input_file: Path, options_json: str | None) -> WriteCommandOptions:
     """Merge JSON options with defaults to create WriteCommandOptions."""
-
     # Default values
     defaults = {
         "source": SourceType.WHATSAPP,
