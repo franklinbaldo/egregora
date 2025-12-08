@@ -271,7 +271,7 @@ def test_parse_malformed_xml_raises_error(rss_adapter: RSSAdapter, tmp_path: Pat
     feed_file = tmp_path / "malformed.xml"
     feed_file.write_text(malformed_xml)
 
-    with pytest.raises(Exception):  # Will be more specific in implementation
+    with pytest.raises(etree.XMLSyntaxError):
         list(rss_adapter.parse(feed_file))
 
 
@@ -430,12 +430,12 @@ def test_atom_entry_links_parsed(rss_adapter: RSSAdapter, tmp_path: Path) -> Non
     assert len(entries[0].links) == 2
 
     # Check alternate link
-    alternate = next((l for l in entries[0].links if l.rel == "alternate"), None)
+    alternate = next((link for link in entries[0].links if link.rel == "alternate"), None)
     assert alternate is not None
     assert alternate.href == "https://example.com/post"
 
     # Check enclosure link
-    enclosure = next((l for l in entries[0].links if l.rel == "enclosure"), None)
+    enclosure = next((link for link in entries[0].links if link.rel == "enclosure"), None)
     assert enclosure is not None
     assert enclosure.href == "https://example.com/image.jpg"
     assert enclosure.type == "image/jpeg"

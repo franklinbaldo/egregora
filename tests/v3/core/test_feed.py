@@ -1,14 +1,8 @@
 from datetime import UTC, datetime
 
-import defusedxml.ElementTree as ET
+from defusedxml import ElementTree
 
-from egregora_v3.core.types import (
-    Document,
-    DocumentStatus,
-    DocumentType,
-    Feed,
-    documents_to_feed,
-)
+from egregora_v3.core.types import Document, DocumentStatus, DocumentType, Feed, documents_to_feed
 
 
 def test_feed_to_xml_exposes_doc_type_and_status_categories():
@@ -28,7 +22,7 @@ def test_feed_to_xml_exposes_doc_type_and_status_categories():
     )
 
     xml_output = feed.to_xml()
-    root = ET.fromstring(xml_output)
+    root = ElementTree.fromstring(xml_output)
     entry = root.find("{http://www.w3.org/2005/Atom}entry")
     assert entry is not None
 

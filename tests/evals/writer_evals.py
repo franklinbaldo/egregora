@@ -8,7 +8,7 @@ This module defines test cases for evaluating the writer agent's ability to:
 """
 
 from pydantic_evals import Case, Dataset
-from pydantic_evals.evaluators import IsInstance
+from pydantic_evals.evaluators import IsInstance, LLMJudge
 
 
 def create_writer_dataset() -> Dataset:
@@ -117,8 +117,6 @@ def create_writer_quality_dataset_with_judges() -> Dataset:
         Dataset with test cases and LLM judges
 
     """
-    from pydantic_evals.evaluators import LLMJudge
-
     cases = create_writer_dataset().cases
 
     # LLM judge for post quality

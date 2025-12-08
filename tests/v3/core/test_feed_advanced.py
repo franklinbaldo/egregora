@@ -7,6 +7,7 @@ Tests:
 4. Snapshot testing with syrupy for regression detection
 """
 
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -209,10 +210,8 @@ def test_roundtrip_preserves_links(sample_feed: Feed, tmp_path: Path) -> None:
 
 def test_feed_validates_against_atom_rfc_4287_schema(sample_feed: Feed) -> None:
     """Test that generated XML validates against Atom 1.0 schema."""
-    try:
-        import xmlschema
-    except ImportError:
-        pytest.skip("xmlschema not installed")
+    xmlschema = pytest.importorskip("xmlschema")
+    assert xmlschema is not None
 
     xml_output = sample_feed.to_xml()
 
@@ -262,8 +261,6 @@ def test_feed_datetime_format_rfc_3339_compliant(sample_feed: Feed) -> None:
     updated_text = updated_elem.text
 
     # RFC 3339 format: 2025-12-06T10:00:00Z
-    import re
-
     rfc3339_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
     assert re.match(rfc3339_pattern, updated_text), f"Invalid RFC 3339 format: {updated_text}"
 

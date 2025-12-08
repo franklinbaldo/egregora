@@ -7,6 +7,7 @@ Tests for:
 Following TDD Red-Green-Refactor cycle.
 """
 
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -17,14 +18,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from lxml import etree
 
-from egregora_v3.core.types import (
-    Author,
-    Document,
-    DocumentStatus,
-    DocumentType,
-    Feed,
-    documents_to_feed,
-)
+from egregora_v3.core.types import Author, Document, DocumentStatus, DocumentType, Feed, documents_to_feed
 from egregora_v3.infra.adapters.rss import RSSAdapter
 from egregora_v3.infra.sinks.atom_xml import AtomXMLOutputSink
 from egregora_v3.infra.sinks.mkdocs import MkDocsOutputSink
@@ -347,8 +341,6 @@ def test_mkdocs_sink_cleans_existing_files(sample_feed: Feed, tmp_path: Path) ->
 @given(st.integers(min_value=1, max_value=20))
 def test_atom_xml_sink_handles_any_number_of_entries(num_entries: int) -> None:
     """Property: AtomXMLOutputSink handles any number of entries."""
-    import tempfile
-
     docs = [
         Document.create(
             content=f"Content {i}",
@@ -379,8 +371,6 @@ def test_atom_xml_sink_handles_any_number_of_entries(num_entries: int) -> None:
 @given(st.integers(min_value=1, max_value=20))
 def test_mkdocs_sink_creates_correct_number_of_files(num_entries: int) -> None:
     """Property: MkDocsOutputSink creates one file per published document."""
-    import tempfile
-
     docs = [
         Document.create(
             content=f"Content {i}",
