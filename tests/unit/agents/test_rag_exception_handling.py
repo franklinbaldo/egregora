@@ -20,7 +20,7 @@ def rag_settings_factory():
     Use this fixture to create RAG settings with specific test values.
     """
 
-    def _create(enabled: bool = True, **kwargs):
+    def _create(*, enabled: bool = True, **kwargs):
         return RAGSettings(enabled=enabled, **kwargs)
 
     return _create

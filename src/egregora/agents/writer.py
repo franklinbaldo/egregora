@@ -36,7 +36,7 @@ from tenacity import Retrying
 from egregora.agents.formatting import build_conversation_xml, load_journal_memory
 from egregora.agents.model_limits import PromptTooLargeError
 from egregora.agents.types import WriterDeps, WriterResources
-from egregora.agents.writer_helpers import _process_tool_result, register_writer_tools
+from egregora.agents.writer_helpers import _process_tool_result
 from egregora.agents.writer_setup import (
     configure_writer_capabilities,
     create_writer_model,
