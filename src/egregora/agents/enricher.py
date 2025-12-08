@@ -8,12 +8,16 @@ legacy batching runners. It provides:
 
 from __future__ import annotations
 
+import asyncio
+import base64
+import json
 import logging
 import mimetypes
 import os
 import re
 import uuid
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -28,7 +32,7 @@ from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
 
 from egregora.config.settings import EnrichmentSettings
-from egregora.data_primitives.document import Document
+from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
@@ -39,19 +43,14 @@ from egregora.ops.media import (
     find_media_references,
     replace_media_mentions,
 )
+from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.metrics import UsageTracker
+from egregora.utils.model_fallback import create_fallback_model
 from egregora.utils.paths import slugify
 from egregora.utils.quota import QuotaTracker
-import asyncio
-import base64
-import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from egregora.data_primitives.document import DocumentType
-from egregora.orchestration.worker_base import BaseWorker
-from egregora.utils.model_fallback import create_fallback_model
 
 if TYPE_CHECKING:
     from ibis.backends.duckdb import Backend as DuckDBBackend
@@ -321,8 +320,6 @@ def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
 
 def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
     """Stream table rows as batches of dictionaries without loading entire table into memory."""
-    from ibis.common.exceptions import IbisError
-
     try:
         backend = table._find_backend()
     except (AttributeError, IbisError):  # pragma: no cover - fallback path
