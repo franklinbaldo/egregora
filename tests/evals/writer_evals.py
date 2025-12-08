@@ -10,11 +10,6 @@ This module defines test cases for evaluating the writer agent's ability to:
 from pydantic_evals import Case, Dataset
 from pydantic_evals.evaluators import IsInstance
 
-try:
-    from pydantic_evals.evaluators import LLMJudge
-except ImportError:
-    LLMJudge = None
-
 
 def create_writer_dataset() -> Dataset:
     """Create evaluation dataset for writer agent.
@@ -122,9 +117,7 @@ def create_writer_quality_dataset_with_judges() -> Dataset:
         Dataset with test cases and LLM judges
 
     """
-    if LLMJudge is None:
-        msg = "pydantic_evals.evaluators.LLMJudge is not available"
-        raise ImportError(msg)
+    from pydantic_evals.evaluators import LLMJudge
 
     cases = create_writer_dataset().cases
 

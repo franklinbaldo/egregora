@@ -33,10 +33,20 @@ from pydantic_ai.messages import (
 from ratelimit import limits, sleep_and_retry
 from tenacity import Retrying
 
-from egregora.agents.formatting import build_conversation_xml, load_journal_memory
-from egregora.agents.model_limits import PromptTooLargeError
-from egregora.agents.types import WriterDeps, WriterResources
-from egregora.agents.writer_helpers import _process_tool_result
+from egregora.agents.formatting import (
+    build_conversation_xml,
+    load_journal_memory,
+)
+from egregora.agents.model_limits import (
+    PromptTooLargeError,
+)
+from egregora.agents.types import (
+    WriterDeps,
+    WriterResources,
+)
+from egregora.agents.writer_helpers import (
+    _process_tool_result,
+)
 from egregora.agents.writer_setup import (
     configure_writer_capabilities,
     create_writer_model,
@@ -220,6 +230,8 @@ def _build_writer_context(params: WriterContextParams) -> WriterContext:
         date_label=params.window_label,
         pii_prevention=pii_prevention,
     )
+
+
 
 
 # ============================================================================
@@ -473,6 +485,8 @@ def _prepare_deps(
     )
 
 
+
+
 @sleep_and_retry
 @limits(calls=100, period=60)
 def write_posts_with_pydantic_agent(
@@ -484,6 +498,7 @@ def write_posts_with_pydantic_agent(
 ) -> tuple[list[str], list[str]]:
     """Execute the writer flow using Pydantic-AI agent tooling."""
     logger.info("Running writer via Pydantic-AI backend")
+
 
     active_capabilities = configure_writer_capabilities(config, context)
     if active_capabilities:

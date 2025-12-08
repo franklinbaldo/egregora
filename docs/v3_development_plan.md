@@ -329,16 +329,9 @@ entry.content = enrichment.description  # "A sunset over the ocean with orange c
 
 ---
 
-### Phase 2: Infrastructure ⚠️ Partial
+### Phase 2: Infrastructure 🔄 Not Started
 
 **Goal:** Implement adapters and external I/O.
-
-**Status:**
-- ✅ RSS/Atom Input Adapter (`RSSAdapter`)
-- ✅ DuckDB Document Repository (`DuckDBDocumentRepository`)
-- ✅ Pipeline Context (Runtime state)
-- ⚠️ Vector Store (LanceDB) - Pending
-- ⚠️ Output Sinks - Pending
 
 **Components:**
 

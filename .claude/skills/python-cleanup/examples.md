@@ -330,9 +330,7 @@ echo "  git diff"
 echo ""
 echo "If everything looks good:"
 echo "  git add -A"
-
 echo "  git commit -m 'refactor: remove dead code after $FEATURE_NAME removal'"
-
 echo "  git push -u origin cleanup-${FEATURE_NAME}"
 ```
 
@@ -445,9 +443,9 @@ Generated: $(date)
 
 ## Summary
 
-```
+\`\`\`
 $(cat $REPORT_DIR/summary.txt)
-```
+\`\`\`
 
 ## Health Score
 
@@ -455,7 +453,7 @@ $(cat $REPORT_DIR/summary.txt)
 - ⚠️  **Good**: Coverage >60%, MI >50, Some refactoring needed
 - ❌ **Needs Work**: Coverage <60%, MI <50, Many complex functions
 
-**Current Status**: $( \
+**Current Status**: $(
     if (( $(echo "$COVERAGE > 80" | bc -l) )) && [ $COMPLEX_COUNT -lt 10 ]; then
         echo "✅ Excellent"
     elif (( $(echo "$COVERAGE > 60" | bc -l) )); then
@@ -727,14 +725,19 @@ from sqlalchemy import event  # Side effect: registers event handlers
 # Both imports removed! ❌
 ```
 
-**Solution:** Use `__all__` to explicitly mark imports as part of the module's public API:
+**Solution 1:** Use `noqa` comments:
+```python
+import patches  # noqa: F401
+from sqlalchemy import event  # noqa: F401
+```
+
+**Solution 2:** Explicit exports:
 ```python
 import patches
 from sqlalchemy import event
 
-__all__ = ['patches', 'event']  # Tells tools like Autoflake these are used
+__all__ = ['patches', 'event']  # Tells autoflake these are used
 ```
-*Note: Directly suppressing `F401` with `noqa` should generally be avoided. Prefer refactoring or explicit exports where imports are essential for side effects or API exposure.*
 
 ### Example 3: Coverage False Negatives
 

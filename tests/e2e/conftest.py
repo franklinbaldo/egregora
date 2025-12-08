@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import gc
 import shutil
 import time
@@ -11,27 +10,7 @@ from pathlib import Path
 
 import pytest
 
-# Import at top-level to fix PLC0415
-from tests.e2e.mocks.enrichment_mocks import (
-    async_mock_media_enrichment,
-    async_mock_url_enrichment,
-)
-from tests.e2e.mocks.llm_responses import (
-    FIXTURE_MEDIA_ENRICHMENTS,
-    FIXTURE_URL_ENRICHMENTS,
-    FIXTURE_WRITER_POST,
-)
 from tests.e2e.test_config import DateConfig, TimeoutConfig, TimezoneConfig, WindowConfig
-from tests.utils.pydantic_test_models import install_writer_test_model
-
-# Try importing RAG optional dependencies
-try:
-    import egregora.rag
-    from egregora.rag import RAGHit, RAGQueryResponse
-except ImportError:
-    egregora = None
-    RAGHit = None
-    RAGQueryResponse = None
 
 
 @pytest.fixture(autouse=True)
@@ -50,14 +29,20 @@ def cleanup_temp_files(tmp_path: Path) -> Iterator[None]:
     time.sleep(0.1)
 
     # Clean up any remaining temp files (best effort)
-    with contextlib.suppress(Exception):
+    try:
         if tmp_path.exists():
             for item in tmp_path.iterdir():
-                with contextlib.suppress(OSError, PermissionError):
+                try:
                     if item.is_dir():
                         shutil.rmtree(item, ignore_errors=True)
                     else:
                         item.unlink(missing_ok=True)
+                except (OSError, PermissionError):
+                    # Ignore cleanup errors - they shouldn't fail the test
+                    pass
+    except Exception:
+        # Ignore any cleanup errors
+        pass
 
 
 @pytest.fixture
@@ -104,6 +89,8 @@ def clean_duckdb_path(tmp_path: Path) -> Path:
     Returns a path that includes a timestamp to ensure no conflicts
     between test runs or parallel executions.
     """
+    import time
+
     timestamp = int(time.time() * 1000000)  # Microsecond precision
     return tmp_path / f"test_{timestamp}.duckdb"
 
@@ -149,19 +136,35 @@ def llm_response_mocks(monkeypatch):
     This fixture patches the enrichment agents to return pre-constructed,
     realistic responses from the whatsapp_sample fixture.
     """
+    from tests.e2e.mocks.enrichment_mocks import (
+        async_mock_media_enrichment,
+        async_mock_url_enrichment,
+    )
+    from tests.e2e.mocks.llm_responses import (
+        FIXTURE_MEDIA_ENRICHMENTS,
+        FIXTURE_URL_ENRICHMENTS,
+        FIXTURE_WRITER_POST,
+    )
+
     # Patch enrichment functions
     # Note: These paths may need adjustment based on actual implementation
-    with contextlib.suppress(AttributeError):
+    try:
         monkeypatch.setattr(
             "egregora.agents.enricher._run_url_enrichment_async",
             async_mock_url_enrichment,
         )
+    except AttributeError:
+        # Enrichment implementation may vary - this is optional
+        pass
 
-    with contextlib.suppress(AttributeError):
+    try:
         monkeypatch.setattr(
             "egregora.agents.enricher._run_media_enrichment_async",
             async_mock_media_enrichment,
         )
+    except AttributeError:
+        # Enrichment implementation may vary - this is optional
+        pass
 
     return {
         "url_enrichments": FIXTURE_URL_ENRICHMENTS,
@@ -177,6 +180,7 @@ def mock_vector_store(monkeypatch):
     This mocks the new egregora.rag API (index_documents and search) to return
     deterministic results without requiring real embeddings or vector search.
     """
+    from egregora.rag import RAGHit, RAGQueryResponse
 
     # Track what's been indexed for assertions
     indexed_docs = []
@@ -188,12 +192,6 @@ def mock_vector_store(monkeypatch):
 
     def mock_search(request):
         """Mock RAG search that returns deterministic results (sync)."""
-        if RAGHit is None or RAGQueryResponse is None:
-            # If RAG modules are missing (ImportError), search can't work properly
-            # Return empty or dummy structure if possible, or fail if critical.
-            # But since RAG is optional, we might just return empty object if mocked enough.
-            return None
-
         # Return mock results
         hits = [
             RAGHit(
@@ -207,7 +205,9 @@ def mock_vector_store(monkeypatch):
         return RAGQueryResponse(hits=hits[: request.top_k])
 
     # Patch the new RAG API
-    if egregora and hasattr(egregora, "rag"):
+    try:
+        import egregora.rag
+
         monkeypatch.setattr(egregora.rag, "index_documents", mock_index_documents)
         monkeypatch.setattr(egregora.rag, "search", mock_search)
 
@@ -215,7 +215,12 @@ def mock_vector_store(monkeypatch):
         monkeypatch.setattr(
             "egregora.orchestration.write_pipeline.index_documents", mock_index_documents, raising=False
         )
-        monkeypatch.setattr("egregora.agents.writer_helpers.search", mock_search, raising=False)
+        monkeypatch.setattr(
+            "egregora.agents.writer_helpers.search", mock_search, raising=False
+        )
+    except (ImportError, AttributeError):
+        # RAG module may not exist yet - this is optional
+        pass
 
     # Return the indexed_docs list for test assertions
     return indexed_docs
@@ -228,6 +233,8 @@ def mocked_writer_agent(monkeypatch):
     This fixture integrates with the existing install_writer_test_model utility
     to provide deterministic writer agent responses for E2E tests.
     """
+    from tests.utils.pydantic_test_models import install_writer_test_model
+
     # Install deterministic writer that avoids network calls
     captured_windows = []
     install_writer_test_model(monkeypatch, captured_windows)

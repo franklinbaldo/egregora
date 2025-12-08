@@ -7,7 +7,6 @@ Tests for:
 Following TDD Red-Green-Refactor cycle.
 """
 
-import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -77,7 +76,7 @@ def test_atom_xml_sink_creates_file(sample_feed: Feed, tmp_path: Path) -> None:
     sink.publish(sample_feed)
 
     assert output_file.exists()
-    assert output_file.read_text().startswith("<?xml version")
+    assert output_file.read_text().startswith('<?xml version')
 
 
 def test_atom_xml_sink_produces_valid_xml(sample_feed: Feed, tmp_path: Path) -> None:
@@ -107,7 +106,9 @@ def test_atom_xml_sink_preserves_entries(sample_feed: Feed, tmp_path: Path) -> N
     assert len(entries) == len(sample_feed.entries)
 
 
-def test_atom_xml_sink_roundtrip_with_rss_adapter(sample_feed: Feed, tmp_path: Path) -> None:
+def test_atom_xml_sink_roundtrip_with_rss_adapter(
+    sample_feed: Feed, tmp_path: Path
+) -> None:
     """Test full roundtrip: Feed → AtomXMLOutputSink → RSSAdapter → Feed."""
     output_file = tmp_path / "feed.atom"
     sink = AtomXMLOutputSink(output_path=output_file)
@@ -140,7 +141,7 @@ def test_atom_xml_sink_overwrites_existing_file(sample_feed: Feed, tmp_path: Pat
 
     # Should be replaced with valid XML
     xml_content = output_file.read_text()
-    assert xml_content.startswith("<?xml version")
+    assert xml_content.startswith('<?xml version')
     assert "old content" not in xml_content
 
 
@@ -346,6 +347,7 @@ def test_mkdocs_sink_cleans_existing_files(sample_feed: Feed, tmp_path: Path) ->
 @given(st.integers(min_value=1, max_value=20))
 def test_atom_xml_sink_handles_any_number_of_entries(num_entries: int) -> None:
     """Property: AtomXMLOutputSink handles any number of entries."""
+    import tempfile
 
     docs = [
         Document.create(
@@ -377,6 +379,7 @@ def test_atom_xml_sink_handles_any_number_of_entries(num_entries: int) -> None:
 @given(st.integers(min_value=1, max_value=20))
 def test_mkdocs_sink_creates_correct_number_of_files(num_entries: int) -> None:
     """Property: MkDocsOutputSink creates one file per published document."""
+    import tempfile
 
     docs = [
         Document.create(

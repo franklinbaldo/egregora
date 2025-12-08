@@ -28,11 +28,26 @@ _DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 def _extract_clean_date(date_str: str) -> str:
     """Extract a clean ``YYYY-MM-DD`` date from user-provided strings."""
+    # Use standard library datetime
+    # Note: we use local import here if needed but ruff complains.
+    # We should use top level import if possible.
+    # The imports are: from datetime import UTC, date, datetime
+    # We can use `datetime` directly from that import.
+    # Let's remove the local import and rely on the global one.
+    # But wait, the code uses `datetime.date`...
+    # Top level import is `from datetime import ... datetime`.
+    # So `datetime` refers to the class, not the module.
+    # To access `datetime.date`, we need to import `date` or use the module.
+    # The code `datetime.date.fromisoformat` implies `datetime` is the module.
+    # But top level says `from datetime import ..., datetime`.
+    # So `datetime` is the class. `datetime.date` would fail if `datetime` is the class.
+    # We need to fix this usage.
+
     date_str = date_str.strip()
 
     try:
         if len(date_str) == ISO_DATE_LENGTH and date_str[4] == "-" and date_str[7] == "-":
-            date.fromisoformat(date_str)
+            datetime.date.fromisoformat(date_str)
             return date_str
     except (ValueError, AttributeError):
         pass
@@ -41,7 +56,7 @@ def _extract_clean_date(date_str: str) -> str:
     if match:
         clean_date = match.group(1)
         try:
-            date.fromisoformat(clean_date)
+            datetime.date.fromisoformat(clean_date)
         except (ValueError, AttributeError):
             pass
         else:

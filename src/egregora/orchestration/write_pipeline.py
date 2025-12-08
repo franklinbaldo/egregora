@@ -77,6 +77,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 __all__ = ["WhatsAppProcessOptions", "process_whatsapp_export", "run"]
 
+MIN_WINDOWS_WARNING_THRESHOLD = 5
+
 
 @dataclass(frozen=True)
 class WhatsAppProcessOptions:
@@ -548,6 +550,13 @@ def _process_all_windows(
         # Check if we've hit the max_windows limit
         if max_windows is not None and windows_processed >= max_windows:
             logger.info("Reached max_windows limit (%d). Stopping processing.", max_windows)
+            if max_windows < MIN_WINDOWS_WARNING_THRESHOLD:
+                logger.warning(
+                    "⚠️  Processing stopped early due to low 'max_windows' setting (%d). "
+                    "This may result in incomplete data coverage. "
+                    "Use --max-windows 0 or remove the limit to process all data.",
+                    max_windows,
+                )
             break
         # Skip empty windows
         if window.size == 0:
@@ -1266,7 +1275,9 @@ def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
     if dataset.context.config.rag.enabled:
         logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
         try:
-            tagged_count = generate_semantic_taxonomy(dataset.context.output_format, dataset.context.config)
+            tagged_count = generate_semantic_taxonomy(
+                dataset.context.output_format, dataset.context.config
+            )
             if tagged_count > 0:
                 logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
         except Exception as e:  # noqa: BLE001

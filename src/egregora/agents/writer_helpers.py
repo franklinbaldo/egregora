@@ -9,8 +9,13 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic_ai import RunContext
 
-from egregora.agents.model_limits import PromptTooLargeError, get_model_context_limit
-from egregora.agents.model_limits import validate_prompt_fits as _validate_prompt_fits
+from egregora.agents.model_limits import (
+    PromptTooLargeError,
+    get_model_context_limit,
+)
+from egregora.agents.model_limits import (
+    validate_prompt_fits as _validate_prompt_fits,
+)
 from egregora.agents.types import (
     AnnotationResult,
     PostMetadata,
@@ -26,7 +31,9 @@ if TYPE_CHECKING:
     from pydantic_ai import Agent
 
     from egregora.agents.capabilities import AgentCapability
-    from egregora.agents.types import WriterAgentReturn
+    from egregora.agents.types import (
+        WriterAgentReturn,
+    )
     from egregora.config.settings import EgregoraConfig
 
 logger = logging.getLogger(__name__)

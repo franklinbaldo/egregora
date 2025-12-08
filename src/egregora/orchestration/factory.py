@@ -20,7 +20,12 @@ from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
+from egregora.orchestration.context import (
+    PipelineConfig,
+    PipelineContext,
+    PipelineRunParams,
+    PipelineState,
+)
 from egregora.output_adapters import (
     OutputAdapterRegistry,
     create_default_output_registry,

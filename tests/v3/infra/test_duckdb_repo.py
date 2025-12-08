@@ -1,3 +1,4 @@
+import ibis
 import pytest
 
 from egregora_v3.core.types import Document, DocumentType
@@ -5,12 +6,18 @@ from egregora_v3.infra.repository.duckdb import DuckDBDocumentRepository
 
 
 @pytest.fixture
-def repo():
+def duckdb_conn():
+    # Use in-memory DuckDB for testing
+    return ibis.duckdb.connect(":memory:")
+
+
+@pytest.fixture
+def repo(duckdb_conn):
     # Pass the connection to the repository
     # We might need to initialize the schema here or inside the repo
-    # Note: DuckDBDocumentRepository now expects a path string/Path, not an Ibis backend.
-    # We'll use in-memory for testing.
-    return DuckDBDocumentRepository(":memory:")
+    repo = DuckDBDocumentRepository(duckdb_conn)
+    repo.initialize()
+    return repo
 
 
 def test_save_and_get_document(repo):

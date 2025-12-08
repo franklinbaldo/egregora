@@ -55,7 +55,7 @@ EMBEDDING_DIM = 768  # Embedding vector dimensions
 # Quota defaults
 # Quota defaults
 DEFAULT_DAILY_LLM_REQUESTS = 100  # Conservative default
-DEFAULT_PER_SECOND_LIMIT = 0.05  # ~3 requests/min to avoid 429 on free tier
+DEFAULT_PER_SECOND_LIMIT = 0.05   # ~3 requests/min to avoid 429 on free tier
 DEFAULT_CONCURRENCY = 1
 
 # Default database connection strings

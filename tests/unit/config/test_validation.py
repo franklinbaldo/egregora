@@ -10,7 +10,6 @@ from egregora.config.settings import (
     DEFAULT_MODEL,
     EgregoraConfig,
     load_egregora_config,
-    save_egregora_config,
 )
 
 
@@ -172,6 +171,7 @@ def test_config_creates_default_if_missing(tmp_path: Path):
 
 def test_config_yaml_roundtrip(tmp_path: Path):
     """Test config can be saved and loaded."""
+    from egregora.config.settings import save_egregora_config
 
     # Create config with non-default values
     custom_model = "google-gla:gemini-pro-latest"

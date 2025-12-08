@@ -80,7 +80,9 @@ class TestDoctorCommand:
         # This test mocks the diagnostics to all return OK
         with patch("egregora.cli.main.run_diagnostics") as mock_diagnostics:
             mock_diagnostics.return_value = [
-                DiagnosticResult(check="Python Version", status=HealthStatus.OK, message="Python 3.12.0"),
+                DiagnosticResult(
+                    check="Python Version", status=HealthStatus.OK, message="Python 3.12.0"
+                ),
                 DiagnosticResult(
                     check="Required Packages", status=HealthStatus.OK, message="All packages installed"
                 ),

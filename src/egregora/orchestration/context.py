@@ -16,14 +16,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from egregora.config.settings import EgregoraConfig
-from egregora.data_primitives.protocols import OutputSink, UrlContext
-from egregora.output_adapters import OutputAdapterRegistry
-from egregora.rag.embedding_router import EmbeddingRouter
-from egregora.utils.cache import EnrichmentCache, PipelineCache
-from egregora.utils.metrics import UsageTracker
-from egregora.utils.quota import QuotaTracker
-
 if TYPE_CHECKING:
     from google import genai
 
@@ -31,6 +23,14 @@ if TYPE_CHECKING:
     from egregora.database.protocols import StorageProtocol
     from egregora.database.task_store import TaskStore
     from egregora_v3.core.catalog import ContentLibrary
+
+from egregora.config.settings import EgregoraConfig
+from egregora.data_primitives.protocols import OutputSink, UrlContext
+from egregora.output_adapters import OutputAdapterRegistry
+from egregora.rag.embedding_router import EmbeddingRouter
+from egregora.utils.cache import EnrichmentCache, PipelineCache
+from egregora.utils.metrics import UsageTracker
+from egregora.utils.quota import QuotaTracker
 
 __all__ = [
     "PipelineConfig",
