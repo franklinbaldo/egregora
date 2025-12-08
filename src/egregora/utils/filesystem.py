@@ -28,26 +28,11 @@ _DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 def _extract_clean_date(date_str: str) -> str:
     """Extract a clean ``YYYY-MM-DD`` date from user-provided strings."""
-    # Use standard library datetime
-    # Note: we use local import here if needed but ruff complains.
-    # We should use top level import if possible.
-    # The imports are: from datetime import UTC, date, datetime
-    # We can use `datetime` directly from that import.
-    # Let's remove the local import and rely on the global one.
-    # But wait, the code uses `datetime.date`...
-    # Top level import is `from datetime import ... datetime`.
-    # So `datetime` refers to the class, not the module.
-    # To access `datetime.date`, we need to import `date` or use the module.
-    # The code `datetime.date.fromisoformat` implies `datetime` is the module.
-    # But top level says `from datetime import ..., datetime`.
-    # So `datetime` is the class. `datetime.date` would fail if `datetime` is the class.
-    # We need to fix this usage.
-
     date_str = date_str.strip()
 
     try:
         if len(date_str) == ISO_DATE_LENGTH and date_str[4] == "-" and date_str[7] == "-":
-            datetime.date.fromisoformat(date_str)
+            date.fromisoformat(date_str)
             return date_str
     except (ValueError, AttributeError):
         pass
@@ -56,7 +41,7 @@ def _extract_clean_date(date_str: str) -> str:
     if match:
         clean_date = match.group(1)
         try:
-            datetime.date.fromisoformat(clean_date)
+            date.fromisoformat(clean_date)
         except (ValueError, AttributeError):
             pass
         else:
@@ -108,22 +93,19 @@ def _find_authors_yml(output_dir: Path) -> Path:
     # Fallback: assume output_dir's grandparent is docs (posts/posts -> docs)
     return output_dir.resolve().parent.parent / ".authors.yml"
 
-
 def _load_authors_yml(path: Path) -> dict:
     try:
-        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        return yaml.safe_load(path.read_text(encoding="utf-8")) or {{}}
     except (OSError, yaml.YAMLError):
-        return {}
-
+        return {{}}
 
 def _register_new_authors(authors: dict, author_ids: list[str]) -> list[str]:
     new_ids = []
     for author_id in author_ids:
         if author_id and author_id not in authors:
-            authors[author_id] = {"name": author_id}
+            authors[author_id] = {{"name": author_id}}
             new_ids.append(author_id)
     return new_ids
-
 
 def _save_authors_yml(path: Path, authors: dict, count: int) -> None:
     try:
@@ -135,7 +117,6 @@ def _save_authors_yml(path: Path, authors: dict, count: int) -> None:
         logger.info("Registered %d new author(s) in %s", count, path)
     except OSError as exc:
         logger.warning("Failed to update %s: %s", path, exc)
-
 
 def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
     """Save a markdown post with YAML front matter and unique slugging.
