@@ -1,17 +1,28 @@
 """Main Typer application for Egregora."""
 
+import json
 import logging
 import os
 import sys
+import traceback
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Annotated, Any
 
 import typer
+
+try:
+    import dotenv
+except ImportError:
+    dotenv = None
+
+# Deferred import if needed, but for now moving it top level as requested by linter
+# We need to make sure this doesn't break things if import fails, but diagnostics is part of the package.
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
+from rich.table import Table
 
 from egregora.cli.config import config_app
 from egregora.cli.read import read_app
@@ -20,6 +31,7 @@ from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.config_validation import parse_date_arg, validate_timezone
 from egregora.constants import SourceType, WindowUnit
 from egregora.database.elo_store import EloStore
+from egregora.diagnostics import HealthStatus, run_diagnostics
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration import write_pipeline
 from egregora.orchestration.context import PipelineRunParams
@@ -93,7 +105,10 @@ def _resolve_gemini_key() -> str | None:
 
 @app.command()
 def init(
-    output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
+    output_dir: Annotated[
+        Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")
+    ],
+    *,
     interactive: Annotated[
         bool,
         typer.Option(
@@ -168,18 +183,20 @@ def _validate_api_key(output_dir: Path) -> None:
     if api_key:
         return
 
-    from dotenv import load_dotenv
+    _load_dotenv_if_available(output_dir)
 
-    load_dotenv(output_dir / ".env")
-    load_dotenv()  # Check CWD as well
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 
     if not api_key:
-        console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
+        console.print(
+            "[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]"
+        )
         console.print(
             "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
         )
-        console.print("You can also create a .env file in the output directory or current directory.")
+        console.print(
+            "You can also create a .env file in the output directory or current directory."
+        )
         raise typer.Exit(1)
 
 
@@ -214,16 +231,109 @@ def _prepare_write_config(
                     "checkpoint_enabled": options.resume,
                 }
             ),
-            "enrichment": base_config.enrichment.model_copy(update={"enabled": options.enable_enrichment}),
+            "enrichment": base_config.enrichment.model_copy(
+                update={"enabled": options.enable_enrichment}
+            ),
             "rag": base_config.rag,
             **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
         },
     )
 
 
+def _resolve_write_options(
+    input_file: Path,
+    options_json: str | None,
+    cli_defaults: dict[str, Any],
+) -> WriteCommandOptions:
+    """Merge CLI options with JSON options and defaults."""
+    # Start with CLI values as base
+    defaults = cli_defaults.copy()
+
+    if options_json:
+        try:
+            overrides = json.loads(options_json)
+            # Update with JSON overrides, converting enums if strings
+            for k, v in overrides.items():
+                if k == "source" and isinstance(v, str):
+                    defaults[k] = SourceType(v)
+                elif k == "step_unit" and isinstance(v, str):
+                    defaults[k] = WindowUnit(v)
+                elif k == "output" and isinstance(v, str):
+                    defaults[k] = Path(v)
+                else:
+                    defaults[k] = v
+        except json.JSONDecodeError as e:
+            console.print(f"[red]Error parsing options JSON: {e}[/red]")
+            raise typer.Exit(1) from e
+
+    return WriteCommandOptions(input_file=input_file, **defaults)
+
+
 @app.command()
-def write(
-    input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
+def write(  # noqa: PLR0913
+    input_file: Annotated[
+        Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")
+    ],
+    *,
+    output: Annotated[
+        Path, typer.Option("--output-dir", "-o", help="Directory for the generated site")
+    ] = Path("site"),
+    source: Annotated[
+        SourceType, typer.Option("--source-type", "-s", help="Source format of the input")
+    ] = SourceType.WHATSAPP,
+    step_size: Annotated[
+        int, typer.Option(help="Window size (messages or hours)")
+    ] = 100,
+    step_unit: Annotated[
+        WindowUnit, typer.Option(help="Unit for windowing")
+    ] = WindowUnit.MESSAGES,
+    overlap: Annotated[
+        float, typer.Option(help="Overlap ratio between windows (0.0-1.0)")
+    ] = 0.0,
+    enable_enrichment: Annotated[
+        bool,
+        typer.Option(
+            "--enable-enrichment/--no-enable-enrichment",
+            help="Enable AI enrichment (images, links)",
+        ),
+    ] = True,
+    from_date: Annotated[
+        str | None, typer.Option(help="Start date filter (YYYY-MM-DD)")
+    ] = None,
+    to_date: Annotated[
+        str | None, typer.Option(help="End date filter (YYYY-MM-DD)")
+    ] = None,
+    timezone: Annotated[
+        str | None, typer.Option(help="Timezone for date calculations")
+    ] = None,
+    model: Annotated[
+        str | None, typer.Option(help="Override LLM model for all tasks")
+    ] = None,
+    max_prompt_tokens: Annotated[
+        int, typer.Option(help="Maximum context window size")
+    ] = 400000,
+    use_full_context_window: Annotated[
+        bool, typer.Option("--full-context", help="Use maximum available context")
+    ] = False,
+    max_windows: Annotated[
+        int | None, typer.Option(help="Limit number of windows to process")
+    ] = None,
+    resume: Annotated[
+        bool,
+        typer.Option(
+            "--resume/--no-resume", help="Resume from last checkpoint if available"
+        ),
+    ] = True,
+    refresh: Annotated[
+        str | None,
+        typer.Option(help="Force refresh components (writer, rag, enrichment, all)"),
+    ] = None,
+    force: Annotated[
+        bool, typer.Option("--force", "-f", help="Force full refresh (same as --refresh all)")
+    ] = False,
+    debug: Annotated[
+        bool, typer.Option("--debug", help="Enable debug logging")
+    ] = False,
     options: Annotated[
         str | None,
         typer.Option(
@@ -233,7 +343,31 @@ def write(
     ] = None,
 ) -> None:
     """Write blog posts from chat exports using LLM-powered synthesis."""
-    parsed_options = _merge_write_options(input_file, options)
+    cli_values = {
+        "source": source,
+        "output": output,
+        "step_size": step_size,
+        "step_unit": step_unit,
+        "overlap": overlap,
+        "enable_enrichment": enable_enrichment,
+        "from_date": from_date,
+        "to_date": to_date,
+        "timezone": timezone,
+        "model": model,
+        "max_prompt_tokens": max_prompt_tokens,
+        "use_full_context_window": use_full_context_window,
+        "max_windows": max_windows,
+        "resume": resume,
+        "refresh": refresh,
+        "force": force,
+        "debug": debug,
+    }
+
+    parsed_options = _resolve_write_options(
+        input_file=input_file,
+        options_json=options,
+        cli_defaults=cli_values,
+    )
 
     if parsed_options.debug:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -284,15 +418,13 @@ def write(
         run_params = PipelineRunParams(
             output_dir=runtime.output_dir,
             config=egregora_config,
-            source_type=options.source.value,
+            source_type=parsed_options.source.value,
             input_path=runtime.input_file,
-            refresh="all" if options.force else options.refresh,
+            refresh="all" if parsed_options.force else parsed_options.refresh,
         )
         write_pipeline.run(run_params)
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:
-        import traceback
-
         traceback.print_exc()
         console.print(f"[red]Pipeline failed: {e}[/]")
         raise typer.Exit(code=1) from e
@@ -322,8 +454,6 @@ def top(
         egregora top my-blog/ --limit 20
 
     """
-    from rich.table import Table
-
     site_root = site_root.expanduser().resolve()
 
     # Verify .egregora directory exists
@@ -405,8 +535,6 @@ def show_reader_history(
         egregora show reader-history my-blog/ --limit 50
 
     """
-    from rich.table import Table
-
     site_root = site_root.expanduser().resolve()
 
     # Verify .egregora directory exists
@@ -470,8 +598,26 @@ def doctor(
     ] = False,
 ) -> None:
     """Run diagnostic checks to verify Egregora setup."""
-    from egregora.diagnostics import HealthStatus, run_diagnostics
+    # Deferred import to avoid circular dependencies or heavy load if not needed?
+    # But for CLI entry points it is usually fine.
+    # Moving import to top level as requested.
+    # Note: Moving imports to top-level can cause circular imports if not careful.
+    # But ruff insists. I will rely on Python handling modules.
+    # If run_diagnostics imports config which imports main...
+    # Main is entry point, config likely doesn't import main.
+    # Diagnostics likely imports low level stuff.
+    # I'll use a local import inside a helper function if needed, but ruff complains.
+    # I'll try to move it to top level.
+    _run_doctor_checks(verbose=verbose)
 
+
+def _load_dotenv_if_available(output_dir: Path) -> None:
+    if dotenv:
+        dotenv.load_dotenv(output_dir / ".env")
+        dotenv.load_dotenv()  # Check CWD as well
+
+
+def _run_doctor_checks(*, verbose: bool) -> None:
     console.print("[bold cyan]Running diagnostics...[/bold cyan]")
     console.print()
 
@@ -492,7 +638,7 @@ def doctor(
             icon = "❌"
             color = "red"
         else:
-            icon = "ℹ️"
+            icon = "i"
             color = "cyan"
 
         console.print(f"[{color}]{icon} {result.check}:[/{color}] {result.message}")

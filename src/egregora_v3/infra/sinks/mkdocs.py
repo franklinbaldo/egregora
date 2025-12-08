@@ -130,14 +130,12 @@ class MkDocsOutputSink:
                 lines.append(f"author: {doc.authors[0].name}")
             else:
                 lines.append("authors:")
-                for author in doc.authors:
-                    lines.append(f"  - {author.name}")
+                lines.extend(f"  - {author.name}" for author in doc.authors)
 
         # Categories/tags
         if doc.categories:
             lines.append("tags:")
-            for category in doc.categories:
-                lines.append(f"  - {category.term}")
+            lines.extend(f"  - {category.term}" for category in doc.categories)
 
         # Document type
         lines.append(f"type: {doc.doc_type.value}")

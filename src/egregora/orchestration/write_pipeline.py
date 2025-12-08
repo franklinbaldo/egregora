@@ -50,6 +50,7 @@ from egregora.input_adapters.base import MediaMapping
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.media import process_media_for_window
+from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
 from egregora.orchestration.workers import BannerWorker, EnrichmentWorker, ProfileWorker
@@ -67,6 +68,7 @@ from egregora.transformations import (
 from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
+from egregora.utils.rate_limit import init_rate_limiter
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
@@ -273,10 +275,10 @@ def _process_single_window(
             # For now, we persist everything.
             try:
                 output_sink.persist(media_doc)
-            except (OSError, PermissionError) as exc:  # pragma: no cover - defensive
-                logger.exception("Failed to write media file %s: %s", media_doc.metadata.get("filename"), exc)
-            except ValueError as exc:  # pragma: no cover - defensive
-                logger.exception("Invalid media document %s: %s", media_doc.metadata.get("filename"), exc)
+            except (OSError, PermissionError):  # pragma: no cover - defensive
+                logger.exception("Failed to write media file %s", media_doc.metadata.get("filename"))
+            except ValueError:  # pragma: no cover - defensive
+                logger.exception("Invalid media document %s", media_doc.metadata.get("filename"))
 
     # Enrichment (Schedule tasks)
     if ctx.enable_enrichment:
@@ -784,13 +786,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
     quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
 
-    # Initialize global rate limiter
-    from egregora.utils.rate_limit import init_rate_limiter
-
-    init_rate_limiter(
-        requests_per_second=run_params.config.quota.per_second_limit,
-        max_concurrency=run_params.config.quota.concurrency,
-    )
+    _init_global_rate_limiter(run_params.config.quota)
 
     output_registry = create_default_output_registry()
 
@@ -1257,6 +1253,28 @@ def _apply_filters(
     )
 
 
+def _init_global_rate_limiter(quota_config: any) -> None:
+    """Initialize the global rate limiter."""
+    init_rate_limiter(
+        requests_per_second=quota_config.per_second_limit,
+        max_concurrency=quota_config.concurrency,
+    )
+
+
+def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
+    """Generate semantic taxonomy if enabled."""
+    if dataset.context.config.rag.enabled:
+        logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
+        try:
+            tagged_count = generate_semantic_taxonomy(
+                dataset.context.output_format, dataset.context.config
+            )
+            if tagged_count > 0:
+                logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
+        except Exception as e:  # noqa: BLE001
+            # Non-critical failure
+            logger.warning("Auto-taxonomy failed: %s", e)
+
 
 def _record_run_start(run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime) -> None:
     """Record the start of a pipeline run in the database.
@@ -1413,20 +1431,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
                 embedding_model=dataset.embedding_model,
             )
 
-            # 2. Taxonomy Generation (New)
-            if dataset.context.config.rag.enabled:
-                from egregora.ops.taxonomy import generate_semantic_taxonomy
-
-                logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
-                try:
-                    tagged_count = generate_semantic_taxonomy(
-                        dataset.context.output_format, dataset.context.config
-                    )
-                    if tagged_count > 0:
-                        logger.info(f"[green]✓ Applied semantic tags to {tagged_count} posts[/]")
-                except Exception as e:
-                    # Non-critical failure
-                    logger.warning("Auto-taxonomy failed: %s", e)
+            _generate_taxonomy(dataset)
 
             # Save checkpoint first (critical path)
             _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)

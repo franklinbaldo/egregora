@@ -60,7 +60,7 @@ class CSVOutputSink:
         ]
 
         # Write CSV file
-        with open(self.csv_path, "w", newline="", encoding="utf-8") as f:
+        with self.csv_path.open("w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
 

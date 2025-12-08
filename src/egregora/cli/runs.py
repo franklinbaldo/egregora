@@ -30,13 +30,13 @@ class _RunsDuckDBStorage:
         self._conn = duckdb.connect(str(db_path))
 
     @contextlib.contextmanager
-    def connection(self):
+    def connection(self) -> contextlib.AbstractContextManager[duckdb.DuckDBPyConnection]:
         yield self._conn
 
-    def execute_query(self, sql: str, params: list | None = None):
+    def execute_query(self, sql: str, params: list | None = None) -> list[tuple]:
         return self._conn.execute(sql, params or []).fetchall()
 
-    def execute_query_single(self, sql: str, params: list | None = None):
+    def execute_query_single(self, sql: str, params: list | None = None) -> tuple | None:
         return self._conn.execute(sql, params or []).fetchone()
 
     def get_table_columns(self, table_name: str) -> set[str]:

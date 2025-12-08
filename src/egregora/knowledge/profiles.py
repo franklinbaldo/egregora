@@ -1,12 +1,14 @@
 """Author profiling tools for LLM to read and update author profiles."""
 
+import hashlib
 import logging
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any
 
 import ibis.expr.types as ir
-import pyarrow as pa
+import yaml
 
 logger = logging.getLogger(__name__)
 MAX_ALIAS_LENGTH = 40
@@ -187,8 +189,6 @@ def write_profile(
         front_matter["commands_used"] = metadata["commands_used"]
 
     # Write profile with front-matter
-    import yaml
-
     yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
     # Prepend avatar if available OR use fallback
@@ -234,8 +234,6 @@ def generate_fallback_avatar_url(author_uuid: str) -> str:
         A URL to a generated avatar image
 
     """
-    import hashlib
-
     # Deterministically select options based on UUID hash
     # We use different slices of the hash to pick different attributes
     h = hashlib.sha256(author_uuid.encode()).hexdigest()
@@ -294,11 +292,7 @@ def get_active_authors(
     else:
         if arrow_table.num_columns == 0:
             return []
-        column = arrow_table.column(0)
-        if isinstance(column, pa.ChunkedArray):
-            authors = column.to_pylist()
-        else:
-            authors = list(column)
+        authors = arrow_table.column(0).to_pylist()
     filtered_authors = [
         author for author in authors if author is not None and author not in ("system", "egregora", "")
     ]
@@ -340,38 +334,47 @@ def _validate_alias(alias: str) -> str | None:
     return alias.replace("`", "&#96;")
 
 
+@dataclass
+class CommandContext:
+    """Context for command handling."""
+
+    author_uuid: str
+    timestamp: str
+    content: str
+
+
 def _handle_alias_command(
     cmd_type: str,
     target: str,
     value: Any,
-    author_uuid: str,
-    timestamp: str,
-    content: str,
+    context: CommandContext,
 ) -> str:
     """Handle set/remove alias commands."""
     if cmd_type == "set" and target == "alias":
         if not isinstance(value, str):
-            logger.warning("Invalid alias for %s (not a string)", author_uuid)
-            return content
+            logger.warning("Invalid alias for %s (not a string)", context.author_uuid)
+            return context.content
         validated_value = _validate_alias(value)
         if not validated_value:
-            logger.warning("Invalid alias for %s (rejected)", author_uuid)
-            return content
+            logger.warning("Invalid alias for %s (rejected)", context.author_uuid)
+            return context.content
         content = _update_profile_metadata(
-            content,
+            context.content,
             "Display Preferences",
             "alias",
-            f'- Alias: "{validated_value}" (set on {timestamp})\n- Public: true',
+            f'- Alias: "{validated_value}" (set on {context.timestamp})\n- Public: true',
         )
-        logger.info("Set alias for %s", author_uuid)
+        logger.info("Set alias for %s", context.author_uuid)
     elif cmd_type == "remove" and target == "alias":
         content = _update_profile_metadata(
-            content,
+            context.content,
             "Display Preferences",
             "alias",
-            f"- Alias: None (removed on {timestamp})\n- Public: false",
+            f"- Alias: None (removed on {context.timestamp})\n- Public: false",
         )
-        logger.info("Removed alias for %s", author_uuid)
+        logger.info("Removed alias for %s", context.author_uuid)
+    else:
+        content = context.content
     return content
 
 
@@ -379,23 +382,24 @@ def _handle_simple_set_command(
     cmd_type: str,
     target: str,
     value: Any,
-    author_uuid: str,
-    timestamp: str,
-    content: str,
+    context: CommandContext,
 ) -> str:
     """Handle simple set commands (bio, twitter, website)."""
     if cmd_type != "set":
-        return content
+        return context.content
 
+    content = context.content
     if target == "bio":
-        content = _update_profile_metadata(content, "User Bio", "bio", f'"{value}"\n\n(Set on {timestamp})')
-        logger.info("Set bio for %s", author_uuid)
+        content = _update_profile_metadata(
+            content, "User Bio", "bio", f'"{value}"\n\n(Set on {context.timestamp})'
+        )
+        logger.info("Set bio for %s", context.author_uuid)
     elif target == "twitter":
         content = _update_profile_metadata(content, "Links", "twitter", f"- Twitter: {value}")
-        logger.info("Set twitter for %s", author_uuid)
+        logger.info("Set twitter for %s", context.author_uuid)
     elif target == "website":
         content = _update_profile_metadata(content, "Links", "website", f"- Website: {value}")
-        logger.info("Set website for %s", author_uuid)
+        logger.info("Set website for %s", context.author_uuid)
     return content
 
 
@@ -678,8 +682,6 @@ def remove_profile_avatar(
 
 def _parse_frontmatter(content: str) -> dict[str, Any]:
     """Extract YAML front-matter from content."""
-    import yaml
-
     if content.startswith("---"):
         try:
             parts = content.split("---", 2)
@@ -751,8 +753,6 @@ def _update_authors_yml(site_root: Path, author_uuid: str, front_matter: dict[st
         front_matter: Profile front-matter dict
 
     """
-    import yaml
-
     authors_yml_path = site_root / ".authors.yml"
 
     # Load existing .authors.yml or create new

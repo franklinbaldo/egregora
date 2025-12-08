@@ -15,6 +15,7 @@ Third-party adapters can register via entry points in pyproject.toml:
 
 from __future__ import annotations
 
+import importlib
 import logging
 from importlib.metadata import entry_points
 from typing import TYPE_CHECKING
@@ -103,27 +104,29 @@ class InputAdapterRegistry:
         distribution. Built-ins are only added when a source identifier has
         not already been registered via plugins.
         """
-        from egregora.input_adapters import IperonTJROAdapter, SelfInputAdapter, WhatsAppAdapter
+        # Note: We use dynamic imports to avoid circular dependencies and import overhead
+        # for unused adapters. This is an intentional pattern for plugin-like systems.
+        builtin_map = {
+            "egregora.input_adapters.whatsapp.adapter": "WhatsAppAdapter",
+            "egregora.input_adapters.iperon_tjro": "IperonTJROAdapter",
+            "egregora.input_adapters.self_input": "SelfInputAdapter",
+        }
 
-        builtin_adapters = (
-            WhatsAppAdapter,
-            IperonTJROAdapter,
-            SelfInputAdapter,
-        )
-
-        for adapter_cls in builtin_adapters:
+        for module_name, class_name in builtin_map.items():
             try:
+                module = importlib.import_module(module_name)
+                adapter_cls = getattr(module, class_name)
                 adapter = adapter_cls()
                 meta = adapter.get_adapter_metadata()
+
+                if meta["source"] in self._adapters:
+                    continue
+
+                self._adapters[meta["source"]] = adapter
+                logger.info("Registered built-in adapter: %s v%s", meta["name"], meta["version"])
             except Exception:
-                logger.exception("Failed to initialize built-in adapter: %s", adapter_cls.__name__)
-                continue
+                logger.exception("Failed to initialize built-in adapter: %s", class_name)
 
-            if meta["source"] in self._adapters:
-                continue
-
-            self._adapters[meta["source"]] = adapter
-            logger.info("Registered built-in adapter: %s v%s", meta["name"], meta["version"])
 
     def get(self, source_identifier: str) -> InputAdapter:
         """Get adapter by source identifier.

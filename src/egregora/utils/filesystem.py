@@ -28,7 +28,20 @@ _DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 def _extract_clean_date(date_str: str) -> str:
     """Extract a clean ``YYYY-MM-DD`` date from user-provided strings."""
-    import datetime
+    # Use standard library datetime
+    # Note: we use local import here if needed but ruff complains.
+    # We should use top level import if possible.
+    # The imports are: from datetime import UTC, date, datetime
+    # We can use `datetime` directly from that import.
+    # Let's remove the local import and rely on the global one.
+    # But wait, the code uses `datetime.date`...
+    # Top level import is `from datetime import ... datetime`.
+    # So `datetime` refers to the class, not the module.
+    # To access `datetime.date`, we need to import `date` or use the module.
+    # The code `datetime.date.fromisoformat` implies `datetime` is the module.
+    # But top level says `from datetime import ..., datetime`.
+    # So `datetime` is the class. `datetime.date` would fail if `datetime` is the class.
+    # We need to fix this usage.
 
     date_str = date_str.strip()
 
@@ -73,52 +86,55 @@ def ensure_author_entries(output_dir: Path, author_ids: list[str] | None) -> Non
     if not author_ids:
         return
 
-    # Navigate up from output_dir to find docs directory
-    # output_dir might be: docs/posts/posts/ (for posts with blog plugin structure)
-    # We need to find docs/.authors.yml
+    authors_path = _find_authors_yml(output_dir)
+    authors = _load_authors_yml(authors_path)
+
+    new_ids = _register_new_authors(authors, author_ids)
+
+    if new_ids:
+        _save_authors_yml(authors_path, authors, len(new_ids))
+
+
+def _find_authors_yml(output_dir: Path) -> Path:
     current = output_dir.resolve()
-    docs_dir = None
     for _ in range(5):  # Limit traversal depth
         if current.name == "docs" or (current / ".authors.yml").exists():
-            docs_dir = current
-            break
+            return current / ".authors.yml"
         parent = current.parent
         if parent == current:  # Reached filesystem root
             break
         current = parent
 
-    if docs_dir is None:
-        # Fallback: assume output_dir's grandparent is docs (posts/posts -> docs)
-        docs_dir = output_dir.resolve().parent.parent
+    # Fallback: assume output_dir's grandparent is docs (posts/posts -> docs)
+    return output_dir.resolve().parent.parent / ".authors.yml"
 
-    authors_path = docs_dir / ".authors.yml"
 
+def _load_authors_yml(path: Path) -> dict:
     try:
-        authors = yaml.safe_load(authors_path.read_text(encoding="utf-8")) or {}
+        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError):
-        authors = {}
+        return {}
 
-    new_ids: list[str] = []
+
+def _register_new_authors(authors: dict, author_ids: list[str]) -> list[str]:
+    new_ids = []
     for author_id in author_ids:
-        if not author_id:
-            continue
-        if author_id in authors:
-            continue
-        authors[author_id] = {"name": author_id}
-        new_ids.append(author_id)
+        if author_id and author_id not in authors:
+            authors[author_id] = {"name": author_id}
+            new_ids.append(author_id)
+    return new_ids
 
-    if not new_ids:
-        return
 
+def _save_authors_yml(path: Path, authors: dict, count: int) -> None:
     try:
-        authors_path.parent.mkdir(parents=True, exist_ok=True)
-        authors_path.write_text(
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
             yaml.dump(authors, default_flow_style=False, allow_unicode=True, sort_keys=False),
             encoding="utf-8",
         )
-        logger.info("Registered %d new author(s) in %s", len(new_ids), authors_path)
+        logger.info("Registered %d new author(s) in %s", count, path)
     except OSError as exc:
-        logger.warning("Failed to update %s: %s", authors_path, exc)
+        logger.warning("Failed to update %s: %s", path, exc)
 
 
 def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:

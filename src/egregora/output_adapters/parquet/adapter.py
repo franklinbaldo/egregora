@@ -86,7 +86,7 @@ class ParquetAdapter(OutputAdapter):
         # or let Ibis handle it. Here we use Ibis -> PyArrow for safety.
         table.to_parquet(output_path)
 
-        logger.debug(f"Persisted parquet: {output_path}")
+        logger.debug("Persisted parquet: %s", output_path)
 
     def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
         """Read a single Parquet file back into a Document."""
@@ -139,7 +139,7 @@ class ParquetAdapter(OutputAdapter):
                         doc_type=DocumentType(meta["type"]),
                         metadata=json.loads(meta["metadata_json"]),
                     )
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     logger.warning("Failed to read parquet %s: %s", p_file, e)
 
     def documents(self) -> Iterator[Document]:
@@ -170,7 +170,7 @@ class ParquetAdapter(OutputAdapter):
     def get_format_instructions(self) -> str:
         return "Focus on rich metadata."
 
-    def scaffold_site(self, site_root: Path, site_name: str, **kwargs) -> tuple[Path, bool]:
+    def scaffold_site(self, site_root: Path, site_name: str, **kwargs: Any) -> tuple[Path, bool]:
         self.initialize(site_root)
         if self.data_dir is None:
             msg = "Adapter not initialized properly, data_dir is None."

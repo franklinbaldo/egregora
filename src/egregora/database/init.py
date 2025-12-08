@@ -16,6 +16,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from egregora.database.ir_schema import IR_MESSAGE_SCHEMA, create_table_if_not_exists
+
 if TYPE_CHECKING:
     from ibis.backends.base import BaseBackend
 
@@ -43,8 +45,6 @@ def initialize_database(backend: BaseBackend) -> None:
         >>> # All tables now exist and can be used
 
     """
-    from egregora.database.ir_schema import IR_MESSAGE_SCHEMA, create_table_if_not_exists
-
     logger.info("Initializing database tables...")
 
     # Get the connection for raw SQL execution

@@ -181,7 +181,7 @@ class EnrichmentWorker(BaseWorker):
 
         return processed_count
 
-    def _process_url_batch(self, tasks: list[dict[str, Any]]) -> int:
+    def _process_url_batch(self, tasks: list[dict[str, Any]]) -> int:  # noqa: C901, PLR0912, PLR0915
         # Prepare requests
         tasks_data = []
         prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
@@ -203,7 +203,7 @@ class EnrichmentWorker(BaseWorker):
 
                 tasks_data.append({"task": task, "url": url, "prompt": prompt})
             except Exception as e:
-                logger.exception("Failed to prepare URL task %s: %s", task["task_id"], e)
+                logger.exception("Failed to prepare URL task %s", task["task_id"])
                 self.task_store.mark_failed(task["task_id"], f"Preparation failed: {e!s}")
 
         if not tasks_data:
@@ -231,7 +231,7 @@ class EnrichmentWorker(BaseWorker):
                     results.append(result)
                 except Exception as e:
                     task = future_to_task[future]["task"]
-                    logger.exception("Enrichment failed for %s: %s", task["task_id"], e)
+                    logger.exception("Enrichment failed for %s", task["task_id"])
                     results.append((task, None, str(e)))
 
         # Process results and create documents
@@ -275,7 +275,7 @@ class EnrichmentWorker(BaseWorker):
 
                 self.task_store.mark_completed(task["task_id"])
             except Exception as e:
-                logger.exception("Failed to persist enrichment for %s: %s", task["task_id"], e)
+                logger.exception("Failed to persist enrichment for %s", task["task_id"])
                 self.task_store.mark_failed(task["task_id"], f"Persistence error: {e!s}")
 
         # Insert rows into DB
@@ -283,8 +283,8 @@ class EnrichmentWorker(BaseWorker):
             try:
                 self.ctx.storage.ibis_conn.insert("messages", new_rows)
                 logger.info("Inserted %d enrichment rows", len(new_rows))
-            except Exception as e:
-                logger.exception("Failed to insert enrichment rows: %s", e)
+            except Exception:
+                logger.exception("Failed to insert enrichment rows")
 
         return len(results)
 
@@ -301,12 +301,13 @@ class EnrichmentWorker(BaseWorker):
 
             # Use run_sync to execute the async agent synchronously
             result = agent.run_sync(prompt)
-            return task, result.output, None
         except Exception as e:
-            logger.exception("Failed to enrich URL %s: %s", url, e)
+            logger.exception("Failed to enrich URL %s", url)
             return task, None, str(e)
+        else:
+            return task, result.output, None
 
-    def _process_media_batch(self, tasks: list[dict[str, Any]]) -> int:
+    def _process_media_batch(self, tasks: list[dict[str, Any]]) -> int:  # noqa: C901, PLR0912, PLR0915
         requests = []
         task_map = {}
         prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
@@ -362,7 +363,7 @@ class EnrichmentWorker(BaseWorker):
                 task_map[tag] = task
 
             except Exception as e:
-                logger.exception("Failed to prepare media task %s: %s", task["task_id"], e)
+                logger.exception("Failed to prepare media task %s", task["task_id"])
                 self.task_store.mark_failed(task["task_id"], str(e))
 
         if not requests:
@@ -380,7 +381,7 @@ class EnrichmentWorker(BaseWorker):
             # Use asyncio.run to execute the async batch method synchronously
             results = asyncio.run(model.run_batch(requests))
         except Exception as e:
-            logger.exception("Media enrichment batch failed: %s", e)
+            logger.exception("Media enrichment batch failed")
             for t in tasks:
                 if t["task_id"] in task_map:
                     self.task_store.mark_failed(t["task_id"], f"Batch failed: {e!s}")
@@ -409,8 +410,7 @@ class EnrichmentWorker(BaseWorker):
                 markdown = data.get("markdown")
 
                 if not slug or not markdown:
-                    msg = "Missing slug or markdown"
-                    raise ValueError(msg)
+                    self._raise_missing_fields()
 
                 payload = task["_parsed_payload"]
                 filename = payload["filename"]
@@ -447,7 +447,7 @@ class EnrichmentWorker(BaseWorker):
                                 self.ctx.output_format.persist(new_media_doc)
 
                             logger.info("Renamed media %s -> %s", media_id, new_media_doc.document_id)
-                    except Exception as e:
+                    except Exception as e:  # noqa: BLE001
                         logger.warning("Failed to rename media document %s: %s", media_id, e)
 
                 # 2. Persist Enrichment Document
@@ -483,15 +483,15 @@ class EnrichmentWorker(BaseWorker):
                 self.task_store.mark_completed(task["task_id"])
 
             except Exception as e:
-                logger.exception("Failed to parse media result %s: %s", task["task_id"], e)
+                logger.exception("Failed to parse media result %s", task["task_id"])
                 self.task_store.mark_failed(task["task_id"], f"Parse error: {e!s}")
 
         if new_rows:
             try:
                 self.ctx.storage.ibis_conn.insert("messages", new_rows)
                 logger.info("Inserted %d media enrichment rows", len(new_rows))
-            except Exception as e:
-                logger.exception("Failed to insert media enrichment rows: %s", e)
+            except Exception:
+                logger.exception("Failed to insert media enrichment rows")
 
         return len(results)
 
@@ -503,7 +503,9 @@ class EnrichmentWorker(BaseWorker):
         texts = []
         for cand in response.get("candidates") or []:
             content = cand.get("content") or {}
-            for part in content.get("parts") or []:
-                if "text" in part:
-                    texts.append(part["text"])
+            texts.extend(part["text"] for part in content.get("parts") or [] if "text" in part)
         return "\n".join(texts)
+
+    def _raise_missing_fields(self) -> None:
+        msg = "Missing slug or markdown"
+        raise ValueError(msg)

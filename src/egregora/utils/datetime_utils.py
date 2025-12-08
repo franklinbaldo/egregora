@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, tzinfo
 from typing import Any
 
 from dateutil import parser as dateutil_parser
@@ -12,7 +12,7 @@ from dateutil import parser as dateutil_parser
 def parse_datetime_flexible(
     value: datetime | date | str | Any | None,
     *,
-    default_timezone=UTC,
+    default_timezone: tzinfo = UTC,
     parser_kwargs: Mapping[str, Any] | None = None,
 ) -> datetime | None:
     """Parse a datetime value with ISO-first logic and optional dateutil fallback.

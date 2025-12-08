@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import ibis
+from ibis.common.exceptions import IbisError
 from ibis.expr.types import Table
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
@@ -315,7 +316,7 @@ def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[d
     """Stream table rows as batches of dictionaries without loading entire table into memory."""
     try:
         backend = table._find_backend()
-    except AttributeError:  # pragma: no cover - fallback path
+    except (AttributeError, IbisError):  # pragma: no cover - fallback path
         backend = None
 
     if backend is not None and hasattr(backend, "con"):
@@ -356,10 +357,23 @@ def schedule_enrichment(
     max_enrichments = enrichment_settings.max_enrichments
 
     url_count = _enqueue_url_enrichments(
-        messages_table, max_enrichments, enrichment_settings.enable_url, context, current_run_id
+        messages_table,
+        max_enrichments,
+        context,
+        current_run_id,
+        enable_url=enrichment_settings.enable_url,
+    )
+
+    media_config = MediaEnrichmentConfig(
+        media_mapping=media_mapping,
+        max_enrichments=max_enrichments,
+        enable_media=enrichment_settings.enable_media,
     )
     media_count = _enqueue_media_enrichments(
-        messages_table, media_mapping, max_enrichments, enrichment_settings.enable_media, context, current_run_id
+        messages_table,
+        context,
+        current_run_id,
+        media_config,
     )
     logger.info("Scheduled %d URL tasks and %d Media tasks", url_count, media_count)
 
@@ -388,6 +402,7 @@ def _enqueue_url_enrichments(
     max_enrichments: int,
     context: EnrichmentRuntimeContext,
     run_id: uuid.UUID,
+    *,
     enable_url: bool,
 ) -> int:
     if not enable_url or max_enrichments <= 0:
@@ -410,18 +425,25 @@ def _enqueue_url_enrichments(
     return scheduled
 
 
+@dataclass
+class MediaEnrichmentConfig:
+    """Config for media enrichment enqueueing."""
+
+    media_mapping: MediaMapping
+    max_enrichments: int
+    enable_media: bool
+
+
 def _enqueue_media_enrichments(
     messages_table: Table,
-    media_mapping: MediaMapping,
-    max_enrichments: int,
     context: EnrichmentRuntimeContext,
     run_id: uuid.UUID,
-    enable_media: bool,
+    config: MediaEnrichmentConfig,
 ) -> int:
-    if not enable_media or max_enrichments <= 0 or not media_mapping:
+    if not config.enable_media or config.max_enrichments <= 0 or not config.media_mapping:
         return 0
 
-    candidates = _extract_media_candidates(messages_table, media_mapping, max_enrichments)
+    candidates = _extract_media_candidates(messages_table, config.media_mapping, config.max_enrichments)
     scheduled = 0
     for ref, media_doc, metadata in candidates:
         cache_key = make_enrichment_cache_key(kind="media", identifier=media_doc.document_id)
@@ -440,7 +462,7 @@ def _enqueue_media_enrichments(
         }
         context.task_store.enqueue("enrich_media", payload, run_id)
         scheduled += 1
-        if scheduled >= max_enrichments:
+        if scheduled >= config.max_enrichments:
             break
     return scheduled
 

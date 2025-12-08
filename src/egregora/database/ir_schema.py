@@ -391,8 +391,9 @@ def ensure_identity_column(
             conn.raw_sql(sql)
         else:
             conn.execute(sql)
-    except Exception as e:
+    except (duckdb.Error, RuntimeError) as e:
         # Identity column setup failure is non-fatal (might already exist or not supported by backend)
+        # duckdb.Error is likely, but catching RuntimeError to be safe against different backends
         logger.debug(
             "Could not set identity on %s.%s (generated=%s): %s", table_name, column_name, generated, e
         )
@@ -492,7 +493,7 @@ def ensure_runs_table_exists(conn: Any) -> None:
             ).fetchone()
             if result and result[0] == 0:
                 create_runs_table(conn)
-    except Exception as e:
+    except (duckdb.Error, RuntimeError) as e:
         # Table check failed, attempt creation anyway
         logger.warning("Error checking for runs table existence: %s, attempting creation...", e)
         create_runs_table(conn)
@@ -602,7 +603,7 @@ def ensure_lineage_table_exists(conn: Any) -> None:
             ).fetchone()
             if result and result[0] == 0:
                 create_lineage_table(conn)
-    except Exception as e:
+    except (duckdb.Error, RuntimeError) as e:
         # Table check failed, attempt creation anyway
         logger.warning("Error checking for lineage table existence: %s, attempting creation...", e)
         create_lineage_table(conn)

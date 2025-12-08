@@ -6,6 +6,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from egregora.config import load_egregora_config
+
 logger = logging.getLogger(__name__)
 
 
@@ -67,8 +69,6 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
 
     # Load config if not provided
     if config is None:
-        from egregora.config import load_egregora_config
-
         config = load_egregora_config(resolved_root)
 
     # Resolve all paths from config settings (relative to site_root)

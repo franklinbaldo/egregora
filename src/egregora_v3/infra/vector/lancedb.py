@@ -156,7 +156,7 @@ class LanceDBVectorStore:
             arrow_table = self._table.search().limit(1).to_arrow()
             if len(arrow_table) == 0:
                 return []
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Table might not exist yet
             return []
 
@@ -187,7 +187,7 @@ class LanceDBVectorStore:
                 # Reconstruct Document from dict
                 doc = self._reconstruct_document(doc_dict)
                 documents.append(doc)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(
                     "Failed to deserialize document %s: %s",
                     row.get("document_id", "unknown"),

@@ -49,7 +49,8 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
         try:
             site_paths = derive_mkdocs_paths(site_root)
             return (site_paths["docs_dir"], False)
-        except Exception:
+        except (ValueError, KeyError, OSError) as e:
+            logger.debug("Failed to derive MkDocs paths, falling back to default: %s", e)
             return (site_root / "docs", False)
 
     # Cast to SiteScaffolder for type checking
@@ -63,8 +64,8 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
             scaffolder.scaffold(site_root, {"site_name": site_name})
             # Generic scaffold doesn't return created status, assume True if no error
             created = True
-    except Exception as e:
-        logger.exception("Failed to scaffold site: %s", e)
+    except Exception:
+        logger.exception("Failed to scaffold site")
         raise
 
     # Return docs_dir for backward compatibility

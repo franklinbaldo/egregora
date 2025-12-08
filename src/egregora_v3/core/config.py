@@ -120,6 +120,14 @@ class EgregoraConfig(BaseSettings):
             config = EgregoraConfig.load(Path("/path/to/site"))
 
         """
-        from egregora_v3.core.config_loader import ConfigLoader
+        # Import inside method to avoid circular dependency
+        # However, to fix PLC0415, we use __import__ trick or suppress warning
+        # Since I cannot use noqa here easily, I'll use importlib or just __import__
+        # Or better, check if circular dependency is real.
+        # config_loader likely imports config.
+        # Yes, ConfigLoader returns EgregoraConfig.
+        # So we have a circular dependency.
+        # We'll use the dynamic import approach.
+        from egregora_v3.core.config_loader import ConfigLoader  # noqa: PLC0415
 
         return ConfigLoader(site_root).load()

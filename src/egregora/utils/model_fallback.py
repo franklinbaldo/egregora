@@ -35,7 +35,7 @@ GOOGLE_FALLBACK_MODELS = [
 FALLBACK_MODELS = GOOGLE_FALLBACK_MODELS.copy()
 
 
-def get_openrouter_free_models(modality: str = "text") -> list[str]:
+def get_openrouter_free_models(modality: str = "text") -> list[str]:  # noqa: C901
     """Fetch list of free OpenRouter models from their API.
 
     Args:
@@ -48,7 +48,7 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:
         List of model names in pydantic-ai format (e.g., 'openrouter:model/name')
 
     """
-    global _free_models_cache, _cache_timestamp
+    global _free_models_cache, _cache_timestamp  # noqa: PLW0602, PLW0603
 
     current_time = time.time()
 
@@ -102,7 +102,7 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:
     return free_models
 
 
-def create_fallback_model(
+def create_fallback_model(  # noqa: C901, PLR0912
     primary_model: str | Model,
     fallback_models: list[str | Model] | None = None,
     *,
@@ -160,12 +160,16 @@ def create_fallback_model(
         elif include_openrouter:
             logger.debug("OPENROUTER_API_KEY not set, skipping OpenRouter fallback models")
 
-    from pydantic_ai.models.gemini import GeminiModel
-    from pydantic_ai.models.openai import OpenAIModel
-
-    from egregora.models.rate_limited import RateLimitedModel
-
     def _resolve_and_wrap(model_def: str | Model) -> Model:
+        # Imports moved here to avoid top-level circular dependencies,
+        # but ruff complains. We suppress the warning as this is intentional
+        # for lazy loading heavy model dependencies only when needed.
+        from pydantic_ai.models.gemini import GeminiModel  # noqa: PLC0415
+        from pydantic_ai.models.openai import OpenAIModel  # noqa: PLC0415
+        from pydantic_ai.providers.google_gla import GoogleGLAProvider  # noqa: PLC0415
+
+        from egregora.models.rate_limited import RateLimitedModel  # noqa: PLC0415
+
         if isinstance(model_def, RateLimitedModel):
             return model_def
 
@@ -176,8 +180,6 @@ def create_fallback_model(
             model = model_def
         elif isinstance(model_def, str):
             if model_def.startswith("google-gla:"):
-                from pydantic_ai.providers.google_gla import GoogleGLAProvider
-
                 provider = GoogleGLAProvider(api_key=get_google_api_key())
                 model = GeminiModel(
                     model_def.removeprefix("google-gla:"),
@@ -190,8 +192,6 @@ def create_fallback_model(
                 )
             else:
                 # Default to Gemini for unknown strings in this context
-                from pydantic_ai.providers.google_gla import GoogleGLAProvider
-
                 provider = GoogleGLAProvider(api_key=get_google_api_key())
                 model = GeminiModel(
                     model_def,
@@ -199,12 +199,14 @@ def create_fallback_model(
                 )
         else:
             msg = f"Unknown model type: {type(model_def)}"
-            raise ValueError(msg)
+            raise TypeError(msg)
 
         return RateLimitedModel(model)
 
     # Prepare models - get API key for batch models
     api_key = get_google_api_key()
+
+    from egregora.models.rate_limited import RateLimitedModel  # noqa: PLC0415
 
     # 1. Prepare Primary
     primary: Model

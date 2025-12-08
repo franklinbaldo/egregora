@@ -26,6 +26,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
+from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
 from egregora.output_adapters.conventions import StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
@@ -99,7 +100,7 @@ class MkDocsAdapter(OutputAdapter):
     def url_context(self) -> UrlContext:
         return self._ctx
 
-    def persist(self, document: Document) -> None:
+    def persist(self, document: Document) -> None:  # noqa: C901
         doc_id = document.document_id
         url = self._url_convention.canonical_url(document, self._ctx)
         path = self._url_to_path(url, document)
@@ -139,7 +140,7 @@ class MkDocsAdapter(OutputAdapter):
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
 
-    def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path | None:
+    def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path | None:  # noqa: PLR0911
         """Resolve filesystem path for a document based on its type.
 
         Args:
@@ -607,7 +608,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             metadata.setdefault("mtime_ns", 0)
         return Document(content=body.strip(), type=doc_type, metadata=metadata)
 
-    def _url_to_path(self, url: str, document: Document) -> Path:
+    def _url_to_path(self, url: str, document: Document) -> Path:  # noqa: PLR0911
         base = self._ctx.base_url.rstrip("/")
         if url.startswith(base):
             url_path = url[len(base) :]
@@ -658,8 +659,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     # Document Writing Strategies ---------------------------------------------
 
     def _write_post_doc(self, document: Document, path: Path) -> None:
-        import yaml as _yaml
-
         metadata = dict(document.metadata or {})
         if "date" in metadata:
             # Parse to datetime object for proper YAML serialization (unquoted)
@@ -695,23 +694,17 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             if related_posts_list:
                 metadata["related_posts"] = related_posts_list
 
-        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
     def _write_journal_doc(self, document: Document, path: Path) -> None:
-        import yaml as _yaml
-
         metadata = self._ensure_hidden(dict(document.metadata or {}))
-        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
     def _write_profile_doc(self, document: Document, path: Path) -> None:
-        import yaml as _yaml
-
-        from egregora.knowledge.profiles import generate_fallback_avatar_url
-
         # Ensure UUID is in metadata
         author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
         if not author_uuid:
@@ -725,7 +718,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if "avatar" not in metadata:
             metadata["avatar"] = generate_fallback_avatar_url(author_uuid)
 
-        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
         all_posts = list(self.documents())
         author_posts_docs = [post for post in all_posts if author_uuid in post.metadata.get("authors", [])]
@@ -749,8 +742,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         path.write_text(full_content, encoding="utf-8")
 
     def _write_enrichment_doc(self, document: Document, path: Path) -> None:
-        import yaml as _yaml
-
         metadata = self._ensure_hidden(document.metadata.copy())
         metadata.setdefault("document_type", document.type.value)
         metadata.setdefault("slug", document.slug)
@@ -759,7 +750,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if document.parent and document.parent.metadata.get("slug"):
             metadata.setdefault("parent_slug", document.parent.metadata.get("slug"))
 
-        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
@@ -923,8 +914,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 avatar = metadata.get("avatar", "")
                 # Generate fallback avatar if missing
                 if not avatar:
-                    from egregora.knowledge.profiles import generate_fallback_avatar_url
-
                     avatar = generate_fallback_avatar_url(author_uuid)
 
                 profiles.append(
@@ -1031,8 +1020,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
             # Generate fallback avatar if not set
             if not avatar:
-                from egregora.knowledge.profiles import generate_fallback_avatar_url
-
                 avatar = generate_fallback_avatar_url(author_id)
 
             authors_data.append(

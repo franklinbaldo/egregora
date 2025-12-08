@@ -25,14 +25,17 @@ class SQLManager:
 
     def __init__(self) -> None:
         """Initialize the SQLManager and configure the Jinja2 environment."""
+        # autoescape=False is intentional here as we are generating SQL, not HTML.
+        # We use a custom 'quote' filter to prevent SQL injection for identifiers.
+        # Values are parameterized by the DB driver, so they don't need escaping here.
         self.env = Environment(
             loader=PackageLoader("egregora.resources", "sql"),
-            autoescape=False,  # SQL isn't HTML
+            autoescape=False,  # noqa: S701 (SQL generation, not HTML)
         )
         # Register the existing secure quoting function as a filter
         self.env.filters["quote"] = quote_identifier
 
-    def render(self, template_name: str, **kwargs) -> str:
+    def render(self, template_name: str, **kwargs: object) -> str:
         """Render a SQL template with the given context.
 
         Args:
