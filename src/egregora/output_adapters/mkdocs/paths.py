@@ -100,11 +100,10 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
 
         return (docs_dir / path_obj).resolve()
 
-    # blog_root_dir is where blog artifacts go (e.g., docs/posts/)
-    # posts_dir is where actual post files go (posts/posts/ per Material blog plugin)
-    blog_root_dir = resolve_content_path(paths_settings.posts_dir)
-    # Material blog plugin expects posts in {blog}/posts/ subdirectory
-    posts_dir = blog_root_dir / "posts"
+    # posts_dir is where actual post files go (e.g., docs/posts/)
+    # We configure the blog plugin with post_dir: "." to avoid the nested posts/posts/ structure
+    posts_dir = resolve_content_path(paths_settings.posts_dir)
+    blog_root_dir = posts_dir  # blog_root_dir and posts_dir are the same
     profiles_dir = resolve_content_path(paths_settings.profiles_dir)
     media_dir = resolve_content_path(paths_settings.media_dir)
     journal_dir = _resolve_journal_dir(paths_settings, resolve_content_path)

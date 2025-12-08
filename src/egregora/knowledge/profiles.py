@@ -1,6 +1,6 @@
 """Author profiling tools for LLM to read and update author profiles."""
 
-import hashlib
+import json
 import logging
 import re
 from dataclasses import dataclass
@@ -9,6 +9,9 @@ from typing import Annotated, Any
 
 import ibis.expr.types as ir
 import yaml
+import pyarrow as pa
+from egregora.orchestration.persistence import persist_profile_document
+from egregora.orchestration.worker_base import BaseWorker
 
 logger = logging.getLogger(__name__)
 MAX_ALIAS_LENGTH = 40
@@ -794,3 +797,65 @@ def _update_authors_yml(site_root: Path, author_uuid: str, front_matter: dict[st
         logger.info("Updated .authors.yml with %s", author_uuid)
     except (OSError, yaml.YAMLError) as e:
         logger.warning("Failed to write .authors.yml: %s", e)
+
+
+class ProfileWorker(BaseWorker):
+    """Worker that updates author profiles, with coalescing optimization."""
+
+    def run(self) -> int:
+        tasks = self.task_store.fetch_pending(task_type="update_profile", limit=1000)
+        if not tasks:
+            return 0
+
+        # Group by author_uuid
+        # Map: author_uuid -> list of tasks (ordered by creation time, ascending)
+        author_tasks: dict[str, list[dict]] = {}
+        for task in tasks:
+            payload = task["payload"]
+            if isinstance(payload, str):
+                payload = json.loads(payload)
+            # Attach parsed payload for convenience
+            task["_parsed_payload"] = payload
+
+            author_uuid = payload["author_uuid"]
+            if author_uuid not in author_tasks:
+                author_tasks[author_uuid] = []
+            author_tasks[author_uuid].append(task)
+
+        processed_count = 0
+
+        for author_uuid, task_list in author_tasks.items():
+            # If multiple tasks for same author, only execute the LAST one.
+            # Mark others as superseded.
+
+            latest_task = task_list[-1]
+            superseded_tasks = task_list[:-1]
+
+            # 1. Mark superseded
+            for t in superseded_tasks:
+                self.task_store.mark_superseded(
+                    t["task_id"], reason=f"Superseded by task {latest_task['task_id']}"
+                )
+                logger.info("Coalesced profile update for %s (Task %s skipped)", author_uuid, t["task_id"])
+
+            # 2. Execute latest
+            try:
+                content = latest_task["_parsed_payload"]["content"]
+
+                # Write profile using shared helper
+                persist_profile_document(
+                    self.ctx.output_format,
+                    author_uuid,
+                    content,
+                    source_window="async_worker",
+                )
+
+                self.task_store.mark_completed(latest_task["task_id"])
+                logger.info("Updated profile for %s (Task %s)", author_uuid, latest_task["task_id"])
+                processed_count += 1
+
+            except Exception as e:
+                logger.exception("Error processing profile task %s", latest_task["task_id"])
+                self.task_store.mark_failed(latest_task["task_id"], str(e))
+
+        return processed_count

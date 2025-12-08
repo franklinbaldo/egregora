@@ -1,1 +1,2 @@
-"""DuckDB Repository Implementation."""
+"""Repository implementations for infrastructure adapters."""
+

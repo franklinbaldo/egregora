@@ -200,6 +200,60 @@ def _validate_api_key(output_dir: Path) -> None:
         raise typer.Exit(1)
 
 
+def _merge_write_options(input_file: Path, options_json: str | None) -> WriteCommandOptions:
+    """Merge JSON options with defaults to create WriteCommandOptions."""
+    import json
+
+    # Default values
+    defaults = {
+        "source": SourceType.WHATSAPP,
+        "output": Path.cwd(),
+        "step_size": 1,
+        "step_unit": WindowUnit.DAYS,
+        "overlap": 0.2,
+        "enable_enrichment": True,
+        "from_date": None,
+        "to_date": None,
+        "timezone": None,
+        "model": None,
+        "max_prompt_tokens": 100000,
+        "use_full_context_window": False,
+        "max_windows": None,
+        "resume": False,
+        "refresh": None,
+        "force": False,
+        "debug": False,
+    }
+
+    # Parse JSON options if provided
+    if options_json:
+        try:
+            user_options = json.loads(options_json)
+        except json.JSONDecodeError as e:
+            console.print(f"[red]Invalid JSON in --options: {e}[/red]")
+            raise typer.Exit(1) from e
+    else:
+        user_options = {}
+
+    # Merge with defaults
+    merged = {**defaults, **user_options}
+
+    # Convert string enums
+    if isinstance(merged.get("source"), str):
+        merged["source"] = SourceType(merged["source"])
+    if isinstance(merged.get("step_unit"), str):
+        merged["step_unit"] = WindowUnit(merged["step_unit"])
+
+    # Convert paths
+    if isinstance(merged.get("output"), str):
+        merged["output"] = Path(merged["output"])
+
+    return WriteCommandOptions(
+        input_file=input_file,
+        **merged
+    )
+
+
 def _prepare_write_config(
     options: WriteCommandOptions, from_date_obj: date | None, to_date_obj: date | None
 ) -> Any:
