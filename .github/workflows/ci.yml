@@ -17,8 +17,11 @@ on:
 
 jobs:
   lint:
-    name: Lint (ruff + mypy)
+    name: Lint (ruff)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v6
 
@@ -35,13 +38,89 @@ jobs:
         run: uv sync --all-extras
 
       - name: Run ruff (lint)
-        run: uv run ruff check src/ tests/
+        id: ruff_lint
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          uv run ruff check src/ tests/ | tee ruff_lint.log
 
       - name: Run ruff (format check)
-        run: uv run ruff format --check src/ tests/
+        id: ruff_format
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          uv run ruff format --check src/ tests/ | tee ruff_format.log
+
+      - name: Comment on lint warnings
+        if: ${{ (steps.ruff_lint.outcome == 'failure' || steps.ruff_format.outcome == 'failure') && github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const lint = fs.existsSync('ruff_lint.log') ? fs.readFileSync('ruff_lint.log', 'utf8').trim() : '';
+            const format = fs.existsSync('ruff_format.log') ? fs.readFileSync('ruff_format.log', 'utf8').trim() : '';
+            let body = '### Lint warnings detected\n';
+            if (lint) {
+              body += '\n**ruff check**\n````\n' + lint + '\n````\n';
+            }
+            if (format) {
+              body += '\n**ruff format --check**\n````\n' + format + '\n````\n';
+            }
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+      - name: Fail on lint warnings
+        if: ${{ steps.ruff_lint.outcome == 'failure' || steps.ruff_format.outcome == 'failure' }}
+        run: exit 1
+
+  type-check:
+    name: Type Check (mypy)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --all-extras
 
       - name: Run mypy
-        run: uv run mypy src/
+        id: mypy
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          uv run mypy src/ | tee mypy.log
+
+      - name: Comment on type check warnings
+        if: ${{ steps.mypy.outcome == 'failure' && github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.existsSync('mypy.log') ? fs.readFileSync('mypy.log', 'utf8').trim() : '';
+            const body = '### Type check warnings detected\n\n**mypy**\n````\n' + output + '\n````\n';
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+      - name: Fail on type check warnings
+        if: ${{ steps.mypy.outcome == 'failure' }}
+        run: exit 1
 
   test-unit:
     name: Unit Tests
@@ -64,7 +143,7 @@ jobs:
 
       - name: Run unit tests with coverage
         env:
-          GEMINI_API_KEY: "test-key"
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: uv run pytest tests/unit/ -v --cov=src --cov-branch --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov
@@ -115,7 +194,7 @@ jobs:
 
       - name: Run E2E tests with coverage
         env:
-          GEMINI_API_KEY: "test-key"
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: uv run pytest tests/e2e/ -v --cov=src --cov-branch --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov
@@ -199,7 +278,7 @@ jobs:
     name: Build & Deploy Docs
     # Only run on main branch pushes after lint and tests pass
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [lint, test-unit, test-e2e]
+    needs: [lint, type-check, test-unit, test-e2e]
     runs-on: ubuntu-latest
     permissions:
       contents: write  # Required for GitHub Pages deployment
