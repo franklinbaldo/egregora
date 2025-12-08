@@ -123,7 +123,6 @@ class TestUrlConventionNoFilesystemDependency:
 
     def test_no_path_import_in_conventions_module(self):
         """Verify conventions.py does not import pathlib.Path."""
-        import egregora.output_adapters.conventions as conventions_module
 
         # Check module doesn't have Path in its namespace
         assert not hasattr(conventions_module, "Path")

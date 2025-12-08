@@ -3,12 +3,14 @@ from egregora.utils.filesystem import _extract_clean_date
 
 def test_extract_clean_date_valid():
     assert _extract_clean_date("2023-01-01") == "2023-01-01"
-    assert _extract_clean_date("  2023-01-01  ") == "2023-01-01" # strip() makes this valid for match
+    assert _extract_clean_date("  2023-01-01  ") == "2023-01-01"  # strip() makes this valid for match
+
 
 def test_extract_clean_date_starts_with():
     # re.match only matches start of string
     assert _extract_clean_date("2023-01-01-slug") == "2023-01-01"
     assert _extract_clean_date("2023-01-01 some text") == "2023-01-01"
+
 
 def test_extract_clean_date_no_match():
     # These return original string if no match found at start

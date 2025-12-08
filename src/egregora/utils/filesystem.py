@@ -79,6 +79,7 @@ def ensure_author_entries(output_dir: Path, author_ids: list[str] | None) -> Non
     if new_ids:
         _save_authors_yml(authors_path, authors, len(new_ids))
 
+
 def _find_authors_yml(output_dir: Path) -> Path:
     current = output_dir.resolve()
     for _ in range(5):  # Limit traversal depth
@@ -91,11 +92,14 @@ def _find_authors_yml(output_dir: Path) -> Path:
 
     # Fallback: assume output_dir's grandparent is docs (posts/posts -> docs)
     return output_dir.resolve().parent.parent / ".authors.yml"
+
+
 def _load_authors_yml(path: Path) -> dict:
     try:
         return yaml.safe_load(path.read_text(encoding="utf-8")) or {{}}
     except (OSError, yaml.YAMLError):
         return {{}}
+
 
 def _register_new_authors(authors: dict, author_ids: list[str]) -> list[str]:
     new_ids = []
@@ -104,6 +108,7 @@ def _register_new_authors(authors: dict, author_ids: list[str]) -> list[str]:
             authors[author_id] = {{"name": author_id}}
             new_ids.append(author_id)
     return new_ids
+
 
 def _save_authors_yml(path: Path, authors: dict, count: int) -> None:
     try:
@@ -115,6 +120,7 @@ def _save_authors_yml(path: Path, authors: dict, count: int) -> None:
         logger.info("Registered %d new author(s) in %s", count, path)
     except OSError as exc:
         logger.warning("Failed to update %s: %s", path, exc)
+
 
 def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
     """Save a markdown post with YAML front matter and unique slugging.

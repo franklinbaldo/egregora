@@ -244,7 +244,7 @@ def test_repository_survives_malformed_json_in_database() -> None:
     with contextlib.suppress(Exception):
         con.execute(
             "INSERT INTO documents (id, doc_type, raw_json) VALUES (?, ?, ?)",
-            ('bad-id', 'post', '{invalid json}')
+            ("bad-id", "post", "{invalid json}"),
         )
 
     # Insert a valid record to ensure we get something back

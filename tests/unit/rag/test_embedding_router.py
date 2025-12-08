@@ -14,6 +14,7 @@ import httpx
 import pytest
 import respx
 
+import concurrent.futures
 from egregora.rag.embedding_router import (
     GENAI_API_BASE,
     EmbeddingRouter,
@@ -221,7 +222,6 @@ def test_router_accumulates_requests_during_rate_limit(router, embedding_model):
     )
 
     # Submit multiple requests concurrently
-    import concurrent.futures
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         futures = [
@@ -299,7 +299,6 @@ def test_endpoint_queue_batches_multiple_requests(mock_api_key, embedding_model)
     queue.start()
 
     # Submit 3 requests that should be batched
-    import concurrent.futures
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         futures = [
@@ -413,7 +412,6 @@ def test_concurrent_requests_under_rate_limits(router, embedding_model):
     )
 
     # Submit 3 concurrent requests
-    import concurrent.futures
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         futures = [executor.submit(router.embed, [f"text{i}"], "RETRIEVAL_QUERY") for i in range(3)]

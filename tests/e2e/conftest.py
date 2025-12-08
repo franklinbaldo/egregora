@@ -189,10 +189,10 @@ def mock_vector_store(monkeypatch):
     def mock_search(request):
         """Mock RAG search that returns deterministic results (sync)."""
         if RAGHit is None or RAGQueryResponse is None:
-             # If RAG modules are missing (ImportError), search can't work properly
-             # Return empty or dummy structure if possible, or fail if critical.
-             # But since RAG is optional, we might just return empty object if mocked enough.
-             return None
+            # If RAG modules are missing (ImportError), search can't work properly
+            # Return empty or dummy structure if possible, or fail if critical.
+            # But since RAG is optional, we might just return empty object if mocked enough.
+            return None
 
         # Return mock results
         hits = [
@@ -208,17 +208,14 @@ def mock_vector_store(monkeypatch):
 
     # Patch the new RAG API
     if egregora and hasattr(egregora, "rag"):
-         monkeypatch.setattr(egregora.rag, "index_documents", mock_index_documents)
-         monkeypatch.setattr(egregora.rag, "search", mock_search)
+        monkeypatch.setattr(egregora.rag, "index_documents", mock_index_documents)
+        monkeypatch.setattr(egregora.rag, "search", mock_search)
 
-         # Also patch where it's imported in write_pipeline
-         monkeypatch.setattr(
+        # Also patch where it's imported in write_pipeline
+        monkeypatch.setattr(
             "egregora.orchestration.write_pipeline.index_documents", mock_index_documents, raising=False
-         )
-         monkeypatch.setattr(
-            "egregora.agents.writer_helpers.search", mock_search, raising=False
-         )
-
+        )
+        monkeypatch.setattr("egregora.agents.writer_helpers.search", mock_search, raising=False)
 
     # Return the indexed_docs list for test assertions
     return indexed_docs

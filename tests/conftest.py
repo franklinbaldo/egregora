@@ -125,22 +125,16 @@ def stub_enrichment_agents(monkeypatch):
     monkeypatch.setattr(
         "egregora.agents.enricher.create_url_enrichment_agent",
         lambda model, _simple=True: _stub_url_agent(model),
-        raising=False
+        raising=False,
     )
     monkeypatch.setattr(
         "egregora.agents.enricher.create_media_enrichment_agent",
         lambda model: _stub_media_agent(model),
-        raising=False
+        raising=False,
     )
+    monkeypatch.setattr("egregora.agents.enricher._run_url_enrichment_async", _stub_url_run, raising=False)
     monkeypatch.setattr(
-        "egregora.agents.enricher._run_url_enrichment_async",
-        _stub_url_run,
-        raising=False
-    )
-    monkeypatch.setattr(
-        "egregora.agents.enricher._run_media_enrichment_async",
-        _stub_media_run,
-        raising=False
+        "egregora.agents.enricher._run_media_enrichment_async", _stub_media_run, raising=False
     )
 
 
@@ -160,9 +154,7 @@ def default_config():
 @pytest.fixture
 def rag_config(default_config):
     default_config.rag = RAGSettings(enabled=True, index_path=":memory:")
-    default_config.models = ModelSettings(
-        embedding="test-embedding-model", writer="test-writer-model"
-    )
+    default_config.models = ModelSettings(embedding="test-embedding-model", writer="test-writer-model")
     return default_config
 
 

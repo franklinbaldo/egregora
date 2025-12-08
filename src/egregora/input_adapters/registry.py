@@ -127,7 +127,6 @@ class InputAdapterRegistry:
             except Exception:
                 logger.exception("Failed to initialize built-in adapter: %s", class_name)
 
-
     def get(self, source_identifier: str) -> InputAdapter:
         """Get adapter by source identifier.
 

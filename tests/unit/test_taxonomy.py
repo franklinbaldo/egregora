@@ -7,6 +7,7 @@ import pytest
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.ops.taxonomy import generate_semantic_taxonomy
+from egregora.agents.taxonomy import ClusterTags
 
 
 @pytest.fixture(autouse=True)
@@ -85,8 +86,6 @@ def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config):
         # Setup Agent
         mock_agent = MagicMock()
         mock_result = MagicMock()
-
-        from egregora.agents.taxonomy import ClusterTags
 
         mappings = [
             ClusterTags(cluster_id=0, tags=["GlobalTagA", "GlobalTagB"]),

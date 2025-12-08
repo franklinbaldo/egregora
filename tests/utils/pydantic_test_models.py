@@ -12,6 +12,7 @@ import random
 from typing import Any
 
 from pydantic_ai.models.test import TestModel
+from egregora.agents.writer import write_posts_with_pydantic_agent as original
 
 
 class MockEmbeddingModel:
@@ -73,8 +74,6 @@ def install_writer_test_model(monkeypatch, captured_windows: list[str] | None = 
 
     original_func = None
     try:
-        from egregora.agents.writer import write_posts_with_pydantic_agent as original
-
         original_func = original
     except ImportError:
         pass

@@ -366,7 +366,12 @@ def schedule_enrichment(
         messages_table, max_enrichments, context, current_run_id, enrichment_settings.enable_url
     )
     media_count = _enqueue_media_enrichments(
-        messages_table, media_mapping, max_enrichments, context, current_run_id, enrichment_settings.enable_media
+        messages_table,
+        media_mapping,
+        max_enrichments,
+        context,
+        current_run_id,
+        enrichment_settings.enable_media,
     )
     logger.info("Scheduled %d URL tasks and %d Media tasks", url_count, media_count)
 
@@ -512,9 +517,7 @@ def _process_url_row(
     return discovered_count
 
 
-def _extract_url_candidates(
-    messages_table: Table, max_enrichments: int
-) -> list[tuple[str, dict[str, Any]]]:
+def _extract_url_candidates(messages_table: Table, max_enrichments: int) -> list[tuple[str, dict[str, Any]]]:
     """Extract unique URL candidates with metadata, up to max_enrichments."""
     if max_enrichments <= 0:
         return []

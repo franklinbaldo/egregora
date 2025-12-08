@@ -3,6 +3,7 @@
 This module provides lightweight in-memory storage implementations that
 satisfy the storage protocols without any filesystem operations. These are
 ideal for unit tests where you want to verify agent behavior without I/O.
+from egregora.data_primitives.document import DocumentType
 
 All implementations store data in simple dictionaries and return
 identifiers with `memory://` prefix to make testing assertions clear.
@@ -246,7 +247,6 @@ class InMemoryEnrichmentStorage:
             document: Document object with content, type, and metadata
 
         """
-        from egregora.data_primitives.document import DocumentType
 
         if document.type == DocumentType.ENRICHMENT_URL:
             url = document.metadata.get("url", "")

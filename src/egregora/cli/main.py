@@ -105,9 +105,7 @@ def _resolve_gemini_key() -> str | None:
 
 @app.command()
 def init(
-    output_dir: Annotated[
-        Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")
-    ],
+    output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
     *,
     interactive: Annotated[
         bool,
@@ -188,21 +186,16 @@ def _validate_api_key(output_dir: Path) -> None:
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 
     if not api_key:
-        console.print(
-            "[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]"
-        )
+        console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
         console.print(
             "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
         )
-        console.print(
-            "You can also create a .env file in the output directory or current directory."
-        )
+        console.print("You can also create a .env file in the output directory or current directory.")
         raise typer.Exit(1)
 
 
 def _merge_write_options(input_file: Path, options_json: str | None) -> WriteCommandOptions:
     """Merge JSON options with defaults to create WriteCommandOptions."""
-    import json
 
     # Default values
     defaults = {
@@ -248,10 +241,7 @@ def _merge_write_options(input_file: Path, options_json: str | None) -> WriteCom
     if isinstance(merged.get("output"), str):
         merged["output"] = Path(merged["output"])
 
-    return WriteCommandOptions(
-        input_file=input_file,
-        **merged
-    )
+    return WriteCommandOptions(input_file=input_file, **merged)
 
 
 def _prepare_write_config(
@@ -285,9 +275,7 @@ def _prepare_write_config(
                     "checkpoint_enabled": options.resume,
                 }
             ),
-            "enrichment": base_config.enrichment.model_copy(
-                update={"enabled": options.enable_enrichment}
-            ),
+            "enrichment": base_config.enrichment.model_copy(update={"enabled": options.enable_enrichment}),
             "rag": base_config.rag,
             **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
         },
@@ -325,9 +313,7 @@ def _resolve_write_options(
 
 @app.command()
 def write(  # noqa: PLR0913
-    input_file: Annotated[
-        Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")
-    ],
+    input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     output: Annotated[
         Path, typer.Option("--output-dir", "-o", help="Directory for the generated site")
@@ -335,15 +321,9 @@ def write(  # noqa: PLR0913
     source: Annotated[
         SourceType, typer.Option("--source-type", "-s", help="Source format of the input")
     ] = SourceType.WHATSAPP,
-    step_size: Annotated[
-        int, typer.Option(help="Window size (messages or hours)")
-    ] = 100,
-    step_unit: Annotated[
-        WindowUnit, typer.Option(help="Unit for windowing")
-    ] = WindowUnit.MESSAGES,
-    overlap: Annotated[
-        float, typer.Option(help="Overlap ratio between windows (0.0-1.0)")
-    ] = 0.0,
+    step_size: Annotated[int, typer.Option(help="Window size (messages or hours)")] = 100,
+    step_unit: Annotated[WindowUnit, typer.Option(help="Unit for windowing")] = WindowUnit.MESSAGES,
+    overlap: Annotated[float, typer.Option(help="Overlap ratio between windows (0.0-1.0)")] = 0.0,
     enable_enrichment: Annotated[
         bool,
         typer.Option(
@@ -351,32 +331,18 @@ def write(  # noqa: PLR0913
             help="Enable AI enrichment (images, links)",
         ),
     ] = True,
-    from_date: Annotated[
-        str | None, typer.Option(help="Start date filter (YYYY-MM-DD)")
-    ] = None,
-    to_date: Annotated[
-        str | None, typer.Option(help="End date filter (YYYY-MM-DD)")
-    ] = None,
-    timezone: Annotated[
-        str | None, typer.Option(help="Timezone for date calculations")
-    ] = None,
-    model: Annotated[
-        str | None, typer.Option(help="Override LLM model for all tasks")
-    ] = None,
-    max_prompt_tokens: Annotated[
-        int, typer.Option(help="Maximum context window size")
-    ] = 400000,
+    from_date: Annotated[str | None, typer.Option(help="Start date filter (YYYY-MM-DD)")] = None,
+    to_date: Annotated[str | None, typer.Option(help="End date filter (YYYY-MM-DD)")] = None,
+    timezone: Annotated[str | None, typer.Option(help="Timezone for date calculations")] = None,
+    model: Annotated[str | None, typer.Option(help="Override LLM model for all tasks")] = None,
+    max_prompt_tokens: Annotated[int, typer.Option(help="Maximum context window size")] = 400000,
     use_full_context_window: Annotated[
         bool, typer.Option("--full-context", help="Use maximum available context")
     ] = False,
-    max_windows: Annotated[
-        int | None, typer.Option(help="Limit number of windows to process")
-    ] = None,
+    max_windows: Annotated[int | None, typer.Option(help="Limit number of windows to process")] = None,
     resume: Annotated[
         bool,
-        typer.Option(
-            "--resume/--no-resume", help="Resume from last checkpoint if available"
-        ),
+        typer.Option("--resume/--no-resume", help="Resume from last checkpoint if available"),
     ] = True,
     refresh: Annotated[
         str | None,
@@ -385,9 +351,7 @@ def write(  # noqa: PLR0913
     force: Annotated[
         bool, typer.Option("--force", "-f", help="Force full refresh (same as --refresh all)")
     ] = False,
-    debug: Annotated[
-        bool, typer.Option("--debug", help="Enable debug logging")
-    ] = False,
+    debug: Annotated[bool, typer.Option("--debug", help="Enable debug logging")] = False,
     options: Annotated[
         str | None,
         typer.Option(

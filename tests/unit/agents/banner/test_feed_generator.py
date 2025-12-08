@@ -155,9 +155,7 @@ class TestBannerGenerationResult:
 class TestFeedBannerGenerator:
     """Tests for FeedBannerGenerator."""
 
-    def test_generate_from_feed_with_provider(
-        self, sample_task_feed: Feed, mock_image_provider
-    ):
+    def test_generate_from_feed_with_provider(self, sample_task_feed: Feed, mock_image_provider):
         """Test generating banners from feed using a provider."""
         generator = FeedBannerGenerator(provider=mock_image_provider)
         result_feed = generator.generate_from_feed(sample_task_feed)
@@ -252,9 +250,7 @@ class TestFeedBannerGenerator:
             assert doc.internal_metadata is not None
             assert doc.internal_metadata["task_id"] == f"task:{i}"
 
-    def test_sequential_generation_mode(
-        self, sample_task_feed: Feed, mock_image_provider
-    ):
+    def test_sequential_generation_mode(self, sample_task_feed: Feed, mock_image_provider):
         """Test sequential generation mode (default)."""
         generator = FeedBannerGenerator(provider=mock_image_provider)
         result_feed = generator.generate_from_feed(sample_task_feed, batch_mode=False)
@@ -281,9 +277,7 @@ class TestFeedBannerGenerator:
         assert len(result_feed.entries) == 1
         mock_provider.generate.assert_called_once()
 
-    def test_preserve_task_metadata(
-        self, sample_task_feed: Feed, mock_image_provider
-    ):
+    def test_preserve_task_metadata(self, sample_task_feed: Feed, mock_image_provider):
         """Test that task metadata is preserved in output documents."""
         generator = FeedBannerGenerator(provider=mock_image_provider)
         result_feed = generator.generate_from_feed(sample_task_feed)
@@ -293,9 +287,7 @@ class TestFeedBannerGenerator:
         assert banner_doc.internal_metadata["task_id"] == "task:1"
         assert "generated_at" in banner_doc.internal_metadata
 
-    def test_feed_metadata_preservation(
-        self, sample_task_feed: Feed, mock_image_provider
-    ):
+    def test_feed_metadata_preservation(self, sample_task_feed: Feed, mock_image_provider):
         """Test that feed metadata is preserved in output feed."""
         generator = FeedBannerGenerator(provider=mock_image_provider)
         result_feed = generator.generate_from_feed(sample_task_feed)

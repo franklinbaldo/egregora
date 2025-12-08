@@ -1266,9 +1266,7 @@ def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
     if dataset.context.config.rag.enabled:
         logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
         try:
-            tagged_count = generate_semantic_taxonomy(
-                dataset.context.output_format, dataset.context.config
-            )
+            tagged_count = generate_semantic_taxonomy(dataset.context.output_format, dataset.context.config)
             if tagged_count > 0:
                 logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
         except Exception as e:  # noqa: BLE001

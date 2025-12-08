@@ -9,6 +9,8 @@ Following TDD Red-Green-Refactor cycle.
 
 import csv
 import sqlite3
+import json
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -95,9 +97,7 @@ def test_sqlite_sink_creates_documents_table(sample_feed: Feed, tmp_path: Path) 
     # Verify table exists
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='documents'"
-    )
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='documents'")
     result = cursor.fetchone()
     conn.close()
 
@@ -105,9 +105,7 @@ def test_sqlite_sink_creates_documents_table(sample_feed: Feed, tmp_path: Path) 
     assert result[0] == "documents"
 
 
-def test_sqlite_sink_stores_all_published_documents(
-    sample_feed: Feed, tmp_path: Path
-) -> None:
+def test_sqlite_sink_stores_all_published_documents(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that only PUBLISHED documents are stored."""
     db_file = tmp_path / "feed.db"
     sink = SQLiteOutputSink(db_path=db_file)
@@ -135,9 +133,7 @@ def test_sqlite_sink_stores_document_fields(sample_feed: Feed, tmp_path: Path) -
     # Query first document
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, title, content, doc_type, status FROM documents ORDER BY title LIMIT 1"
-    )
+    cursor.execute("SELECT id, title, content, doc_type, status FROM documents ORDER BY title LIMIT 1")
     row = cursor.fetchone()
     conn.close()
 
@@ -152,7 +148,6 @@ def test_sqlite_sink_stores_document_fields(sample_feed: Feed, tmp_path: Path) -
 
 def test_sqlite_sink_stores_authors_as_json(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that authors are stored as JSON."""
-    import json
 
     db_file = tmp_path / "feed.db"
     sink = SQLiteOutputSink(db_path=db_file)
@@ -237,7 +232,6 @@ def test_csv_sink_stores_correct_content(sample_feed: Feed, tmp_path: Path) -> N
 
 def test_csv_sink_exports_authors_as_json(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that authors are exported as JSON string."""
-    import json
 
     csv_file = tmp_path / "feed.csv"
     sink = CSVOutputSink(csv_path=csv_file)
@@ -365,7 +359,6 @@ def test_csv_sink_includes_dates(sample_feed: Feed, tmp_path: Path) -> None:
 @given(num_docs=st.integers(min_value=0, max_value=20))
 def test_sqlite_sink_handles_any_number_of_documents(num_docs: int) -> None:
     """Property: SQLiteOutputSink handles any number of documents."""
-    import tempfile
 
     docs = [
         Document.create(
@@ -398,7 +391,6 @@ def test_sqlite_sink_handles_any_number_of_documents(num_docs: int) -> None:
 @given(num_docs=st.integers(min_value=0, max_value=20))
 def test_csv_sink_handles_any_number_of_documents(num_docs: int) -> None:
     """Property: CSVOutputSink handles any number of documents."""
-    import tempfile
 
     docs = [
         Document.create(
