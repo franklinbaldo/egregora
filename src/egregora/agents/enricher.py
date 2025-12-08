@@ -365,13 +365,17 @@ def schedule_enrichment(
         current_run_id,
         enable_url=enrichment_settings.enable_url,
     )
+    media_config = MediaEnrichmentConfig(
+        media_mapping=media_mapping,
+        max_enrichments=max_enrichments,
+        enable_media=enrichment_settings.enable_media,
+    )
+
     media_count = _enqueue_media_enrichments(
         messages_table,
-        media_mapping,
-        max_enrichments,
         context,
         current_run_id,
-        enrichment_settings.enable_media,
+        media_config,
     )
     logger.info("Scheduled %d URL tasks and %d Media tasks", url_count, media_count)
 

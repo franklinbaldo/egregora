@@ -96,16 +96,16 @@ def _find_authors_yml(output_dir: Path) -> Path:
 
 def _load_authors_yml(path: Path) -> dict:
     try:
-        return yaml.safe_load(path.read_text(encoding="utf-8")) or {{}}
+        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError):
-        return {{}}
+        return {}
 
 
 def _register_new_authors(authors: dict, author_ids: list[str]) -> list[str]:
     new_ids = []
     for author_id in author_ids:
         if author_id and author_id not in authors:
-            authors[author_id] = {{"name": author_id}}
+            authors[author_id] = {"name": author_id}
             new_ids.append(author_id)
     return new_ids
 
