@@ -1,3 +1,4 @@
+from importlib import import_module
 from pathlib import Path
 from typing import Literal
 
@@ -26,7 +27,7 @@ class PathsSettings(BaseModel):
 
     site_root: Path = Field(
         default_factory=Path.cwd,
-        description="Root directory of the site (defaults to current working directory)"
+        description="Root directory of the site (defaults to current working directory)",
     )
 
     # Content
@@ -84,6 +85,8 @@ class EgregoraConfig(BaseSettings):
     paths: PathsSettings = Field(default_factory=PathsSettings)
     pipeline: PipelineSettings = Field(default_factory=PipelineSettings)
 
+    debug: bool = Field(default=False, description="Enable debug logging and behavior")
+
     model_config = SettingsConfigDict(
         extra="ignore",
         env_prefix="EGREGORA_",
@@ -120,6 +123,6 @@ class EgregoraConfig(BaseSettings):
             config = EgregoraConfig.load(Path("/path/to/site"))
 
         """
-        from egregora_v3.core.config_loader import ConfigLoader
-
-        return ConfigLoader(site_root).load()
+        config_loader_module = import_module("egregora_v3.core.config_loader")
+        loader = config_loader_module.ConfigLoader(site_root)
+        return loader.load()

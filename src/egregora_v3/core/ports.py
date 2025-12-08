@@ -10,7 +10,7 @@ from egregora_v3.core.types import Document, DocumentType, Entry, Feed, Link
 class InputAdapter(Protocol):
     """Parses a source input into a stream of Entries."""
 
-    def parse(self, source: Path) -> Iterator[Entry]: ...
+    def parse(self, source: Path | str) -> Iterator[Entry]: ...
 
 
 @runtime_checkable
@@ -33,6 +33,7 @@ class DocumentRepository(Protocol):
 class MediaStore(Protocol):
     def upload(self, data: bytes, mime_type: str) -> Link:
         """Uploads binary data and returns a Link with href/type/length.
+
         href can be a local path, HTTP URL, or custom scheme (e.g. s3://...).
         """
         ...
@@ -64,6 +65,7 @@ class WorkspaceServiceWithMedia(WorkspaceService, Protocol):
         alt_text: str | None = None,
     ) -> Document:
         """1. Uploads binary via MediaStore.
+
         2. Creates a Document(doc_type=MEDIA) with link rel="enclosure".
         3. Persists in the configured collection.
         """
