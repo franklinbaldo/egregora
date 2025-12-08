@@ -313,9 +313,11 @@ def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
 
 def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
     """Stream table rows as batches of dictionaries without loading entire table into memory."""
+    from ibis.common.exceptions import IbisError
+
     try:
         backend = table._find_backend()
-    except AttributeError:  # pragma: no cover - fallback path
+    except (AttributeError, IbisError):  # pragma: no cover - fallback path
         backend = None
 
     if backend is not None and hasattr(backend, "con"):
@@ -356,10 +358,10 @@ def schedule_enrichment(
     max_enrichments = enrichment_settings.max_enrichments
 
     url_count = _enqueue_url_enrichments(
-        messages_table, max_enrichments, enrichment_settings.enable_url, context, current_run_id
+        messages_table, max_enrichments, context, current_run_id, enrichment_settings.enable_url
     )
     media_count = _enqueue_media_enrichments(
-        messages_table, media_mapping, max_enrichments, enrichment_settings.enable_media, context, current_run_id
+        messages_table, media_mapping, max_enrichments, context, current_run_id, enrichment_settings.enable_media
     )
     logger.info("Scheduled %d URL tasks and %d Media tasks", url_count, media_count)
 
