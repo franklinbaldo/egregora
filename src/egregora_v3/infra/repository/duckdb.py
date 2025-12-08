@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import json
 from pathlib import Path
-from typing import Any, List
 
 import duckdb
 
@@ -16,7 +17,7 @@ class DuckDBDocumentRepository(DocumentRepository):
     Serialized complex fields (links, authors) as JSON.
     """
 
-    def __init__(self, db_path: Path | str = ":memory:"):
+    def __init__(self, db_path: Path | str = ":memory:") -> None:
         self.con = duckdb.connect(str(db_path))
         self._init_schema()
 
@@ -101,7 +102,7 @@ class DuckDBDocumentRepository(DocumentRepository):
             return None
         return Document.model_validate_json(row[0])
 
-    def list(self, *, doc_type: DocumentType | None = None) -> List[Document]:
+    def list(self, *, doc_type: DocumentType | None = None) -> list[Document]:
         """List documents, optionally filtering by type."""
         if doc_type:
             rows = self.con.execute(
@@ -155,7 +156,7 @@ class DuckDBDocumentRepository(DocumentRepository):
             return None
         return Entry.model_validate_json(row[0])
 
-    def get_entries_by_source(self, source_id: str) -> List[Entry]:
+    def get_entries_by_source(self, source_id: str) -> list[Entry]:
         """Get entries by source ID (not fully implemented in schema yet, fallback to all or scan).
 
         Note: The current schema doesn't strictly index 'source_id' at top level, it's in source_json.

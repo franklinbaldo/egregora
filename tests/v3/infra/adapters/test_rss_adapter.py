@@ -1,8 +1,13 @@
-from datetime import UTC, datetime
 from pathlib import Path
 
+import feedparser
 import pytest
+
 from egregora_v3.infra.adapters.rss import RSSAdapter
+
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:To avoid breaking existing software while fixing issue 310:DeprecationWarning"
+)
 
 
 @pytest.fixture
@@ -58,7 +63,7 @@ def test_rss_adapter_malformed_file(tmp_path):
     bad_file.write_text("This is not XML")
 
     adapter = RSSAdapter()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Failed to parse feed"):
         list(adapter.parse(bad_file))
 
 
@@ -91,7 +96,6 @@ def test_rss_adapter_parses_url_string(mocker):
     assert entries[0].id == "http://example.org/remote"
 
     # Verify feedparser was called with the URL
-    import feedparser
     feedparser.parse.assert_called_with("http://example.org/feed.rss")
 
 
