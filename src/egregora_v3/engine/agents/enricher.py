@@ -220,7 +220,11 @@ Be concise but informative. Focus on what's visible or audible in the media.
 
         # Add media information
         if entry.links:
-            media_links = [link for link in entry.links if link.rel == "enclosure" and link.type]
+            media_links = [
+                link
+                for link in entry.links
+                if link.rel == "enclosure" and link.type
+            ]
             if media_links:
                 lines.append("\nMedia files:")
                 lines.extend(f"- {link.href} ({link.type})" for link in media_links)
@@ -229,6 +233,8 @@ Be concise but informative. Focus on what's visible or audible in the media.
         if entry.content:
             lines.append(f"\nExisting description: {entry.content}")
 
-        lines.append("\nProvide a clear, descriptive caption for this media content.")
+        lines.append(
+            "\nProvide a clear, descriptive caption for this media content."
+        )
 
         return "\n".join(lines)

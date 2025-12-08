@@ -4,31 +4,11 @@ These tests validate the complete pipeline flow with mocked LLM responses
 to ensure deterministic, repeatable testing without API calls.
 """
 
-import time
-
 import pytest
-
-# Import at top-level to fix PLC0415
-from egregora.orchestration.write_pipeline import (
-    WhatsAppProcessOptions,
-    process_whatsapp_export,
-)
-from egregora.output_adapters.mkdocs import MkDocsAdapter
-from egregora.output_adapters.mkdocs.paths import derive_mkdocs_paths
-from tests.e2e.mocks.enrichment_mocks import (
-    mock_media_enrichment,
-    mock_url_enrichment,
-)
-
-# Optional RAG imports
-try:
-    from egregora import rag
-except ImportError:
-    rag = None
 
 
 @pytest.mark.e2e
-def test_full_pipeline_smoke_test(  # noqa: PLR0913
+def test_full_pipeline_smoke_test(
     whatsapp_fixture,
     llm_response_mocks,
     mock_vector_store,
@@ -46,11 +26,18 @@ def test_full_pipeline_smoke_test(  # noqa: PLR0913
     - Posts and profiles are generated
     - Media is processed
     """
+    from egregora.orchestration.write_pipeline import (
+        WhatsAppProcessOptions,
+        process_whatsapp_export,
+    )
+
     # Setup output directory
     site_root = tmp_path / "site"
     site_root.mkdir()
 
     # Initialize site structure (required by pipeline)
+    from egregora.output_adapters.mkdocs import MkDocsAdapter
+
     output_format = MkDocsAdapter()
     output_format.scaffold_site(site_root, site_name="Test E2E Site")
 
@@ -71,6 +58,8 @@ def test_full_pipeline_smoke_test(  # noqa: PLR0913
     assert results is not None
 
     # Resolve paths dynamically using the same logic as the adapter
+    from egregora.output_adapters.mkdocs.paths import derive_mkdocs_paths
+
     site_paths = derive_mkdocs_paths(site_root)
     posts_dir = site_paths["posts_dir"]
     profiles_dir = site_paths["profiles_dir"]
@@ -100,6 +89,8 @@ def test_pipeline_respects_mocked_llm_responses(
     - Media enrichment returns fixture-specific data
     - Responses are deterministic and repeatable
     """
+    from tests.e2e.mocks.enrichment_mocks import mock_media_enrichment, mock_url_enrichment
+
     # Test URL enrichment returns fixture data
     url = "https://docs.pydantic.dev"
     result = mock_url_enrichment(url)
@@ -127,7 +118,7 @@ def test_pipeline_respects_mocked_llm_responses(
 
 
 @pytest.mark.e2e
-def test_pipeline_with_rag_enabled(  # noqa: PLR0913
+def test_pipeline_with_rag_enabled(
     whatsapp_fixture,
     llm_response_mocks,
     mock_vector_store,
@@ -143,6 +134,12 @@ def test_pipeline_with_rag_enabled(  # noqa: PLR0913
     - VectorStore mock tracks method calls
     - Pipeline completes with RAG enabled
     """
+    from egregora.orchestration.write_pipeline import (
+        WhatsAppProcessOptions,
+        process_whatsapp_export,
+    )
+    from egregora.output_adapters.mkdocs import MkDocsAdapter
+
     # Setup output directory
     site_root = tmp_path / "site"
     site_root.mkdir()
@@ -191,15 +188,18 @@ def test_mock_fixtures_are_available(llm_response_mocks, mock_vector_store):
     assert isinstance(mock_vector_store, list), "mock_vector_store should be a list tracking indexed docs"
 
     # Verify the new RAG API functions are mocked
-    if rag:
-        # The functions should be mocked (they won't raise ImportError)
-        assert hasattr(rag, "index_documents")
-        assert hasattr(rag, "search")
+    from egregora import rag
+
+    # The functions should be mocked (they won't raise ImportError)
+    assert hasattr(rag, "index_documents")
+    assert hasattr(rag, "search")
 
 
 @pytest.mark.e2e
 def test_url_enrichment_mock_returns_fixture_data(llm_response_mocks):
     """Verify URL enrichment mock returns expected fixture data."""
+    from tests.e2e.mocks.enrichment_mocks import mock_url_enrichment
+
     # Test known URL
     result = mock_url_enrichment("https://docs.pydantic.dev")
     assert result["title"] == "Pydantic: Data Validation with Python Type Hints"
@@ -215,6 +215,8 @@ def test_url_enrichment_mock_returns_fixture_data(llm_response_mocks):
 @pytest.mark.e2e
 def test_media_enrichment_mock_returns_fixture_data(llm_response_mocks):
     """Verify media enrichment mock returns expected fixture data."""
+    from tests.e2e.mocks.enrichment_mocks import mock_media_enrichment
+
     # Test known image
     result = mock_media_enrichment("IMG-20251028-WA0035.jpg")
     assert "test execution" in result["alt_text"].lower()
@@ -235,6 +237,9 @@ def test_mock_performance_baseline(llm_response_mocks):
     This validates that mocks don't introduce performance overhead.
     """
     # Simple performance check - mocks should be instant
+    import time
+
+    from tests.e2e.mocks.enrichment_mocks import mock_url_enrichment
 
     start = time.time()
     for _ in range(100):

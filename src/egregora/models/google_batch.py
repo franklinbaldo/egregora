@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import os
 import tempfile
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -141,11 +142,13 @@ class GoogleBatchModel(Model):
         client = genai.Client(api_key=self.api_key)
 
         # Create a temporary file for upload
-        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".jsonl") as f:
-            f.write(jsonl_body)
-            temp_path = Path(f.name)
+        fd, temp_path_str = tempfile.mkstemp(suffix=".jsonl", text=True)
+        temp_path = Path(temp_path_str)
 
         try:
+            with os.fdopen(fd, "w") as f:
+                f.write(jsonl_body)
+
             # Upload file (blocking IO)
             uploaded_file = client.files.upload(
                 file=temp_path,

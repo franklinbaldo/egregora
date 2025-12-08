@@ -49,7 +49,11 @@ Media processing:
 
 """
 
-from egregora.ops.media import extract_media_references, process_media_for_window, replace_media_references
+from egregora.ops.media import (
+    extract_media_references,
+    process_media_for_window,
+    replace_media_references,
+)
 from egregora.transformations.windowing import (
     Window,
     WindowConfig,

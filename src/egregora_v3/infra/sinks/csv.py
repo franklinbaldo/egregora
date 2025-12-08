@@ -78,9 +78,21 @@ class CSVOutputSink:
 
         """
         # Serialize lists to JSON
-        authors_json = json.dumps([author.model_dump() for author in doc.authors]) if doc.authors else ""
-        categories_json = json.dumps([cat.model_dump() for cat in doc.categories]) if doc.categories else ""
-        links_json = json.dumps([link.model_dump() for link in doc.links]) if doc.links else ""
+        authors_json = (
+            json.dumps([author.model_dump() for author in doc.authors])
+            if doc.authors
+            else ""
+        )
+        categories_json = (
+            json.dumps([cat.model_dump() for cat in doc.categories])
+            if doc.categories
+            else ""
+        )
+        links_json = (
+            json.dumps([link.model_dump() for link in doc.links])
+            if doc.links
+            else ""
+        )
 
         # Format timestamps as ISO 8601
         published_str = doc.published.isoformat() if doc.published else ""

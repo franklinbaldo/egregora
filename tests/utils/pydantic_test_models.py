@@ -7,14 +7,11 @@ LLM/tool behavior directly in tests.
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import random
 from typing import Any
 
 from pydantic_ai.models.test import TestModel
-
-from egregora.agents.writer import write_posts_with_pydantic_agent as original
 
 
 class MockEmbeddingModel:
@@ -75,8 +72,12 @@ def install_writer_test_model(monkeypatch, captured_windows: list[str] | None = 
     # The simplest is to monkeypatch `write_posts_with_pydantic_agent` to inject the model.
 
     original_func = None
-    with contextlib.suppress(ImportError):
+    try:
+        from egregora.agents.writer import write_posts_with_pydantic_agent as original
+
         original_func = original
+    except ImportError:
+        pass
 
     def _wrapper(*, prompt, config, context, test_model=None):
         if captured_windows is not None:

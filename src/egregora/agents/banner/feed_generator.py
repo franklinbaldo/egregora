@@ -15,7 +15,10 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.agents.banner.agent import BannerInput, generate_banner
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
-from egregora.agents.banner.image_generation import ImageGenerationProvider, ImageGenerationRequest
+from egregora.agents.banner.image_generation import (
+    ImageGenerationProvider,
+    ImageGenerationRequest,
+)
 from egregora_v3.core.types import Document, DocumentType, Entry, Feed
 
 
@@ -35,7 +38,9 @@ class BannerTaskEntry:
         self.summary = entry.summary or ""
         self.slug = entry.internal_metadata.get("slug") if entry.internal_metadata else None
         self.language = (
-            entry.internal_metadata.get("language", "pt-BR") if entry.internal_metadata else "pt-BR"
+            entry.internal_metadata.get("language", "pt-BR")
+            if entry.internal_metadata
+            else "pt-BR"
         )
 
     def to_banner_input(self) -> BannerInput:
@@ -212,7 +217,9 @@ class FeedBannerGenerator:
                         batch_result.image_bytes,
                         batch_result.mime_type or "image/png",
                     )
-                    results.append(BannerGenerationResult(task.entry, document=document))
+                    results.append(
+                        BannerGenerationResult(task.entry, document=document)
+                    )
                 else:
                     results.append(
                         BannerGenerationResult(
@@ -293,9 +300,15 @@ class FeedBannerGenerator:
             post_summary=banner_input.post_summary,
         )
 
-    def _create_media_document(self, task_entry: Entry, image_data: bytes, mime_type: str) -> Document:
+    def _create_media_document(
+        self, task_entry: Entry, image_data: bytes, mime_type: str
+    ) -> Document:
         """Create a MEDIA document for the generated banner."""
-        slug = task_entry.internal_metadata.get("slug") if task_entry.internal_metadata else None
+        slug = (
+            task_entry.internal_metadata.get("slug")
+            if task_entry.internal_metadata
+            else None
+        )
 
         # Encode binary image data as base64 for text storage
         content = base64.b64encode(image_data).decode("ascii")

@@ -43,7 +43,6 @@ dependencies = [
     "cattrs>=24.2",
     # High-performance XML processing for Atom feeds
     "lxml>=5.4",
-    "feedparser>=6.0.12",
 ]
 
 [project.scripts]
@@ -105,6 +104,12 @@ packages = ["src/egregora"]
 [tool.uv]
 managed = true
 
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
 
 [tool.ruff]
 line-length = 110  # Slightly more generous for strings/logs
@@ -185,9 +190,6 @@ ignore = [
     "S607",    # Partial executable path
     "S506",    # Unsafe YAML load (tests use small controlled data)
     "TID251",  # Banned pandas/pyarrow imports (allowed in tests)
-]
-"src/egregora_v3/infra/repository/duckdb.py" = [
-    "A003",  # list method name matches builtin but aligns with repository interface
 ]
 
 # Compat and testing directories - allow pandas/pyarrow

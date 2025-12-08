@@ -8,16 +8,12 @@ legacy batching runners. It provides:
 
 from __future__ import annotations
 
-import asyncio
-import base64
-import json
 import logging
 import mimetypes
 import os
 import re
 import uuid
 from collections.abc import Iterator
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -32,7 +28,7 @@ from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
 
 from egregora.config.settings import EnrichmentSettings
-from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.document import Document
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
@@ -48,7 +44,6 @@ from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.metrics import UsageTracker
-from egregora.utils.model_fallback import create_fallback_model
 from egregora.utils.paths import slugify
 from egregora.utils.quota import QuotaTracker
 
@@ -386,12 +381,12 @@ def schedule_enrichment(
         current_run_id,
         enable_url=enrichment_settings.enable_url,
     )
+
     media_config = MediaEnrichmentConfig(
         media_mapping=media_mapping,
         max_enrichments=max_enrichments,
         enable_media=enrichment_settings.enable_media,
     )
-
     media_count = _enqueue_media_enrichments(
         messages_table,
         context,

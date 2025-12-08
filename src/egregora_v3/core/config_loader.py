@@ -102,7 +102,10 @@ class ConfigLoader:
             with config_path.open(encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
                 if not isinstance(data, dict):
-                    msg = f"Configuration root must be a mapping (dictionary), got {type(data).__name__}"
+                    msg = (
+                        "Configuration root must be a mapping (dictionary), "
+                        f"got {type(data).__name__}"
+                    )
                     raise TypeError(msg)
                 return data
         except yaml.YAMLError as e:

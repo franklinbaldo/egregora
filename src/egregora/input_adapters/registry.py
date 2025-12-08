@@ -109,7 +109,7 @@ class InputAdapterRegistry:
         builtin_map = {
             "egregora.input_adapters.whatsapp.adapter": "WhatsAppAdapter",
             "egregora.input_adapters.iperon_tjro": "IperonTJROAdapter",
-            "egregora.input_adapters.self_reflection": "SelfInputAdapter",
+            "egregora.input_adapters.self_input": "SelfInputAdapter",
         }
 
         for module_name, class_name in builtin_map.items():
@@ -126,6 +126,7 @@ class InputAdapterRegistry:
                 logger.info("Registered built-in adapter: %s v%s", meta["name"], meta["version"])
             except Exception:
                 logger.exception("Failed to initialize built-in adapter: %s", class_name)
+
 
     def get(self, source_identifier: str) -> InputAdapter:
         """Get adapter by source identifier.

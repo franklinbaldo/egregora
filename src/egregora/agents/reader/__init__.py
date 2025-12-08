@@ -24,7 +24,12 @@ Example:
 """
 
 from egregora.agents.reader.agent import compare_posts
-from egregora.agents.reader.models import EvaluationRequest, PostComparison, RankingResult, ReaderFeedback
+from egregora.agents.reader.models import (
+    EvaluationRequest,
+    PostComparison,
+    RankingResult,
+    ReaderFeedback,
+)
 
 __all__ = [
     "EvaluationRequest",

@@ -11,9 +11,17 @@ This package consolidates all persistence, state management, and infrastructure:
 """
 
 from egregora.database import ir_schema as schemas
-from egregora.database.duckdb_manager import DuckDBStorageManager, duckdb_backend, temp_storage
+from egregora.database.duckdb_manager import (
+    DuckDBStorageManager,
+    duckdb_backend,
+    temp_storage,
+)
 from egregora.database.init import initialize_database
-from egregora.database.ir_schema import RUNS_TABLE_SCHEMA, create_runs_table, ensure_runs_table_exists
+from egregora.database.ir_schema import (
+    RUNS_TABLE_SCHEMA,
+    create_runs_table,
+    ensure_runs_table_exists,
+)
 from egregora.database.streaming import (
     copy_expr_to_ndjson,
     copy_expr_to_parquet,
