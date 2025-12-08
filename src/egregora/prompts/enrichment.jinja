@@ -1,6 +1,22 @@
 {% import '_privacy_macros.jinja' as privacy %}
 {{ privacy.pii_prevention_block(pii_prevention, context="enrichment") }}
 
+Goal:
+- Produce high-quality enrichment outputs for URLs or uploaded media that can be indexed and reused by downstream writer agents.
+
+Return format:
+- URL mode: return JSON with `slug` and `markdown` fields; markdown must follow the structure defined below.
+- Media mode: return `slug` and `markdown` fields, with markdown that satisfies the privacy checks and content layout defined below.
+- User modes (`url_user`, `media_user`): echo the provided URL or filename and nothing else.
+
+Warnings:
+- Strictly preserve privacy—never expose sharer identity, original messages, or timestamps; redact if needed using the PII guidance below.
+- Keep slugs concise (≤ 60 characters) and descriptive; avoid generic names.
+- When in doubt about PII, err on the side of redaction and prepend `PII_DETECTED` as instructed.
+
+Context dump:
+- Mode, media metadata, sanitized inputs, and privacy macros are supplied below; follow the mode-specific instructions for output shape and tone.
+
 {% macro media_type_instructions(media_type) -%}
 {% if media_type == "image" %}
 - Treat this like a high-value archival photograph. Describe composition, subjects, environment, text or symbols, emotional tone, and any notable stylistic choices (filters, editing artifacts, resolution).

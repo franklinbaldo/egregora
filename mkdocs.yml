@@ -164,6 +164,7 @@ nav:
     - Privacy & Anonymization: guide/privacy.md
     - RAG & Knowledge Base: guide/knowledge.md
     - Content Generation: guide/generation.md
+    - Prompting with GRWC: guide/prompting.md
   - API Reference:
     - Overview: api/index.md
     - Ingestion:
