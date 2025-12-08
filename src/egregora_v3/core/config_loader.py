@@ -50,7 +50,7 @@ class ConfigLoader:
         paths = normalized.get("paths", {}) or {}
         if not isinstance(paths, dict):
             msg = f"Configuration 'paths' must be a dictionary, got {type(paths).__name__}"
-            raise ValueError(msg)
+            raise TypeError(msg)
 
         paths["site_root"] = self.site_root
         normalized["paths"] = paths
@@ -103,7 +103,7 @@ class ConfigLoader:
                 data = yaml.safe_load(f) or {}
                 if not isinstance(data, dict):
                     msg = f"Configuration root must be a mapping (dictionary), got {type(data).__name__}"
-                    raise ValueError(msg)
+                    raise TypeError(msg)
                 return data
         except yaml.YAMLError as e:
             msg = f"Invalid YAML in {config_path}: {e}"

@@ -41,14 +41,20 @@ def check_private_imports(file_path: Path) -> list[str]:
             # Check: from module import _private
             if isinstance(node, ast.ImportFrom):
                 if node.module and not node.module.startswith("."):  # Only check absolute imports
-                    for alias in node.names:
-                        if alias.name.startswith("_") and not (
-                            alias.name.startswith("__") and alias.name.endswith("__")
-                        ):
-                            errors.append(
-                                f"{file_path}:{node.lineno}: Importing private name '{alias.name}' "
-                                f"from '{node.module}'"
-                            )
+                    private_aliases = [
+                        alias
+                        for alias in node.names
+                        if alias.name.startswith("_")
+                        and not (alias.name.startswith("__") and alias.name.endswith("__"))
+                    ]
+
+                    errors.extend(
+                        [
+                            f"{file_path}:{node.lineno}: Importing private name '{alias.name}' "
+                            f"from '{node.module}'"
+                            for alias in private_aliases
+                        ]
+                    )
     except SyntaxError:
         pass  # Skip files with syntax errors
     return errors

@@ -691,8 +691,36 @@ class EnrichmentWorker(BaseWorker):
         return processed_count
 
     def _process_url_batch(self, tasks: list[dict[str, Any]]) -> int:
-        # Prepare requests
-        tasks_data = []
+        tasks_data = self._prepare_url_tasks(tasks)
+        if not tasks_data:
+            return 0
+
+        max_concurrent = self._determine_concurrency(len(tasks_data))
+        results = self._execute_url_enrichments(tasks_data, max_concurrent)
+        return self._persist_url_results(results)
+
+    def _enrich_single_url(self, task_data: dict) -> tuple[dict, EnrichmentOutput | None, str | None]:
+        """Enrich a single URL with fallback support (sync wrapper)."""
+        task = task_data["task"]
+        url = task_data["url"]
+        prompt = task_data["prompt"]
+
+        try:
+            # Create agent with fallback
+            model = create_fallback_model(self.ctx.config.models.enricher)
+            agent = Agent(model=model, output_type=EnrichmentOutput)
+
+            # Use run_sync to execute the async agent synchronously
+            result = agent.run_sync(prompt)
+        except Exception as e:
+            logger.exception("Failed to enrich URL %s", url)
+            return task, None, str(e)
+        else:
+            return task, result.output, None
+
+    def _prepare_url_tasks(self, tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Parse payloads and render prompts for URL enrichment tasks."""
+        tasks_data: list[dict[str, Any]] = []
         prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
 
         for task in tasks:
@@ -711,39 +739,46 @@ class EnrichmentWorker(BaseWorker):
                 ).strip()
 
                 tasks_data.append({"task": task, "url": url, "prompt": prompt})
-            except Exception as e:
-                logger.exception("Failed to prepare URL task %s: %s", task["task_id"], e)
-                self.task_store.mark_failed(task["task_id"], f"Preparation failed: {e!s}")
+            except Exception as exc:
+                logger.exception("Failed to prepare URL task %s", task["task_id"])
+                self.task_store.mark_failed(task["task_id"], f"Preparation failed: {exc!s}")
 
-        if not tasks_data:
-            return 0
+        return tasks_data
 
-        # Execute enrichment for each URL individually with fallback using ThreadPoolExecutor
+    def _determine_concurrency(self, task_count: int) -> int:
         enrichment_concurrency = getattr(self.ctx.config.enrichment, "max_concurrent_enrichments", 5)
         global_concurrency = getattr(self.ctx.config.quota, "concurrency", 1)
         max_concurrent = min(enrichment_concurrency, global_concurrency)
 
         logger.info(
             "Processing %d enrichment tasks with max concurrency of %d (enrichment limit: %d, global limit: %d)",
-            len(tasks_data),
+            task_count,
             max_concurrent,
             enrichment_concurrency,
             global_concurrency,
         )
 
-        results = []
+        return max_concurrent
+
+    def _execute_url_enrichments(
+        self, tasks_data: list[dict[str, Any]], max_concurrent: int
+    ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
+        results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
             future_to_task = {executor.submit(self._enrich_single_url, td): td for td in tasks_data}
             for future in as_completed(future_to_task):
                 try:
-                    result = future.result()
-                    results.append(result)
-                except Exception as e:
+                    results.append(future.result())
+                except Exception as exc:
                     task = future_to_task[future]["task"]
-                    logger.exception("Enrichment failed for %s: %s", task["task_id"], e)
-                    results.append((task, None, str(e)))
+                    logger.exception("Enrichment failed for %s", task["task_id"])
+                    results.append((task, None, str(exc)))
 
-        # Process results and create documents
+        return results
+
+    def _persist_url_results(
+        self, results: list[tuple[dict, EnrichmentOutput | None, str | None]]
+    ) -> int:
         new_rows = []
         for task, output, error in results:
             if error:
@@ -776,49 +811,48 @@ class EnrichmentWorker(BaseWorker):
                 else:
                     self.ctx.output_format.persist(doc)
 
-                # Create DB row
                 metadata = payload["message_metadata"]
                 row = _create_enrichment_row(metadata, "URL", url, doc.document_id)
                 if row:
                     new_rows.append(row)
 
                 self.task_store.mark_completed(task["task_id"])
-            except Exception as e:
-                logger.exception("Failed to persist enrichment for %s: %s", task["task_id"], e)
-                self.task_store.mark_failed(task["task_id"], f"Persistence error: {e!s}")
+            except Exception as exc:
+                logger.exception("Failed to persist enrichment for %s", task["task_id"])
+                self.task_store.mark_failed(task["task_id"], f"Persistence error: {exc!s}")
 
-        # Insert rows into DB
         if new_rows:
             try:
                 self.ctx.storage.ibis_conn.insert("messages", new_rows)
                 logger.info("Inserted %d enrichment rows", len(new_rows))
-            except Exception as e:
-                logger.exception("Failed to insert enrichment rows: %s", e)
+            except Exception:
+                logger.exception("Failed to insert enrichment rows")
 
         return len(results)
 
-    def _enrich_single_url(self, task_data: dict) -> tuple[dict, EnrichmentOutput | None, str | None]:
-        """Enrich a single URL with fallback support (sync wrapper)."""
-        task = task_data["task"]
-        url = task_data["url"]
-        prompt = task_data["prompt"]
-
-        try:
-            # Create agent with fallback
-            model = create_fallback_model(self.ctx.config.models.enricher)
-            agent = Agent(model=model, output_type=EnrichmentOutput)
-
-            # Use run_sync to execute the async agent synchronously
-            result = agent.run_sync(prompt)
-            return task, result.output, None
-        except Exception as e:
-            logger.exception("Failed to enrich URL %s: %s", url, e)
-            return task, None, str(e)
-
     def _process_media_batch(self, tasks: list[dict[str, Any]]) -> int:
-        requests = []
-        task_map = {}
+        requests, task_map = self._prepare_media_requests(tasks)
+        if not requests:
+            return 0
+
+        results = self._execute_media_batch(requests, task_map)
+        return self._persist_media_results(results, task_map)
+
+    def _extract_text(self, response: dict[str, Any] | None) -> str:
+        if not response:
+            return ""
+        if "text" in response:
+            return response["text"]
+        texts = []
+        for cand in response.get("candidates") or []:
+            content = cand.get("content") or {}
+            texts.extend(part["text"] for part in content.get("parts") or [] if "text" in part)
+        return "\n".join(texts)
+
+    def _prepare_media_requests(self, tasks: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
         prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
+        requests: list[dict[str, Any]] = []
+        task_map: dict[str, dict[str, Any]] = {}
 
         for task in tasks:
             try:
@@ -827,22 +861,12 @@ class EnrichmentWorker(BaseWorker):
                     payload = json.loads(payload)
                 task["_parsed_payload"] = payload
 
+                file_bytes = self._load_media_bytes(task, payload)
+                if file_bytes is None:
+                    continue
+
                 filename = payload["filename"]
                 media_type = payload["media_type"]
-                media_id = payload.get("media_id")
-
-                # Use output adapter to retrieve media file (delegates path resolution to sink)
-                try:
-                    media_doc = self.ctx.output_format.read_document(DocumentType.MEDIA, media_id)
-                    if not media_doc or not media_doc.content:
-                        logger.warning("Media file not found for task %s: %s", task["task_id"], media_id)
-                        self.task_store.mark_failed(task["task_id"], "Media file not found")
-                        continue
-                    file_bytes = media_doc.content
-                except Exception as e:
-                    logger.warning("Failed to load media file for task %s: %s", task["task_id"], e)
-                    self.task_store.mark_failed(task["task_id"], f"Failed to load media: {e}")
-                    continue
                 b64_data = base64.b64encode(file_bytes).decode("utf-8")
 
                 prompt = render_prompt(
@@ -870,32 +894,49 @@ class EnrichmentWorker(BaseWorker):
                 )
                 task_map[tag] = task
 
-            except Exception as e:
-                logger.exception("Failed to prepare media task %s: %s", task["task_id"], e)
-                self.task_store.mark_failed(task["task_id"], str(e))
+            except Exception as exc:
+                logger.exception("Failed to prepare media task %s", task.get("task_id"))
+                self.task_store.mark_failed(task.get("task_id"), str(exc))
 
-        if not requests:
-            return 0
+        return requests, task_map
 
-        # Execute batch
+    def _load_media_bytes(self, task: dict[str, Any], payload: dict[str, Any]) -> bytes | None:
+        media_id = payload.get("media_id")
+        try:
+            media_doc = self.ctx.output_format.read_document(DocumentType.MEDIA, media_id)
+        except (OSError, RuntimeError, ValueError) as exc:  # pragma: no cover - defensive catch
+            logger.warning("Failed to load media file for task %s: %s", task["task_id"], exc)
+            self.task_store.mark_failed(task["task_id"], f"Failed to load media: {exc}")
+            return None
+
+        if not media_doc or not media_doc.content:
+            logger.warning("Media file not found for task %s: %s", task["task_id"], media_id)
+            self.task_store.mark_failed(task["task_id"], "Media file not found")
+            return None
+
+        return media_doc.content
+
+    def _execute_media_batch(
+        self, requests: list[dict[str, Any]], task_map: dict[str, dict[str, Any]]
+    ) -> list[Any]:
         model_name = self.ctx.config.models.enricher_vision
         api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if not api_key:
             msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment"
             raise ValueError(msg)
+
         model = GoogleBatchModel(api_key=api_key, model_name=model_name)
-
         try:
-            # Use asyncio.run to execute the async batch method synchronously
-            results = asyncio.run(model.run_batch(requests))
-        except Exception as e:
-            logger.exception("Media enrichment batch failed: %s", e)
-            for t in tasks:
-                if t["task_id"] in task_map:
-                    self.task_store.mark_failed(t["task_id"], f"Batch failed: {e!s}")
-            return 0
+            return asyncio.run(model.run_batch(requests))
+        except Exception as exc:
+            logger.exception("Media enrichment batch failed")
+            for task in task_map.values():
+                self.task_store.mark_failed(task["task_id"], f"Batch failed: {exc!s}")
+            return []
 
-        # Process results
+    def _persist_media_results(
+        self, results: list[Any], task_map: dict[str, dict[str, Any]]
+    ) -> int:
         new_rows = []
         for res in results:
             task = task_map.get(res.tag)
@@ -906,113 +947,99 @@ class EnrichmentWorker(BaseWorker):
                 self.task_store.mark_failed(task["task_id"], str(res.error))
                 continue
 
-            text = self._extract_text(res.response)
-            try:
-                clean_text = text.strip()
-                clean_text = clean_text.removeprefix("```json")
-                clean_text = clean_text.removeprefix("```")
-                clean_text = clean_text.removesuffix("```")
+            task_result = self._parse_media_result(res, task)
+            if task_result is None:
+                continue
 
-                data = json.loads(clean_text.strip())
-                slug = data.get("slug")
-                markdown = data.get("markdown")
+            payload, slug_value, markdown = task_result
+            filename = payload["filename"]
+            media_type = payload["media_type"]
+            media_id = payload.get("media_id")
 
-                if not slug or not markdown:
-                    msg = "Missing slug or markdown"
-                    raise ValueError(msg)
+            self._rename_media_document(media_id, slug_value)
 
-                payload = task["_parsed_payload"]
-                filename = payload["filename"]
-                media_type = payload["media_type"]
-                media_id = payload.get("media_id")  # Original UUID
+            enrichment_metadata = {
+                "filename": filename,
+                "media_type": media_type,
+                "parent_path": payload.get("suggested_path"),
+                "slug": slug_value,
+                "nav_exclude": True,
+                "hide": ["navigation"],
+            }
 
-                slug_value = _normalize_slug(slug, filename)
+            doc = Document(
+                content=markdown,
+                type=DocumentType.ENRICHMENT_MEDIA,
+                metadata=enrichment_metadata,
+                id=slug_value,
+                parent_id=slug_value,
+            )
 
-                # 1. Update Media Document to use Semantic ID
-                # We try to load the original media doc to update its ID (rename it)
-                if media_id:
-                    try:
-                        # Try to load existing media doc
-                        # Note: We use payload['media_id'] which was the UUID
-                        # MkDocsAdapter might not support finding by UUID if it only indexed paths?
-                        # But let's assume get() works or we can reconstruct it.
-                        # If get(MEDIA, media_id) fails, we might skip renaming or try path.
+            if self.ctx.library:
+                self.ctx.library.save(doc)
+            else:
+                self.ctx.output_format.persist(doc)
 
-                        # Actually, we don't strictly need to load it if we have content.
-                        # But we want to RENAME the existing file on disk if it exists.
-                        # OutputAdapter.persist handles rename if we pass the NEW doc with NEW ID.
-                        # But we need the content.
+            metadata = payload["message_metadata"]
+            row = _create_enrichment_row(metadata, "Media", filename, doc.document_id)
+            if row:
+                new_rows.append(row)
 
-                        media_doc = self.ctx.output_format.read_document(DocumentType.MEDIA, media_id)
-                        if media_doc:
-                            # Update with new semantic ID
-                            new_media_doc = media_doc.with_metadata(slug=slug_value)
-                            # Force new ID (Semantic)
-                            # The Document dataclass computes ID from slug if type is MEDIA.
-                            # So just persisting it should trigger the rename in adapter.
-                            if self.ctx.library:
-                                self.ctx.library.save(new_media_doc)
-                            else:
-                                self.ctx.output_format.persist(new_media_doc)
-
-                            logger.info("Renamed media %s -> %s", media_id, new_media_doc.document_id)
-                    except Exception as e:
-                        logger.warning("Failed to rename media document %s: %s", media_id, e)
-
-                # 2. Persist Enrichment Document
-                enrichment_metadata = {
-                    "filename": filename,
-                    "media_type": media_type,
-                    "parent_path": payload.get("suggested_path"),
-                    "slug": slug_value,
-                    "nav_exclude": True,
-                    "hide": ["navigation"],
-                }
-
-                doc = Document(
-                    content=markdown,
-                    type=DocumentType.ENRICHMENT_MEDIA,
-                    metadata=enrichment_metadata,
-                    id=slug_value,  # Explicitly match media ID if possible, or just use slug
-                    parent_id=slug_value,  # Link to the (now renamed) media
-                )
-
-                # V3 Architecture: Use ContentLibrary
-                if self.ctx.library:
-                    self.ctx.library.save(doc)
-                else:
-                    self.ctx.output_format.persist(doc)
-
-                # Create DB row
-                metadata = payload["message_metadata"]
-                row = _create_enrichment_row(metadata, "Media", filename, doc.document_id)
-                if row:
-                    new_rows.append(row)
-
-                self.task_store.mark_completed(task["task_id"])
-
-            except Exception as e:
-                logger.exception("Failed to parse media result %s: %s", task["task_id"], e)
-                self.task_store.mark_failed(task["task_id"], f"Parse error: {e!s}")
+            self.task_store.mark_completed(task["task_id"])
 
         if new_rows:
             try:
                 self.ctx.storage.ibis_conn.insert("messages", new_rows)
                 logger.info("Inserted %d media enrichment rows", len(new_rows))
-            except Exception as e:
-                logger.exception("Failed to insert media enrichment rows: %s", e)
+            except Exception:
+                logger.exception("Failed to insert media enrichment rows")
 
         return len(results)
 
-    def _extract_text(self, response: dict[str, Any] | None) -> str:
-        if not response:
-            return ""
-        if "text" in response:
-            return response["text"]
-        texts = []
-        for cand in response.get("candidates") or []:
-            content = cand.get("content") or {}
-            for part in content.get("parts") or []:
-                if "text" in part:
-                    texts.append(part["text"])
-        return "\n".join(texts)
+    def _parse_media_result(
+        self, res: Any, task: dict[str, Any]
+    ) -> tuple[dict[str, Any], str, str] | None:
+        text = self._extract_text(res.response)
+        try:
+            clean_text = text.strip()
+            clean_text = clean_text.removeprefix("```json")
+            clean_text = clean_text.removeprefix("```")
+            clean_text = clean_text.removesuffix("```")
+
+            data = json.loads(clean_text.strip())
+            slug = data.get("slug")
+            markdown = data.get("markdown")
+
+            if not slug or not markdown:
+                self.task_store.mark_failed(task["task_id"], "Missing slug or markdown")
+                return None
+
+            payload = task["_parsed_payload"]
+            slug_value = _normalize_slug(slug, payload["filename"])
+        except Exception as exc:
+            logger.exception("Failed to parse media result %s", task["task_id"])
+            self.task_store.mark_failed(task["task_id"], f"Parse error: {exc!s}")
+            return None
+        else:
+            return payload, slug_value, markdown
+
+    def _rename_media_document(self, media_id: str | None, slug_value: str) -> None:
+        if not media_id:
+            return
+
+        try:
+            media_doc = self.ctx.output_format.read_document(DocumentType.MEDIA, media_id)
+        except (OSError, RuntimeError, ValueError) as exc:  # pragma: no cover - defensive catch
+            logger.warning("Failed to read media document %s: %s", media_id, exc)
+            return
+
+        if not media_doc:
+            return
+
+        new_media_doc = media_doc.with_metadata(slug=slug_value)
+        if self.ctx.library:
+            self.ctx.library.save(new_media_doc)
+        else:
+            self.ctx.output_format.persist(new_media_doc)
+
+        logger.info("Renamed media %s -> %s", media_id, new_media_doc.document_id)
