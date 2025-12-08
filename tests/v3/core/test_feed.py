@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from xml.etree import ElementTree as ET
 
 from egregora_v3.core.types import (
     Document,

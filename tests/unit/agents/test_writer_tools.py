@@ -7,6 +7,7 @@ from pydantic_ai import ModelRetry
 
 import egregora.rag as rag_pkg
 import egregora.rag.models as rag_models
+import egregora.agents.writer_tools as writer_tools
 from egregora.agents.writer_tools import (
     AnnotationContext,
     AnnotationResult,

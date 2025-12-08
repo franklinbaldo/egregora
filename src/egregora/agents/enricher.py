@@ -359,7 +359,11 @@ def schedule_enrichment(
     max_enrichments = enrichment_settings.max_enrichments
 
     url_count = _enqueue_url_enrichments(
-        messages_table, max_enrichments, context, current_run_id, enrichment_settings.enable_url
+        messages_table,
+        max_enrichments,
+        context,
+        current_run_id,
+        enable_url=enrichment_settings.enable_url,
     )
     media_count = _enqueue_media_enrichments(
         messages_table,
