@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import numpy as np
 from sklearn.cluster import KMeans
@@ -13,6 +14,7 @@ logger = logging.getLogger(__name__)
 # Conservative character limit for a "safe" context batch (approx 100k tokens ~ 400k chars)
 # Gemini 1.5 has 1M+ context, but we keep it safe to avoid timeout/latency issues.
 MAX_PROMPT_CHARS = 400_000
+MIN_DOCS_FOR_CLUSTERING = 5
 
 
 def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) -> int:
@@ -23,30 +25,49 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
         logger.warning("RAG backend does not support vector retrieval. Skipping taxonomy.")
         return 0
 
-    doc_ids, X = backend.get_all_post_vectors()
+    doc_ids, vectors = backend.get_all_post_vectors()
     n_docs = len(doc_ids)
-    if n_docs < 5:
-        logger.info("Insufficient posts for clustering (<5). Skipping taxonomy.")
+    if n_docs < MIN_DOCS_FOR_CLUSTERING:
+        logger.info("Insufficient posts for clustering (<%d). Skipping taxonomy.", MIN_DOCS_FOR_CLUSTERING)
         return 0
 
     k = max(2, int(np.sqrt(n_docs / 2)))
     logger.info("Clustering %d posts into %d semantic topics...", n_docs, k)
 
     kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
-    labels = kmeans.fit_predict(X)
+    labels = kmeans.fit_predict(vectors)
 
     # 2. Build Global Context
     all_docs = list(output_sink.documents())
     doc_lookup = {d.document_id: d for d in all_docs}
 
-    clusters_input = []
+    raw_clusters = _group_clusters(k, labels, doc_ids)
+    clusters_input = _build_cluster_prompts(raw_clusters, doc_lookup)
 
-    # Group IDs first
+    # 3. Batched Global Inference
+    agent = create_global_taxonomy_agent(config.models.writer)
+    batches = _create_batches(clusters_input)
+
+    if len(batches) > 1:
+        logger.info("Taxonomy input too large, split into %d batches.", len(batches))
+
+    batch_results = _process_batches(agent, batches)
+
+    # 4. Apply Updates
+    # Flatten results
+    all_mappings = [m for sublist in batch_results for m in sublist]
+    return _apply_updates(output_sink, all_mappings, raw_clusters, doc_lookup)
+
+
+def _group_clusters(k: int, labels: np.ndarray, doc_ids: list[str]) -> dict[int, list[str]]:
     raw_clusters = {i: [] for i in range(k)}
     for idx, label in enumerate(labels):
         raw_clusters[label].append(doc_ids[idx])
+    return raw_clusters
 
-    # Build Prompt Data
+
+def _build_cluster_prompts(raw_clusters: dict[int, list[str]], doc_lookup: dict) -> list[str]:
+    clusters_input = []
     for cid, member_ids in raw_clusters.items():
         exemplars = []
         # Take top 5 to represent the cluster
@@ -58,11 +79,10 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
 
         if exemplars:
             clusters_input.append(f"Cluster {cid}:\n" + "\n".join(f"- {ex}" for ex in exemplars))
+    return clusters_input
 
-    # 3. Batched Global Inference
-    agent = create_global_taxonomy_agent(config.models.writer)
 
-    # Simple batching by character count
+def _create_batches(clusters_input: list[str]) -> list[list[str]]:
     batches = []
     current_batch = []
     current_chars = 0
@@ -78,13 +98,10 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
             current_chars += item_len
     if current_batch:
         batches.append(current_batch)
+    return batches
 
-    if len(batches) > 1:
-        logger.info("Taxonomy input too large, split into %d batches.", len(batches))
 
-    updates_count = 0
-
-    # Process batches sequentially
+def _process_batches(agent: Any, batches: list[list[str]]) -> list[Any]:
     batch_results = []
     for batch_items in batches:
         prompt = (
@@ -94,14 +111,19 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
         try:
             result = agent.run_sync(prompt)
             batch_results.append(result.data.mappings)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning("Batch taxonomy generation failed: %s", e)
             batch_results.append([])
+    return batch_results
 
-    # Flatten results
-    all_mappings = [m for sublist in batch_results for m in sublist]
 
-    # 4. Apply Updates
+def _apply_updates(
+    output_sink: OutputSink,
+    all_mappings: list[Any],
+    raw_clusters: dict[int, list[str]],
+    doc_lookup: dict,
+) -> int:
+    updates_count = 0
     for mapping in all_mappings:
         cid = mapping.cluster_id
         new_tags = mapping.tags
@@ -128,5 +150,4 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
                 updated = doc.with_metadata(tags=list(current_tags))
                 output_sink.persist(updated)
                 updates_count += 1
-
     return updates_count

@@ -28,7 +28,7 @@ def _validate_ip_is_public(
     url: str,
     blocked_ranges: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...],
 ) -> None:
-    if ip_addr.version == 6 and ip_addr.ipv4_mapped:
+    if ip_addr.version == 6 and ip_addr.ipv4_mapped:  # noqa: PLR2004
         ipv4_addr = ip_addr.ipv4_mapped
         logger.debug("Detected IPv4-mapped IPv6 address: %s maps to %s", ip_addr, ipv4_addr)
         _validate_ip_is_public(ipv4_addr, url, blocked_ranges)

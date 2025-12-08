@@ -13,7 +13,9 @@ It provides a single place for:
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import mimetypes
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
@@ -395,9 +397,6 @@ def save_media_asset(document: Document, output_dir: Path) -> Path:
         Path to the saved file
 
     """
-    import hashlib
-    import mimetypes
-
     content = document.content
     if not isinstance(content, bytes):
         if isinstance(content, str):

@@ -10,7 +10,7 @@ from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
 from egregora_v3.core.context import PipelineContext
-from egregora_v3.core.types import Entry, Feed, Link
+from egregora_v3.core.types import Entry, Feed
 
 
 class EnrichmentResult(BaseModel):
@@ -36,6 +36,7 @@ class EnricherAgent:
     def __init__(
         self,
         model: str = "test",
+        *,
         skip_existing: bool = False,
         system_prompt: str | None = None,
     ) -> None:
@@ -123,10 +124,7 @@ Be concise but informative. Focus on what's visible or audible in the media.
             return False
 
         # Skip if entry already has content and skip_existing=True
-        if self.skip_existing and entry.content:
-            return False
-
-        return True
+        return not (self.skip_existing and entry.content)
 
     async def enrich(
         self,
@@ -229,8 +227,7 @@ Be concise but informative. Focus on what's visible or audible in the media.
             ]
             if media_links:
                 lines.append("\nMedia files:")
-                for link in media_links:
-                    lines.append(f"- {link.href} ({link.type})")
+                lines.extend(f"- {link.href} ({link.type})" for link in media_links)
 
         # Add existing content if any
         if entry.content:

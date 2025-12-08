@@ -30,6 +30,7 @@ Usage:
 """
 
 import contextlib
+import shutil
 import subprocess
 import uuid
 from collections.abc import Callable
@@ -42,6 +43,7 @@ import duckdb
 import ibis
 
 from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.ir_schema import ensure_lineage_table_exists, ensure_runs_table_exists
 
 
 @lru_cache(maxsize=1)
@@ -52,14 +54,13 @@ def get_git_commit_sha() -> str | None:
         Git commit SHA (e.g., "a1b2c3d4..."), or None if not in git repo
 
     """
-    import shutil
-
     git_path = shutil.which("git")
     if not git_path:
         return None
 
     try:
-        result = subprocess.run(
+        # S603 is ignored because we're running git, which we assume is safe in this context.
+        result = subprocess.run(  # noqa: S603
             [git_path, "rev-parse", "HEAD"],
             capture_output=True,
             text=True,
@@ -174,6 +175,10 @@ class RunMetadata:
     trace_id: str | None = None
 
 
+def _ensure_runs_table(conn: duckdb.DuckDBPyConnection) -> None:
+    ensure_runs_table_exists(conn)
+
+
 def record_run(
     conn: duckdb.DuckDBPyConnection | DuckDBStorageManager,
     metadata: RunMetadata,
@@ -189,10 +194,8 @@ def record_run(
 
     """
     # Ensure runs table exists (idempotent)
-    from egregora.database.ir_schema import ensure_runs_table_exists
-
     with _connection_scope(conn) as resolved_conn:
-        ensure_runs_table_exists(resolved_conn)
+        _ensure_runs_table(resolved_conn)
 
         # Auto-detect code_ref if not provided
         code_ref = metadata.code_ref or get_git_commit_sha()
@@ -232,6 +235,10 @@ def record_run(
         )
 
 
+def _ensure_lineage_table(conn: duckdb.DuckDBPyConnection) -> None:
+    ensure_lineage_table_exists(conn)
+
+
 def record_lineage(
     conn: duckdb.DuckDBPyConnection | DuckDBStorageManager,
     child_run_id: uuid.UUID,
@@ -252,10 +259,8 @@ def record_lineage(
         return  # No lineage to record
 
     # Ensure lineage table exists (idempotent)
-    from egregora.database.ir_schema import ensure_lineage_table_exists
-
     with _connection_scope(conn) as resolved_conn:
-        ensure_lineage_table_exists(resolved_conn)
+        _ensure_lineage_table(resolved_conn)
 
         # Insert lineage edges
         for parent_id in parent_run_ids:

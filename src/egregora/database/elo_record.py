@@ -20,4 +20,3 @@ class ComparisonRecord:
     rating_b_after: float
     timestamp: datetime
     reader_feedback: str | None
-

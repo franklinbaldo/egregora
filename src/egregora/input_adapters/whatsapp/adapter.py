@@ -18,6 +18,7 @@ from egregora.input_adapters.privacy_config import AdapterPrivacyConfig
 from egregora.input_adapters.whatsapp.commands import EGREGORA_COMMAND_PATTERN
 from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
 from egregora.input_adapters.whatsapp.utils import discover_chat_file
+from egregora.ops.media import detect_media_type
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.utils.paths import slugify
 
@@ -214,8 +215,6 @@ class WhatsAppAdapter(InputAdapter):
         return None
 
     def _detect_media_type(self, media_path: Path) -> str | None:
-        from egregora.ops.media import detect_media_type
-
         return detect_media_type(media_path)
 
     def get_metadata(self, input_path: Path, **_kwargs: _EmptyKwargs) -> dict[str, Any]:

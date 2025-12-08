@@ -257,7 +257,7 @@ class EndpointQueue:
                     req.future.set_result(embeddings[offset : offset + count])
                     offset += count
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 # Propagate error to all waiting futures
                 for req in group_requests:
                     if not req.future.done():
@@ -331,8 +331,6 @@ class EndpointQueue:
                         raise RuntimeError(msg)
                     embeddings.append(list(values))
 
-                return embeddings
-
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == HTTP_TOO_MANY_REQUESTS:
                     retry_after = float(e.response.headers.get("Retry-After", 60))
@@ -342,6 +340,8 @@ class EndpointQueue:
                     self.rate_limiter.mark_error()
                     raise
                 raise  # Client error, don't retry
+            else:
+                return embeddings
 
     def _handle_response_status(self, response: httpx.Response) -> None:
         """Handle HTTP response status."""
@@ -489,7 +489,7 @@ def get_router(
     Prefer :func:`create_embedding_router` when the caller owns lifecycle
     management. This helper is kept for backwards compatibility.
     """
-    global _router
+    global _router  # noqa: PLW0603
     with _router_lock:
         if _router is None:
             _router = create_embedding_router(
@@ -503,7 +503,7 @@ def get_router(
 
 def shutdown_router() -> None:
     """Shutdown global router (for cleanup)."""
-    global _router
+    global _router  # noqa: PLW0603
     with _router_lock:
         if _router is not None:
             _router.stop()

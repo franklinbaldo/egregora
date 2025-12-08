@@ -12,9 +12,11 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 import ibis.expr.datatypes as dt
+import yaml
 
 from egregora.data_primitives import DocumentMetadata, OutputSink, UrlConvention
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.utils import safe_path_join, slugify
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -173,8 +175,6 @@ class OutputAdapter(OutputSink, ABC):
     @staticmethod
     def normalize_slug(slug: str) -> str:
         """Normalize slug to be URL-safe and filesystem-safe."""
-        from egregora.utils import slugify
-
         return slugify(slug)
 
     @staticmethod
@@ -211,8 +211,6 @@ class OutputAdapter(OutputSink, ABC):
     @staticmethod
     def generate_unique_filename(base_dir: Path, filename_pattern: str, max_attempts: int = 1000) -> Path:
         """Generate unique filename by adding suffix if file exists."""
-        from egregora.utils import safe_path_join
-
         # Try original filename first
         if "{suffix}" not in filename_pattern:
             # Add suffix placeholder before extension
@@ -242,8 +240,6 @@ class OutputAdapter(OutputSink, ABC):
 
     def parse_frontmatter(self, content: str) -> tuple[dict, str]:
         """Parse frontmatter from markdown content."""
-        import yaml
-
         if not content.startswith("---\n"):
             return {}, content
 

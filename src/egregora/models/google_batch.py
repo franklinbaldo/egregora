@@ -5,18 +5,25 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import os
+import tempfile
 from collections.abc import Iterable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import httpx
+from google import genai
+from google.genai import types
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models import Model, ModelRequestParameters, ModelSettings
 from pydantic_ai.usage import RequestUsage
-from tenacity import retry, retry_if_result, stop_after_delay, wait_fixed
+from tenacity import RetryError, retry, retry_if_result, stop_after_delay, wait_fixed
 
 logger = logging.getLogger(__name__)
+
+HTTP_TOO_MANY_REQUESTS = 429
 
 
 @dataclass
@@ -83,7 +90,7 @@ class GoogleBatchModel(Model):
         if first.error:
             message = first.error.get("message") if isinstance(first.error, dict) else str(first.error)
             code = first.error.get("code") if isinstance(first.error, dict) else None
-            if code == 429 or (message and "RESOURCE_EXHAUSTED" in message):
+            if code == HTTP_TOO_MANY_REQUESTS or (message and "RESOURCE_EXHAUSTED" in message):
                 raise UsageLimitExceeded(message or "Quota exceeded")
             raise ModelHTTPError(
                 status_code=code or 0, model_name=self.model_name, body=message or str(first.error)
@@ -132,20 +139,16 @@ class GoogleBatchModel(Model):
             jsonl_lines.append(json.dumps(record))
         jsonl_body = "\n".join(jsonl_lines)
 
-        from google import genai
-        from google.genai import types
-
         client = genai.Client(api_key=self.api_key)
 
         # Create a temporary file for upload
-        import os
-        import tempfile
-
-        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".jsonl") as f:
-            f.write(jsonl_body)
-            temp_path = f.name
+        fd, temp_path_str = tempfile.mkstemp(suffix=".jsonl", text=True)
+        temp_path = Path(temp_path_str)
 
         try:
+            with os.fdopen(fd, "w") as f:
+                f.write(jsonl_body)
+
             # Upload file (blocking IO)
             uploaded_file = client.files.upload(
                 file=temp_path,
@@ -166,20 +169,20 @@ class GoogleBatchModel(Model):
             return self._download_results(client, completed_job.output_uri, requests)
 
         except genai.errors.ClientError as e:
-            logger.exception("Google GenAI ClientError: %s", e)
-            if e.code == 429:
-                logger.exception("429 Details: %s", e.message)
+            if e.code == HTTP_TOO_MANY_REQUESTS:
+                logger.exception("Google GenAI ClientError (429 Details: %s)", e.message)
                 # Try to extract more details if available
                 if hasattr(e, "details"):
                     logger.exception("Error Details: %s", e.details)
 
                 msg = f"Google Batch API Quota Exceeded: {e.message}"
                 raise UsageLimitExceeded(msg) from e
+            logger.exception("Google GenAI ClientError")
             raise ModelHTTPError(status_code=e.code, model_name=self.model_name, body=str(e)) from e
 
         finally:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
+            if temp_path.exists():
+                temp_path.unlink()
 
     def _poll_job(self, client: Any, job_name: str) -> Any:
         """Poll the batch job for completion using tenacity."""
@@ -199,8 +202,6 @@ class GoogleBatchModel(Model):
         def _get_job_with_retry() -> Any:
             # client.batches.get is blocking
             return client.batches.get(name=job_name)
-
-        from tenacity import RetryError
 
         try:
             job = _get_job_with_retry()
@@ -279,7 +280,5 @@ class GoogleBatchModel(Model):
         texts: list[str] = []
         for cand in response.get("candidates") or []:
             content = cand.get("content") or {}
-            for part in content.get("parts") or []:
-                if "text" in part:
-                    texts.append(part["text"])
+            texts.extend(part["text"] for part in content.get("parts") or [] if "text" in part)
         return "\n".join(texts)

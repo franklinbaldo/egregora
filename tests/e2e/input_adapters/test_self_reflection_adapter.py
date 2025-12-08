@@ -34,7 +34,9 @@ def test_self_adapter_parses_existing_site(tmp_path: Path):
     _mkdocs_path, created = output_format.scaffold_site(tmp_path, site_name="Self Test")
     assert created
 
-    posts_dir = tmp_path / "docs" / "posts"
+    # Use the adapter's configured posts directory to match its expectations
+    # (e.g., docs/posts/posts vs docs/posts)
+    posts_dir = getattr(output_format, "posts_dir", tmp_path / "docs" / "posts")
     post_one = posts_dir / "2025-01-01-sample.md"
     post_two = posts_dir / "2025-01-02-second.md"
     _write_markdown(post_one, "Sample", "sample-post", "Body text 1")

@@ -22,6 +22,8 @@ Strategy:
 from __future__ import annotations
 
 import logging
+import os
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -216,10 +218,11 @@ class RAGSettings(BaseModel):
     @classmethod
     def validate_top_k(cls, v: int) -> int:
         """Validate top_k is reasonable and warn if too high."""
-        if v > 15:
+        if v > RAG_TOP_K_WARNING_THRESHOLD:
             logger.warning(
-                f"RAG top_k={v} is unusually high. "
-                f"Consider values between 5-10 for better performance and relevance."
+                "RAG top_k=%s is unusually high. "
+                "Consider values between 5-10 for better performance and relevance.",
+                v,
             )
         return v
 
@@ -757,10 +760,11 @@ class EgregoraConfig(BaseSettings):
             raise ValueError(msg)
 
         # Warn about very high max_prompt_tokens
-        if self.pipeline.max_prompt_tokens > 200_000:
+        if self.pipeline.max_prompt_tokens > MAX_PROMPT_TOKENS_WARNING_THRESHOLD:
             logger.warning(
-                f"pipeline.max_prompt_tokens={self.pipeline.max_prompt_tokens} exceeds most model limits. "
-                "Consider using pipeline.use_full_context_window=true instead of setting a high token limit."
+                "pipeline.max_prompt_tokens=%s exceeds most model limits. "
+                "Consider using pipeline.use_full_context_window=true instead of setting a high token limit.",
+                self.pipeline.max_prompt_tokens,
             )
 
         # Warn if use_full_context_window is enabled
@@ -837,8 +841,6 @@ def find_egregora_config(start_dir: Path) -> Path | None:
 
 def _collect_env_override_paths() -> set[tuple[str, ...]]:
     """Return the set of config paths defined via environment variables."""
-    import os
-
     prefix = "EGREGORA_"
     env_paths: set[tuple[str, ...]] = set()
 
@@ -859,8 +861,6 @@ def _merge_config(
     current_path: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Merge override into base, skipping keys provided via env vars."""
-    from copy import deepcopy
-
     merged = deepcopy(base)
 
     for key, value in override.items():
@@ -1131,8 +1131,6 @@ __all__ = [
 
 def get_openrouter_api_key() -> str:
     """Get OpenRouter API key from environment."""
-    import os
-
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         msg = "OPENROUTER_API_KEY environment variable is required for OpenRouter models"
@@ -1143,6 +1141,4 @@ def get_openrouter_api_key() -> str:
 
 def openrouter_api_key_status() -> bool:
     """Check if OPENROUTER_API_KEY is configured."""
-    import os
-
     return bool(os.environ.get("OPENROUTER_API_KEY"))

@@ -42,9 +42,11 @@ def duckdb_conn():
 
 
 @pytest.fixture
-def repo():
+def repo(duckdb_conn):
     """Create initialized DuckDB repository."""
-    return DuckDBDocumentRepository(":memory:")
+    repository = DuckDBDocumentRepository(duckdb_conn)
+    repository.initialize()
+    return repository
 
 
 # ========== Property-Based Tests ==========
@@ -54,7 +56,9 @@ def repo():
 @given(st.integers(min_value=1, max_value=100))
 def test_save_and_retrieve_any_number_of_documents(num_docs: int) -> None:
     """Property: Can save and retrieve any number of documents."""
-    repo = DuckDBDocumentRepository(":memory:")
+    conn = ibis.duckdb.connect(":memory:")
+    repo = DuckDBDocumentRepository(conn)
+    repo.initialize()
 
     # Generate documents
     docs = [
@@ -93,7 +97,9 @@ def test_save_and_retrieve_any_number_of_documents(num_docs: int) -> None:
 )
 def test_content_preservation(content: str, doc_type: DocumentType) -> None:
     """Property: Content is always preserved exactly."""
-    repo = DuckDBDocumentRepository(":memory:")
+    conn = ibis.duckdb.connect(":memory:")
+    repo = DuckDBDocumentRepository(conn)
+    repo.initialize()
 
     doc = Document.create(
         content=content,
@@ -114,7 +120,9 @@ def test_content_preservation(content: str, doc_type: DocumentType) -> None:
 @given(st.integers(min_value=1, max_value=50))
 def test_save_is_idempotent(num_saves: int) -> None:
     """Property: Saving the same document multiple times is idempotent."""
-    repo = DuckDBDocumentRepository(":memory:")
+    conn = ibis.duckdb.connect(":memory:")
+    repo = DuckDBDocumentRepository(conn)
+    repo.initialize()
 
     doc = Document.create(
         content="Test content",
@@ -142,7 +150,9 @@ def test_save_is_idempotent(num_saves: int) -> None:
 )
 def test_list_filter_by_type_correctness(doc_types: list[DocumentType]) -> None:
     """Property: Filtering by type returns only documents of that type."""
-    repo = DuckDBDocumentRepository(":memory:")
+    conn = ibis.duckdb.connect(":memory:")
+    repo = DuckDBDocumentRepository(conn)
+    repo.initialize()
 
     # Create documents of various types
     for i, doc_type in enumerate(doc_types):
@@ -501,19 +511,18 @@ def test_bulk_insert_and_retrieve(repo: DuckDBDocumentRepository) -> None:
 # ========== Error Handling ==========
 
 
-def test_repository_survives_malformed_json_in_database() -> None:
+def test_repository_survives_malformed_json_in_database(
+    duckdb_conn,
+) -> None:
     """Test graceful handling of corrupted data."""
-    repo = DuckDBDocumentRepository(":memory:")
-    # repo.con is the duckdb connection
-    con = repo.con
+    repo = DuckDBDocumentRepository(duckdb_conn)
+    repo.initialize()
 
-    # Insert malformed JSON directly.
-    # Note: schema is: id, title, ..., raw_json
-    # We'll just insert something invalid into 'raw_json'
+    # Insert malformed JSON directly
     try:
-        con.execute(
-            "INSERT INTO documents (id, doc_type, raw_json) VALUES (?, ?, ?)",
-            ('bad-id', 'post', '{invalid json}')
+        duckdb_conn.con.execute(
+            f"INSERT INTO {repo.table_name} (id, doc_type, json_data, updated) "
+            "VALUES ('bad-id', 'post', '{invalid json}', CURRENT_TIMESTAMP)"
         )
     except Exception:
         # Some databases might reject invalid JSON
