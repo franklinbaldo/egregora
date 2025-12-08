@@ -3,7 +3,6 @@
 This module provides lightweight in-memory storage implementations that
 satisfy the storage protocols without any filesystem operations. These are
 ideal for unit tests where you want to verify agent behavior without I/O.
-from egregora.data_primitives.document import DocumentType
 
 All implementations store data in simple dictionaries and return
 identifiers with `memory://` prefix to make testing assertions clear.
@@ -21,9 +20,9 @@ Example Usage:
         metadata, content = posts.read("my-post")
         assert metadata["title"] == "Expected Title"
 """
-
 import uuid as uuid_lib
 
+from egregora.data_primitives.document import DocumentType
 from egregora.utils.paths import slugify
 
 

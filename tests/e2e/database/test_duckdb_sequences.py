@@ -15,6 +15,7 @@ import pytest
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.database.duckdb_manager import DuckDBStorageManager
 
+from egregora.database.tracking import RunMetadata, record_run
 
 def test_annotation_store_initialization(tmp_path: Path):
     """Test that AnnotationStore can initialize with sequence setup.
@@ -38,7 +39,6 @@ def test_annotation_store_initialization(tmp_path: Path):
         assert sequence_state.start_value == 1
 
 
-from egregora.database.tracking import RunMetadata, record_run
 
 
 def test_run_tracking_with_sequences(tmp_path: Path):

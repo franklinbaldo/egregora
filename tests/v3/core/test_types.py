@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-import defusedxml.ElementTree as ET
+import defusedxml.ElementTree as ElementTree
 import pytest
 from pydantic import ValidationError
 
