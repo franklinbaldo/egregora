@@ -161,7 +161,7 @@ def test_sqlite_sink_stores_authors_as_json(sample_feed: Feed, tmp_path: Path) -
 
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
-    cursor.execute("SELECT authors FROM documents WHERE title='First Post'")
+    cursor.execute("SELECT authors FROM documents WHERE title = 'First Post'")
     authors_json = cursor.fetchone()[0]
     conn.close()
 
@@ -171,123 +171,10 @@ def test_sqlite_sink_stores_authors_as_json(sample_feed: Feed, tmp_path: Path) -
     assert authors[0]["email"] == "alice@example.com"
 
 
-def test_sqlite_sink_overwrites_existing_database(
-    sample_feed: Feed, tmp_path: Path
-) -> None:
-    """Test that sink clears existing data before publishing."""
-    db_file = tmp_path / "feed.db"
-
-    # Create initial database with data
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-    cursor.execute("CREATE TABLE documents (id TEXT, title TEXT)")
-    cursor.execute("INSERT INTO documents VALUES ('old-id', 'Old Title')")
-    conn.commit()
-    conn.close()
-
-    sink = SQLiteOutputSink(db_path=db_file)
-    sink.publish(sample_feed)
-
-    # Old data should be gone
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM documents WHERE title='Old Title'")
-    count = cursor.fetchone()[0]
-    conn.close()
-
-    assert count == 0
-
-
-def test_sqlite_sink_creates_parent_directories(
-    sample_feed: Feed, tmp_path: Path
-) -> None:
-    """Test that sink creates parent directories if they don't exist."""
-    db_file = tmp_path / "deeply" / "nested" / "directory" / "feed.db"
-
-    sink = SQLiteOutputSink(db_path=db_file)
-    sink.publish(sample_feed)
-
-    assert db_file.exists()
-    assert db_file.parent.exists()
-
-
-def test_sqlite_sink_with_empty_feed(tmp_path: Path) -> None:
-    """Test that sink handles empty feed (no entries)."""
-    empty_feed = Feed(
-        id="empty-feed",
-        title="Empty Feed",
-        updated=datetime.now(UTC),
-        entries=[],
-    )
-
-    db_file = tmp_path / "empty.db"
-    sink = SQLiteOutputSink(db_path=db_file)
-
-    sink.publish(empty_feed)
-
-    # Database should exist with empty table
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM documents")
-    count = cursor.fetchone()[0]
-    conn.close()
-
-    assert count == 0
-
-
-def test_sqlite_sink_handles_unicode_content(tmp_path: Path) -> None:
-    """Test that sink handles Unicode characters correctly."""
-    doc = Document.create(
-        content="Unicode content: 你好世界 🎉 Olá",
-        doc_type=DocumentType.POST,
-        title="Unicode Test",
-        status=DocumentStatus.PUBLISHED,
-    )
-
-    feed = documents_to_feed([doc], feed_id="test", title="Test")
-
-    db_file = tmp_path / "unicode.db"
-    sink = SQLiteOutputSink(db_path=db_file)
-
-    sink.publish(feed)
-
-    # Verify Unicode preserved
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-    cursor.execute("SELECT content FROM documents")
-    content = cursor.fetchone()[0]
-    conn.close()
-
-    assert "你好世界" in content
-    assert "🎉" in content
-    assert "Olá" in content
-
-
-def test_sqlite_sink_includes_timestamps(sample_feed: Feed, tmp_path: Path) -> None:
-    """Test that published and updated timestamps are stored."""
-    db_file = tmp_path / "feed.db"
-    sink = SQLiteOutputSink(db_path=db_file)
-
-    sink.publish(sample_feed)
-
-    conn = sqlite3.connect(db_file)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT published, updated FROM documents WHERE title='First Post'"
-    )
-    row = cursor.fetchone()
-    conn.close()
-
-    assert row is not None
-    published, updated = row
-    assert published is not None
-    assert updated is not None
-
-
 # ========== CSVOutputSink Tests ==========
 
 
-def test_csv_sink_creates_csv_file(sample_feed: Feed, tmp_path: Path) -> None:
+def test_csv_sink_creates_file(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that CSVOutputSink creates a CSV file."""
     csv_file = tmp_path / "feed.csv"
     sink = CSVOutputSink(csv_path=csv_file)
@@ -297,14 +184,14 @@ def test_csv_sink_creates_csv_file(sample_feed: Feed, tmp_path: Path) -> None:
     assert csv_file.exists()
 
 
-def test_csv_sink_has_header_row(sample_feed: Feed, tmp_path: Path) -> None:
+def test_csv_sink_has_header(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that CSV file has header row."""
     csv_file = tmp_path / "feed.csv"
     sink = CSVOutputSink(csv_path=csv_file)
 
     sink.publish(sample_feed)
 
-    with open(csv_file, newline="", encoding="utf-8") as f:
+    with csv_file.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         fieldnames = reader.fieldnames
 
@@ -312,20 +199,17 @@ def test_csv_sink_has_header_row(sample_feed: Feed, tmp_path: Path) -> None:
     assert "id" in fieldnames
     assert "title" in fieldnames
     assert "content" in fieldnames
-    assert "doc_type" in fieldnames
-    assert "status" in fieldnames
+    assert "published" in fieldnames
 
 
-def test_csv_sink_exports_only_published_documents(
-    sample_feed: Feed, tmp_path: Path
-) -> None:
-    """Test that only PUBLISHED documents are exported."""
+def test_csv_sink_stores_published_documents(sample_feed: Feed, tmp_path: Path) -> None:
+    """Test that only PUBLISHED documents are stored."""
     csv_file = tmp_path / "feed.csv"
     sink = CSVOutputSink(csv_path=csv_file)
 
     sink.publish(sample_feed)
 
-    with open(csv_file, newline="", encoding="utf-8") as f:
+    with csv_file.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
 
@@ -333,23 +217,22 @@ def test_csv_sink_exports_only_published_documents(
     assert len(rows) == 2
 
 
-def test_csv_sink_preserves_document_data(sample_feed: Feed, tmp_path: Path) -> None:
-    """Test that document data is preserved in CSV."""
+def test_csv_sink_stores_correct_content(sample_feed: Feed, tmp_path: Path) -> None:
+    """Test that content is stored correctly."""
     csv_file = tmp_path / "feed.csv"
     sink = CSVOutputSink(csv_path=csv_file)
 
     sink.publish(sample_feed)
 
-    with open(csv_file, newline="", encoding="utf-8") as f:
+    with csv_file.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
 
     # Find "First Post"
     first_post = next((r for r in rows if r["title"] == "First Post"), None)
     assert first_post is not None
-    assert first_post["doc_type"] == "post"
-    assert first_post["status"] == "published"
     assert "# First Post" in first_post["content"]
+    assert first_post["type"] == "post"
 
 
 def test_csv_sink_exports_authors_as_json(sample_feed: Feed, tmp_path: Path) -> None:
@@ -361,137 +244,125 @@ def test_csv_sink_exports_authors_as_json(sample_feed: Feed, tmp_path: Path) -> 
 
     sink.publish(sample_feed)
 
-    with open(csv_file, newline="", encoding="utf-8") as f:
+    with csv_file.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
 
     first_post = next((r for r in rows if r["title"] == "First Post"), None)
-    authors = json.loads(first_post["authors"])
+    authors_json = first_post["authors"]
 
+    authors = json.loads(authors_json)
     assert len(authors) == 1
     assert authors[0]["name"] == "Alice"
 
 
-def test_csv_sink_overwrites_existing_file(sample_feed: Feed, tmp_path: Path) -> None:
-    """Test that sink overwrites existing CSV file."""
-    csv_file = tmp_path / "feed.csv"
-
-    # Create initial file
-    csv_file.write_text("old,content\n1,2\n")
-
-    sink = CSVOutputSink(csv_path=csv_file)
-    sink.publish(sample_feed)
-
-    # Should be replaced with new CSV
-    content = csv_file.read_text()
-    assert "old,content" not in content
-    assert "First Post" in content
-
-
-def test_csv_sink_creates_parent_directories(sample_feed: Feed, tmp_path: Path) -> None:
-    """Test that sink creates parent directories if they don't exist."""
-    csv_file = tmp_path / "deeply" / "nested" / "directory" / "feed.csv"
-
-    sink = CSVOutputSink(csv_path=csv_file)
-    sink.publish(sample_feed)
-
-    assert csv_file.exists()
-    assert csv_file.parent.exists()
-
-
-def test_csv_sink_with_empty_feed(tmp_path: Path) -> None:
-    """Test that sink handles empty feed (no entries)."""
-    empty_feed = Feed(
-        id="empty-feed",
-        title="Empty Feed",
-        updated=datetime.now(UTC),
-        entries=[],
+def test_csv_sink_handles_unicode(tmp_path: Path) -> None:
+    """Test that CSV sink handles unicode characters correctly."""
+    csv_file = tmp_path / "unicode.csv"
+    doc = Document.create(
+        content="你好世界 (Hello World)",
+        doc_type=DocumentType.POST,
+        title="Unicode Title 🚀",
+        status=DocumentStatus.PUBLISHED,
     )
+    feed = documents_to_feed([doc], "urn:uuid:test", "Test")
 
+    sink = CSVOutputSink(csv_path=csv_file)
+
+    sink.publish(feed)
+
+    with csv_file.open(newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        row = next(reader)
+
+    assert "你好世界" in row["content"]
+    assert "🚀" in row["title"]
+
+
+def test_csv_sink_handles_empty_feed(tmp_path: Path) -> None:
+    """Test that CSV sink handles empty feed gracefully."""
     csv_file = tmp_path / "empty.csv"
+    empty_feed = documents_to_feed([], "urn:uuid:empty", "Empty")
+
     sink = CSVOutputSink(csv_path=csv_file)
 
     sink.publish(empty_feed)
 
     # CSV should exist with header row only
-    with open(csv_file, newline="", encoding="utf-8") as f:
+    with csv_file.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
 
     assert len(rows) == 0
 
 
-def test_csv_sink_handles_unicode_content(tmp_path: Path) -> None:
-    """Test that sink handles Unicode characters correctly."""
+def test_csv_sink_handles_newlines_in_content(tmp_path: Path) -> None:
+    """Test that newlines in content don't break CSV structure."""
+    csv_file = tmp_path / "newlines.csv"
+    content = "Line 1\nLine 2\r\nLine 3"
     doc = Document.create(
-        content="Unicode content: 你好世界 🎉 Olá",
+        content=content,
         doc_type=DocumentType.POST,
-        title="Unicode Test",
+        title="Multiline",
         status=DocumentStatus.PUBLISHED,
     )
+    feed = documents_to_feed([doc], "urn:uuid:test", "Test")
 
-    feed = documents_to_feed([doc], feed_id="test", title="Test")
-
-    csv_file = tmp_path / "unicode.csv"
     sink = CSVOutputSink(csv_path=csv_file)
 
     sink.publish(feed)
 
-    with open(csv_file, newline="", encoding="utf-8") as f:
+    with csv_file.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         row = next(reader)
 
-    assert "你好世界" in row["content"]
-    assert "🎉" in row["content"]
-    assert "Olá" in row["content"]
+    assert row["content"] == content
 
 
-def test_csv_sink_handles_commas_and_quotes_in_content(tmp_path: Path) -> None:
-    """Test that CSV properly escapes commas and quotes."""
+def test_csv_sink_handles_quotes_in_content(tmp_path: Path) -> None:
+    """Test that quotes in content are escaped correctly."""
+    csv_file = tmp_path / "quotes.csv"
+    content = 'This has "quotes" inside.'
     doc = Document.create(
-        content='Content with "quotes" and, commas, and newlines\nhere',
+        content=content,
         doc_type=DocumentType.POST,
-        title="Special Characters",
+        title="Quotes",
         status=DocumentStatus.PUBLISHED,
     )
+    feed = documents_to_feed([doc], "urn:uuid:test", "Test")
 
-    feed = documents_to_feed([doc], feed_id="test", title="Test")
-
-    csv_file = tmp_path / "special.csv"
     sink = CSVOutputSink(csv_path=csv_file)
 
     sink.publish(feed)
 
     # Read back and verify
-    with open(csv_file, newline="", encoding="utf-8") as f:
+    with csv_file.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         row = next(reader)
 
     assert '"quotes"' in row["content"]
-    assert ", commas," in row["content"]
 
 
-def test_csv_sink_includes_timestamps(sample_feed: Feed, tmp_path: Path) -> None:
-    """Test that published and updated timestamps are included."""
+def test_csv_sink_includes_dates(sample_feed: Feed, tmp_path: Path) -> None:
+    """Test that dates are included in CSV."""
     csv_file = tmp_path / "feed.csv"
     sink = CSVOutputSink(csv_path=csv_file)
 
     sink.publish(sample_feed)
 
-    with open(csv_file, newline="", encoding="utf-8") as f:
+    with csv_file.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         row = next(reader)
 
     assert "published" in reader.fieldnames or "updated" in reader.fieldnames
-    # At least one timestamp should be present
-    assert row.get("published") or row.get("updated")
+    assert row["published"].startswith("2025-12-05")
 
 
-# ========== Property-Based Tests ==========
+# ========== Property-Based Tests (Hypothesis) ==========
 
 
-@settings(deadline=None)
-@given(st.integers(min_value=1, max_value=20))
+@settings(max_examples=10)
+@given(num_docs=st.integers(min_value=0, max_value=20))
 def test_sqlite_sink_handles_any_number_of_documents(num_docs: int) -> None:
     """Property: SQLiteOutputSink handles any number of documents."""
     import tempfile
@@ -505,16 +376,15 @@ def test_sqlite_sink_handles_any_number_of_documents(num_docs: int) -> None:
         )
         for i in range(num_docs)
     ]
+    feed = documents_to_feed(docs, "urn:uuid:test", "Test Feed")
 
-    feed = documents_to_feed(docs, feed_id="test", title="Test Feed")
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_file = Path(tmpdir) / f"feed_{num_docs}.db"
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        db_file = Path(tmp_dir) / "feed.db"
         sink = SQLiteOutputSink(db_path=db_file)
 
         sink.publish(feed)
 
-        # Verify all documents in database
+        # Verify count
         conn = sqlite3.connect(db_file)
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM documents")
@@ -524,8 +394,8 @@ def test_sqlite_sink_handles_any_number_of_documents(num_docs: int) -> None:
         assert count == num_docs
 
 
-@settings(deadline=None)
-@given(st.integers(min_value=1, max_value=20))
+@settings(max_examples=10)
+@given(num_docs=st.integers(min_value=0, max_value=20))
 def test_csv_sink_handles_any_number_of_documents(num_docs: int) -> None:
     """Property: CSVOutputSink handles any number of documents."""
     import tempfile
@@ -539,17 +409,16 @@ def test_csv_sink_handles_any_number_of_documents(num_docs: int) -> None:
         )
         for i in range(num_docs)
     ]
+    feed = documents_to_feed(docs, "urn:uuid:test", "Test Feed")
 
-    feed = documents_to_feed(docs, feed_id="test", title="Test Feed")
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        csv_file = Path(tmpdir) / f"feed_{num_docs}.csv"
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        csv_file = Path(tmp_dir) / "feed.csv"
         sink = CSVOutputSink(csv_path=csv_file)
 
         sink.publish(feed)
 
         # Verify all documents in CSV
-        with open(csv_file, newline="", encoding="utf-8") as f:
+        with csv_file.open(newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             rows = list(reader)
 

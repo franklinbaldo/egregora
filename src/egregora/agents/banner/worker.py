@@ -4,13 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING
+
 from egregora.agents.banner.agent import generate_banner
 from egregora.orchestration.persistence import persist_banner_document
 from egregora.orchestration.worker_base import BaseWorker
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 
