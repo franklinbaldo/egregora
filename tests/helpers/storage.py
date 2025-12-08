@@ -20,6 +20,7 @@ Example Usage:
         metadata, content = posts.read("my-post")
         assert metadata["title"] == "Expected Title"
 """
+
 import uuid as uuid_lib
 
 from egregora.data_primitives.document import DocumentType
