@@ -11,14 +11,6 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-
-try:
-    import dotenv
-except ImportError:
-    dotenv = None
-
-# Deferred import if needed, but for now moving it top level as requested by linter
-# We need to make sure this doesn't break things if import fails, but diagnostics is part of the package.
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
@@ -35,6 +27,14 @@ from egregora.diagnostics import HealthStatus, run_diagnostics
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration import write_pipeline
 from egregora.orchestration.context import PipelineRunParams
+
+try:
+    import dotenv
+except ImportError:
+    dotenv = None
+
+# Deferred import if needed, but for now moving it top level as requested by linter
+# We need to make sure this doesn't break things if import fails, but diagnostics is part of the package.
 
 app = typer.Typer(
     name="egregora",

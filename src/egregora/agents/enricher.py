@@ -38,11 +38,7 @@ from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.input_adapters.base import MediaMapping
 from egregora.models.google_batch import GoogleBatchModel
-from egregora.ops.media import (
-    extract_urls,
-    find_media_references,
-    replace_media_mentions,
-)
+from egregora.ops.media import extract_urls, find_media_references, replace_media_mentions
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key

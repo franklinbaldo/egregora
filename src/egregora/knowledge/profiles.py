@@ -1,7 +1,4 @@
 import hashlib
-
-"""Author profiling tools for LLM to read and update author profiles."""
-
 import json
 import logging
 import re
@@ -14,6 +11,8 @@ import yaml
 
 from egregora.orchestration.persistence import persist_profile_document
 from egregora.orchestration.worker_base import BaseWorker
+
+"""Author profiling tools for LLM to read and update author profiles."""
 
 logger = logging.getLogger(__name__)
 MAX_ALIAS_LENGTH = 40

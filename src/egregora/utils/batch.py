@@ -12,12 +12,7 @@ import httpx
 from google.genai import types as genai_types
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_core import ValidationError
-from tenacity import (
-    RetryCallState,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_random_exponential,
-)
+from tenacity import RetryCallState, retry_if_exception_type, stop_after_attempt, wait_random_exponential
 
 T = TypeVar("T")
 

@@ -15,10 +15,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.agents.banner.agent import BannerInput, generate_banner
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
-from egregora.agents.banner.image_generation import (
-    ImageGenerationProvider,
-    ImageGenerationRequest,
-)
+from egregora.agents.banner.image_generation import ImageGenerationProvider, ImageGenerationRequest
 from egregora_v3.core.types import Document, DocumentType, Entry, Feed
 
 

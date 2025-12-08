@@ -60,27 +60,28 @@ See Also:
 # loading functions, and model utilities all in one place.
 from egregora.config.settings import (
     EMBEDDING_DIM,
-    # Pydantic V2 config models (persisted in .egregora/config.yml)
     EgregoraConfig,
     EnrichmentSettings,
     FeaturesSettings,
     MediaEnrichmentContext,
     ModelSettings,
-    # Model configuration utilities
     ModelType,
     PipelineEnrichmentConfig,
     PipelineSettings,
     PrivacySettings,
-    # Runtime dataclasses (for function parameters, not persisted)
     RAGSettings,
-    RuntimeContext,  # Minimal runtime-only context
+    RuntimeContext,
     WriterAgentSettings,
-    # Config loading/saving functions
     create_default_config,
     find_egregora_config,
     load_egregora_config,
     save_egregora_config,
 )
+
+# Pydantic V2 config models (persisted in .egregora/config.yml)
+# Model configuration utilities
+# Runtime dataclasses (for function parameters, not persisted)
+# Config loading/saving functions
 
 __all__ = [
     "EMBEDDING_DIM",

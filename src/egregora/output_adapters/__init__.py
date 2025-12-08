@@ -1,10 +1,6 @@
 """Output rendering for different site generators."""
 
-from egregora.output_adapters.base import (
-    OutputAdapterRegistry,
-    create_output_format,
-    create_output_registry,
-)
+from egregora.output_adapters.base import OutputAdapterRegistry, create_output_format, create_output_registry
 from egregora.output_adapters.mkdocs import MkDocsAdapter
 from egregora.output_adapters.parquet.adapter import ParquetAdapter
 

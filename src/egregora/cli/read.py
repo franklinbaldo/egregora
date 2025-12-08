@@ -9,12 +9,13 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from egregora.config import load_egregora_config
+from egregora.output_adapters.mkdocs import derive_mkdocs_paths
+
 try:
     from egregora.agents.reader.reader_runner import run_reader_evaluation
 except ModuleNotFoundError:  # pragma: no cover - optional legacy path
     run_reader_evaluation = None
-from egregora.config import load_egregora_config
-from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 
 logger = logging.getLogger(__name__)
 console = Console()
