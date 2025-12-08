@@ -192,6 +192,9 @@ ignore = [
     "S506",    # Unsafe YAML load (tests use small controlled data)
     "TID251",  # Banned pandas/pyarrow imports (allowed in tests)
 ]
+"src/egregora_v3/infra/repository/duckdb.py" = [
+    "A003",  # list method name matches builtin but aligns with repository interface
+]
 
 # Compat and testing directories - allow pandas/pyarrow
 "src/**/compat/**/*.py" = [

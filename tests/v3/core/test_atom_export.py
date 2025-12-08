@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-import defusedxml.ElementTree as ET
+from defusedxml import ElementTree
 
 from egregora_v3.core.types import (
     Author,
@@ -11,6 +11,7 @@ from egregora_v3.core.types import (
     DocumentType,
     Entry,
     Feed,
+    InReplyTo,
     Link,
     documents_to_feed,
 )
@@ -130,7 +131,7 @@ def test_feed_parses_as_valid_xml():
     xml = feed.to_xml()
 
     # Should parse without error
-    root = ET.fromstring(xml)
+    root = ElementTree.fromstring(xml)
 
     # Check namespace
     assert root.tag == "{http://www.w3.org/2005/Atom}feed"
@@ -177,8 +178,6 @@ def test_content_type_handling():
 
 def test_entry_with_in_reply_to_threading():
     """Test Entry with RFC 4685 in-reply-to threading extension."""
-    from egregora_v3.core.types import InReplyTo
-
     entry = Entry(
         id="entry-1",
         title="Reply Post",

@@ -17,7 +17,7 @@ class PipelineContext(BaseModel):
 
     # Configuration
     config: EgregoraConfig = Field(..., description="Application configuration")
-    dry_run: bool = Field(False, description="If True, skip side-effecting operations (writes)")
+    dry_run: bool = Field(default=False, description="If True, skip side-effecting operations (writes)")
 
     # Infrastructure Ports (Optional - may be injected or resolved)
     # Using 'Any' temporarily if types aren't fully available/circular import,
