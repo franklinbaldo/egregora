@@ -173,3 +173,31 @@ def test_content_type_handling():
     xml = feed.to_xml()
 
     assert '<content type="text/html"' in xml or '<content type="html"' in xml
+
+
+def test_entry_with_in_reply_to_threading():
+    """Test Entry with RFC 4685 in-reply-to threading extension."""
+    from egregora_v3.core.types import InReplyTo
+
+    entry = Entry(
+        id="entry-1",
+        title="Reply Post",
+        updated=datetime(2024, 12, 4, 12, 0, 0, tzinfo=UTC),
+        content="Reply",
+        in_reply_to=InReplyTo(ref="parent-entry-id", href="http://example.org/parent", type="text/html"),
+    )
+
+    feed = Feed(
+        id="http://example.org/feed",
+        title="Test Feed",
+        updated=datetime(2024, 12, 4, 12, 0, 0, tzinfo=UTC),
+        entries=[entry],
+    )
+
+    xml = feed.to_xml()
+
+    # Check for in-reply-to element
+    assert "in-reply-to" in xml
+    assert 'ref="parent-entry-id"' in xml
+    assert 'href="http://example.org/parent"' in xml
+    assert 'type="text/html"' in xml

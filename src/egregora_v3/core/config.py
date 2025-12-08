@@ -84,6 +84,8 @@ class EgregoraConfig(BaseSettings):
     paths: PathsSettings = Field(default_factory=PathsSettings)
     pipeline: PipelineSettings = Field(default_factory=PipelineSettings)
 
+    debug: bool = Field(default=False, description="Enable debug logging and behavior")
+
     model_config = SettingsConfigDict(
         extra="ignore",
         env_prefix="EGREGORA_",

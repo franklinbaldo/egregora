@@ -12,11 +12,12 @@ def duckdb_conn():
 
 
 @pytest.fixture
-def repo(duckdb_conn):
+def repo():
     # Pass the connection to the repository
     # We might need to initialize the schema here or inside the repo
-    repo = DuckDBDocumentRepository(duckdb_conn)
-    repo.initialize()
+    # Note: DuckDBDocumentRepository now expects a path string/Path, not an Ibis backend.
+    # We'll use in-memory for testing.
+    repo = DuckDBDocumentRepository(":memory:")
     return repo
 
 

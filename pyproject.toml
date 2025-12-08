@@ -43,6 +43,7 @@ dependencies = [
     "cattrs>=24.2",
     # High-performance XML processing for Atom feeds
     "lxml>=5.4",
+    "feedparser>=6.0.12",
 ]
 
 [project.scripts]
