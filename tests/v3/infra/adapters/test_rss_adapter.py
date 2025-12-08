@@ -157,9 +157,7 @@ def test_parse_atom_feed_from_url(rss_adapter: RSSAdapter, sample_atom_feed: str
     assert entries[0].updated is not None
 
 
-def test_parse_atom_feed_from_file(
-    rss_adapter: RSSAdapter, sample_atom_feed: str, tmp_path: Path
-) -> None:
+def test_parse_atom_feed_from_file(rss_adapter: RSSAdapter, sample_atom_feed: str, tmp_path: Path) -> None:
     """Test parsing Atom feed from local file."""
     feed_file = tmp_path / "feed.atom"
     feed_file.write_text(sample_atom_feed)
@@ -211,9 +209,7 @@ def test_parse_rss2_feed_from_url(rss_adapter: RSSAdapter, sample_rss2_feed: str
     assert all(isinstance(e, Entry) for e in entries)
 
 
-def test_parse_rss2_feed_from_file(
-    rss_adapter: RSSAdapter, sample_rss2_feed: str, tmp_path: Path
-) -> None:
+def test_parse_rss2_feed_from_file(rss_adapter: RSSAdapter, sample_rss2_feed: str, tmp_path: Path) -> None:
     """Test parsing RSS 2.0 feed from local file."""
     feed_file = tmp_path / "feed.rss"
     feed_file.write_text(sample_rss2_feed)
@@ -275,9 +271,7 @@ def test_parse_malformed_xml_raises_error(rss_adapter: RSSAdapter, tmp_path: Pat
         list(rss_adapter.parse(feed_file))
 
 
-def test_parse_missing_required_fields_skips_entry(
-    rss_adapter: RSSAdapter, tmp_path: Path
-) -> None:
+def test_parse_missing_required_fields_skips_entry(rss_adapter: RSSAdapter, tmp_path: Path) -> None:
     """Test that entries missing required fields are skipped with warning."""
     incomplete_atom = """<?xml version="1.0" encoding="utf-8"?>
     <feed xmlns="http://www.w3.org/2005/Atom">

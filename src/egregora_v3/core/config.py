@@ -26,7 +26,7 @@ class PathsSettings(BaseModel):
 
     site_root: Path = Field(
         default_factory=Path.cwd,
-        description="Root directory of the site (defaults to current working directory)"
+        description="Root directory of the site (defaults to current working directory)",
     )
 
     # Content

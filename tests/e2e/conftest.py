@@ -196,9 +196,7 @@ def mock_vector_store(monkeypatch):
         monkeypatch.setattr(
             "egregora.orchestration.write_pipeline.index_documents", mock_index_documents, raising=False
         )
-        monkeypatch.setattr(
-            "egregora.agents.writer_helpers.search", mock_search, raising=False
-        )
+        monkeypatch.setattr("egregora.agents.writer_helpers.search", mock_search, raising=False)
     except AttributeError:
         # RAG module may not exist yet - this is optional
         pass

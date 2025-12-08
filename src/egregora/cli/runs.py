@@ -136,12 +136,7 @@ class RunDisplayData:
 
 def _format_metrics_section(data: RunDisplayData) -> list[str]:
     lines = []
-    if (
-        data.rows_in is not None
-        or data.rows_out is not None
-        or data.llm_calls
-        or data.tokens
-    ):
+    if data.rows_in is not None or data.rows_out is not None or data.llm_calls or data.tokens:
         lines.append("[bold]Metrics:[/bold]")
         if data.rows_in is not None:
             lines.append(f"  Rows In:   {data.rows_in:,}")

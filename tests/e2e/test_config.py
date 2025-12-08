@@ -154,9 +154,7 @@ def build_write_command_args(
         "--overlap": opts.overlap,
         "--retrieval-mode": opts.retrieval_mode,
         "--max-windows": str(opts.max_windows) if opts.max_windows is not None else None,
-        "--max-prompt-tokens": str(opts.max_prompt_tokens)
-        if opts.max_prompt_tokens is not None
-        else None,
+        "--max-prompt-tokens": str(opts.max_prompt_tokens) if opts.max_prompt_tokens is not None else None,
     }
 
     for flag, value in flag_map.items():

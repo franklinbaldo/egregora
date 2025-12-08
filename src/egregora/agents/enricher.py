@@ -69,9 +69,7 @@ def ensure_datetime(value: datetime | str | Any) -> datetime:
     raise TypeError(msg)
 
 
-def load_file_as_binary_content(
-    file_path: Path, max_size_mb: int = 20
-) -> BinaryContent:
+def load_file_as_binary_content(file_path: Path, max_size_mb: int = 20) -> BinaryContent:
     """Load a file as BinaryContent for pydantic-ai agents."""
     if not file_path.exists():
         msg = f"File not found: {file_path}"
@@ -327,9 +325,7 @@ def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
     return [dict(row) for row in frame]
 
 
-def _iter_table_batches(
-    table: Table, batch_size: int = 1000
-) -> Iterator[list[dict[str, Any]]]:
+def _iter_table_batches(table: Table, batch_size: int = 1000) -> Iterator[list[dict[str, Any]]]:
     """Stream table rows as batches of dictionaries without loading entire table into memory."""
     try:
         backend = table._find_backend()
@@ -364,9 +360,7 @@ def schedule_enrichment(
 ) -> None:
     """Schedule enrichment tasks for background processing."""
     if not hasattr(context, "task_store") or not context.task_store:
-        logger.warning(
-            "TaskStore not available in context; skipping enrichment scheduling."
-        )
+        logger.warning("TaskStore not available in context; skipping enrichment scheduling.")
         return
 
     if messages_table.count().execute() == 0:
@@ -459,21 +453,13 @@ def _enqueue_media_enrichments(
     run_id: uuid.UUID,
     config: MediaEnrichmentConfig,
 ) -> int:
-    if (
-        not config.enable_media
-        or config.max_enrichments <= 0
-        or not config.media_mapping
-    ):
+    if not config.enable_media or config.max_enrichments <= 0 or not config.media_mapping:
         return 0
 
-    candidates = _extract_media_candidates(
-        messages_table, config.media_mapping, config.max_enrichments
-    )
+    candidates = _extract_media_candidates(messages_table, config.media_mapping, config.max_enrichments)
     scheduled = 0
     for ref, media_doc, metadata in candidates:
-        cache_key = make_enrichment_cache_key(
-            kind="media", identifier=media_doc.document_id
-        )
+        cache_key = make_enrichment_cache_key(kind="media", identifier=media_doc.document_id)
         if context.cache.load(cache_key) is not None:
             continue
 
@@ -484,9 +470,7 @@ def _enqueue_media_enrichments(
             "filename": media_doc.metadata.get("filename"),
             "original_filename": media_doc.metadata.get("original_filename"),
             "media_type": media_doc.metadata.get("media_type"),
-            "suggested_path": (
-                str(media_doc.suggested_path) if media_doc.suggested_path else None
-            ),
+            "suggested_path": (str(media_doc.suggested_path) if media_doc.suggested_path else None),
             "message_metadata": _serialize_metadata(metadata),
         }
         context.task_store.enqueue("enrich_media", payload, run_id)
@@ -505,9 +489,7 @@ def _serialize_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
         "source": metadata.get("source"),
         "thread_id": _uuid_to_str(metadata.get("thread_id")),
         "author_uuid": _uuid_to_str(metadata.get("author_uuid")),
-        "created_at": (
-            created_at.isoformat() if hasattr(created_at, "isoformat") else created_at
-        ),
+        "created_at": (created_at.isoformat() if hasattr(created_at, "isoformat") else created_at),
         "created_by_run": _uuid_to_str(metadata.get("created_by_run")),
     }
 
@@ -548,16 +530,12 @@ def _process_url_row(
         else:
             # Keep earliest timestamp
             existing_ts = existing.get("ts")
-            if timestamp is not None and (
-                existing_ts is None or timestamp < existing_ts
-            ):
+            if timestamp is not None and (existing_ts is None or timestamp < existing_ts):
                 existing.update(row_metadata)
     return discovered_count
 
 
-def _extract_url_candidates(
-    messages_table: Table, max_enrichments: int
-) -> list[tuple[str, dict[str, Any]]]:
+def _extract_url_candidates(messages_table: Table, max_enrichments: int) -> list[tuple[str, dict[str, Any]]]:
     """Extract unique URL candidates with metadata, up to max_enrichments."""
     if max_enrichments <= 0:
         return []
@@ -581,9 +559,7 @@ def _extract_url_candidates(
         for row in batch:
             if discovered_count >= max_enrichments:
                 break
-            discovered_count = _process_url_row(
-                row, url_metadata, discovered_count, max_enrichments
-            )
+            discovered_count = _process_url_row(row, url_metadata, discovered_count, max_enrichments)
 
         if discovered_count >= max_enrichments:
             break
@@ -608,9 +584,7 @@ def _process_media_row(
 
     # Regex setup (compiled at module level ideally, but here for locality)
     markdown_re = re.compile(r"(?:!\[|\[)[^\]]*\]\([^)]*?([^/)]+\.\w+)\)")
-    uuid_re = re.compile(
-        r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)"
-    )
+    uuid_re = re.compile(r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)")
 
     refs = find_media_references(message)
     refs.extend(markdown_re.findall(message))
@@ -642,9 +616,7 @@ def _process_media_row(
         else:
             # Keep earliest timestamp
             existing_ts = existing.get("ts")
-            if timestamp is not None and (
-                existing_ts is None or timestamp < existing_ts
-            ):
+            if timestamp is not None and (existing_ts is None or timestamp < existing_ts):
                 existing.update(row_metadata)
 
 
@@ -679,9 +651,7 @@ def _extract_media_candidates(
         )
     ):
         for row in batch:
-            _process_media_row(
-                row, media_filename_lookup, metadata_lookup, unique_media
-            )
+            _process_media_row(row, media_filename_lookup, metadata_lookup, unique_media)
 
     sorted_media = sorted(
         unique_media,
@@ -722,9 +692,7 @@ class EnrichmentWorker(BaseWorker):
         # Configurable batch size
         batch_size = 50
         tasks = self.task_store.fetch_pending(task_type="enrich_url", limit=batch_size)
-        media_tasks = self.task_store.fetch_pending(
-            task_type="enrich_media", limit=batch_size
-        )
+        media_tasks = self.task_store.fetch_pending(task_type="enrich_media", limit=batch_size)
 
         processed_count = 0
 
@@ -745,9 +713,7 @@ class EnrichmentWorker(BaseWorker):
         results = self._execute_url_enrichments(tasks_data, max_concurrent)
         return self._persist_url_results(results)
 
-    def _enrich_single_url(
-        self, task_data: dict
-    ) -> tuple[dict, EnrichmentOutput | None, str | None]:
+    def _enrich_single_url(self, task_data: dict) -> tuple[dict, EnrichmentOutput | None, str | None]:
         """Enrich a single URL with fallback support (sync wrapper)."""
         task = task_data["task"]
         url = task_data["url"]
@@ -769,9 +735,7 @@ class EnrichmentWorker(BaseWorker):
     def _prepare_url_tasks(self, tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Parse payloads and render prompts for URL enrichment tasks."""
         tasks_data: list[dict[str, Any]] = []
-        prompts_dir = (
-            self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
-        )
+        prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
 
         for task in tasks:
             try:
@@ -791,16 +755,12 @@ class EnrichmentWorker(BaseWorker):
                 tasks_data.append({"task": task, "url": url, "prompt": prompt})
             except Exception as exc:
                 logger.exception("Failed to prepare URL task %s", task["task_id"])
-                self.task_store.mark_failed(
-                    task["task_id"], f"Preparation failed: {exc!s}"
-                )
+                self.task_store.mark_failed(task["task_id"], f"Preparation failed: {exc!s}")
 
         return tasks_data
 
     def _determine_concurrency(self, task_count: int) -> int:
-        enrichment_concurrency = getattr(
-            self.ctx.config.enrichment, "max_concurrent_enrichments", 5
-        )
+        enrichment_concurrency = getattr(self.ctx.config.enrichment, "max_concurrent_enrichments", 5)
         global_concurrency = getattr(self.ctx.config.quota, "concurrency", 1)
         max_concurrent = min(enrichment_concurrency, global_concurrency)
 
@@ -819,9 +779,7 @@ class EnrichmentWorker(BaseWorker):
     ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
         results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
-            future_to_task = {
-                executor.submit(self._enrich_single_url, td): td for td in tasks_data
-            }
+            future_to_task = {executor.submit(self._enrich_single_url, td): td for td in tasks_data}
             for future in as_completed(future_to_task):
                 try:
                     results.append(future.result())
@@ -832,9 +790,7 @@ class EnrichmentWorker(BaseWorker):
 
         return results
 
-    def _persist_url_results(
-        self, results: list[tuple[dict, EnrichmentOutput | None, str | None]]
-    ) -> int:
+    def _persist_url_results(self, results: list[tuple[dict, EnrichmentOutput | None, str | None]]) -> int:
         new_rows = []
         for task, output, error in results:
             if error:
@@ -875,9 +831,7 @@ class EnrichmentWorker(BaseWorker):
                 self.task_store.mark_completed(task["task_id"])
             except Exception as exc:
                 logger.exception("Failed to persist enrichment for %s", task["task_id"])
-                self.task_store.mark_failed(
-                    task["task_id"], f"Persistence error: {exc!s}"
-                )
+                self.task_store.mark_failed(task["task_id"], f"Persistence error: {exc!s}")
 
         if new_rows:
             try:
@@ -904,17 +858,13 @@ class EnrichmentWorker(BaseWorker):
         texts = []
         for cand in response.get("candidates") or []:
             content = cand.get("content") or {}
-            texts.extend(
-                part["text"] for part in content.get("parts") or [] if "text" in part
-            )
+            texts.extend(part["text"] for part in content.get("parts") or [] if "text" in part)
         return "\n".join(texts)
 
     def _prepare_media_requests(
         self, tasks: list[dict[str, Any]]
     ) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
-        prompts_dir = (
-            self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
-        )
+        prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
         requests: list[dict[str, Any]] = []
         task_map: dict[str, dict[str, Any]] = {}
 
@@ -969,29 +919,21 @@ class EnrichmentWorker(BaseWorker):
 
         return requests, task_map
 
-    def _load_media_bytes(
-        self, task: dict[str, Any], payload: dict[str, Any]
-    ) -> bytes | None:
+    def _load_media_bytes(self, task: dict[str, Any], payload: dict[str, Any]) -> bytes | None:
         media_id = payload.get("media_id")
         try:
-            media_doc = self.ctx.output_format.read_document(
-                DocumentType.MEDIA, media_id
-            )
+            media_doc = self.ctx.output_format.read_document(DocumentType.MEDIA, media_id)
         except (
             OSError,
             RuntimeError,
             ValueError,
         ) as exc:  # pragma: no cover - defensive catch
-            logger.warning(
-                "Failed to load media file for task %s: %s", task["task_id"], exc
-            )
+            logger.warning("Failed to load media file for task %s: %s", task["task_id"], exc)
             self.task_store.mark_failed(task["task_id"], f"Failed to load media: {exc}")
             return None
 
         if not media_doc or not media_doc.content:
-            logger.warning(
-                "Media file not found for task %s: %s", task["task_id"], media_id
-            )
+            logger.warning("Media file not found for task %s: %s", task["task_id"], media_id)
             self.task_store.mark_failed(task["task_id"], "Media file not found")
             return None
 
@@ -1015,9 +957,7 @@ class EnrichmentWorker(BaseWorker):
                 self.task_store.mark_failed(task["task_id"], f"Batch failed: {exc!s}")
             return []
 
-    def _persist_media_results(
-        self, results: list[Any], task_map: dict[str, dict[str, Any]]
-    ) -> int:
+    def _persist_media_results(self, results: list[Any], task_map: dict[str, dict[str, Any]]) -> int:
         new_rows = []
         for res in results:
             task = task_map.get(res.tag)
@@ -1077,9 +1017,7 @@ class EnrichmentWorker(BaseWorker):
 
         return len(results)
 
-    def _parse_media_result(
-        self, res: Any, task: dict[str, Any]
-    ) -> tuple[dict[str, Any], str, str] | None:
+    def _parse_media_result(self, res: Any, task: dict[str, Any]) -> tuple[dict[str, Any], str, str] | None:
         text = self._extract_text(res.response)
         try:
             clean_text = text.strip()
@@ -1109,9 +1047,7 @@ class EnrichmentWorker(BaseWorker):
             return
 
         try:
-            media_doc = self.ctx.output_format.read_document(
-                DocumentType.MEDIA, media_id
-            )
+            media_doc = self.ctx.output_format.read_document(DocumentType.MEDIA, media_id)
         except (
             OSError,
             RuntimeError,

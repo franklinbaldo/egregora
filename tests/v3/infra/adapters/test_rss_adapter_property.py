@@ -24,7 +24,9 @@ ATOM_NS = "http://www.w3.org/2005/Atom"
 @st.composite
 def atom_entry_xml(draw: st.DrawFn) -> str:
     """Generate valid Atom entry XML with random data."""
-    entry_id = draw(st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=["Cc", "Cs"])))
+    entry_id = draw(
+        st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=["Cc", "Cs"]))
+    )
     title = draw(st.text(min_size=1, max_size=200, alphabet=st.characters(blacklist_categories=["Cc", "Cs"])))
     content = draw(st.text(max_size=500, alphabet=st.characters(blacklist_categories=["Cc", "Cs"])))
 
