@@ -3,6 +3,7 @@
 These tests generate random inputs to verify invariants and edge cases.
 """
 
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -23,7 +24,9 @@ ATOM_NS = "http://www.w3.org/2005/Atom"
 @st.composite
 def atom_entry_xml(draw: st.DrawFn) -> str:
     """Generate valid Atom entry XML with random data."""
-    entry_id = draw(st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=["Cc", "Cs"])))
+    entry_id = draw(
+        st.text(min_size=1, max_size=100, alphabet=st.characters(blacklist_categories=["Cc", "Cs"]))
+    )
     title = draw(st.text(min_size=1, max_size=200, alphabet=st.characters(blacklist_categories=["Cc", "Cs"])))
     content = draw(st.text(max_size=500, alphabet=st.characters(blacklist_categories=["Cc", "Cs"])))
 
@@ -72,7 +75,6 @@ def atom_entry_xml(draw: st.DrawFn) -> str:
 @given(atom_entry_xml())
 def test_parsing_atom_always_produces_valid_entry(atom_xml: str) -> None:
     """Property: Parsing any valid Atom feed always produces valid Entry objects."""
-    import tempfile
     adapter = RSSAdapter()
 
     # Write to temp file
@@ -93,7 +95,6 @@ def test_parsing_atom_always_produces_valid_entry(atom_xml: str) -> None:
 @given(st.text(min_size=1, max_size=500, alphabet=st.characters(blacklist_categories=["Cc", "Cs"])))
 def test_atom_id_preservation(entry_id: str) -> None:
     """Property: Atom entry ID is always preserved exactly (for XML-compatible strings)."""
-    import tempfile
     # Create minimal valid Atom feed
     nsmap = {None: ATOM_NS}
     feed = etree.Element(f"{{{ATOM_NS}}}feed", nsmap=nsmap)
@@ -142,7 +143,6 @@ def test_atom_id_preservation(entry_id: str) -> None:
 )
 def test_atom_feed_entry_count_matches(titles: list[str]) -> None:
     """Property: Number of parsed entries equals number of entries in feed."""
-    import tempfile
     nsmap = {None: ATOM_NS}
     feed = etree.Element(f"{{{ATOM_NS}}}feed", nsmap=nsmap)
 
@@ -188,7 +188,6 @@ def test_atom_feed_entry_count_matches(titles: list[str]) -> None:
 @given(st.integers(min_value=2000, max_value=2030))
 def test_atom_datetime_always_utc(year: int) -> None:
     """Property: All parsed datetimes are in UTC timezone."""
-    import tempfile
     nsmap = {None: ATOM_NS}
     feed = etree.Element(f"{{{ATOM_NS}}}feed", nsmap=nsmap)
 

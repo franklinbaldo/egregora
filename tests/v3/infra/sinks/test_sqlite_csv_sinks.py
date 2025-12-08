@@ -8,7 +8,9 @@ Following TDD Red-Green-Refactor cycle.
 """
 
 import csv
+import json
 import sqlite3
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -95,9 +97,7 @@ def test_sqlite_sink_creates_documents_table(sample_feed: Feed, tmp_path: Path) 
     # Verify table exists
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='documents'"
-    )
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='documents'")
     result = cursor.fetchone()
     conn.close()
 
@@ -105,9 +105,7 @@ def test_sqlite_sink_creates_documents_table(sample_feed: Feed, tmp_path: Path) 
     assert result[0] == "documents"
 
 
-def test_sqlite_sink_stores_all_published_documents(
-    sample_feed: Feed, tmp_path: Path
-) -> None:
+def test_sqlite_sink_stores_all_published_documents(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that only PUBLISHED documents are stored."""
     db_file = tmp_path / "feed.db"
     sink = SQLiteOutputSink(db_path=db_file)
@@ -135,9 +133,7 @@ def test_sqlite_sink_stores_document_fields(sample_feed: Feed, tmp_path: Path) -
     # Query first document
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, title, content, doc_type, status FROM documents ORDER BY title LIMIT 1"
-    )
+    cursor.execute("SELECT id, title, content, doc_type, status FROM documents ORDER BY title LIMIT 1")
     row = cursor.fetchone()
     conn.close()
 
@@ -152,8 +148,6 @@ def test_sqlite_sink_stores_document_fields(sample_feed: Feed, tmp_path: Path) -
 
 def test_sqlite_sink_stores_authors_as_json(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that authors are stored as JSON."""
-    import json
-
     db_file = tmp_path / "feed.db"
     sink = SQLiteOutputSink(db_path=db_file)
 
@@ -171,9 +165,7 @@ def test_sqlite_sink_stores_authors_as_json(sample_feed: Feed, tmp_path: Path) -
     assert authors[0]["email"] == "alice@example.com"
 
 
-def test_sqlite_sink_overwrites_existing_database(
-    sample_feed: Feed, tmp_path: Path
-) -> None:
+def test_sqlite_sink_overwrites_existing_database(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that sink clears existing data before publishing."""
     db_file = tmp_path / "feed.db"
 
@@ -198,9 +190,7 @@ def test_sqlite_sink_overwrites_existing_database(
     assert count == 0
 
 
-def test_sqlite_sink_creates_parent_directories(
-    sample_feed: Feed, tmp_path: Path
-) -> None:
+def test_sqlite_sink_creates_parent_directories(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that sink creates parent directories if they don't exist."""
     db_file = tmp_path / "deeply" / "nested" / "directory" / "feed.db"
 
@@ -272,9 +262,7 @@ def test_sqlite_sink_includes_timestamps(sample_feed: Feed, tmp_path: Path) -> N
 
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT published, updated FROM documents WHERE title='First Post'"
-    )
+    cursor.execute("SELECT published, updated FROM documents WHERE title='First Post'")
     row = cursor.fetchone()
     conn.close()
 
@@ -304,7 +292,7 @@ def test_csv_sink_has_header_row(sample_feed: Feed, tmp_path: Path) -> None:
 
     sink.publish(sample_feed)
 
-    with open(csv_file, newline="", encoding="utf-8") as f:
+    with csv_file.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         fieldnames = reader.fieldnames
 
@@ -316,16 +304,14 @@ def test_csv_sink_has_header_row(sample_feed: Feed, tmp_path: Path) -> None:
     assert "status" in fieldnames
 
 
-def test_csv_sink_exports_only_published_documents(
-    sample_feed: Feed, tmp_path: Path
-) -> None:
+def test_csv_sink_exports_only_published_documents(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that only PUBLISHED documents are exported."""
     csv_file = tmp_path / "feed.csv"
     sink = CSVOutputSink(csv_path=csv_file)
 
     sink.publish(sample_feed)
 
-    with open(csv_file, newline="", encoding="utf-8") as f:
+    with csv_file.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
 
@@ -340,7 +326,7 @@ def test_csv_sink_preserves_document_data(sample_feed: Feed, tmp_path: Path) -> 
 
     sink.publish(sample_feed)
 
-    with open(csv_file, newline="", encoding="utf-8") as f:
+    with csv_file.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
 
@@ -354,14 +340,12 @@ def test_csv_sink_preserves_document_data(sample_feed: Feed, tmp_path: Path) -> 
 
 def test_csv_sink_exports_authors_as_json(sample_feed: Feed, tmp_path: Path) -> None:
     """Test that authors are exported as JSON string."""
-    import json
-
     csv_file = tmp_path / "feed.csv"
     sink = CSVOutputSink(csv_path=csv_file)
 
     sink.publish(sample_feed)
 
-    with open(csv_file, newline="", encoding="utf-8") as f:
+    with csv_file.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
 
@@ -414,7 +398,7 @@ def test_csv_sink_with_empty_feed(tmp_path: Path) -> None:
     sink.publish(empty_feed)
 
     # CSV should exist with header row only
-    with open(csv_file, newline="", encoding="utf-8") as f:
+    with csv_file.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
 
@@ -437,7 +421,7 @@ def test_csv_sink_handles_unicode_content(tmp_path: Path) -> None:
 
     sink.publish(feed)
 
-    with open(csv_file, newline="", encoding="utf-8") as f:
+    with csv_file.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         row = next(reader)
 
@@ -463,7 +447,7 @@ def test_csv_sink_handles_commas_and_quotes_in_content(tmp_path: Path) -> None:
     sink.publish(feed)
 
     # Read back and verify
-    with open(csv_file, newline="", encoding="utf-8") as f:
+    with csv_file.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         row = next(reader)
 
@@ -478,7 +462,7 @@ def test_csv_sink_includes_timestamps(sample_feed: Feed, tmp_path: Path) -> None
 
     sink.publish(sample_feed)
 
-    with open(csv_file, newline="", encoding="utf-8") as f:
+    with csv_file.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         row = next(reader)
 
@@ -494,8 +478,6 @@ def test_csv_sink_includes_timestamps(sample_feed: Feed, tmp_path: Path) -> None
 @given(st.integers(min_value=1, max_value=20))
 def test_sqlite_sink_handles_any_number_of_documents(num_docs: int) -> None:
     """Property: SQLiteOutputSink handles any number of documents."""
-    import tempfile
-
     docs = [
         Document.create(
             content=f"Content {i}",
@@ -528,8 +510,6 @@ def test_sqlite_sink_handles_any_number_of_documents(num_docs: int) -> None:
 @given(st.integers(min_value=1, max_value=20))
 def test_csv_sink_handles_any_number_of_documents(num_docs: int) -> None:
     """Property: CSVOutputSink handles any number of documents."""
-    import tempfile
-
     docs = [
         Document.create(
             content=f"Content {i}",
@@ -549,7 +529,7 @@ def test_csv_sink_handles_any_number_of_documents(num_docs: int) -> None:
         sink.publish(feed)
 
         # Verify all documents in CSV
-        with open(csv_file, newline="", encoding="utf-8") as f:
+        with csv_file.open(newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             rows = list(reader)
 

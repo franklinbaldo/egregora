@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
-import defusedxml.ElementTree as ET
 import pytest
+from defusedxml import ElementTree
 from pydantic import ValidationError
 
 from egregora_v3.core.types import Document, DocumentType, Entry, InReplyTo, documents_to_feed
@@ -130,7 +130,7 @@ def test_threading_support():
     # Test Feed XML Generation with Threading
     feed = documents_to_feed([reply], feed_id="test", title="Thread Test")
     xml = feed.to_xml()
-    root = ET.fromstring(xml)
+    root = ElementTree.fromstring(xml)
     entry = root.find("{http://www.w3.org/2005/Atom}entry")
     in_reply_to = entry.find("{http://purl.org/syndication/thread/1.0}in-reply-to")
 

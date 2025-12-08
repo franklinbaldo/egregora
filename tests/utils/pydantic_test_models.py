@@ -13,6 +13,8 @@ from typing import Any
 
 from pydantic_ai.models.test import TestModel
 
+from egregora.agents.writer import write_posts_with_pydantic_agent
+
 
 class MockEmbeddingModel:
     """Deterministic embedding stub used for offline tests."""
@@ -71,13 +73,7 @@ def install_writer_test_model(monkeypatch, captured_windows: list[str] | None = 
     # Or better, we just mock the call to agent.run_sync inside it?
     # The simplest is to monkeypatch `write_posts_with_pydantic_agent` to inject the model.
 
-    original_func = None
-    try:
-        from egregora.agents.writer import write_posts_with_pydantic_agent as original
-
-        original_func = original
-    except ImportError:
-        pass
+    original_func = write_posts_with_pydantic_agent
 
     def _wrapper(*, prompt, config, context, test_model=None):
         if captured_windows is not None:

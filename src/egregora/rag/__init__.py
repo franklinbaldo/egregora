@@ -61,6 +61,7 @@ from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
 
 logger = logging.getLogger(__name__)
 
+
 # Global backend instance (lazy-initialized)
 def _create_backend() -> RAGBackend:
     """Create LanceDB RAG backend based on configuration.

@@ -434,4 +434,3 @@ class RSSAdapter:
             dt = dt.astimezone(UTC)
 
         return dt
-

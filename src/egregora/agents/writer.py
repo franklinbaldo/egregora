@@ -232,8 +232,6 @@ def _build_writer_context(params: WriterContextParams) -> WriterContext:
     )
 
 
-
-
 # ============================================================================
 # Agent Runners & Orchestration
 # ============================================================================
@@ -485,8 +483,6 @@ def _prepare_deps(
     )
 
 
-
-
 @sleep_and_retry
 @limits(calls=100, period=60)
 def write_posts_with_pydantic_agent(
@@ -498,7 +494,6 @@ def write_posts_with_pydantic_agent(
 ) -> tuple[list[str], list[str]]:
     """Execute the writer flow using Pydantic-AI agent tooling."""
     logger.info("Running writer via Pydantic-AI backend")
-
 
     active_capabilities = configure_writer_capabilities(config, context)
     if active_capabilities:
