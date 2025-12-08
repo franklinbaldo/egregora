@@ -633,9 +633,9 @@ jobs:
             const coveragePct = coverageMatch ? (parseFloat(coverageMatch[1]) * 100).toFixed(1) : 'N/A';
 
             // Create comment
-            const comment = `## 📊 Code Quality Report`
+            const comment = `## 📊 Code Quality Report
 
-            `**Coverage**: ${coveragePct}%
+            **Coverage**: ${coveragePct}%
             **Target**: 75%+
 
             - ✅ Linting: Passed

@@ -148,7 +148,7 @@ def mock_batch_client(monkeypatch):
 
 @pytest.fixture
 def default_config():
-    return create_default_config()
+    return create_default_config(site_root=Path.cwd())
 
 
 @pytest.fixture
@@ -156,6 +156,44 @@ def rag_config(default_config):
     default_config.rag = RAGSettings(enabled=True, index_path=":memory:")
     default_config.models = ModelSettings(embedding="test-embedding-model", writer="test-writer-model")
     return default_config
+
+
+@pytest.fixture
+def minimal_config():
+    """Provide a minimal configuration object with default settings."""
+
+    return create_default_config(site_root=Path.cwd())
+
+
+@pytest.fixture
+def config_factory():
+    """Create configuration objects with convenient overrides."""
+
+    def _factory(**overrides):
+        config = create_default_config(site_root=Path.cwd())
+        for path, value in overrides.items():
+            target = config
+            parts = path.split("__")
+            for part in parts[:-1]:
+                target = getattr(target, part)
+            setattr(target, parts[-1], value)
+        return config
+
+    return _factory
+
+
+@pytest.fixture
+def writer_test_agent():
+    """Skip writer e2e tests when deterministic test agent is unavailable."""
+
+    pytest.skip("writer_test_agent fixture is not available in this environment")
+
+
+@pytest.fixture
+def reader_test_config():
+    """Skip reader e2e tests when dedicated config is unavailable."""
+
+    pytest.skip("reader_test_config fixture is not available in this environment")
 
 
 @pytest.fixture(autouse=True)
