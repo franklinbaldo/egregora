@@ -767,11 +767,26 @@ class EnrichmentWorker(BaseWorker):
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
             future_to_task = {executor.submit(self._enrich_single_url, td): td for td in tasks_data}
             for future in as_completed(future_to_task):
+                task_data = future_to_task[future]
+                task = task_data["task"]
+                url = task_data.get("url")
                 try:
                     results.append(future.result())
-                except Exception as exc:
-                    task = future_to_task[future]["task"]
-                    logger.exception("Enrichment failed for %s", task["task_id"])
+                except (IbisError, RuntimeError, ValueError) as exc:
+                    logger.exception(
+                        "Enrichment failed for %s (url=%s, exc_type=%s)",
+                        task["task_id"],
+                        url,
+                        type(exc).__name__,
+                    )
+                    results.append((task, None, str(exc)))
+                except Exception as exc:  # pragma: no cover - defensive catch
+                    logger.exception(
+                        "Unexpected error during URL enrichment for %s (url=%s, exc_type=%s)",
+                        task.get("task_id"),
+                        url,
+                        type(exc).__name__,
+                    )
                     results.append((task, None, str(exc)))
 
         return results
@@ -788,8 +803,8 @@ class EnrichmentWorker(BaseWorker):
             if not output:
                 continue
 
+            payload = task.get("_parsed_payload", {})
             try:
-                payload = task["_parsed_payload"]
                 url = payload["url"]
                 slug_value = _normalize_slug(output.slug, url)
 
@@ -817,9 +832,21 @@ class EnrichmentWorker(BaseWorker):
                     new_rows.append(row)
 
                 self.task_store.mark_completed(task["task_id"])
-            except Exception as exc:
-                logger.exception("Failed to persist enrichment for %s", task["task_id"])
+            except (IbisError, KeyError, RuntimeError, ValueError) as exc:
+                logger.exception(
+                    "Failed to persist enrichment for %s (url=%s, exc_type=%s)",
+                    task.get("task_id"),
+                    payload.get("url"),
+                    type(exc).__name__,
+                )
                 self.task_store.mark_failed(task["task_id"], f"Persistence error: {exc!s}")
+            except Exception as exc:  # pragma: no cover - defensive catch
+                logger.exception(
+                    "Unexpected persistence error for %s (exc_type=%s)",
+                    task.get("task_id"),
+                    type(exc).__name__,
+                )
+                self.task_store.mark_failed(task.get("task_id"), f"Persistence error: {exc!s}")
 
         if new_rows:
             try:
