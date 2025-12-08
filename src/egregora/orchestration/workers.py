@@ -320,20 +320,20 @@ class EnrichmentWorker(BaseWorker):
 
                 filename = payload["filename"]
                 media_type = payload["media_type"]
-                suggested_path = payload.get("suggested_path")
+                media_id = payload.get("media_id")
 
-                file_path = None
-                if suggested_path:
-                    full_path = self.ctx.output_dir / suggested_path
-                    if full_path.exists():
-                        file_path = full_path
-
-                if not file_path or not file_path.exists():
-                    logger.warning("Media file not found for task %s: %s", task["task_id"], suggested_path)
-                    self.task_store.mark_failed(task["task_id"], "Media file not found")
+                # Use output adapter to retrieve media file (delegates path resolution to sink)
+                try:
+                    media_doc = self.ctx.output_format.read_document(DocumentType.MEDIA, media_id)
+                    if not media_doc or not media_doc.content:
+                        logger.warning("Media file not found for task %s: %s", task["task_id"], media_id)
+                        self.task_store.mark_failed(task["task_id"], "Media file not found")
+                        continue
+                    file_bytes = media_doc.content
+                except Exception as e:
+                    logger.warning("Failed to load media file for task %s: %s", task["task_id"], e)
+                    self.task_store.mark_failed(task["task_id"], f"Failed to load media: {e}")
                     continue
-
-                file_bytes = file_path.read_bytes()
                 b64_data = base64.b64encode(file_bytes).decode("utf-8")
 
                 prompt = render_prompt(
