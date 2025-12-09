@@ -10,9 +10,10 @@ from __future__ import annotations
 import base64
 import logging
 from datetime import UTC, datetime
+from importlib import resources
 from pathlib import Path
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import DictLoader, Environment, FileSystemLoader, select_autoescape
 
 from egregora.agents.banner.agent import BannerInput, generate_banner
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
@@ -20,6 +21,7 @@ from egregora.agents.banner.image_generation import ImageGenerationProvider, Ima
 from egregora_v3.core.types import Document, DocumentType, Entry, Feed
 
 logger = logging.getLogger(__name__)
+DEFAULT_TEMPLATE_NAME = "banner.jinja"
 
 
 class BannerTaskEntry:
@@ -72,22 +74,22 @@ class FeedBannerGenerator:
         """Initialize the feed-based banner generator."""
         self.provider = provider
 
-        resolved_prompts = self._resolve_prompts_dir(prompts_dir)
-        self.jinja_env = Environment(
-            loader=FileSystemLoader(resolved_prompts),
+        self.jinja_env = self._create_environment(prompts_dir)
+
+    def _create_environment(self, configured: Path | None) -> Environment:
+        """Create a Jinja environment using either a provided path or packaged defaults."""
+        if configured is not None:
+            loader = FileSystemLoader(configured)
+        else:
+            template_text = resources.files("egregora.prompts").joinpath(DEFAULT_TEMPLATE_NAME).read_text(
+                encoding="utf-8"
+            )
+            loader = DictLoader({DEFAULT_TEMPLATE_NAME: template_text})
+
+        return Environment(
+            loader=loader,
             autoescape=select_autoescape(enabled_extensions=("jinja", "jinja2", "html", "xml")),
         )
-
-    def _resolve_prompts_dir(self, configured: Path | None) -> Path:
-        """Resolve prompts directory using configuration before falling back."""
-        if configured is not None:
-            return configured
-
-        if configured is not None:
-            return configured.resolve()
-
-        msg = "prompts_dir must be provided explicitly for FeedBannerGenerator"
-        raise RuntimeError(msg)
 
     def generate_from_feed(
         self,

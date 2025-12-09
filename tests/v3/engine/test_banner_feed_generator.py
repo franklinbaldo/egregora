@@ -198,3 +198,12 @@ class TestFeedBannerGenerator:
         banner_doc = result_feed.entries[0]
         assert banner_doc.internal_metadata is not None
         assert banner_doc.internal_metadata["task_id"] == "task:1"
+
+    def test_default_prompts_directory(self, sample_task_feed: Feed, mock_image_provider):
+        """Ensure packaged prompts work when no custom directory is provided."""
+        generator = FeedBannerGenerator(provider=mock_image_provider)
+        result_feed = generator.generate_from_feed(sample_task_feed)
+
+        assert len(result_feed.entries) == 1
+        banner_doc = result_feed.entries[0]
+        assert isinstance(banner_doc, Document)
