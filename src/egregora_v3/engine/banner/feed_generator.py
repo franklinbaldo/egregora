@@ -8,18 +8,21 @@ implementation.
 from __future__ import annotations
 
 import base64
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from pydantic import ValidationError
+from yaml import YAMLError
 
 from egregora.agents.banner.agent import BannerInput, generate_banner
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
-from egregora.agents.banner.image_generation import (
-    ImageGenerationProvider,
-    ImageGenerationRequest,
-)
+from egregora.agents.banner.image_generation import ImageGenerationProvider, ImageGenerationRequest
+from egregora.config import find_egregora_config, load_egregora_config
 from egregora_v3.core.types import Document, DocumentType, Entry, Feed
+
+logger = logging.getLogger(__name__)
 
 
 class BannerTaskEntry:
@@ -72,13 +75,31 @@ class FeedBannerGenerator:
         """Initialize the feed-based banner generator."""
         self.provider = provider
 
-        if prompts_dir is None:
-            repo_root = Path(__file__).resolve().parents[3]
-            prompts_dir = repo_root / "egregora" / "prompts"
+        resolved_prompts = self._resolve_prompts_dir(prompts_dir)
         self.jinja_env = Environment(
-            loader=FileSystemLoader(prompts_dir),
+            loader=FileSystemLoader(resolved_prompts),
             autoescape=select_autoescape(enabled_extensions=("jinja", "jinja2", "html", "xml")),
         )
+
+    def _resolve_prompts_dir(self, configured: Path | None) -> Path:
+        """Resolve prompts directory using configuration before falling back."""
+        if configured is not None:
+            return configured
+
+        config_path = find_egregora_config(Path.cwd())
+        if config_path:
+            site_root = config_path.parent.parent
+            try:
+                config = load_egregora_config(site_root)
+                candidate = (site_root / config.paths.prompts_dir).resolve()
+                if candidate.exists():
+                    logger.debug("Using prompts directory from config: %s", candidate)
+                    return candidate
+                logger.debug("Configured prompts directory %s missing; falling back", candidate)
+            except (OSError, YAMLError, ValidationError) as exc:
+                logger.debug("Failed to load prompts directory from config: %s", exc, exc_info=True)
+
+        return Path(__file__).resolve().parents[3] / "egregora" / "prompts"
 
     def generate_from_feed(
         self,
