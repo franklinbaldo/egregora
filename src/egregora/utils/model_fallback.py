@@ -27,7 +27,6 @@ GOOGLE_FALLBACK_MODELS = [
     "google-gla:gemini-2.5-pro",
     "google-gla:gemini-2.5-flash",
     "google-gla:gemini-2.0-flash",
-    "google-gla:gemini-2.5-flash-lite",
 ]
 
 # Priority order for text agents (Google -> OpenRouter free models)

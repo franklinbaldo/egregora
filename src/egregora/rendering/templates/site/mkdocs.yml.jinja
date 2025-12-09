@@ -46,7 +46,7 @@ plugins:
       lang: en
   - macros
   - blog:
-      blog_dir: posts
+      blog_dir: .
       # Using default post_dir: {blog}/posts - posts should be in posts/posts/
       # Post URL structure (uses date and slug)
       # Post URL structure (uses date and slug)
@@ -121,10 +121,7 @@ markdown_extensions:
   #     generic: true
 
 nav:
-  - Home: index.md
-  - Blog:
-      - Latest: posts/index.md
-      - Tags & Topics: posts/tags.md
+  - Blog: index.md
   - Journal: journal/index.md
   - Profiles: profiles/index.md
   - Media: media/index.md

@@ -57,7 +57,7 @@ def anonymize_table(
         if row.get("author_raw")
     }
 
-    sanitized_author = table["author_raw"].substitute(mapping, else_=redact_token)
+    sanitized_author = table["author_raw"].substitute(mapping, else_=ibis.literal(redact_token))
     anonymized = table.mutate(author_raw=sanitized_author)
 
     # Also update the 'author' display column if it exists (common in WhatsApp schema)

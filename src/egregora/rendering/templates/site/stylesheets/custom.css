@@ -1,0 +1,14 @@
+
+.blog-home .post-preview {
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid #eee;
+}
+.blog-home .post-meta {
+  color: #666;
+  font-size: 0.9em;
+  margin-bottom: 0.5rem;
+}
+.blog-home h3 {
+  margin-top: 0;
+}
