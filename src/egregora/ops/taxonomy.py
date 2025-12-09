@@ -2,7 +2,6 @@ import logging
 from typing import Any
 
 import numpy as np
-from sklearn.cluster import KMeans
 
 from egregora.agents.taxonomy import create_global_taxonomy_agent
 from egregora.config.settings import EgregoraConfig
@@ -18,6 +17,15 @@ MIN_DOCS_FOR_CLUSTERING = 5
 
 
 def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) -> int:
+    try:
+        from sklearn.cluster import KMeans  # noqa: PLC0415
+    except ModuleNotFoundError as exc:
+        logger.warning("scikit-learn missing (pandas dependency unresolved). Skipping taxonomy: %s", exc)
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to import scikit-learn dependencies. Skipping taxonomy: %s", exc)
+        return 0
+
     backend = get_backend()
 
     # 1. Fetch & Cluster (Standard K-Means)
