@@ -42,6 +42,7 @@ class BannerOutput(BaseModel):
     (saving, paths, URLs) are handled by upper layers.
     """
 
+    # Document is a dataclass (not a Pydantic model), so no ConfigDict/arbitrary-types hook is required.
     document: Document | None = None
     error: str | None = None
     error_code: str | None = None
