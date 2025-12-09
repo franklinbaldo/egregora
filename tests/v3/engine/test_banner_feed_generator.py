@@ -1,9 +1,11 @@
 """V3 feed-based banner generator tests."""
 
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+import yaml
 
 from egregora.agents.banner.image_generation import ImageGenerationRequest, ImageGenerationResult
 from egregora_v3.core.types import Author, Document, DocumentType, Entry, Feed
@@ -12,6 +14,22 @@ from egregora_v3.engine.banner.feed_generator import (
     BannerTaskEntry,
     FeedBannerGenerator,
 )
+
+
+@pytest.fixture(autouse=True)
+def configure_prompts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Create a temporary site root with prompts so FeedBannerGenerator can resolve config."""
+    site_root = tmp_path / "site"
+    prompts_dir = site_root / "custom-prompts"
+    prompts_dir.mkdir(parents=True)
+    (prompts_dir / "banner.jinja").write_text("Banner: {{ post_title }}", encoding="utf-8")
+
+    config_dir = site_root / ".egregora"
+    config_dir.mkdir()
+    config = {"paths": {"prompts_dir": str(prompts_dir)}}
+    (config_dir / "config.yml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+
+    monkeypatch.chdir(site_root)
 
 
 @pytest.fixture

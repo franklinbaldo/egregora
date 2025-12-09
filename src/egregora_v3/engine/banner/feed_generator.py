@@ -95,11 +95,17 @@ class FeedBannerGenerator:
                 if candidate.exists():
                     logger.debug("Using prompts directory from config: %s", candidate)
                     return candidate
-                logger.debug("Configured prompts directory %s missing; falling back", candidate)
+                msg = f"Configured prompts directory {candidate} does not exist"
+                raise FileNotFoundError(msg)
             except (OSError, YAMLError, ValidationError) as exc:
-                logger.debug("Failed to load prompts directory from config: %s", exc, exc_info=True)
+                error_msg = "Failed to load prompts directory from config"
+                raise RuntimeError(error_msg) from exc
 
-        return Path(__file__).resolve().parents[3] / "egregora" / "prompts"
+        msg = (
+            "Unable to resolve prompts directory: no .egregora/config.yml found "
+            "and no explicit prompts_dir provided"
+        )
+        raise RuntimeError(msg)
 
     def generate_from_feed(
         self,
