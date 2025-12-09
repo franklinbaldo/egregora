@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from egregora.agents.writer import register_writer_tools
+from egregora.agents.writer_helpers import register_writer_tools
 
 
 class FakeAgent:
