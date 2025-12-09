@@ -17,6 +17,8 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  schedule:
+    - cron: "0 3 * * *"
   workflow_dispatch:
 
 jobs:
@@ -40,37 +42,46 @@ jobs:
         run: uv run mypy src/
 
   test-unit:
-    name: Unit Tests
+    name: Unit Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
     steps:
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ matrix.python-version }}
           extras: "--all-extras"
 
-      - name: Run unit tests with coverage
+      - name: Run unit tests
         env:
           GEMINI_API_KEY: "test-key"
-        run: uv run pytest tests/unit/ -v --cov=src --cov-branch --cov-report=xml --cov-report=term
+        run: |
+          if [ "${{ matrix.python-version }}" = "3.12" ]; then
+            uv run pytest tests/unit/ -v --cov=src --cov-branch --cov-report=xml:coverage-${{ matrix.python-version }}.xml --cov-report=term
+          else
+            uv run pytest tests/unit/ -v
+          fi
 
       - name: Upload coverage to Codecov
-        if: github.repository == 'franklinbaldo/egregora'
+        if: github.repository == 'franklinbaldo/egregora' && matrix.python-version == '3.12'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage.xml
+          files: ./coverage-3.12.xml
           flags: unit
           name: unit-tests
           fail_ci_if_error: false
 
       - name: Upload coverage artifact
-        if: always()
+        if: always() && matrix.python-version == '3.12'
         uses: actions/upload-artifact@v5
         with:
           name: coverage-unit
-          path: coverage.xml
+          path: coverage-3.12.xml
           retention-days: 7
 
       - name: Upload test results on failure
@@ -87,6 +98,8 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: [lint, test-unit]
+    if: always()
     steps:
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
@@ -133,20 +146,53 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint, test-unit]
     timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
     steps:
+      - name: Determine if security scan should run
+        id: security_condition
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.event_name }}" == "schedule" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Python environment
+        if: steps.security_condition.outputs.run == 'true'
         uses: ./.github/actions/setup-python-uv
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           extras: "--all-extras"
 
       - name: Run safety check
+        if: steps.security_condition.outputs.run == 'true'
         run: uvx safety check --full-report
+
+      - name: Run pip-audit
+        if: steps.security_condition.outputs.run == 'true'
+        run: uvx pip-audit
+
+      - name: Run bandit (security linter)
+        if: steps.security_condition.outputs.run == 'true'
+        continue-on-error: true
+        run: uvx bandit -r src/ -f sarif -o bandit-report.sarif
+
+      - name: Upload Bandit results (SARIF)
+        if: steps.security_condition.outputs.run == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit-report.sarif
+
+      - name: Security scan skipped
+        if: steps.security_condition.outputs.run == 'false'
+        run: echo "Security scan skipped for this event."
 
   build:
     name: Build Package
     runs-on: ubuntu-latest
-    needs: [lint, test-unit, test-e2e]
+    needs: [lint, test-unit, test-e2e, security, quality]
     timeout-minutes: 10
     steps:
       - name: Setup Python environment
@@ -167,30 +213,41 @@ jobs:
 
   docs:
     name: Build & Deploy Docs
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [lint, test-unit, test-e2e, build, security]
+    needs: [lint, test-unit, test-e2e, build, security, quality]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: write  # Required for GitHub Pages deployment
     steps:
+      - name: Determine if docs should run
+        id: docs_condition
+        run: |
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Python environment
+        if: steps.docs_condition.outputs.run == 'true'
         uses: ./.github/actions/setup-python-uv
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           extras: "--extra docs"
 
       - name: Build Documentation
-        run: |
-          uv run mkdocs build
+        if: steps.docs_condition.outputs.run == 'true'
+        run: uv run mkdocs build
 
       - name: Setup Node.js
+        if: steps.docs_condition.outputs.run == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
 
       - name: Generate Repomix bundles
+        if: steps.docs_condition.outputs.run == 'true'
         run: |
           mkdir -p /tmp/bundles
           npx repomix -c repomix-docs.json --output /tmp/bundles/docs.bundle.md
@@ -200,15 +257,76 @@ jobs:
           cp /tmp/bundles/*.bundle.md site/bundles/
 
       - name: Deploy to GitHub Pages
-        if: github.repository == 'franklinbaldo/egregora'
+        if: steps.docs_condition.outputs.run == 'true' && github.repository == 'franklinbaldo/egregora'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./site
 
       - name: Upload bundles artifact
+        if: steps.docs_condition.outputs.run == 'true'
         uses: actions/upload-artifact@v5
         with:
           name: bundles
           path: /tmp/bundles/
           retention-days: 7
+
+      - name: Docs build skipped
+        if: steps.docs_condition.outputs.run == 'false'
+        run: echo "Documentation build skipped for this event."
+
+  summary:
+    name: Workflow Summary
+    runs-on: ubuntu-latest
+    needs: [lint, test-unit, test-e2e, security, quality, build, docs]
+    if: always()
+    steps:
+      - name: Post summary
+        run: |
+          cat <<'EOF' >> $GITHUB_STEP_SUMMARY
+          ## Workflow Summary
+
+          | Job | Result |
+          | --- | ------ |
+          | Lint | ${{ needs.lint.result }} |
+          | Unit Tests | ${{ needs['test-unit'].result }} |
+          | E2E Tests | ${{ needs['test-e2e'].result }} |
+          | Security | ${{ needs.security.result }} |
+          | Quality | ${{ needs.quality.result }} |
+          | Build | ${{ needs.build.result }} |
+          | Docs | ${{ needs.docs.result }} |
+          EOF
+  quality:
+    name: Code Quality Metrics
+    runs-on: ubuntu-latest
+    needs: [lint, test-unit]
+    timeout-minutes: 10
+    steps:
+      - name: Determine if quality checks should run
+        id: quality_condition
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.event_name }}" == "schedule" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Python environment
+        if: steps.quality_condition.outputs.run == 'true'
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
+
+      - name: Run radon (complexity)
+        if: steps.quality_condition.outputs.run == 'true'
+        run: uv run radon cc src/ -a
+
+      - name: Run xenon (threshold enforcement)
+        if: steps.quality_condition.outputs.run == 'true'
+        continue-on-error: true
+        run: uv run xenon src/ --max-absolute B --max-modules B --max-average B
+
+      - name: Quality checks skipped
+        if: steps.quality_condition.outputs.run == 'false'
+        run: echo "Quality checks skipped for this event."
