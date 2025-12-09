@@ -47,17 +47,17 @@ def _extract_clean_date(date_str: str) -> str:
 
     try:
         if len(date_str) == ISO_DATE_LENGTH and date_str[4] == "-" and date_str[7] == "-":
-            datetime.date.fromisoformat(date_str)
+            date.fromisoformat(date_str)
             return date_str
-    except (ValueError, AttributeError):
+    except ValueError:
         pass
 
     match = _DATE_PATTERN.match(date_str)
     if match:
         clean_date = match.group(1)
         try:
-            datetime.date.fromisoformat(clean_date)
-        except (ValueError, AttributeError):
+            date.fromisoformat(clean_date)
+        except ValueError:
             pass
         else:
             return clean_date

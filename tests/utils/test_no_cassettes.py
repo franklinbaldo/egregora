@@ -1,7 +1,7 @@
 from pathlib import Path
 
 
-def test_no_recorded_cassettes_committed():
+def test_no_recorded_cassettes_committed() -> None:
     """Guardrail: cassettes should be removed in favor of deterministic mocks."""
 
     cassette_dir = Path(__file__).resolve().parents[1] / "cassettes"
