@@ -22,8 +22,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  lint:
-    name: Lint (ruff + mypy)
+  lint-ruff-check:
+    name: Ruff (lint)
     runs-on: ubuntu-latest
     steps:
       - name: Setup Python environment
@@ -35,8 +35,30 @@ jobs:
       - name: Run ruff (lint)
         run: uv run ruff check src/ tests/
 
+  lint-ruff-format:
+    name: Ruff (format)
+    runs-on: ubuntu-latest
+    needs: [lint-ruff-check]
+    steps:
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
+
       - name: Run ruff (format check)
         run: uv run ruff format --check src/ tests/
+
+  lint-mypy:
+    name: Mypy
+    runs-on: ubuntu-latest
+    needs: [lint-ruff-check, lint-ruff-format]
+    steps:
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
 
       - name: Run mypy
         run: uv run mypy src/
@@ -98,7 +120,7 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [lint, test-unit]
+    needs: [lint-ruff-check, lint-ruff-format, lint-mypy, test-unit]
     if: always()
     steps:
       - name: Setup Python environment
@@ -144,7 +166,7 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
-    needs: [lint, test-unit]
+    needs: [lint-ruff-check, lint-ruff-format, lint-mypy, test-unit]
     timeout-minutes: 10
     permissions:
       contents: read
@@ -192,7 +214,7 @@ jobs:
   build:
     name: Build Package
     runs-on: ubuntu-latest
-    needs: [lint, test-unit, test-e2e, security, quality]
+    needs: [lint-ruff-check, lint-ruff-format, lint-mypy, test-unit, test-e2e, security, quality]
     timeout-minutes: 10
     steps:
       - name: Setup Python environment
@@ -213,7 +235,7 @@ jobs:
 
   docs:
     name: Build & Deploy Docs
-    needs: [lint, test-unit, test-e2e, build, security, quality]
+    needs: [lint-ruff-check, lint-ruff-format, lint-mypy, test-unit, test-e2e, build, security, quality]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -278,7 +300,7 @@ jobs:
   summary:
     name: Workflow Summary
     runs-on: ubuntu-latest
-    needs: [lint, test-unit, test-e2e, security, quality, build, docs]
+    needs: [lint-ruff-check, lint-ruff-format, lint-mypy, test-unit, test-e2e, security, quality, build, docs]
     if: always()
     steps:
       - name: Post summary
@@ -288,7 +310,9 @@ jobs:
 
           | Job | Result |
           | --- | ------ |
-          | Lint | ${{ needs.lint.result }} |
+          | Ruff Lint | ${{ needs['lint-ruff-check'].result }} |
+          | Ruff Format | ${{ needs['lint-ruff-format'].result }} |
+          | Mypy | ${{ needs['lint-mypy'].result }} |
           | Unit Tests | ${{ needs['test-unit'].result }} |
           | E2E Tests | ${{ needs['test-e2e'].result }} |
           | Security | ${{ needs.security.result }} |
@@ -299,7 +323,7 @@ jobs:
   quality:
     name: Code Quality Metrics
     runs-on: ubuntu-latest
-    needs: [lint, test-unit]
+    needs: [lint-ruff-check, lint-ruff-format, lint-mypy, test-unit]
     timeout-minutes: 10
     steps:
       - name: Determine if quality checks should run
