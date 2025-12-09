@@ -13,7 +13,7 @@ import logging
 import os
 
 from google import genai
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 from tenacity import Retrying
 
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
@@ -42,15 +42,10 @@ class BannerOutput(BaseModel):
     (saving, paths, URLs) are handled by upper layers.
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
     document: Document | None = None
     error: str | None = None
-    error_code: str | None = Field(
-        default=None,
-        description="Optional machine-readable error code for troubleshooting",
-    )
-    debug_text: str | None = Field(default=None, description="Debug text from model response")
+    error_code: str | None = None
+    debug_text: str | None = None
 
     @property
     def success(self) -> bool:

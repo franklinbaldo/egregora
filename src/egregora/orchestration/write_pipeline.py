@@ -35,8 +35,10 @@ import ibis.common.exceptions
 from google import genai
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
-from egregora.agents.enricher import EnrichmentRuntimeContext, schedule_enrichment
+from egregora.agents.banner.worker import BannerWorker
+from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
 from egregora.agents.model_limits import PromptTooLargeError, get_model_context_limit
+from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
@@ -53,7 +55,6 @@ from egregora.ops.media import process_media_for_window
 from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
-from egregora.orchestration.workers import BannerWorker, EnrichmentWorker, ProfileWorker
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix

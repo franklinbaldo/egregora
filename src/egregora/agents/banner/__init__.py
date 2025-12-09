@@ -9,10 +9,12 @@ from egregora.agents.banner.agent import (
     generate_banner,
     is_banner_generation_available,
 )
+from egregora.agents.banner.worker import BannerWorker
 
 __all__ = [
     "BannerInput",
     "BannerOutput",
+    "BannerWorker",
     "generate_banner",
     "is_banner_generation_available",
 ]
