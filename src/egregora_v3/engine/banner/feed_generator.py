@@ -25,7 +25,13 @@ DEFAULT_TEMPLATE_NAME = "banner.jinja"
 
 
 class BannerTaskEntry:
-    """Represents a banner generation task in a feed entry."""
+    """Adapter that exposes Entry metadata as BannerInput fields.
+
+    Feed-based workflows store the parameters for banner generation inside the
+    entry's metadata (slug, language, summary, etc.).  This lightweight wrapper
+    provides typed accessors so downstream code does not need to know about the
+    internal metadata layout of the feed.
+    """
 
     def __init__(self, entry: Entry) -> None:
         self.entry = entry
@@ -47,7 +53,14 @@ class BannerTaskEntry:
 
 
 class BannerGenerationResult:
-    """Result of processing a single banner task."""
+    """Result of processing a single banner task.
+
+    Attributes:
+        task_entry: The original feed entry that scheduled the work.
+        document: The generated media document (when successful).
+        error: Human readable reason for failure (optional).
+        error_code: Machine readable code for failure (optional).
+    """
 
     def __init__(
         self,

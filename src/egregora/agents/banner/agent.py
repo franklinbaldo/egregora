@@ -45,8 +45,14 @@ class BannerOutput(BaseModel):
     # Document is a dataclass (not a Pydantic model), so no ConfigDict/arbitrary-types hook is required.
     document: Document | None = None
     error: str | None = None
-    error_code: str | None = None
-    debug_text: str | None = None
+    error_code: str | None = Field(
+        default=None,
+        description="Optional machine-readable code describing banner failures.",
+    )
+    debug_text: str | None = Field(
+        default=None,
+        description="Raw debug output from the image provider, when available.",
+    )
 
     @property
     def success(self) -> bool:
