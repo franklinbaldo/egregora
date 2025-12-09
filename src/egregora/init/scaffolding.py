@@ -17,12 +17,16 @@ from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 logger = logging.getLogger(__name__)
 
 
-def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tuple[Path, bool]:
+def ensure_mkdocs_project(
+    site_root: Path, site_name: str | None = None, *, create_overrides: bool = False
+) -> tuple[Path, bool]:
     """Ensure site_root contains an MkDocs configuration.
 
     MODERN: This is a compatibility wrapper. New code should use:
         output_format = create_output_format(site_root, format_type="mkdocs")
-        mkdocs_path, created = output_format.scaffold_site(site_root, site_name)
+        mkdocs_path, created = output_format.scaffold_site(
+            site_root, site_name, create_overrides=create_overrides
+        )
 
     Args:
         site_root: Root directory for the site
@@ -59,7 +63,9 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
     try:
         # Prefer specific implementation if available to get accurate 'created' status
         if hasattr(output_format, "scaffold_site"):
-            _, created = output_format.scaffold_site(site_root, site_name)
+            _, created = output_format.scaffold_site(
+                site_root, site_name, create_overrides=create_overrides
+            )
         else:
             scaffolder.scaffold(site_root, {"site_name": site_name})
             # Generic scaffold doesn't return created status, assume True if no error

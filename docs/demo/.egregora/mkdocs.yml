@@ -1,0 +1,5 @@
+site_name: Egregora Demo
+site_url: https://example.com
+docs_dir: .
+nav:
+  - Demo: index.md

@@ -1,0 +1,11 @@
+paths:
+  docs_dir: .
+  posts_dir: .
+  profiles_dir: profiles
+  media_dir: media
+  journal_dir: journal
+rag:
+  enabled: true
+features:
+  ranking_enabled: false
+  annotations_enabled: true

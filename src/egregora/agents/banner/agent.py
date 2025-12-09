@@ -22,6 +22,7 @@ from egregora.config import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.resources.prompts import render_prompt
 from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
+from egregora.utils.env import get_google_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -136,8 +137,8 @@ def generate_banner(
         Requires GOOGLE_API_KEY environment variable to be set.
 
     """
-    # Client reads GOOGLE_API_KEY from environment automatically
-    client = genai.Client()
+    # Client uses GOOGLE_API_KEY (or GEMINI_API_KEY) from environment explicitly
+    client = genai.Client(api_key=get_google_api_key())
 
     # Load configuration
     config = EgregoraConfig()

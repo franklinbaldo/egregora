@@ -6,7 +6,7 @@ site_dir: ../site  # Output to site root level (not inside .egregora/)
 
 theme:
   name: material
-  custom_dir: {{ overrides_dir }}
+  {% if use_overrides %}custom_dir: {{ overrides_dir }}{% endif %}
   language: en
   font:
     text: Roboto

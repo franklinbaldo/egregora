@@ -115,6 +115,13 @@ def init(
             help="Prompt for site settings (auto-disabled in non-TTY environments)",
         ),
     ] = True,
+    with_overrides: Annotated[
+        bool,
+        typer.Option(
+            "--with-overrides/--no-overrides",
+            help="Include theme overrides when scaffolding (optional)",
+        ),
+    ] = False,
 ) -> None:
     """Initialize a new MkDocs site scaffold for serving Egregora posts."""
     site_root = output_dir.resolve()
@@ -132,7 +139,9 @@ def init(
             default=site_root.name or "Egregora Archive",
         )
 
-    docs_dir, mkdocs_created = ensure_mkdocs_project(site_root, site_name=site_name)
+    docs_dir, mkdocs_created = ensure_mkdocs_project(
+        site_root, site_name=site_name, create_overrides=with_overrides
+    )
     if mkdocs_created:
         console.print(
             Panel(

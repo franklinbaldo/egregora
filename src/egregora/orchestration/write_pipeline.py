@@ -67,6 +67,7 @@ from egregora.transformations import (
     split_window_into_n_parts,
 )
 from egregora.utils.cache import PipelineCache
+from egregora.utils.env import get_google_api_key
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
 from egregora.utils.rate_limit import init_rate_limiter
@@ -745,8 +746,9 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> di
 def _create_gemini_client() -> genai.Client:
     """Create a Gemini client with retry configuration.
 
-    The client reads the API key from GOOGLE_API_KEY environment variable automatically.
+    The client uses the GOOGLE_API_KEY (or GEMINI_API_KEY) from the environment explicitly.
     """
+    api_key = get_google_api_key()
     http_options = genai.types.HttpOptions(
         retryOptions=genai.types.HttpRetryOptions(
             attempts=15,
@@ -756,7 +758,7 @@ def _create_gemini_client() -> genai.Client:
             httpStatusCodes=[429, 503],
         )
     )
-    return genai.Client(http_options=http_options)
+    return genai.Client(api_key=api_key, http_options=http_options)
 
 
 def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineContext, any, any]:
