@@ -26,7 +26,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, List, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -222,8 +222,8 @@ class OutputSink(Protocol):
     def finalize_window(
         self,
         window_label: str,
-        posts_created: list[str],
-        profiles_updated: list[str],
+        posts_created: List[str],
+        profiles_updated: List[str],
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Hook called after processing a window."""

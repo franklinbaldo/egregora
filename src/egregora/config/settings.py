@@ -790,13 +790,15 @@ class EgregoraConfig(BaseSettings):
         """
         builder = ConfigOverrideBuilder(base_config)
 
+        from_date = cli_args.get("from_date")
+        to_date = cli_args.get("to_date")
         builder.with_pipeline(
             step_size=cli_args.get("step_size"),
             step_unit=cli_args.get("step_unit"),
             overlap_ratio=cli_args.get("overlap_ratio"),
             timezone=str(cli_args["timezone"]) if cli_args.get("timezone") is not None else None,
-            from_date=cli_args.get("from_date").isoformat() if cli_args.get("from_date") else None,
-            to_date=cli_args.get("to_date").isoformat() if cli_args.get("to_date") else None,
+            from_date=from_date.isoformat() if from_date else None,
+            to_date=to_date.isoformat() if to_date else None,
             max_prompt_tokens=cli_args.get("max_prompt_tokens"),
             use_full_context_window=cli_args.get("use_full_context_window"),
         )
@@ -1020,7 +1022,7 @@ class RuntimeContext:
     debug: Annotated[bool, "Enable debug logging"] = False
 
     @property
-    def input_path(self) -> Path:
+    def input_path(self) -> Path | None:
         """Alias for input_file (source-agnostic naming)."""
         return self.input_file
 
@@ -1080,13 +1082,13 @@ class PipelineEnrichmentConfig:
             raise ValueError(msg)
 
     @classmethod
-    def from_cli_args(cls, **kwargs: int | bool) -> PipelineEnrichmentConfig:
+    def from_cli_args(cls, **kwargs: Any) -> PipelineEnrichmentConfig:
         """Create config from CLI arguments."""
         return cls(
-            batch_threshold=kwargs.get("batch_threshold", 10),
-            max_enrichments=kwargs.get("max_enrichments", 500),
-            enable_url=kwargs.get("enable_url", True),
-            enable_media=kwargs.get("enable_media", True),
+            batch_threshold=int(kwargs.get("batch_threshold", 10)),
+            max_enrichments=int(kwargs.get("max_enrichments", 500)),
+            enable_url=bool(kwargs.get("enable_url", True)),
+            enable_media=bool(kwargs.get("enable_media", True)),
         )
 
 
