@@ -107,9 +107,7 @@ class TestBannerGenerationResult:
 class TestFeedBannerGenerator:
     """Integration-style tests for FeedBannerGenerator."""
 
-    def test_generate_from_feed_with_provider(
-        self, sample_task_feed: Feed, mock_image_provider
-    ):
+    def test_generate_from_feed_with_provider(self, sample_task_feed: Feed, mock_image_provider):
         generator = FeedBannerGenerator(provider=mock_image_provider)
         result_feed = generator.generate_from_feed(sample_task_feed)
 
