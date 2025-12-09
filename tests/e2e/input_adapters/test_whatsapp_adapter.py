@@ -15,6 +15,7 @@ Tests in this file validate:
 from __future__ import annotations
 
 import json
+import uuid
 import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -22,8 +23,14 @@ from typing import TYPE_CHECKING
 import ibis
 import pytest
 
+from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
+from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
+from egregora.input_adapters.whatsapp.commands import filter_egregora_messages
 from egregora.input_adapters.whatsapp.parsing import parse_source
+from egregora.ops.media import process_media_for_window
+from egregora.transformations.windowing import Window
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
 
 if TYPE_CHECKING:
@@ -172,8 +179,6 @@ def test_anonymization_is_deterministic(whatsapp_fixture: WhatsAppFixture):
 
 def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture):
     """Test that anonymized UUIDs follow expected format (full UUID format)."""
-    import uuid
-
     export = create_export_from_fixture(whatsapp_fixture)
     table = parse_source(export, timezone=whatsapp_fixture.timezone)
 
@@ -196,9 +201,6 @@ def test_anonymized_uuids_are_valid_format(whatsapp_fixture: WhatsAppFixture):
 
 def test_media_extraction_creates_expected_files(whatsapp_fixture: WhatsAppFixture):
     """Test that media files are correctly extracted from the ZIP."""
-    from egregora.data_primitives.document import DocumentType
-    from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
-
     adapter = WhatsAppAdapter()
 
     # Test extracting an image
@@ -220,12 +222,6 @@ def test_media_references_replaced_in_messages(
     tmp_path: Path,
 ):
     """Test that media references in messages are converted to markdown via pipeline ops."""
-    from egregora.data_primitives.document import Document
-    from egregora.data_primitives.protocols import UrlContext, UrlConvention
-    from egregora.input_adapters.whatsapp.adapter import WhatsAppAdapter
-    from egregora.ops.media import process_media_for_window
-    from egregora.transformations.windowing import Window
-
     adapter = WhatsAppAdapter()
     table = adapter.parse(whatsapp_fixture.zip_path, timezone=whatsapp_fixture.timezone)
 
@@ -293,8 +289,6 @@ def test_egregora_commands_are_filtered_out(whatsapp_fixture: WhatsAppFixture):
         "text": "/egregora opt-out",
     }
     augmented = table.union(ibis.memtable([synthetic], schema=table.schema()))
-
-    from egregora.input_adapters.whatsapp.commands import filter_egregora_messages
 
     filtered, removed_count = filter_egregora_messages(augmented)
     assert removed_count == 1

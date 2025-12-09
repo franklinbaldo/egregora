@@ -21,6 +21,7 @@ from tests.utils.pydantic_test_models import MockEmbeddingModel, install_writer_
 
 try:
     import ibis
+    from ibis.common.exceptions import IbisError
 except ImportError:  # pragma: no cover - depends on test env
     pytest.skip(
         "ibis is required for the test suite; install project dependencies to run tests",
@@ -39,7 +40,7 @@ def _ibis_backend(request):
     try:
         # In ibis 9.0+, use connect() with database path directly
         backend = ibis.duckdb.connect(":memory:")
-    except Exception as exc:  # pragma: no cover - guard against broken ibis deps
+    except IbisError as exc:  # pragma: no cover - guard against broken ibis deps
         pytest.skip(f"ibis backend unavailable: {exc}")
 
     options = getattr(ibis, "options", None)

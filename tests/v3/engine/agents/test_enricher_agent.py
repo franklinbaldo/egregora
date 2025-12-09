@@ -10,7 +10,6 @@ from datetime import UTC, datetime
 
 import ibis
 import pytest
-from pydantic_ai.models.test import TestModel
 
 from egregora_v3.core.catalog import ContentLibrary
 from egregora_v3.core.context import PipelineContext

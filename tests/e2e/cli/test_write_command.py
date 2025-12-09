@@ -232,17 +232,13 @@ class TestWriteCommandConfiguration:
 
         # Should fail or handle gracefully
         # The exact behavior depends on validation in the pipeline
-        assert result.exit_code in (0, 1, 2), (
-            "Invalid step-unit should either fail or be handled gracefully"
-        )
+        assert result.exit_code in (0, 1, 2), "Invalid step-unit should either fail or be handled gracefully"
 
 
 class TestWriteCommandDateFiltering:
     """Tests for 'egregora write' command with date filtering."""
 
-    def test_write_command_with_from_date(
-        self, test_zip_file, test_output_dir, test_dates: DateConfig
-    ):
+    def test_write_command_with_from_date(self, test_zip_file, test_output_dir, test_dates: DateConfig):
         """Test write command with --from-date filter."""
         args = build_write_command_args(
             test_zip_file,
@@ -252,9 +248,7 @@ class TestWriteCommandDateFiltering:
         result = runner.invoke(app, args)
         assert_command_success(result)
 
-    def test_write_command_with_to_date(
-        self, test_zip_file, test_output_dir, test_dates: DateConfig
-    ):
+    def test_write_command_with_to_date(self, test_zip_file, test_output_dir, test_dates: DateConfig):
         """Test write command with --to-date filter."""
         args = build_write_command_args(
             test_zip_file,
@@ -264,16 +258,12 @@ class TestWriteCommandDateFiltering:
         result = runner.invoke(app, args)
         assert_command_success(result)
 
-    def test_write_command_with_date_range(
-        self, test_zip_file, test_output_dir, test_dates: DateConfig
-    ):
+    def test_write_command_with_date_range(self, test_zip_file, test_output_dir, test_dates: DateConfig):
         """Test write command with both --from-date and --to-date."""
         args = build_write_command_args(
             test_zip_file,
             test_output_dir,
-            options=WriteCommandOptions(
-                from_date=test_dates.VALID_FROM, to_date=test_dates.VALID_TO
-            ),
+            options=WriteCommandOptions(from_date=test_dates.VALID_FROM, to_date=test_dates.VALID_TO),
         )
         result = runner.invoke(app, args)
         assert_command_success(result)

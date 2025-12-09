@@ -5,6 +5,9 @@ from unittest.mock import Mock, patch
 import pytest
 from pydantic_ai import ModelRetry
 
+import egregora.rag as rag_pkg
+import egregora.rag.models as rag_models
+from egregora.agents import writer_tools
 from egregora.agents.writer_tools import (
     AnnotationContext,
     AnnotationResult,
@@ -186,10 +189,6 @@ class TestImportFix:
     def test_rag_imports_work(self):
         """Test that RAG imports don't raise ModuleNotFoundError."""
         # This test will fail if imports are broken
-        import egregora.rag as rag_pkg
-        import egregora.rag.models as rag_models
-        from egregora.agents import writer_tools
-
         # If we get here, imports work
         assert callable(writer_tools.search_media_impl)
         assert callable(rag_pkg.search)

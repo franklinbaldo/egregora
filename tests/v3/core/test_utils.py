@@ -3,22 +3,22 @@
 from egregora_v3.core.utils import slugify
 
 
-def test_slugify_basic():
+def test_slugify_basic() -> None:
     """Test basic slugification."""
     assert slugify("Hello World") == "hello-world"
 
 
-def test_slugify_unicode():
+def test_slugify_unicode() -> None:
     """Test unicode normalization."""
     assert slugify("Café") == "cafe"
 
 
-def test_slugify_special_chars():
+def test_slugify_special_chars() -> None:
     """Test special character removal."""
     assert slugify("hello@world.com") == "hello-world-com"
 
 
-def test_slugify_length_limit():
+def test_slugify_length_limit() -> None:
     """Test length limiting."""
     long_text = "a" * 100
     slug = slugify(long_text, max_len=10)
@@ -26,11 +26,11 @@ def test_slugify_length_limit():
     assert slug == "a" * 10
 
 
-def test_slugify_empty():
+def test_slugify_empty() -> None:
     """Test empty string handling."""
     assert slugify("") == "untitled"
 
 
-def test_slugify_consecutive_separators():
+def test_slugify_consecutive_separators() -> None:
     """Test consecutive separators are collapsed."""
     assert slugify("hello---world") == "hello-world"

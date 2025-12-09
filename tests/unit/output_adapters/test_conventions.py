@@ -8,6 +8,7 @@ import inspect
 
 import pytest
 
+import egregora.output_adapters.conventions as conventions_module
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext
 from egregora.output_adapters.conventions import StandardUrlConvention, _remove_url_extension
@@ -123,8 +124,6 @@ class TestUrlConventionNoFilesystemDependency:
 
     def test_no_path_import_in_conventions_module(self):
         """Verify conventions.py does not import pathlib.Path."""
-        import egregora.output_adapters.conventions as conventions_module
-
         # Check module doesn't have Path in its namespace
         assert not hasattr(conventions_module, "Path")
 
