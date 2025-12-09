@@ -13,13 +13,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-from pydantic import ValidationError
-from yaml import YAMLError
 
 from egregora.agents.banner.agent import BannerInput, generate_banner
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
 from egregora.agents.banner.image_generation import ImageGenerationProvider, ImageGenerationRequest
-from egregora.config import find_egregora_config, load_egregora_config
 from egregora_v3.core.types import Document, DocumentType, Entry, Feed
 
 logger = logging.getLogger(__name__)
@@ -86,25 +83,10 @@ class FeedBannerGenerator:
         if configured is not None:
             return configured
 
-        config_path = find_egregora_config(Path.cwd())
-        if config_path:
-            site_root = config_path.parent.parent
-            try:
-                config = load_egregora_config(site_root)
-                candidate = (site_root / config.paths.prompts_dir).resolve()
-                if candidate.exists():
-                    logger.debug("Using prompts directory from config: %s", candidate)
-                    return candidate
-                msg = f"Configured prompts directory {candidate} does not exist"
-                raise FileNotFoundError(msg)
-            except (OSError, YAMLError, ValidationError) as exc:
-                error_msg = "Failed to load prompts directory from config"
-                raise RuntimeError(error_msg) from exc
+        if configured is not None:
+            return configured.resolve()
 
-        msg = (
-            "Unable to resolve prompts directory: no .egregora/config.yml found "
-            "and no explicit prompts_dir provided"
-        )
+        msg = "prompts_dir must be provided explicitly for FeedBannerGenerator"
         raise RuntimeError(msg)
 
     def generate_from_feed(

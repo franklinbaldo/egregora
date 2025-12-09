@@ -5,7 +5,6 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
-import yaml
 
 from egregora.agents.banner.image_generation import ImageGenerationRequest, ImageGenerationResult
 from egregora_v3.core.types import Author, Document, DocumentType, Entry, Feed
@@ -16,20 +15,13 @@ from egregora_v3.engine.banner.feed_generator import (
 )
 
 
-@pytest.fixture(autouse=True)
-def configure_prompts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Create a temporary site root with prompts so FeedBannerGenerator can resolve config."""
-    site_root = tmp_path / "site"
-    prompts_dir = site_root / "custom-prompts"
-    prompts_dir.mkdir(parents=True)
-    (prompts_dir / "banner.jinja").write_text("Banner: {{ post_title }}", encoding="utf-8")
-
-    config_dir = site_root / ".egregora"
-    config_dir.mkdir()
-    config = {"paths": {"prompts_dir": str(prompts_dir)}}
-    (config_dir / "config.yml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
-
-    monkeypatch.chdir(site_root)
+@pytest.fixture
+def prompts_dir(tmp_path: Path) -> Path:
+    """Create a temporary prompts directory with a simple template."""
+    prompts = tmp_path / "prompts"
+    prompts.mkdir(parents=True)
+    (prompts / "banner.jinja").write_text("Banner: {{ post_title }}", encoding="utf-8")
+    return prompts
 
 
 @pytest.fixture
@@ -125,8 +117,10 @@ class TestBannerGenerationResult:
 class TestFeedBannerGenerator:
     """Integration-style tests for FeedBannerGenerator."""
 
-    def test_generate_from_feed_with_provider(self, sample_task_feed: Feed, mock_image_provider):
-        generator = FeedBannerGenerator(provider=mock_image_provider)
+    def test_generate_from_feed_with_provider(
+        self, sample_task_feed: Feed, mock_image_provider, prompts_dir: Path
+    ):
+        generator = FeedBannerGenerator(provider=mock_image_provider, prompts_dir=prompts_dir)
         result_feed = generator.generate_from_feed(sample_task_feed)
 
         mock_image_provider.generate.assert_called_once()
@@ -141,7 +135,7 @@ class TestFeedBannerGenerator:
         assert banner_doc.doc_type == DocumentType.MEDIA
         assert "Banner:" in banner_doc.title
 
-    def test_generate_from_feed_with_error(self, sample_task_feed: Feed):
+    def test_generate_from_feed_with_error(self, sample_task_feed: Feed, prompts_dir: Path):
         mock_provider = Mock()
         mock_provider.generate.return_value = ImageGenerationResult(
             image_bytes=None,
@@ -151,7 +145,7 @@ class TestFeedBannerGenerator:
             error_code="API_ERROR",
         )
 
-        generator = FeedBannerGenerator(provider=mock_provider)
+        generator = FeedBannerGenerator(provider=mock_provider, prompts_dir=prompts_dir)
         result_feed = generator.generate_from_feed(sample_task_feed)
 
         assert len(result_feed.entries) == 1
@@ -159,18 +153,18 @@ class TestFeedBannerGenerator:
         assert error_doc.doc_type == DocumentType.NOTE
         assert "API error" in error_doc.content
 
-    def test_generate_from_feed_with_exception(self, sample_task_feed: Feed):
+    def test_generate_from_feed_with_exception(self, sample_task_feed: Feed, prompts_dir: Path):
         mock_provider = Mock()
         mock_provider.generate.side_effect = RuntimeError("Provider crashed")
 
-        generator = FeedBannerGenerator(provider=mock_provider)
+        generator = FeedBannerGenerator(provider=mock_provider, prompts_dir=prompts_dir)
         result_feed = generator.generate_from_feed(sample_task_feed)
 
         error_doc = result_feed.entries[0]
         assert error_doc.doc_type == DocumentType.NOTE
         assert "Provider crashed" in error_doc.content
 
-    def test_batch_generation(self, mock_image_provider):
+    def test_batch_generation(self, mock_image_provider, prompts_dir: Path):
         feed = Feed(
             id="urn:tasks:banner:multi",
             title="Multiple Tasks",
@@ -189,14 +183,16 @@ class TestFeedBannerGenerator:
             links=[],
         )
 
-        generator = FeedBannerGenerator(provider=mock_image_provider)
+        generator = FeedBannerGenerator(provider=mock_image_provider, prompts_dir=prompts_dir)
         result_feed = generator.generate_from_feed(feed, batch_mode=True)
 
         assert len(result_feed.entries) == 3
         assert mock_image_provider.generate.call_count == 3
 
-    def test_metadata_preserved(self, sample_task_feed: Feed, mock_image_provider):
-        generator = FeedBannerGenerator(provider=mock_image_provider)
+    def test_metadata_preserved(
+        self, sample_task_feed: Feed, mock_image_provider, prompts_dir: Path
+    ):
+        generator = FeedBannerGenerator(provider=mock_image_provider, prompts_dir=prompts_dir)
         result_feed = generator.generate_from_feed(sample_task_feed)
 
         banner_doc = result_feed.entries[0]
