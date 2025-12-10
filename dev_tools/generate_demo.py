@@ -105,7 +105,7 @@ def _ensure_paths_config(paths: DemoPaths) -> dict:
     config["paths"].update(
         {
             "docs_dir": "docs",
-            "posts_dir": "blog/posts",
+            "posts_dir": "blog",
             "profiles_dir": "profiles",
             "media_dir": "media",
             "journal_dir": "journal",
