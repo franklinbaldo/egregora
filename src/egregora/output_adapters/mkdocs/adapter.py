@@ -28,7 +28,7 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
-from egregora.output_adapters.conventions import StandardUrlConvention
+from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 from egregora.utils.datetime_utils import parse_datetime_flexible
@@ -85,6 +85,24 @@ class MkDocsAdapter(BaseOutputSink):
         self.journal_dir.mkdir(parents=True, exist_ok=True)
         self.urls_dir.mkdir(parents=True, exist_ok=True)
         self.media_dir.mkdir(parents=True, exist_ok=True)
+
+        # Configure URL convention to match filesystem layout
+        # This ensures that generated URLs align with where files are actually stored
+        def _get_prefix(path: Path) -> str:
+            try:
+                return path.relative_to(self.docs_dir).as_posix()
+            except ValueError:
+                # Fallback for paths outside docs_dir (should be rare)
+                return path.name
+
+        routes = RouteConfig(
+            posts_prefix=_get_prefix(self.posts_dir),
+            profiles_prefix=_get_prefix(self.profiles_dir),
+            media_prefix=_get_prefix(self.media_dir),
+            journal_prefix=_get_prefix(self.journal_dir),
+        )
+        self._url_convention = StandardUrlConvention(routes)
+
         self._initialized = True
 
     @property
