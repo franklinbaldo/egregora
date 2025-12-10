@@ -72,7 +72,10 @@ def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
     """Ensure site is initialized, creating if needed with user confirmation."""
     config_path = output_dir / ".egregora" / "config.yml"
     config_path_alt = output_dir / ".egregora" / "config.yaml"
-    if config_path.exists() or config_path_alt.exists():
+    mkdocs_candidates = [output_dir / ".egregora" / "mkdocs.yml", output_dir / "mkdocs.yml"]
+    config_exists = config_path.exists() or config_path_alt.exists()
+    mkdocs_exists = any(path.exists() for path in mkdocs_candidates)
+    if config_exists and mkdocs_exists:
         return
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -83,7 +86,7 @@ def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
     console.print(warning_message)
 
     proceed = True
-    if any(output_dir.iterdir()):
+    if not config_exists and any(output_dir.iterdir()):
         proceed = typer.confirm(
             "The output directory is not empty and lacks .egregora/config.yml. Initialize a fresh site here?",
             default=False,
@@ -94,7 +97,8 @@ def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
         raise typer.Exit(1)
 
     logger.info("Initializing site in %s", output_dir)
-    ensure_mkdocs_project(output_dir)
+    # Processing requires the full scaffold so mkdocs.yml and content dirs exist.
+    ensure_mkdocs_project(output_dir, minimal=False)
     console.print("[green]Initialized site. Continuing with processing.[/green]")
 
 
@@ -115,6 +119,20 @@ def init(
             help="Prompt for site settings (auto-disabled in non-TTY environments)",
         ),
     ] = True,
+    full_scaffold: Annotated[
+        bool,
+        typer.Option(
+            "--full-scaffold/--config-only",
+            help="Create the full MkDocs scaffold (docs, prompts, mkdocs.yml) instead of only .egregora/config.yml",
+        ),
+    ] = False,
+    with_overrides: Annotated[
+        bool,
+        typer.Option(
+            "--with-overrides/--no-overrides",
+            help="Include theme overrides when scaffolding (optional)",
+        ),
+    ] = False,
 ) -> None:
     """Initialize a new MkDocs site scaffold for serving Egregora posts."""
     site_root = output_dir.resolve()
@@ -132,15 +150,38 @@ def init(
             default=site_root.name or "Egregora Archive",
         )
 
-    docs_dir, mkdocs_created = ensure_mkdocs_project(site_root, site_name=site_name)
+    # Requesting overrides requires the full scaffold in order to copy assets
+    scaffold_full_site = full_scaffold or with_overrides
+
+    docs_dir, mkdocs_created = ensure_mkdocs_project(
+        site_root,
+        site_name=site_name,
+        create_overrides=with_overrides,
+        minimal=not scaffold_full_site,
+    )
     if mkdocs_created:
-        console.print(
-            Panel(
-                f"[bold green]✅ MkDocs site scaffold initialized successfully![/bold green]\n\n📁 Site root: {site_root}\n📝 Docs directory: {docs_dir}\n\n[bold]Next steps:[/bold]\n• Install MkDocs: [cyan]pip install 'mkdocs-material[imaging]'[/cyan]\n• Change to site directory: [cyan]cd {output_dir}[/cyan]\n• Serve the site: [cyan]mkdocs serve[/cyan]\n• Process WhatsApp export: [cyan]egregora process export.zip --output={output_dir}[/cyan]",
-                title="🛠️ Initialization Complete",
-                border_style="green",
+        message_title = "🛠️ Initialization Complete"
+        border_style = "green"
+        if scaffold_full_site:
+            message_body = (
+                f"[bold green]✅ MkDocs site scaffold initialized successfully![/bold green]\n\n"
+                f"📁 Site root: {site_root}\n"
+                f"📝 Docs directory: {docs_dir}\n\n"
+                "[bold]Next steps:[/bold]\n"
+                "• Install MkDocs: [cyan]pip install 'mkdocs-material[imaging]'[/cyan]\n"
+                f"• Change to site directory: [cyan]cd {output_dir}[/cyan]\n"
+                "• Serve the site: [cyan]mkdocs serve[/cyan]\n"
+                f"• Process WhatsApp export: [cyan]egregora process export.zip --output={output_dir}[/cyan]"
             )
-        )
+        else:
+            message_body = (
+                f"[bold green]✅ Configuration initialized![/bold green]\n\n"
+                f"📁 Site root: {site_root}\n"
+                "📝 Created: .egregora/config.yml\n"
+                "📝 Created: mkdocs.yml\n\n"
+                "Run [cyan]egregora write[/cyan] to generate content and MkDocs assets when you're ready."
+            )
+        console.print(Panel(message_body, title=message_title, border_style=border_style))
     else:
         console.print(
             Panel(

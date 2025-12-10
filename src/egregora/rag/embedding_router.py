@@ -344,8 +344,20 @@ class EndpointQueue:
                 return embeddings
 
     def _handle_response_status(self, response: httpx.Response) -> None:
-        """Handle HTTP response status."""
-        response.raise_for_status()
+        """Handle HTTP response status with helpful error details."""
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:  # pragma: no cover - exercised via integration
+            detail = response.text
+            try:
+                data = response.json()
+                detail = data.get("error", {}).get("message", detail)
+            except Exception:  # noqa: BLE001
+                # If we can't parse JSON, fall back to raw text
+                pass
+
+            message = f"{exc} - {detail}"
+            raise httpx.HTTPStatusError(message, request=exc.request, response=exc.response)
 
 
 class EmbeddingRouter:

@@ -6,7 +6,7 @@ site_dir: ../site  # Output to site root level (not inside .egregora/)
 
 theme:
   name: material
-  custom_dir: {{ overrides_dir }}
+  {% if use_overrides %}custom_dir: {{ overrides_dir }}{% endif %}
   language: en
   font:
     text: Roboto
@@ -46,8 +46,8 @@ plugins:
       lang: en
   - macros
   - blog:
-      blog_dir: posts
-      # Using default post_dir: {blog}/posts - posts should be in posts/posts/
+      blog_dir: {{ blog_dir }}
+      post_dir: {{ post_dir }}
       # Post URL structure (uses date and slug)
       # Post URL structure (uses date and slug)
       # post_url_format: "{date}/{slug}"
@@ -123,8 +123,8 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Blog:
-      - Latest: posts/index.md
-      - Tags & Topics: posts/tags.md
+      - Latest: {{ blog_dir }}/index.md
+      - Tags & Topics: {{ blog_dir }}/tags.md
   - Journal: journal/index.md
   - Profiles: profiles/index.md
   - Media: media/index.md

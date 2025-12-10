@@ -88,7 +88,7 @@ Egregora processed your chat through multiple stages:
 3. **Enrichment**: (Optional) Enriched URLs/media with descriptions
 4. **Knowledge**: Built LanceDB RAG index for retrieving similar past posts
 5. **Generation**: Gemini generated 0-N blog posts per window
-6. **Publication**: Created markdown files in `docs/posts/`
+6. **Publication**: Created markdown files in `docs/blog/posts/`
 
 ## Next Steps
 
@@ -136,7 +136,7 @@ egregora write export.zip --enable-enrichment
 Use ELO comparisons to identify your best posts:
 
 ```bash
-egregora read rank docs/posts/
+egregora read rank docs/blog/posts/
 egregora top --limit=10
 ```
 

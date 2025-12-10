@@ -24,7 +24,7 @@ Examples:
     'https://example.com/blog/posts/2025-01-10-hello/'
 
 The OutputAdapter then converts this URL to a filesystem path:
-    >>> adapter.persist(doc)  # Internally: URL -> Path("docs/posts/2025-01-10-hello.md")
+    >>> adapter.persist(doc)  # Internally: URL -> Path("docs/blog/posts/2025-01-10-hello.md")
 
 """
 
