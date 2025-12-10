@@ -978,12 +978,9 @@ class EnrichmentWorker(BaseWorker):
             }
 
             if hasattr(self.ctx.storage, "ibis_conn"):
-                con = self.ctx.storage.ibis_conn.con
-
-                cols = ", ".join(version_row.keys())
-                placeholders = ", ".join(["?"] * len(version_row))
-                sql = f"INSERT INTO entry_versions ({cols}) VALUES ({placeholders})"
-                con.execute(sql, list(version_row.values()))
+                # Use Ibis insert for safer, schema-aware insertion
+                # Wrapping in list as insert typically expects an iterable of rows or a dataframe
+                self.ctx.storage.ibis_conn.insert("entry_versions", [version_row])
 
         except Exception as e:
             logger.error("Failed to persist enrichment to entry_versions: %s", e)

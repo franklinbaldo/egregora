@@ -214,15 +214,16 @@ Infrastructure dependencies are defined as protocols (structural typing), not co
 
 ### Schema Architecture (Updated Dec 2025)
 
-To support efficient storage and "many entries -> same content" deduplication, the persistence schema uses a normalized design:
+To support robust versioning and audit trails, the persistence schema uses an **Append-Only Event Log** pattern:
 
-1.  **`documents` Table:** Stores Entry metadata (`id`, `feed_id`, `title`, `updated`, etc.) but NOT the heavy content body.
-2.  **`contents` Table:** Stores unique content blobs, identified by UUIDv5 (hash of content).
-3.  **`entry_contents` Table:** Association table linking Entries to Contents.
-    *   Enables deduplication: Multiple entries can point to the same content hash.
-    *   Enables composition: Future-proofs for entries composed of multiple content blocks.
+1.  **`feed_fetches` Table:** A log of every feed fetch operation.
+2.  **`entry_versions` Table:** An immutable log of entry snapshots. Every time an entry is seen or updated (enriched), a new row is appended with a unique `version_id`.
+    *   `atom_id`: The stable logical identifier of the entry.
+    *   `event_type`: Describes the event (e.g., 'seen', 'enrichment', 'tombstone').
+    *   `seen_at`: Timestamp of the event.
+3.  **Views (`current_entries`, `current_feeds`):** Logical views that reconstruct the latest state by selecting the most recent version for each ID.
 
-This separation allows agents to subscribe to feeds and mark entries as read (`agent_read_status` table) without duplicating massive content blobs.
+This architecture eliminates complex upsert logic and provides a complete history of data evolution. Agents track read status via the `agent_read_status` table.
 
 ---
 
