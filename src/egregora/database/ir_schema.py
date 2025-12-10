@@ -40,53 +40,55 @@ sql_manager = SQLManager()
 # ============================================================================
 
 # ----------------------------------------------------------------------------
-# Unified Documents/Entries Schema (V3 Core)
+# Append-Only Event Log Schemas (V3 Core)
 # ----------------------------------------------------------------------------
 
-DOCUMENTS_SCHEMA = ibis.schema(
+FEED_FETCHES_SCHEMA = ibis.schema(
     {
+        "fetch_id": dt.int64,
+        "feed_url": dt.string,
+        "atom_id": dt.String(nullable=True),
+        "title": dt.String(nullable=True),
+        "subtitle": dt.String(nullable=True),
+        "rights": dt.String(nullable=True),
+        "language": dt.String(nullable=True),
+        "updated": dt.Timestamp(timezone="UTC", nullable=True),
+        "etag": dt.String(nullable=True),
+        "last_modified": dt.String(nullable=True),
+        "http_status": dt.Int32(nullable=True),
+        "fetched_at": dt.Timestamp(timezone="UTC"),
+        "raw_xml": dt.String(nullable=True),
+    }
+)
+
+ENTRY_VERSIONS_SCHEMA = ibis.schema(
+    {
+        "version_id": dt.int64,  # Auto-increment or unique ID
+        "feed_url": dt.String(nullable=True),  # Feed this entry belongs to
+        "atom_id": dt.string,  # Logical ID of the entry (Entry.id)
+        "fetch_id": dt.Int64(nullable=True),  # Link to feed_fetches
+        "position": dt.Int32(nullable=True),
         # Entry Core Fields
-        "id": dt.string,
-        "feed_id": dt.String(nullable=True),
-        "title": dt.string,
-        "updated": dt.Timestamp(timezone="UTC"),
-        "published": dt.Timestamp(timezone="UTC", nullable=True),
+        "title": dt.String(nullable=True),
         "summary": dt.String(nullable=True),
-        # NOTE: 'content' is removed in favor of content association
+        "content": dt.String(nullable=True),
         "content_type": dt.String(nullable=True),
+        "rights": dt.String(nullable=True),
+        "published": dt.Timestamp(timezone="UTC", nullable=True),
+        "updated": dt.Timestamp(timezone="UTC", nullable=True),
+        # JSON Metadata
+        "authors": dt.JSON(nullable=True),
+        "links": dt.JSON(nullable=True),
+        "categories": dt.JSON(nullable=True),
         "source": dt.JSON(nullable=True),
         "in_reply_to": dt.JSON(nullable=True),
-        "extensions": dt.JSON(nullable=True),
-        "internal_metadata": dt.JSON(nullable=True),
-        # Entry Lists (JSON Arrays)
-        "links": dt.JSON(nullable=True),
-        "authors": dt.JSON(nullable=True),
-        "contributors": dt.JSON(nullable=True),
-        "categories": dt.JSON(nullable=True),
-        # Document Subclass Fields
+        # Egregora-specific
         "doc_type": dt.String(nullable=True),
         "status": dt.String(nullable=True),
-        "searchable": dt.Boolean(nullable=True),
-        "url_path": dt.String(nullable=True),
-    }
-)
-
-CONTENTS_SCHEMA = ibis.schema(
-    {
-        "id": dt.string,  # UUIDv5 of content
-        "text": dt.string,  # The actual content
-        "hash": dt.String(nullable=True),  # Explicit hash if needed
-        "media_type": dt.String(nullable=True),
-    }
-)
-
-ENTRY_CONTENTS_SCHEMA = ibis.schema(
-    {
-        "entry_id": dt.string,
-        "content_id": dt.string,
-        "version_id": dt.int64,  # Sequential version number (1, 2, 3...)
-        "created_at": dt.Timestamp(timezone="UTC"),  # Audit timestamp
-        "order_index": dt.Int64(nullable=True),  # Support ordered composition
+        # Event Metadata
+        "event_type": dt.string,  # 'seen', 'enriched', 'tombstone'
+        "seen_at": dt.Timestamp(timezone="UTC"),
+        "raw_xml": dt.String(nullable=True),
     }
 )
 
@@ -649,9 +651,8 @@ __all__ = [
     "ANNOTATIONS_SCHEMA",
     # Agent/Documents schemas
     "AGENT_READ_STATUS_SCHEMA",
-    "DOCUMENTS_SCHEMA",
-    "CONTENTS_SCHEMA",
-    "ENTRY_CONTENTS_SCHEMA",
+    "FEED_FETCHES_SCHEMA",
+    "ENTRY_VERSIONS_SCHEMA",
     # Elo schemas
     "ELO_HISTORY_SCHEMA",
     "ELO_RATINGS_SCHEMA",

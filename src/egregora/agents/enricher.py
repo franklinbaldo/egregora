@@ -943,70 +943,50 @@ class EnrichmentWorker(BaseWorker):
         return success_count
 
     def _persist_to_unified_tables(self, doc: Document) -> None:
-        """Persist Document to documents, contents, and entry_contents tables.
+        """Persist Document to append-only entry_versions table.
 
-        This bridges V2 Document model to V3 DB Schema when ContentLibrary is not available.
+        Uses the Event Log pattern: insert a new version for every change.
+        Views (current_entries) will reconstruct the latest state.
         """
         if not self.ctx.storage:
             return
 
         try:
-            # 1. Documents Table
-            entry_row = doc.to_entry_dict()
-            # Ensure required fields that might differ between V2/V3 are present
-            if "updated" not in entry_row or not entry_row["updated"]:
-                entry_row["updated"] = datetime.now(UTC)
-
-            # 2. Contents Table
+            entry_dict = doc.to_entry_dict()
             content_text = doc.content.decode("utf-8") if isinstance(doc.content, bytes) else doc.content
-            content_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, content_text))
-            content_row = {
-                "id": content_id,
-                "text": content_text,
-                "hash": None,
-                "media_type": "text/markdown", # Default for enrichments
+
+            # Map Document fields to ENTRY_VERSIONS_SCHEMA
+            version_row = {
+                "version_id": uuid.uuid4().int & (1<<63)-1, # Random int64
+                "feed_url": entry_dict.get("feed_id"),
+                "atom_id": entry_dict["id"],
+                "fetch_id": None, # Could link to run_id if converted to int
+                "title": entry_dict.get("title"),
+                "summary": entry_dict.get("summary"),
+                "content": content_text,
+                "content_type": entry_dict.get("content_type") or "text/markdown",
+                "rights": None,
+                "published": entry_dict.get("published"),
+                "updated": entry_dict.get("updated") or datetime.now(UTC),
+                "authors": entry_dict.get("authors"), # JSON string
+                "links": entry_dict.get("links"),     # JSON string
+                "source": entry_dict.get("source"),   # JSON string
+                "doc_type": entry_dict.get("doc_type"),
+                "status": entry_dict.get("status"),
+                "event_type": "enrichment",
+                "seen_at": datetime.now(UTC),
             }
 
-            # Execute insertions using Ibis or raw connection via storage manager
             if hasattr(self.ctx.storage, "ibis_conn"):
                 con = self.ctx.storage.ibis_conn.con
 
-                # Determine next version_id
-                # Handle case where table might be empty or entry not present
-                try:
-                    res = con.execute(
-                        "SELECT MAX(version_id) FROM entry_contents WHERE entry_id = ?",
-                        [doc.document_id]
-                    ).fetchone()
-                    current_version = res[0] if res and res[0] is not None else 0
-                except Exception:
-                    # Fallback if table query fails (e.g. during tests with mock connections)
-                    current_version = 0
-
-                next_version = current_version + 1
-
-                # 3. Entry-Contents Association
-                assoc_row = {
-                    "entry_id": doc.document_id,
-                    "content_id": content_id,
-                    "version_id": next_version,
-                    "created_at": datetime.now(UTC),
-                    "order_index": 0,
-                }
-
-                # Helper to insert dict
-                def _insert_ignore(table, row):
-                    cols = ", ".join(row.keys())
-                    placeholders = ", ".join(["?"] * len(row))
-                    sql = f"INSERT OR IGNORE INTO {table} ({cols}) VALUES ({placeholders})"
-                    con.execute(sql, list(row.values()))
-
-                _insert_ignore("contents", content_row)
-                _insert_ignore("documents", entry_row)
-                _insert_ignore("entry_contents", assoc_row)
+                cols = ", ".join(version_row.keys())
+                placeholders = ", ".join(["?"] * len(version_row))
+                sql = f"INSERT INTO entry_versions ({cols}) VALUES ({placeholders})"
+                con.execute(sql, list(version_row.values()))
 
         except Exception as e:
-            logger.error("Failed to persist enrichment to unified tables: %s", e)
+            logger.error("Failed to persist enrichment to entry_versions: %s", e)
 
     def _parse_media_result(self, res: Any, task: dict[str, Any]) -> tuple[dict[str, Any], str, str] | None:
         text = self._extract_text(res.response)
