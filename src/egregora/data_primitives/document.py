@@ -90,6 +90,15 @@ class Document:
     # Metadata (format-agnostic)
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    # V3 Entry Abstraction Alignment
+    title: str | None = None
+    feed_id: str | None = None
+    updated: datetime | None = None
+    authors: list[dict[str, str]] | list[str] | None = None  # Compatible with both simple strings and V3 Author dicts
+    links: list[dict[str, Any]] | None = None
+    summary: str | None = None
+    content_type: str | None = None
+
     # V3: Explicit ID (Semantic Identity)
     id: str | None = field(default=None)
 
@@ -132,6 +141,32 @@ class Document:
             payload = self.content.encode("utf-8")
         content_hash = hashlib.sha256(payload).hexdigest()
         return str(uuid5(NAMESPACE_DOCUMENT, content_hash))
+
+    def to_entry_dict(self) -> dict[str, Any]:
+        """Convert Document to dictionary matching V3 DOCUMENTS_SCHEMA."""
+        import json
+
+        # Prepare complex types for serialization
+        authors_json = json.dumps(self.authors) if self.authors else None
+        links_json = json.dumps(self.links) if self.links else None
+        source_json = json.dumps(self.metadata) if self.metadata else None
+
+        return {
+            "id": self.document_id,
+            "feed_id": self.feed_id,
+            "title": self.title or self.metadata.get("title", ""),
+            "updated": self.updated or self.created_at,
+            "published": self.created_at,  # Map created_at to published for now
+            "summary": self.summary,
+            "content_type": self.content_type,
+            "source": source_json,
+            "authors": authors_json,
+            "links": links_json,
+            "doc_type": self.type.value,
+            "status": "published",  # Default status
+            "searchable": True,
+            "url_path": self.suggested_path,
+        }
 
     @property
     def slug(self) -> str:

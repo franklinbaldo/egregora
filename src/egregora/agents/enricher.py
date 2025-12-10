@@ -763,6 +763,10 @@ class EnrichmentWorker(BaseWorker):
                     self.ctx.library.save(doc)
                 else:
                     self.ctx.output_format.persist(doc)
+                    # Manual persistence to unified tables if library not present
+                    # This ensures enriched documents appear in the 'documents' table
+                    # enabling agents to discover them via the unified Entry schema.
+                    self._persist_to_unified_tables(doc)
 
                 self.task_store.mark_completed(task["task_id"])
                 success_count += 1
@@ -930,11 +934,73 @@ class EnrichmentWorker(BaseWorker):
                 self.ctx.library.save(doc)
             else:
                 self.ctx.output_format.persist(doc)
+                # Manual persistence to unified tables
+                self._persist_to_unified_tables(doc)
 
             self.task_store.mark_completed(task["task_id"])
             success_count += 1
 
         return success_count
+
+    def _persist_to_unified_tables(self, doc: Document) -> None:
+        """Persist Document to documents, contents, and entry_contents tables.
+
+        This bridges V2 Document model to V3 DB Schema when ContentLibrary is not available.
+        """
+        if not self.ctx.storage:
+            return
+
+        try:
+            # 1. Documents Table
+            entry_row = doc.to_entry_dict()
+            # Ensure required fields that might differ between V2/V3 are present
+            if "updated" not in entry_row or not entry_row["updated"]:
+                entry_row["updated"] = datetime.now(UTC)
+
+            # 2. Contents Table
+            content_text = doc.content.decode("utf-8") if isinstance(doc.content, bytes) else doc.content
+            content_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, content_text))
+            content_row = {
+                "id": content_id,
+                "text": content_text,
+                "hash": None,
+                "media_type": "text/markdown", # Default for enrichments
+            }
+
+            # 3. Entry-Contents Association
+            assoc_row = {
+                "entry_id": doc.document_id,
+                "content_id": content_id,
+                "version_id": 1,
+                "created_at": datetime.now(UTC),
+                "order_index": 0,
+            }
+
+            # Execute insertions using Ibis or raw connection via storage manager
+            # We use insert method if available, or fallback to specialized logic
+            if hasattr(self.ctx.storage, "ibis_conn"):
+                # Use a transaction if possible, or sequential inserts
+                # Note: insert() might not support 'overwrite=False' or upsert nicely in all backends
+                # For now, we assume simple insert. In production, need upsert/ignore conflict.
+                # DuckDB supports INSERT OR IGNORE via raw SQL usually.
+                # Ibis insert is append.
+
+                # We'll use raw SQL for "INSERT OR IGNORE" semantics to avoid primary key errors
+                con = self.ctx.storage.ibis_conn.con
+
+                # Helper to insert dict
+                def _insert_ignore(table, row):
+                    cols = ", ".join(row.keys())
+                    placeholders = ", ".join(["?"] * len(row))
+                    sql = f"INSERT OR IGNORE INTO {table} ({cols}) VALUES ({placeholders})"
+                    con.execute(sql, list(row.values()))
+
+                _insert_ignore("contents", content_row)
+                _insert_ignore("documents", entry_row)
+                _insert_ignore("entry_contents", assoc_row)
+
+        except Exception as e:
+            logger.warning("Failed to persist enrichment to unified tables: %s", e)
 
     def _parse_media_result(self, res: Any, task: dict[str, Any]) -> tuple[dict[str, Any], str, str] | None:
         text = self._extract_text(res.response)
