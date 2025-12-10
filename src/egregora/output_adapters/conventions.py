@@ -177,6 +177,82 @@ class StandardUrlConvention(UrlConvention):
             return url.rstrip("/") + "/"
         return url
 
+    def relative_url(self, target: Document, source: Document, ctx: UrlContext) -> str:
+        """Calculate relative URL from source document to target document."""
+        # This is a pure string manipulation method, avoiding filesystem operations
+        # to strictly adhere to UrlConvention's role.
+        target_url = self.canonical_url(target, ctx).strip("/")
+        source_url = self.canonical_url(source, ctx).strip("/")
+
+        # If either URL is absolute (http...), return target absolute URL
+        if target_url.startswith("http") or source_url.startswith("http"):
+            return self.canonical_url(target, ctx)
+
+        target_parts = target_url.split("/")
+        source_parts = source_url.split("/")
+
+        # Remove the filename part from source (we want directory relative)
+        # Source is a document, its URL is "path/to/doc/" or "path/to/doc.html"
+        # Since canonical_url returns directory-style URLs usually ending in slash,
+        # source_parts might end with empty string if trailing slash was present.
+        # If source_url was "a/b/", parts are ["a", "b", ""]. Parent is "a/b".
+        # If source_url was "a/b", parts are ["a", "b"]. Parent is "a".
+        # We need the directory containing the source document.
+        # MkDocs/Material strategy:
+        #  - if URL ends in /, it's index.html in that dir.
+        #  - if URL ends in .html, it's a file in parent dir.
+        # Our canonical_url returns "path/to/slug/" (directory style).
+        # So the "current directory" for relative link calculation is that path.
+        # Wait, if I am at "posts/slug/", a link to "posts/other/" is "../other/".
+
+        # Common prefix calculation
+        i = 0
+        while i < len(target_parts) and i < len(source_parts) and target_parts[i] == source_parts[i]:
+            i += 1
+
+        # Backtrack from source
+        # source_parts[i:] is the part of source path that differs
+        # We need to go up 'len(source_parts) - i - 1' times?
+        # Example: source="a/b/c", target="a/x/y". i=1 ("a").
+        # source diff: "b", "c". Need "../../" ?
+        # If source is "posts/slug/" (parts=["posts", "slug", ""]), directory is "posts/slug".
+        # Target is "profiles/uuid/" (parts=["profiles", "uuid", ""]).
+        # i=0. Source diff: "posts", "slug", "".
+        # We need to go up from "posts/slug": ../../
+        # Then down to "profiles/uuid/": profiles/uuid/
+        # Result: ../../profiles/uuid/
+
+        # Number of segments to back out of
+        # If source ends in empty string (trailing slash), it counts as a segment?
+        # No, split("a/b/") -> ["a", "b", ""].
+        # We are IN directory "a/b".
+        # We need to get back to root. That is 2 steps (b, a).
+        # So we ignore the last empty segment if it exists?
+
+        # Let's clean empty trailing segments first
+        if not target_parts[-1]: target_parts.pop()
+        if not source_parts[-1]: source_parts.pop()
+
+        # Re-calculate common prefix
+        i = 0
+        while i < len(target_parts) and i < len(source_parts) and target_parts[i] == source_parts[i]:
+            i += 1
+
+        rel_parts = [".."] * (len(source_parts) - i) + target_parts[i:]
+
+        # Join and ensure trailing slash if target had one (canonical_url usually does)
+        rel_path = "/".join(rel_parts)
+
+        # If the result is empty (same path), return empty string (self-reference)
+        # Avoid appending slash which would make it root-relative "/"
+        if not rel_path:
+            return ""
+
+        if self.canonical_url(target, ctx).endswith("/"):
+            rel_path += "/"
+
+        return rel_path
+
     def canonical_url(self, document: Document, ctx: UrlContext) -> str:
         """Generate a canonical URL based on the standard convention."""
         handlers = {

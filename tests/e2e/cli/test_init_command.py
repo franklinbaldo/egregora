@@ -49,8 +49,9 @@ def test_init_directory_structure(tmp_path: Path):
     assert created
 
     # Verify directory structure (new structure: content at root level)
+    # Note: 'posts' is now under 'docs/blog/' by default config change
     expected_dirs = [
-        "docs/posts",
+        "docs/blog/posts",
         "docs/profiles",
         "docs/media",
         "docs/media/images",

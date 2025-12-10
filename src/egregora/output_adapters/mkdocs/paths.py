@@ -104,6 +104,13 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
     # posts_dir is where actual post files go (posts/posts/ per Material blog plugin)
     blog_root_dir = resolve_content_path(paths_settings.posts_dir)
     # Material blog plugin expects posts in {blog}/posts/ subdirectory
+    # However, if paths_settings.posts_dir already points to blog/posts (as used in generate_demo.py),
+    # adding another /posts level creates blog/posts/posts which confuses tests and users.
+    # The remote branch enforced this, but tests suggest conflicting expectations.
+    # We will assume that if the config explicitly says "blog", it means the blog root,
+    # and posts go into "blog/posts".
+    # If config says "blog/posts", it might mean THAT is the posts dir.
+    # But paths.py treats it as blog_root_dir.
     posts_dir = blog_root_dir / "posts"
     profiles_dir = resolve_content_path(paths_settings.profiles_dir)
     media_dir = resolve_content_path(paths_settings.media_dir)
