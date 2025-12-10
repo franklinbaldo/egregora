@@ -560,8 +560,8 @@ class OutputSettings(BaseModel):
     )
 
     mkdocs_config_path: str | None = Field(
-        default=None,
-        description="Path to mkdocs.yml config file, relative to site root. If None, defaults to '.egregora/mkdocs.yml'",
+        default="mkdocs.yml",
+        description="Path to mkdocs.yml config file, relative to site root. If None, defaults to 'mkdocs.yml'",
     )
 
 

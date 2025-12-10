@@ -76,19 +76,26 @@ class MkDocsSiteScaffolder:
         site_root = site_root.expanduser().resolve()
         site_root.mkdir(parents=True, exist_ok=True)
 
-        # Minimal scaffold: only ensure .egregora/config.yml exists.
         config_preexists = (site_root / ".egregora" / "config.yml").exists()
+        site_paths = derive_mkdocs_paths(site_root)
+
         if minimal:
             try:
                 if not config_preexists:
                     create_default_config(site_root)
-                site_paths = derive_mkdocs_paths(site_root)
-                return (site_paths["mkdocs_config_path"], not config_preexists)
+                    site_paths = derive_mkdocs_paths(site_root)
+                mkdocs_config_path = site_paths["mkdocs_config_path"]
+                if mkdocs_config_path is None:
+                    msg = "mkdocs_config_path could not be resolved for minimal scaffold"
+                    raise RuntimeError(msg)
+
+                env, context = self._mkdocs_template_context(site_root, site_paths, site_name, create_overrides)
+                if not mkdocs_config_path.exists():
+                    self._render_mkdocs_config(env, mkdocs_config_path, context)
+                return (site_paths["docs_dir"], not config_preexists)
             except Exception as e:  # pragma: no cover - defensive guard
                 msg = f"Failed to scaffold minimal MkDocs site: {e}"
                 raise RuntimeError(msg) from e
-
-        site_paths = derive_mkdocs_paths(site_root)
 
         mkdocs_path = site_paths.get("mkdocs_path")
         site_exists = False
@@ -102,41 +109,11 @@ class MkDocsSiteScaffolder:
             site_exists = True
 
         try:
-            templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
-            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
-
-            mkdocs_config_dir = site_paths["mkdocs_config_path"].parent
-            docs_dir = site_paths["docs_dir"]
-            docs_relative = Path(os.path.relpath(docs_dir, mkdocs_config_dir)).as_posix()
-            blog_relative = Path(os.path.relpath(site_paths["posts_dir"], docs_dir)).as_posix()
-
-            overrides_dir = ""
-            if create_overrides:
-                overrides_dir = Path(
-                    os.path.relpath(site_paths["egregora_dir"] / "overrides", mkdocs_config_dir)
-                ).as_posix()
-
-            context = {
-                "site_name": site_name or site_root.name or "Egregora Archive",
-                "site_root": site_root,
-                "blog_dir": blog_relative,
-                "docs_dir": docs_relative,
-                "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
-                "generated_date": datetime.now(UTC).strftime("%Y-%m-%d"),
-                "default_writer_model": EgregoraConfig().models.writer,
-                "media_counts": {"urls": 0, "images": 0, "videos": 0, "audio": 0},
-                "recent_media": [],
-                "overrides_dir": overrides_dir,
-                "use_overrides": create_overrides,
-            }
+            env, context = self._mkdocs_template_context(site_root, site_paths, site_name, create_overrides)
 
             new_mkdocs_path = site_paths["mkdocs_config_path"]
             if not site_exists:
-                mkdocs_template = env.get_template("mkdocs.yml.jinja")
-                mkdocs_content = mkdocs_template.render(**context)
-                new_mkdocs_path.parent.mkdir(parents=True, exist_ok=True)
-                new_mkdocs_path.write_text(mkdocs_content, encoding="utf-8")
-                logger.info("Created .egregora/mkdocs.yml")
+                self._render_mkdocs_config(env, new_mkdocs_path, context)
             else:
                 new_mkdocs_path = mkdocs_path or legacy_mkdocs
 
@@ -144,11 +121,11 @@ class MkDocsSiteScaffolder:
 
             # Create symlink for mkdocs.yml in root for standard tooling compatibility
             symlink_path = site_root / "mkdocs.yml"
-            if not symlink_path.exists():
+            if new_mkdocs_path != symlink_path and not symlink_path.exists():
                 try:
-                    target = Path(".egregora/mkdocs.yml")
+                    target = new_mkdocs_path.relative_to(site_root)
                     symlink_path.symlink_to(target)
-                    logger.info("Created symlink mkdocs.yml -> .egregora/mkdocs.yml")
+                    logger.info("Created symlink mkdocs.yml -> %s", target)
                 except OSError as e:
                     logger.warning("Failed to create mkdocs.yml symlink: %s", e)
         except Exception as e:
@@ -199,6 +176,48 @@ class MkDocsSiteScaffolder:
                 "rankings_dir": site_paths["rankings_dir"],
             },
         )
+
+    def _mkdocs_template_context(
+        self,
+        site_root: Path,
+        site_paths: dict[str, Path | str | None],
+        site_name: str | None,
+        create_overrides: bool,
+    ) -> tuple[Environment, dict[str, Any]]:
+        templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
+        env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
+
+        mkdocs_config_dir = Path(site_paths["mkdocs_config_path"]).parent
+        docs_dir = site_paths["docs_dir"]
+        docs_relative = Path(os.path.relpath(docs_dir, mkdocs_config_dir)).as_posix()
+        blog_relative = Path(os.path.relpath(site_paths["posts_dir"], docs_dir)).as_posix()
+
+        overrides_dir = ""
+        if create_overrides:
+            overrides_dir = Path(os.path.relpath(site_paths["egregora_dir"] / "overrides", mkdocs_config_dir)).as_posix()
+
+        context = {
+            "site_name": site_name or site_root.name or "Egregora Archive",
+            "site_root": site_root,
+            "blog_dir": blog_relative,
+            "docs_dir": docs_relative,
+            "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
+            "generated_date": datetime.now(UTC).strftime("%Y-%m-%d"),
+            "default_writer_model": EgregoraConfig().models.writer,
+            "media_counts": {"urls": 0, "images": 0, "videos": 0, "audio": 0},
+            "recent_media": [],
+            "overrides_dir": overrides_dir,
+            "use_overrides": create_overrides,
+        }
+
+        return env, context
+
+    def _render_mkdocs_config(self, env: Environment, mkdocs_path: Path, context: dict[str, Any]) -> None:
+        mkdocs_template = env.get_template("mkdocs.yml.jinja")
+        mkdocs_content = mkdocs_template.render(**context)
+        mkdocs_path.parent.mkdir(parents=True, exist_ok=True)
+        mkdocs_path.write_text(mkdocs_content, encoding="utf-8")
+        logger.info("Created %s", mkdocs_path.relative_to(context.get("site_root", mkdocs_path.parent)))
 
     def _create_site_structure(
         self,

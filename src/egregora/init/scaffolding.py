@@ -50,12 +50,8 @@ def ensure_mkdocs_project(
 
     config_exists_before = (site_root / ".egregora" / "config.yml").exists()
 
-    if minimal:
-        if not config_exists_before:
-            create_default_config(site_root)
-
-        site_paths = derive_mkdocs_paths(site_root)
-        return (site_paths["docs_dir"], not config_exists_before)
+    if minimal and not config_exists_before:
+        create_default_config(site_root)
 
     # Create and initialize MkDocs output format
     registry = create_default_output_registry()

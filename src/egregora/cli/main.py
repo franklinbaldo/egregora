@@ -177,7 +177,8 @@ def init(
             message_body = (
                 f"[bold green]✅ Configuration initialized![/bold green]\n\n"
                 f"📁 Site root: {site_root}\n"
-                "📝 Created: .egregora/config.yml\n\n"
+                "📝 Created: .egregora/config.yml\n"
+                "📝 Created: mkdocs.yml\n\n"
                 "Run [cyan]egregora write[/cyan] to generate content and MkDocs assets when you're ready."
             )
         console.print(Panel(message_body, title=message_title, border_style=border_style))

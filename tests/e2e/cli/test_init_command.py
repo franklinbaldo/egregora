@@ -90,9 +90,9 @@ def test_egregora_directory_created(tmp_path: Path):
     assert egregora_dir.exists(), ".egregora directory should be created"
     assert egregora_dir.is_dir(), ".egregora should be a directory"
 
-    # Verify mkdocs.yml exists in .egregora/
-    mkdocs_yml = egregora_dir / "mkdocs.yml"
-    assert mkdocs_yml.exists(), ".egregora/mkdocs.yml should be created"
+    # Verify mkdocs.yml exists at configured location (default: project root)
+    mkdocs_yml = tmp_path / "mkdocs.yml"
+    assert mkdocs_yml.exists(), "mkdocs.yml should be created at the project root"
 
     # Verify config.yml exists
     config_yml = egregora_dir / "config.yml"
@@ -135,8 +135,8 @@ def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
     # Create site
     ensure_mkdocs_project(tmp_path)
 
-    # Read mkdocs.yml from .egregora/
-    mkdocs_path = tmp_path / ".egregora" / "mkdocs.yml"
+    # Read mkdocs.yml from the configured location
+    mkdocs_path = tmp_path / "mkdocs.yml"
     assert mkdocs_path.exists()
 
     with mkdocs_path.open() as f:
@@ -194,17 +194,20 @@ def test_prompts_directory_populated(tmp_path: Path):
         assert file_path.exists(), f".egregora/prompts/{filename} should be created"
 
 
-def test_minimal_scaffold_creates_only_config(tmp_path: Path):
-    """Minimal init should only create .egregora/config.yml by default."""
+def test_minimal_scaffold_creates_config_and_mkdocs(tmp_path: Path):
+    """Minimal init should create config.yml and mkdocs.yml by default."""
 
-    _mkdocs_path, created = ensure_mkdocs_project(tmp_path, minimal=True)
+    docs_dir, created = ensure_mkdocs_project(tmp_path, minimal=True)
 
     assert created
     assert (tmp_path / ".egregora" / "config.yml").exists()
-    assert not (tmp_path / ".egregora" / "mkdocs.yml").exists()
-    assert not (tmp_path / "mkdocs.yml").exists()
-    assert not (tmp_path / "docs").exists()
+    assert (tmp_path / "mkdocs.yml").exists()
+    assert docs_dir == tmp_path / "docs"
+    assert not (tmp_path / "docs" / "index.md").exists()
     assert not (tmp_path / "README.md").exists()
+
+    config = load_egregora_config(tmp_path)
+    assert config.output.mkdocs_config_path == "mkdocs.yml"
 
 
 def test_processing_scaffold_completes_site(tmp_path: Path, monkeypatch):
