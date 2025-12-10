@@ -55,7 +55,7 @@ from egregora.agents.writer_setup import (
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors
-from egregora.output_adapters import OutputAdapterRegistry, create_default_output_registry
+from egregora.output_adapters import OutputSinkRegistry, create_default_output_registry
 from egregora.rag import index_documents, reset_backend
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
@@ -908,7 +908,7 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str
     )
 
 
-def load_format_instructions(site_root: Path | None, *, registry: OutputAdapterRegistry | None = None) -> str:
+def load_format_instructions(site_root: Path | None, *, registry: OutputSinkRegistry | None = None) -> str:
     """Load output format instructions for the writer agent."""
     registry = registry or create_default_output_registry()
 

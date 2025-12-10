@@ -41,7 +41,8 @@ def _served_path_from_url(site_dir: Path, canonical_url: str, document: Document
 def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Path) -> None:
     adapter = MkDocsAdapter()
     adapter.initialize(tmp_path)
-    docs_dir = adapter.posts_dir.parent
+    # Use the adapter's configured docs_dir instead of inferring it from posts_dir
+    docs_dir = adapter.docs_dir
 
     # The adapter owns its convention; callers do not need to wire one in.
     assert adapter.url_convention.name == "standard-v1"
@@ -93,6 +94,8 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
         stored_path = adapter._index[stored_doc.document_id]
 
         assert stored_path.exists()
+        # Ensure stored path matches relative URL path relative to docs_dir
+        # We rely on adapter.docs_dir which is explicitly configured
         assert stored_path.relative_to(docs_dir) == relative_from_url
 
         served_path = _served_path_from_url(site_dir, canonical_url, stored_doc)
