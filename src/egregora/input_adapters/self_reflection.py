@@ -11,6 +11,7 @@ from uuid import UUID, uuid5
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import ibis
+import ibis.expr.datatypes as dt
 import yaml
 
 from egregora.data_primitives.document import DocumentType
@@ -101,7 +102,6 @@ class SelfInputAdapter(InputAdapter):
                 author_label = str(authors[0])
             else:
                 author_label = site_name
-            author_uuid = str(uuid5(AUTHOR_NAMESPACE, author_label.lower()))
             attrs = self._sanitize_metadata(metadata, path_obj or Path("self"))
             attrs_json = json.dumps(attrs)
             text = ""

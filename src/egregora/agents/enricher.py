@@ -33,7 +33,6 @@ from pydantic_ai.models.google import GoogleModelSettings
 
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.input_adapters.base import MediaMapping
 from egregora.models.google_batch import GoogleBatchModel
@@ -983,7 +982,7 @@ class EnrichmentWorker(BaseWorker):
                 self.ctx.storage.ibis_conn.insert("entry_versions", [version_row])
 
         except Exception as e:
-            logger.error("Failed to persist enrichment to entry_versions: %s", e)
+            logger.exception("Failed to persist enrichment to entry_versions: %s", e)
 
     def _parse_media_result(self, res: Any, task: dict[str, Any]) -> tuple[dict[str, Any], str, str] | None:
         text = self._extract_text(res.response)

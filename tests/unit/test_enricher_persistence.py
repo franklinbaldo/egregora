@@ -1,8 +1,9 @@
 
-from unittest.mock import MagicMock, ANY
-from datetime import datetime, timezone
-from egregora.agents.enricher import EnrichmentWorker, EnrichmentRuntimeContext
+from unittest.mock import MagicMock
+
+from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker
 from egregora.data_primitives.document import Document, DocumentType
+
 
 def test_persist_unified_versioning():
     # Mock storage backend
@@ -51,9 +52,6 @@ def test_persist_unified_versioning():
     assert version_id > 0
     # It shouldn't be 1 (unless 1 in 2^63 chance)
     # The logic is uuid.uuid4().int & (1<<63)-1
-    print(f"Generated version_id: {version_id}")
-
-    print("Logic verification passed!")
 
 if __name__ == "__main__":
     test_persist_unified_versioning()

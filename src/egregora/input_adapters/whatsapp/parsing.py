@@ -321,8 +321,6 @@ def parse_source(
         messages = messages.drop(*columns_to_drop)
 
     # Prepare metadata for Source field
-    tenant_literal = ibis.literal(str(export.group_slug))
-    source_literal = ibis.literal(source_identifier)
     string_null = ibis.literal(None, type=dt.string)
     timestamp_null = ibis.literal(None, type=dt.Timestamp(timezone="UTC"))
 

@@ -651,8 +651,8 @@ __all__ = [
     "ANNOTATIONS_SCHEMA",
     # Agent/Documents schemas
     "AGENT_READ_STATUS_SCHEMA",
-    "FEED_FETCHES_SCHEMA",
     "ENTRY_VERSIONS_SCHEMA",
+    "FEED_FETCHES_SCHEMA",
     # Elo schemas
     "ELO_HISTORY_SCHEMA",
     "ELO_RATINGS_SCHEMA",

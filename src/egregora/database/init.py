@@ -17,6 +17,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import ibis
+
 from egregora.database.ir_schema import (
     AGENT_READ_STATUS_SCHEMA,
     ENTRY_VERSIONS_SCHEMA,

@@ -60,6 +60,7 @@ class BannerGenerationResult:
         document: The generated media document (when successful).
         error: Human readable reason for failure (optional).
         error_code: Machine readable code for failure (optional).
+
     """
 
     def __init__(

@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from uuid import UUID, uuid5
+from uuid import UUID
 
 import httpx
 import ibis
@@ -179,9 +179,7 @@ class IperonTJROAdapter(InputAdapter):
         ts = self._parse_timestamp(item, timezone)
         tribunal = item.get("siglaTribunal", "TJRO")
         author_raw = item.get("nomeOrgao") or f"{tribunal} - {item.get('tipoComunicacao', 'Comunicacao')}"
-        author_uuid = str(uuid5(AUTHOR_NAMESPACE, author_raw.strip().lower()))
         processo = item.get("numero_processo") or item.get("numeroprocessocommascara")
-        thread_id = str(processo or item.get("id"))
         msg_id = str(item.get("numeroComunicacao") or item.get("id"))
 
         attrs = {

@@ -93,31 +93,6 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
         stored_path = adapter._index[stored_doc.document_id]
 
         assert stored_path.exists()
-        # Ensure stored path matches relative URL path relative to docs_dir
-        # But handle cases where docs_dir structure might be nested
-        try:
-            rel_path = stored_path.relative_to(docs_dir)
-        except ValueError:
-            # If stored path is not inside docs_dir, it might be in site_root (e.g. legacy layout)
-            # But MkDocsAdapter uses standard paths now
-            # The failure indicates:
-            # /.../docs/profiles/author-123.md is not subpath of /.../docs/posts
-            # Wait, docs_dir = adapter.posts_dir.parent
-            # If adapter.posts_dir is .../docs/posts, then docs_dir is .../docs
-            # stored_path is .../docs/profiles/author-123.md
-            # relative_from_url for profile is profiles/author-123.md
-            # So it should work.
-            # But the error message said:
-            # ValueError: '/.../docs/profiles/author-123.md' is not in the subpath of '/.../docs/posts'
-            # This means docs_dir is pointing to posts_dir somehow?
-            # Let's fix docs_dir calculation in test.
-            pass
-
-        # The issue is likely how docs_dir is calculated in the test setup
-        # docs_dir = adapter.posts_dir.parent
-        # If posts_dir is "docs/posts", parent is "docs". Correct.
-        # But if posts_dir is "docs/posts/posts" (as seen in previous failure?), parent is "docs/posts".
-
         assert stored_path.relative_to(adapter.docs_dir) == relative_from_url
 
         served_path = _served_path_from_url(site_dir, canonical_url, stored_doc)
