@@ -12,8 +12,8 @@ from uuid import UUID, uuid5
 
 import httpx
 import ibis
+import ibis.expr.datatypes as dt
 
-from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 
 logger = logging.getLogger(__name__)
@@ -91,7 +91,21 @@ class IperonTJROAdapter(InputAdapter):
             logger.warning("No communications returned for %s", input_path)
 
         rows = [self._normalize_item(item, timezone) for item in items if isinstance(item, dict)]
-        return ibis.memtable(rows, schema=IR_MESSAGE_SCHEMA)
+
+        output_schema = ibis.schema(
+            {
+                "id": dt.string,
+                "updated": dt.Timestamp(timezone="UTC"),
+                "content": dt.string,
+                "author": dt.string,
+                "msg_id": dt.string,
+                "source": dt.json,
+                "title": dt.String(nullable=True),
+                "published": dt.Timestamp(timezone="UTC", nullable=True),
+            }
+        )
+
+        return ibis.memtable(rows, schema=output_schema)
 
     # ------------------------------------------------------------------
     # Configuration helpers
@@ -183,21 +197,14 @@ class IperonTJROAdapter(InputAdapter):
         text = self._build_body(item, processo)
 
         return {
-            "event_id": str(item.get("id")),
-            "tenant_id": tribunal,
-            "source": self.source_identifier,
-            "thread_id": thread_id,
+            "id": str(item.get("id")),
+            "updated": ts,
+            "content": text,
+            "author": author_raw,
             "msg_id": msg_id,
-            "ts": ts,
-            "author_raw": author_raw,
-            "author_uuid": author_uuid,
-            "text": text,
-            "media_url": item.get("link"),
-            "media_type": "url" if item.get("link") else None,
-            "attrs": json.dumps(attrs),
-            "pii_flags": None,
-            "created_at": ts,
-            "created_by_run": RUN_IDENTIFIER,
+            "source": json.dumps(attrs),
+            "title": f"Processo {processo}" if processo else "Comunicação TJRO",
+            "published": ts,
         }
 
     def _build_body(self, item: dict[str, Any], processo: Any) -> str:

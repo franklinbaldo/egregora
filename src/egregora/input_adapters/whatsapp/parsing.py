@@ -19,7 +19,6 @@ import ibis.expr.datatypes as dt
 from dateutil import parser as date_parser
 from pydantic import BaseModel
 
-from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.utils import build_message_attrs
 from egregora.privacy.anonymizer import anonymize_table
 from egregora.privacy.uuid_namespaces import deterministic_author_uuid
@@ -279,13 +278,28 @@ def parse_source(
     expose_raw_author: bool = False,
     source_identifier: str = "whatsapp",
 ) -> Table:
-    """Parse WhatsApp export using pure Ibis/DuckDB operations."""
+    """Parse WhatsApp export into Entry-compatible table structure."""
     source = ZipMessageSource(export)
     rows = _parse_whatsapp_lines(source, export, timezone)
 
+    # Define schema for the output table (Entry-compatible)
+    output_schema = ibis.schema(
+        {
+            "id": dt.string,
+            "updated": dt.Timestamp(timezone="UTC"),
+            "content": dt.string,
+            "author": dt.string,  # Kept for compatibility
+            "msg_id": dt.string,  # Kept for compatibility
+            "source": dt.json,
+            # Optional Entry fields
+            "title": dt.String(nullable=True),
+            "published": dt.Timestamp(timezone="UTC", nullable=True),
+        }
+    )
+
     if not rows:
         logger.warning("No messages found in %s", export.zip_path)
-        return ibis.memtable([], schema=IR_MESSAGE_SCHEMA)
+        return ibis.memtable([], schema=output_schema)
 
     messages = ibis.memtable(rows)
     if "_import_order" in messages.columns:
@@ -306,30 +320,29 @@ def parse_source(
     if columns_to_drop:
         messages = messages.drop(*columns_to_drop)
 
+    # Prepare metadata for Source field
     tenant_literal = ibis.literal(str(export.group_slug))
-    thread_literal = tenant_literal
     source_literal = ibis.literal(source_identifier)
-    created_by_literal = ibis.literal("adapter:whatsapp")
     string_null = ibis.literal(None, type=dt.string)
-    json_null = ibis.literal(None, type=dt.json)
+    timestamp_null = ibis.literal(None, type=dt.Timestamp(timezone="UTC"))
 
+    # attrs contains the original line and metadata
     attrs_column = build_message_attrs(
         messages.original_line, messages.tagged_line, messages.message_date
     ).cast(dt.json)
 
-    ir_messages = messages.mutate(
-        event_id=messages.message_id,
-        tenant_id=tenant_literal,
-        source=source_literal,
-        thread_id=thread_literal,
+    # Map to Entry-like structure
+    # Note: 'author' column used for raw author name string
+    # We map 'text' -> 'content', 'ts' -> 'updated'
+    entry_table = messages.mutate(
+        id=messages.message_id,
+        updated=messages.ts.cast("timestamp('UTC')"),
+        content=messages.text,
+        author=messages.author_raw,  # or author_uuid if anonymized? anonymize_table replaces author_raw
         msg_id=messages.message_id,
-        ts=messages.ts.cast("timestamp('UTC')"),
-        media_url=string_null,
-        media_type=string_null,
-        attrs=attrs_column,
-        pii_flags=json_null,
-        created_at=messages.ts.cast("timestamp('UTC')"),
-        created_by_run=created_by_literal,
+        source=attrs_column,  # simplified source
+        title=string_null,
+        published=timestamp_null,
     )
 
-    return ir_messages.select(*IR_MESSAGE_SCHEMA.names)
+    return entry_table.select(*output_schema.names)

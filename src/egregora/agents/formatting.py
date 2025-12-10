@@ -69,7 +69,16 @@ def _compute_message_id(row: Mapping[str, object]) -> str:
     if stored_message_id:
         return _stringify_value(stored_message_id)
     parts: list[str] = []
-    for key in ("msg_id", "timestamp", "author", "message", "content", "text"):
+    for key in (
+        "msg_id",
+        "id",
+        "timestamp",
+        "updated",
+        "author",
+        "message",
+        "content",
+        "text",
+    ):
         value = row.get(key)
         normalized = _stringify_value(value)
         if normalized:
@@ -101,7 +110,7 @@ def build_conversation_xml(
 
     rows = [dict(record) for record in records]
     # Ensure msg_id exists (reuses existing logic)
-    _ensure_msg_id_column(rows, ["msg_id", "timestamp", "author", "text"])
+    _ensure_msg_id_column(rows, ["msg_id", "id", "timestamp", "updated", "author", "content", "text"])
 
     annotations_map: dict[str, list[Annotation]] = {}
     if annotations_store is not None:
@@ -112,10 +121,10 @@ def build_conversation_xml(
 
     messages = []
     for row in rows:
-        msg_id = str(row.get("msg_id", ""))
+        msg_id = str(row.get("msg_id", row.get("id", "")))
         author = str(row.get("author", "unknown"))
-        ts = str(row.get("ts", row.get("timestamp", "")))
-        text = str(row.get("text", ""))
+        ts = str(row.get("ts", row.get("updated", row.get("timestamp", ""))))
+        text = str(row.get("content", row.get("text", "")))
 
         msg_data = {
             "id": msg_id,

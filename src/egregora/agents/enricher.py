@@ -34,7 +34,6 @@ from pydantic_ai.models.google import GoogleModelSettings
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
-from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.input_adapters.base import MediaMapping
 from egregora.models.google_batch import GoogleBatchModel
@@ -269,45 +268,6 @@ def _safe_timestamp_plus_one(timestamp: datetime | str | Any) -> datetime:
     return dt_value + timedelta(seconds=1)
 
 
-def _create_enrichment_row(
-    message_metadata: dict[str, Any] | None,
-    enrichment_type: str,
-    identifier: str,
-    enrichment_id_str: str,
-) -> dict[str, Any] | None:
-    if not message_metadata:
-        return None
-
-    timestamp = message_metadata.get("ts")
-    if timestamp is None:
-        return None
-
-    timestamp = ensure_datetime(timestamp)
-    enrichment_timestamp = _safe_timestamp_plus_one(timestamp)
-    enrichment_event_id = str(uuid.uuid4())
-
-    return {
-        "event_id": enrichment_event_id,
-        "tenant_id": message_metadata.get("tenant_id", ""),
-        "source": message_metadata.get("source", ""),
-        "thread_id": _uuid_to_str(message_metadata.get("thread_id")),
-        "msg_id": f"enrichment-{enrichment_event_id}",
-        "ts": enrichment_timestamp,
-        "author_raw": "egregora",
-        "author_uuid": _uuid_to_str(message_metadata.get("author_uuid")),
-        "text": f"[{enrichment_type} Enrichment] {identifier}\nEnrichment saved: {enrichment_id_str}",
-        "media_url": None,
-        "media_type": None,
-        "attrs": {
-            "enrichment_type": enrichment_type,
-            "enrichment_id": enrichment_id_str,
-        },
-        "pii_flags": None,
-        "created_at": message_metadata.get("created_at"),
-        "created_by_run": _uuid_to_str(message_metadata.get("created_by_run")),
-    }
-
-
 def _frame_to_records(frame: Any) -> list[dict[str, Any]]:
     """Convert backend frames into dict records consistently."""
     if hasattr(frame, "to_dict"):
@@ -389,25 +349,6 @@ def schedule_enrichment(
         media_config,
     )
     logger.info("Scheduled %d URL tasks and %d Media tasks", url_count, media_count)
-
-
-def _persist_enrichments(combined: Table, context: EnrichmentRuntimeContext) -> None:
-    # Persistence logic copied from runners.py
-    duckdb_connection = context.duckdb_connection
-    target_table = context.target_table
-
-    if (duckdb_connection is None) != (target_table is None):
-        msg = "duckdb_connection and target_table must be provided together when persisting"
-        raise ValueError(msg)
-
-    if duckdb_connection and target_table:
-        try:
-            raw_conn = duckdb_connection.con
-            storage = DuckDBStorageManager.from_connection(raw_conn)
-            storage.persist_atomic(combined, target_table, schema=IR_MESSAGE_SCHEMA)
-        except Exception:
-            logger.exception("Failed to persist enrichments using DuckDBStorageManager")
-            raise
 
 
 def _enqueue_url_enrichments(
@@ -791,7 +732,7 @@ class EnrichmentWorker(BaseWorker):
         return results
 
     def _persist_url_results(self, results: list[tuple[dict, EnrichmentOutput | None, str | None]]) -> int:
-        new_rows = []
+        success_count = 0
         for task, output, error in results:
             if error:
                 self.task_store.mark_failed(task["task_id"], error)
@@ -823,24 +764,13 @@ class EnrichmentWorker(BaseWorker):
                 else:
                     self.ctx.output_format.persist(doc)
 
-                metadata = payload["message_metadata"]
-                row = _create_enrichment_row(metadata, "URL", url, doc.document_id)
-                if row:
-                    new_rows.append(row)
-
                 self.task_store.mark_completed(task["task_id"])
+                success_count += 1
             except Exception as exc:
                 logger.exception("Failed to persist enrichment for %s", task["task_id"])
                 self.task_store.mark_failed(task["task_id"], f"Persistence error: {exc!s}")
 
-        if new_rows:
-            try:
-                self.ctx.storage.ibis_conn.insert("messages", new_rows)
-                logger.info("Inserted %d enrichment rows", len(new_rows))
-            except Exception:
-                logger.exception("Failed to insert enrichment rows")
-
-        return len(results)
+        return success_count
 
     def _process_media_batch(self, tasks: list[dict[str, Any]]) -> int:
         requests, task_map = self._prepare_media_requests(tasks)
@@ -958,7 +888,7 @@ class EnrichmentWorker(BaseWorker):
             return []
 
     def _persist_media_results(self, results: list[Any], task_map: dict[str, dict[str, Any]]) -> int:
-        new_rows = []
+        success_count = 0
         for res in results:
             task = task_map.get(res.tag)
             if not task:
@@ -1001,21 +931,10 @@ class EnrichmentWorker(BaseWorker):
             else:
                 self.ctx.output_format.persist(doc)
 
-            metadata = payload["message_metadata"]
-            row = _create_enrichment_row(metadata, "Media", filename, doc.document_id)
-            if row:
-                new_rows.append(row)
-
             self.task_store.mark_completed(task["task_id"])
+            success_count += 1
 
-        if new_rows:
-            try:
-                self.ctx.storage.ibis_conn.insert("messages", new_rows)
-                logger.info("Inserted %d media enrichment rows", len(new_rows))
-            except Exception:
-                logger.exception("Failed to insert media enrichment rows")
-
-        return len(results)
+        return success_count
 
     def _parse_media_result(self, res: Any, task: dict[str, Any]) -> tuple[dict[str, Any], str, str] | None:
         text = self._extract_text(res.response)

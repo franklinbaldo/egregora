@@ -21,7 +21,6 @@ from egregora.database.ir_schema import (
     CONTENTS_SCHEMA,
     DOCUMENTS_SCHEMA,
     ENTRY_CONTENTS_SCHEMA,
-    IR_MESSAGE_SCHEMA,
     create_table_if_not_exists,
 )
 
@@ -35,8 +34,9 @@ def initialize_database(backend: BaseBackend) -> None:
     """Initialize all database tables using Ibis schema definitions.
 
     Creates:
-    - ir_messages: Raw input messages
     - documents: Unified entry/document storage
+    - contents: Content storage
+    - entry_contents: Entry-Content association
     - agent_read_status: Tracking read state for agents
 
     Args:
@@ -59,45 +59,6 @@ def initialize_database(backend: BaseBackend) -> None:
         conn = backend.con
     else:
         conn = backend
-
-    # Create IR messages table using Python schema definition
-    create_table_if_not_exists(conn, "ir_messages", IR_MESSAGE_SCHEMA)
-
-    # Add PRIMARY KEY constraint (DuckDB doesn't support ALTER TABLE ADD PRIMARY KEY,
-    # so we need to handle this differently - create a unique index instead)
-    # Note: DuckDB's CREATE TABLE IF NOT EXISTS won't add constraints to existing tables
-    _execute_sql(
-        conn,
-        """
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_ir_messages_pk
-        ON ir_messages(event_id)
-    """,
-    )
-
-    # Add indexes for query performance (matching original SQL schema)
-    _execute_sql(
-        conn,
-        """
-        CREATE INDEX IF NOT EXISTS idx_ir_messages_ts
-        ON ir_messages(ts)
-    """,
-    )
-
-    _execute_sql(
-        conn,
-        """
-        CREATE INDEX IF NOT EXISTS idx_ir_messages_thread
-        ON ir_messages(thread_id)
-    """,
-    )
-
-    _execute_sql(
-        conn,
-        """
-        CREATE INDEX IF NOT EXISTS idx_ir_messages_author
-        ON ir_messages(author_uuid)
-    """,
-    )
 
     # --- Unified Documents Table ---
     create_table_if_not_exists(conn, "documents", DOCUMENTS_SCHEMA)

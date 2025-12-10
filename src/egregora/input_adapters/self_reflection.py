@@ -15,7 +15,6 @@ import yaml
 
 from egregora.data_primitives.document import DocumentType
 from egregora.data_primitives.protocols import OutputSink
-from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.paths import slugify
@@ -115,25 +114,31 @@ class SelfInputAdapter(InputAdapter):
 
             records.append(
                 {
-                    "event_id": event_id,
-                    "tenant_id": site_name,
-                    "source": self.source_identifier,
-                    "thread_id": slug,
+                    "id": event_id,
+                    "updated": timestamp,
+                    "content": text,
+                    "author": author_label,
                     "msg_id": f"self-{slug}",
-                    "ts": timestamp,
-                    "author_raw": author_label,
-                    "author_uuid": author_uuid,
-                    "text": text,
-                    "media_url": None,
-                    "media_type": None,
-                    "attrs": attrs_json,
-                    "pii_flags": None,
-                    "created_at": timestamp,
-                    "created_by_run": "adapter:self-reflection",
+                    "source": attrs_json,
+                    "title": metadata.get("title") or slug,
+                    "published": timestamp,
                 }
             )
 
-        return ibis.memtable(records, schema=IR_MESSAGE_SCHEMA)
+        output_schema = ibis.schema(
+            {
+                "id": dt.string,
+                "updated": dt.Timestamp(timezone="UTC"),
+                "content": dt.string,
+                "author": dt.string,
+                "msg_id": dt.string,
+                "source": dt.json,
+                "title": dt.String(nullable=True),
+                "published": dt.Timestamp(timezone="UTC", nullable=True),
+            }
+        )
+
+        return ibis.memtable(records, schema=output_schema)
 
     def get_metadata(self, input_path: Path, **_: Any) -> dict[str, Any]:
         _, site_root = self._resolve_docs_dir(input_path)
