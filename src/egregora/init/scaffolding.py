@@ -12,7 +12,7 @@ from typing import cast
 
 from egregora.config.settings import create_default_config
 from egregora.data_primitives.protocols import SiteScaffolder
-from egregora.output_adapters import create_default_output_registry, create_output_format
+from egregora.output_adapters import create_default_output_registry, create_output_sink
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 
 logger = logging.getLogger(__name__)
@@ -28,10 +28,8 @@ def ensure_mkdocs_project(
     """Ensure site_root contains an MkDocs configuration.
 
     MODERN: This is a compatibility wrapper. New code should use:
-        output_format = create_output_format(site_root, format_type="mkdocs")
-        mkdocs_path, created = output_format.scaffold_site(
-            site_root, site_name, create_overrides=create_overrides
-        )
+        output_format = create_output_sink(site_root, format_type="mkdocs")
+        mkdocs_path, created = output_format.scaffold_site(site_root, site_name)
 
     Args:
         site_root: Root directory for the site
@@ -55,7 +53,7 @@ def ensure_mkdocs_project(
 
     # Create and initialize MkDocs output format
     registry = create_default_output_registry()
-    output_format = create_output_format(site_root, format_type="mkdocs", registry=registry)
+    output_format = create_output_sink(site_root, format_type="mkdocs", registry=registry)
 
     if not isinstance(output_format, SiteScaffolder):
         logger.info("Output format %s does not support scaffolding", output_format)

@@ -83,5 +83,5 @@ def test_load_invalid_paths_config(tmp_path):
     with (egregora_dir / "config.yml").open("w") as f:
         yaml.dump(config_data, f)
 
-    with pytest.raises(ValueError, match="Configuration 'paths' must be a dictionary"):
+    with pytest.raises(TypeError, match="Configuration 'paths' must be a dictionary"):
         EgregoraConfig.load(site_root)
