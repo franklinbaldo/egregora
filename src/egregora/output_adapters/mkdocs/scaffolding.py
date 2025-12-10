@@ -92,7 +92,7 @@ class MkDocsSiteScaffolder:
             docs_relative = Path(os.path.relpath(docs_dir, mkdocs_config_dir)).as_posix()
             blog_relative = Path(os.path.relpath(site_paths["posts_dir"], docs_dir)).as_posix()
 
-            overrides_dir = None
+            overrides_dir = ""
             if create_overrides:
                 overrides_dir = Path(
                     os.path.relpath(site_paths["egregora_dir"] / "overrides", mkdocs_config_dir)
