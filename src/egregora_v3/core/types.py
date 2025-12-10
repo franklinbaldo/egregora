@@ -50,6 +50,7 @@ class InReplyTo(BaseModel):
 
 class Entry(BaseModel):
     id: str  # URI or stable unique ID
+    feed_id: str | None = None
     title: str
     updated: datetime
     published: datetime | None = None

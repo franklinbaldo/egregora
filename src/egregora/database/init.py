@@ -16,7 +16,12 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from egregora.database.ir_schema import IR_MESSAGE_SCHEMA, create_table_if_not_exists
+from egregora.database.ir_schema import (
+    AGENT_READ_STATUS_SCHEMA,
+    DOCUMENTS_SCHEMA,
+    IR_MESSAGE_SCHEMA,
+    create_table_if_not_exists,
+)
 
 if TYPE_CHECKING:
     from ibis.backends.base import BaseBackend
@@ -27,10 +32,10 @@ logger = logging.getLogger(__name__)
 def initialize_database(backend: BaseBackend) -> None:
     """Initialize all database tables using Ibis schema definitions.
 
-    Creates the ir_messages table with:
-    - All columns from IR_MESSAGE_SCHEMA
-    - PRIMARY KEY on event_id
-    - Indexes on ts, thread_id, author_uuid for query performance
+    Creates:
+    - ir_messages: Raw input messages
+    - documents: Unified entry/document storage
+    - agent_read_status: Tracking read state for agents
 
     Args:
         backend: Ibis backend (DuckDB, Postgres, etc.)
@@ -89,6 +94,44 @@ def initialize_database(backend: BaseBackend) -> None:
         """
         CREATE INDEX IF NOT EXISTS idx_ir_messages_author
         ON ir_messages(author_uuid)
+    """,
+    )
+
+    # --- Unified Documents Table ---
+    create_table_if_not_exists(conn, "documents", DOCUMENTS_SCHEMA)
+
+    _execute_sql(
+        conn,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_pk
+        ON documents(id)
+    """,
+    )
+
+    _execute_sql(
+        conn,
+        """
+        CREATE INDEX IF NOT EXISTS idx_documents_feed
+        ON documents(feed_id)
+    """,
+    )
+
+    _execute_sql(
+        conn,
+        """
+        CREATE INDEX IF NOT EXISTS idx_documents_updated
+        ON documents(updated)
+    """,
+    )
+
+    # --- Agent Read Status Table ---
+    create_table_if_not_exists(conn, "agent_read_status", AGENT_READ_STATUS_SCHEMA)
+
+    _execute_sql(
+        conn,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_read_status_pk
+        ON agent_read_status(agent_id, entry_id)
     """,
     )
 

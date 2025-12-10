@@ -73,6 +73,51 @@ IR_MESSAGE_SCHEMA = ibis.schema(
 )
 
 # ----------------------------------------------------------------------------
+# Unified Documents/Entries Schema (V3 Core)
+# ----------------------------------------------------------------------------
+
+DOCUMENTS_SCHEMA = ibis.schema(
+    {
+        # Entry Core Fields
+        "id": dt.string,
+        "feed_id": dt.String(nullable=True),
+        "title": dt.string,
+        "updated": dt.Timestamp(timezone="UTC"),
+        "published": dt.Timestamp(timezone="UTC", nullable=True),
+        "summary": dt.String(nullable=True),
+        "content": dt.String(nullable=True),
+        "content_type": dt.String(nullable=True),
+        "source": dt.JSON(nullable=True),
+        "in_reply_to": dt.JSON(nullable=True),
+        "extensions": dt.JSON(nullable=True),
+        "internal_metadata": dt.JSON(nullable=True),
+        # Entry Lists (JSON Arrays)
+        "links": dt.JSON(nullable=True),
+        "authors": dt.JSON(nullable=True),
+        "contributors": dt.JSON(nullable=True),
+        "categories": dt.JSON(nullable=True),
+        # Document Subclass Fields
+        "doc_type": dt.String(nullable=True),
+        "status": dt.String(nullable=True),
+        "searchable": dt.Boolean(nullable=True),
+        "url_path": dt.String(nullable=True),
+    }
+)
+
+# ----------------------------------------------------------------------------
+# Agent State Schemas
+# ----------------------------------------------------------------------------
+
+AGENT_READ_STATUS_SCHEMA = ibis.schema(
+    {
+        "agent_id": dt.string,
+        "feed_id": dt.String(nullable=True),
+        "entry_id": dt.string,
+        "read_at": dt.Timestamp(timezone="UTC"),
+    }
+)
+
+# ----------------------------------------------------------------------------
 # RAG Vector Store Schemas
 # ----------------------------------------------------------------------------
 # NOTE: Windows are runtime-only constructs (see pipeline.py Window dataclass).
@@ -616,6 +661,9 @@ def ensure_lineage_table_exists(conn: Any) -> None:
 __all__ = [
     # Annotations schema
     "ANNOTATIONS_SCHEMA",
+    # Agent/Documents schemas
+    "AGENT_READ_STATUS_SCHEMA",
+    "DOCUMENTS_SCHEMA",
     # Elo schemas
     "ELO_HISTORY_SCHEMA",
     "ELO_RATINGS_SCHEMA",
