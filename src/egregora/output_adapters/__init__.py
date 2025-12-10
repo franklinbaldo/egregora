@@ -1,15 +1,16 @@
 """Output rendering for different site generators."""
 
 from egregora.output_adapters.base import (
-    OutputAdapterRegistry,
-    create_output_format,
+    BaseOutputSink,
+    OutputSinkRegistry,
     create_output_registry,
+    create_output_sink,
 )
 from egregora.output_adapters.mkdocs import MkDocsAdapter
 from egregora.output_adapters.parquet.adapter import ParquetAdapter
 
 
-def create_default_output_registry() -> OutputAdapterRegistry:
+def create_default_output_registry() -> OutputSinkRegistry:
     """Create a registry pre-populated with built-in adapters."""
     registry = create_output_registry()
     registry.register(MkDocsAdapter)
@@ -18,10 +19,11 @@ def create_default_output_registry() -> OutputAdapterRegistry:
 
 
 __all__ = [
+    "BaseOutputSink",
     "MkDocsAdapter",
-    "OutputAdapterRegistry",
+    "OutputSinkRegistry",
     "ParquetAdapter",
     "create_default_output_registry",
-    "create_output_format",
     "create_output_registry",
+    "create_output_sink",
 ]

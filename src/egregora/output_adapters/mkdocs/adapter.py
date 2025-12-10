@@ -27,7 +27,7 @@ from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import generate_fallback_avatar_url
-from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
+from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
@@ -39,7 +39,7 @@ from egregora.utils.paths import slugify
 logger = logging.getLogger(__name__)
 
 
-class MkDocsAdapter(OutputAdapter):
+class MkDocsAdapter(BaseOutputSink):
     """Unified MkDocs output adapter.
 
     **ISP-COMPLIANT** (2025-11-22): This adapter implements both:
