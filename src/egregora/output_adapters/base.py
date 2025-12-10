@@ -47,7 +47,7 @@ class SiteConfiguration:
     additional_paths: dict[str, Path] | None = None
 
 
-class OutputAdapter(OutputSink, ABC):
+class BaseOutputSink(OutputSink, ABC):
     """Abstract base class for output formats focused on document IO.
 
     Output formats are responsible for persisting ``Document`` instances and
@@ -278,18 +278,18 @@ class OutputAdapter(OutputSink, ABC):
         # Base implementation does nothing - subclasses override for specific tasks
 
 
-class OutputAdapterRegistry:
+class OutputSinkRegistry:
     """Registry for managing available output formats."""
 
     def __init__(self) -> None:
-        self._formats: dict[str, type[OutputAdapter]] = {}
+        self._formats: dict[str, type[BaseOutputSink]] = {}
 
-    def register(self, format_class: type[OutputAdapter]) -> None:
+    def register(self, format_class: type[BaseOutputSink]) -> None:
         """Register an output format class."""
         instance = format_class()
         self._formats[instance.format_type] = format_class
 
-    def get_format(self, format_type: str) -> OutputAdapter:
+    def get_format(self, format_type: str) -> BaseOutputSink:
         """Get an output format by type."""
         if format_type not in self._formats:
             available = ", ".join(self._formats.keys())
@@ -297,7 +297,7 @@ class OutputAdapterRegistry:
             raise KeyError(msg)
         return self._formats[format_type]()
 
-    def detect_format(self, site_root: Path) -> OutputAdapter | None:
+    def detect_format(self, site_root: Path) -> BaseOutputSink | None:
         """Auto-detect the appropriate output format for a given site."""
         for format_class in self._formats.values():
             instance = format_class()
@@ -310,20 +310,20 @@ class OutputAdapterRegistry:
         return list(self._formats.keys())
 
 
-def create_output_registry() -> OutputAdapterRegistry:
+def create_output_registry() -> OutputSinkRegistry:
     """Create a fresh output adapter registry."""
-    return OutputAdapterRegistry()
+    return OutputSinkRegistry()
 
 
-def create_output_format(
+def create_output_sink(
     site_root: Path,
     format_type: str = "mkdocs",
     *,
-    registry: OutputAdapterRegistry | None = None,
-) -> OutputAdapter:
-    """Create and initialize an OutputAdapter based on configuration."""
+    registry: OutputSinkRegistry | None = None,
+) -> BaseOutputSink:
+    """Create and initialize a BaseOutputSink based on configuration."""
     if registry is None:
-        msg = "An OutputAdapterRegistry instance must be provided to create output formats."
+        msg = "An OutputSinkRegistry instance must be provided to create output formats."
         raise ValueError(msg)
 
     output_format = registry.get_format(format_type)
