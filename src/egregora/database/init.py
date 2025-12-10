@@ -18,7 +18,9 @@ from typing import TYPE_CHECKING
 
 from egregora.database.ir_schema import (
     AGENT_READ_STATUS_SCHEMA,
+    CONTENTS_SCHEMA,
     DOCUMENTS_SCHEMA,
+    ENTRY_CONTENTS_SCHEMA,
     IR_MESSAGE_SCHEMA,
     create_table_if_not_exists,
 )
@@ -121,6 +123,34 @@ def initialize_database(backend: BaseBackend) -> None:
         """
         CREATE INDEX IF NOT EXISTS idx_documents_updated
         ON documents(updated)
+    """,
+    )
+
+    # --- Contents & Association Tables ---
+    create_table_if_not_exists(conn, "contents", CONTENTS_SCHEMA)
+    create_table_if_not_exists(conn, "entry_contents", ENTRY_CONTENTS_SCHEMA)
+
+    _execute_sql(
+        conn,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_contents_pk
+        ON contents(id)
+    """,
+    )
+
+    _execute_sql(
+        conn,
+        """
+        CREATE INDEX IF NOT EXISTS idx_entry_contents_fk
+        ON entry_contents(entry_id)
+    """,
+    )
+
+    _execute_sql(
+        conn,
+        """
+        CREATE INDEX IF NOT EXISTS idx_entry_contents_content
+        ON entry_contents(content_id)
     """,
     )
 

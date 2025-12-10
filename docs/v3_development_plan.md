@@ -212,6 +212,18 @@ Infrastructure dependencies are defined as protocols (structural typing), not co
 - Engine depends on Core + Infra
 - Pipeline depends on all layers
 
+### Schema Architecture (Updated Dec 2025)
+
+To support efficient storage and "many entries -> same content" deduplication, the persistence schema uses a normalized design:
+
+1.  **`documents` Table:** Stores Entry metadata (`id`, `feed_id`, `title`, `updated`, etc.) but NOT the heavy content body.
+2.  **`contents` Table:** Stores unique content blobs, identified by UUIDv5 (hash of content).
+3.  **`entry_contents` Table:** Association table linking Entries to Contents.
+    *   Enables deduplication: Multiple entries can point to the same content hash.
+    *   Enables composition: Future-proofs for entries composed of multiple content blocks.
+
+This separation allows agents to subscribe to feeds and mark entries as read (`agent_read_status` table) without duplicating massive content blobs.
+
 ---
 
 ## Implementation Phases

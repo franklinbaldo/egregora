@@ -85,7 +85,7 @@ DOCUMENTS_SCHEMA = ibis.schema(
         "updated": dt.Timestamp(timezone="UTC"),
         "published": dt.Timestamp(timezone="UTC", nullable=True),
         "summary": dt.String(nullable=True),
-        "content": dt.String(nullable=True),
+        # NOTE: 'content' is removed in favor of content association
         "content_type": dt.String(nullable=True),
         "source": dt.JSON(nullable=True),
         "in_reply_to": dt.JSON(nullable=True),
@@ -101,6 +101,23 @@ DOCUMENTS_SCHEMA = ibis.schema(
         "status": dt.String(nullable=True),
         "searchable": dt.Boolean(nullable=True),
         "url_path": dt.String(nullable=True),
+    }
+)
+
+CONTENTS_SCHEMA = ibis.schema(
+    {
+        "id": dt.string,  # UUIDv5 of content
+        "text": dt.string,  # The actual content
+        "hash": dt.String(nullable=True),  # Explicit hash if needed
+        "media_type": dt.String(nullable=True),
+    }
+)
+
+ENTRY_CONTENTS_SCHEMA = ibis.schema(
+    {
+        "entry_id": dt.string,
+        "content_id": dt.string,
+        "order_index": dt.Int64(nullable=True),  # Support ordered composition
     }
 )
 
@@ -664,6 +681,8 @@ __all__ = [
     # Agent/Documents schemas
     "AGENT_READ_STATUS_SCHEMA",
     "DOCUMENTS_SCHEMA",
+    "CONTENTS_SCHEMA",
+    "ENTRY_CONTENTS_SCHEMA",
     # Elo schemas
     "ELO_HISTORY_SCHEMA",
     "ELO_RATINGS_SCHEMA",
