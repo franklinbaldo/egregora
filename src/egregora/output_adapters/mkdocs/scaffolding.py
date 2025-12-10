@@ -58,7 +58,13 @@ class MkDocsSiteScaffolder:
         return legacy_path.exists()
 
     def scaffold_site(
-        self, site_root: Path, site_name: str, *, create_overrides: bool = False, **_kwargs: object
+        self,
+        site_root: Path,
+        site_name: str,
+        *,
+        create_overrides: bool = False,
+        minimal: bool = False,
+        **_kwargs: object,
     ) -> tuple[Path, bool]:
         """Create the initial MkDocs site structure.
 
@@ -69,6 +75,18 @@ class MkDocsSiteScaffolder:
         """
         site_root = site_root.expanduser().resolve()
         site_root.mkdir(parents=True, exist_ok=True)
+
+        # Minimal scaffold: only ensure .egregora/config.yml exists.
+        config_preexists = (site_root / ".egregora" / "config.yml").exists()
+        if minimal:
+            try:
+                if not config_preexists:
+                    create_default_config(site_root)
+                site_paths = derive_mkdocs_paths(site_root)
+                return (site_paths["mkdocs_config_path"], not config_preexists)
+            except Exception as e:  # pragma: no cover - defensive guard
+                msg = f"Failed to scaffold minimal MkDocs site: {e}"
+                raise RuntimeError(msg) from e
 
         site_paths = derive_mkdocs_paths(site_root)
 

@@ -8,6 +8,9 @@ MODERN: Updated to use OutputAdapter abstraction instead of direct scaffolding i
 
 from pathlib import Path
 
+import typer
+
+from egregora.cli.main import _ensure_mkdocs_scaffold
 from egregora.config.settings import load_egregora_config
 from egregora.init.scaffolding import ensure_mkdocs_project
 from egregora.output_adapters import create_default_output_registry, create_output_format
@@ -189,3 +192,29 @@ def test_prompts_directory_populated(tmp_path: Path):
     for filename in expected_files:
         file_path = prompts_dir / filename
         assert file_path.exists(), f".egregora/prompts/{filename} should be created"
+
+
+def test_minimal_scaffold_creates_only_config(tmp_path: Path):
+    """Minimal init should only create .egregora/config.yml by default."""
+
+    _mkdocs_path, created = ensure_mkdocs_project(tmp_path, minimal=True)
+
+    assert created
+    assert (tmp_path / ".egregora" / "config.yml").exists()
+    assert not (tmp_path / ".egregora" / "mkdocs.yml").exists()
+    assert not (tmp_path / "mkdocs.yml").exists()
+    assert not (tmp_path / "docs").exists()
+    assert not (tmp_path / "README.md").exists()
+
+
+def test_processing_scaffold_completes_site(tmp_path: Path, monkeypatch):
+    """Processing preflight should upgrade a config-only site to full scaffold."""
+
+    ensure_mkdocs_project(tmp_path, minimal=True)
+
+    monkeypatch.setattr("typer.confirm", lambda *_args, **_kwargs: True)
+
+    _ensure_mkdocs_scaffold(tmp_path)
+
+    assert (tmp_path / ".egregora" / "mkdocs.yml").exists()
+    assert (tmp_path / "docs" / "index.md").exists()
