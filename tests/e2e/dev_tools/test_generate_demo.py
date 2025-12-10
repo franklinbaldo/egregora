@@ -80,5 +80,5 @@ def test_generate_demo_with_mock_llm(tmp_path: Path, monkeypatch: pytest.MonkeyP
     window_posts = next(iter(run_results["result"].values()))["posts"]
     assert window_posts, f"Pipeline should generate at least one post. Result: {run_results['result']}"
 
-    assert config["paths"]["posts_dir"] == "."
+    assert config["paths"]["posts_dir"] == "posts"
     assert config["paths"]["docs_dir"] == "docs"

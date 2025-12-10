@@ -105,7 +105,7 @@ def _ensure_paths_config(paths: DemoPaths) -> dict:
     config["paths"].update(
         {
             "docs_dir": "docs",
-            "posts_dir": ".",
+            "posts_dir": "posts",
             "profiles_dir": "profiles",
             "media_dir": "media",
             "journal_dir": "journal",
@@ -120,7 +120,7 @@ def _clean_generated_content(paths: DemoPaths, config: dict) -> Path:
 
     docs_dir = paths.demo_root / config["paths"]["docs_dir"]
     blog_root = docs_dir / config["paths"]["posts_dir"]
-    posts_dir = blog_root / "posts"
+    posts_dir = blog_root
     docs_dir.mkdir(parents=True, exist_ok=True)
     blog_root.mkdir(parents=True, exist_ok=True)
     posts_dir.mkdir(parents=True, exist_ok=True)
