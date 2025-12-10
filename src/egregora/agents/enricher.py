@@ -967,26 +967,32 @@ class EnrichmentWorker(BaseWorker):
                 "media_type": "text/markdown", # Default for enrichments
             }
 
-            # 3. Entry-Contents Association
-            assoc_row = {
-                "entry_id": doc.document_id,
-                "content_id": content_id,
-                "version_id": 1,
-                "created_at": datetime.now(UTC),
-                "order_index": 0,
-            }
-
             # Execute insertions using Ibis or raw connection via storage manager
-            # We use insert method if available, or fallback to specialized logic
             if hasattr(self.ctx.storage, "ibis_conn"):
-                # Use a transaction if possible, or sequential inserts
-                # Note: insert() might not support 'overwrite=False' or upsert nicely in all backends
-                # For now, we assume simple insert. In production, need upsert/ignore conflict.
-                # DuckDB supports INSERT OR IGNORE via raw SQL usually.
-                # Ibis insert is append.
-
-                # We'll use raw SQL for "INSERT OR IGNORE" semantics to avoid primary key errors
                 con = self.ctx.storage.ibis_conn.con
+
+                # Determine next version_id
+                # Handle case where table might be empty or entry not present
+                try:
+                    res = con.execute(
+                        "SELECT MAX(version_id) FROM entry_contents WHERE entry_id = ?",
+                        [doc.document_id]
+                    ).fetchone()
+                    current_version = res[0] if res and res[0] is not None else 0
+                except Exception:
+                    # Fallback if table query fails (e.g. during tests with mock connections)
+                    current_version = 0
+
+                next_version = current_version + 1
+
+                # 3. Entry-Contents Association
+                assoc_row = {
+                    "entry_id": doc.document_id,
+                    "content_id": content_id,
+                    "version_id": next_version,
+                    "created_at": datetime.now(UTC),
+                    "order_index": 0,
+                }
 
                 # Helper to insert dict
                 def _insert_ignore(table, row):
@@ -1000,7 +1006,7 @@ class EnrichmentWorker(BaseWorker):
                 _insert_ignore("entry_contents", assoc_row)
 
         except Exception as e:
-            logger.warning("Failed to persist enrichment to unified tables: %s", e)
+            logger.error("Failed to persist enrichment to unified tables: %s", e)
 
     def _parse_media_result(self, res: Any, task: dict[str, Any]) -> tuple[dict[str, Any], str, str] | None:
         text = self._extract_text(res.response)
