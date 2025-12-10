@@ -10,14 +10,14 @@ import ibis
 
 from egregora.data_primitives import Document, DocumentMetadata, DocumentType
 from egregora.data_primitives.protocols import UrlConvention
-from egregora.output_adapters.base import OutputAdapter
+from egregora.output_adapters.base import BaseOutputSink
 from egregora.output_adapters.conventions import StandardUrlConvention
 from egregora.output_adapters.parquet.schema import DOCUMENT_PARQUET_SCHEMA
 
 logger = logging.getLogger(__name__)
 
 
-class ParquetAdapter(OutputAdapter):
+class ParquetAdapter(BaseOutputSink):
     """Data Lake adapter: writes content as structured Parquet files."""
 
     def __init__(self) -> None:

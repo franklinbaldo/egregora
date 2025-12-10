@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig, RAGSettings
     from egregora.data_primitives.protocols import OutputSink
     from egregora.database.task_store import TaskStore
-    from egregora.output_adapters import OutputAdapterRegistry
+    from egregora.output_adapters import OutputSinkRegistry
     from egregora.utils.metrics import UsageTracker
     from egregora.utils.quota import QuotaTracker
 
@@ -132,7 +132,7 @@ class WriterResources:
     quota: QuotaTracker | None
     usage: UsageTracker | None
     task_store: TaskStore | None = None
-    output_registry: OutputAdapterRegistry | None = None
+    output_registry: OutputSinkRegistry | None = None
     run_id: uuid.UUID | str | None = None
 
 

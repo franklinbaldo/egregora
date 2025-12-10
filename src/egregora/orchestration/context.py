@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import OutputSink, UrlContext
-from egregora.output_adapters import OutputAdapterRegistry
+from egregora.output_adapters import OutputSinkRegistry
 from egregora.rag.embedding_router import EmbeddingRouter
 from egregora.utils.cache import EnrichmentCache, PipelineCache
 from egregora.utils.metrics import UsageTracker
@@ -147,7 +147,7 @@ class PipelineState:
     output_format: OutputSink | None = None  # ISP-compliant: Runtime data operations only
     adapter: Any = None  # InputAdapter protocol
     usage_tracker: UsageTracker | None = None
-    output_registry: OutputAdapterRegistry | None = None
+    output_registry: OutputSinkRegistry | None = None
     embedding_router: EmbeddingRouter | None = None
 
 
@@ -241,7 +241,7 @@ class PipelineContext:
         return self.state.output_format
 
     @property
-    def output_registry(self) -> OutputAdapterRegistry | None:
+    def output_registry(self) -> OutputSinkRegistry | None:
         """Return the output adapter registry."""
         return self.state.output_registry
 
