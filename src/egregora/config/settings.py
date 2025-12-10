@@ -547,33 +547,6 @@ class PathsSettings(BaseModel):
         description="Agent execution journals directory",
     )
 
-    @field_validator(
-        "egregora_dir",
-        "rag_dir",
-        "lancedb_dir",
-        "cache_dir",
-        "prompts_dir",
-        "docs_dir",
-        "posts_dir",
-        "profiles_dir",
-        "media_dir",
-        "journal_dir",
-        mode="after",
-    )
-    @classmethod
-    def validate_safe_path(cls, v: str) -> str:
-        """Validate path is relative and does not contain traversal sequences."""
-        if not v:
-            return v
-        path = Path(v)
-        if path.is_absolute():
-            msg = f"Path must be relative, not absolute: {v}"
-            raise ValueError(msg)
-        if any(part == ".." for part in path.parts):
-            msg = f"Path must not contain traversal sequences ('..'): {v}"
-            raise ValueError(msg)
-        return v
-
 
 class OutputSettings(BaseModel):
     """Output format configuration.

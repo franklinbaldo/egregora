@@ -172,7 +172,8 @@ class StandardUrlConvention(UrlConvention):
         clean_segments = [seg.strip("/") for seg in segments if seg]
         path_segments = prefix_segments + clean_segments
         path = "/".join(path_segments)
-        url = f"{base}/{path}" if base else path
+        # Restore leading slash to make paths root-relative when base is empty
+        url = f"{base}/{path}" if base else f"/{path}"
         if trailing_slash:
             return url.rstrip("/") + "/"
         return url
