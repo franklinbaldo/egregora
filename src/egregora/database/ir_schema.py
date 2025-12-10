@@ -117,6 +117,8 @@ ENTRY_CONTENTS_SCHEMA = ibis.schema(
     {
         "entry_id": dt.string,
         "content_id": dt.string,
+        "version_id": dt.int64,  # Sequential version number (1, 2, 3...)
+        "created_at": dt.Timestamp(timezone="UTC"),  # Audit timestamp
         "order_index": dt.Int64(nullable=True),  # Support ordered composition
     }
 )

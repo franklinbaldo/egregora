@@ -149,6 +149,14 @@ def initialize_database(backend: BaseBackend) -> None:
     _execute_sql(
         conn,
         """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_entry_contents_version
+        ON entry_contents(entry_id, version_id)
+    """,
+    )
+
+    _execute_sql(
+        conn,
+        """
         CREATE INDEX IF NOT EXISTS idx_entry_contents_content
         ON entry_contents(content_id)
     """,
