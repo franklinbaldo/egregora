@@ -212,7 +212,7 @@ class MkDocsSiteScaffolder:
             (docs_dir / "journal" / "index.md", "docs/journal/index.md.jinja"),
             (profiles_dir / "index.md", "docs/profiles/index.md.jinja"),
             (media_dir / "index.md", "docs/media/index.md.jinja"),
-            # Note: posts/index.md is NOT scaffolded - Material blog plugin generates it automatically
+            (posts_dir / "index.md", "docs/posts/index.md.jinja"),
             (posts_dir / "tags.md", "docs/posts/tags.md.jinja"),
             (site_paths["egregora_dir"] / "main.py", "main.py.jinja"),
         ]
