@@ -107,6 +107,28 @@ class TestStandardUrlConventionPurity:
         assert url == "https://example.com/blog/profiles/abc123/"
         assert isinstance(url, str)
 
+    def test_urls_are_root_relative_when_no_base_url(self, convention):
+        """URLs should keep a leading slash when base_url is empty."""
+        ctx = UrlContext(base_url="", site_prefix="")
+        post = Document(
+            type=DocumentType.POST,
+            content="Post",
+            metadata={"slug": "foo", "date": "2025-01-01"},
+        )
+        profile = Document(
+            type=DocumentType.PROFILE,
+            content="Profile content",
+            metadata={"uuid": "abc123"},
+        )
+
+        post_url = convention.canonical_url(post, ctx)
+        profile_url = convention.canonical_url(profile, ctx)
+
+        assert post_url.startswith("/")
+        assert profile_url.startswith("/")
+        assert post_url == "/blog/posts/2025-01-01-foo/"
+        assert profile_url == "/profiles/abc123/"
+
     def test_journal_url_generation(self, convention, ctx):
         """Test journal URL generation uses string operations only."""
         doc = Document(
