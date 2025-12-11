@@ -1,4 +1,4 @@
-import builtins
+from typing import Any, List
 
 import ibis
 from ibis.expr.types import Table
@@ -66,25 +66,25 @@ class DuckDBDocumentRepository(DocumentRepository):
                 # If "ON CONFLICT is a no-op" error occurs, it means no PK.
                 # Fallback to delete + insert pattern manually.
                 if "ON CONFLICT is a no-op" in str(e):
-                    self._manual_upsert(doc, json_data)
+                    self._manual_upsert(doc, json_data, doc.doc_type.value)
                 else:
                     raise
         else:
-            self._manual_upsert(doc, json_data)
+            self._manual_upsert(doc, json_data, doc.doc_type.value)
 
         return doc
 
-    def _manual_upsert(self, doc: Document, json_data: str) -> None:
+    def _manual_upsert(self, item: Entry, json_data: str, doc_type_val: str) -> None:
         """Manual delete + insert for backends/tables without PK constraint."""
         # Safe delete first
-        self.delete(doc.id)
+        self.delete(item.id)
 
         # Insert via Ibis
         data = {
-            "id": doc.id,
-            "doc_type": doc.doc_type.value,
+            "id": item.id,
+            "doc_type": doc_type_val,
             "json_data": json_data,
-            "updated": doc.updated,
+            "updated": item.updated,
         }
         self.conn.insert(self.table_name, [data])
 
@@ -104,7 +104,7 @@ class DuckDBDocumentRepository(DocumentRepository):
 
         return Document.model_validate_json(json_val)
 
-    def list(self, *, doc_type: DocumentType | None = None) -> list[Document]:
+    def list(self, *, doc_type: DocumentType | None = None) -> List[Document]:
         """Lists documents, optionally filtered by type."""
         t = self._get_table()
         query = t
@@ -150,14 +150,74 @@ class DuckDBDocumentRepository(DocumentRepository):
 
     # Entry methods (stubbed for now or can reuse same table with different type/logic if we want single table)
 
+    ENTRY_DOC_TYPE = "_ENTRY_"
+
     def save_entry(self, entry: Entry) -> None:
-        # TODO: Implement Entry persistence
-        pass
+        """Persists an Entry object."""
+        if isinstance(entry, Document):
+            self.save(entry)
+            return
+
+        json_data = entry.model_dump_json()
+        doc_type_val = self.ENTRY_DOC_TYPE
+
+        if hasattr(self.conn, "con"):
+            try:
+                query = f"""
+                    INSERT OR REPLACE INTO {self.table_name} (id, doc_type, json_data, updated)
+                    VALUES (?, ?, ?, ?)
+                """
+                self.conn.con.execute(query, [entry.id, doc_type_val, json_data, entry.updated])
+            except Exception as e:
+                if "ON CONFLICT is a no-op" in str(e):
+                    self._manual_upsert(entry, json_data, doc_type_val)
+                else:
+                    raise
+        else:
+            self._manual_upsert(entry, json_data, doc_type_val)
 
     def get_entry(self, entry_id: str) -> Entry | None:
-        # TODO: Implement Entry retrieval
-        return None
+        """Retrieves an Entry (or Document) by ID."""
+        t = self._get_table()
+        # Select json_data AND doc_type
+        query = t.filter(t.id == entry_id).select("json_data", "doc_type")
+        result = query.execute()
 
-    def get_entries_by_source(self, source_id: str) -> builtins.list[Entry]:
-        # TODO: Implement Entry listing by source
-        return []
+        if result.empty:
+            return None
+
+        row = result.iloc[0]
+        return self._deserialize(row["json_data"], row["doc_type"])
+
+    def get_entries_by_source(self, source_id: str) -> List[Entry]:
+        """Lists entries by source ID."""
+        results = []
+        if hasattr(self.conn, "con"):
+            query = f"""
+                SELECT json_data, doc_type
+                FROM {self.table_name}
+                WHERE json_extract_string(json_data, '$.source.id') = ?
+            """
+            rows = self.conn.con.execute(query, [source_id]).fetchall()
+            for row in rows:
+                # row is tuple (json_data, doc_type)
+                results.append(self._deserialize(row[0], row[1]))
+        else:
+            # Fallback if possible, or raise
+            raise NotImplementedError("get_entries_by_source requires raw DuckDB connection access")
+
+        return results
+
+    def _deserialize(self, json_val: Any, doc_type_val: str) -> Entry:
+        is_document = False
+        try:
+            DocumentType(doc_type_val)
+            is_document = True
+        except ValueError:
+            pass
+
+        model = Document if is_document else Entry
+
+        if isinstance(json_val, dict):
+            return model.model_validate(json_val)
+        return model.model_validate_json(json_val)
