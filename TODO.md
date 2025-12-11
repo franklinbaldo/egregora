@@ -4,7 +4,7 @@ These tasks focus on improving the current architecture without unnecessary brea
 
 ## High Priority
 
-- [ ] **Decouple Writer Agent from Output Format**
+- [x] **Decouple Writer Agent from Output Format**
   - **Rationale:** The writer currently assumes MkDocs structure. It should output agnostic `Document` objects that a separate adapter handles.
   - **Modules:** `src/egregora/agents/writer.py`, `src/egregora/agents/writer_tools.py`
 
