@@ -214,11 +214,7 @@ _default_loader: SkillLoader | None = None
 
 def get_skill_loader() -> SkillLoader:
     """Get the default global skill loader instance."""
-    # We use a mutable default argument pattern or a function attribute
-    # to avoid the global keyword, but a simple class-level cache
-    # or memoization is cleaner. Here we use the global but structured
-    # differently or just memoize.
-    # However, to strictly remove PLW0603, we can attach it to the function.
-    if not hasattr(get_skill_loader, "_instance"):
-        get_skill_loader._instance = SkillLoader()
-    return get_skill_loader._instance
+    global _default_loader  # noqa: PLW0603
+    if _default_loader is None:
+        _default_loader = SkillLoader()
+    return _default_loader

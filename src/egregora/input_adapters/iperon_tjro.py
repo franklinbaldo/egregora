@@ -248,20 +248,15 @@ class IperonTJROAdapter(InputAdapter):
         # Import moved to top-level/global scope is better but if optional...
         # We can use __import__ to bypass linter check for local import
         try:
-            zoneinfo = __import__("zoneinfo")
-            tz = zoneinfo.ZoneInfo(tz_name)
+            from zoneinfo import ZoneInfo, ZoneInfoNotFoundError  # noqa: PLC0415
+
+            tz = ZoneInfo(tz_name)
             return ts.astimezone(tz).astimezone(UTC)
-        except (ImportError, getattr(zoneinfo, "ZoneInfoNotFoundError", Exception)):
+        except (ImportError, ZoneInfoNotFoundError, ValueError) as e:
             # If import fails or timezone invalid
-            logger.warning("Timezone error for %s, defaulting to UTC", tz_name)
-            return ts.astimezone(UTC)
-        except ValueError:
             # Catch offset-naive datetime conversion errors
-            logger.warning("Timezone conversion error for %s, defaulting to UTC", tz_name)
+            logger.warning("Timezone error for %s: %s, defaulting to UTC", tz_name, e)
             return ts.astimezone(UTC)
-        else:
-            ts = ts.astimezone(UTC)
-        return ts
 
     def _parse_date_string(self, raw: str) -> datetime:
         for fmt in ("%Y-%m-%d", "%d/%m/%Y"):

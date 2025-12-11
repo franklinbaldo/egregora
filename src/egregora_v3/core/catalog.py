@@ -48,9 +48,9 @@ class ContentLibrary(BaseModel):
             return self.media
         if doc_type == DocumentType.PROFILE:
             return self.profiles
-        if doc_type == DocumentType.JOURNAL:
+        if doc_type == DocumentType.NOTE:  # Mapping NOTE to journal for now
             return self.journal
-        if doc_type in (DocumentType.ENRICHMENT_URL, DocumentType.ENRICHMENT_MEDIA):
+        if doc_type == DocumentType.ENRICHMENT:
             return self.enrichments
 
         # Fallback or error

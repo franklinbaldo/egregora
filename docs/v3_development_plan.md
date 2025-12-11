@@ -391,7 +391,7 @@ class MkDocsOutputSink(OutputSink):
     """Generate MkDocs blog: markdown files + navigation."""
     def publish(self, feed: Feed) -> None:
         for entry in feed.entries:
-            # Create docs/posts/entry-slug.md
+            # Create docs/blog/posts/entry-slug.md
             self._write_markdown(entry)
         # Generate mkdocs.yml navigation
         self._generate_nav(feed)

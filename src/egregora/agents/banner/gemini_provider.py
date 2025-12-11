@@ -145,9 +145,10 @@ class GeminiImageGenerationProvider(ImageGenerationProvider):
 
     def _decode_inline_data(self, inline: dict[str, Any]) -> tuple[bytes | None, str | None]:
         data_field = inline.get("data")
+        image_bytes: bytes | None = None
         if isinstance(data_field, str):
             image_bytes = base64.b64decode(data_field)
-        else:
+        elif isinstance(data_field, bytes):
             image_bytes = data_field
         return image_bytes, inline.get("mimeType")
 

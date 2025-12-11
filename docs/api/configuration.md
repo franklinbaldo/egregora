@@ -182,7 +182,7 @@ paths:
   cache_dir: .egregora/cache
   prompts_dir: .egregora/prompts
   docs_dir: docs
-  posts_dir: docs/posts
+  posts_dir: docs/blog/posts
   profiles_dir: docs/profiles
   media_dir: docs/assets/media
 

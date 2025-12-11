@@ -14,7 +14,7 @@ Design principles:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA, create_table_if_not_exists
 
@@ -95,7 +95,7 @@ def initialize_database(backend: BaseBackend) -> None:
     logger.info("✓ Database tables initialized successfully")
 
 
-def _execute_sql(conn: object, sql: str) -> None:
+def _execute_sql(conn: Any, sql: str) -> None:
     """Execute raw SQL on a connection or backend.
 
     Args:
@@ -106,9 +106,13 @@ def _execute_sql(conn: object, sql: str) -> None:
     if hasattr(conn, "raw_sql"):
         # Ibis backend
         conn.raw_sql(sql)
-    else:
+    elif hasattr(conn, "execute"):
         # Raw DuckDB connection
         conn.execute(sql)
+    else:
+        # Fallback for unexpected connection objects
+        message = f"Connection object {type(conn)} does not support raw_sql or execute"
+        raise AttributeError(message)
 
 
 __all__ = ["initialize_database"]

@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = "==3.12.*"
 
 [[package]]
@@ -641,6 +641,7 @@ dependencies = [
     { name = "lancedb" },
     { name = "lxml" },
     { name = "mkdocs" },
+    { name = "mkdocs-blogging-plugin" },
     { name = "mkdocs-macros-plugin" },
     { name = "mkdocs-material", extra = ["imaging"] },
     { name = "mkdocs-rss-plugin" },
@@ -669,6 +670,7 @@ docs = [
     { name = "codespell" },
     { name = "mkdocs" },
     { name = "mkdocs-autorefs" },
+    { name = "mkdocs-blogging-plugin" },
     { name = "mkdocs-git-revision-date-localized-plugin" },
     { name = "mkdocs-macros-plugin" },
     { name = "mkdocs-material", extra = ["imaging"] },
@@ -732,6 +734,8 @@ requires-dist = [
     { name = "mkdocs", specifier = ">=1.6" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6.1" },
     { name = "mkdocs-autorefs", marker = "extra == 'docs'", specifier = ">=1.4.3" },
+    { name = "mkdocs-blogging-plugin", specifier = ">=2.2.11" },
+    { name = "mkdocs-blogging-plugin", marker = "extra == 'docs'", specifier = ">=2.2.11" },
     { name = "mkdocs-git-revision-date-localized-plugin", marker = "extra == 'docs'", specifier = ">=1.5.0" },
     { name = "mkdocs-macros-plugin", specifier = ">=1.5" },
     { name = "mkdocs-macros-plugin", marker = "extra == 'docs'", specifier = ">=1.5.0" },
@@ -1691,6 +1695,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/51/fa/9124cd63d822e2bcbea1450ae68cdc3faf3655c69b455f3a7ed36ce6c628/mkdocs_autorefs-1.4.3.tar.gz", hash = "sha256:beee715b254455c4aa93b6ef3c67579c399ca092259cc41b7d9342573ff1fc75", size = 55425, upload-time = "2025-08-26T14:23:17.223Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9f/4d/7123b6fa2278000688ebd338e2a06d16870aaf9eceae6ba047ea05f92df1/mkdocs_autorefs-1.4.3-py3-none-any.whl", hash = "sha256:469d85eb3114801d08e9cc55d102b3ba65917a869b893403b8987b601cf55dc9", size = 25034, upload-time = "2025-08-26T14:23:15.906Z" },
+]
+
+[[package]]
+name = "mkdocs-blogging-plugin"
+version = "2.2.11"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "babel" },
+    { name = "gitpython" },
+    { name = "jinja2" },
+    { name = "mkdocs" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/da/1e/fb81d3ac143643c3ecf52ba7c3d1af24c5000e7ec5f43763bda7b289e378/mkdocs-blogging-plugin-2.2.11.tar.gz", hash = "sha256:91b3ebc1ee3870958a0f9304d985f73a8e170a1f8d17948488415fa1a4257b2e", size = 14344, upload-time = "2023-07-21T03:55:45.739Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a0/46/bbcbb8e1eb3e7f223f69c1851f1785292a5fbd51af6443ba9e00715528bf/mkdocs_blogging_plugin-2.2.11-py3-none-any.whl", hash = "sha256:7e0f14e5a5d9d7fa106ee014b04a49e2fdb5ffe70a0026106dceb79930ba8ac2", size = 18696, upload-time = "2023-07-21T03:55:44.302Z" },
 ]
 
 [[package]]

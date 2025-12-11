@@ -189,9 +189,7 @@ class TestFeedBannerGenerator:
         assert len(result_feed.entries) == 3
         assert mock_image_provider.generate.call_count == 3
 
-    def test_metadata_preserved(
-        self, sample_task_feed: Feed, mock_image_provider, prompts_dir: Path
-    ):
+    def test_metadata_preserved(self, sample_task_feed: Feed, mock_image_provider, prompts_dir: Path):
         generator = FeedBannerGenerator(provider=mock_image_provider, prompts_dir=prompts_dir)
         result_feed = generator.generate_from_feed(sample_task_feed)
 
