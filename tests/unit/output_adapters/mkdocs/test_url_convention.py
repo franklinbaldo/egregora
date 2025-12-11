@@ -95,23 +95,11 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
 
         assert stored_path.exists()
         # Ensure stored path matches relative URL path relative to docs_dir
-        # Note: posts are stored in docs/posts/posts/ but URL is /posts/{slug}
-        # So we need to adjust for the nested structure
         stored_relative = stored_path.relative_to(docs_dir)
-        if stored_doc.type == DocumentType.POST:
-            # Remove the extra "posts" directory from the stored path for comparison
-            # stored: posts/posts/2024-03-15-slug.md, expected: posts/2024-03-15-slug.md
-            assert stored_relative.parts[0] == "posts"
-            assert stored_relative.parts[1] == "posts"  # Nested structure
-            # The URL still maps correctly via MkDocs blog plugin config
-        else:
-            assert stored_relative == relative_from_url
+        assert stored_relative == relative_from_url
 
         served_path = _served_path_from_url(site_dir, canonical_url, stored_doc)
-        # Skip served path check for posts - minimal MkDocs build doesn't have blog plugin
-        # which handles the nested posts/posts/ structure
-        if stored_doc.type != DocumentType.POST:
-            assert served_path.exists()
+        assert served_path.exists()
 
     # Ensure raw, unnormalized metadata slugs are not used for filenames.
     assert not (adapter.posts_dir / "Complex Slug.md").exists()
