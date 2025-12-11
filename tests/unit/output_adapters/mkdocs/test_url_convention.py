@@ -95,8 +95,8 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
 
         assert stored_path.exists()
         # Ensure stored path matches relative URL path relative to docs_dir
-        # We rely on adapter.docs_dir which is explicitly configured
-        assert stored_path.relative_to(docs_dir) == relative_from_url
+        stored_relative = stored_path.relative_to(docs_dir)
+        assert stored_relative == relative_from_url
 
         served_path = _served_path_from_url(site_dir, canonical_url, stored_doc)
         assert served_path.exists()

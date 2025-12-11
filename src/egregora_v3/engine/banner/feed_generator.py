@@ -95,8 +95,10 @@ class FeedBannerGenerator:
         if configured is not None:
             loader = FileSystemLoader(configured)
         else:
-            template_text = resources.files("egregora.prompts").joinpath(DEFAULT_TEMPLATE_NAME).read_text(
-                encoding="utf-8"
+            template_text = (
+                resources.files("egregora.prompts")
+                .joinpath(DEFAULT_TEMPLATE_NAME)
+                .read_text(encoding="utf-8")
             )
             loader = DictLoader({DEFAULT_TEMPLATE_NAME: template_text})
 
