@@ -124,9 +124,10 @@ def _create_current_views(backend: BaseBackend) -> None:
         backend.create_view("current_feeds", current_feeds_expr, overwrite=True)
 
         # current_entries view
+        # Sort by seen_at DESC, then version_id DESC for deterministic tie-breaking
         entry_window = ibis.window(
             group_by=[entry_versions.atom_id],
-            order_by=[entry_versions.seen_at.desc()],
+            order_by=[entry_versions.seen_at.desc(), entry_versions.version_id.desc()],
         )
         current_entries_expr = (
             entry_versions.mutate(rn=ibis.row_number().over(entry_window))
