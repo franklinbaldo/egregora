@@ -1,10 +1,11 @@
-import builtins
+from datetime import datetime
 
 import ibis
 from ibis.expr.types import Table
 
 from egregora_v3.core.ports import DocumentRepository
 from egregora_v3.core.types import Document, DocumentType, Entry
+import builtins
 
 
 class DuckDBDocumentRepository(DocumentRepository):
@@ -52,8 +53,11 @@ class DuckDBDocumentRepository(DocumentRepository):
 
     def save(self, doc: Document) -> Document:
         """Saves a document to the repository."""
-        json_data = doc.model_dump_json()
+        self._upsert_record(doc.id, doc.doc_type.value, doc.model_dump_json(), doc.updated)
+        return doc
 
+    def _upsert_record(self, id: str, doc_type: str, json_data: str, updated: datetime) -> None:
+        """Helper to upsert a record with handling for PK constraints."""
         if hasattr(self.conn, "con"):
             # Use parameterized INSERT OR REPLACE (upsert)
             try:
@@ -61,44 +65,67 @@ class DuckDBDocumentRepository(DocumentRepository):
                     INSERT OR REPLACE INTO {self.table_name} (id, doc_type, json_data, updated)
                     VALUES (?, ?, ?, ?)
                 """
-                self.conn.con.execute(query, [doc.id, doc.doc_type.value, json_data, doc.updated])
+                self.conn.con.execute(query, [id, doc_type, json_data, updated])
             except Exception as e:
                 # If "ON CONFLICT is a no-op" error occurs, it means no PK.
                 # Fallback to delete + insert pattern manually.
                 if "ON CONFLICT is a no-op" in str(e):
-                    self._manual_upsert(doc, json_data)
+                    self._manual_upsert_record(id, doc_type, json_data, updated)
                 else:
                     raise
         else:
-            self._manual_upsert(doc, json_data)
-
-        return doc
+            self._manual_upsert_record(id, doc_type, json_data, updated)
 
     def _manual_upsert(self, doc: Document, json_data: str) -> None:
+        """Deprecated: Use _manual_upsert_record instead."""
+        self._manual_upsert_record(doc.id, doc.doc_type.value, json_data, doc.updated)
+
+    def _manual_upsert_record(self, id: str, doc_type: str, json_data: str, updated: datetime) -> None:
         """Manual delete + insert for backends/tables without PK constraint."""
         # Safe delete first
-        self.delete(doc.id)
+        try:
+            self.delete(id)
+        except Exception:
+            # If delete fails (e.g. not exists), we proceed to insert
+            pass
 
         # Insert via Ibis
         data = {
-            "id": doc.id,
-            "doc_type": doc.doc_type.value,
+            "id": id,
+            "doc_type": doc_type,
             "json_data": json_data,
-            "updated": doc.updated,
+            "updated": updated,
         }
         self.conn.insert(self.table_name, [data])
 
     def get(self, doc_id: str) -> Document | None:
         """Retrieves a document by ID."""
+        # This explicitly expects a Document (subset of Entry with specific fields/type)
         t = self._get_table()
-        query = t.filter(t.id == doc_id).select("json_data")
+        query = t.filter(t.id == doc_id).select("doc_type", "json_data")
         result = query.execute()
 
         if result.empty:
             return None
 
-        json_val = result.iloc[0]["json_data"]
-        # Ibis DuckDB backend returns Python dict/list for JSON columns
+        row = result.iloc[0]
+        # Verify it is a Document (has valid doc_type from DocumentType enum)
+        # However, historically get() just inflated whatever into Document.
+        # Now we have hybrid table.
+        # If doc_type is "_ENTRY_", Document.model_validate might fail if it misses required fields
+        # or it might succeed but effectively be wrong type.
+        # Strict typing: if we called get() we expect Document.
+        # If we find an Entry, we might return None or raise error?
+        # Or try to parse.
+
+        json_val = row["json_data"]
+
+        # If it's a raw entry, we can't really return it as a Document easily unless we cast it.
+        # But get() signature is Document | None.
+        # If type is _ENTRY_, it's NOT a Document.
+        if row["doc_type"] == "_ENTRY_":
+             return None
+
         if isinstance(json_val, dict):
             return Document.model_validate(json_val)
 
@@ -110,6 +137,9 @@ class DuckDBDocumentRepository(DocumentRepository):
         query = t
         if doc_type:
             query = query.filter(query.doc_type == doc_type.value)
+        else:
+            # Exclude raw entries if listing "Documents"
+            query = query.filter(query.doc_type != "_ENTRY_")
 
         # Select JSON data
         result = query.select("json_data").execute()
@@ -159,41 +189,8 @@ class DuckDBDocumentRepository(DocumentRepository):
         json_data = entry.model_dump_json()
         doc_type_val = "_ENTRY_"
 
-        if hasattr(self.conn, "con"):
-            # Use parameterized INSERT OR REPLACE (upsert)
-            try:
-                query = f"""
-                    INSERT OR REPLACE INTO {self.table_name} (id, doc_type, json_data, updated)
-                    VALUES (?, ?, ?, ?)
-                """
-                self.conn.con.execute(query, [entry.id, doc_type_val, json_data, entry.updated])
-            except Exception as e:
-                # If "ON CONFLICT is a no-op" error occurs, it means no PK.
-                # Fallback to delete + insert pattern manually.
-                if "ON CONFLICT is a no-op" in str(e):
-                    self._manual_upsert_entry(entry, doc_type_val, json_data)
-                else:
-                    raise
-        else:
-            self._manual_upsert_entry(entry, doc_type_val, json_data)
-
-    def _manual_upsert_entry(self, entry: Entry, doc_type_val: str, json_data: str) -> None:
-        """Manual delete + insert for Entry objects."""
-        # Safe delete first
-        try:
-            self.delete(entry.id)
-        except Exception:
-            # If delete fails (e.g. not exists), we proceed to insert
-            pass
-
-        # Insert via Ibis
-        data = {
-            "id": entry.id,
-            "doc_type": doc_type_val,
-            "json_data": json_data,
-            "updated": entry.updated,
-        }
-        self.conn.insert(self.table_name, [data])
+        # Reuse helper for consistency
+        self._upsert_record(entry.id, doc_type_val, json_data, entry.updated)
 
     def get_entry(self, entry_id: str) -> Entry | None:
         """Retrieves an Entry (or Document) by ID."""
