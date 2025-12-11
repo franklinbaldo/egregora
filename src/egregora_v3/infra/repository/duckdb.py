@@ -148,16 +148,114 @@ class DuckDBDocumentRepository(DocumentRepository):
         count = t.filter(t.id == doc_id).count().execute()
         return count > 0
 
-    # Entry methods (stubbed for now or can reuse same table with different type/logic if we want single table)
+    # Entry methods
 
     def save_entry(self, entry: Entry) -> None:
-        # TODO: Implement Entry persistence
-        pass
+        """Saves an Entry to the repository."""
+        if isinstance(entry, Document):
+            self.save(entry)
+            return
+
+        json_data = entry.model_dump_json()
+        doc_type_val = "_ENTRY_"
+
+        if hasattr(self.conn, "con"):
+            # Use parameterized INSERT OR REPLACE (upsert)
+            try:
+                query = f"""
+                    INSERT OR REPLACE INTO {self.table_name} (id, doc_type, json_data, updated)
+                    VALUES (?, ?, ?, ?)
+                """
+                self.conn.con.execute(query, [entry.id, doc_type_val, json_data, entry.updated])
+            except Exception as e:
+                # If "ON CONFLICT is a no-op" error occurs, it means no PK.
+                # Fallback to delete + insert pattern manually.
+                if "ON CONFLICT is a no-op" in str(e):
+                    self._manual_upsert_entry(entry, doc_type_val, json_data)
+                else:
+                    raise
+        else:
+            self._manual_upsert_entry(entry, doc_type_val, json_data)
+
+    def _manual_upsert_entry(self, entry: Entry, doc_type_val: str, json_data: str) -> None:
+        """Manual delete + insert for Entry objects."""
+        # Safe delete first
+        try:
+            self.delete(entry.id)
+        except Exception:
+            # If delete fails (e.g. not exists), we proceed to insert
+            pass
+
+        # Insert via Ibis
+        data = {
+            "id": entry.id,
+            "doc_type": doc_type_val,
+            "json_data": json_data,
+            "updated": entry.updated,
+        }
+        self.conn.insert(self.table_name, [data])
 
     def get_entry(self, entry_id: str) -> Entry | None:
-        # TODO: Implement Entry retrieval
-        return None
+        """Retrieves an Entry (or Document) by ID."""
+        t = self._get_table()
+        query = t.filter(t.id == entry_id).select("json_data", "doc_type")
+        result = query.execute()
+
+        if result.empty:
+            return None
+
+        row = result.iloc[0]
+        json_val = row["json_data"]
+        doc_type_val = row["doc_type"]
+
+        # Check if it's a Document (has a valid DocumentType)
+        is_document = any(doc_type_val == item.value for item in DocumentType)
+
+        if is_document:
+            if isinstance(json_val, dict):
+                return Document.model_validate(json_val)
+            return Document.model_validate_json(json_val)
+
+        # Otherwise treat as raw Entry
+        if isinstance(json_val, dict):
+            return Entry.model_validate(json_val)
+        return Entry.model_validate_json(json_val)
 
     def get_entries_by_source(self, source_id: str) -> builtins.list[Entry]:
-        # TODO: Implement Entry listing by source
-        return []
+        """Lists entries by source ID."""
+        t = self._get_table()
+
+        # Filter by JSON path: source.id == source_id
+        try:
+            query = t.filter(t.json_data["source"]["id"] == source_id)
+            result = query.select("json_data", "doc_type").execute()
+        except Exception:
+            # Fallback for backends/versions where Ibis JSON getitem might fail
+            # or if using raw connection is preferred
+            if hasattr(self.conn, "con"):
+                # DuckDB raw SQL for JSON extraction
+                sql = f"SELECT json_data, doc_type FROM {self.table_name} WHERE json_extract_string(json_data, '$.source.id') = ?"
+                result = self.conn.con.execute(sql, [source_id]).fetch_df()
+            else:
+                # If we can't filter, return empty (or could fetch all and filter in python, but that's slow)
+                return []
+
+        entries = []
+        for _, row in result.iterrows():
+            json_val = row["json_data"]
+            doc_type_val = row["doc_type"]
+
+            is_document = any(doc_type_val == item.value for item in DocumentType)
+
+            if is_document:
+                if isinstance(json_val, dict):
+                    entries.append(Document.model_validate(json_val))
+                else:
+                    entries.append(Document.model_validate_json(json_val))
+            else:
+                if isinstance(json_val, dict):
+                    entries.append(Entry.model_validate(json_val))
+                else:
+                    entries.append(Entry.model_validate_json(json_val))
+
+        return entries
