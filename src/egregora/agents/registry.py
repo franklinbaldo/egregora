@@ -37,9 +37,9 @@ class ToolRegistryError(Exception):
 @dataclass
 class Tool:
     id: str
-    kind: str
-    inputs: dict[str, Any]
-    contracts: dict[str, Any]
+    kind: str | None
+    inputs: dict[str, Any] | None
+    contracts: dict[str, Any] | None
     content: str
 
 

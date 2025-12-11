@@ -27,9 +27,9 @@ from egregora.orchestration.context import (
     PipelineState,
 )
 from egregora.output_adapters import (
-    OutputAdapterRegistry,
+    OutputSinkRegistry,
     create_default_output_registry,
-    create_output_format,
+    create_output_sink,
 )
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
@@ -208,7 +208,7 @@ class PipelineFactory:
         output_dir: Path,
         *,
         site_root: Path | None = None,
-        registry: OutputAdapterRegistry | None = None,
+        registry: OutputSinkRegistry | None = None,
         url_context: UrlContext | None = None,
     ) -> Any:
         """Create and initialize the output adapter for the pipeline."""
@@ -221,7 +221,7 @@ class PipelineFactory:
 
         adapter = registry.detect_format(root)
         if adapter is None:
-            adapter = create_output_format(root, format_type="mkdocs", registry=registry)
+            adapter = create_output_sink(root, format_type="mkdocs", registry=registry)
 
         adapter.initialize(root, url_context=url_context)
         return adapter

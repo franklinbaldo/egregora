@@ -109,7 +109,7 @@ class InputAdapterRegistry:
         builtin_map = {
             "egregora.input_adapters.whatsapp.adapter": "WhatsAppAdapter",
             "egregora.input_adapters.iperon_tjro": "IperonTJROAdapter",
-            "egregora.input_adapters.self_input": "SelfInputAdapter",
+            "egregora.input_adapters.self_reflection": "SelfInputAdapter",
         }
 
         for module_name, class_name in builtin_map.items():
@@ -163,7 +163,8 @@ class InputAdapterRegistry:
             ...     print(f"{meta['name']} v{meta['version']}")
 
         """
-        return [adapter.get_adapter_metadata() for adapter in self._adapters.values()]
+        # Convert TypedDict to plain dict for broader compatibility
+        return [dict(adapter.get_adapter_metadata()) for adapter in self._adapters.values()]
 
     def __contains__(self, source_identifier: str) -> bool:
         """Check if source identifier is registered."""
@@ -181,6 +182,9 @@ class InputAdapterRegistry:
 
 
 # Global registry instance (lazy-loaded)
+_global_registry: InputAdapterRegistry | None = None
+
+
 def get_global_registry() -> InputAdapterRegistry:
     """Get the global adapter registry (singleton pattern).
 
@@ -196,6 +200,7 @@ def get_global_registry() -> InputAdapterRegistry:
         >>> adapter = registry.get("whatsapp")
 
     """
-    if not hasattr(get_global_registry, "_instance") or get_global_registry._instance is None:
-        get_global_registry._instance = InputAdapterRegistry()
-    return get_global_registry._instance
+    global _global_registry
+    if _global_registry is None:
+        _global_registry = InputAdapterRegistry()
+    return _global_registry
