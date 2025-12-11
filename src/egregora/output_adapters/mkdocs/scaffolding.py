@@ -201,7 +201,6 @@ class MkDocsSiteScaffolder:
         docs_dir = site_paths["docs_dir"]
         profiles_dir = site_paths["profiles_dir"]
         media_dir = site_paths["media_dir"]
-        posts_dir = site_paths["posts_dir"]
 
         templates_to_render = [
             (site_root / "README.md", "README.md.jinja"),
@@ -212,8 +211,9 @@ class MkDocsSiteScaffolder:
             (docs_dir / "journal" / "index.md", "docs/journal/index.md.jinja"),
             (profiles_dir / "index.md", "docs/profiles/index.md.jinja"),
             (media_dir / "index.md", "docs/media/index.md.jinja"),
-            (posts_dir / "index.md", "docs/posts/index.md.jinja"),
-            (posts_dir / "tags.md", "docs/posts/tags.md.jinja"),
+            (media_dir / "index.md", "docs/media/index.md.jinja"),
+            (site_paths["blog_root_dir"] / "index.md", "docs/posts/index.md.jinja"),
+            (site_paths["blog_root_dir"] / "tags.md", "docs/posts/tags.md.jinja"),
             (site_paths["egregora_dir"] / "main.py", "main.py.jinja"),
         ]
 

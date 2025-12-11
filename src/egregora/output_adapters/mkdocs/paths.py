@@ -134,8 +134,8 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
     # So `paths.py` is creating the extra nesting.
 
     blog_root_dir = resolve_content_path(paths_settings.posts_dir)
-    # Flatten structure: posts go directly in posts_dir
-    posts_dir = blog_root_dir
+    # Nested structure: posts go in subdirectory for sidebar hygiene
+    posts_dir = blog_root_dir / "posts"
     profiles_dir = resolve_content_path(paths_settings.profiles_dir)
     media_dir = resolve_content_path(paths_settings.media_dir)
     journal_dir = _resolve_journal_dir(paths_settings, resolve_content_path)
