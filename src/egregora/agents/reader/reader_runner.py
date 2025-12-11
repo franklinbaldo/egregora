@@ -20,6 +20,25 @@ logger = logging.getLogger(__name__)
 MIN_POSTS_FOR_COMPARISON = 2
 
 
+def _resolve_site_root(posts_dir: Path) -> Path:
+    """Infer the MkDocs site root from a posts directory."""
+
+    # Prefer an explicit .egregora marker in any ancestor
+    for ancestor in (posts_dir, *posts_dir.parents):
+        if (ancestor / ".egregora").exists():
+            return ancestor
+
+    # Otherwise, if the posts live under docs/, walk up to the site root
+    for ancestor in posts_dir.parents:
+        if ancestor.name == "docs":
+            return ancestor.parent
+
+    # Fallbacks: first try the grandparent (site_root/blog/posts), then parent
+    if len(posts_dir.parents) >= 2:
+        return posts_dir.parents[1]
+    return posts_dir.parent
+
+
 def select_post_pairs(
     post_slugs: list[str],
     comparisons_per_post: int,
@@ -73,9 +92,11 @@ def run_reader_evaluation(
         logger.warning("Posts directory not found: %s", posts_dir)
         return []
 
+    site_root = _resolve_site_root(posts_dir)
+
     db_path = Path(config.database_path)
     if not db_path.is_absolute():
-        db_path = posts_dir.parents[1] / db_path
+        db_path = site_root / db_path
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     post_files = sorted(posts_dir.glob("**/*.md"))
