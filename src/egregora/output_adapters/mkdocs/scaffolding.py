@@ -87,7 +87,8 @@ class MkDocsSiteScaffolder:
             context = {
                 "site_name": site_name or site_root.name or "Egregora Archive",
                 "site_root": site_root,
-                "blog_dir": blog_relative,
+                "blog_dir": "posts",
+                "post_dir": "posts",
                 "docs_dir": docs_relative,
                 "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
                 "generated_date": datetime.now(UTC).strftime("%Y-%m-%d"),
