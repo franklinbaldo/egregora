@@ -26,24 +26,14 @@ ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
 _DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
-def _extract_clean_date(date_str: str) -> str:
-    """Extract a clean ``YYYY-MM-DD`` date from user-provided strings."""
-    # Use standard library datetime
-    # Note: we use local import here if needed but ruff complains.
-    # We should use top level import if possible.
-    # The imports are: from datetime import UTC, date, datetime
-    # We can use `datetime` directly from that import.
-    # Let's remove the local import and rely on the global one.
-    # But wait, the code uses `datetime.date`...
-    # Top level import is `from datetime import ... datetime`.
-    # So `datetime` refers to the class, not the module.
-    # To access `datetime.date`, we need to import `date` or use the module.
-    # The code `datetime.date.fromisoformat` implies `datetime` is the module.
-    # But top level says `from datetime import ..., datetime`.
-    # So `datetime` is the class. `datetime.date` would fail if `datetime` is the class.
-    # We need to fix this usage.
+def _extract_clean_date(date_obj: str | date | datetime) -> str:
+    """Extract a clean ``YYYY-MM-DD`` date from user-provided input."""
+    if isinstance(date_obj, datetime):
+        return date_obj.date().isoformat()
+    if isinstance(date_obj, date):
+        return date_obj.isoformat()
 
-    date_str = date_str.strip()
+    date_str = str(date_obj).strip()
 
     try:
         if len(date_str) == ISO_DATE_LENGTH and date_str[4] == "-" and date_str[7] == "-":
@@ -52,7 +42,7 @@ def _extract_clean_date(date_str: str) -> str:
     except ValueError:
         pass
 
-    match = _DATE_PATTERN.match(date_str)
+    match = _DATE_PATTERN.search(date_str)
     if match:
         clean_date = match.group(1)
         try:
@@ -120,7 +110,10 @@ def _register_new_authors(authors: dict, author_ids: list[str]) -> list[str]:
     new_ids = []
     for author_id in author_ids:
         if author_id and author_id not in authors:
-            authors[author_id] = {"name": author_id}
+            authors[author_id] = {
+                "name": author_id,
+                "url": f"profiles/{author_id}.md",
+            }
             new_ids.append(author_id)
     return new_ids
 
@@ -191,3 +184,60 @@ def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path
     full_post = f"---\n{yaml_front}---\n\n{content}"
     filepath.write_text(full_post, encoding="utf-8")
     return str(filepath)
+
+
+def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> int:
+    """Scan all posts and ensure every referenced author exists in .authors.yml.
+
+    This function traverses all markdown files in posts_dir, extracts author IDs
+    from their frontmatter, and registers any missing authors in .authors.yml.
+
+    Args:
+        posts_dir: Directory containing post markdown files (recursively scanned).
+        docs_dir: Root docs directory where .authors.yml lives. If None, derived from posts_dir.
+
+    Returns:
+        Number of new authors registered.
+
+    """
+    if docs_dir is None:
+        # Derive docs_dir: posts_dir is typically docs/posts/posts, so go up 2 levels
+        docs_dir = posts_dir.resolve().parent.parent
+
+    authors_path = docs_dir / ".authors.yml"
+    authors = _load_authors_yml(authors_path)
+
+    # Collect all unique author IDs from posts
+    all_author_ids: set[str] = set()
+
+    for md_file in posts_dir.rglob("*.md"):
+        try:
+            content = md_file.read_text(encoding="utf-8")
+            if not content.startswith("---"):
+                continue
+
+            # Extract frontmatter (needs at least 3 parts: before, frontmatter, content)
+            min_parts = 3
+            parts = content.split("---", 2)
+            if len(parts) < min_parts:
+                continue
+
+            frontmatter = yaml.safe_load(parts[1])
+            if frontmatter and "authors" in frontmatter:
+                author_list = frontmatter["authors"]
+                if isinstance(author_list, list):
+                    all_author_ids.update(str(a) for a in author_list if a)
+                elif author_list:
+                    all_author_ids.add(str(author_list))
+        except (OSError, yaml.YAMLError) as exc:
+            logger.debug("Skipping %s: %s", md_file, exc)
+            continue
+
+    # Register missing authors
+    new_ids = _register_new_authors(authors, list(all_author_ids))
+
+    if new_ids:
+        _save_authors_yml(authors_path, authors, len(new_ids))
+        logger.info("Synced %d new author(s) from posts to %s", len(new_ids), authors_path)
+
+    return len(new_ids)

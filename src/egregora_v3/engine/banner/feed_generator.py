@@ -60,6 +60,7 @@ class BannerGenerationResult:
         document: The generated media document (when successful).
         error: Human readable reason for failure (optional).
         error_code: Machine readable code for failure (optional).
+
     """
 
     def __init__(
@@ -94,8 +95,10 @@ class FeedBannerGenerator:
         if configured is not None:
             loader = FileSystemLoader(configured)
         else:
-            template_text = resources.files("egregora.prompts").joinpath(DEFAULT_TEMPLATE_NAME).read_text(
-                encoding="utf-8"
+            template_text = (
+                resources.files("egregora.prompts")
+                .joinpath(DEFAULT_TEMPLATE_NAME)
+                .read_text(encoding="utf-8")
             )
             loader = DictLoader({DEFAULT_TEMPLATE_NAME: template_text})
 
