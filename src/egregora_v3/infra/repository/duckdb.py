@@ -224,9 +224,12 @@ class DuckDBDocumentRepository(DocumentRepository):
         try:
             query = t.filter(t.json_data["source"]["id"] == source_id)
             result = query.select("json_data", "doc_type").execute()
-        except Exception:  # noqa: BLE001
+        except (AttributeError, NotImplementedError, TypeError, KeyError):
             # Fallback for backends/versions where Ibis JSON getitem might fail
-            # or if using raw connection is preferred
+            # AttributeError: JSON getitem not supported
+            # NotImplementedError: Backend doesn't implement this feature
+            # TypeError: Type mismatch in filter operation
+            # KeyError: Column or key access failure
             if hasattr(self.conn, "con"):
                 # DuckDB raw SQL for JSON extraction
                 sql = f"SELECT json_data, doc_type FROM {self.table_name} WHERE json_extract_string(json_data, '$.source.id') = ?"
