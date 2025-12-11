@@ -13,7 +13,7 @@ Each post is an analytical synthesis of group conversations, written in [Scott A
 
 ## Navigation
 
-- **[📖 Blog](posts/index.md)** - Chronological conversation diaries
+- **[📖 Blog](blog/index.md)** - Chronological conversation diaries
 - **[👥 Profiles](profiles/index.md)** - Group participants
 - **[ℹ️ About](about.md)** - How the project works
 

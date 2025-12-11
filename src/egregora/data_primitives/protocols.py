@@ -23,6 +23,7 @@ LEGACY:
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -222,8 +223,8 @@ class OutputSink(Protocol):
     def finalize_window(
         self,
         window_label: str,
-        posts_created: list[str],
-        profiles_updated: list[str],
+        posts_created: builtins.list[str],
+        profiles_updated: builtins.list[str],
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Hook called after processing a window."""

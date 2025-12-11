@@ -250,7 +250,7 @@ for attempt in range(max_retries):
 Edit existing posts with AI:
 
 ```bash
-egregora edit docs/posts/2025-01-15-my-post.md
+egregora edit docs/blog/posts/2025-01-15-my-post.md
 ```
 
 **Editor workflow**:

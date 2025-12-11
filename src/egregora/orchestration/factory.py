@@ -34,6 +34,7 @@ from egregora.output_adapters import (
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.utils.cache import PipelineCache
+from egregora.utils.env import get_google_api_key
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
 
@@ -264,8 +265,9 @@ class PipelineFactory:
     def create_gemini_client() -> genai.Client:
         """Create a Gemini client with retry configuration.
 
-        The client reads the API key from GOOGLE_API_KEY environment variable automatically.
+        The client uses the GOOGLE_API_KEY (or GEMINI_API_KEY) from the environment explicitly.
         """
+        api_key = get_google_api_key()
         http_options = genai.types.HttpOptions(
             retryOptions=genai.types.HttpRetryOptions(
                 attempts=5,
@@ -275,4 +277,4 @@ class PipelineFactory:
                 httpStatusCodes=[429, 503],
             )
         )
-        return genai.Client(http_options=http_options)
+        return genai.Client(api_key=api_key, http_options=http_options)

@@ -9,7 +9,7 @@
     <header class="post-header">
       <div class="post-tags">
         {% for tag in page.meta.tags %}
-          <a href="{{ 'posts/tags.md' | url }}#{{ tag | slugify }}" class="tag">{{ tag }}</a>
+          <a href="{{ 'blog/tags.md' | url }}#{{ tag | slugify }}" class="tag">{{ tag }}</a>
         {% endfor %}
       </div>
       <h1>{{ page.title }}</h1>
