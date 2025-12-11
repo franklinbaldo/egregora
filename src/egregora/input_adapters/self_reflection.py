@@ -140,8 +140,8 @@ class SelfInputAdapter(InputAdapter):
 
         return ibis.memtable(records, schema=output_schema)
 
-    def get_metadata(self, input_path: Path, **_: Any) -> dict[str, Any]:
-        _, site_root = self._resolve_docs_dir(input_path)
+    def get_metadata(self, _input_path: Path, **_kwargs: Any) -> dict[str, Any]:
+        _, site_root = self._resolve_docs_dir(_input_path)
         return {"group_name": self._load_site_name(site_root)}
 
     def _resolve_docs_dir(self, input_path: Path) -> tuple[Path, Path]:

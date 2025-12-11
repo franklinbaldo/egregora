@@ -14,7 +14,7 @@ Design principles:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import ibis
 
@@ -142,7 +142,7 @@ def _create_current_views(backend: BaseBackend) -> None:
         logger.warning("Failed to create views: %s", e)
 
 
-def _execute_sql(conn: object, sql: str) -> None:
+def _execute_sql(conn: Any, sql: str) -> None:
     """Execute raw SQL on a connection or backend.
 
     Args:
@@ -153,9 +153,12 @@ def _execute_sql(conn: object, sql: str) -> None:
     if hasattr(conn, "raw_sql"):
         # Ibis backend
         conn.raw_sql(sql)
-    else:
+    elif hasattr(conn, "execute"):
         # Raw DuckDB connection
         conn.execute(sql)
+    else:
+        # Fallback for unexpected connection objects
+        raise AttributeError(f"Connection object {type(conn)} does not support raw_sql or execute")
 
 
 __all__ = ["initialize_database"]
