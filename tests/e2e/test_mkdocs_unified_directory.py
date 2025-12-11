@@ -107,9 +107,10 @@ class TestUnifiedDirectoryStructure:
         )
         adapter.persist(enrichment)
 
-        # Check file is in posts_dir
-        enrichment_path = adapter.posts_dir / "enriched-url.md"
-        assert enrichment_path.exists()
+        # Check file is in posts_dir (note: enrichment URLs include hash suffix for uniqueness)
+        matching_files = list(adapter.posts_dir.glob("enriched-url*.md"))
+        assert len(matching_files) == 1, f"Expected 1 enriched-url file, found {len(matching_files)}"
+        enrichment_path = matching_files[0]
 
         # Parse frontmatter
         content = enrichment_path.read_text(encoding="utf-8")
@@ -401,13 +402,16 @@ class TestDeadCodeRemoval:
         )
         adapter.persist(enrichment)
 
-        # Check enrichment is in posts_dir
-        enrichment_path = adapter.posts_dir / "urls-dir-test.md"
-        assert enrichment_path.exists()
+        # Check enrichment is in posts_dir (note: enrichment URLs include hash suffix for uniqueness)
+        matching_files = list(adapter.posts_dir.glob("urls-dir-test*.md"))
+        assert len(matching_files) == 1, (
+            f"Expected 1 urls-dir-test file in posts_dir, found {len(matching_files)}"
+        )
 
-        # urls_dir should not contain enrichment documents
-        if adapter.urls_dir.exists():
-            urls_files = list(adapter.urls_dir.glob("*.md"))
+        # urls_dir should not be created if it's supposed to be consolidated with posts_dir
+        urls_dir = getattr(adapter, "urls_dir", None)
+        if urls_dir and urls_dir.exists():
+            urls_files = list(urls_dir.glob("*.md"))
             # Should be empty or only contain non-enrichment files
             assert len(urls_files) == 0
 

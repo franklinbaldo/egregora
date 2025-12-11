@@ -581,13 +581,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             # Detect by category
             if "Authors" in categories:
                 return DocumentType.PROFILE
-            elif "Journal" in categories:
+            if "Journal" in categories:
                 return DocumentType.JOURNAL
-            elif "Enrichment" in categories:
+            if "Enrichment" in categories:
                 return DocumentType.ENRICHMENT_URL
-            else:
-                # Default to POST (including posts without categories)
-                return DocumentType.POST
+            # Default to POST (including posts without categories)
+            return DocumentType.POST
 
         except (OSError, yaml.YAMLError):
             # If we can't read/parse, assume POST
@@ -1011,7 +1010,15 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if not hasattr(self, "profiles_dir") or not self.profiles_dir.exists():
             return profiles
 
-        for profile_path in sorted(self.profiles_dir.glob("[!index]*.md")):
+        # Filter for profile files: simple names (UUID-like) without date prefix (YYYY-MM-DD-)
+        # Posts have dated names like "2024-01-01-slug.md", profiles are just "uuid.md"
+        profile_paths = [
+            p
+            for p in self.profiles_dir.glob("[!index]*.md")
+            if not p.name.startswith(tuple("0123456789"))  # Exclude files starting with digits (dated posts)
+        ]
+
+        for profile_path in sorted(profile_paths):
             try:
                 content = profile_path.read_text(encoding="utf-8")
                 metadata, _ = parse_frontmatter(content)
