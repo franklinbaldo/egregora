@@ -1,4 +1,3 @@
-import builtins
 from datetime import datetime
 
 import ibis
@@ -127,7 +126,7 @@ class DuckDBDocumentRepository(DocumentRepository):
 
         return Document.model_validate_json(json_val)
 
-    def list(self, *, doc_type: DocumentType | None = None) -> builtins.list[Document]:
+    def list(self, *, doc_type: DocumentType | None = None) -> list[Document]:
         """Lists documents, optionally filtered by type."""
         t = self._get_table()
         query = t
@@ -205,7 +204,7 @@ class DuckDBDocumentRepository(DocumentRepository):
             return model.model_validate(json_val)
         return model.model_validate_json(json_val)
 
-    def get_entries_by_source(self, source_id: str) -> builtins.list[Entry]:
+    def get_entries_by_source(self, source_id: str) -> list[Entry]:
         """Lists entries associated with a specific source ID."""
         # Optimize for DuckDB with raw SQL for JSON path filtering
         if hasattr(self.conn, "con"):
