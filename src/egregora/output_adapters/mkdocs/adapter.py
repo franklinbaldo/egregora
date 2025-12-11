@@ -75,14 +75,14 @@ class MkDocsAdapter(BaseOutputSink):
         prefix = compute_site_prefix(self.site_root, site_paths["docs_dir"])
         self._ctx = url_context or UrlContext(base_url="", site_prefix=prefix, base_path=self.site_root)
         self.posts_dir = site_paths["posts_dir"]
-        self.profiles_dir = site_paths["profiles_dir"]
-        self.journal_dir = site_paths["journal_dir"]
+        # UNIFIED: Everything goes to posts_dir now
+        self.profiles_dir = self.posts_dir
+        self.journal_dir = self.posts_dir
         self.media_dir = site_paths["media_dir"]
         self.urls_dir = self.media_dir / "urls"
 
         self.posts_dir.mkdir(parents=True, exist_ok=True)
-        self.profiles_dir.mkdir(parents=True, exist_ok=True)
-        self.journal_dir.mkdir(parents=True, exist_ok=True)
+        # self.profiles_dir and self.journal_dir point to self.posts_dir, so no need to mkdir them separately
         self.urls_dir.mkdir(parents=True, exist_ok=True)
         self.media_dir.mkdir(parents=True, exist_ok=True)
         self._initialized = True
@@ -621,18 +621,21 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             case DocumentType.POST:
                 return self.posts_dir / f"{url_path.split('/')[-1]}.md"
             case DocumentType.PROFILE:
-                return self.profiles_dir / f"{url_path.split('/')[-1]}.md"
+                # UNIFIED: profiles go to posts_dir now
+                return self.posts_dir / f"{url_path.split('/')[-1]}.md"
             case DocumentType.JOURNAL:
                 # When url_path is just "journal" (root journal URL), return journal.md in docs root
                 # Otherwise, extract the slug and put it in journal/
+                # UNIFIED: Journal entries go to posts_dir now.
                 slug = url_path.split("/")[-1]
                 if url_path == "journal":
                     return self.docs_dir / "journal.md"
-                return self.journal_dir / f"{slug}.md"
+                return self.posts_dir / f"{slug}.md"
             case DocumentType.ENRICHMENT_URL:
                 # url_path might be 'media/urls/slug' -> we want 'slug.md' inside urls_dir
+                # UNIFIED: Enrichment URLs -> posts_dir
                 slug = url_path.split("/")[-1]
-                return self.urls_dir / f"{slug}.md"
+                return self.posts_dir / f"{slug}.md"
             case DocumentType.ENRICHMENT_MEDIA:
                 # url_path is like 'media/images/foo' -> we want 'docs/media/images/foo.md'
                 rel_path = self._strip_media_prefix(url_path)
@@ -660,6 +663,14 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _write_post_doc(self, document: Document, path: Path) -> None:
         metadata = dict(document.metadata or {})
+
+        # Ensure category is set (default for posts)
+        categories = metadata.get("categories", [])
+        if not categories:
+            # If no categories, maybe add a default or leave it.
+            # Material blog without categories shows all posts in main feed.
+            pass
+
         if "date" in metadata:
             # Parse to datetime object for proper YAML serialization (unquoted)
             # Material blog plugin requires native datetime type, not string
@@ -700,6 +711,13 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _write_journal_doc(self, document: Document, path: Path) -> None:
         metadata = self._ensure_hidden(dict(document.metadata or {}))
+
+        # Add Journal category
+        categories = metadata.get("categories", [])
+        if "Journal" not in categories:
+            categories.append("Journal")
+        metadata["categories"] = categories
+
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
@@ -717,6 +735,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Ensure avatar is present (fallback if needed)
         if "avatar" not in metadata:
             metadata["avatar"] = generate_fallback_avatar_url(author_uuid)
+
+        # Add Authors category
+        categories = metadata.get("categories", [])
+        if "Authors" not in categories:
+            categories.append("Authors")
+        metadata["categories"] = categories
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
@@ -749,6 +773,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             metadata.setdefault("parent_id", document.parent_id)
         if document.parent and document.parent.metadata.get("slug"):
             metadata.setdefault("parent_slug", document.parent.metadata.get("slug"))
+
+        # Add Enrichment category
+        categories = metadata.get("categories", [])
+        if "Enrichment" not in categories:
+            categories.append("Enrichment")
+        metadata["categories"] = categories
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
