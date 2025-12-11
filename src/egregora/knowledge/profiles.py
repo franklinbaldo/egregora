@@ -462,8 +462,10 @@ def apply_command_to_profile(
     value = command.get("value")
 
     # Apply transformations pipeline
-    content = _handle_alias_command(cmd_type, target, value, author_uuid, timestamp, content)
-    content = _handle_simple_set_command(cmd_type, target, value, author_uuid, timestamp, content)
+    ctx = CommandContext(author_uuid=author_uuid, timestamp=timestamp, content=content)
+    content = _handle_alias_command(cmd_type, target, value, ctx)
+    ctx.content = content
+    content = _handle_simple_set_command(cmd_type, target, value, ctx)
     content = _handle_privacy_command(cmd_type, author_uuid, timestamp, content)
 
     profile_path.write_text(content, encoding="utf-8")
