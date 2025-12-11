@@ -1,8 +1,11 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 import ibis
 import pytest
-from egregora_v3.core.types import Entry, Document, DocumentType, Link, Author
+
+from egregora_v3.core.types import Author, Document, DocumentType, Entry, Link
 from egregora_v3.infra.repository.duckdb import DuckDBDocumentRepository
+
 
 @pytest.fixture
 def repository():
@@ -12,14 +15,15 @@ def repository():
     repo.initialize()
     return repo
 
+
 def test_save_and_get_entry(repository):
     entry = Entry(
         id="entry-1",
         title="Test Entry",
-        updated=datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+        updated=datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC),
         content="This is a test entry",
         authors=[Author(name="Tester")],
-        links=[Link(href="http://example.com")]
+        links=[Link(href="http://example.com")],
     )
 
     repository.save_entry(entry)
@@ -35,13 +39,14 @@ def test_save_and_get_entry(repository):
     # Ensure it's not a Document if we saved a raw Entry
     assert not isinstance(retrieved, Document)
 
+
 def test_save_and_get_document_as_entry(repository):
     doc = Document(
         id="doc-1",
         title="Test Document",
-        updated=datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+        updated=datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC),
         content="This is a test document",
-        doc_type=DocumentType.POST
+        doc_type=DocumentType.POST,
     )
 
     repository.save(doc)
@@ -57,30 +62,16 @@ def test_save_and_get_document_as_entry(repository):
     # But for now, let's just ensure it acts as an Entry.
     assert retrieved.title == "Test Document"
 
+
 def test_get_entries_by_source(repository):
     # This requires Source to be set
-    from egregora_v3.core.types import Source
+    from egregora_v3.core.types import Source  # noqa: PLC0415
 
     source = Source(id="source-1", title="My Source")
 
-    entry1 = Entry(
-        id="e1",
-        title="E1",
-        updated=datetime.now(timezone.utc),
-        source=source
-    )
-    entry2 = Entry(
-        id="e2",
-        title="E2",
-        updated=datetime.now(timezone.utc),
-        source=source
-    )
-    entry3 = Entry(
-        id="e3",
-        title="E3",
-        updated=datetime.now(timezone.utc),
-        source=Source(id="source-2")
-    )
+    entry1 = Entry(id="e1", title="E1", updated=datetime.now(UTC), source=source)
+    entry2 = Entry(id="e2", title="E2", updated=datetime.now(UTC), source=source)
+    entry3 = Entry(id="e3", title="E3", updated=datetime.now(UTC), source=Source(id="source-2"))
 
     repository.save_entry(entry1)
     repository.save_entry(entry2)

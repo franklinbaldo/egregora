@@ -1,3 +1,5 @@
+import builtins
+import contextlib
 from datetime import datetime
 
 import ibis
@@ -5,7 +7,6 @@ from ibis.expr.types import Table
 
 from egregora_v3.core.ports import DocumentRepository
 from egregora_v3.core.types import Document, DocumentType, Entry
-import builtins
 
 
 class DuckDBDocumentRepository(DocumentRepository):
@@ -56,7 +57,7 @@ class DuckDBDocumentRepository(DocumentRepository):
         self._upsert_record(doc.id, doc.doc_type.value, doc.model_dump_json(), doc.updated)
         return doc
 
-    def _upsert_record(self, id: str, doc_type: str, json_data: str, updated: datetime) -> None:
+    def _upsert_record(self, record_id: str, doc_type: str, json_data: str, updated: datetime) -> None:
         """Helper to upsert a record with handling for PK constraints."""
         if hasattr(self.conn, "con"):
             # Use parameterized INSERT OR REPLACE (upsert)
@@ -65,33 +66,30 @@ class DuckDBDocumentRepository(DocumentRepository):
                     INSERT OR REPLACE INTO {self.table_name} (id, doc_type, json_data, updated)
                     VALUES (?, ?, ?, ?)
                 """
-                self.conn.con.execute(query, [id, doc_type, json_data, updated])
+                self.conn.con.execute(query, [record_id, doc_type, json_data, updated])
             except Exception as e:
                 # If "ON CONFLICT is a no-op" error occurs, it means no PK.
                 # Fallback to delete + insert pattern manually.
                 if "ON CONFLICT is a no-op" in str(e):
-                    self._manual_upsert_record(id, doc_type, json_data, updated)
+                    self._manual_upsert_record(record_id, doc_type, json_data, updated)
                 else:
                     raise
         else:
-            self._manual_upsert_record(id, doc_type, json_data, updated)
+            self._manual_upsert_record(record_id, doc_type, json_data, updated)
 
     def _manual_upsert(self, doc: Document, json_data: str) -> None:
         """Deprecated: Use _manual_upsert_record instead."""
         self._manual_upsert_record(doc.id, doc.doc_type.value, json_data, doc.updated)
 
-    def _manual_upsert_record(self, id: str, doc_type: str, json_data: str, updated: datetime) -> None:
+    def _manual_upsert_record(self, record_id: str, doc_type: str, json_data: str, updated: datetime) -> None:
         """Manual delete + insert for backends/tables without PK constraint."""
         # Safe delete first
-        try:
-            self.delete(id)
-        except Exception:
-            # If delete fails (e.g. not exists), we proceed to insert
-            pass
+        with contextlib.suppress(Exception):
+            self.delete(record_id)
 
         # Insert via Ibis
         data = {
-            "id": id,
+            "id": record_id,
             "doc_type": doc_type,
             "json_data": json_data,
             "updated": updated,
@@ -124,7 +122,7 @@ class DuckDBDocumentRepository(DocumentRepository):
         # But get() signature is Document | None.
         # If type is _ENTRY_, it's NOT a Document.
         if row["doc_type"] == "_ENTRY_":
-             return None
+            return None
 
         if isinstance(json_val, dict):
             return Document.model_validate(json_val)
@@ -226,7 +224,7 @@ class DuckDBDocumentRepository(DocumentRepository):
         try:
             query = t.filter(t.json_data["source"]["id"] == source_id)
             result = query.select("json_data", "doc_type").execute()
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Fallback for backends/versions where Ibis JSON getitem might fail
             # or if using raw connection is preferred
             if hasattr(self.conn, "con"):
@@ -249,10 +247,9 @@ class DuckDBDocumentRepository(DocumentRepository):
                     entries.append(Document.model_validate(json_val))
                 else:
                     entries.append(Document.model_validate_json(json_val))
+            elif isinstance(json_val, dict):
+                entries.append(Entry.model_validate(json_val))
             else:
-                if isinstance(json_val, dict):
-                    entries.append(Entry.model_validate(json_val))
-                else:
-                    entries.append(Entry.model_validate_json(json_val))
+                entries.append(Entry.model_validate_json(json_val))
 
         return entries

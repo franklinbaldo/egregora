@@ -1,6 +1,8 @@
 
 from datetime import date, datetime
+
 from egregora.utils.filesystem import _extract_clean_date
+
 
 def test_extract_clean_date_str():
     assert _extract_clean_date("2023-01-01") == "2023-01-01"
