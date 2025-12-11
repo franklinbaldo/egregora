@@ -8,6 +8,7 @@ MODERN: Updated to use OutputAdapter abstraction instead of direct scaffolding i
 
 from pathlib import Path
 
+from egregora.cli.main import _ensure_mkdocs_scaffold
 from egregora.config.settings import load_egregora_config
 from egregora.init.scaffolding import ensure_mkdocs_project
 from egregora.output_adapters import create_default_output_registry, create_output_sink
@@ -50,7 +51,8 @@ def test_init_directory_structure(tmp_path: Path):
 
     # Verify directory structure (new structure: content at root level)
     expected_dirs = [
-        "docs/posts",
+        "docs/blog",
+        "docs/blog/posts",
         "docs/profiles",
         "docs/media",
         "docs/media/images",
@@ -87,9 +89,9 @@ def test_egregora_directory_created(tmp_path: Path):
     assert egregora_dir.exists(), ".egregora directory should be created"
     assert egregora_dir.is_dir(), ".egregora should be a directory"
 
-    # Verify mkdocs.yml exists in .egregora/
+    # Verify mkdocs.yml exists at configured location (default: .egregora/mkdocs.yml)
     mkdocs_yml = egregora_dir / "mkdocs.yml"
-    assert mkdocs_yml.exists(), ".egregora/mkdocs.yml should be created"
+    assert mkdocs_yml.exists(), "mkdocs.yml should be created inside .egregora"
 
     # Verify config.yml exists
     config_yml = egregora_dir / "config.yml"
@@ -132,7 +134,7 @@ def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
     # Create site
     ensure_mkdocs_project(tmp_path)
 
-    # Read mkdocs.yml from .egregora/
+    # Read mkdocs.yml from the configured location
     mkdocs_path = tmp_path / ".egregora" / "mkdocs.yml"
     assert mkdocs_path.exists()
 
@@ -189,3 +191,32 @@ def test_prompts_directory_populated(tmp_path: Path):
     for filename in expected_files:
         file_path = prompts_dir / filename
         assert file_path.exists(), f".egregora/prompts/{filename} should be created"
+
+
+def test_minimal_scaffold_creates_config_and_mkdocs(tmp_path: Path):
+    """Minimal init should create config.yml and mkdocs.yml by default."""
+
+    docs_dir, created = ensure_mkdocs_project(tmp_path, minimal=True)
+
+    assert created
+    assert (tmp_path / ".egregora" / "config.yml").exists()
+    assert (tmp_path / ".egregora" / "mkdocs.yml").exists()
+    assert docs_dir == tmp_path / "docs"
+    assert not (tmp_path / "docs" / "index.md").exists()
+    assert not (tmp_path / "README.md").exists()
+
+    config = load_egregora_config(tmp_path)
+    assert config.output.mkdocs_config_path == ".egregora/mkdocs.yml"
+
+
+def test_processing_scaffold_completes_site(tmp_path: Path, monkeypatch):
+    """Processing preflight should upgrade a config-only site to full scaffold."""
+
+    ensure_mkdocs_project(tmp_path, minimal=True)
+
+    monkeypatch.setattr("typer.confirm", lambda *_args, **_kwargs: True)
+
+    _ensure_mkdocs_scaffold(tmp_path)
+
+    assert (tmp_path / ".egregora" / "mkdocs.yml").exists()
+    assert (tmp_path / "docs" / "index.md").exists()

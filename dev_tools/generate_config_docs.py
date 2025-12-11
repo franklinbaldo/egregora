@@ -225,7 +225,7 @@ def generate_config_docs() -> str:
             "paths:",
             "  egregora_dir: .egregora",
             "  docs_dir: docs",
-            "  posts_dir: docs/posts",
+            "  posts_dir: docs/blog/posts",
             "",
             "database:",
             "  pipeline_db: .egregora/pipeline.duckdb",

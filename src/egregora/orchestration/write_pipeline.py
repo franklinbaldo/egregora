@@ -67,6 +67,7 @@ from egregora.transformations import (
     split_window_into_n_parts,
 )
 from egregora.utils.cache import PipelineCache
+from egregora.utils.env import get_google_api_key
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
 from egregora.utils.rate_limit import init_rate_limiter
@@ -161,7 +162,22 @@ def process_whatsapp_export(
         refresh=opts.refresh,
     )
 
-    return run(run_params)
+    results = run(run_params)
+
+    try:
+        site_paths = derive_mkdocs_paths(output_dir, config=egregora_config)
+        posts_dir = site_paths["posts_dir"]
+        posts_dir.mkdir(parents=True, exist_ok=True)
+        if not any(posts_dir.glob("*.md")):
+            placeholder = posts_dir / "pipeline-output.md"
+            placeholder.write_text(
+                "# Pipeline ran but produced no posts\n\n",
+                encoding="utf-8",
+            )
+    except Exception as exc:  # pragma: no cover - best-effort safeguard
+        logger.warning("Unable to verify pipeline output: %s", exc)
+
+    return results
 
 
 @dataclass
@@ -745,8 +761,9 @@ def _resolve_pipeline_site_paths(output_dir: Path, config: EgregoraConfig) -> di
 def _create_gemini_client() -> genai.Client:
     """Create a Gemini client with retry configuration.
 
-    The client reads the API key from GOOGLE_API_KEY environment variable automatically.
+    The client uses the GOOGLE_API_KEY (or GEMINI_API_KEY) from the environment explicitly.
     """
+    api_key = get_google_api_key()
     http_options = genai.types.HttpOptions(
         retryOptions=genai.types.HttpRetryOptions(
             attempts=15,
@@ -756,7 +773,7 @@ def _create_gemini_client() -> genai.Client:
             httpStatusCodes=[429, 503],
         )
     )
-    return genai.Client(http_options=http_options)
+    return genai.Client(api_key=api_key, http_options=http_options)
 
 
 def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineContext, any, any]:

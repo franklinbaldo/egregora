@@ -8,7 +8,6 @@ import re
 from typing import TYPE_CHECKING, Any
 
 import ibis
-import ibis.expr.datatypes as dt
 
 if TYPE_CHECKING:  # pragma: no cover - for type checkers
     from ibis.expr.types import Table
@@ -57,21 +56,21 @@ logger = logging.getLogger(__name__)
 
 
 @ibis.udf.scalar.python
-def normalize_smart_quotes(value: dt.String(nullable=True)) -> dt.String:
+def normalize_smart_quotes(value: str | None) -> str:
     if value is None:
         return ""
     return value.translate(SMART_QUOTES_TRANSLATION)
 
 
 @ibis.udf.scalar.python
-def strip_wrapping_quotes(value: dt.String(nullable=True)) -> dt.String(nullable=True):
+def strip_wrapping_quotes(value: str | None) -> str | None:
     if value is None:
         return None
     return value.strip("\"'")
 
 
 @ibis.udf.scalar.python
-def _normalize_whitespace(value: dt.String(nullable=True)) -> dt.String:
+def _normalize_whitespace(value: str | None) -> str:
     if value is None:
         return ""
     return value.strip()

@@ -30,7 +30,7 @@ class PathsSettings(BaseModel):
     )
 
     # Content
-    posts_dir: Path = Field(default=Path("posts"), description="Posts directory")
+    posts_dir: Path = Field(default=Path("blog/posts"), description="Posts directory")
     profiles_dir: Path = Field(default=Path("profiles"), description="Profiles directory")
     media_dir: Path = Field(default=Path("media"), description="Media directory")
 

@@ -234,6 +234,31 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           extras: "--extra docs"
 
+      - name: Prepare demo workspace
+        if: steps.docs_condition.outputs.run == 'true'
+        run: mkdir -p docs/demo
+
+      - name: Restore cached demo site
+        if: steps.docs_condition.outputs.run == 'true'
+        id: restore-demo
+        uses: actions/cache/restore@v4
+        with:
+          path: docs/demo
+          key: demo-site-${{ hashFiles('dev_tools/generate_demo.py', 'tests/fixtures/Conversa do WhatsApp com Teste.zip', 'src/egregora/rendering/templates/site/mkdocs.yml.jinja') }}
+
+      - name: Generate demo content
+        if: steps.docs_condition.outputs.run == 'true' && steps.restore-demo.outputs.cache-hit != 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: uv run python dev_tools/generate_demo.py
+
+      - name: Save demo cache
+        if: steps.docs_condition.outputs.run == 'true' && steps.restore-demo.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: docs/demo
+          key: ${{ steps.restore-demo.outputs.cache-primary-key }}
+
       - name: Build Documentation
         if: steps.docs_condition.outputs.run == 'true'
         run: uv run mkdocs build

@@ -47,7 +47,7 @@ def test_resolve_paths_returns_site_configuration(tmp_path: Path, scaffolder: Mk
     assert site_config.site_root == tmp_path.resolve()
     assert site_config.site_name == "Resolved Site"
     assert site_config.docs_dir == tmp_path / "docs"
-    assert site_config.posts_dir == site_config.docs_dir / "posts"
+    assert site_config.posts_dir.relative_to(site_config.docs_dir) == Path("blog/posts")
     assert site_config.config_file == tmp_path / ".egregora" / "mkdocs.yml"
 
 

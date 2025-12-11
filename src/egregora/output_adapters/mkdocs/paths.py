@@ -17,16 +17,28 @@ __all__ = [
 ]
 
 
-def _resolve_mkdocs_yml_path(resolved_root: Path, egregora_dir: Path) -> tuple[Path | None, Path]:
+def _resolve_mkdocs_yml_path(
+    resolved_root: Path, egregora_dir: Path, configured_path: str | None
+) -> tuple[Path | None, Path]:
     """Find the mkdocs.yml file path."""
-    mkdocs_path: Path | None = None
-    preferred_path = egregora_dir / "mkdocs.yml"
-    legacy_path = resolved_root / "mkdocs.yml"
 
-    if preferred_path.exists():
-        mkdocs_path = preferred_path
-    elif legacy_path.exists():
-        mkdocs_path = legacy_path
+    def resolve_candidate(path_value: Path) -> Path:
+        if path_value.is_absolute():
+            return path_value
+        return (resolved_root / path_value).resolve()
+
+    configured = Path(configured_path) if configured_path else None
+    preferred_path = resolve_candidate(configured or Path(".egregora/mkdocs.yml"))
+
+    root_path = (resolved_root / "mkdocs.yml").resolve()
+    legacy_path = (egregora_dir / "mkdocs.yml").resolve()
+
+    mkdocs_path: Path | None = None
+    for candidate in [preferred_path, root_path, legacy_path]:
+        if candidate.exists():
+            mkdocs_path = candidate
+            break
+
     return mkdocs_path, preferred_path
 
 
@@ -81,7 +93,9 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
 
     paths_settings = config.paths
     egregora_dir = resolve_path(paths_settings.egregora_dir)
-    mkdocs_path, preferred_path = _resolve_mkdocs_yml_path(resolved_root, egregora_dir)
+    mkdocs_path, preferred_path = _resolve_mkdocs_yml_path(
+        resolved_root, egregora_dir, getattr(config.output, "mkdocs_config_path", None)
+    )
     docs_dir = resolve_path(paths_settings.docs_dir)
 
     def resolve_content_path(path_str: str) -> Path:
@@ -100,42 +114,13 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
 
         return (docs_dir / path_obj).resolve()
 
-    # blog_root_dir is where blog artifacts go (e.g., docs/posts/)
-    # Material blog plugin expects posts in {blog}/posts/ subdirectory,
-    # but ONLY if the blog_dir itself is not the source.
-    # The current code seems to assume a nested "posts/posts" structure.
-    # Let's revert to using posts_dir directly as the posts directory,
-    # and assume blog_root_dir is the same or parent.
-    #
-    # Wait, the comment says "Material blog plugin expects posts in {blog}/posts/ subdirectory".
-    # If paths_settings.posts_dir is "posts", then blog_root_dir is "docs/posts".
-    # And posts_dir becomes "docs/posts/posts".
-    # This matches the failure "docs/posts/posts".
-    # The tests expect "docs/posts".
-    #
-    # If I change it back to just resolve_content_path(paths_settings.posts_dir),
-    # does it break Material blog plugin compatibility?
-    # The tests `test_scaffold_site_creates_expected_layout` verify layout.
-    #
-    # Let's see `test_scaffolding.py`:
-    # assert site_config.posts_dir == site_config.docs_dir / "posts"
-    #
-    # If I change this line in paths.py:
-    # posts_dir = blog_root_dir / "posts"
-    # to:
-    # posts_dir = blog_root_dir
-    #
-    # Then `posts_dir` will be `docs/posts`.
-    #
-    # However, `blog_root_dir` is used as `blog_dir`.
-    #
-    # Let's assume the tests are correct and the code in `paths.py` was recently changed or incorrect.
-    # The test failure shows that the test EXPECTS `docs/posts` but got `docs/posts/posts`.
-    # So `paths.py` is creating the extra nesting.
-
-    blog_root_dir = resolve_content_path(paths_settings.posts_dir)
-    # Flatten structure: posts go directly in posts_dir
-    posts_dir = blog_root_dir
+    posts_path = Path(paths_settings.posts_dir)
+    posts_dir = resolve_content_path(paths_settings.posts_dir)
+    blog_root_dir = (
+        resolve_content_path(posts_path.parent)
+        if posts_path.parent != Path(".")
+        else docs_dir
+    )
     profiles_dir = resolve_content_path(paths_settings.profiles_dir)
     media_dir = resolve_content_path(paths_settings.media_dir)
     journal_dir = _resolve_journal_dir(paths_settings, resolve_content_path)
@@ -161,7 +146,7 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
         "docs_dir": docs_dir,
         "blog_dir": blog_relative,
         "blog_root_dir": blog_root_dir,  # Where tags.md and blog artifacts go
-        "posts_dir": posts_dir,  # Where actual post files go (posts/posts/)
+        "posts_dir": posts_dir,  # Where actual post files go (posts/)
         "profiles_dir": profiles_dir,
         "media_dir": media_dir,
         "journal_dir": journal_dir,

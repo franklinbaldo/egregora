@@ -75,7 +75,7 @@ def run_reader_evaluation(
 
     db_path = Path(config.database_path)
     if not db_path.is_absolute():
-        db_path = posts_dir.parent / db_path
+        db_path = posts_dir.parents[1] / db_path
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     post_files = sorted(posts_dir.glob("**/*.md"))

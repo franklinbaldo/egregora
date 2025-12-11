@@ -24,7 +24,7 @@ Examples:
     'https://example.com/blog/posts/2025-01-10-hello/'
 
 The OutputAdapter then converts this URL to a filesystem path:
-    >>> adapter.persist(doc)  # Internally: URL -> Path("docs/posts/2025-01-10-hello.md")
+    >>> adapter.persist(doc)  # Internally: URL -> Path("docs/blog/posts/2025-01-10-hello.md")
 
 """
 
@@ -172,6 +172,7 @@ class StandardUrlConvention(UrlConvention):
         clean_segments = [seg.strip("/") for seg in segments if seg]
         path_segments = prefix_segments + clean_segments
         path = "/".join(path_segments)
+        # Restore leading slash to make paths root-relative when base is empty
         url = f"{base}/{path}" if base else f"/{path}"
         if trailing_slash:
             return url.rstrip("/") + "/"
