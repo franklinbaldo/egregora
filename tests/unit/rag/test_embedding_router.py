@@ -318,7 +318,9 @@ def test_endpoint_queue_batches_multiple_requests(mock_api_key, embedding_model)
 
 
 def test_endpoint_queue_handles_api_error(mock_api_key, embedding_model):
-    """Test that queue handles API errors properly."""
+    """Test that queue handles API errors properly with detailed error message."""
+    from egregora.rag.embedding_router import EmbeddingError
+
     limiter = RateLimiter(EndpointType.SINGLE)
     queue = EndpointQueue(
         endpoint_type=EndpointType.SINGLE,
@@ -335,8 +337,12 @@ def test_endpoint_queue_handles_api_error(mock_api_key, embedding_model):
             return_value=httpx.Response(400, json={"error": "Bad request"})
         )
 
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(EmbeddingError) as exc_info:
             queue.submit(["test"], "RETRIEVAL_QUERY")
+
+        # Verify error contains detailed message
+        assert "Bad request" in str(exc_info.value)
+        assert exc_info.value.status_code == 400
 
     queue.stop()
 
