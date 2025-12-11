@@ -35,6 +35,7 @@ from egregora.diagnostics import HealthStatus, run_diagnostics
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration import write_pipeline
 from egregora.orchestration.context import PipelineRunParams
+from egregora.output_adapters.mkdocs.paths import derive_mkdocs_paths
 
 app = typer.Typer(
     name="egregora",
@@ -75,7 +76,11 @@ def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
     mkdocs_candidates = [output_dir / ".egregora" / "mkdocs.yml", output_dir / "mkdocs.yml"]
     config_exists = config_path.exists() or config_path_alt.exists()
     mkdocs_exists = any(path.exists() for path in mkdocs_candidates)
-    if config_exists and mkdocs_exists:
+    docs_index_exists = (output_dir / "docs" / "index.md").exists()
+    full_scaffold_exists = config_exists and mkdocs_exists and docs_index_exists
+    egregora_mkdocs_exists = (output_dir / ".egregora" / "mkdocs.yml").exists()
+
+    if full_scaffold_exists and egregora_mkdocs_exists:
         return
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -99,6 +104,17 @@ def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
     logger.info("Initializing site in %s", output_dir)
     # Processing requires the full scaffold so mkdocs.yml and content dirs exist.
     ensure_mkdocs_project(output_dir, minimal=False)
+
+    mkdocs_symlink = output_dir / ".egregora" / "mkdocs.yml"
+    if not mkdocs_symlink.exists():
+        site_paths = derive_mkdocs_paths(output_dir)
+        mkdocs_config_path = site_paths.get("mkdocs_config_path")
+        if mkdocs_config_path and mkdocs_config_path.exists():
+            mkdocs_symlink.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                mkdocs_symlink.symlink_to(mkdocs_config_path.relative_to(mkdocs_symlink.parent))
+            except ValueError:
+                mkdocs_symlink.symlink_to(mkdocs_config_path)
     console.print("[green]Initialized site. Continuing with processing.[/green]")
 
 
