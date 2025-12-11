@@ -306,34 +306,20 @@ def _process_single_window(
         run_id=str(ctx.run_id) if ctx.run_id else None,
     )
     result = write_posts_for_window(params)
+    post_count = len(result.get("posts", []))
+    profile_count = len(result.get("profiles", []))
 
-    posts = result.get("posts", [])
-    profiles = result.get("profiles", [])
-
-    # Scheduled tasks are returned as "pending:<task_id>"
-    scheduled_posts = sum(1 for p in posts if p.startswith("pending:"))
-    generated_posts = len(posts) - scheduled_posts
-
-    scheduled_profiles = sum(1 for p in profiles if p.startswith("pending:"))
-    generated_profiles = len(profiles) - scheduled_profiles
-
-    # Construct status message
-    status_parts = []
-    if generated_posts > 0:
-        status_parts.append(f"{generated_posts} posts")
-    if scheduled_posts > 0:
-        status_parts.append(f"{scheduled_posts} scheduled posts")
-    if generated_profiles > 0:
-        status_parts.append(f"{generated_profiles} profiles")
-    if scheduled_profiles > 0:
-        status_parts.append(f"{scheduled_profiles} scheduled profiles")
-
-    status_msg = ", ".join(status_parts) if status_parts else "0 items"
+    # Check for scheduled tasks
+    # TODO: We might want to inspect result for scheduled tasks specifically,
+    # but currently write_posts_for_window returns lists of persisted paths.
+    # The capability implementation returns "pending:<task_id>" as path.
+    # We can rely on the task store for accurate counts.
 
     logger.info(
-        "%s[green]✔ Generated[/] %s for %s",
+        "%s[green]✔ Generated[/] %s posts / %s profiles for %s",
         indent,
-        status_msg,
+        post_count,
+        profile_count,
         window_label,
     )
 

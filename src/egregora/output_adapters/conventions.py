@@ -104,9 +104,10 @@ class RouteConfig:
     """Configuration for URL routing segments."""
 
     posts_prefix: str = "posts"
-    profiles_prefix: str = "profiles"
+    # UNIFIED: profiles and journal now use the same prefix as posts
+    profiles_prefix: str = "posts"
     media_prefix: str = "media"
-    journal_prefix: str = "journal"
+    journal_prefix: str = "posts"
     # Defines if dates should be part of the URL structure: /2025-01-01-slug/ vs /slug/
     date_in_url: bool = True
 
@@ -220,10 +221,10 @@ class StandardUrlConvention(UrlConvention):
             clean_path = _remove_url_extension(document.suggested_path.strip("/"))
             return self._join(ctx, clean_path, trailing_slash=True)
         url_slug = self._slug_with_identifier(document)
+        # UNIFIED: Enrichments go to posts/
         return self._join(
             ctx,
-            self.routes.media_prefix,
-            "urls",
+            self.routes.posts_prefix,
             url_slug,
         )
 
@@ -268,7 +269,8 @@ class StandardUrlConvention(UrlConvention):
             return self._join(ctx, clean_path, trailing_slash=True)
 
         fallback = f"{self._slug_with_identifier(document)}"
-        return self._join(ctx, self.routes.media_prefix, fallback, trailing_slash=True)
+        # UNIFIED: Media enrichments go to posts/
+        return self._join(ctx, self.routes.posts_prefix, fallback, trailing_slash=True)
 
     def _slug_with_identifier(self, document: Document) -> str:
         """Return slug augmented with a deterministic identifier."""

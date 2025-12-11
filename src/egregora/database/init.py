@@ -95,10 +95,7 @@ def initialize_database(backend: BaseBackend) -> None:
     logger.info("✓ Database tables initialized successfully")
 
 
-from typing import Any
-
-
-def _execute_sql(conn: Any, sql: str) -> None:
+def _execute_sql(conn: object, sql: str) -> None:
     """Execute raw SQL on a connection or backend.
 
     Args:
@@ -109,12 +106,9 @@ def _execute_sql(conn: Any, sql: str) -> None:
     if hasattr(conn, "raw_sql"):
         # Ibis backend
         conn.raw_sql(sql)
-    elif hasattr(conn, "execute"):
+    else:
         # Raw DuckDB connection
         conn.execute(sql)
-    else:
-        # Fallback for unexpected connection objects
-        raise AttributeError(f"Connection object {type(conn)} does not support raw_sql or execute")
 
 
 __all__ = ["initialize_database"]

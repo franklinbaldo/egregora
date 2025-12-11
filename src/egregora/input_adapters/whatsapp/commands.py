@@ -57,21 +57,21 @@ logger = logging.getLogger(__name__)
 
 
 @ibis.udf.scalar.python
-def normalize_smart_quotes(value: str | None) -> str:
+def normalize_smart_quotes(value: dt.String(nullable=True)) -> dt.String:
     if value is None:
         return ""
     return value.translate(SMART_QUOTES_TRANSLATION)
 
 
 @ibis.udf.scalar.python
-def strip_wrapping_quotes(value: str | None) -> str | None:
+def strip_wrapping_quotes(value: dt.String(nullable=True)) -> dt.String(nullable=True):
     if value is None:
         return None
     return value.strip("\"'")
 
 
 @ibis.udf.scalar.python
-def _normalize_whitespace(value: str | None) -> str:
+def _normalize_whitespace(value: dt.String(nullable=True)) -> dt.String:
     if value is None:
         return ""
     return value.strip()

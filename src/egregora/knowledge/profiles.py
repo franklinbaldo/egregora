@@ -462,10 +462,8 @@ def apply_command_to_profile(
     value = command.get("value")
 
     # Apply transformations pipeline
-    ctx = CommandContext(author_uuid=author_uuid, timestamp=timestamp, content=content)
-    content = _handle_alias_command(cmd_type, target, value, ctx)
-    ctx.content = content
-    content = _handle_simple_set_command(cmd_type, target, value, ctx)
+    content = _handle_alias_command(cmd_type, target, value, author_uuid, timestamp, content)
+    content = _handle_simple_set_command(cmd_type, target, value, author_uuid, timestamp, content)
     content = _handle_privacy_command(cmd_type, author_uuid, timestamp, content)
 
     profile_path.write_text(content, encoding="utf-8")
@@ -800,26 +798,6 @@ def _update_authors_yml(site_root: Path, author_uuid: str, front_matter: dict[st
     except (OSError, yaml.YAMLError) as e:
         logger.warning("Failed to write .authors.yml: %s", e)
 
-def _build_author_entry(profile_path: Path, metadata: dict) -> dict:
-    """Build an author entry dict from profile metadata."""
-    author_uuid = profile_path.stem
-
-    # Ensure we have a name (default to UUID if missing)
-    name = metadata.get("name", metadata.get("alias", author_uuid))
-
-    # Ensure avatar fallback if missing
-    avatar = metadata.get("avatar", generate_fallback_avatar_url(author_uuid))
-
-    # Build entry
-    entry = {"name": metadata.get("alias", name), "url": f"profiles/{author_uuid}.md"}
-    if "bio" in metadata:
-        entry["description"] = metadata["bio"]
-    entry["avatar"] = avatar
-    if "social" in metadata:
-        entry.update(metadata["social"])
-
-    return entry
-
 
 def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
     """Sync all profiles from directory to .authors.yml.
@@ -845,8 +823,26 @@ def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
 
         try:
             metadata = _extract_profile_metadata(profile_path)
-            entry = _build_author_entry(profile_path, metadata)
-            authors[profile_path.stem] = entry
+            author_uuid = profile_path.stem
+
+            # Ensure we have a name (default to UUID if missing)
+            if "name" not in metadata:
+                metadata["name"] = metadata.get("alias", author_uuid)
+
+            # Ensure avatar fallback if missing
+            if "avatar" not in metadata:
+                metadata["avatar"] = generate_fallback_avatar_url(author_uuid)
+
+            # Build entry
+            entry = {"name": metadata.get("alias", metadata["name"]), "url": f"profiles/{author_uuid}.md"}
+            if "bio" in metadata:
+                entry["description"] = metadata["bio"]
+            if "avatar" in metadata:
+                entry["avatar"] = metadata["avatar"]
+            if "social" in metadata:
+                entry.update(metadata["social"])
+
+            authors[author_uuid] = entry
             count += 1
         except (OSError, yaml.YAMLError) as e:
             logger.warning("Failed to sync profile %s: %s", profile_path, e)

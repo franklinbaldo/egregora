@@ -21,7 +21,7 @@ from egregora.utils.filesystem import sync_authors_from_posts
 def test_sync_authors_from_posts(tmp_path: Path):
     """Test that sync_authors_from_posts correctly syncs authors from post frontmatter."""
     docs_dir = tmp_path / "docs"
-    posts_dir = docs_dir / "posts"  # Flat structure - no nesting
+    posts_dir = docs_dir / "posts" / "posts"
     posts_dir.mkdir(parents=True)
 
     # Create posts with different authors
@@ -89,7 +89,7 @@ def test_mkdocs_build_with_material(tmp_path: Path):
     scaffolder.scaffold(site_root, {"site_name": "Test Site"})
 
     docs_dir = site_root / "docs"
-    posts_dir = docs_dir / "posts"  # Flat structure - no nesting
+    posts_dir = docs_dir / "posts" / "posts"
     posts_dir.mkdir(parents=True, exist_ok=True)
 
     # Create overrides directory

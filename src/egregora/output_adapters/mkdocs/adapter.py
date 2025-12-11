@@ -630,6 +630,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 slug = url_path.split("/")[-1]
                 if url_path == "journal":
                     return self.docs_dir / "journal.md"
+                if url_path == "posts":
+                    return self.posts_dir / "index.md"
                 return self.posts_dir / f"{slug}.md"
             case DocumentType.ENRICHMENT_URL:
                 # url_path might be 'media/urls/slug' -> we want 'slug.md' inside urls_dir

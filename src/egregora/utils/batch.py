@@ -6,7 +6,7 @@ import logging
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import TypeVar
 
 import httpx
 from google.genai import types as genai_types
@@ -100,7 +100,7 @@ class GeminiBatchClient:
 
     def __init__(
         self,
-        client: Any,
+        client: object,
         default_model: str,
         poll_interval: float = 5.0,
         timeout: float | None = 900.0,

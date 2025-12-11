@@ -295,10 +295,7 @@ def process_media_for_window(
 
     for media_ref in media_refs:
         try:
-            # We need to cast adapter_kwargs to match the signature
-            # deliver_media expects specific kwargs, not a generic dict
-            # For now, we trust runtime compatibility or fix InputAdapter protocol
-            document = adapter.deliver_media(media_reference=media_ref, **adapter_kwargs)  # type: ignore[arg-type]
+            document = adapter.deliver_media(media_reference=media_ref, **adapter_kwargs)
         except FileNotFoundError as exc:
             logger.warning("Media file not found: '%s': %s", media_ref, exc)
             continue
@@ -377,8 +374,6 @@ def _prepare_media_document(document: Document, media_ref: str) -> MediaAsset:
         hide_flags.append("navigation")
     metadata["hide"] = hide_flags
 
-    # Explicitly cast Document to MediaAsset since they share structure but types might differ
-    # MediaAsset expects 'bytes' content, while Document can be 'str | bytes'
     return MediaAsset(
         content=payload,
         type=DocumentType.MEDIA,
