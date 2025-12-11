@@ -55,14 +55,6 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Constants & Patterns
-# ---------------------------------------------------------------------------
-
-_MARKDOWN_LINK_PATTERN = re.compile(r"(?:!\[|\[)[^\]]*\]\([^)]*?([^/)]+\.\w+)\)")
-_UUID_PATTERN = re.compile(r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)")
-
-
-# ---------------------------------------------------------------------------
 # Shared Models & Helpers
 # ---------------------------------------------------------------------------
 
@@ -590,9 +582,13 @@ def _process_media_row(
     if not message:
         return
 
+    # Regex setup (compiled at module level ideally, but here for locality)
+    markdown_re = re.compile(r"(?:!\[|\[)[^\]]*\]\([^)]*?([^/)]+\.\w+)\)")
+    uuid_re = re.compile(r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)")
+
     refs = find_media_references(message)
-    refs.extend(_MARKDOWN_LINK_PATTERN.findall(message))
-    refs.extend(_UUID_PATTERN.findall(message))
+    refs.extend(markdown_re.findall(message))
+    refs.extend(uuid_re.findall(message))
 
     if not refs:
         return
