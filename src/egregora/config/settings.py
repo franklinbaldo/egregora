@@ -422,6 +422,10 @@ class EnrichmentSettings(BaseModel):
         default=True,
         description="Enrich images/videos with LLM-generated descriptions",
     )
+    batch_images: bool = Field(
+        default=True,
+        description="Send all images in one API call (reduces rate limiting, uses Gemini's large context)",
+    )
     max_enrichments: int = Field(
         default=50,
         ge=0,

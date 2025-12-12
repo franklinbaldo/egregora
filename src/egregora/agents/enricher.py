@@ -1118,6 +1118,19 @@ class EnrichmentWorker(BaseWorker):
             msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment"
             raise ValueError(msg)
 
+        # Check if batch_images is enabled (all images in one call)
+        batch_images = getattr(self.ctx.config.enrichment, "batch_images", True)
+        if batch_images and len(requests) > 1:
+            try:
+                logger.info("[MediaEnricher] Using single-call batch mode for %d images", len(requests))
+                return self._execute_media_single_call(requests, task_map, model_name, api_key)
+            except Exception as single_call_exc:
+                logger.warning(
+                    "[MediaEnricher] Single-call batch failed (%s), falling back to standard batch",
+                    single_call_exc,
+                )
+
+        # Standard batch API (one request per image)
         model = GoogleBatchModel(api_key=api_key, model_name=model_name)
         try:
             return asyncio.run(model.run_batch(requests))
@@ -1129,6 +1142,119 @@ class EnrichmentWorker(BaseWorker):
                 len(requests),
             )
             return self._execute_media_individual(requests, task_map, model_name, api_key)
+
+    def _execute_media_single_call(
+        self,
+        requests: list[dict[str, Any]],
+        task_map: dict[str, dict[str, Any]],
+        model_name: str,
+        api_key: str,
+    ) -> list[Any]:
+        """Execute all media enrichments in a single API call using Gemini's large context.
+
+        Sends all images together with a combined prompt asking for JSON dict with
+        results keyed by filename. This reduces 12 API calls to 1.
+        """
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=api_key)
+
+        # Build combined prompt with all images
+        parts: list[dict[str, Any]] = []
+
+        # Extract filenames and build prompt
+        filenames = []
+        for req in requests:
+            tag = req.get("tag")
+            task = task_map.get(tag, {})
+            payload = task.get("_parsed_payload", {})
+            filename = payload.get("filename", tag)
+            filenames.append(filename)
+
+            # Add each image's inline data from the request
+            contents = req.get("contents", [])
+            for content in contents:
+                for part in content.get("parts", []):
+                    if "inlineData" in part:
+                        parts.append({"inlineData": part["inlineData"]})
+
+        # Combined prompt for all images
+        combined_prompt = f"""You are analyzing {len(filenames)} images. For EACH image, provide:
+1. A short descriptive slug (lowercase, hyphens, e.g., "sunset-beach-scene")
+2. A 2-3 sentence description of the image content
+3. Alt text for accessibility
+
+Return ONLY a valid JSON object where keys are the original filenames and values contain the enrichment data.
+Do NOT include markdown code fences or any other text - just the raw JSON.
+
+Filenames to process (in order):
+{json.dumps(filenames)}
+
+Expected format:
+{{
+  "filename1.jpg": {{"slug": "descriptive-slug", "description": "Description...", "alt_text": "Alt text..."}},
+  "filename2.png": {{"slug": "another-slug", "description": "Description...", "alt_text": "Alt text..."}}
+}}"""
+
+        # Build the request: prompt first, then all images
+        request_parts = [{"text": combined_prompt}] + parts
+
+        # Make single API call
+        response = client.models.generate_content(
+            model=model_name,
+            contents=[{"parts": request_parts}],
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
+        )
+
+        # Parse JSON response
+        response_text = response.text if response.text else ""
+        logger.debug("[MediaEnricher] Single-call response: %s", response_text[:500])
+
+        try:
+            results_dict = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            logger.warning("[MediaEnricher] Failed to parse JSON response: %s", e)
+            raise ValueError(f"Failed to parse batch response: {e}") from e
+
+        # Convert to BatchResult-like objects
+        results = []
+        for req in requests:
+            tag = req.get("tag")
+            task = task_map.get(tag, {})
+            payload = task.get("_parsed_payload", {})
+            filename = payload.get("filename", tag)
+
+            # Get enrichment data for this filename
+            enrichment = results_dict.get(filename, {})
+            if enrichment:
+                # Build response in expected format
+                response_data = {
+                    "text": json.dumps(
+                        {
+                            "slug": enrichment.get("slug", ""),
+                            "description": enrichment.get("description", ""),
+                            "alt_text": enrichment.get("alt_text", ""),
+                            "filename": filename,
+                        }
+                    )
+                }
+                result = type(
+                    "BatchResult",
+                    (),
+                    {"tag": tag, "response": response_data, "error": None},
+                )()
+            else:
+                result = type(
+                    "BatchResult",
+                    (),
+                    {"tag": tag, "response": None, "error": {"message": f"No result for {filename}"}},
+                )()
+            results.append(result)
+            logger.info("[MediaEnricher] Processed %s via single-call batch", filename)
+
+        logger.info("[MediaEnricher] Single-call batch complete: %d/%d", len(results), len(requests))
+        return results
 
     def _execute_media_individual(
         self,
