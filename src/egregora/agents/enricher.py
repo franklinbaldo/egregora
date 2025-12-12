@@ -913,11 +913,13 @@ class EnrichmentWorker(BaseWorker):
         self, tasks_data: list[dict[str, Any]], max_concurrent: int
     ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
         results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
+        total = len(tasks_data)
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
             future_to_task = {executor.submit(self._enrich_single_url, td): td for td in tasks_data}
-            for future in as_completed(future_to_task):
+            for i, future in enumerate(as_completed(future_to_task), 1):
                 try:
                     results.append(future.result())
+                    logger.info("[Enrichment] URL task %d/%d complete", i, total)
                 except Exception as exc:
                     task = future_to_task[future]["task"]
                     logger.exception("Enrichment failed for %s", task["task_id"])
