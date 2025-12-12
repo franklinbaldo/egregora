@@ -112,7 +112,9 @@ def _resolve_gemini_key() -> str | None:
 
 @app.command()
 def init(
-    output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
+    output_dir: Annotated[
+        Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")
+    ],
     *,
     interactive: Annotated[
         bool,
@@ -190,11 +192,15 @@ def _validate_api_key(output_dir: Path) -> None:
         api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 
     if not api_key:
-        console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
+        console.print(
+            "[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]"
+        )
         console.print(
             "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
         )
-        console.print("You can also create a .env file in the output directory or current directory.")
+        console.print(
+            "You can also create a .env file in the output directory or current directory."
+        )
         raise typer.Exit(1)
 
     # Validate the API key with a lightweight call
@@ -241,9 +247,15 @@ def _prepare_write_config(
                     "checkpoint_enabled": options.resume,
                 }
             ),
-            "enrichment": base_config.enrichment.model_copy(update={"enabled": options.enable_enrichment}),
+            "enrichment": base_config.enrichment.model_copy(
+                update={"enabled": options.enable_enrichment}
+            ),
             "rag": base_config.rag,
-            **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
+            **(
+                {"models": base_config.models.model_copy(update=models_update)}
+                if models_update
+                else {}
+            ),
         },
     )
 
@@ -305,7 +317,9 @@ def write(  # noqa: PLR0913
     use_full_context_window: Annotated[
         bool, typer.Option("--full-context", help="Use maximum available context")
     ] = False,
-    max_windows: Annotated[int | None, typer.Option(help="Limit number of windows to process")] = None,
+    max_windows: Annotated[
+        int | None, typer.Option(help="Limit number of windows to process")
+    ] = None,
     resume: Annotated[
         bool,
         typer.Option("--resume/--no-resume", help="Resume from last checkpoint if available"),
@@ -644,7 +658,9 @@ def _run_doctor_checks(*, verbose: bool) -> None:
         )
 
     console.print()
-    console.print(f"[dim]Summary: {ok_count} OK, {warning_count} warnings, {error_count} errors[/dim]")
+    console.print(
+        f"[dim]Summary: {ok_count} OK, {warning_count} warnings, {error_count} errors[/dim]"
+    )
 
     if error_count > 0:
         raise typer.Exit(1)
