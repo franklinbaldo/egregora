@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 def initialize_database(backend: BaseBackend) -> None:
     """Initialize all database tables using Ibis schema definitions.
 
-    Creates the ir_messages table with:
+    Creates the messages table with:
     - All columns from IR_MESSAGE_SCHEMA
     - PRIMARY KEY on event_id
     - Indexes on ts, thread_id, author_uuid for query performance
@@ -54,7 +54,7 @@ def initialize_database(backend: BaseBackend) -> None:
         conn = backend
 
     # Create IR messages table using Python schema definition
-    create_table_if_not_exists(conn, "ir_messages", IR_MESSAGE_SCHEMA)
+    create_table_if_not_exists(conn, "messages", IR_MESSAGE_SCHEMA)
 
     # Add PRIMARY KEY constraint (DuckDB doesn't support ALTER TABLE ADD PRIMARY KEY,
     # so we need to handle this differently - create a unique index instead)
@@ -62,8 +62,8 @@ def initialize_database(backend: BaseBackend) -> None:
     _execute_sql(
         conn,
         """
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_ir_messages_pk
-        ON ir_messages(event_id)
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_pk
+        ON messages(event_id)
     """,
     )
 
@@ -71,24 +71,24 @@ def initialize_database(backend: BaseBackend) -> None:
     _execute_sql(
         conn,
         """
-        CREATE INDEX IF NOT EXISTS idx_ir_messages_ts
-        ON ir_messages(ts)
+        CREATE INDEX IF NOT EXISTS idx_messages_ts
+        ON messages(ts)
     """,
     )
 
     _execute_sql(
         conn,
         """
-        CREATE INDEX IF NOT EXISTS idx_ir_messages_thread
-        ON ir_messages(thread_id)
+        CREATE INDEX IF NOT EXISTS idx_messages_thread
+        ON messages(thread_id)
     """,
     )
 
     _execute_sql(
         conn,
         """
-        CREATE INDEX IF NOT EXISTS idx_ir_messages_author
-        ON ir_messages(author_uuid)
+        CREATE INDEX IF NOT EXISTS idx_messages_author
+        ON messages(author_uuid)
     """,
     )
 
