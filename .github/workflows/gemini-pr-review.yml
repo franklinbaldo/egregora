@@ -407,9 +407,11 @@ jobs:
           echo "Review outcome: $OUTCOME"
           echo "Review recommendation: $RECOMMENDATION"
 
+          # Hard gate: API failures block the PR
           if [ "$OUTCOME" != "success" ]; then
-            echo "::warning::Gemini review failed - allowing merge as this is not blocking"
-            exit 0
+            echo "::error::Gemini review failed - blocking merge until review succeeds"
+            echo "::error::Try commenting '@gemini' to re-trigger the review"
+            exit 1
           fi
 
           if [ "$RECOMMENDATION" = "LGTM" ]; then
@@ -419,6 +421,7 @@ jobs:
             echo "❌ PR needs changes before merge"
             exit 1
           else
-            echo "⚠️ Review inconclusive ($RECOMMENDATION) - allowing merge"
-            exit 0
+            echo "⚠️ Review inconclusive ($RECOMMENDATION) - blocking merge for safety"
+            echo "::error::Comment '@gemini' to get a proper review verdict"
+            exit 1
           fi
