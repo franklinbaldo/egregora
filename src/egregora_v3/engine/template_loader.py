@@ -29,6 +29,9 @@ class TemplateLoader:
         """
         if template_dir is None:
             # Default to prompts directory in engine
+            # Design choice: Use __file__-relative path for simplicity
+            # Future: Consider importlib.resources for packaged deployments
+            # or project-wide config setting for more flexibility
             template_dir = Path(__file__).parent / "prompts"
 
         self.template_dir = template_dir
