@@ -446,8 +446,15 @@ class DuckDBStorageManager:
     def ensure_sequence(self, name: str, *, start: int = 1) -> None:
         """Create a sequence if it does not exist."""
         quoted_name = quote_identifier(name)
+        logger.debug("Creating sequence %s if not exists", name)
         self._conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {quoted_name} START {int(start)}")
         self._conn.commit()
+        # Verify sequence was created
+        state = self.get_sequence_state(name)
+        if state is None:
+            logger.error("Failed to create sequence %s - sequence not found after creation", name)
+            raise RuntimeError(f"Sequence {name} was not created")
+        logger.debug("Sequence %s verified (start=%d)", name, state.start_value)
 
     def get_sequence_state(self, name: str) -> SequenceState | None:
         """Return metadata describing the current state of ``name``."""
