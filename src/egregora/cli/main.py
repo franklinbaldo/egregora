@@ -34,6 +34,7 @@ from egregora.diagnostics import HealthStatus, run_diagnostics
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration import write_pipeline
 from egregora.orchestration.context import PipelineRunParams
+from egregora.utils.env import validate_gemini_api_key
 
 app = typer.Typer(
     name="egregora",
@@ -111,7 +112,9 @@ def _resolve_gemini_key() -> str | None:
 
 @app.command()
 def init(
-    output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
+    output_dir: Annotated[
+        Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")
+    ],
     *,
     interactive: Annotated[
         bool,
@@ -182,22 +185,35 @@ class WriteCommandOptions:
 
 
 def _validate_api_key(output_dir: Path) -> None:
-    """Validate that API key is set."""
+    """Validate that API key is set and valid."""
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-    if api_key:
-        return
-
-    _load_dotenv_if_available(output_dir)
-
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        _load_dotenv_if_available(output_dir)
+        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 
     if not api_key:
-        console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
+        console.print(
+            "[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]"
+        )
         console.print(
             "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
         )
-        console.print("You can also create a .env file in the output directory or current directory.")
+        console.print(
+            "You can also create a .env file in the output directory or current directory."
+        )
         raise typer.Exit(1)
+
+    # Validate the API key with a lightweight call
+    console.print("[cyan]Validating Gemini API key...[/cyan]")
+    try:
+        validate_gemini_api_key(api_key)
+        console.print("[green]✓ API key validated successfully[/green]")
+    except ValueError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
+    except ImportError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
 
 
 def _prepare_write_config(
@@ -231,9 +247,15 @@ def _prepare_write_config(
                     "checkpoint_enabled": options.resume,
                 }
             ),
-            "enrichment": base_config.enrichment.model_copy(update={"enabled": options.enable_enrichment}),
+            "enrichment": base_config.enrichment.model_copy(
+                update={"enabled": options.enable_enrichment}
+            ),
             "rag": base_config.rag,
-            **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
+            **(
+                {"models": base_config.models.model_copy(update=models_update)}
+                if models_update
+                else {}
+            ),
         },
     )
 
@@ -295,7 +317,9 @@ def write(  # noqa: PLR0913
     use_full_context_window: Annotated[
         bool, typer.Option("--full-context", help="Use maximum available context")
     ] = False,
-    max_windows: Annotated[int | None, typer.Option(help="Limit number of windows to process")] = None,
+    max_windows: Annotated[
+        int | None, typer.Option(help="Limit number of windows to process")
+    ] = None,
     resume: Annotated[
         bool,
         typer.Option("--resume/--no-resume", help="Resume from last checkpoint if available"),
@@ -634,7 +658,9 @@ def _run_doctor_checks(*, verbose: bool) -> None:
         )
 
     console.print()
-    console.print(f"[dim]Summary: {ok_count} OK, {warning_count} warnings, {error_count} errors[/dim]")
+    console.print(
+        f"[dim]Summary: {ok_count} OK, {warning_count} warnings, {error_count} errors[/dim]"
+    )
 
     if error_count > 0:
         raise typer.Exit(1)

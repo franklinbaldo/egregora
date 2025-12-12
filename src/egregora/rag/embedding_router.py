@@ -26,6 +26,7 @@ from typing import Annotated, Any
 import httpx
 
 from egregora.config import EMBEDDING_DIM
+from egregora.models.model_cycler import get_api_keys
 from egregora.utils.env import get_google_api_key
 
 logger = logging.getLogger(__name__)
@@ -40,13 +41,15 @@ HTTP_SERVER_ERROR = 500
 class EmbeddingError(Exception):
     """Exception raised for embedding API errors with detailed error message."""
 
-    def __init__(self, message: str, status_code: int | None = None, response_text: str | None = None) -> None:
+    def __init__(
+        self, message: str, status_code: int | None = None, response_text: str | None = None
+    ) -> None:
         self.status_code = status_code
         self.response_text = response_text
         super().__init__(message)
 
     @classmethod
-    def from_http_error(cls, e: httpx.HTTPStatusError, context: str = "") -> "EmbeddingError":
+    def from_http_error(cls, e: httpx.HTTPStatusError, context: str = "") -> EmbeddingError:
         """Create EmbeddingError from HTTPStatusError with response details."""
         try:
             # Try to parse JSON error response
@@ -165,6 +168,28 @@ class EndpointQueue:
     max_batch_size: int = 100
     api_key: str = field(default_factory=get_google_api_key)
     timeout: float = 60.0
+    # Key cycling support
+    _api_keys: list[str] = field(default_factory=list)
+    _current_key_idx: int = 0
+
+    def __post_init__(self) -> None:
+        """Initialize API keys list for cycling."""
+        self._api_keys = get_api_keys()
+        if not self._api_keys and self.api_key:
+            self._api_keys = [self.api_key]
+        if self._api_keys:
+            self.api_key = self._api_keys[0]
+            logger.info("[EmbeddingRouter] Initialized with %d API keys", len(self._api_keys))
+
+    def _next_key(self) -> str | None:
+        """Advance to next API key on rate limit."""
+        if len(self._api_keys) <= 1:
+            return None
+        self._current_key_idx = (self._current_key_idx + 1) % len(self._api_keys)
+        self.api_key = self._api_keys[self._current_key_idx]
+        masked = self.api_key[:8] + "..." + self.api_key[-4:]
+        logger.info("[EmbeddingRouter] Rotating to key: %s", masked)
+        return self.api_key
 
     def start(self) -> None:
         """Start background worker."""
@@ -326,7 +351,9 @@ class EndpointQueue:
                         self.rate_limiter.mark_error()
                         raise
                     # Client error - include detailed error message
-                    raise EmbeddingError.from_http_error(e, f"Single endpoint failed for text: {text[:50]}...") from e
+                    raise EmbeddingError.from_http_error(
+                        e, f"Single endpoint failed for text: {text[:50]}..."
+                    ) from e
 
         return embeddings
 
@@ -365,6 +392,12 @@ class EndpointQueue:
 
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == HTTP_TOO_MANY_REQUESTS:
+                    # Try next key if available
+                    next_key = self._next_key()
+                    if next_key and self._current_key_idx != 0:
+                        # Retry with new key - recursive call
+                        return self._call_batch_endpoint(texts, task_type)
+                    # All keys exhausted or only one key
                     retry_after = float(e.response.headers.get("Retry-After", 60))
                     self.rate_limiter.mark_rate_limited(retry_after)
                     raise
@@ -599,4 +632,3 @@ __all__ = [
     "shutdown_router",
     "validate_api_key",
 ]
-
