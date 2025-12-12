@@ -651,9 +651,18 @@ def _extract_media_candidates(
     media_filename_lookup: dict[str, tuple[str, Document]] = {}
     for original_filename, media_doc in media_mapping.items():
         filename = media_doc.metadata.get("filename") or original_filename
+        # Add multiple keys for case-insensitive matching:
+        # 1. Original filename (e.g., "IMG-20250302-WA0020.jpg")
         media_filename_lookup[original_filename] = (original_filename, media_doc)
         if filename:
+            # 2. Processed filename from metadata
             media_filename_lookup[filename] = (original_filename, media_doc)
+        # 3. Lowercase stem without extension (e.g., "img-20250302-wa0020")
+        # This is how refs often appear in text after processing
+        stem_lower = Path(original_filename).stem.lower()
+        media_filename_lookup[stem_lower] = (original_filename, media_doc)
+        # 4. Lowercase full filename for case-insensitive match
+        media_filename_lookup[original_filename.lower()] = (original_filename, media_doc)
 
     unique_media: set[str] = set()
     metadata_lookup: dict[str, dict[str, Any]] = {}
