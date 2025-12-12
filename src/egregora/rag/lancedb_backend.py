@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Callable, Sequence
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,27 @@ from egregora.rag.ingestion import chunks_from_documents
 from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
 
 logger = logging.getLogger(__name__)
+
+
+def _json_serialize_metadata(metadata: dict) -> str:
+    """Serialize metadata dict to JSON, converting datetime objects to ISO format.
+    
+    Args:
+        metadata: Dictionary that may contain datetime objects
+        
+    Returns:
+        JSON string with datetime objects converted to ISO format strings
+    """
+    def default_serializer(obj: Any) -> str:
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, date):
+            return obj.isoformat()
+        msg = f"Object of type {type(obj).__name__} is not JSON serializable"
+        raise TypeError(msg)
+    
+    return json.dumps(metadata, default=default_serializer)
+
 
 # Type alias for embedding functions
 # task_type should be "RETRIEVAL_DOCUMENT" for indexing, "RETRIEVAL_QUERY" for searching
@@ -156,7 +178,7 @@ class LanceDBRAGBackend:
                     document_id=chunk.document_id,
                     text=chunk.text,
                     vector=np.asarray(emb, dtype=np.float32),
-                    metadata_json=json.dumps(chunk.metadata),
+                    metadata_json=_json_serialize_metadata(chunk.metadata),
                 )
             )
 
