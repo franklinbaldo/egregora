@@ -32,6 +32,7 @@ from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
@@ -816,17 +817,35 @@ class EnrichmentWorker(BaseWorker):
         tasks = self.task_store.fetch_pending(task_type="enrich_url", limit=batch_size)
         media_tasks = self.task_store.fetch_pending(task_type="enrich_media", limit=batch_size)
 
-        if tasks or media_tasks:
-            logger.info("EnrichmentWorker fetch: %d URL tasks, %d Media tasks", len(tasks), len(media_tasks))
+        total_tasks = len(tasks) + len(media_tasks)
+        if not total_tasks:
+            return 0
 
         processed_count = 0
 
-        if tasks:
-            processed_count += self._process_url_batch(tasks)
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[bold blue]Enriching"),
+            BarColumn(),
+            TaskProgressColumn(),
+            TextColumn("[dim]{task.description}"),
+            transient=True,
+        ) as progress:
+            enrich_task = progress.add_task(
+                f"URL: {len(tasks)}, Media: {len(media_tasks)}", total=total_tasks
+            )
 
-        if media_tasks:
-            processed_count += self._process_media_batch(media_tasks)
+            if tasks:
+                count = self._process_url_batch(tasks)
+                processed_count += count
+                progress.update(enrich_task, advance=len(tasks))
 
+            if media_tasks:
+                count = self._process_media_batch(media_tasks)
+                processed_count += count
+                progress.update(enrich_task, advance=len(media_tasks))
+
+        logger.info("Enrichment complete: %d/%d tasks processed", processed_count, total_tasks)
         return processed_count
 
     def _process_url_batch(self, tasks: list[dict[str, Any]]) -> int:
@@ -1109,11 +1128,74 @@ class EnrichmentWorker(BaseWorker):
         model = GoogleBatchModel(api_key=api_key, model_name=model_name)
         try:
             return asyncio.run(model.run_batch(requests))
-        except Exception as exc:
-            logger.exception("Media enrichment batch failed")
-            for task in task_map.values():
-                self.task_store.mark_failed(task["task_id"], f"Batch failed: {exc!s}")
-            return []
+        except Exception as batch_exc:
+            # Batch failed (likely quota exceeded) - fallback to individual calls
+            logger.warning(
+                "Batch API failed (%s), falling back to individual calls for %d requests",
+                batch_exc,
+                len(requests),
+            )
+            return self._execute_media_individual(requests, task_map, model_name, api_key)
+
+    def _execute_media_individual(
+        self,
+        requests: list[dict[str, Any]],
+        task_map: dict[str, dict[str, Any]],
+        model_name: str,
+        api_key: str,
+    ) -> list[Any]:
+        """Execute media enrichment requests individually (fallback when batch fails)."""
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=api_key)
+        results = []
+
+        for req in requests:
+            tag = req.get("tag")
+            task = task_map.get(tag)
+            if not task:
+                continue
+
+            try:
+                # Build the request content
+                contents = req.get("contents", [])
+                config = req.get("config", {})
+
+                # Call Gemini API directly
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=contents,
+                    config=types.GenerateContentConfig(**config) if config else None,
+                )
+
+                # Create BatchResult-like object
+                result = type(
+                    "BatchResult",
+                    (),
+                    {
+                        "tag": tag,
+                        "response": {"text": response.text} if response.text else None,
+                        "error": None,
+                    },
+                )()
+                results.append(result)
+                logger.info("[MediaEnricher] Processed %s via individual call", tag)
+
+            except Exception as exc:
+                logger.warning("[MediaEnricher] Individual call failed for %s: %s", tag, exc)
+                result = type(
+                    "BatchResult",
+                    (),
+                    {
+                        "tag": tag,
+                        "response": None,
+                        "error": {"message": str(exc)},
+                    },
+                )()
+                results.append(result)
+
+        return results
 
     def _persist_media_results(self, results: list[Any], task_map: dict[str, dict[str, Any]]) -> int:
         new_rows = []
