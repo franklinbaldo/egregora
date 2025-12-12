@@ -232,8 +232,6 @@ def _build_writer_context(params: WriterContextParams) -> WriterContext:
     )
 
 
-
-
 # ============================================================================
 # Agent Runners & Orchestration
 # ============================================================================
@@ -394,8 +392,6 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
         )
         params.output_format.persist(doc)
         logger.info("Saved journal entry: %s", doc.document_id)
-        return doc.document_id
-
     except (TemplateNotFound, TemplateError):
         logger.exception("Journal template error")
     except (OSError, PermissionError):
@@ -404,7 +400,8 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
         logger.exception("Invalid data for journal")
     except ValueError:
         logger.exception("Invalid journal document")
-
+    else:
+        return doc.document_id
     return None
 
 
@@ -486,8 +483,6 @@ def _prepare_deps(
     )
 
 
-
-
 @sleep_and_retry
 @limits(calls=100, period=60)
 def write_posts_with_pydantic_agent(
@@ -499,7 +494,6 @@ def write_posts_with_pydantic_agent(
 ) -> tuple[list[str], list[str]]:
     """Execute the writer flow using Pydantic-AI agent tooling."""
     logger.info("Running writer via Pydantic-AI backend")
-
 
     active_capabilities = configure_writer_capabilities(config, context)
     if active_capabilities:
