@@ -7,10 +7,10 @@ import logging
 import re
 import unicodedata
 import zipfile
-from functools import lru_cache
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
@@ -67,14 +67,14 @@ _DATE_PARSING_STRATEGIES = [
 def _normalize_text(value: str) -> str:
     """Normalize unicode text."""
     normalized = unicodedata.normalize("NFKC", value)
-    normalized = normalized.replace("\u202f", " ")
+    # NFKC already converts \u202f (Narrow No-Break Space) to space, so explicit replace is redundant
     return _INVISIBLE_MARKS.sub("", normalized)
 
 
 @lru_cache(maxsize=1024)
 def _parse_message_date(token: str) -> date | None:
     """Parse date token into a date object using multiple parsing strategies.
-    
+
     Performance: Uses lru_cache since WhatsApp logs contain many repeated
     date strings (messages from the same day).
     """
@@ -96,7 +96,7 @@ def _parse_message_date(token: str) -> date | None:
 @lru_cache(maxsize=256)
 def _parse_message_time(time_token: str) -> datetime.time | None:
     """Parse time token into a time object (naive, for later localization).
-    
+
     Performance: Uses lru_cache since messages at the same time of day
     (e.g., "10:30") repeat frequently across different dates.
     """
