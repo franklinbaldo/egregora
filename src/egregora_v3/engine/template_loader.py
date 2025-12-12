@@ -5,6 +5,7 @@ Provides centralized template loading with custom filters for V3 agents.
 
 import re
 from datetime import datetime
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
@@ -28,11 +29,13 @@ class TemplateLoader:
 
         """
         if template_dir is None:
-            # Default to prompts directory in engine
-            # Design choice: Use __file__-relative path for simplicity
-            # Future: Consider importlib.resources for packaged deployments
-            # or project-wide config setting for more flexibility
-            template_dir = Path(__file__).parent / "prompts"
+            # Use importlib.resources for robust resource loading
+            # Works in both development and packaged deployments
+            package_prompts = files("egregora_v3.engine").joinpath("prompts")
+
+            # Convert to Path - resources may return Traversable
+            # For packaged apps, this extracts to temp location if needed
+            template_dir = Path(str(package_prompts))
 
         self.template_dir = template_dir
 
