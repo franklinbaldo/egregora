@@ -769,6 +769,22 @@ def _replace_pii_media_references(
 class EnrichmentWorker(BaseWorker):
     """Worker for media enrichment (e.g. image description)."""
 
+    def __init__(self, ctx: PipelineContext | EnrichmentRuntimeContext):
+        super().__init__(ctx)
+        self.zip_handle: zipfile.ZipFile | None = None
+        if self.ctx.input_path and self.ctx.input_path.exists() and self.ctx.input_path.is_file():
+            try:
+                self.zip_handle = zipfile.ZipFile(self.ctx.input_path, 'r')
+            except Exception:
+                logger.warning("Failed to open source ZIP %s", self.ctx.input_path)
+
+    def __del__(self):
+        if self.zip_handle:
+            try:
+                self.zip_handle.close()
+            except Exception:
+                pass
+
     def run(self) -> int:
         """Process pending enrichment tasks in batches."""
         # Configurable batch size
@@ -1007,8 +1023,7 @@ class EnrichmentWorker(BaseWorker):
     def _load_media_bytes(self, task: dict[str, Any], payload: dict[str, Any]) -> bytes | None:
         """Load media bytes directly from source ZIP file.
         
-        Uses original_filename from payload to find media in the ZIP,
-        with case-insensitive matching.
+        Uses cached zip_handle if available, otherwise opens it (inefficient fallback).
         """
         original_filename = payload.get("original_filename") or payload.get("filename")
         if not original_filename:
@@ -1016,34 +1031,49 @@ class EnrichmentWorker(BaseWorker):
             self.task_store.mark_failed(task["task_id"], "No filename in task payload")
             return None
         
-        input_path = self.ctx.input_path
-        if not input_path or not input_path.exists():
-            logger.warning("Input path not available for media task %s", task["task_id"])
-            self.task_store.mark_failed(task["task_id"], "Input path not available")
-            return None
+        # Use cached handle or open new one (if not initialized)
+        zf = self.zip_handle
+        should_close = False
         
-        try:
-            with zipfile.ZipFile(input_path, 'r') as zf:
-                # Case-insensitive search for media file
-                target_lower = original_filename.lower()
-                for info in zf.infolist():
-                    if info.is_dir():
-                        continue
-                    if Path(info.filename).name.lower() == target_lower:
-                        media_bytes = zf.read(info.filename)
-                        logger.debug("Loaded %d bytes from %s", len(media_bytes), info.filename)
-                        return media_bytes
-                
-                # Not found
-                logger.warning("Media file %s not found in ZIP for task %s", 
-                             original_filename, task["task_id"])
-                self.task_store.mark_failed(task["task_id"], f"Media file not found: {original_filename}")
+        if zf is None:
+            # Fallback for when input_path was not available at init or failed
+            input_path = self.ctx.input_path
+            if not input_path or not input_path.exists():
+                logger.warning("Input path not available for media task %s", task["task_id"])
+                self.task_store.mark_failed(task["task_id"], "Input path not available")
                 return None
+            try:
+                zf = zipfile.ZipFile(input_path, 'r')
+                should_close = True
+            except Exception as exc:
+                logger.warning("Failed to open source ZIP %s: %s", input_path, exc)
+                self.task_store.mark_failed(task["task_id"], f"Failed to open ZIP: {exc}")
+                return None
+
+        try:
+            # Case-insensitive search for media file
+            target_lower = original_filename.lower()
+            for info in zf.infolist():
+                if info.is_dir():
+                    continue
+                if Path(info.filename).name.lower() == target_lower:
+                    media_bytes = zf.read(info.filename)
+                    logger.debug("Loaded %d bytes from %s", len(media_bytes), info.filename)
+                    return media_bytes
+            
+            # Not found
+            logger.warning("Media file %s not found in ZIP for task %s", 
+                         original_filename, task["task_id"])
+            self.task_store.mark_failed(task["task_id"], f"Media file not found: {original_filename}")
+            return None
                 
         except (OSError, zipfile.BadZipFile) as exc:
             logger.warning("Failed to read media from ZIP for task %s: %s", task["task_id"], exc)
             self.task_store.mark_failed(task["task_id"], f"Failed to read ZIP: {exc}")
             return None
+        finally:
+            if should_close and zf:
+                zf.close()
 
     def _execute_media_batch(
         self, requests: list[dict[str, Any]], task_map: dict[str, dict[str, Any]]

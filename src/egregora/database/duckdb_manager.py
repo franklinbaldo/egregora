@@ -223,21 +223,35 @@ class DuckDBStorageManager:
 
         def _connect() -> None:
             # Re-initialize via Ibis to maintain shared connection
-            self.ibis_conn = ibis.duckdb.connect(database=db_str)
+            # Explicitly request read_write access
+            self.ibis_conn = ibis.duckdb.connect(database=db_str, read_only=False)
             self._conn = self.ibis_conn.con
 
         try:
             _connect()
-        except duckdb.Error as exc:
-            if self._is_invalidated_error(exc) and self.db_path:
+        except Exception as exc:
+            # Check for specific invalidation error that requires file removal
+            if isinstance(exc, duckdb.Error) and self._is_invalidated_error(exc) and self.db_path:
                 logger.warning("Recreating DuckDB database file after fatal invalidation: %s", db_str)
                 try:
                     Path(db_str).unlink(missing_ok=True)
-                except Exception:  # pragma: no cover - defensive logging
-                    logger.exception("Failed to remove invalidated DuckDB file %s", db_str)
+                    _connect()
+                    return
+                except Exception:
+                    logger.exception("Failed to recover via file deletion")
+            
+            # Fallback to memory if file open/recovery fails
+            logger.warning("Failed to reconnect to %s, falling back to memory. Error: %s", db_str, exc)
+            db_str = ":memory:"
+            try:
                 _connect()
-            else:
-                raise
+            except Exception:
+                 msg = "Critical failure: Could not connect to in-memory database after reset"
+                 logger.critical(msg)
+                 raise RuntimeError(msg) from exc
+
+        self.db_path = Path(db_str) if db_str != ":memory:" else None
+        logger.info("DuckDB connection reset successfully (db=%s)", db_str)
 
         self.sql = SQLManager()
         self._table_info_cache.clear()
