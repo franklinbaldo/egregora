@@ -551,17 +551,18 @@ def _perform_enrichment(
 
     # Execute enrichment immediately (synchronously) to ensure writer has access
     # to enriched media and updated references.
-    worker = EnrichmentWorker(ctx)
-    total_processed = 0
-    while True:
-        processed = worker.run()
-        if processed == 0:
-            break
-        total_processed += processed
-        logger.info("Synchronously processed %d enrichment tasks", processed)
-    
-    if total_processed > 0:
-        logger.info("Enrichment complete. Processed %d items.", total_processed)
+    # Using context manager to ensure ZIP resources are properly released.
+    with EnrichmentWorker(ctx) as worker:
+        total_processed = 0
+        while True:
+            processed = worker.run()
+            if processed == 0:
+                break
+            total_processed += processed
+            logger.info("Synchronously processed %d enrichment tasks", processed)
+
+        if total_processed > 0:
+            logger.info("Enrichment complete. Processed %d items.", total_processed)
 
     # Return original table since enrichment happens in background
     return window_table
