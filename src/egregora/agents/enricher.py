@@ -856,7 +856,7 @@ class EnrichmentWorker(BaseWorker):
 
         if new_rows:
             try:
-                self.ctx.storage.ibis_conn.insert("messages", new_rows)
+                self.ctx.storage.ibis_conn.insert("ir_messages", new_rows)
                 logger.info("Inserted %d enrichment rows", len(new_rows))
             except Exception:
                 logger.exception("Failed to insert enrichment rows")
@@ -1031,7 +1031,7 @@ class EnrichmentWorker(BaseWorker):
 
         if new_rows:
             try:
-                self.ctx.storage.ibis_conn.insert("messages", new_rows)
+                self.ctx.storage.ibis_conn.insert("ir_messages", new_rows)
                 logger.info("Inserted %d media enrichment rows", len(new_rows))
             except Exception:
                 logger.exception("Failed to insert media enrichment rows")
