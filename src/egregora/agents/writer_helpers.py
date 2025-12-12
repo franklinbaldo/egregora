@@ -7,6 +7,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from pydantic_ai import RunContext
+
 from egregora.agents.model_limits import (
     PromptTooLargeError,
     get_model_context_limit,
@@ -14,21 +16,23 @@ from egregora.agents.model_limits import (
 from egregora.agents.model_limits import (
     validate_prompt_fits as _validate_prompt_fits,
 )
+from egregora.agents.types import (
+    AnnotationResult,
+    PostMetadata,
+    ReadProfileResult,
+    WritePostResult,
+    WriteProfileResult,
+    WriterDeps,
+)
 from egregora.knowledge.profiles import read_profile
 from egregora.rag import RAGQueryRequest, reset_backend, search
 
 if TYPE_CHECKING:
-    from pydantic_ai import Agent, RunContext
+    from pydantic_ai import Agent
 
     from egregora.agents.capabilities import AgentCapability
     from egregora.agents.types import (
-        AnnotationResult,
-        PostMetadata,
-        ReadProfileResult,
-        WritePostResult,
-        WriteProfileResult,
         WriterAgentReturn,
-        WriterDeps,
     )
     from egregora.config.settings import EgregoraConfig
 
@@ -113,50 +117,65 @@ def build_rag_context_for_prompt(
     if not table_markdown or not table_markdown.strip():
         return ""
 
+    query_text = table_markdown[:500]
+    cached = _get_cached_rag_context(cache, query_text)
+    if cached is not None:
+        return cached
+
+    response = _run_rag_query(query_text, top_k)
+    if response is None or not response.hits:
+        return ""
+
+    context = _format_rag_hits(response.hits)
+    _store_rag_context(cache, query_text, context)
+    logger.info("Built RAG context with %d similar posts", len(response.hits))
+    return context
+
+
+def _get_cached_rag_context(cache: Any | None, query_text: str) -> str | None:
+    if cache is None:
+        return None
     try:
-        query_text = table_markdown[:500]
         cache_key = f"rag_context_{hash(query_text)}"
-
-        if cache is not None and (cached := cache.rag.get(cache_key)):
-            logger.debug("RAG context cache hit")
-            return cached
+        return cache.rag.get(cache_key)
     except (AttributeError, KeyError, TypeError):
-        # Fallback for cache errors
         logger.warning("Cache retrieval failed")
+        return None
 
+
+def _run_rag_query(query_text: str, top_k: int) -> Any | None:
     try:
         reset_backend()
-        response = search(RAGQueryRequest(text=query_text, top_k=top_k))
-
-        if not response.hits:
-            return ""
-
-        parts = [
-            "\n\n## Similar Posts (for context and inspiration):\n",
-            "These are similar posts from previous conversations that might provide useful context:\n\n",
-        ]
-
-        for idx, hit in enumerate(response.hits, 1):
-            similarity_pct = int(hit.score * 100)
-            parts.append(f"### Similar Post {idx} (similarity: {similarity_pct}%)\n")
-            parts.append(f"{hit.text[:500]}...\n\n")
-
-        context = "".join(parts)
-
-        if cache is not None:
-            cache.rag.set(cache_key, context)
-
-        logger.info("Built RAG context with %d similar posts", len(response.hits))
-        return context
-
+        return search(RAGQueryRequest(text=query_text, top_k=top_k))
     except (ConnectionError, TimeoutError) as exc:
         logger.warning("RAG backend unavailable, continuing without context: %s", exc)
     except ValueError as exc:
         logger.warning("Invalid RAG query, continuing without context: %s", exc)
     except (AttributeError, KeyError, TypeError):
         logger.exception("Malformed RAG response, continuing without context")
+    return None
 
-    return ""
+
+def _format_rag_hits(hits: list[Any]) -> str:
+    parts = [
+        "\n\n## Similar Posts (for context and inspiration):\n",
+        "These are similar posts from previous conversations that might provide useful context:\n\n",
+    ]
+    for idx, hit in enumerate(hits, 1):
+        similarity_pct = int(hit.score * 100)
+        parts.append(f"### Similar Post {idx} (similarity: {similarity_pct}%)\n")
+        parts.append(f"{hit.text[:500]}...\n\n")
+    return "".join(parts)
+
+
+def _store_rag_context(cache: Any | None, query_text: str, context: str) -> None:
+    if cache is None:
+        return
+    try:
+        cache_key = f"rag_context_{hash(query_text)}"
+        cache.rag.set(cache_key, context)
+    except (AttributeError, KeyError, TypeError):
+        logger.warning("Cache storage failed")
 
 
 def load_profiles_context(active_authors: list[str], profiles_dir: Path) -> str:
