@@ -2,5 +2,5 @@
 
 from egregora.orchestration.pipelines.write import process_whatsapp_export
 
-__version__ = "0.1.0"
+__version__ = "2.0.0"
 __all__ = ["process_whatsapp_export"]

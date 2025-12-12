@@ -197,39 +197,27 @@ def process_whatsapp_export(
     return run(run_params)
 
 
-def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
-    """Ensure site is initialized, creating if needed with user confirmation."""
+def _ensure_mkdocs_scaffold(output_dir: Path, force: bool = False) -> None:
+    """Ensure site is initialized, creating if needed with checks.
+
+    Args:
+        output_dir: Target directory
+        force: Whether to overwrite existing files (or init in non-empty dir)
+    """
     config_path = output_dir / ".egregora" / "config.yml"
     config_path_alt = output_dir / ".egregora" / "config.yaml"
     if config_path.exists() or config_path_alt.exists():
         return
 
+    # Check if directory is non-empty and force is not set
+    if output_dir.exists() and any(output_dir.iterdir()) and not force:
+        msg = (
+            f"Output directory '{output_dir}' is not empty and not an Egregora site. "
+            "Use --force to initialize anyway."
+        )
+        raise FileExistsError(msg)
+
     output_dir.mkdir(parents=True, exist_ok=True)
-    warning_message = (
-        f"[yellow]Warning:[/yellow] Egregora site not initialized in {output_dir}. "
-        "Egregora can initialize a new site before processing."
-    )
-    console.print(warning_message)
-
-    # We assume automated environments if console isn't interactive, but here we can try to proceed
-    # However, strictly speaking, this logic usually lived in CLI.
-    # Since we are moving it here, we might need a way to ask user, or default to safe behavior.
-    # For now, we will just call ensure_mkdocs_project which handles it non-interactively if needed,
-    # or raise error if it requires input.
-    # But wait, the CLI version used typer.confirm.
-    # If we are in "Orchestration", we shouldn't depend on Typer user input ideally, or we accept
-    # that this function is "CLI-aware".
-    # The requirement is to move logic to pipelines/write.py. I will preserve the logic but maybe
-    # accept an interactive flag or dependency inject the confirmer?
-    # For simplicity, I will use rich/input or just assume we can't confirm here easily without typer.
-    # Actually, let's keep it simple: if not exists, try to init non-interactively or fail.
-
-    # Since we removed Typer dependency here, we can't use typer.confirm.
-    # But wait, this function is about "Standardizing CLI Entry Points".
-    # It is acceptable for this module to be the "Pipeline Controller" which might interact with user
-    # or better, receiving a flag "interactive".
-
-    # Let's assume we just init it.
     logger.info("Initializing site in %s", output_dir)
     ensure_mkdocs_project(output_dir)
     console.print("[green]Initialized site. Continuing with processing.[/green]")
@@ -390,7 +378,7 @@ def run_cli_flow(
         console.print(f"[green]Using timezone: {parsed_options.timezone}[/green]")
 
     output_dir = parsed_options.output.expanduser().resolve()
-    _ensure_mkdocs_scaffold(output_dir)
+    _ensure_mkdocs_scaffold(output_dir, force=parsed_options.force)
     _validate_api_key(output_dir)
 
     egregora_config = _prepare_write_config(parsed_options, from_date_obj, to_date_obj)
