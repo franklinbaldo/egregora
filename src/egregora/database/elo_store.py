@@ -238,8 +238,7 @@ class EloStore:
         self.storage.replace_rows(
             "elo_ratings",
             new_row,
-            where_clause="post_slug = ?",
-            params=[rating_data.post_slug],
+            by_keys={"post_slug": rating_data.post_slug},
         )
 
     def _record_comparison(self, record: ComparisonRecord) -> None:
