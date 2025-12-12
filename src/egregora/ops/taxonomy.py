@@ -6,7 +6,7 @@ import numpy as np
 from egregora.agents.taxonomy import create_global_taxonomy_agent
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import OutputSink
-from egregora.rag import get_backend
+from egregora.rag.backend import RAGBackend
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,13 @@ MAX_PROMPT_CHARS = 400_000
 MIN_DOCS_FOR_CLUSTERING = 5
 
 
-def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) -> int:
+def generate_semantic_taxonomy(
+    output_sink: OutputSink, config: EgregoraConfig, backend: RAGBackend | None
+) -> int:
+    if not backend:
+        logger.debug("Taxonomy generation skipped - RAG backend not provided")
+        return 0
+
     try:
         from sklearn.cluster import KMeans  # noqa: PLC0415
     except ModuleNotFoundError as exc:
@@ -25,8 +31,6 @@ def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) 
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to import scikit-learn dependencies. Skipping taxonomy: %s", exc)
         return 0
-
-    backend = get_backend()
 
     # 1. Fetch & Cluster (Standard K-Means)
     if not hasattr(backend, "get_all_post_vectors"):

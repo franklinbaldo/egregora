@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from egregora.agents.shared.annotations import AnnotationStore
     from egregora.database.protocols import StorageProtocol
     from egregora.database.task_store import TaskStore
+    from egregora.rag.backend import RAGBackend
     from egregora_v3.core.catalog import ContentLibrary
 
 from egregora.config.settings import EgregoraConfig
@@ -136,6 +137,7 @@ class PipelineState:
     # Stores (Optional)
     annotations_store: AnnotationStore | None = None
     task_store: TaskStore | None = None
+    rag_backend: RAGBackend | None = None
 
     # V3 Content Library Facade
     library: ContentLibrary | None = None
@@ -230,6 +232,10 @@ class PipelineContext:
     @property
     def task_store(self) -> TaskStore | None:
         return self.state.task_store
+
+    @property
+    def rag_backend(self) -> RAGBackend | None:
+        return self.state.rag_backend
 
     @property
     def library(self) -> ContentLibrary | None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 from pydantic_ai import Agent, RunContext
@@ -13,15 +14,17 @@ from egregora.agents.capabilities import (
 )
 from egregora.agents.types import WriterAgentReturn, WriterDeps
 from egregora.agents.writer_helpers import (
-    build_rag_context_for_prompt,
     load_profiles_context,
     register_writer_tools,
     validate_prompt_fits,
 )
+from egregora.rag import RAGQueryRequest
 from egregora.utils.model_fallback import create_fallback_model
 
 if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig
+
+logger = logging.getLogger(__name__)
 
 
 def configure_writer_capabilities(
@@ -75,13 +78,34 @@ def setup_writer_agent(
     # Dynamic System Prompts
     @agent.system_prompt
     def inject_rag_context(ctx: RunContext[WriterDeps]) -> str:
-        if ctx.deps.resources.retrieval_config.enabled:
+        if ctx.deps.resources.rag_backend:
+            # Reimplement RAG context building using injected backend
             table_markdown = ctx.deps.conversation_xml
-            return build_rag_context_for_prompt(
-                table_markdown,
-                top_k=ctx.deps.resources.retrieval_config.top_k,
-                cache=None,
-            )
+            if not table_markdown or not table_markdown.strip():
+                return ""
+
+            query_text = table_markdown[:500]
+            try:
+                response = ctx.deps.resources.rag_backend.query(
+                    RAGQueryRequest(text=query_text, top_k=ctx.deps.resources.retrieval_config.top_k)
+                )
+                if response and response.hits:
+                    parts = [
+                        "\n\n## Similar Posts (for context and inspiration):\n",
+                        "These are similar posts from previous conversations that might provide useful context:\n\n",
+                    ]
+                    for idx, hit in enumerate(response.hits, 1):
+                        similarity_pct = int(hit.score * 100)
+                        parts.append(f"### Similar Post {idx} (similarity: {similarity_pct}%)\n")
+                        parts.append(f"{hit.text[:500]}...\n\n")
+                    return "".join(parts)
+            except (ConnectionError, TimeoutError, RuntimeError) as exc:
+                logger.warning("RAG backend unavailable for context injection: %s", exc)
+            except ValueError as exc:
+                logger.warning("Invalid RAG query for context injection: %s", exc)
+            except Exception:
+                # Fail silently for unexpected errors to avoid crashing writer
+                pass
         return ""
 
     @agent.system_prompt

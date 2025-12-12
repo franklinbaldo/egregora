@@ -48,8 +48,6 @@ def test_embed_fn_uses_rag_settings_for_router(
         models__embedding="models/test-embedding",
     )
 
-    monkeypatch.setattr(rag, "load_egregora_config", lambda _path: config)
-
     created_router = Mock()
     created_router.embed.return_value = [[0.1]]
 
@@ -62,7 +60,8 @@ def test_embed_fn_uses_rag_settings_for_router(
 
     monkeypatch.setattr(rag, "LanceDBRAGBackend", DummyBackend)
 
-    backend = rag._create_backend()
+    # Use public API
+    backend = rag.create_rag_backend(config)
 
     backend.embed_fn(["hello"], "RETRIEVAL_DOCUMENT")
 

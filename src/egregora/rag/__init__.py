@@ -4,45 +4,13 @@ This package provides a simple RAG implementation using LanceDB for vector stora
 with DuckDB integration for SQL-based analytics and filtering.
 
 Public API:
-    - get_backend(): Get the configured LanceDB RAG backend
-    - index_documents(): Index documents into RAG
-    - search(): Execute vector similarity search
+    - create_rag_backend(): Factory to create a RAG backend
     - RAGHit, RAGQueryRequest, RAGQueryResponse: Core data models
 
 DuckDB Integration:
     - search_to_table(): Convert RAG results to Ibis/DuckDB table
     - join_with_messages(): Join RAG results with message data
     - search_with_filters(): Vector search with SQL filtering
-
-Configuration:
-    Set paths in .egregora/config.yml:
-    ```yaml
-    paths:
-        lancedb_dir: .egregora/lancedb
-
-    rag:
-        top_k: 5
-    ```
-
-Example:
-    >>> from egregora.rag import index_documents, search, RAGQueryRequest
-    >>> from egregora.data_primitives import Document, DocumentType
-    >>>
-    >>> # Index documents
-    >>> doc = Document(content="# Post\n\nContent", type=DocumentType.POST)
-    >>> index_documents([doc])
-    >>>
-    >>> # Search
-    >>> request = RAGQueryRequest(text="search query", top_k=5)
-    >>> response = search(request)
-    >>> for hit in response.hits:
-    ...     print(f"{hit.score:.2f}: {hit.text[:50]}")
-    >>>
-    >>> # DuckDB integration - query results as SQL table
-    >>> from egregora.rag.duckdb_integration import search_to_table
-    >>> table = search_to_table(RAGQueryRequest(text="query", top_k=10))
-    >>> high_scores = table.filter(table.score > 0.8)
-    >>> print(high_scores.execute())
 
 """
 
@@ -52,8 +20,8 @@ import logging
 from collections.abc import Sequence
 from pathlib import Path
 
-from egregora.config.settings import EgregoraConfig, load_egregora_config
-from egregora.data_primitives.document import Document, DocumentType
+from egregora.config.settings import EgregoraConfig
+from egregora.data_primitives.document import DocumentType
 from egregora.rag.backend import RAGBackend
 from egregora.rag.embedding_router import EmbeddingRouter, create_embedding_router
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
@@ -62,9 +30,12 @@ from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
 logger = logging.getLogger(__name__)
 
 
-# Global backend instance (lazy-initialized)
-def _create_backend() -> RAGBackend:
+def create_rag_backend(config: EgregoraConfig, site_root: Path | None = None) -> RAGBackend:
     """Create LanceDB RAG backend based on configuration.
+
+    Args:
+        config: Egregora configuration
+        site_root: Root directory of the site (optional, defaults to CWD)
 
     Returns:
         LanceDBRAGBackend instance
@@ -73,21 +44,17 @@ def _create_backend() -> RAGBackend:
         RuntimeError: If backend initialization fails
 
     """
-    # Try to load config from current directory
-    try:
-        config = load_egregora_config(Path.cwd())
-    except (OSError, ValueError):
-        logger.exception(
-            "Failed to load .egregora/config.yml - using default configuration. "
-            "Your custom settings will be ignored."
-        )
-        # Fall back to default config
-        config = EgregoraConfig()
+    root = site_root or Path.cwd()
 
     # Determine lancedb_dir from config
-    lancedb_dir = Path.cwd() / ".egregora" / "lancedb"
+    lancedb_dir = root / ".egregora" / "lancedb"
     if hasattr(config, "paths") and hasattr(config.paths, "lancedb_dir"):
-        lancedb_dir = Path.cwd() / config.paths.lancedb_dir
+        # If path is absolute, use it. If relative, resolve against root.
+        configured_path = Path(config.paths.lancedb_dir)
+        if configured_path.is_absolute():
+            lancedb_dir = configured_path
+        else:
+            lancedb_dir = root / configured_path
 
     # Get embedding model
     rag_settings = config.rag
@@ -131,90 +98,10 @@ def _create_backend() -> RAGBackend:
     )
 
 
-def get_backend() -> RAGBackend:
-    """Get the configured RAG backend.
-
-    Lazily initializes the LanceDB backend on first call.
-
-    Returns:
-        RAGBackend instance (LanceDB implementation)
-
-    Raises:
-        RuntimeError: If backend initialization fails
-
-    """
-    # Use function attribute for singleton
-    if not hasattr(get_backend, "_instance") or get_backend._instance is None:
-        get_backend._instance = _create_backend()
-    return get_backend._instance
-
-
-def index_documents(docs: Sequence[Document]) -> None:
-    r"""Index documents into the RAG knowledge base (sync).
-
-    Uses the sync embedding router for optimal throughput.
-
-    Args:
-        docs: Sequence of Document instances to index
-
-    Raises:
-        ValueError: If documents are invalid
-        RuntimeError: If indexing fails
-
-    Example:
-        >>> from egregora.data_primitives import Document, DocumentType
-        >>> doc = Document(content="# Post\n\nContent", type=DocumentType.POST)
-        >>> index_documents([doc])
-
-    """
-    backend = get_backend()
-    backend.index_documents(docs)
-
-
-def search(request: RAGQueryRequest) -> RAGQueryResponse:
-    """Execute vector similarity search (sync).
-
-    Uses the sync embedding router for optimal throughput.
-
-    Args:
-        request: Query parameters (text, top_k, filters)
-
-    Returns:
-        Response containing ranked RAGHit results
-
-    Raises:
-        ValueError: If query parameters are invalid
-        RuntimeError: If search fails
-
-    Example:
-        >>> request = RAGQueryRequest(text="search query", top_k=5)
-        >>> response = search(request)
-        >>> for hit in response.hits:
-        ...     print(f"{hit.score:.2f}: {hit.text[:50]}")
-
-    """
-    backend = get_backend()
-    return backend.query(request)
-
-
 __all__ = [
     "RAGBackend",
     "RAGHit",
     "RAGQueryRequest",
     "RAGQueryResponse",
-    "get_backend",
-    "index_documents",
-    "reset_backend",
-    "search",
-    # DuckDB integration (import from duckdb_integration module)
+    "create_rag_backend",
 ]
-
-
-def reset_backend() -> None:
-    """Reset the global RAG backend.
-
-    Forces recreation of the backend (and its embedding router) on the next call
-    to get_backend().
-    """
-    if hasattr(get_backend, "_instance"):
-        get_backend._instance = None
