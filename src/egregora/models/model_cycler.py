@@ -1,11 +1,12 @@
-"""Gemini model cycling for rate limit management.
+"""Gemini model and API key cycling for rate limit management.
 
-Rotates through Gemini models on 429 errors to avoid rate limiting.
+Rotates through Gemini models and API keys on 429 errors to avoid rate limiting.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable
 from typing import Any
 
@@ -22,6 +23,142 @@ DEFAULT_GEMINI_MODELS = [
     "gemma-3-27b-it",
     "gemini-2.5-pro",
 ]
+
+
+def get_api_keys() -> list[str]:
+    """Load API keys from environment.
+
+    Supports multiple keys via:
+    - GEMINI_API_KEYS (comma-separated)
+    - GEMINI_API_KEY (single key, fallback)
+    - GOOGLE_API_KEY (single key, fallback)
+
+    Returns:
+        List of API keys, or empty list if none found.
+
+    """
+    # Check for comma-separated list first
+    keys_str = os.environ.get("GEMINI_API_KEYS", "")
+    if keys_str:
+        keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+        if keys:
+            logger.debug("[KeyRotator] Loaded %d API keys from GEMINI_API_KEYS", len(keys))
+            return keys
+
+    # Fall back to single key
+    single_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if single_key:
+        return [single_key]
+
+    return []
+
+
+class GeminiKeyRotator:
+    """Cycle through Gemini API keys on 429 errors.
+
+    Usage:
+        rotator = GeminiKeyRotator()
+        result = rotator.call_with_rotation(
+            lambda key: client_with_key(key).generate(...),
+        )
+    """
+
+    def __init__(self, api_keys: list[str] | None = None) -> None:
+        """Initialize the key rotator.
+
+        Args:
+            api_keys: List of API keys. If None, loads from environment.
+
+        """
+        self.api_keys = api_keys or get_api_keys()
+        if not self.api_keys:
+            msg = "No API keys found. Set GEMINI_API_KEYS or GEMINI_API_KEY."
+            raise ValueError(msg)
+        self.current_idx = 0
+        self._exhausted_keys: set[str] = set()
+        logger.info("[KeyRotator] Initialized with %d API keys", len(self.api_keys))
+
+    @property
+    def current_key(self) -> str:
+        """Get the current API key."""
+        return self.api_keys[self.current_idx]
+
+    def next_key(self) -> str | None:
+        """Advance to the next API key.
+
+        Returns:
+            The next API key, or None if all keys are exhausted.
+
+        """
+        self._exhausted_keys.add(self.current_key)
+        available = [k for k in self.api_keys if k not in self._exhausted_keys]
+
+        if not available:
+            logger.warning("[KeyRotator] All API keys exhausted")
+            return None
+
+        # Find next available key
+        for i in range(len(self.api_keys)):
+            next_idx = (self.current_idx + 1 + i) % len(self.api_keys)
+            if self.api_keys[next_idx] not in self._exhausted_keys:
+                self.current_idx = next_idx
+                # Mask key for logging
+                masked = self.current_key[:8] + "..." + self.current_key[-4:]
+                logger.info("[KeyRotator] Rotating to key: %s", masked)
+                return self.current_key
+
+        return None
+
+    def reset(self) -> None:
+        """Reset the rotator to start fresh."""
+        self.current_idx = 0
+        self._exhausted_keys.clear()
+
+    def call_with_rotation(
+        self,
+        call_fn: Callable[[str], Any],
+        is_rate_limit_error: Callable[[Exception], bool] | None = None,
+    ) -> Any:
+        """Call a function with automatic key rotation on rate limit errors.
+
+        Args:
+            call_fn: Function that takes an API key and makes the API call.
+            is_rate_limit_error: Function to check if an exception is a rate limit error.
+
+        Returns:
+            The result from call_fn on success.
+
+        Raises:
+            Exception: The last exception if all keys fail.
+
+        """
+        if is_rate_limit_error is None:
+            is_rate_limit_error = _default_rate_limit_check
+
+        last_exception: Exception | None = None
+        self.reset()
+
+        while True:
+            api_key = self.current_key
+
+            try:
+                result = call_fn(api_key)
+                self.reset()
+                return result
+            except Exception as exc:
+                last_exception = exc
+
+                if is_rate_limit_error(exc):
+                    masked = api_key[:8] + "..." + api_key[-4:]
+                    logger.warning("[KeyRotator] Rate limit on key %s: %s", masked, str(exc)[:100])
+                    next_key = self.next_key()
+                    if next_key is None:
+                        logger.exception("[KeyRotator] All API keys rate-limited")
+                        raise
+                    continue
+                raise
+
+        return None  # Unreachable, but satisfies type checker
 
 
 class GeminiModelCycler:
@@ -107,7 +244,7 @@ class GeminiModelCycler:
 
         """
         if is_rate_limit_error is None:
-            is_rate_limit_error = self._default_rate_limit_check
+            is_rate_limit_error = _default_rate_limit_check
 
         last_exception: Exception | None = None
         self.reset()
@@ -127,21 +264,19 @@ class GeminiModelCycler:
                     logger.warning("[ModelCycler] Rate limit on %s: %s", model, str(exc)[:100])
                     next_model = self.next_model()
                     if next_model is None:
-                        logger.error("[ModelCycler] All models rate-limited")
+                        logger.exception("[ModelCycler] All models rate-limited")
                         raise
                     continue
                 # Non-rate-limit error - propagate
                 raise
 
-        # Should not reach here, but satisfy type checker
-        if last_exception:
-            raise last_exception
+        return None  # Unreachable, but satisfies type checker
 
-    @staticmethod
-    def _default_rate_limit_check(exc: Exception) -> bool:
-        """Default check for rate limit errors."""
-        msg = str(exc).lower()
-        return "429" in msg or "too many requests" in msg or "rate limit" in msg
+
+def _default_rate_limit_check(exc: Exception) -> bool:
+    """Default check for rate limit errors."""
+    msg = str(exc).lower()
+    return "429" in msg or "too many requests" in msg or "rate limit" in msg
 
 
 def create_model_cycler(
@@ -157,3 +292,18 @@ def create_model_cycler(
 
     """
     return GeminiModelCycler(models=config_models)
+
+
+def create_key_rotator(
+    api_keys: list[str] | None = None,
+) -> GeminiKeyRotator:
+    """Create a key rotator from config or environment.
+
+    Args:
+        api_keys: API keys, or None to load from environment.
+
+    Returns:
+        Configured GeminiKeyRotator instance.
+
+    """
+    return GeminiKeyRotator(api_keys=api_keys)
