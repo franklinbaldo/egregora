@@ -194,7 +194,7 @@ def mock_vector_store(monkeypatch):
 
         # Also patch where it's imported in write_pipeline
         monkeypatch.setattr(
-            "egregora.orchestration.write_pipeline.index_documents", mock_index_documents, raising=False
+            "egregora.orchestration.pipelines.write.index_documents", mock_index_documents, raising=False
         )
         monkeypatch.setattr("egregora.agents.writer_helpers.search", mock_search, raising=False)
     except AttributeError:

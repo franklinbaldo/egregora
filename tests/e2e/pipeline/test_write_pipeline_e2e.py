@@ -9,7 +9,7 @@ import time
 import pytest
 
 from egregora import rag
-from egregora.orchestration.write_pipeline import WhatsAppProcessOptions, process_whatsapp_export
+from egregora.orchestration.pipelines.write import WhatsAppProcessOptions, process_whatsapp_export
 from egregora.output_adapters.mkdocs import MkDocsAdapter
 from egregora.output_adapters.mkdocs.paths import derive_mkdocs_paths
 from tests.e2e.mocks.enrichment_mocks import mock_media_enrichment, mock_url_enrichment

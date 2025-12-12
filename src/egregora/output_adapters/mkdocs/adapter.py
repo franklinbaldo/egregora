@@ -28,7 +28,7 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
-from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
+from egregora.output_adapters.conventions import StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 from egregora.utils.datetime_utils import parse_datetime_flexible
@@ -84,17 +84,6 @@ class MkDocsAdapter(BaseOutputSink):
         self.posts_dir.mkdir(parents=True, exist_ok=True)
         # profiles_dir and journal_dir point to posts_dir, so no need to mkdir them separately
         self.media_dir.mkdir(parents=True, exist_ok=True)
-
-        # Configure URL convention to match filesystem layout
-        # This ensures that generated URLs align with where files are actually stored
-        routes = RouteConfig(
-            posts_prefix=self.posts_dir.relative_to(self.docs_dir).as_posix(),
-            profiles_prefix=self.profiles_dir.relative_to(self.docs_dir).as_posix(),
-            media_prefix=self.media_dir.relative_to(self.docs_dir).as_posix(),
-            journal_prefix=self.journal_dir.relative_to(self.docs_dir).as_posix(),
-        )
-        self._url_convention = StandardUrlConvention(routes)
-
         self._initialized = True
 
     @property
@@ -592,12 +581,13 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             # Detect by category
             if "Authors" in categories:
                 return DocumentType.PROFILE
-            if "Journal" in categories:
+            elif "Journal" in categories:
                 return DocumentType.JOURNAL
-            if "Enrichment" in categories:
+            elif "Enrichment" in categories:
                 return DocumentType.ENRICHMENT_URL
-            # Default to POST (including posts without categories)
-            return DocumentType.POST
+            else:
+                # Default to POST (including posts without categories)
+                return DocumentType.POST
 
         except (OSError, yaml.YAMLError):
             # If we can't read/parse, assume POST
@@ -1148,10 +1138,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Load .authors.yml
         authors_file = None
         if hasattr(self, "site_root") and self.site_root:
-            for potential_path in [
-                self.site_root / "docs" / ".authors.yml",
-                self.site_root / ".authors.yml",
-            ]:
+            for potential_path in [self.site_root / "docs" / ".authors.yml", self.site_root / ".authors.yml"]:
                 if potential_path.exists():
                     authors_file = potential_path
                     break
