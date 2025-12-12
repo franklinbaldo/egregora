@@ -1062,18 +1062,7 @@ class EnrichmentWorker(BaseWorker):
             target_lower = original_filename.lower()
             full_path = media_index.get(target_lower)
 
-            # Fallback: Try stripping hash suffix (e.g. -e2b71758)
-            if not full_path:
-                import re
-                # Matches -8hexchars just before extension
-                match = re.search(r"-[a-f0-9]{8}(\.[a-z0-9]+)$", target_lower)
-                if match:
-                    base = target_lower[:match.start()]
-                    ext = match.group(2)
-                    clean_candidate = f"{base}{ext}"
-                    full_path = media_index.get(clean_candidate)
-                    if full_path:
-                        logger.info("Fuzzy match success: %s -> %s", original_filename, full_path)
+
 
             if full_path:
                 media_bytes = zf.read(full_path)
