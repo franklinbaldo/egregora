@@ -95,12 +95,29 @@ def load_file_as_binary_content(file_path: Path, max_size_mb: int = 20) -> Binar
     return BinaryContent(data=file_bytes, media_type=media_type)
 
 
-def _normalize_slug(candidate: str | None, fallback: str) -> str:
-    if isinstance(candidate, str) and candidate.strip():
-        value = slugify(candidate.strip())
-        if value:
-            return value
-    return slugify(fallback)
+def _normalize_slug(candidate: str | None, identifier: str) -> str:
+    """Normalize a slug candidate from LLM output.
+    
+    Args:
+        candidate: Slug string from LLM (may be None or empty)
+        identifier: Original identifier (URL or filename) for error messages
+        
+    Returns:
+        Normalized, valid slug string
+        
+    Raises:
+        ValueError: If candidate is None, empty, or doesn't produce a valid slug
+    """
+    if not isinstance(candidate, str) or not candidate.strip():
+        msg = f"LLM failed to generate slug for: {identifier[:100]}"
+        raise ValueError(msg)
+    
+    value = slugify(candidate.strip())
+    if not value:
+        msg = f"LLM slug '{candidate}' is invalid after normalization for: {identifier[:100]}"
+        raise ValueError(msg)
+    
+    return value
 
 
 class EnrichmentOutput(BaseModel):
