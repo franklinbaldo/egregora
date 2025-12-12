@@ -97,6 +97,25 @@ Output ONLY the markdown. No preamble. No code fences. Raw markdown that can be 
 
 Do not reveal or quote the original sender, private message, or share timestamp; focus solely on the public content and inferred relevance.
 
+{% elif mode == "media_batch_intro" %}
+Analyze the following images. For each image, I will provide its filename and the image data.
+
+{% elif mode == "media_batch_item" %}
+Image Filename: {{ sanitized_filename }}
+
+{% elif mode == "media_batch_output_instructions" %}
+For each image provided above, generate a JSON object.
+Return a SINGLE JSON object where the keys are the exact filenames provided above, and values are objects containing:
+- slug: a short, descriptive, url-friendly slug (e.g., "sunset-beach")
+- description: A detailed 2-3 sentence description of the image.
+- alt_text: A concise alternative text description for accessibility.
+
+Example Output format:
+{
+  "image1.jpg": {"slug": "sunset", "description": "A beautiful sunset...", "alt_text": "Sunset over ocean"},
+  "image2.png": {"slug": "cat", "description": "A cute cat...", "alt_text": "Tabby cat sleeping"}
+}
+
 {% elif mode == "media" %}
 Generate a complete markdown enrichment file for this media shared in a group conversation.
 

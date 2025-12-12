@@ -130,6 +130,20 @@ class EnrichmentOutput(BaseModel):
     markdown: str
 
 
+class ImageBatchItem(BaseModel):
+    """Result for a single image in a batch."""
+
+    slug: str
+    description: str
+    alt_text: str
+
+
+class ImageBatchResult(BaseModel):
+    """Result from batch image analysis."""
+
+    results: dict[str, ImageBatchItem]
+
+
 # ---------------------------------------------------------------------------
 # Dependencies & Contexts
 # ---------------------------------------------------------------------------
@@ -1035,37 +1049,16 @@ class EnrichmentWorker(BaseWorker):
         return processed_count
 
     def _execute_media_batch_single_call(self, tasks: list[dict[str, Any]]) -> list[Any]:
-        """Send all images in one API call, return list of result objects."""
-        from google import genai
-        from google.genai import types
-
-        api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for enrichment"
-            # Return error results
-            return [
-                type(
-                    "BatchResult",
-                    (),
-                    {
-                        "tag": str(t["task_id"]),
-                        "response": None,
-                        "error": {"message": msg},
-                    },
-                )()
-                for t in tasks
-            ]
-
+        """Send all images in one API call using pydantic-ai Agent."""
         model_name = self.ctx.config.models.enricher_vision
-        client = genai.Client(api_key=api_key)
+        prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
 
-        contents = []
+        # Build prompt content list (interleaved text/images)
+        prompt_content = []
         valid_tasks = []
 
-        # Interleave filenames/prompts with images to identify them
-        contents.append(
-            "Analyze the following images. For each image, I will provide its filename and the image data."
-        )
+        intro_prompt = render_prompt("enrichment.jinja", mode="media_batch_intro", prompts_dir=prompts_dir)
+        prompt_content.append(intro_prompt)
 
         for task in tasks:
             payload = task.get("_parsed_payload", {})
@@ -1078,74 +1071,73 @@ class EnrichmentWorker(BaseWorker):
 
             valid_tasks.append(task)
 
-            contents.append(f"Image Filename: {filename}")
-            contents.append(types.Part.from_bytes(data=media_bytes, mime_type=media_type))
+            item_prompt = render_prompt(
+                "enrichment.jinja",
+                mode="media_batch_item",
+                prompts_dir=prompts_dir,
+                sanitized_filename=filename
+            )
+            prompt_content.append(item_prompt.strip())
+            prompt_content.append(BinaryContent(data=media_bytes, media_type=media_type))
 
         if not valid_tasks:
             return []
 
-        contents.append("""
-        For each image provided above, generate a JSON object.
-        Return a SINGLE JSON object where the keys are the exact filenames provided above, and values are objects containing:
-        - slug: a short, descriptive, url-friendly slug (e.g., "sunset-beach")
-        - description: A detailed 2-3 sentence description of the image.
-        - alt_text: A concise alternative text description for accessibility.
+        # Create Agent
+        api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+             # Should be handled by create_fallback_model or similar, but here we can just ensure
+             # the model is initialized correctly.
+             # Note: pydantic-ai usually handles env vars, but we can pass explicit model if needed.
+             pass
 
-        Example Output format:
-        {
-          "image1.jpg": {"slug": "sunset", "description": "A beautiful sunset...", "alt_text": "Sunset over ocean"},
-          "image2.png": {"slug": "cat", "description": "A cute cat...", "alt_text": "Tabby cat sleeping"}
-        }
-        """)
-
-        results = []
         try:
-            # We use a higher token limit for the batch response since it contains multiple descriptions
-            response = client.models.generate_content(
-                model=model_name,
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    max_output_tokens=8192,  # Increase output tokens for batch
-                ),
+            # We use a GoogleBatchModel or standard GoogleModel depending on what's available
+            # Since this is a single synchronous call (conceptually), we use Agent.run_sync
+            # We use create_fallback_model to respect the fallback strategy if configured
+            model = create_fallback_model(model_name)
+
+            agent = Agent(
+                model=model,
+                result_type=ImageBatchResult,
+                system_prompt="You are an expert image analysis AI. output JSON matching the result type."
             )
 
-            try:
-                response_data = json.loads(response.text)
-            except json.JSONDecodeError:
-                # Fallback: sometimes models wrap JSON in markdown blocks even if json mode requested
-                text = response.text.strip()
-                if text.startswith("```json"):
-                    text = text[7:]
-                if text.endswith("```"):
-                    text = text[:-3]
-                response_data = json.loads(text.strip())
+            # Note: output_instructions are implicit in result_type validation for pydantic-ai usually,
+            # but we can add specific instructions if needed.
+            # The prompt template has "media_batch_output_instructions" which asks for specific keys.
+            # We can include it to guide the model better.
+            output_instructions = render_prompt(
+                "enrichment.jinja",
+                mode="media_batch_output_instructions",
+                prompts_dir=prompts_dir
+            )
+            prompt_content.append(output_instructions)
 
+            result = agent.run_sync(prompt_content)
+            batch_result = result.data
+
+            # Process results
+            results = []
             for task in valid_tasks:
                 payload = task.get("_parsed_payload", {})
                 filename = payload.get("filename")
                 tag = str(task["task_id"])
 
-                # Try to find result by filename
-                task_result = response_data.get(filename)
+                item = batch_result.results.get(filename)
 
-                if task_result:
-                    # Construct markdown from description/alt_text to match existing pipeline expectations
-                    # The existing pipeline expects a JSON with "slug" and "markdown"
-                    # We synthesize "markdown" from the new fields
-                    description = task_result.get("description", "")
-                    alt_text = task_result.get("alt_text", "")
+                if item:
+                    # Synthesize markdown
+                    synthesized_markdown = f"## {item.slug}\n\n{item.description}\n\n**Alt Text:** {item.alt_text}"
 
-                    synthesized_markdown = f"## {task_result.get('slug', 'Image')}\n\n{description}\n\n**Alt Text:** {alt_text}"
-
-                    # Store normalized result
                     result_payload = {
-                        "slug": task_result.get("slug"),
+                        "slug": item.slug,
                         "markdown": synthesized_markdown,
-                        "description": description,
-                        "alt_text": alt_text
+                        "description": item.description,
+                        "alt_text": item.alt_text
                     }
 
+                    # Mocking a response object to match expected interface
                     json_text = json.dumps(result_payload)
                     res = type(
                         "BatchResult",
@@ -1169,9 +1161,12 @@ class EnrichmentWorker(BaseWorker):
                     )()
                     results.append(res)
 
+            return results
+
         except Exception as exc:
             logger.warning("Batch enrichment call failed: %s", exc)
-            # Fail all tasks in this batch
+            # Fail all tasks
+            results = []
             for task in valid_tasks:
                 tag = str(task["task_id"])
                 res = type(
@@ -1184,8 +1179,7 @@ class EnrichmentWorker(BaseWorker):
                     },
                 )()
                 results.append(res)
-
-        return results
+            return results
 
     def _extract_text(self, response: dict[str, Any] | None) -> str:
         if not response:
