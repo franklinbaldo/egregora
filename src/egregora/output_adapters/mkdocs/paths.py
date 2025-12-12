@@ -134,10 +134,12 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
     # So `paths.py` is creating the extra nesting.
 
     blog_root_dir = resolve_content_path(paths_settings.posts_dir)
-    # Posts go directly in blog_root_dir (e.g., docs/posts/) - no nested subdirectory
+    # UNIFIED: No more nested structure. Everything goes into blog_root_dir.
     posts_dir = blog_root_dir
     profiles_dir = resolve_content_path(paths_settings.profiles_dir)
-    media_dir = resolve_content_path(paths_settings.media_dir)
+    # UNIFIED: Media now inside posts_dir for simpler relative paths
+    # Posts can use 'media/image.jpg' instead of '../media/image.jpg'
+    media_dir = posts_dir / "media"
     journal_dir = _resolve_journal_dir(paths_settings, resolve_content_path)
 
     try:

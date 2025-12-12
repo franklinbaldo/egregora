@@ -18,6 +18,7 @@ import logging
 import mimetypes
 import re
 from pathlib import Path
+import uuid
 from typing import TYPE_CHECKING, Annotated
 
 from egregora.data_primitives.document import Document, DocumentType, MediaAsset
@@ -294,23 +295,28 @@ def process_media_for_window(
     media_mapping: MediaMapping = {}
 
     for media_ref in media_refs:
-        try:
-            # We need to cast adapter_kwargs to match the signature
-            # deliver_media expects specific kwargs, not a generic dict
-            # For now, we trust runtime compatibility or fix InputAdapter protocol
-            document = adapter.deliver_media(media_reference=media_ref, **adapter_kwargs)  # type: ignore[arg-type]
-        except FileNotFoundError as exc:
-            logger.warning("Media file not found: '%s': %s", media_ref, exc)
-            continue
-        except (OSError, PermissionError) as exc:
-            logger.warning("Cannot access media file '%s': %s", media_ref, exc)
-            continue
-        except ValueError as exc:
-            logger.warning("Invalid media reference '%s': %s", media_ref, exc)
-            continue
-
-        if not document:
-            continue
+        # Optimization: Don't extract media content here.
+        # We create a lightweight placeholder document.
+        # The actual content processing happens during enrichment.
+        
+        # Infer basic metadata from filename
+        media_type = detect_media_type(Path(media_ref)) or "file"
+        
+        # Create placeholder document
+        # We use a deterministic ID based on the reference
+        doc_id = str(uuid.uuid5(uuid.NAMESPACE_URL, media_ref))
+        
+        document = Document(
+            content=b"", # Empty content
+            type=DocumentType.MEDIA,
+            id=doc_id,
+            metadata={
+                "original_filename": media_ref,
+                "media_type": media_type,
+                "nav_exclude": True,
+                "hide": ["navigation"]
+            }
+        )
 
         try:
             media_doc = _prepare_media_document(document, media_ref)

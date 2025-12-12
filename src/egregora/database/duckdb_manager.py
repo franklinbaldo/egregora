@@ -181,9 +181,6 @@ class DuckDBStorageManager:
 
         """
         instance = cls.__new__(cls)
-        # Try to determine path from backend if possible, but it's not strictly required
-        # as we use the backend's connection directly.
-        instance.db_path = None
         instance.checkpoint_dir = checkpoint_dir or Path(".egregora/data")
 
         instance.ibis_conn = backend
@@ -193,11 +190,21 @@ class DuckDBStorageManager:
         else:
             msg = "Provided backend does not expose a raw 'con' attribute (expected DuckDB backend)"
             raise ValueError(msg)
+        
+        # Extract db_path from connection so _reset_connection works correctly
+        # PRAGMA database_list returns rows as (oid, name, file)
+        try:
+            db_list = instance._conn.execute("PRAGMA database_list").fetchall()
+            db_file = db_list[0][2] if db_list and db_list[0][2] else None
+            instance.db_path = Path(db_file) if db_file else None
+        except Exception:
+            instance.db_path = None
+            logger.debug("Could not determine db_path from backend connection")
 
         instance.sql = SQLManager()
         instance._table_info_cache = {}
         instance._lock = threading.Lock()
-        logger.debug("DuckDBStorageManager created from existing Ibis backend")
+        logger.debug("DuckDBStorageManager created from existing Ibis backend (db_path=%s)", instance.db_path)
         return instance
 
     def _is_invalidated_error(self, exc: duckdb.Error) -> bool:
@@ -466,8 +473,15 @@ class DuckDBStorageManager:
     def ensure_sequence(self, name: str, *, start: int = 1) -> None:
         """Create a sequence if it does not exist."""
         quoted_name = quote_identifier(name)
+        logger.debug("Creating sequence %s if not exists", name)
         self._conn.execute(f"CREATE SEQUENCE IF NOT EXISTS {quoted_name} START {int(start)}")
         self._conn.commit()
+        # Verify sequence was created
+        state = self.get_sequence_state(name)
+        if state is None:
+            logger.error("Failed to create sequence %s - sequence not found after creation", name)
+            raise RuntimeError(f"Sequence {name} was not created")
+        logger.debug("Sequence %s verified (start=%d)", name, state.start_value)
 
     def get_sequence_state(self, name: str) -> SequenceState | None:
         """Return metadata describing the current state of ``name``."""
@@ -546,8 +560,12 @@ class DuckDBStorageManager:
 
         with self._lock:
             try:
-                # Ensure any previous transaction is committed
-                self._conn.commit()
+                # Rollback any pending transaction, then start fresh
+                try:
+                    self._conn.rollback()
+                except duckdb.Error:
+                    pass  # Rollback may fail if no transaction is active
+                    
                 cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
                 values = [int(row[0]) for row in cursor.fetchall()]
                 self._conn.commit()
@@ -557,10 +575,22 @@ class DuckDBStorageManager:
 
                 # DuckDB occasionally invalidates the connection after a fatal internal error.
                 # Recreate the connection and retry once so the pipeline can continue.
+                logger.warning("DuckDB connection invalidated, resetting: %s", exc)
                 self._reset_connection()
-                cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
-                values = [int(row[0]) for row in cursor.fetchall()]
-                self._conn.commit()
+                
+                # After connection reset, ensure sequence exists (may have been lost)
+                state = self.get_sequence_state(sequence_name)
+                if state is None:
+                    logger.warning("Sequence '%s' not found after connection reset, recreating", sequence_name)
+                    self.ensure_sequence(sequence_name)
+                
+                try:
+                    cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
+                    values = [int(row[0]) for row in cursor.fetchall()]
+                    self._conn.commit()
+                except duckdb.Error as retry_exc:
+                    logger.exception("Retry after connection reset also failed: %s", retry_exc)
+                    raise
 
         # Defensive check: if query returns empty, sequence might not exist
         if not values:
