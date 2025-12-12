@@ -1179,23 +1179,16 @@ class EnrichmentWorker(BaseWorker):
                     if "inlineData" in part:
                         parts.append({"inlineData": part["inlineData"]})
 
-        # Combined prompt for all images
-        combined_prompt = f"""You are analyzing {len(filenames)} images. For EACH image, provide:
-1. A short descriptive slug (lowercase, hyphens, e.g., "sunset-beach-scene")
-2. A 2-3 sentence description of the image content
-3. Alt text for accessibility
-
-Return ONLY a valid JSON object where keys are the original filenames and values contain the enrichment data.
-Do NOT include markdown code fences or any other text - just the raw JSON.
-
-Filenames to process (in order):
-{json.dumps(filenames)}
-
-Expected format:
-{{
-  "filename1.jpg": {{"slug": "descriptive-slug", "description": "Description...", "alt_text": "Alt text..."}},
-  "filename2.png": {{"slug": "another-slug", "description": "Description...", "alt_text": "Alt text..."}}
-}}"""
+        # Render prompt from Jinja template
+        prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
+        combined_prompt = render_prompt(
+            "enrichment.jinja",
+            mode="media_batch",
+            prompts_dir=prompts_dir,
+            image_count=len(filenames),
+            filenames_json=json.dumps(filenames),
+            pii_prevention=getattr(self.ctx.config.privacy, "pii_prevention", None),
+        ).strip()
 
         # Build the request: prompt first, then all images
         request_parts = [{"text": combined_prompt}] + parts
