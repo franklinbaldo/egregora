@@ -422,6 +422,24 @@ class EnrichmentSettings(BaseModel):
         default=True,
         description="Enrich images/videos with LLM-generated descriptions",
     )
+    strategy: Literal["individual", "batch_api", "batch_all"] = Field(
+        default="batch_all",
+        description="Enrichment strategy: individual (1 call per item), batch_api (Gemini batch), batch_all (all in one call)",
+    )
+    model_rotation_enabled: bool = Field(
+        default=True,
+        description="Rotate through Gemini models on 429 errors",
+    )
+    rotation_models: list[str] = Field(
+        default=[
+            "gemini-2.5-flash-lite",
+            "gemini-2.0-flash",
+            "gemini-2.5-flash",
+            "gemini-flash-latest",
+            "gemini-2.5-pro",
+        ],
+        description="List of Gemini models to rotate through on rate limits",
+    )
     max_enrichments: int = Field(
         default=50,
         ge=0,

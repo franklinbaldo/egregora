@@ -926,6 +926,28 @@ class EnrichmentWorker(BaseWorker):
     def _execute_url_enrichments(
         self, tasks_data: list[dict[str, Any]], max_concurrent: int
     ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
+        """Execute URL enrichments based on configured strategy."""
+        strategy = getattr(self.ctx.config.enrichment, "strategy", "individual")
+        total = len(tasks_data)
+
+        # Use single-call batch for batch_all strategy with multiple URLs
+        if strategy == "batch_all" and total > 1:
+            try:
+                logger.info("[URLEnricher] Using single-call batch mode for %d URLs", total)
+                return self._execute_url_single_call(tasks_data)
+            except Exception as single_call_exc:
+                logger.warning(
+                    "[URLEnricher] Single-call batch failed (%s), falling back to individual",
+                    single_call_exc,
+                )
+
+        # Individual calls (default fallback)
+        return self._execute_url_individual(tasks_data, max_concurrent)
+
+    def _execute_url_individual(
+        self, tasks_data: list[dict[str, Any]], max_concurrent: int
+    ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
+        """Execute URL enrichments individually with model rotation."""
         results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
         total = len(tasks_data)
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
@@ -939,6 +961,119 @@ class EnrichmentWorker(BaseWorker):
                     logger.exception("Enrichment failed for %s", task["task_id"])
                     results.append((task, None, str(exc)))
 
+        return results
+
+    def _execute_url_single_call(
+        self, tasks_data: list[dict[str, Any]]
+    ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
+        """Execute all URL enrichments in a single API call.
+
+        Sends all URLs together with a combined prompt asking for JSON dict result.
+        """
+        from google import genai
+        from google.genai import types
+
+
+        api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for URL enrichment"
+            raise ValueError(msg)
+
+        client = genai.Client(api_key=api_key)
+
+        # Extract URLs from tasks
+        urls = []
+        for td in tasks_data:
+            task = td["task"]
+            payload = task.get("_parsed_payload") or json.loads(task.get("payload", "{}"))
+            url = payload.get("url", "")
+            urls.append(url)
+
+        # Render prompt from Jinja template
+        prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
+        combined_prompt = render_prompt(
+            "enrichment.jinja",
+            mode="url_batch",
+            prompts_dir=prompts_dir,
+            url_count=len(urls),
+            urls_json=json.dumps(urls),
+            pii_prevention=getattr(self.ctx.config.privacy, "pii_prevention", None),
+        ).strip()
+
+        # Build model+key rotator if enabled
+        rotation_enabled = getattr(self.ctx.config.enrichment, "model_rotation_enabled", True)
+        rotation_models = getattr(self.ctx.config.enrichment, "rotation_models", None)
+
+        if rotation_enabled:
+            from egregora.models.model_key_rotator import ModelKeyRotator
+
+            rotator = ModelKeyRotator(models=rotation_models)
+
+            def call_with_model_and_key(model: str, api_key: str) -> str:
+                client = genai.Client(api_key=api_key)
+                response = client.models.generate_content(
+                    model=model,
+                    contents=[{"parts": [{"text": combined_prompt}]}],
+                    config=types.GenerateContentConfig(response_mime_type="application/json"),
+                )
+                return response.text or ""
+
+            response_text = rotator.call_with_rotation(call_with_model_and_key)
+        else:
+            # No rotation - use configured model and API key
+            model_name = self.ctx.config.models.enricher
+            api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model=model_name,
+                contents=[{"parts": [{"text": combined_prompt}]}],
+                config=types.GenerateContentConfig(response_mime_type="application/json"),
+            )
+            response_text = response.text or ""
+
+        logger.debug("[URLEnricher] Single-call response: %s", response_text[:500])
+
+        # Parse JSON response
+        try:
+            results_dict = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            logger.warning("[URLEnricher] Failed to parse JSON response: %s", e)
+            raise ValueError(f"Failed to parse batch response: {e}") from e
+
+        # Convert to result tuples
+        results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
+        for td in tasks_data:
+            task = td["task"]
+            payload = task.get("_parsed_payload") or json.loads(task.get("payload", "{}"))
+            url = payload.get("url", "")
+
+            enrichment = results_dict.get(url, {})
+            if enrichment:
+                # Build EnrichmentOutput from result
+                slug = enrichment.get("slug", "")
+                summary = enrichment.get("summary", "")
+                takeaways = enrichment.get("key_takeaways", [])
+
+                # Build markdown from enrichment data
+                takeaways_md = "\n".join(f"- {t}" for t in takeaways) if takeaways else ""
+                markdown = f"""# {slug}
+
+## Summary
+{summary}
+
+## Key Takeaways
+{takeaways_md}
+
+---
+*Source: [{url}]({url})*
+"""
+                output = EnrichmentOutput(slug=slug, markdown=markdown)
+                results.append((task, output, None))
+                logger.info("[URLEnricher] Processed %s via single-call batch", url)
+            else:
+                results.append((task, None, f"No result for {url}"))
+
+        logger.info("[URLEnricher] Single-call batch complete: %d/%d", len(results), len(tasks_data))
         return results
 
     def _persist_url_results(self, results: list[tuple[dict, EnrichmentOutput | None, str | None]]) -> int:
@@ -1306,12 +1441,26 @@ class EnrichmentWorker(BaseWorker):
     def _execute_media_batch(
         self, requests: list[dict[str, Any]], task_map: dict[str, dict[str, Any]]
     ) -> list[Any]:
+        """Execute media enrichments based on configured strategy."""
         model_name = self.ctx.config.models.enricher_vision
         api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if not api_key:
             msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment"
             raise ValueError(msg)
 
+        # Use strategy-based dispatch
+        strategy = getattr(self.ctx.config.enrichment, "strategy", "individual")
+        if strategy == "batch_all" and len(requests) > 1:
+            try:
+                logger.info("[MediaEnricher] Using single-call batch mode for %d images", len(requests))
+                return self._execute_media_single_call(requests, task_map, model_name, api_key)
+            except Exception as single_call_exc:
+                logger.warning(
+                    "[MediaEnricher] Single-call batch failed (%s), falling back to standard batch",
+                    single_call_exc,
+                )
+
+        # Standard batch API (one request per image)
         model = GoogleBatchModel(api_key=api_key, model_name=model_name)
         try:
             return asyncio.run(model.run_batch(requests))
@@ -1323,6 +1472,131 @@ class EnrichmentWorker(BaseWorker):
                 len(requests),
             )
             return self._execute_media_individual(requests, task_map, model_name, api_key)
+
+    def _execute_media_single_call(
+        self,
+        requests: list[dict[str, Any]],
+        task_map: dict[str, dict[str, Any]],
+        model_name: str,
+        api_key: str,
+    ) -> list[Any]:
+        """Execute all media enrichments in a single API call using Gemini's large context.
+
+        Sends all images together with a combined prompt asking for JSON dict with
+        results keyed by filename. This reduces 12 API calls to 1.
+        """
+        from google import genai
+        from google.genai import types
+
+        client = genai.Client(api_key=api_key)
+
+        # Build combined prompt with all images
+        parts: list[dict[str, Any]] = []
+
+        # Extract filenames and build prompt
+        filenames = []
+        for req in requests:
+            tag = req.get("tag")
+            task = task_map.get(tag, {})
+            payload = task.get("_parsed_payload", {})
+            filename = payload.get("filename", tag)
+            filenames.append(filename)
+
+            # Add each image's inline data from the request
+            contents = req.get("contents", [])
+            for content in contents:
+                for part in content.get("parts", []):
+                    if "inlineData" in part:
+                        parts.append({"inlineData": part["inlineData"]})
+
+        # Render prompt from Jinja template
+        prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
+        combined_prompt = render_prompt(
+            "enrichment.jinja",
+            mode="media_batch",
+            prompts_dir=prompts_dir,
+            image_count=len(filenames),
+            filenames_json=json.dumps(filenames),
+            pii_prevention=getattr(self.ctx.config.privacy, "pii_prevention", None),
+        ).strip()
+
+        # Build the request: prompt first, then all images
+        request_parts = [{"text": combined_prompt}] + parts
+
+        # Build model+key rotator if enabled
+        from egregora.models.model_key_rotator import ModelKeyRotator
+
+        rotation_enabled = getattr(self.ctx.config.enrichment, "model_rotation_enabled", True)
+        rotation_models = getattr(self.ctx.config.enrichment, "rotation_models", None)
+
+        if rotation_enabled:
+            rotator = ModelKeyRotator(models=rotation_models)
+
+            def call_with_model_and_key(model: str, api_key: str) -> str:
+                client = genai.Client(api_key=api_key)
+                response = client.models.generate_content(
+                    model=model,
+                    contents=[{"parts": request_parts}],
+                    config=types.GenerateContentConfig(response_mime_type="application/json"),
+                )
+                return response.text or ""
+
+            response_text = rotator.call_with_rotation(call_with_model_and_key)
+        else:
+            # No rotation - use configured model and API key
+            response = client.models.generate_content(
+                model=model_name,
+                contents=[{"parts": request_parts}],
+                config=types.GenerateContentConfig(response_mime_type="application/json"),
+            )
+            response_text = response.text if response.text else ""
+
+        logger.debug("[MediaEnricher] Single-call response: %s", response_text[:500])
+
+        try:
+            results_dict = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            logger.warning("[MediaEnricher] Failed to parse JSON response: %s", e)
+            raise ValueError(f"Failed to parse batch response: {e}") from e
+
+        # Convert to BatchResult-like objects
+        results = []
+        for req in requests:
+            tag = req.get("tag")
+            task = task_map.get(tag, {})
+            payload = task.get("_parsed_payload", {})
+            filename = payload.get("filename", tag)
+
+            # Get enrichment data for this filename
+            enrichment = results_dict.get(filename, {})
+            if enrichment:
+                # Build response in expected format
+                response_data = {
+                    "text": json.dumps(
+                        {
+                            "slug": enrichment.get("slug", ""),
+                            "description": enrichment.get("description", ""),
+                            "alt_text": enrichment.get("alt_text", ""),
+                            "filename": filename,
+                        }
+                    )
+                }
+                result = type(
+                    "BatchResult",
+                    (),
+                    {"tag": tag, "response": response_data, "error": None},
+                )()
+            else:
+                result = type(
+                    "BatchResult",
+                    (),
+                    {"tag": tag, "response": None, "error": {"message": f"No result for {filename}"}},
+                )()
+            results.append(result)
+            logger.info("[MediaEnricher] Processed %s via single-call batch", filename)
+
+        logger.info("[MediaEnricher] Single-call batch complete: %d/%d", len(results), len(requests))
+        return results
 
     def _execute_media_individual(
         self,

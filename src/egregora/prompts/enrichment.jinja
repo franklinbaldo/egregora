@@ -259,4 +259,71 @@ If no, explain what type of media it is instead (photo, infographic, screenshot,
 ```
 
 Output ONLY the markdown. No preamble. No code fences. Raw markdown that can be saved directly to a .md file.
+
+{% elif mode == "media_batch" %}
+You are analyzing {{ image_count }} images in a single batch. For EACH image, provide:
+
+1. A short descriptive slug (lowercase, hyphens only, e.g., "sunset-beach-scene")
+2. A 2-3 sentence description of the image content
+3. Alt text for accessibility
+
+{% if pii_prevention and pii_prevention.enabled %}
+⚠️ **CRITICAL: PII Check** - If any image contains identifiable faces, license plates, IDs, or personal documents:
+- Use generic descriptions (e.g., "a person" instead of describing facial features)
+- Do NOT include readable text containing personal information
+{% endif %}
+
+## Images to Process
+The following {{ image_count }} images are attached to this request (in order):
+{{ filenames_json }}
+
+## Output Format
+Return ONLY a valid JSON object where keys are the **exact original filenames** and values contain:
+- `slug`: short descriptive slug (lowercase, hyphens)
+- `description`: 2-3 sentence description
+- `alt_text`: accessibility description
+
+Example format:
+```json
+{
+  "IMG-20250101.jpg": {"slug": "sunset-beach-view", "description": "A beautiful sunset over a sandy beach with waves.", "alt_text": "Orange sunset over ocean beach with gentle waves"},
+  "photo_002.png": {"slug": "coffee-cup-desk", "description": "A steaming cup of coffee on a wooden desk.", "alt_text": "White coffee mug on brown wooden desk"}
+}
+```
+
+**IMPORTANT**: Output ONLY the JSON object. No markdown code fences, no explanatory text - just raw JSON.
+
+{% elif mode == "url_batch" %}
+You are analyzing {{ url_count }} URLs in a single batch. For EACH URL, provide:
+
+1. A short descriptive slug (lowercase, hyphens only, e.g., "alignment-forum-mesa-optimizers")
+2. A 2-3 sentence summary of the URL content
+3. Key takeaways (3-5 bullet points as a list)
+
+{% if pii_prevention and pii_prevention.enabled %}
+⚠️ **Privacy Notice** - Do not include any personally identifiable information from the URLs.
+{% endif %}
+
+## URLs to Process
+The following {{ url_count }} URLs need enrichment:
+{{ urls_json }}
+
+## Output Format
+Return ONLY a valid JSON object where keys are the **exact original URLs** and values contain:
+- `slug`: short descriptive slug (lowercase, hyphens)
+- `summary`: 2-3 sentence description of the content
+- `key_takeaways`: list of 3-5 key points
+
+Example format:
+```json
+{
+  "https://example.com/article": {
+    "slug": "example-article-topic",
+    "summary": "This article discusses...",
+    "key_takeaways": ["Point 1", "Point 2", "Point 3"]
+  }
+}
+```
+
+**IMPORTANT**: Output ONLY the JSON object. No markdown code fences, no explanatory text - just raw JSON.
 {% endif %}
