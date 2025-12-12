@@ -43,7 +43,7 @@ import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Self
+from typing import Any, Literal, Self
 
 import duckdb
 import ibis
@@ -285,17 +285,37 @@ class DuckDBStorageManager:
         table: str,
         rows: Table,
         *,
-        where_clause: str,
-        params: Sequence | None = None,
+        by_keys: dict[str, Any],
     ) -> None:
-        """Delete matching rows and insert replacements.
+        """Delete matching rows and insert replacements (UPSERT simulation).
 
-        DuckDB lacks native ``UPSERT`` support; this helper provides
-        upsert-like behavior by issuing a parameterized ``DELETE`` followed
-        by an insert of the provided rows.
+        Simulates UPSERT by deleting rows matching the provided key-value pairs
+        and then inserting the new rows. This prevents SQL injection by rigidly
+        structuring the DELETE clause.
+
+        Args:
+            table: Target table name
+            rows: Ibis table expression containing new rows
+            by_keys: Dictionary of column_name -> value to match for deletion
+
         """
+        if not by_keys:
+            msg = "replace_rows requires at least one key for deletion safety"
+            raise ValueError(msg)
+
         quoted_table = quote_identifier(table)
-        self.execute_sql(f"DELETE FROM {quoted_table} WHERE {where_clause}", params)
+
+        # Build parameterized WHERE clause
+        conditions = []
+        params = []
+        for col, val in by_keys.items():
+            conditions.append(f"{quote_identifier(col)} = ?")
+            params.append(val)
+
+        where_clause = " AND ".join(conditions)
+        sql = f"DELETE FROM {quoted_table} WHERE {where_clause}"
+
+        self.execute_sql(sql, params)
         self.ibis_conn.insert(table, rows)
 
     def read_table(self, name: str) -> Table:
