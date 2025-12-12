@@ -22,6 +22,8 @@ document.addEventListener("DOMContentLoaded", function() {
       postList.classList.add("card-view");
       cardViewBtn.classList.add("active");
       listViewBtn.classList.remove("active");
+      cardViewBtn.setAttribute("aria-pressed", "true");
+      listViewBtn.setAttribute("aria-pressed", "false");
     });
 
     listViewBtn.addEventListener("click", function() {
@@ -29,6 +31,8 @@ document.addEventListener("DOMContentLoaded", function() {
       postList.classList.add("list-view");
       listViewBtn.classList.add("active");
       cardViewBtn.classList.remove("active");
+      listViewBtn.setAttribute("aria-pressed", "true");
+      cardViewBtn.setAttribute("aria-pressed", "false");
     });
   }
 });
