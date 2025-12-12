@@ -1,13 +1,12 @@
 name: CodeQL Security Analysis
 
 on:
-  push:
-    branches: [main, develop]
   pull_request:
     branches: [main, develop]
   schedule:
     # Run weekly on Mondays at 6:00 UTC
     - cron: '0 6 * * 1'
+  workflow_dispatch:
 
 # Cancel outdated runs
 concurrency:
