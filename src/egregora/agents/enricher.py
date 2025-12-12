@@ -980,12 +980,212 @@ class EnrichmentWorker(BaseWorker):
         return len(results)
 
     def _process_media_batch(self, tasks: list[dict[str, Any]]) -> int:
-        requests, task_map = self._prepare_media_requests(tasks)
-        if not requests:
-            return 0
+        batch_images_enabled = getattr(self.ctx.config.enrichment, "batch_images", True)
 
-        results = self._execute_media_batch(requests, task_map)
-        return self._persist_media_results(results, task_map)
+        image_tasks = []
+        other_tasks = []
+
+        # Pre-filter tasks
+        for task in tasks:
+            # Ensure payload is parsed
+            payload = task.get("payload")
+            if isinstance(payload, str):
+                try:
+                    payload = json.loads(payload)
+                    task["_parsed_payload"] = payload
+                except json.JSONDecodeError:
+                    logger.warning("Failed to parse payload for task %s", task["task_id"])
+                    continue
+            elif "_parsed_payload" in task:
+                payload = task["_parsed_payload"]
+            else:
+                # Should not happen if coming from task store properly but safety check
+                if isinstance(payload, dict):
+                    task["_parsed_payload"] = payload
+                else:
+                    continue
+
+            mime_type = payload.get("media_type", "")
+            if batch_images_enabled and mime_type.startswith("image/"):
+                image_tasks.append(task)
+            else:
+                other_tasks.append(task)
+
+        processed_count = 0
+
+        # Process images in a single batch call (chunked)
+        if image_tasks:
+            logger.info("Batch enriching %d images in chunked single calls", len(image_tasks))
+            chunk_size = 50  # Limit to 50 images per call to fit output tokens
+
+            for i in range(0, len(image_tasks), chunk_size):
+                chunk = image_tasks[i:i + chunk_size]
+                logger.info("Processing image batch chunk %d-%d", i, i + len(chunk))
+                image_results = self._execute_media_batch_single_call(chunk)
+                image_task_map = {str(t["task_id"]): t for t in chunk}
+                processed_count += self._persist_media_results(image_results, image_task_map)
+
+        # Process remaining tasks via standard method
+        if other_tasks:
+            requests, task_map = self._prepare_media_requests(other_tasks)
+            if requests:
+                results = self._execute_media_batch(requests, task_map)
+                processed_count += self._persist_media_results(results, task_map)
+
+        return processed_count
+
+    def _execute_media_batch_single_call(self, tasks: list[dict[str, Any]]) -> list[Any]:
+        """Send all images in one API call, return list of result objects."""
+        from google import genai
+        from google.genai import types
+
+        api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for enrichment"
+            # Return error results
+            return [
+                type(
+                    "BatchResult",
+                    (),
+                    {
+                        "tag": str(t["task_id"]),
+                        "response": None,
+                        "error": {"message": msg},
+                    },
+                )()
+                for t in tasks
+            ]
+
+        model_name = self.ctx.config.models.enricher_vision
+        client = genai.Client(api_key=api_key)
+
+        contents = []
+        valid_tasks = []
+
+        # Interleave filenames/prompts with images to identify them
+        contents.append(
+            "Analyze the following images. For each image, I will provide its filename and the image data."
+        )
+
+        for task in tasks:
+            payload = task.get("_parsed_payload", {})
+            filename = payload.get("filename", "unknown")
+            media_type = payload.get("media_type", "image/jpeg")
+
+            media_bytes = self._load_media_bytes(task, payload)
+            if not media_bytes:
+                continue
+
+            valid_tasks.append(task)
+
+            contents.append(f"Image Filename: {filename}")
+            contents.append(types.Part.from_bytes(data=media_bytes, mime_type=media_type))
+
+        if not valid_tasks:
+            return []
+
+        contents.append("""
+        For each image provided above, generate a JSON object.
+        Return a SINGLE JSON object where the keys are the exact filenames provided above, and values are objects containing:
+        - slug: a short, descriptive, url-friendly slug (e.g., "sunset-beach")
+        - description: A detailed 2-3 sentence description of the image.
+        - alt_text: A concise alternative text description for accessibility.
+
+        Example Output format:
+        {
+          "image1.jpg": {"slug": "sunset", "description": "A beautiful sunset...", "alt_text": "Sunset over ocean"},
+          "image2.png": {"slug": "cat", "description": "A cute cat...", "alt_text": "Tabby cat sleeping"}
+        }
+        """)
+
+        results = []
+        try:
+            # We use a higher token limit for the batch response since it contains multiple descriptions
+            response = client.models.generate_content(
+                model=model_name,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    max_output_tokens=8192,  # Increase output tokens for batch
+                ),
+            )
+
+            try:
+                response_data = json.loads(response.text)
+            except json.JSONDecodeError:
+                # Fallback: sometimes models wrap JSON in markdown blocks even if json mode requested
+                text = response.text.strip()
+                if text.startswith("```json"):
+                    text = text[7:]
+                if text.endswith("```"):
+                    text = text[:-3]
+                response_data = json.loads(text.strip())
+
+            for task in valid_tasks:
+                payload = task.get("_parsed_payload", {})
+                filename = payload.get("filename")
+                tag = str(task["task_id"])
+
+                # Try to find result by filename
+                task_result = response_data.get(filename)
+
+                if task_result:
+                    # Construct markdown from description/alt_text to match existing pipeline expectations
+                    # The existing pipeline expects a JSON with "slug" and "markdown"
+                    # We synthesize "markdown" from the new fields
+                    description = task_result.get("description", "")
+                    alt_text = task_result.get("alt_text", "")
+
+                    synthesized_markdown = f"## {task_result.get('slug', 'Image')}\n\n{description}\n\n**Alt Text:** {alt_text}"
+
+                    # Store normalized result
+                    result_payload = {
+                        "slug": task_result.get("slug"),
+                        "markdown": synthesized_markdown,
+                        "description": description,
+                        "alt_text": alt_text
+                    }
+
+                    json_text = json.dumps(result_payload)
+                    res = type(
+                        "BatchResult",
+                        (),
+                        {
+                            "tag": tag,
+                            "response": type("Response", (), {"text": json_text})(),
+                            "error": None,
+                        },
+                    )()
+                    results.append(res)
+                else:
+                    res = type(
+                        "BatchResult",
+                        (),
+                        {
+                            "tag": tag,
+                            "response": None,
+                            "error": {"message": f"No result returned for filename: {filename}"},
+                        },
+                    )()
+                    results.append(res)
+
+        except Exception as exc:
+            logger.warning("Batch enrichment call failed: %s", exc)
+            # Fail all tasks in this batch
+            for task in valid_tasks:
+                tag = str(task["task_id"])
+                res = type(
+                    "BatchResult",
+                    (),
+                    {
+                        "tag": tag,
+                        "response": None,
+                        "error": {"message": f"Batch call error: {exc!s}"},
+                    },
+                )()
+                results.append(res)
+
+        return results
 
     def _extract_text(self, response: dict[str, Any] | None) -> str:
         if not response:

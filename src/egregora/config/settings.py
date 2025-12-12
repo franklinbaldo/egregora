@@ -434,6 +434,10 @@ class EnrichmentSettings(BaseModel):
         le=20,
         description="Maximum concurrent enrichment requests (default 1 to match global rate limit)",
     )
+    batch_images: bool = Field(
+        default=True,
+        description="Batch all images in one LLM call",
+    )
 
 
 class PipelineSettings(BaseModel):
