@@ -531,7 +531,7 @@ class PathsSettings(BaseModel):
         description="Documentation/content directory",
     )
     posts_dir: str = Field(
-        default="posts",
+        default="blog/posts",
         description="Blog posts directory",
     )
     profiles_dir: str = Field(
@@ -547,33 +547,6 @@ class PathsSettings(BaseModel):
         description="Agent execution journals directory",
     )
 
-    @field_validator(
-        "egregora_dir",
-        "rag_dir",
-        "lancedb_dir",
-        "cache_dir",
-        "prompts_dir",
-        "docs_dir",
-        "posts_dir",
-        "profiles_dir",
-        "media_dir",
-        "journal_dir",
-        mode="after",
-    )
-    @classmethod
-    def validate_safe_path(cls, v: str) -> str:
-        """Validate path is relative and does not contain traversal sequences."""
-        if not v:
-            return v
-        path = Path(v)
-        if path.is_absolute():
-            msg = f"Path must be relative, not absolute: {v}"
-            raise ValueError(msg)
-        if any(part == ".." for part in path.parts):
-            msg = f"Path must not contain traversal sequences ('..'): {v}"
-            raise ValueError(msg)
-        return v
-
 
 class OutputSettings(BaseModel):
     """Output format configuration.
@@ -587,8 +560,8 @@ class OutputSettings(BaseModel):
     )
 
     mkdocs_config_path: str | None = Field(
-        default=None,
-        description="Path to mkdocs.yml config file, relative to site root. If None, defaults to '.egregora/mkdocs.yml'",
+        default="mkdocs.yml",
+        description="Path to mkdocs.yml config file, relative to site root. If None, defaults to 'mkdocs.yml'",
     )
 
 

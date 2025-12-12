@@ -40,7 +40,7 @@ def test_load_from_yaml(tmp_path):
     assert config.pipeline.step_size == 7
     assert config.models.writer == "custom-model"
     assert config.paths.site_root == site_root
-    assert config.paths.abs_posts_dir == site_root / "posts"
+    assert config.paths.abs_posts_dir == site_root / "blog/posts"
 
 
 def test_load_missing_file(tmp_path):

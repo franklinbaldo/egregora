@@ -125,7 +125,7 @@ Document(
 **Generated URL:** `/posts/my-blog-post`
 
 **Adapter-Specific Storage:**
-- **MkDocs:** `docs/posts/2025-03-15-my-blog-post.md` (date in filename)
+- **MkDocs:** `docs/blog/posts/2025-03-15-my-blog-post.md` (date in filename)
 - **Database:** `posts` table with `url`, `date`, `slug` columns
 - **API:** `GET /posts/my-blog-post` (date in metadata)
 
@@ -329,7 +329,7 @@ def _resolve_profile_path(self, url_path: str) -> Path:
     return self.profiles_dir / f"{uuid}.md"
 
 def _resolve_post_path(self, url_path: str) -> Path:
-    """/posts/{slug} → docs/posts/{date}-{slug}.md (MkDocs-specific)
+    """/posts/{slug} → docs/blog/posts/{date}-{slug}.md (MkDocs-specific)
 
     MkDocs/Jekyll convention: include date in filename for sorting.
     The URL stays clean (/posts/slug), but file has date prefix.

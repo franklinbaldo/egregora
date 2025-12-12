@@ -260,7 +260,7 @@ Post quality evaluation and ranking using ELO system.
 **Usage:**
 
 ```bash
-egregora read rank ./docs/posts
+egregora read rank ./docs/blog/posts
 egregora top --limit=10
 ```
 

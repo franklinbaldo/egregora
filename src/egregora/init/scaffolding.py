@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 from typing import cast
 
+from egregora.config.settings import create_default_config
 from egregora.data_primitives.protocols import SiteScaffolder
 from egregora.output_adapters import create_default_output_registry, create_output_sink
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
@@ -17,7 +18,13 @@ from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 logger = logging.getLogger(__name__)
 
 
-def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tuple[Path, bool]:
+def ensure_mkdocs_project(
+    site_root: Path,
+    site_name: str | None = None,
+    *,
+    create_overrides: bool = False,
+    minimal: bool = False,
+) -> tuple[Path, bool]:
     """Ensure site_root contains an MkDocs configuration.
 
     MODERN: This is a compatibility wrapper. New code should use:
@@ -39,6 +46,11 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
     if site_name is None:
         site_name = site_root.name or "Egregora Archive"
 
+    config_exists_before = (site_root / ".egregora" / "config.yml").exists()
+
+    if minimal and not config_exists_before:
+        create_default_config(site_root)
+
     # Create and initialize MkDocs output format
     registry = create_default_output_registry()
     output_format = create_output_sink(site_root, format_type="mkdocs", registry=registry)
@@ -59,7 +71,12 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
     try:
         # Prefer specific implementation if available to get accurate 'created' status
         if hasattr(output_format, "scaffold_site"):
-            _, created = output_format.scaffold_site(site_root, site_name)
+            _, created = output_format.scaffold_site(
+                site_root,
+                site_name,
+                create_overrides=create_overrides,
+                minimal=minimal,
+            )
         else:
             scaffolder.scaffold(site_root, {"site_name": site_name})
             # Generic scaffold doesn't return created status, assume True if no error
@@ -71,9 +88,11 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
     # Return docs_dir for backward compatibility
     site_paths = derive_mkdocs_paths(site_root)
     docs_dir = site_paths["docs_dir"]
-    docs_dir.mkdir(parents=True, exist_ok=True)
 
-    return (docs_dir, created)
+    if not minimal:
+        docs_dir.mkdir(parents=True, exist_ok=True)
+
+    return (docs_dir, created or (minimal and not config_exists_before))
 
 
 __all__ = ["ensure_mkdocs_project"]

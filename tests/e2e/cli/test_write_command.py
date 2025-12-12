@@ -400,7 +400,7 @@ class TestWriteCommandWithMocks:
             f"docs directory not found at {docs_dir}. Output dir contents: {list(test_output_dir.iterdir())}"
         )
 
-        posts_dir = docs_dir / "posts"
+        posts_dir = docs_dir / "blog" / "posts"
         assert posts_dir.exists(), (
             f"posts directory not found at {posts_dir}. docs dir contents: {list(docs_dir.iterdir())}"
         )

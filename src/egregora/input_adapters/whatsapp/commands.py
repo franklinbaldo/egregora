@@ -8,7 +8,6 @@ import re
 from typing import TYPE_CHECKING, Any
 
 import ibis
-import ibis.expr.datatypes as dt
 
 if TYPE_CHECKING:  # pragma: no cover - for type checkers
     from ibis.expr.types import Table

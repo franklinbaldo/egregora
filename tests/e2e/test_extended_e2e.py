@@ -52,7 +52,7 @@ def test_reader_agent_evaluates_posts_and_persists_elo_rankings(
     """
     # Setup: Create a minimal site with posts to evaluate
     site_root = tmp_path / "reader_site"
-    posts_dir = site_root / "posts"
+    posts_dir = site_root / "blog" / "posts"
     posts_dir.mkdir(parents=True)
 
     # Create posts with varying content quality

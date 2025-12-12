@@ -214,7 +214,7 @@ _default_loader: SkillLoader | None = None
 
 def get_skill_loader() -> SkillLoader:
     """Get the default global skill loader instance."""
-    global _default_loader
+    global _default_loader  # noqa: PLW0603
     if _default_loader is None:
         _default_loader = SkillLoader()
     return _default_loader
