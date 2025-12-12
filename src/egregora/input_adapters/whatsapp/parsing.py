@@ -328,7 +328,7 @@ def parse_source(
         messages.original_line, messages.tagged_line, messages.message_date
     ).cast(dt.json)
 
-    ir_messages = messages.mutate(
+    result_table = messages.mutate(
         event_id=messages.message_id,
         tenant_id=tenant_literal,
         source=source_literal,
@@ -343,4 +343,4 @@ def parse_source(
         created_by_run=created_by_literal,
     )
 
-    return ir_messages.select(*IR_MESSAGE_SCHEMA.names)
+    return result_table.select(*IR_MESSAGE_SCHEMA.names)
