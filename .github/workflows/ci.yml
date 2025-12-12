@@ -100,7 +100,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [lint-ruff-check, lint-ruff-format]
-    if: success() || failure()
     steps:
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
