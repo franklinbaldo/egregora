@@ -373,8 +373,6 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
             total_tokens=params.total_tokens,
         )
 
-        journal_content = journal_content.replace("../media/", "/media/")
-
         doc = Document(
             content=journal_content,
             type=DocumentType.JOURNAL,
@@ -414,9 +412,9 @@ def _process_single_tool_result(
         return
 
     path = data["path"]
-    if tool_name == "write_post_tool" or "/posts/" in path:
+    if tool_name == "write_post_tool":
         saved_posts.append(path)
-    elif tool_name == "write_profile_tool" or "/profiles/" in path:
+    elif tool_name == "write_profile_tool":
         saved_profiles.append(path)
 
 

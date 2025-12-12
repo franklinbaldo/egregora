@@ -271,6 +271,12 @@
   border-radius: 4px;
   padding: 0.25rem 0.5rem;
   cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.view-toggle button:focus-visible {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: 2px;
 }
 
 .view-toggle button.active {

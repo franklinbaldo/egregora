@@ -10,7 +10,10 @@
 >
 > **Target Timeline:** Alpha in 12 months, feature parity in 24 months
 
----
+- [x] **Decouple Writer Agent from Output Format**
+  - **Rationale:** The writer currently assumes MkDocs structure. It should output agnostic `Document` objects that a separate adapter handles.
+  - **Modules:** `src/egregora/agents/writer.py`, `src/egregora/agents/writer_tools.py`
+  - **Implementation:** Updated `src/egregora/agents/writer.py` to rely on tool names (`write_post_tool`, `write_profile_tool`) instead of checking file path strings (e.g., `"/posts/"`). Removed explicit path replacement (`../media/` -> `/media/`) in `_save_journal_to_file`. Added regression test `tests/unit/agents/test_writer_logic.py`.
 
 ## Phase 1: Core Foundation ✅ COMPLETE
 
