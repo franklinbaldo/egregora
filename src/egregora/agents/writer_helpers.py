@@ -24,7 +24,7 @@ from egregora.agents.types import (
     WriteProfileResult,
     WriterDeps,
 )
-from egregora.knowledge.profiles import read_profile
+from egregora.data_primitives.document import DocumentType
 from egregora.rag import RAGQueryRequest, reset_backend, search
 
 if TYPE_CHECKING:
@@ -178,8 +178,19 @@ def _store_rag_context(cache: Any | None, query_text: str, context: str) -> None
         logger.warning("Cache storage failed")
 
 
-def load_profiles_context(active_authors: list[str], profiles_dir: Path) -> str:
-    """Load profiles for top active authors."""
+def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
+    """Load profiles for top active authors via output_sink.
+    
+    Uses output_sink.read_document() to read profiles from the unified
+    output directory (e.g., posts/ in MkDocs), rather than direct file access.
+    
+    Args:
+        active_authors: List of author UUIDs to load profiles for
+        output_sink: OutputSink instance that knows where profiles are stored
+        
+    Returns:
+        Formatted string with profile context for each author
+    """
     if not active_authors:
         return ""
     logger.info("Loading profiles for %s active authors", len(active_authors))
@@ -190,7 +201,13 @@ def load_profiles_context(active_authors: list[str], profiles_dir: Path) -> str:
     ]
 
     for author_uuid in active_authors:
-        profile_content = read_profile(author_uuid, profiles_dir)
+        try:
+            doc = output_sink.read_document(DocumentType.PROFILE, author_uuid)
+            profile_content = doc.content if doc else ""
+        except (OSError, ValueError, AttributeError) as exc:
+            logger.debug("Could not read profile for %s: %s", author_uuid, exc)
+            profile_content = ""
+        
         parts.append(f"### Author: {author_uuid}\n")
         if profile_content:
             parts.append(f"{profile_content}\n\n")
