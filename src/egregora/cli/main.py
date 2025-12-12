@@ -26,9 +26,9 @@ from egregora.constants import SourceType, WindowUnit
 from egregora.database.elo_store import EloStore
 from egregora.diagnostics import HealthStatus, run_diagnostics
 from egregora.init import ensure_mkdocs_project
-
-# Updated import to the new standardized entry point
-from egregora.orchestration.pipelines.write import run_cli_flow
+from egregora.orchestration import write_pipeline
+from egregora.orchestration.context import PipelineRunParams
+from egregora.utils.env import validate_gemini_api_key
 
 app = typer.Typer(
     name="egregora",
@@ -71,7 +71,9 @@ def main() -> None:
 
 @app.command()
 def init(
-    output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
+    output_dir: Annotated[
+        Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")
+    ],
     *,
     interactive: Annotated[
         bool,
@@ -117,6 +119,135 @@ def init(
         )
 
 
+@dataclass
+class WriteCommandOptions:
+    """Options for the write command."""
+
+    input_file: Path
+    source: SourceType
+    output: Path
+    step_size: int
+    step_unit: WindowUnit
+    overlap: float
+    enable_enrichment: bool
+    from_date: str | None
+    to_date: str | None
+    timezone: str | None
+    model: str | None
+    max_prompt_tokens: int
+    use_full_context_window: bool
+    max_windows: int | None
+    resume: bool
+    refresh: str | None
+    force: bool
+    debug: bool
+
+
+def _validate_api_key(output_dir: Path) -> None:
+    """Validate that API key is set and valid."""
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        _load_dotenv_if_available(output_dir)
+        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        console.print(
+            "[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]"
+        )
+        console.print(
+            "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
+        )
+        console.print(
+            "You can also create a .env file in the output directory or current directory."
+        )
+        raise typer.Exit(1)
+
+    # Validate the API key with a lightweight call
+    console.print("[cyan]Validating Gemini API key...[/cyan]")
+    try:
+        validate_gemini_api_key(api_key)
+        console.print("[green]✓ API key validated successfully[/green]")
+    except ValueError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
+    except ImportError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
+
+
+def _prepare_write_config(
+    options: WriteCommandOptions, from_date_obj: date | None, to_date_obj: date | None
+) -> Any:
+    """Prepare Egregora configuration from options."""
+    base_config = load_egregora_config(options.output)
+    models_update: dict[str, str] = {}
+    if options.model:
+        models_update = {
+            "writer": options.model,
+            "enricher": options.model,
+            "enricher_vision": options.model,
+            "ranking": options.model,
+            "editor": options.model,
+        }
+    return base_config.model_copy(
+        deep=True,
+        update={
+            "pipeline": base_config.pipeline.model_copy(
+                update={
+                    "step_size": options.step_size,
+                    "step_unit": options.step_unit,
+                    "overlap_ratio": options.overlap,
+                    "timezone": options.timezone,
+                    "from_date": from_date_obj.isoformat() if from_date_obj else None,
+                    "to_date": to_date_obj.isoformat() if to_date_obj else None,
+                    "max_prompt_tokens": options.max_prompt_tokens,
+                    "use_full_context_window": options.use_full_context_window,
+                    "max_windows": options.max_windows,
+                    "checkpoint_enabled": options.resume,
+                }
+            ),
+            "enrichment": base_config.enrichment.model_copy(
+                update={"enabled": options.enable_enrichment}
+            ),
+            "rag": base_config.rag,
+            **(
+                {"models": base_config.models.model_copy(update=models_update)}
+                if models_update
+                else {}
+            ),
+        },
+    )
+
+
+def _resolve_write_options(
+    input_file: Path,
+    options_json: str | None,
+    cli_defaults: dict[str, Any],
+) -> WriteCommandOptions:
+    """Merge CLI options with JSON options and defaults."""
+    # Start with CLI values as base
+    defaults = cli_defaults.copy()
+
+    if options_json:
+        try:
+            overrides = json.loads(options_json)
+            # Update with JSON overrides, converting enums if strings
+            for k, v in overrides.items():
+                if k == "source" and isinstance(v, str):
+                    defaults[k] = SourceType(v)
+                elif k == "step_unit" and isinstance(v, str):
+                    defaults[k] = WindowUnit(v)
+                elif k == "output" and isinstance(v, str):
+                    defaults[k] = Path(v)
+                else:
+                    defaults[k] = v
+        except json.JSONDecodeError as e:
+            console.print(f"[red]Error parsing options JSON: {e}[/red]")
+            raise typer.Exit(1) from e
+
+    return WriteCommandOptions(input_file=input_file, **defaults)
+
+
 @app.command()
 def write(  # noqa: PLR0913
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
@@ -145,7 +276,9 @@ def write(  # noqa: PLR0913
     use_full_context_window: Annotated[
         bool, typer.Option("--full-context", help="Use maximum available context")
     ] = False,
-    max_windows: Annotated[int | None, typer.Option(help="Limit number of windows to process")] = None,
+    max_windows: Annotated[
+        int | None, typer.Option(help="Limit number of windows to process")
+    ] = None,
     resume: Annotated[
         bool,
         typer.Option("--resume/--no-resume", help="Resume from last checkpoint if available"),
@@ -415,7 +548,9 @@ def _run_doctor_checks(*, verbose: bool) -> None:
         )
 
     console.print()
-    console.print(f"[dim]Summary: {ok_count} OK, {warning_count} warnings, {error_count} errors[/dim]")
+    console.print(
+        f"[dim]Summary: {ok_count} OK, {warning_count} warnings, {error_count} errors[/dim]"
+    )
 
     if error_count > 0:
         raise typer.Exit(1)

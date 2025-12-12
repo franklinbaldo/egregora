@@ -103,9 +103,9 @@ def _remove_url_extension(url_path: str) -> str:
 class RouteConfig:
     """Configuration for URL routing segments."""
 
-    posts_prefix: str = "posts"
+    posts_prefix: str = "blog/posts"
     profiles_prefix: str = "profiles"
-    media_prefix: str = "media"
+    media_prefix: str = "blog/posts/media"
     journal_prefix: str = "journal"
     # Defines if dates should be part of the URL structure: /2025-01-01-slug/ vs /slug/
     date_in_url: bool = True
@@ -172,6 +172,7 @@ class StandardUrlConvention(UrlConvention):
         clean_segments = [seg.strip("/") for seg in segments if seg]
         path_segments = prefix_segments + clean_segments
         path = "/".join(path_segments)
+        # Restore leading slash to make paths root-relative when base is empty
         url = f"{base}/{path}" if base else f"/{path}"
         if trailing_slash:
             return url.rstrip("/") + "/"
