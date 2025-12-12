@@ -37,6 +37,37 @@ HTTP_TOO_MANY_REQUESTS = 429
 HTTP_SERVER_ERROR = 500
 
 
+class EmbeddingError(Exception):
+    """Exception raised for embedding API errors with detailed error message."""
+
+    def __init__(self, message: str, status_code: int | None = None, response_text: str | None = None) -> None:
+        self.status_code = status_code
+        self.response_text = response_text
+        super().__init__(message)
+
+    @classmethod
+    def from_http_error(cls, e: httpx.HTTPStatusError, context: str = "") -> "EmbeddingError":
+        """Create EmbeddingError from HTTPStatusError with response details."""
+        try:
+            # Try to parse JSON error response
+            error_data = e.response.json()
+            if isinstance(error_data, dict):
+                # Handle both {"error": {"message": "..."}} and {"error": "message"}
+                error_field = error_data.get("error", error_data)
+                if isinstance(error_field, dict):
+                    error_message = error_field.get("message", str(error_data))
+                else:
+                    error_message = str(error_field)
+            else:
+                error_message = str(error_data)
+        except (ValueError, KeyError):
+            # Fall back to raw response text
+            error_message = e.response.text or str(e)
+
+        full_message = f"{context}: {error_message}" if context else error_message
+        return cls(full_message, status_code=e.response.status_code, response_text=e.response.text)
+
+
 class EndpointType(Enum):
     """Type of embedding endpoint."""
 
@@ -294,7 +325,8 @@ class EndpointQueue:
                     if e.response.status_code >= HTTP_SERVER_ERROR:
                         self.rate_limiter.mark_error()
                         raise
-                    raise  # Client error, don't retry
+                    # Client error - include detailed error message
+                    raise EmbeddingError.from_http_error(e, f"Single endpoint failed for text: {text[:50]}...") from e
 
         return embeddings
 
@@ -339,7 +371,10 @@ class EndpointQueue:
                 if e.response.status_code >= HTTP_SERVER_ERROR:
                     self.rate_limiter.mark_error()
                     raise
-                raise  # Client error, don't retry
+                # Client error - include detailed error message
+                raise EmbeddingError.from_http_error(
+                    e, f"Batch endpoint failed for {len(texts)} texts"
+                ) from e
             else:
                 return embeddings
 
@@ -510,11 +545,58 @@ def shutdown_router() -> None:
             _router = None
 
 
+def validate_api_key(api_key: str | None = None, *, model: str = "models/gemini-1.5-flash") -> None:
+    """Validate Gemini API key with a lightweight API call.
+
+    This function performs a quick validation of the API key by making a
+    lightweight count_tokens request. Use this for fail-fast validation
+    before running expensive operations.
+
+    Args:
+        api_key: Google API key to validate. If None, uses GOOGLE_API_KEY env var.
+        model: Model to use for validation (default: gemini-1.5-flash).
+
+    Raises:
+        EmbeddingError: If the API key is invalid or expired.
+        ValueError: If no API key is provided or found in environment.
+
+    Example:
+        >>> try:
+        ...     validate_api_key()
+        ...     print("API key is valid!")
+        ... except EmbeddingError as e:
+        ...     print(f"Invalid API key: {e}")
+
+    """
+    effective_key = api_key or get_google_api_key()
+    if not effective_key:
+        msg = "No API key provided and GOOGLE_API_KEY environment variable not set"
+        raise ValueError(msg)
+
+    # Use countTokens as a lightweight validation call
+    url = f"{GENAI_API_BASE}/{model}:countTokens"
+    payload = {"contents": [{"parts": [{"text": "test"}]}]}
+
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            response = client.post(url, params={"key": effective_key}, json=payload)
+            response.raise_for_status()
+            logger.debug("API key validation successful")
+    except httpx.HTTPStatusError as e:
+        raise EmbeddingError.from_http_error(e, "API key validation failed") from e
+    except httpx.RequestError as e:
+        msg = f"API key validation failed: network error - {e}"
+        raise EmbeddingError(msg) from e
+
+
 __all__ = [
+    "EmbeddingError",
     "EmbeddingRouter",
     "EndpointType",
     "RateLimitState",
     "create_embedding_router",
     "get_router",
     "shutdown_router",
+    "validate_api_key",
 ]
+

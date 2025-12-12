@@ -16,6 +16,7 @@ import mimetypes
 import os
 import re
 import uuid
+import zipfile
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -95,12 +96,29 @@ def load_file_as_binary_content(file_path: Path, max_size_mb: int = 20) -> Binar
     return BinaryContent(data=file_bytes, media_type=media_type)
 
 
-def _normalize_slug(candidate: str | None, fallback: str) -> str:
-    if isinstance(candidate, str) and candidate.strip():
-        value = slugify(candidate.strip())
-        if value:
-            return value
-    return slugify(fallback)
+def _normalize_slug(candidate: str | None, identifier: str) -> str:
+    """Normalize a slug candidate from LLM output.
+    
+    Args:
+        candidate: Slug string from LLM (may be None or empty)
+        identifier: Original identifier (URL or filename) for error messages
+        
+    Returns:
+        Normalized, valid slug string
+        
+    Raises:
+        ValueError: If candidate is None, empty, or doesn't produce a valid slug
+    """
+    if not isinstance(candidate, str) or not candidate.strip():
+        msg = f"LLM failed to generate slug for: {identifier[:100]}"
+        raise ValueError(msg)
+    
+    value = slugify(candidate.strip())
+    if not value:
+        msg = f"LLM slug '{candidate}' is invalid after normalization for: {identifier[:100]}"
+        raise ValueError(msg)
+    
+    return value
 
 
 class EnrichmentOutput(BaseModel):
@@ -461,7 +479,7 @@ def _enqueue_media_enrichments(
     run_id: uuid.UUID,
     config: MediaEnrichmentConfig,
 ) -> int:
-    if not config.enable_media or config.max_enrichments <= 0 or not config.media_mapping:
+    if not config.enable_media or config.max_enrichments <= 0:
         return 0
 
     candidates = _extract_media_candidates(messages_table, config.media_mapping, config.max_enrichments)
@@ -627,19 +645,24 @@ def _process_media_row(
 def _extract_media_candidates(
     messages_table: Table, media_mapping: MediaMapping, limit: int
 ) -> list[tuple[str, Document, dict[str, Any]]]:
-    """Extract unique Media candidates with metadata."""
+    """Extract unique Media candidates with metadata.
+    
+    This function scans messages for media references and queues them for enrichment.
+    It does NOT validate existence or load content at this stage - that happens
+    during the enrichment task execution (lazy loading).
+    """
     if limit <= 0:
         return []
 
-    media_filename_lookup: dict[str, tuple[str, Document]] = {}
-    for original_filename, media_doc in media_mapping.items():
-        filename = media_doc.metadata.get("filename") or original_filename
-        media_filename_lookup[original_filename] = (original_filename, media_doc)
-        if filename:
-            media_filename_lookup[filename] = (original_filename, media_doc)
+    # Note: media_mapping is passed but ignored to avoid pre-extraction overhead.
+    # Validation happens lazily in the enricher worker.
 
     unique_media: set[str] = set()
     metadata_lookup: dict[str, dict[str, Any]] = {}
+    
+    # We still need to construct pseudo-Documents to maintain the return signature
+    # until we can refactor the return type.
+    document_lookup: dict[str, Document] = {}
 
     for batch in _iter_table_batches(
         messages_table.select(
@@ -655,24 +678,79 @@ def _extract_media_candidates(
         )
     ):
         for row in batch:
-            _process_media_row(row, media_filename_lookup, metadata_lookup, unique_media)
+            if len(unique_media) >= limit:
+                break
+            
+            message = row.get("text")
+            if not message:
+                continue
 
-    sorted_media = sorted(
+            refs = find_media_references(message)
+            refs.extend(_MARKDOWN_LINK_PATTERN.findall(message))
+            # Detect UUID patterns if they are used as references
+            uuid_refs = _UUID_PATTERN.findall(message)
+            # Filter UUIDs to avoid false positives (simple heuristic)
+            refs.extend([u for u in uuid_refs if "media" in str(row)]) 
+
+            if not refs:
+                continue
+
+            timestamp = ensure_datetime(row.get("ts")) if row.get("ts") else None
+            row_metadata = {
+                "ts": timestamp,
+                "event_id": _uuid_to_str(row.get("event_id")),
+                "tenant_id": row.get("tenant_id"),
+                "source": row.get("source"),
+                "thread_id": _uuid_to_str(row.get("thread_id")),
+                "author_uuid": _uuid_to_str(row.get("author_uuid")),
+                "created_at": row.get("created_at"),
+                "created_by_run": _uuid_to_str(row.get("created_by_run")),
+            }
+
+            for ref in set(refs):
+                # Simple deduplication by reference string
+                if ref in unique_media:
+                    # Update metadata with earliest timestamp if needed
+                    existing = metadata_lookup.get(ref)
+                    if existing:
+                        existing_ts = existing.get("ts")
+                        if existing_ts and timestamp and timestamp < existing_ts:
+                            existing.update(row_metadata)
+                    continue
+                
+                # New candidate found
+                unique_media.add(ref)
+                metadata_lookup[ref] = row_metadata.copy()
+                
+                # Create a placeholder Document
+                # We use the ref as the filename since we haven't resolved it yet
+                # The ID is deterministic based on the ref
+                doc_id = str(uuid.uuid5(uuid.NAMESPACE_URL, ref))
+                document_lookup[ref] = Document(
+                    content=b"", # Empty content for placeholder
+                    type=DocumentType.MEDIA,
+                    id=doc_id, # Deterministic ID
+                    metadata={
+                        "filename": ref,
+                        "original_filename": ref,
+                        "media_type": mimetypes.guess_type(ref)[0] or "application/octet-stream"
+                    }
+                )
+
+        if len(unique_media) >= limit:
+            break
+            
+    # Sort by timestamp
+    sorted_refs = sorted(
         unique_media,
-        key=lambda item: (
-            metadata_lookup.get(item, {}).get("ts") is None,
-            metadata_lookup.get(item, {}).get("ts"),
-        ),
+        key=lambda r: (metadata_lookup[r]["ts"] is None, metadata_lookup[r]["ts"])
     )
+    
+    return [
+        (ref, document_lookup[ref], metadata_lookup[ref])
+        for ref in sorted_refs[:limit]
+    ]
 
-    results = []
-    for ref in sorted_media[:limit]:
-        lookup_result = media_filename_lookup.get(ref)
-        if lookup_result:
-            _, media_doc = lookup_result
-            results.append((ref, media_doc, metadata_lookup[ref]))
-
-    return results
 
 
 def _replace_pii_media_references(
@@ -697,6 +775,9 @@ class EnrichmentWorker(BaseWorker):
         batch_size = 50
         tasks = self.task_store.fetch_pending(task_type="enrich_url", limit=batch_size)
         media_tasks = self.task_store.fetch_pending(task_type="enrich_media", limit=batch_size)
+
+        if tasks or media_tasks:
+            logger.info("EnrichmentWorker fetch: %d URL tasks, %d Media tasks", len(tasks), len(media_tasks))
 
         processed_count = 0
 
@@ -924,24 +1005,45 @@ class EnrichmentWorker(BaseWorker):
         return requests, task_map
 
     def _load_media_bytes(self, task: dict[str, Any], payload: dict[str, Any]) -> bytes | None:
-        media_id = payload.get("media_id")
+        """Load media bytes directly from source ZIP file.
+        
+        Uses original_filename from payload to find media in the ZIP,
+        with case-insensitive matching.
+        """
+        original_filename = payload.get("original_filename") or payload.get("filename")
+        if not original_filename:
+            logger.warning("No filename in media task %s", task["task_id"])
+            self.task_store.mark_failed(task["task_id"], "No filename in task payload")
+            return None
+        
+        input_path = self.ctx.input_path
+        if not input_path or not input_path.exists():
+            logger.warning("Input path not available for media task %s", task["task_id"])
+            self.task_store.mark_failed(task["task_id"], "Input path not available")
+            return None
+        
         try:
-            media_doc = self.ctx.output_format.read_document(DocumentType.MEDIA, media_id)
-        except (
-            OSError,
-            RuntimeError,
-            ValueError,
-        ) as exc:  # pragma: no cover - defensive catch
-            logger.warning("Failed to load media file for task %s: %s", task["task_id"], exc)
-            self.task_store.mark_failed(task["task_id"], f"Failed to load media: {exc}")
+            with zipfile.ZipFile(input_path, 'r') as zf:
+                # Case-insensitive search for media file
+                target_lower = original_filename.lower()
+                for info in zf.infolist():
+                    if info.is_dir():
+                        continue
+                    if Path(info.filename).name.lower() == target_lower:
+                        media_bytes = zf.read(info.filename)
+                        logger.debug("Loaded %d bytes from %s", len(media_bytes), info.filename)
+                        return media_bytes
+                
+                # Not found
+                logger.warning("Media file %s not found in ZIP for task %s", 
+                             original_filename, task["task_id"])
+                self.task_store.mark_failed(task["task_id"], f"Media file not found: {original_filename}")
+                return None
+                
+        except (OSError, zipfile.BadZipFile) as exc:
+            logger.warning("Failed to read media from ZIP for task %s: %s", task["task_id"], exc)
+            self.task_store.mark_failed(task["task_id"], f"Failed to read ZIP: {exc}")
             return None
-
-        if not media_doc or not media_doc.content:
-            logger.warning("Media file not found for task %s: %s", task["task_id"], media_id)
-            self.task_store.mark_failed(task["task_id"], "Media file not found")
-            return None
-
-        return media_doc.content
 
     def _execute_media_batch(
         self, requests: list[dict[str, Any]], task_map: dict[str, dict[str, Any]]
@@ -980,9 +1082,45 @@ class EnrichmentWorker(BaseWorker):
             filename = payload["filename"]
             media_type = payload["media_type"]
             media_id = payload.get("media_id")
+            
+            # Load actual media content (was not persisted earlier)
+            media_bytes = self._load_media_bytes(task, payload)
+            if not media_bytes:
+                logger.warning("Could not load media bytes for persistence: %s", filename)
+                self.task_store.mark_failed(task["task_id"], "Failed to load media bytes for persistence")
+                continue
 
-            self._rename_media_document(media_id, slug_value)
+            # Create media document with slug-based metadata
+            media_metadata = {
+                "original_filename": payload.get("original_filename"),
+                "filename": f"{slug_value}{Path(filename).suffix}", # Use slug for filename
+                "media_type": media_type,
+                "slug": slug_value,
+                "nav_exclude": True,
+                "hide": ["navigation"],
+            }
+            
+            # Persist the actual media file
+            media_doc = Document(
+                content=media_bytes,
+                type=DocumentType.MEDIA,
+                metadata=media_metadata,
+                id=media_id if media_id else str(uuid.uuid4()),
+                parent_id=media_id, # Link to original placeholder ID if exists
+            )
+            
+            try:
+                if self.ctx.library:
+                    self.ctx.library.save(media_doc)
+                else:
+                    self.ctx.output_format.persist(media_doc)
+                logger.info("Persisted enriched media: %s -> %s", filename, media_doc.metadata["filename"])
+            except Exception as exc:
+                logger.exception("Failed to persist media file %s", filename)
+                self.task_store.mark_failed(task["task_id"], f"Persistence failed: {exc}")
+                continue
 
+            # Create and persist the enrichment text document (description)
             enrichment_metadata = {
                 "filename": filename,
                 "media_type": media_type,
@@ -1009,6 +1147,39 @@ class EnrichmentWorker(BaseWorker):
             row = _create_enrichment_row(metadata, "Media", filename, doc.document_id)
             if row:
                 new_rows.append(row)
+
+            # Update original references in messages table
+            original_ref = payload.get("original_filename")
+            if original_ref:
+                # Determine relative path for replacement (e.g. media/images/slug.jpg)
+                # We use the path relative to site root, which works for most SSGs if configured right
+                # or we might need to be smarter about relative paths.
+                # MKDocs usually resolves from the current page, so 'media/' works if at root,
+                # but posts are in 'posts/'. So we might need '../media/' or absolute '/media/'.
+                # Let's use the standard "media/" and assume site configuration handles it 
+                # or use absolute path "/media/..."
+                
+                # Determine subfolder based on media_type
+                media_subdir = "files"
+                if media_type and media_type.startswith("image"): media_subdir = "images"
+                elif media_type and media_type.startswith("video"): media_subdir = "videos"
+                elif media_type and media_type.startswith("audio"): media_subdir = "audio"
+                
+                new_path = f"media/{media_subdir}/{slug_value}{Path(filename).suffix}"
+                
+                # Using SQL replace to update all occurrences
+                try:
+                    # We need to use valid SQL string escaping
+                    safe_original = original_ref.replace("'", "''")
+                    safe_new = new_path.replace("'", "''")
+                    
+                    # Update text column
+                    # Note: This updates ALL messages containing this ref.
+                    # Given filenames are usually unique (timestamps), this is safe.
+                    query = f"UPDATE messages SET text = replace(text, '{safe_original}', '{safe_new}') WHERE text LIKE '%{safe_original}%'"
+                    self.ctx.storage._conn.execute(query)
+                except Exception:
+                    logger.warning("Failed to update message references for %s", original_ref)
 
             self.task_store.mark_completed(task["task_id"])
 
@@ -1045,28 +1216,3 @@ class EnrichmentWorker(BaseWorker):
             return None
         else:
             return payload, slug_value, markdown
-
-    def _rename_media_document(self, media_id: str | None, slug_value: str) -> None:
-        if not media_id:
-            return
-
-        try:
-            media_doc = self.ctx.output_format.read_document(DocumentType.MEDIA, media_id)
-        except (
-            OSError,
-            RuntimeError,
-            ValueError,
-        ) as exc:  # pragma: no cover - defensive catch
-            logger.warning("Failed to read media document %s: %s", media_id, exc)
-            return
-
-        if not media_doc:
-            return
-
-        new_media_doc = media_doc.with_metadata(slug=slug_value)
-        if self.ctx.library:
-            self.ctx.library.save(new_media_doc)
-        else:
-            self.ctx.output_format.persist(new_media_doc)
-
-        logger.info("Renamed media %s -> %s", media_id, new_media_doc.document_id)

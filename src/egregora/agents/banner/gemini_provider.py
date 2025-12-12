@@ -67,8 +67,8 @@ class GeminiImageGenerationProvider(ImageGenerationProvider):
         }
         if request.response_modalities:
             payload["request"]["generation_config"]["responseModalities"] = list(request.response_modalities)
-        if request.aspect_ratio:
-            payload["request"]["generation_config"]["aspectRatio"] = request.aspect_ratio
+        # if request.aspect_ratio:
+        #     payload["request"]["generation_config"]["aspectRatio"] = request.aspect_ratio
         return payload
 
     def _write_payload(self, payload: dict[str, Any]) -> Path:

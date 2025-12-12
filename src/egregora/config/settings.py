@@ -429,10 +429,10 @@ class EnrichmentSettings(BaseModel):
         description="Maximum number of enrichments per run",
     )
     max_concurrent_enrichments: int = Field(
-        default=5,
+        default=1,
         ge=1,
         le=20,
-        description="Maximum concurrent enrichment requests to prevent rate limiting",
+        description="Maximum concurrent enrichment requests (default 1 to match global rate limit)",
     )
 
 

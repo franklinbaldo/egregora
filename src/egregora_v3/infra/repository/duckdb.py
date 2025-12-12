@@ -1,3 +1,5 @@
+import builtins
+import contextlib
 from datetime import datetime
 
 import ibis
@@ -55,7 +57,7 @@ class DuckDBDocumentRepository(DocumentRepository):
         self._upsert_record(doc.id, doc.doc_type.value, doc.model_dump_json(), doc.updated)
         return doc
 
-    def _upsert_record(self, id: str, doc_type: str, json_data: str, updated: datetime) -> None:
+    def _upsert_record(self, record_id: str, doc_type: str, json_data: str, updated: datetime) -> None:
         """Helper to upsert a record with handling for PK constraints."""
         if hasattr(self.conn, "con"):
             # Use parameterized INSERT OR REPLACE (upsert)
@@ -64,29 +66,30 @@ class DuckDBDocumentRepository(DocumentRepository):
                     INSERT OR REPLACE INTO {self.table_name} (id, doc_type, json_data, updated)
                     VALUES (?, ?, ?, ?)
                 """
-                self.conn.con.execute(query, [id, doc_type, json_data, updated])
+                self.conn.con.execute(query, [record_id, doc_type, json_data, updated])
             except Exception as e:
                 # If "ON CONFLICT is a no-op" error occurs, it means no PK.
                 # Fallback to delete + insert pattern manually.
                 if "ON CONFLICT is a no-op" in str(e):
-                    self._manual_upsert_record(id, doc_type, json_data, updated)
+                    self._manual_upsert_record(record_id, doc_type, json_data, updated)
                 else:
                     raise
         else:
-            self._manual_upsert_record(id, doc_type, json_data, updated)
+            self._manual_upsert_record(record_id, doc_type, json_data, updated)
 
     def _manual_upsert(self, doc: Document, json_data: str) -> None:
         """Deprecated: Use _manual_upsert_record instead."""
         self._manual_upsert_record(doc.id, doc.doc_type.value, json_data, doc.updated)
 
-    def _manual_upsert_record(self, id: str, doc_type: str, json_data: str, updated: datetime) -> None:
+    def _manual_upsert_record(self, record_id: str, doc_type: str, json_data: str, updated: datetime) -> None:
         """Manual delete + insert for backends/tables without PK constraint."""
         # Safe delete first
-        self.delete(id)
+        with contextlib.suppress(Exception):
+            self.delete(record_id)
 
         # Insert via Ibis
         data = {
-            "id": id,
+            "id": record_id,
             "doc_type": doc_type,
             "json_data": json_data,
             "updated": updated,
@@ -119,7 +122,7 @@ class DuckDBDocumentRepository(DocumentRepository):
         # But get() signature is Document | None.
         # If type is _ENTRY_, it's NOT a Document.
         if row["doc_type"] == "_ENTRY_":
-             return None
+            return None
 
         if isinstance(json_val, dict):
             return Document.model_validate(json_val)
@@ -175,65 +178,81 @@ class DuckDBDocumentRepository(DocumentRepository):
 
     # Entry methods
 
-    ENTRY_DOC_TYPE = "_ENTRY_"
-
     def save_entry(self, entry: Entry) -> None:
-        """Saves a raw entry to the repository."""
-        self._upsert_record(entry.id, "_ENTRY_", entry.model_dump_json(), entry.updated)
+        """Saves an Entry to the repository."""
+        if isinstance(entry, Document):
+            self.save(entry)
+            return
+
+        json_data = entry.model_dump_json()
+        doc_type_val = "_ENTRY_"
+
+        # Reuse helper for consistency
+        self._upsert_record(entry.id, doc_type_val, json_data, entry.updated)
 
     def get_entry(self, entry_id: str) -> Entry | None:
-        """Retrieves an entry (or document) by ID."""
+        """Retrieves an Entry (or Document) by ID."""
         t = self._get_table()
-        query = t.filter(t.id == entry_id).select("doc_type", "json_data")
+        query = t.filter(t.id == entry_id).select("json_data", "doc_type")
         result = query.execute()
 
         if result.empty:
             return None
 
         row = result.iloc[0]
-        doc_type_val = row["doc_type"]
         json_val = row["json_data"]
+        doc_type_val = row["doc_type"]
 
-        # Parse based on stored type
-        if doc_type_val == "_ENTRY_":
-            model = Entry
-        else:
-            model = Document
+        # Check if it's a Document (has a valid DocumentType)
+        is_document = any(doc_type_val == item.value for item in DocumentType)
 
+        if is_document:
+            if isinstance(json_val, dict):
+                return Document.model_validate(json_val)
+            return Document.model_validate_json(json_val)
+
+        # Otherwise treat as raw Entry
         if isinstance(json_val, dict):
-            return model.model_validate(json_val)
-        return model.model_validate_json(json_val)
+            return Entry.model_validate(json_val)
+        return Entry.model_validate_json(json_val)
 
-    def get_entries_by_source(self, source_id: str) -> list[Entry]:
-        """Lists entries associated with a specific source ID."""
-        # Optimize for DuckDB with raw SQL for JSON path filtering
-        if hasattr(self.conn, "con"):
-            # Note: We filter for doc_type='_ENTRY_' to only get raw entries,
-            # assuming Documents don't have this source info or we strictly want inputs.
-            # However, if required, we could relax this. Assuming inputs for now.
-            query = f"""
-                SELECT json_data
-                FROM {self.table_name}
-                WHERE doc_type = '_ENTRY_'
-                  AND json_extract_string(json_data, '$.source.id') = ?
-            """
-            rows = self.conn.con.execute(query, [source_id]).fetchall()
-            # DuckDB fetchall with single column returns list of tuples (val,)
-            return [Entry.model_validate_json(row[0]) for row in rows]
-
-        # Fallback for generic backends (fetch and filter)
+    def get_entries_by_source(self, source_id: str) -> builtins.list[Entry]:
+        """Lists entries by source ID."""
         t = self._get_table()
-        query = t.filter(t.doc_type == "_ENTRY_").select("json_data")
-        result = query.execute()
+
+        # Filter by JSON path: source.id == source_id
+        try:
+            query = t.filter(t.json_data["source"]["id"] == source_id)
+            result = query.select("json_data", "doc_type").execute()
+        except (AttributeError, NotImplementedError, TypeError, KeyError):
+            # Fallback for backends/versions where Ibis JSON getitem might fail
+            # AttributeError: JSON getitem not supported
+            # NotImplementedError: Backend doesn't implement this feature
+            # TypeError: Type mismatch in filter operation
+            # KeyError: Column or key access failure
+            if hasattr(self.conn, "con"):
+                # DuckDB raw SQL for JSON extraction
+                sql = f"SELECT json_data, doc_type FROM {self.table_name} WHERE json_extract_string(json_data, '$.source.id') = ?"
+                result = self.conn.con.execute(sql, [source_id]).fetch_df()
+            else:
+                # If we can't filter, return empty (or could fetch all and filter in python, but that's slow)
+                return []
 
         entries = []
-        for json_val in result["json_data"]:
-            if isinstance(json_val, dict):
-                ent = Entry.model_validate(json_val)
-            else:
-                ent = Entry.model_validate_json(json_val)
+        for _, row in result.iterrows():
+            json_val = row["json_data"]
+            doc_type_val = row["doc_type"]
 
-            if ent.source and ent.source.id == source_id:
-                entries.append(ent)
+            is_document = any(doc_type_val == item.value for item in DocumentType)
+
+            if is_document:
+                if isinstance(json_val, dict):
+                    entries.append(Document.model_validate(json_val))
+                else:
+                    entries.append(Document.model_validate_json(json_val))
+            elif isinstance(json_val, dict):
+                entries.append(Entry.model_validate(json_val))
+            else:
+                entries.append(Entry.model_validate_json(json_val))
 
         return entries
