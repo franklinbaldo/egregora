@@ -86,6 +86,6 @@ def setup_writer_agent(
 
     @agent.system_prompt
     def inject_profiles_context(ctx: RunContext[WriterDeps]) -> str:
-        return load_profiles_context(ctx.deps.active_authors, ctx.deps.resources.profiles_dir)
+        return load_profiles_context(ctx.deps.active_authors, ctx.deps.resources.output)
 
     return agent
