@@ -75,15 +75,14 @@ class MkDocsAdapter(BaseOutputSink):
         prefix = compute_site_prefix(self.site_root, site_paths["docs_dir"])
         self._ctx = url_context or UrlContext(base_url="", site_prefix=prefix, base_path=self.site_root)
         self.posts_dir = site_paths["posts_dir"]
-        self.profiles_dir = site_paths["profiles_dir"]
-        self.journal_dir = site_paths["journal_dir"]
+        # UNIFIED: Everything goes to posts_dir now
+        self.profiles_dir = self.posts_dir
+        self.journal_dir = self.posts_dir
         self.media_dir = site_paths["media_dir"]
-        self.urls_dir = self.media_dir / "urls"
+        # Note: urls_dir removed - enrichment URLs now go to posts_dir
 
         self.posts_dir.mkdir(parents=True, exist_ok=True)
-        self.profiles_dir.mkdir(parents=True, exist_ok=True)
-        self.journal_dir.mkdir(parents=True, exist_ok=True)
-        self.urls_dir.mkdir(parents=True, exist_ok=True)
+        # profiles_dir and journal_dir point to posts_dir, so no need to mkdir them separately
         self.media_dir.mkdir(parents=True, exist_ok=True)
 
         # Configure URL convention to match filesystem layout
@@ -154,6 +153,9 @@ class MkDocsAdapter(BaseOutputSink):
     def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path | None:  # noqa: PLR0911
         """Resolve filesystem path for a document based on its type.
 
+        UNIFIED: Posts, profiles, journals, and enrichment URLs all live in posts_dir.
+        We distinguish them by filename patterns and category metadata.
+
         Args:
             doc_type: Type of document
             identifier: Document identifier
@@ -164,19 +166,25 @@ class MkDocsAdapter(BaseOutputSink):
         """
         match doc_type:
             case DocumentType.PROFILE:
-                return self.profiles_dir / f"{identifier}.md"
+                # Profiles: simple filename (e.g., "user-123.md")
+                return self.posts_dir / f"{identifier}.md"
             case DocumentType.POST:
+                # Posts: dated filename (e.g., "2024-01-01-slug.md")
                 matches = list(self.posts_dir.glob(f"*-{identifier}.md"))
                 if matches:
                     return max(matches, key=lambda p: p.stat().st_mtime)
                 return None
             case DocumentType.JOURNAL:
-                return self.journal_dir / f"{identifier.replace('/', '-')}.md"
+                # Journals: simple filename with slug
+                return self.posts_dir / f"{identifier.replace('/', '-')}.md"
             case DocumentType.ENRICHMENT_URL:
-                return self.urls_dir / f"{identifier}.md"
+                # Enrichment URLs: now in posts_dir (unified)
+                return self.posts_dir / f"{identifier}.md"
             case DocumentType.ENRICHMENT_MEDIA:
+                # Enrichment media: stays in media_dir
                 return self.media_dir / f"{identifier}.md"
             case DocumentType.MEDIA:
+                # Media files: stay in media_dir
                 return self.media_dir / identifier
             case _:
                 return None
@@ -484,18 +492,17 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if not hasattr(self, "_site_root") or self._site_root is None:
             return
 
-        # Scan directories and yield DocumentMetadata
-        yield from self._list_from_dir(self.posts_dir, DocumentType.POST, doc_type)
-        yield from self._list_from_dir(self.profiles_dir, DocumentType.PROFILE, doc_type)
+        # UNIFIED: Scan posts_dir once, detect types by category metadata
+        # profiles_dir and journal_dir now point to posts_dir, so we only scan once
+        yield from self._list_from_unified_dir(self.posts_dir, doc_type)
+
+        # Media and enrichment media stay in separate directories
         yield from self._list_from_dir(
             self._site_root / "docs" / "media",
             DocumentType.ENRICHMENT_MEDIA,
             doc_type,
             recursive=True,
             exclude_names={"index.md"},
-        )
-        yield from self._list_from_dir(
-            self.media_dir / "urls", DocumentType.ENRICHMENT_URL, doc_type, recursive=True
         )
 
     def _documents_from_dir(
@@ -563,6 +570,79 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     #    """
     #    ...
 
+    @staticmethod
+    def _detect_document_type_from_metadata(path: Path) -> DocumentType:
+        """Detect document type by reading category metadata from file.
+
+        Returns the appropriate DocumentType based on categories in frontmatter.
+        Falls back to POST for documents without category metadata.
+        """
+        try:
+            content = path.read_text(encoding="utf-8")
+            metadata, _ = parse_frontmatter(content)
+
+            if not metadata:
+                # No frontmatter, assume POST
+                return DocumentType.POST
+
+            categories = metadata.get("categories", [])
+            if not isinstance(categories, list):
+                categories = []
+
+            # Detect by category
+            if "Authors" in categories:
+                return DocumentType.PROFILE
+            elif "Journal" in categories:
+                return DocumentType.JOURNAL
+            elif "Enrichment" in categories:
+                return DocumentType.ENRICHMENT_URL
+            else:
+                # Default to POST (including posts without categories)
+                return DocumentType.POST
+
+        except (OSError, yaml.YAMLError):
+            # If we can't read/parse, assume POST
+            return DocumentType.POST
+
+    def _list_from_unified_dir(
+        self,
+        directory: Path,
+        filter_type: DocumentType | None = None,
+        *,
+        exclude_names: set[str] | None = None,
+    ) -> Iterator[DocumentMetadata]:
+        """List documents from unified directory, detecting types by category metadata.
+
+        This replaces scanning separate directories for posts, profiles, journals, and enrichments.
+        All these document types now live in posts_dir, distinguished by their category metadata.
+        """
+        if not directory or not directory.exists():
+            return
+
+        exclude_set = exclude_names or set()
+
+        for path in directory.glob("*.md"):
+            if not path.is_file() or path.name in exclude_set:
+                continue
+
+            try:
+                # Detect document type by reading category metadata
+                detected_type = self._detect_document_type_from_metadata(path)
+
+                # Apply type filter if specified
+                if filter_type is not None and detected_type != filter_type:
+                    continue
+
+                identifier = str(path.relative_to(self._site_root))
+                mtime_ns = path.stat().st_mtime_ns
+                yield DocumentMetadata(
+                    identifier=identifier,
+                    doc_type=detected_type,
+                    metadata={"mtime_ns": mtime_ns, "path": str(path)},
+                )
+            except (OSError, ValueError):
+                continue
+
     def _list_from_dir(
         self,
         directory: Path,
@@ -572,7 +652,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         recursive: bool = False,
         exclude_names: set[str] | None = None,
     ) -> Iterator[DocumentMetadata]:
-        """Helper to yield DocumentMetadata from a directory."""
+        """Helper to yield DocumentMetadata from a directory.
+
+        For non-unified directories (media, enrichment media) where all files are the same type.
+        """
         if filter_type is not None and filter_type != dtype:
             return
 
@@ -632,18 +715,21 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             case DocumentType.POST:
                 return self.posts_dir / f"{url_path.split('/')[-1]}.md"
             case DocumentType.PROFILE:
-                return self.profiles_dir / f"{url_path.split('/')[-1]}.md"
+                # UNIFIED: profiles go to posts_dir now
+                return self.posts_dir / f"{url_path.split('/')[-1]}.md"
             case DocumentType.JOURNAL:
                 # When url_path is just "journal" (root journal URL), return journal.md in docs root
                 # Otherwise, extract the slug and put it in journal/
+                # UNIFIED: Journal entries go to posts_dir now.
                 slug = url_path.split("/")[-1]
                 if url_path == "journal":
                     return self.docs_dir / "journal.md"
-                return self.journal_dir / f"{slug}.md"
+                return self.posts_dir / f"{slug}.md"
             case DocumentType.ENRICHMENT_URL:
                 # url_path might be 'media/urls/slug' -> we want 'slug.md' inside urls_dir
+                # UNIFIED: Enrichment URLs -> posts_dir
                 slug = url_path.split("/")[-1]
-                return self.urls_dir / f"{slug}.md"
+                return self.posts_dir / f"{slug}.md"
             case DocumentType.ENRICHMENT_MEDIA:
                 # url_path is like 'media/images/foo' -> we want 'docs/media/images/foo.md'
                 rel_path = self._strip_media_prefix(url_path)
@@ -669,8 +755,34 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     # Document Writing Strategies ---------------------------------------------
 
+    @staticmethod
+    def _ensure_category(metadata: dict[str, Any], category: str) -> dict[str, Any]:
+        """Ensure metadata has a valid categories list with the specified category.
+
+        Handles malformed categories (non-list values) by converting to list.
+        Avoids duplicate categories.
+        """
+        categories = metadata.get("categories", [])
+
+        # Handle malformed categories - must be a list
+        if not isinstance(categories, list):
+            categories = []
+
+        # Add category if not already present
+        if category and category not in categories:
+            categories.append(category)
+
+        metadata["categories"] = categories
+        return metadata
+
     def _write_post_doc(self, document: Document, path: Path) -> None:
         metadata = dict(document.metadata or {})
+
+        # Posts don't need a forced category - Material blog shows uncategorized posts in main feed
+        # But ensure categories is a list if present
+        if "categories" in metadata and not isinstance(metadata["categories"], list):
+            metadata["categories"] = []
+
         if "date" in metadata:
             # Parse to datetime object for proper YAML serialization (unquoted)
             # Material blog plugin requires native datetime type, not string
@@ -711,6 +823,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _write_journal_doc(self, document: Document, path: Path) -> None:
         metadata = self._ensure_hidden(dict(document.metadata or {}))
+
+        # Add Journal category using helper (handles malformed data)
+        metadata = self._ensure_category(metadata, "Journal")
+
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
@@ -728,6 +844,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Ensure avatar is present (fallback if needed)
         if "avatar" not in metadata:
             metadata["avatar"] = generate_fallback_avatar_url(author_uuid)
+
+        # Add Authors category using helper (handles malformed data)
+        metadata = self._ensure_category(metadata, "Authors")
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
@@ -760,6 +879,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             metadata.setdefault("parent_id", document.parent_id)
         if document.parent and document.parent.metadata.get("slug"):
             metadata.setdefault("parent_slug", document.parent.metadata.get("slug"))
+
+        # Add Enrichment category using helper (handles malformed data)
+        metadata = self._ensure_category(metadata, "Enrichment")
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
@@ -949,6 +1071,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     def get_recent_media(self, limit: int = 5) -> list[dict[str, Any]]:
         """Get recent media items for media index.
 
+        UNIFIED: Enrichment URLs now live in posts_dir with "Enrichment" category.
+
         Args:
             limit: Maximum number of items to return
 
@@ -958,12 +1082,24 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         """
         media_items = []
 
-        urls_dir = self.media_dir / "urls" if hasattr(self, "media_dir") else None
-        if not urls_dir or not urls_dir.exists():
+        if not hasattr(self, "posts_dir") or not self.posts_dir.exists():
             return media_items
 
-        # Get all URL enrichments, sorted by modification time (newest first)
-        url_files = sorted(urls_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
+        # Get all files from posts_dir, filter for Enrichment category
+        all_files = list(self.posts_dir.glob("*.md"))
+        enrichment_files = []
+
+        for path in all_files:
+            try:
+                # Check if file has Enrichment category
+                doc_type = self._detect_document_type_from_metadata(path)
+                if doc_type == DocumentType.ENRICHMENT_URL:
+                    enrichment_files.append(path)
+            except (OSError, yaml.YAMLError):
+                continue
+
+        # Sort by modification time (newest first) and limit
+        url_files = sorted(enrichment_files, key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
 
         for media_path in url_files:
             try:

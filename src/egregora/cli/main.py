@@ -57,7 +57,14 @@ console = Console()
 logging.basicConfig(
     level=logging.INFO,
     format="%(message)s",
-    handlers=[RichHandler(console=console, rich_tracebacks=True, show_path=False)],
+    handlers=[
+        RichHandler(
+            console=console,
+            rich_tracebacks=True,
+            show_path=False,
+            log_time_format="[%Y-%m-%d %H:%M:%S]",  # ISO date format
+        )
+    ],
 )
 
 logger = logging.getLogger(__name__)

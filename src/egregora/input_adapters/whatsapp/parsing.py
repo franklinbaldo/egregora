@@ -7,6 +7,7 @@ import logging
 import re
 import unicodedata
 import zipfile
+from functools import lru_cache
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
@@ -70,8 +71,13 @@ def _normalize_text(value: str) -> str:
     return _INVISIBLE_MARKS.sub("", normalized)
 
 
+@lru_cache(maxsize=1024)
 def _parse_message_date(token: str) -> date | None:
-    """Parse date token into a date object using multiple parsing strategies."""
+    """Parse date token into a date object using multiple parsing strategies.
+    
+    Performance: Uses lru_cache since WhatsApp logs contain many repeated
+    date strings (messages from the same day).
+    """
     normalized = token.strip()
     if not normalized:
         return None
@@ -87,8 +93,13 @@ def _parse_message_date(token: str) -> date | None:
     return None
 
 
+@lru_cache(maxsize=256)
 def _parse_message_time(time_token: str) -> datetime.time | None:
-    """Parse time token into a time object (naive, for later localization)."""
+    """Parse time token into a time object (naive, for later localization).
+    
+    Performance: Uses lru_cache since messages at the same time of day
+    (e.g., "10:30") repeat frequently across different dates.
+    """
     time_token = time_token.strip()
 
     am_pm_match = _AM_PM_PATTERN.search(time_token)
@@ -317,7 +328,7 @@ def parse_source(
         messages.original_line, messages.tagged_line, messages.message_date
     ).cast(dt.json)
 
-    ir_messages = messages.mutate(
+    result_table = messages.mutate(
         event_id=messages.message_id,
         tenant_id=tenant_literal,
         source=source_literal,
@@ -332,4 +343,4 @@ def parse_source(
         created_by_run=created_by_literal,
     )
 
-    return ir_messages.select(*IR_MESSAGE_SCHEMA.names)
+    return result_table.select(*IR_MESSAGE_SCHEMA.names)
