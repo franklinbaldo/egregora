@@ -28,7 +28,7 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
-from egregora.output_adapters.conventions import StandardUrlConvention
+from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 from egregora.utils.datetime_utils import parse_datetime_flexible
@@ -73,7 +73,9 @@ class MkDocsAdapter(BaseOutputSink):
         self._site_root = self.site_root
         self.docs_dir = site_paths["docs_dir"]
         prefix = compute_site_prefix(self.site_root, site_paths["docs_dir"])
-        self._ctx = url_context or UrlContext(base_url="", site_prefix=prefix, base_path=self.site_root)
+        self._ctx = url_context or UrlContext(
+            base_url="", site_prefix=prefix, base_path=self.site_root
+        )
         self.posts_dir = site_paths["posts_dir"]
         # UNIFIED: Everything goes to posts_dir now
         self.profiles_dir = self.posts_dir
@@ -84,6 +86,17 @@ class MkDocsAdapter(BaseOutputSink):
         self.posts_dir.mkdir(parents=True, exist_ok=True)
         # profiles_dir and journal_dir point to posts_dir, so no need to mkdir them separately
         self.media_dir.mkdir(parents=True, exist_ok=True)
+
+        # Configure URL convention to match filesystem layout
+        # This ensures that generated URLs align with where files are actually stored
+        routes = RouteConfig(
+            posts_prefix=self.posts_dir.relative_to(self.docs_dir).as_posix(),
+            profiles_prefix=self.profiles_dir.relative_to(self.docs_dir).as_posix(),
+            media_prefix=self.media_dir.relative_to(self.docs_dir).as_posix(),
+            journal_prefix=self.journal_dir.relative_to(self.docs_dir).as_posix(),
+        )
+        self._url_convention = StandardUrlConvention(routes)
+
         self._initialized = True
 
     @property
@@ -139,7 +152,9 @@ class MkDocsAdapter(BaseOutputSink):
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
 
-    def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path | None:  # noqa: PLR0911
+    def _resolve_document_path(
+        self, doc_type: DocumentType, identifier: str
+    ) -> Path | None:  # noqa: PLR0911
         """Resolve filesystem path for a document based on its type.
 
         UNIFIED: Posts, profiles, journals, and enrichment URLs all live in posts_dir.
@@ -213,7 +228,9 @@ class MkDocsAdapter(BaseOutputSink):
         """Check if the site root contains a mkdocs.yml file."""
         return self._scaffolder.supports_site(site_root)
 
-    def scaffold_site(self, site_root: Path, site_name: str, **_kwargs: object) -> tuple[Path, bool]:
+    def scaffold_site(
+        self, site_root: Path, site_name: str, **_kwargs: object
+    ) -> tuple[Path, bool]:
         """Create or update an MkDocs site using the dedicated scaffolder."""
         return self._scaffolder.scaffold_site(site_root, site_name, **_kwargs)
 
@@ -581,13 +598,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             # Detect by category
             if "Authors" in categories:
                 return DocumentType.PROFILE
-            elif "Journal" in categories:
+            if "Journal" in categories:
                 return DocumentType.JOURNAL
-            elif "Enrichment" in categories:
+            if "Enrichment" in categories:
                 return DocumentType.ENRICHMENT_URL
-            else:
-                # Default to POST (including posts without categories)
-                return DocumentType.POST
+            # Default to POST (including posts without categories)
+            return DocumentType.POST
 
         except (OSError, yaml.YAMLError):
             # If we can't read/parse, assume POST
@@ -806,7 +822,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             if related_posts_list:
                 metadata["related_posts"] = related_posts_list
 
-        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(
+            metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
+        )
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
@@ -816,7 +834,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Add Journal category using helper (handles malformed data)
         metadata = self._ensure_category(metadata, "Journal")
 
-        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(
+            metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
+        )
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
@@ -837,10 +857,14 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Add Authors category using helper (handles malformed data)
         metadata = self._ensure_category(metadata, "Authors")
 
-        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(
+            metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
+        )
 
         all_posts = list(self.documents())
-        author_posts_docs = [post for post in all_posts if author_uuid in post.metadata.get("authors", [])]
+        author_posts_docs = [
+            post for post in all_posts if author_uuid in post.metadata.get("authors", [])
+        ]
         metadata["posts"] = [
             {
                 "title": post.metadata.get("title"),
@@ -872,7 +896,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Add Enrichment category using helper (handles malformed data)
         metadata = self._ensure_category(metadata, "Enrichment")
 
-        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(
+            metadata, default_flow_style=False, allow_unicode=True, sort_keys=False
+        )
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
@@ -882,7 +908,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             return
 
         payload = (
-            document.content if isinstance(document.content, bytes) else document.content.encode("utf-8")
+            document.content
+            if isinstance(document.content, bytes)
+            else document.content.encode("utf-8")
         )
         path.write_bytes(payload)
 
@@ -990,7 +1018,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         # Count profiles (exclude index.md)
         if self.profiles_dir.exists():
-            stats["profile_count"] = len([p for p in self.profiles_dir.glob("*.md") if p.name != "index.md"])
+            stats["profile_count"] = len(
+                [p for p in self.profiles_dir.glob("*.md") if p.name != "index.md"]
+            )
 
         # Count media (URLs + images + videos + audio - exclude indexes)
         if self.media_dir.exists():
@@ -999,7 +1029,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         # Count journal entries (exclude index.md)
         if self.journal_dir.exists():
-            stats["journal_count"] = len([p for p in self.journal_dir.glob("*.md") if p.name != "index.md"])
+            stats["journal_count"] = len(
+                [p for p in self.journal_dir.glob("*.md") if p.name != "index.md"]
+            )
 
         return stats
 
@@ -1043,7 +1075,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                         "uuid": author_uuid,
                         "name": metadata.get("name", author_uuid[:8]),
                         "avatar": avatar,
-                        "bio": metadata.get("bio", "Profile pending - first contributions detected"),
+                        "bio": metadata.get(
+                            "bio", "Profile pending - first contributions detected"
+                        ),
                         "post_count": post_count,
                         "word_count": word_count,
                         "topics": [topic for topic, count in top_topics],
@@ -1132,7 +1166,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Load .authors.yml
         authors_file = None
         if hasattr(self, "site_root") and self.site_root:
-            for potential_path in [self.site_root / "docs" / ".authors.yml", self.site_root / ".authors.yml"]:
+            for potential_path in [
+                self.site_root / "docs" / ".authors.yml",
+                self.site_root / ".authors.yml",
+            ]:
                 if potential_path.exists():
                     authors_file = potential_path
                     break
@@ -1169,7 +1206,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Render using Jinja template
         try:
             templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
-            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
+            env = Environment(
+                loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape()
+            )
             template = env.get_template("partials/author_cards.jinja")
             author_cards_html = template.render(authors=authors_data)
             return content.rstrip() + "\n" + author_cards_html
@@ -1231,7 +1270,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Render the tags page template
         try:
             templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
-            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
+            env = Environment(
+                loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape()
+            )
 
             template = env.get_template("docs/posts/tags.md.jinja")
             content = template.render(
