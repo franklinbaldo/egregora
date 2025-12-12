@@ -10,7 +10,7 @@ import pytest
 from egregora.agents.writer import _index_new_content_in_rag
 from egregora.config.settings import RAGSettings
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.orchestration.write_pipeline import (
+from egregora.orchestration.pipelines.write import (
     _index_media_into_rag,
     _prepare_pipeline_data,
 )
