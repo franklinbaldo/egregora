@@ -10,6 +10,7 @@ from pydantic_ai.models.test import TestModel
 
 from egregora_v3.core.context import PipelineContext
 from egregora_v3.core.types import Document, DocumentStatus, DocumentType, Entry
+from egregora_v3.engine.template_loader import TemplateLoader
 
 
 class WriterAgent:
@@ -19,14 +20,21 @@ class WriterAgent:
     Supports RunContext[PipelineContext] for dependency injection.
     """
 
-    def __init__(self, model: str = "test") -> None:
+    def __init__(self, model: str = "test", *, use_templates: bool = False) -> None:
         """Initialize WriterAgent.
 
         Args:
             model: Model name (e.g., "google-gla:gemini-2.0-flash", "test")
+            use_templates: If True, use Jinja2 templates for prompts (default: False for backward compatibility)
 
         """
         self.model_name = model
+        self.use_templates = use_templates
+
+        # Initialize template loader if templates are enabled
+        self.template_loader: TemplateLoader | None = None
+        if use_templates:
+            self.template_loader = TemplateLoader()
 
         # Create Pydantic-AI agent with structured output
         # For testing, use TestModel; for production, use actual model
@@ -54,7 +62,18 @@ class WriterAgent:
     def _get_system_prompt(self) -> str:
         """Get system prompt for the agent.
 
-        TODO: Replace with Jinja2 template in Phase 3.4
+        Uses Jinja2 template if use_templates=True, otherwise uses hardcoded prompt.
+        """
+        if self.use_templates:
+            return self._get_system_prompt_from_template()
+        return self._get_hardcoded_system_prompt()
+
+    def _get_hardcoded_system_prompt(self) -> str:
+        """Get hardcoded system prompt (backward compatibility).
+
+        Returns:
+            Hardcoded system prompt string
+
         """
         return """You are a helpful assistant that generates blog posts from feed entries.
 
@@ -70,6 +89,23 @@ Return a Document with:
 - doc_type: POST
 - status: DRAFT
 """
+
+    def _get_system_prompt_from_template(self) -> str:
+        """Get system prompt from Jinja2 template.
+
+        Returns:
+            Rendered system prompt from writer/system.jinja2
+
+        """
+        if not self.template_loader:
+            msg = "Template loader not initialized. Use use_templates=True."
+            raise RuntimeError(msg)
+
+        return self.template_loader.render_template(
+            "writer/system.jinja2",
+            current_date=datetime.now(UTC),
+            run_id="writer-agent",
+        )
 
     async def generate(
         self,
@@ -125,7 +161,21 @@ Return a Document with:
     def _build_prompt(self, entries: list[Entry]) -> str:
         """Build user prompt from entries.
 
-        TODO: Replace with Jinja2 template in Phase 3.4
+        Uses Jinja2 template if use_templates=True, otherwise uses hardcoded format.
+
+        Args:
+            entries: List of entries to include in prompt
+
+        Returns:
+            Formatted prompt string
+
+        """
+        if self.use_templates:
+            return self._build_prompt_from_template(entries)
+        return self._build_hardcoded_prompt(entries)
+
+    def _build_hardcoded_prompt(self, entries: list[Entry]) -> str:
+        """Build hardcoded user prompt (backward compatibility).
 
         Args:
             entries: List of entries to include in prompt
@@ -146,3 +196,22 @@ Return a Document with:
         lines.append("Create an engaging blog post that synthesizes these entries.")
 
         return "\n".join(lines)
+
+    def _build_prompt_from_template(self, entries: list[Entry]) -> str:
+        """Build user prompt from Jinja2 template.
+
+        Args:
+            entries: List of entries to include in prompt
+
+        Returns:
+            Rendered prompt from writer/generate_post.jinja2
+
+        """
+        if not self.template_loader:
+            msg = "Template loader not initialized. Use use_templates=True."
+            raise RuntimeError(msg)
+
+        return self.template_loader.render_template(
+            "writer/generate_post.jinja2",
+            entries=entries,
+        )
