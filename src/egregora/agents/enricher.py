@@ -32,7 +32,6 @@ from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
 from pydantic_ai.models.google import GoogleModelSettings
-from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
 from egregora.config.settings import EnrichmentSettings
 from egregora.data_primitives.document import Document, DocumentType
@@ -821,29 +820,21 @@ class EnrichmentWorker(BaseWorker):
         if not total_tasks:
             return 0
 
+        logger.info(
+            "[Enrichment] Processing %d tasks (URL: %d, Media: %d)", total_tasks, len(tasks), len(media_tasks)
+        )
+
         processed_count = 0
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[bold blue]Enriching"),
-            BarColumn(),
-            TaskProgressColumn(),
-            TextColumn("[dim]{task.description}"),
-            transient=True,
-        ) as progress:
-            enrich_task = progress.add_task(
-                f"URL: {len(tasks)}, Media: {len(media_tasks)}", total=total_tasks
-            )
+        if tasks:
+            count = self._process_url_batch(tasks)
+            processed_count += count
+            logger.info("[Enrichment] URL batch complete: %d/%d", count, len(tasks))
 
-            if tasks:
-                count = self._process_url_batch(tasks)
-                processed_count += count
-                progress.update(enrich_task, advance=len(tasks))
-
-            if media_tasks:
-                count = self._process_media_batch(media_tasks)
-                processed_count += count
-                progress.update(enrich_task, advance=len(media_tasks))
+        if media_tasks:
+            count = self._process_media_batch(media_tasks)
+            processed_count += count
+            logger.info("[Enrichment] Media batch complete: %d/%d", count, len(media_tasks))
 
         logger.info("Enrichment complete: %d/%d tasks processed", processed_count, total_tasks)
         return processed_count
