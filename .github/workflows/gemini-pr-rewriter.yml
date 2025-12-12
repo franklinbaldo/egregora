@@ -78,10 +78,11 @@ jobs:
           git diff --name-status "origin/${BASE_REF}" "${HEAD_SHA}" > changed-files.txt || echo "(No files changed)" > changed-files.txt
 
           # Output for the next step using unique delimiters
-          DIFF_DELIMITER="ghadelimiter_diff_$(uuidgen)"
-          COMMITS_DELIMITER="ghadelimiter_commits_$(uuidgen)"
-          FILES_DELIMITER="ghadelimiter_files_$(uuidgen)"
-          PR_BODY_DELIMITER="ghadelimiter_pr_body_$(uuidgen)"
+          RANDOM_ID="${{ github.run_id }}_${{ github.run_attempt }}_$(date +%s%N)"
+          DIFF_DELIMITER="ghadelimiter_diff_${RANDOM_ID}"
+          COMMITS_DELIMITER="ghadelimiter_commits_${RANDOM_ID}"
+          FILES_DELIMITER="ghadelimiter_files_${RANDOM_ID}"
+          PR_BODY_DELIMITER="ghadelimiter_pr_body_${RANDOM_ID}"
 
           {
             echo "diff<<${DIFF_DELIMITER}"
@@ -111,114 +112,21 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
         with:
           script: |
-            const prompt = `You are a technical writing assistant helping improve pull request titles and descriptions.
+            const fs = require('fs');
+            const path = require('path');
 
-            ## Your Task
+            // Read the prompt template
+            const promptTemplate = fs.readFileSync('.github/prompts/pr-rewriter-prompt.md', 'utf8');
 
-            Evaluate the current PR title and description for quality. If they're not clear, descriptive, and professional, rewrite them.
-
-            ## Project Context
-
-            **Repository:** franklinbaldo/egregora
-            **Project:** Egregora is a privacy-first AI pipeline that extracts structured knowledge from unstructured communication.
-            - **Stack:** Python 3.12+ | uv | Ibis | DuckDB | Pydantic-AI | Google Gemini
-            - **Philosophy:** Clean, direct, professional commits and PRs
-
-            ## Pull Request Information
-
-            - **PR #${process.env.PR_NUMBER}**
-            - **Author:** @${process.env.PR_AUTHOR}
-
-            ### Current Title
-            \`\`\`
-            ${process.env.PR_TITLE}
-            \`\`\`
-
-            ### Current Description
-            \`\`\`
-            ${process.env.PR_BODY}
-            \`\`\`
-
-            ### Commit Messages
-            \`\`\`
-            ${process.env.COMMITS}
-            \`\`\`
-
-            ### Changed Files
-            \`\`\`
-            ${process.env.CHANGED_FILES}
-            \`\`\`
-
-            ### Code Diff
-            \`\`\`diff
-            ${process.env.DIFF}
-            \`\`\`
-
-            ## Evaluation Criteria
-
-            ### Good PR Title:
-            - Concise (50-72 characters ideally)
-            - Starts with a verb (Add, Fix, Update, Refactor, Remove, etc.)
-            - Describes WHAT changed, not WHY
-            - Professional and clear
-            - Examples:
-              - ✅ "Add Gemini-powered PR review workflow"
-              - ✅ "Fix ibis API deprecation in query builder"
-              - ✅ "Refactor authentication to use UUID-based privacy"
-              - ❌ "Update stuff"
-              - ❌ "WIP: trying to fix the thing"
-              - ❌ "asdf"
-
-            ### Good PR Description:
-            - Explains WHY the change is needed
-            - Describes WHAT was changed (high level)
-            - Includes any important implementation notes
-            - Lists testing done (if applicable)
-            - Links to related issues (if applicable)
-            - Professional tone
-            - Well-formatted with markdown
-
-            ## Output Format
-
-            Your response MUST be valid JSON with this exact structure:
-
-            \`\`\`json
-            {
-              "needs_rewrite": true,
-              "title": "New improved title here",
-              "description": "New improved description here (markdown formatted)",
-              "reasoning": "Brief explanation of what was wrong and what you improved"
-            }
-            \`\`\`
-
-            OR if the current title and description are already good:
-
-            \`\`\`json
-            {
-              "needs_rewrite": false,
-              "reasoning": "Brief explanation of why the current title and description are acceptable"
-            }
-            \`\`\`
-
-            ## Important Guidelines
-
-            1. **Be Objective:** Only suggest rewrites if there's a genuine quality issue
-            2. **Preserve Intent:** Keep the author's intended meaning
-            3. **Don't Over-Engineer:** Simple, clear titles/descriptions are better than verbose ones
-            4. **Respect the Author:** Don't rewrite just for stylistic preference
-            5. **Use the Code:** The diff and commits are ground truth - use them to understand what actually changed
-            6. **JSON Only:** Your response MUST be valid JSON, nothing else
-
-            ## Common Issues to Fix
-
-            - Generic titles like "Update", "Fix bug", "Changes"
-            - Missing or unhelpful descriptions
-            - Typos or grammatical errors
-            - Overly verbose or unclear language
-            - Missing context that would help reviewers
-            - WIP/draft language in non-draft PRs
-
-            Now, evaluate the PR title and description above and provide your JSON response.`;
+            // Replace placeholders with actual values
+            const prompt = promptTemplate
+              .replace(/\{\{PR_NUMBER\}\}/g, process.env.PR_NUMBER)
+              .replace(/\{\{PR_AUTHOR\}\}/g, process.env.PR_AUTHOR)
+              .replace(/\{\{PR_TITLE\}\}/g, process.env.PR_TITLE)
+              .replace(/\{\{PR_BODY\}\}/g, process.env.PR_BODY)
+              .replace(/\{\{COMMITS\}\}/g, process.env.COMMITS)
+              .replace(/\{\{CHANGED_FILES\}\}/g, process.env.CHANGED_FILES)
+              .replace(/\{\{DIFF\}\}/g, process.env.DIFF);
 
             core.exportVariable('GEMINI_PROMPT', prompt);
 

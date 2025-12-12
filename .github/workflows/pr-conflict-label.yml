@@ -26,15 +26,36 @@ jobs:
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
 
-            // Allow GitHub time to calculate mergeability
-            await new Promise((resolve) => setTimeout(resolve, 5000));
+            // Retry logic to wait for GitHub to calculate mergeability
+            let prData;
+            let attempts = 0;
+            const maxAttempts = 5;
+            const baseDelay = 2000; // Start with 2 seconds
 
-            // Retrieve the latest mergeable state
-            const { data: prData } = await github.rest.pulls.get({
-              owner,
-              repo,
-              pull_number,
-            });
+            while (attempts < maxAttempts) {
+              attempts++;
+
+              const { data } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number,
+              });
+              prData = data;
+
+              // If mergeable_state is 'unknown', GitHub is still calculating
+              if (prData.mergeable_state !== 'unknown') {
+                console.log(`Mergeable state determined after ${attempts} attempt(s): ${prData.mergeable_state}`);
+                break;
+              }
+
+              if (attempts < maxAttempts) {
+                const delay = baseDelay * Math.pow(2, attempts - 1);
+                console.log(`Attempt ${attempts}: mergeable_state is 'unknown', waiting ${delay}ms before retry...`);
+                await new Promise((resolve) => setTimeout(resolve, delay));
+              } else {
+                console.log(`Max attempts reached. Final state: ${prData.mergeable_state}`);
+              }
+            }
 
             const mergeableState = prData.mergeable_state;
 
