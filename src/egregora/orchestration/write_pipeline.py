@@ -269,18 +269,16 @@ def _process_single_window(
         zip_path=ctx.input_path,
     )
 
-    # Persist media immediately so background workers can access it
-    if media_mapping:
+    # Media persistence is now deferred until after enrichment
+    # to allow for proper slug generation and content processing.
+    if media_mapping and not ctx.enable_enrichment:
+        # Only persist immediately if enrichment is disabled (legacy/fallback mode)
         for media_doc in media_mapping.values():
-            # Note: PII check happens in background worker now.
-            # If PII is found later, the worker should delete/redact the file?
-            # Or we accept that raw media is on disk until enriched?
-            # For now, we persist everything.
             try:
                 output_sink.persist(media_doc)
-            except (OSError, PermissionError):  # pragma: no cover - defensive
+            except (OSError, PermissionError):
                 logger.exception("Failed to write media file %s", media_doc.metadata.get("filename"))
-            except ValueError:  # pragma: no cover - defensive
+            except ValueError:
                 logger.exception("Invalid media document %s", media_doc.metadata.get("filename"))
 
     # Enrichment (Schedule tasks)
@@ -651,7 +649,7 @@ def _perform_enrichment(
         task_store=ctx.task_store,
     )
 
-    # Schedule enrichment tasks (fire and forget)
+    # Schedule enrichment tasks
     schedule_enrichment(
         window_table,
         media_mapping,
@@ -659,6 +657,20 @@ def _perform_enrichment(
         enrichment_context,
         run_id=ctx.run_id,
     )
+
+    # Execute enrichment immediately (synchronously) to ensure writer has access
+    # to enriched media and updated references.
+    worker = EnrichmentWorker(ctx)
+    total_processed = 0
+    while True:
+        processed = worker.run()
+        if processed == 0:
+            break
+        total_processed += processed
+        logger.info("Synchronously processed %d enrichment tasks", processed)
+    
+    if total_processed > 0:
+        logger.info("Enrichment complete. Processed %d items.", total_processed)
 
     # Return original table since enrichment happens in background
     return window_table
