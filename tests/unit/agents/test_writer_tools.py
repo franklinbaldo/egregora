@@ -24,6 +24,7 @@ from egregora.agents.writer_tools import (
     write_profile_impl,
 )
 from egregora.data_primitives.document import DocumentType
+from egregora.rag.backend import RAGBackend
 
 
 class TestWriterToolsExtraction:
@@ -99,15 +100,17 @@ class TestWriterToolsExtraction:
     def test_search_media_impl_handles_rag_errors(self):
         """Test search_media_impl gracefully handles RAG backend errors."""
         # This test verifies error handling works without needing actual RAG backend
+        mock_backend = Mock(spec=RAGBackend)
+        mock_backend.query.side_effect = RuntimeError("RAG error")
 
-        # Patch search to raise an error
-        with patch("egregora.agents.writer_tools.search", side_effect=RuntimeError("RAG error")):
-            # Act
-            with pytest.raises(ModelRetry) as excinfo:
-                search_media_impl("test query", top_k=5)
+        ctx = ToolContext(output_sink=Mock(), window_label="test", rag_backend=mock_backend)
 
-            # Assert - should raise ModelRetry on connection error
-            assert "RAG backend unavailable" in str(excinfo.value)
+        # Act
+        with pytest.raises(ModelRetry) as excinfo:
+            search_media_impl(ctx, "test query", top_k=5)
+
+        # Assert - should raise ModelRetry on connection error
+        assert "RAG backend unavailable" in str(excinfo.value)
 
     def test_annotate_conversation_impl_raises_without_store(self):
         """Test annotate_conversation_impl raises error when store is None."""
@@ -191,5 +194,5 @@ class TestImportFix:
         # This test will fail if imports are broken
         # If we get here, imports work
         assert callable(writer_tools.search_media_impl)
-        assert callable(rag_pkg.search)
+        # Note: global 'search' has been removed from rag_pkg, verifying models instead
         assert rag_models.RAGQueryRequest is not None

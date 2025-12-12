@@ -23,13 +23,13 @@ from pydantic_ai import ModelRetry
 from egregora.agents.banner.agent import generate_banner
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
-from egregora.rag import search
 from egregora.rag.models import RAGQueryRequest
 
 if TYPE_CHECKING:
     from egregora.agents.capabilities import AsyncProfileCapability, BackgroundBannerCapability
     from egregora.database.annotations_store import AnnotationsStore
     from egregora.output_adapters.base import OutputSink
+    from egregora.rag.backend import RAGBackend
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +107,7 @@ class ToolContext:
     output_sink: OutputSink
     window_label: str
     profile_capability: AsyncProfileCapability | None = None
+    rag_backend: RAGBackend | None = None
 
 
 @dataclass
@@ -204,10 +205,11 @@ def write_profile_impl(ctx: ToolContext, author_uuid: str, content: str) -> Writ
     return WriteProfileResult(status="success", path=doc_id)
 
 
-def search_media_impl(query: str, top_k: int = 5) -> SearchMediaResult:
+def search_media_impl(ctx: ToolContext, query: str, top_k: int = 5) -> SearchMediaResult:
     """Search for relevant media using RAG.
 
     Args:
+        ctx: Tool context with RAG backend
         query: Search query describing the media
         top_k: Number of results to return
 
@@ -218,10 +220,14 @@ def search_media_impl(query: str, top_k: int = 5) -> SearchMediaResult:
         ModelRetry: If RAG backend is unavailable (transient error)
 
     """
+    if not ctx.rag_backend:
+        logger.debug("Media search skipped - RAG backend not configured")
+        return SearchMediaResult(results=[])
+
     try:
         # Execute RAG search
         request = RAGQueryRequest(text=query, top_k=top_k)
-        response = search(request)
+        response = ctx.rag_backend.query(request)
 
         # Convert RAGHit results to MediaItem format
         media_items: list[MediaItem] = []

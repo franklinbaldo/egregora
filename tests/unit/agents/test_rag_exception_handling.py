@@ -38,6 +38,8 @@ class TestRAGExceptionHandling:
         mock_resources = Mock()
         mock_resources.retrieval_config = rag_settings_factory(enabled=True)
         mock_resources.output = Mock()
+        mock_backend = Mock()
+        mock_resources.rag_backend = mock_backend
 
         # Use real Document instances
         test_doc = Document(
@@ -47,15 +49,14 @@ class TestRAGExceptionHandling:
         )
         mock_resources.output.documents = Mock(return_value=[test_doc])
 
-        # Mock only the external dependency
-        with patch("egregora.agents.writer.index_documents") as mock_index:
-            mock_index.side_effect = RuntimeError("Database connection failed")
+        # Mock the backend call to fail
+        mock_backend.index_documents.side_effect = RuntimeError("Database connection failed")
 
-            # Should not raise - error is caught and logged
-            _index_new_content_in_rag(mock_resources, saved_posts=["test-post"], saved_profiles=[])
+        # Should not raise - error is caught and logged
+        _index_new_content_in_rag(mock_resources, saved_posts=["test-post"], saved_profiles=[])
 
-            # Verify index_documents was called
-            mock_index.assert_called_once()
+        # Verify index_documents was called
+        mock_backend.index_documents.assert_called_once()
 
     def test_successful_indexing_logs_count(self, caplog, rag_settings_factory):
         """Verify successful indexing logs the indexed document count."""
@@ -63,6 +64,8 @@ class TestRAGExceptionHandling:
         mock_resources = Mock()
         mock_resources.retrieval_config = rag_settings_factory(enabled=True)
         mock_resources.output = Mock()
+        mock_backend = Mock()
+        mock_resources.rag_backend = mock_backend
 
         # Use real Document instances
         test_docs = [
@@ -75,18 +78,17 @@ class TestRAGExceptionHandling:
         ]
         mock_resources.output.documents = Mock(return_value=test_docs)
 
-        with patch("egregora.agents.writer.index_documents") as mock_index:
-            with caplog.at_level("INFO"):
-                _index_new_content_in_rag(
-                    mock_resources,
-                    saved_posts=["test-post-0", "test-post-1", "test-post-2"],
-                    saved_profiles=[],
-                )
+        with caplog.at_level("INFO"):
+            _index_new_content_in_rag(
+                mock_resources,
+                saved_posts=["test-post-0", "test-post-1", "test-post-2"],
+                saved_profiles=[],
+            )
 
-            # Verify indexing was called
-            mock_index.assert_called_once()
-            # Verify log message
-            assert "Indexed 3 new posts in RAG" in caplog.text
+        # Verify indexing was called
+        mock_backend.index_documents.assert_called_once()
+        # Verify log message
+        assert "Indexed 3 new posts in RAG" in caplog.text
 
     def test_no_indexing_when_rag_disabled(self, rag_settings_factory):
         """Verify indexing is skipped when RAG is disabled."""
@@ -94,12 +96,13 @@ class TestRAGExceptionHandling:
         mock_resources = Mock()
         mock_resources.retrieval_config = rag_settings_factory(enabled=False)
         mock_resources.output = Mock()
+        # Even if backend is somehow present, config flag should prevent it
+        mock_resources.rag_backend = Mock()
 
-        with patch("egregora.rag.index_documents") as mock_index:
-            _index_new_content_in_rag(mock_resources, saved_posts=["test-post"], saved_profiles=[])
+        _index_new_content_in_rag(mock_resources, saved_posts=["test-post"], saved_profiles=[])
 
-            # Should not attempt indexing when disabled
-            mock_index.assert_not_called()
+        # Should not attempt indexing when disabled
+        mock_resources.rag_backend.index_documents.assert_not_called()
 
     def test_no_indexing_when_no_posts_saved(self, rag_settings_factory):
         """Verify indexing is skipped when no posts were saved."""
@@ -107,13 +110,13 @@ class TestRAGExceptionHandling:
         mock_resources = Mock()
         mock_resources.retrieval_config = rag_settings_factory(enabled=True)
         mock_resources.output = Mock()
+        mock_resources.rag_backend = Mock()
 
-        with patch("egregora.rag.index_documents") as mock_index:
-            # No posts or profiles saved (empty lists)
-            _index_new_content_in_rag(mock_resources, saved_posts=[], saved_profiles=[])
+        # No posts or profiles saved (empty lists)
+        _index_new_content_in_rag(mock_resources, saved_posts=[], saved_profiles=[])
 
-            # Should not attempt indexing
-            mock_index.assert_not_called()
+        # Should not attempt indexing
+        mock_resources.rag_backend.index_documents.assert_not_called()
 
     def test_rag_enabled_by_default(self, rag_settings_factory):
         """Verify RAG is enabled by default in settings."""
@@ -133,7 +136,7 @@ class TestPipelineRAGExceptionHandling:
             "RAG indexing should catch specific exceptions (ConnectionError, TimeoutError), not broad Exception"
         )
         # Should have RAG indexing code
-        assert "index_documents(existing_docs)" in source
+        assert "ctx.rag_backend.index_documents(existing_docs)" in source
 
     def test_index_media_is_disabled(self):
         """Verify media indexing is currently disabled (will be re-implemented)."""

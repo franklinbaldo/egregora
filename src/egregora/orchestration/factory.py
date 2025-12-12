@@ -20,6 +20,8 @@ from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
+from egregora.database.protocols import StorageProtocol
+from egregora.rag import create_rag_backend
 from egregora.orchestration.context import (
     PipelineConfig,
     PipelineContext,
@@ -74,6 +76,11 @@ class PipelineFactory:
         db_file = site_paths["egregora_dir"] / "app.duckdb"
         storage = DuckDBStorageManager(db_path=db_file)
 
+        # Initialize RAG backend if enabled
+        rag_backend = None
+        if run_params.config.rag.enabled:
+            rag_backend = create_rag_backend(run_params.config, site_root=site_paths["site_root"])
+
         annotations_store = AnnotationStore(storage)
 
         quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
@@ -106,6 +113,7 @@ class PipelineFactory:
             storage=storage,
             cache=cache,
             annotations_store=annotations_store,
+            rag_backend=rag_backend,
             quota_tracker=quota_tracker,
             usage_tracker=UsageTracker(),
             output_registry=output_registry,
@@ -114,6 +122,22 @@ class PipelineFactory:
         ctx = PipelineContext(config_obj, state)
 
         return ctx, pipeline_backend, runs_backend
+
+    @staticmethod
+    def create_storage_from_backend(backend: any) -> StorageProtocol:
+        """Create a storage manager from an existing backend.
+
+        This method abstracts the concrete storage implementation from the pipeline orchestration.
+        """
+        return DuckDBStorageManager.from_ibis_backend(backend)
+
+    @staticmethod
+    def create_storage_from_connection(connection: any) -> StorageProtocol:
+        """Create a storage manager from an existing connection.
+
+        This method abstracts the concrete storage implementation from the pipeline orchestration.
+        """
+        return DuckDBStorageManager.from_connection(connection)
 
     @staticmethod
     def create_database_backends(
@@ -252,6 +276,7 @@ class PipelineFactory:
             storage=ctx.storage,
             embedding_model=ctx.embedding_model,
             retrieval_config=retrieval_config,
+            rag_backend=ctx.rag_backend,
             profiles_dir=profiles_dir,
             journal_dir=journal_dir,
             prompts_dir=prompts_dir,

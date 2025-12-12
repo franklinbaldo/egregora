@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from egregora.agents.banner.agent import generate_banner
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
-from egregora.rag import RAGQueryRequest, search
+from egregora.rag import RAGQueryRequest
 
 if TYPE_CHECKING:
     from google import genai
@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from egregora.data_primitives.protocols import OutputSink
     from egregora.database.task_store import TaskStore
     from egregora.output_adapters import OutputSinkRegistry
+    from egregora.rag.backend import RAGBackend
     from egregora.utils.metrics import UsageTracker
     from egregora.utils.quota import QuotaTracker
 
@@ -134,6 +135,7 @@ class WriterResources:
     task_store: TaskStore | None = None
     output_registry: OutputSinkRegistry | None = None
     run_id: uuid.UUID | str | None = None
+    rag_backend: RAGBackend | None = None
 
 
 @dataclass(frozen=True)
@@ -205,10 +207,14 @@ class WriterDeps:
 
     def search_media(self, query: str, top_k: int = 5) -> SearchMediaResult:
         """Search for relevant media using RAG."""
+        if not self.resources.rag_backend:
+            logger.debug("Media search skipped - RAG backend not configured")
+            return SearchMediaResult(results=[])
+
         try:
             # Execute RAG search
             request = RAGQueryRequest(text=query, top_k=top_k)
-            response = search(request)
+            response = self.resources.rag_backend.query(request)
 
             # Convert RAGHit results to MediaItem format
             media_items: list[MediaItem] = []

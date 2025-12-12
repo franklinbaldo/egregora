@@ -196,8 +196,7 @@ def test_mock_fixtures_are_available(llm_response_mocks, mock_vector_store):
 
     # Verify the new RAG API functions are mocked
     # The functions should be mocked (they won't raise ImportError)
-    assert hasattr(rag, "index_documents")
-    assert hasattr(rag, "search")
+    assert hasattr(rag, "create_rag_backend")
 
 
 @pytest.mark.e2e

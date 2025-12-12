@@ -58,22 +58,17 @@ def mock_backend():
 
 def test_generate_semantic_taxonomy_insufficient_docs(mock_output_sink, mock_config):
     """Test early exit when not enough documents."""
-    with patch("egregora.ops.taxonomy.get_backend") as mock_get_backend:
-        backend = MagicMock()
-        rng = np.random.default_rng(seed=42)
-        backend.get_all_post_vectors = MagicMock(return_value=(["1", "2"], rng.random((2, 768))))
-        mock_get_backend.return_value = backend
+    backend = MagicMock()
+    rng = np.random.default_rng(seed=42)
+    backend.get_all_post_vectors = MagicMock(return_value=(["1", "2"], rng.random((2, 768))))
 
-        count = generate_semantic_taxonomy(mock_output_sink, mock_config)
-        assert count == 0
+    count = generate_semantic_taxonomy(mock_output_sink, mock_config, backend)
+    assert count == 0
 
 
 def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config):
     """Test successful global taxonomy generation."""
-    with (
-        patch("egregora.ops.taxonomy.get_backend") as mock_get_backend,
-        patch("egregora.ops.taxonomy.create_global_taxonomy_agent") as mock_create_agent,
-    ):
+    with patch("egregora.ops.taxonomy.create_global_taxonomy_agent") as mock_create_agent:
         # Setup Backend
         backend = MagicMock()
         real_docs = list(mock_output_sink.documents())
@@ -81,7 +76,6 @@ def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config):
         rng = np.random.default_rng(seed=42)
         vectors = rng.random((len(doc_ids), 10))
         backend.get_all_post_vectors = MagicMock(return_value=(doc_ids, vectors))
-        mock_get_backend.return_value = backend
 
         # Setup Agent
         mock_agent = MagicMock()
@@ -97,7 +91,7 @@ def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config):
         mock_create_agent.return_value = mock_agent
 
         # Run
-        count = generate_semantic_taxonomy(mock_output_sink, mock_config)
+        count = generate_semantic_taxonomy(mock_output_sink, mock_config, backend)
 
         # Verify
         assert count > 0
@@ -107,7 +101,6 @@ def test_generate_semantic_taxonomy_success(mock_output_sink, mock_config):
 def test_generate_semantic_taxonomy_batching(mock_output_sink, mock_config):
     """Test that large inputs are batched."""
     with (
-        patch("egregora.ops.taxonomy.get_backend") as mock_get_backend,
         patch("egregora.ops.taxonomy.create_global_taxonomy_agent") as mock_create_agent,
         patch("egregora.ops.taxonomy.MAX_PROMPT_CHARS", 100),
     ):  # FORCE tiny limit
@@ -118,7 +111,6 @@ def test_generate_semantic_taxonomy_batching(mock_output_sink, mock_config):
         rng = np.random.default_rng(seed=42)
         vectors = rng.random((len(doc_ids), 10))
         backend.get_all_post_vectors = MagicMock(return_value=(doc_ids, vectors))
-        mock_get_backend.return_value = backend
 
         # Setup Agent
         mock_agent = MagicMock()
@@ -132,7 +124,7 @@ def test_generate_semantic_taxonomy_batching(mock_output_sink, mock_config):
         mock_create_agent.return_value = mock_agent
 
         # Run
-        generate_semantic_taxonomy(mock_output_sink, mock_config)
+        generate_semantic_taxonomy(mock_output_sink, mock_config, backend)
 
         # Verify
         # With MAX_PROMPT_CHARS=100, and 10 documents / ~2 clusters,
@@ -142,21 +134,17 @@ def test_generate_semantic_taxonomy_batching(mock_output_sink, mock_config):
 
 def test_generate_semantic_taxonomy_agent_failure(mock_output_sink, mock_config):
     """Test graceful failure if agent errors out."""
-    with (
-        patch("egregora.ops.taxonomy.get_backend") as mock_get_backend,
-        patch("egregora.ops.taxonomy.create_global_taxonomy_agent") as mock_create_agent,
-    ):
+    with patch("egregora.ops.taxonomy.create_global_taxonomy_agent") as mock_create_agent:
         backend = MagicMock()
         real_docs = list(mock_output_sink.documents())
         doc_ids = [d.document_id for d in real_docs]
         rng = np.random.default_rng(seed=42)
         vectors = rng.random((len(doc_ids), 10))
         backend.get_all_post_vectors = MagicMock(return_value=(doc_ids, vectors))
-        mock_get_backend.return_value = backend
 
         mock_agent = MagicMock()
         mock_agent.run_sync = MagicMock(side_effect=Exception("API Error"))
         mock_create_agent.return_value = mock_agent
 
-        count = generate_semantic_taxonomy(mock_output_sink, mock_config)
+        count = generate_semantic_taxonomy(mock_output_sink, mock_config, backend)
         assert count == 0
