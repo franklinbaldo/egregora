@@ -17,8 +17,15 @@
 
 Egregora transforms a WhatsApp export (ZIP) into a static website powered by [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/).
 
-### 1. Prerequisites
-You need **Python 3.12+** and **[uv](https://github.com/astral-sh/uv)** installed. You will also need a Google Gemini API key (free tier available).
+### 1. Installation
+
+Install Egregora using [uv](https://github.com/astral-sh/uv) (requires Python 3.12+):
+
+```bash
+uv tool install git+https://github.com/franklinbaldo/egregora
+```
+
+You will also need a Google Gemini API key (free tier available):
 
 ```bash
 export GOOGLE_API_KEY="your-api-key"
@@ -28,19 +35,21 @@ export GOOGLE_API_KEY="your-api-key"
 
 **1. Initialize a new site:**
 ```bash
-uvx --from git+https://github.com/franklinbaldo/egregora \
-    egregora init ./my-blog
+egregora init ./my-blog
 cd my-blog
 ```
 
 **2. Generate posts from your chat export:**
 ```bash
-uv run egregora write path/to/chat_export.zip --output=.
+egregora write path/to/chat_export.zip --output=.
 ```
 
 **3. Preview your site:**
 ```bash
-uvx --with mkdocs-material --with mkdocs-macros-plugin --with mkdocs-rss-plugin mkdocs serve -f .egregora/mkdocs.yml
+uvx --with mkdocs-material \
+    --with mkdocs-macros-plugin \
+    --with mkdocs-rss-plugin \
+    mkdocs serve -f .egregora/mkdocs.yml
 ```
 *Visit http://localhost:8000 to read your new blog.*
 
@@ -110,4 +119,3 @@ To run tests:
 uv sync --all-extras
 uv run pytest tests/
 ```
-Fri Dec  5 07:50:57 -04 2025

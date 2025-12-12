@@ -22,7 +22,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from types import TracebackType
+from typing import TYPE_CHECKING, Any, Self
 
 import ibis
 from ibis.common.exceptions import IbisError
@@ -98,26 +99,27 @@ def load_file_as_binary_content(file_path: Path, max_size_mb: int = 20) -> Binar
 
 def _normalize_slug(candidate: str | None, identifier: str) -> str:
     """Normalize a slug candidate from LLM output.
-    
+
     Args:
         candidate: Slug string from LLM (may be None or empty)
         identifier: Original identifier (URL or filename) for error messages
-        
+
     Returns:
         Normalized, valid slug string
-        
+
     Raises:
         ValueError: If candidate is None, empty, or doesn't produce a valid slug
+
     """
     if not isinstance(candidate, str) or not candidate.strip():
         msg = f"LLM failed to generate slug for: {identifier[:100]}"
         raise ValueError(msg)
-    
+
     value = slugify(candidate.strip())
     if not value:
         msg = f"LLM slug '{candidate}' is invalid after normalization for: {identifier[:100]}"
         raise ValueError(msg)
-    
+
     return value
 
 
@@ -646,7 +648,7 @@ def _extract_media_candidates(
     messages_table: Table, media_mapping: MediaMapping, limit: int
 ) -> list[tuple[str, Document, dict[str, Any]]]:
     """Extract unique Media candidates with metadata.
-    
+
     This function scans messages for media references and queues them for enrichment.
     It does NOT validate existence or load content at this stage - that happens
     during the enrichment task execution (lazy loading).
@@ -659,7 +661,7 @@ def _extract_media_candidates(
 
     unique_media: set[str] = set()
     metadata_lookup: dict[str, dict[str, Any]] = {}
-    
+
     # We still need to construct pseudo-Documents to maintain the return signature
     # until we can refactor the return type.
     document_lookup: dict[str, Document] = {}
@@ -680,7 +682,7 @@ def _extract_media_candidates(
         for row in batch:
             if len(unique_media) >= limit:
                 break
-            
+
             message = row.get("text")
             if not message:
                 continue
@@ -690,7 +692,7 @@ def _extract_media_candidates(
             # Detect UUID patterns if they are used as references
             uuid_refs = _UUID_PATTERN.findall(message)
             # Filter UUIDs to avoid false positives (simple heuristic)
-            refs.extend([u for u in uuid_refs if "media" in str(row)]) 
+            refs.extend([u for u in uuid_refs if "media" in str(row)])
 
             if not refs:
                 continue
@@ -717,40 +719,35 @@ def _extract_media_candidates(
                         if existing_ts and timestamp and timestamp < existing_ts:
                             existing.update(row_metadata)
                     continue
-                
+
                 # New candidate found
                 unique_media.add(ref)
                 metadata_lookup[ref] = row_metadata.copy()
-                
+
                 # Create a placeholder Document
                 # We use the ref as the filename since we haven't resolved it yet
                 # The ID is deterministic based on the ref
                 doc_id = str(uuid.uuid5(uuid.NAMESPACE_URL, ref))
                 document_lookup[ref] = Document(
-                    content=b"", # Empty content for placeholder
+                    content=b"",  # Empty content for placeholder
                     type=DocumentType.MEDIA,
-                    id=doc_id, # Deterministic ID
+                    id=doc_id,  # Deterministic ID
                     metadata={
                         "filename": ref,
                         "original_filename": ref,
-                        "media_type": mimetypes.guess_type(ref)[0] or "application/octet-stream"
-                    }
+                        "media_type": mimetypes.guess_type(ref)[0] or "application/octet-stream",
+                    },
                 )
 
         if len(unique_media) >= limit:
             break
-            
+
     # Sort by timestamp
     sorted_refs = sorted(
-        unique_media,
-        key=lambda r: (metadata_lookup[r]["ts"] is None, metadata_lookup[r]["ts"])
+        unique_media, key=lambda r: (metadata_lookup[r]["ts"] is None, metadata_lookup[r]["ts"])
     )
-    
-    return [
-        (ref, document_lookup[ref], metadata_lookup[ref])
-        for ref in sorted_refs[:limit]
-    ]
 
+    return [(ref, document_lookup[ref], metadata_lookup[ref]) for ref in sorted_refs[:limit]]
 
 
 def _replace_pii_media_references(
@@ -768,6 +765,49 @@ def _replace_pii_media_references(
 
 class EnrichmentWorker(BaseWorker):
     """Worker for media enrichment (e.g. image description)."""
+
+    def __init__(self, ctx: PipelineContext | EnrichmentRuntimeContext):
+        super().__init__(ctx)
+        self.zip_handle: zipfile.ZipFile | None = None
+        self.media_index: dict[str, str] = {}
+
+        if self.ctx.input_path and self.ctx.input_path.exists() and self.ctx.input_path.is_file():
+            try:
+                self.zip_handle = zipfile.ZipFile(self.ctx.input_path, "r")
+                # Build index for O(1) lookup
+                for info in self.zip_handle.infolist():
+                    if not info.is_dir():
+                        self.media_index[Path(info.filename).name.lower()] = info.filename
+            except Exception:
+                logger.warning("Failed to open source ZIP %s", self.ctx.input_path)
+
+    def close(self) -> None:
+        """Explicitly close the ZIP handle to release resources.
+
+        Should be called when done with the worker. Also called by __exit__
+        for context manager support.
+        """
+        if self.zip_handle:
+            try:
+                self.zip_handle.close()
+            except OSError:
+                logger.debug("Error closing ZIP handle", exc_info=True)
+            finally:
+                self.zip_handle = None
+                self.media_index = {}
+
+    def __enter__(self) -> Self:
+        """Context manager entry."""
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Context manager exit - ensures ZIP handle is closed."""
+        self.close()
 
     def run(self) -> int:
         """Process pending enrichment tasks in batches."""
@@ -1005,45 +1045,57 @@ class EnrichmentWorker(BaseWorker):
         return requests, task_map
 
     def _load_media_bytes(self, task: dict[str, Any], payload: dict[str, Any]) -> bytes | None:
-        """Load media bytes directly from source ZIP file.
-        
-        Uses original_filename from payload to find media in the ZIP,
-        with case-insensitive matching.
-        """
+        """Load media bytes directly from source ZIP file via index."""
         original_filename = payload.get("original_filename") or payload.get("filename")
         if not original_filename:
             logger.warning("No filename in media task %s", task["task_id"])
             self.task_store.mark_failed(task["task_id"], "No filename in task payload")
             return None
-        
-        input_path = self.ctx.input_path
-        if not input_path or not input_path.exists():
-            logger.warning("Input path not available for media task %s", task["task_id"])
-            self.task_store.mark_failed(task["task_id"], "Input path not available")
-            return None
-        
-        try:
-            with zipfile.ZipFile(input_path, 'r') as zf:
-                # Case-insensitive search for media file
-                target_lower = original_filename.lower()
-                for info in zf.infolist():
-                    if info.is_dir():
-                        continue
-                    if Path(info.filename).name.lower() == target_lower:
-                        media_bytes = zf.read(info.filename)
-                        logger.debug("Loaded %d bytes from %s", len(media_bytes), info.filename)
-                        return media_bytes
-                
-                # Not found
-                logger.warning("Media file %s not found in ZIP for task %s", 
-                             original_filename, task["task_id"])
-                self.task_store.mark_failed(task["task_id"], f"Media file not found: {original_filename}")
+
+        zf = self.zip_handle
+        media_index = self.media_index
+        should_close = False
+
+        # Fallback initialization if ZIP wasn't opened in __init__
+        if zf is None:
+            input_path = self.ctx.input_path
+            if not input_path or not input_path.exists():
+                logger.warning("Input path not available for media task %s", task["task_id"])
+                self.task_store.mark_failed(task["task_id"], "Input path not available")
                 return None
-                
+            try:
+                zf = zipfile.ZipFile(input_path, "r")
+                should_close = True
+                # Build index on the fly
+                media_index = {}
+                for info in zf.infolist():
+                    if not info.is_dir():
+                        media_index[Path(info.filename).name.lower()] = info.filename
+            except Exception as exc:
+                logger.warning("Failed to open source ZIP %s: %s", input_path, exc)
+                self.task_store.mark_failed(task["task_id"], f"Failed to open ZIP: {exc}")
+                return None
+
+        try:
+            target_lower = original_filename.lower()
+            full_path = media_index.get(target_lower)
+
+            if full_path:
+                media_bytes = zf.read(full_path)
+                logger.debug("Loaded %d bytes from %s", len(media_bytes), full_path)
+                return media_bytes
+
+            logger.warning("Media file %s not found in ZIP for task %s", original_filename, task["task_id"])
+            self.task_store.mark_failed(task["task_id"], f"Media file not found: {original_filename}")
+            return None
+
         except (OSError, zipfile.BadZipFile) as exc:
             logger.warning("Failed to read media from ZIP for task %s: %s", task["task_id"], exc)
             self.task_store.mark_failed(task["task_id"], f"Failed to read ZIP: {exc}")
             return None
+        finally:
+            if should_close and zf:
+                zf.close()
 
     def _execute_media_batch(
         self, requests: list[dict[str, Any]], task_map: dict[str, dict[str, Any]]
@@ -1082,7 +1134,7 @@ class EnrichmentWorker(BaseWorker):
             filename = payload["filename"]
             media_type = payload["media_type"]
             media_id = payload.get("media_id")
-            
+
             # Load actual media content (was not persisted earlier)
             media_bytes = self._load_media_bytes(task, payload)
             if not media_bytes:
@@ -1093,22 +1145,22 @@ class EnrichmentWorker(BaseWorker):
             # Create media document with slug-based metadata
             media_metadata = {
                 "original_filename": payload.get("original_filename"),
-                "filename": f"{slug_value}{Path(filename).suffix}", # Use slug for filename
+                "filename": f"{slug_value}{Path(filename).suffix}",  # Use slug for filename
                 "media_type": media_type,
                 "slug": slug_value,
                 "nav_exclude": True,
                 "hide": ["navigation"],
             }
-            
+
             # Persist the actual media file
             media_doc = Document(
                 content=media_bytes,
                 type=DocumentType.MEDIA,
                 metadata=media_metadata,
                 id=media_id if media_id else str(uuid.uuid4()),
-                parent_id=media_id, # Link to original placeholder ID if exists
+                parent_id=media_id,  # Link to original placeholder ID if exists
             )
-            
+
             try:
                 if self.ctx.library:
                     self.ctx.library.save(media_doc)
@@ -1156,23 +1208,26 @@ class EnrichmentWorker(BaseWorker):
                 # or we might need to be smarter about relative paths.
                 # MKDocs usually resolves from the current page, so 'media/' works if at root,
                 # but posts are in 'posts/'. So we might need '../media/' or absolute '/media/'.
-                # Let's use the standard "media/" and assume site configuration handles it 
+                # Let's use the standard "media/" and assume site configuration handles it
                 # or use absolute path "/media/..."
-                
+
                 # Determine subfolder based on media_type
                 media_subdir = "files"
-                if media_type and media_type.startswith("image"): media_subdir = "images"
-                elif media_type and media_type.startswith("video"): media_subdir = "videos"
-                elif media_type and media_type.startswith("audio"): media_subdir = "audio"
-                
+                if media_type and media_type.startswith("image"):
+                    media_subdir = "images"
+                elif media_type and media_type.startswith("video"):
+                    media_subdir = "videos"
+                elif media_type and media_type.startswith("audio"):
+                    media_subdir = "audio"
+
                 new_path = f"media/{media_subdir}/{slug_value}{Path(filename).suffix}"
-                
+
                 # Using SQL replace to update all occurrences
                 try:
                     # We need to use valid SQL string escaping
                     safe_original = original_ref.replace("'", "''")
                     safe_new = new_path.replace("'", "''")
-                    
+
                     # Update text column
                     # Note: This updates ALL messages containing this ref.
                     # Given filenames are usually unique (timestamps), this is safe.
