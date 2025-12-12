@@ -116,7 +116,8 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
             # Unified: enrichment URLs go to posts/
             assert str(stored_relative).startswith("posts/")
         elif stored_doc.type == DocumentType.MEDIA:
-            assert str(stored_relative).startswith("media/")
+            # Unified: media now inside posts folder for simpler relative paths
+            assert str(stored_relative).startswith("posts/media/")
 
     # Ensure raw, unnormalized metadata slugs are not used for filenames.
     assert not (adapter.posts_dir / "Complex Slug.md").exists()
