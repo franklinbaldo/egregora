@@ -19,8 +19,6 @@ DEFAULT_GEMINI_MODELS = [
     "gemini-2.0-flash",
     "gemini-2.5-flash",
     "gemini-flash-latest",
-    "gemma-3-12b-it",
-    "gemma-3-27b-it",
     "gemini-2.5-pro",
 ]
 
