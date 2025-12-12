@@ -259,6 +259,7 @@ markers = [
 # Default coverage settings (can be overridden with CLI flags)
 addopts = [
     "--strict-markers",  # Fail on unknown markers
+    "-n auto",  # Parallel test execution using all available CPU cores
 ]
 [dependency-groups]
 dev = [
