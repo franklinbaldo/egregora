@@ -10,7 +10,6 @@ Following TDD Red-Green-Refactor cycle.
 from datetime import UTC, datetime
 from pathlib import Path
 
-import numpy as np
 import pytest
 from faker import Faker
 
@@ -33,10 +32,7 @@ def mock_embed_fn():
     def embed(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT") -> list[list[float]]:
         """Generate random embeddings for texts."""
         # Return consistent random vectors based on text hash
-        return [
-            [float(hash(text + str(i)) % 1000) / 1000.0 for i in range(768)]
-            for text in texts
-        ]
+        return [[float(hash(text + str(i)) % 1000) / 1000.0 for i in range(768)] for text in texts]
 
     return embed
 
@@ -87,7 +83,7 @@ def sample_documents() -> list[Document]:
 def test_vector_store_creates_database_directory(tmp_path: Path, mock_embed_fn) -> None:
     """Test that vector store creates database directory."""
     db_dir = tmp_path / "new_lancedb"
-    store = LanceDBVectorStore(
+    LanceDBVectorStore(
         db_dir=db_dir,
         table_name="test",
         embed_fn=mock_embed_fn,
@@ -113,9 +109,7 @@ def test_vector_store_creates_table(vector_store: LanceDBVectorStore) -> None:
 # ========== Indexing Tests ==========
 
 
-def test_index_single_document(
-    vector_store: LanceDBVectorStore, sample_documents: list[Document]
-) -> None:
+def test_index_single_document(vector_store: LanceDBVectorStore, sample_documents: list[Document]) -> None:
     """Test indexing a single document."""
     vector_store.index_documents([sample_documents[0]])
 
@@ -124,9 +118,7 @@ def test_index_single_document(
     assert len(results) > 0
 
 
-def test_index_multiple_documents(
-    vector_store: LanceDBVectorStore, sample_documents: list[Document]
-) -> None:
+def test_index_multiple_documents(vector_store: LanceDBVectorStore, sample_documents: list[Document]) -> None:
     """Test indexing multiple documents."""
     vector_store.index_documents(sample_documents)
 
@@ -179,9 +171,7 @@ def test_index_updates_existing_document(
 # ========== Search Tests ==========
 
 
-def test_search_returns_documents(
-    vector_store: LanceDBVectorStore, sample_documents: list[Document]
-) -> None:
+def test_search_returns_documents(vector_store: LanceDBVectorStore, sample_documents: list[Document]) -> None:
     """Test that search returns Document objects."""
     vector_store.index_documents(sample_documents)
 
@@ -191,9 +181,7 @@ def test_search_returns_documents(
     assert all(isinstance(doc, Document) for doc in results)
 
 
-def test_search_respects_top_k(
-    vector_store: LanceDBVectorStore, sample_documents: list[Document]
-) -> None:
+def test_search_respects_top_k(vector_store: LanceDBVectorStore, sample_documents: list[Document]) -> None:
     """Test that search respects top_k parameter."""
     vector_store.index_documents(sample_documents)
 
@@ -202,9 +190,7 @@ def test_search_respects_top_k(
     assert len(results) <= 2
 
 
-def test_search_empty_query(
-    vector_store: LanceDBVectorStore, sample_documents: list[Document]
-) -> None:
+def test_search_empty_query(vector_store: LanceDBVectorStore, sample_documents: list[Document]) -> None:
     """Test search with empty query string."""
     vector_store.index_documents(sample_documents)
 

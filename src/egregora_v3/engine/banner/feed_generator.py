@@ -1,47 +1,45 @@
-"""Feed-based banner generator (v3).
+"""Feed-based banner generator for V3 plans.
 
-This module implements a feed-to-feed transformation for banner generation:
-- Input: Feed with entries representing banner generation tasks
-- Output: Feed with entries representing generated banners (MEDIA documents)
+This module keeps the original feed-to-feed transformation logic so that the
+new plan-based pipeline in V3 can reuse it without depending on the V2 queue
+implementation.
 """
 
 from __future__ import annotations
 
 import base64
+import logging
 from datetime import UTC, datetime
+from importlib import resources
 from pathlib import Path
-from typing import Any
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import DictLoader, Environment, FileSystemLoader, select_autoescape
 
 from egregora.agents.banner.agent import BannerInput, generate_banner
 from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
-from egregora.agents.banner.image_generation import (
-    ImageGenerationProvider,
-    ImageGenerationRequest,
-)
+from egregora.agents.banner.image_generation import ImageGenerationProvider, ImageGenerationRequest
 from egregora_v3.core.types import Document, DocumentType, Entry, Feed
+
+logger = logging.getLogger(__name__)
+DEFAULT_TEMPLATE_NAME = "banner.jinja"
 
 
 class BannerTaskEntry:
-    """Represents a banner generation task in a feed entry.
+    """Adapter that exposes Entry metadata as BannerInput fields.
 
-    Expected entry structure:
-    - title: Post title for banner generation
-    - summary: Post summary (optional)
-    - internal_metadata.slug: Post slug (optional)
-    - internal_metadata.language: Language code (default: pt-BR)
+    Feed-based workflows store the parameters for banner generation inside the
+    entry's metadata (slug, language, summary, etc.).  This lightweight wrapper
+    provides typed accessors so downstream code does not need to know about the
+    internal metadata layout of the feed.
     """
 
-    def __init__(self, entry: Entry):
+    def __init__(self, entry: Entry) -> None:
         self.entry = entry
         self.title = entry.title
         self.summary = entry.summary or ""
         self.slug = entry.internal_metadata.get("slug") if entry.internal_metadata else None
         self.language = (
-            entry.internal_metadata.get("language", "pt-BR")
-            if entry.internal_metadata
-            else "pt-BR"
+            entry.internal_metadata.get("language", "pt-BR") if entry.internal_metadata else "pt-BR"
         )
 
     def to_banner_input(self) -> BannerInput:
@@ -55,7 +53,15 @@ class BannerTaskEntry:
 
 
 class BannerGenerationResult:
-    """Result of processing a single banner task."""
+    """Result of processing a single banner task.
+
+    Attributes:
+        task_entry: The original feed entry that scheduled the work.
+        document: The generated media document (when successful).
+        error: Human readable reason for failure (optional).
+        error_code: Machine readable code for failure (optional).
+
+    """
 
     def __init__(
         self,
@@ -63,7 +69,7 @@ class BannerGenerationResult:
         document: Document | None = None,
         error: str | None = None,
         error_code: str | None = None,
-    ):
+    ) -> None:
         self.task_entry = task_entry
         self.document = document
         self.error = error
@@ -72,67 +78,42 @@ class BannerGenerationResult:
 
 
 class FeedBannerGenerator:
-    """Generates banners from a feed of tasks.
-
-    This class implements the v3 banner generation pipeline:
-    1. Accepts a Feed where each Entry is a banner generation task
-    2. Processes each task (sequentially or in batch)
-    3. Returns a Feed where each Entry is a MEDIA document with the generated banner
-
-    Example:
-        generator = FeedBannerGenerator()
-        task_feed = Feed(
-            id="urn:tasks:banner:batch1",
-            title="Banner Generation Tasks",
-            updated=datetime.now(UTC),
-            entries=[
-                Entry(
-                    id="task:1",
-                    title="Amazing Blog Post",
-                    summary="This is about AI...",
-                    updated=datetime.now(UTC),
-                    internal_metadata={"slug": "amazing-post"},
-                )
-            ],
-        )
-        result_feed = generator.generate_from_feed(task_feed)
-    """
+    """Generates banners from a feed of tasks."""
 
     def __init__(
         self,
         provider: ImageGenerationProvider | None = None,
         prompts_dir: Path | None = None,
-    ):
-        """Initialize the feed-based banner generator.
-
-        Args:
-            provider: Optional image generation provider.
-                     If None, uses the default generate_banner() function.
-            prompts_dir: Optional directory containing Jinja2 templates.
-                        If None, uses default location (src/egregora/prompts).
-                        Can be configured via Pydantic settings in future versions.
-        """
+    ) -> None:
+        """Initialize the feed-based banner generator."""
         self.provider = provider
 
-        # Initialize Jinja2 environment once for efficiency
-        if prompts_dir is None:
-            prompts_dir = Path(__file__).parent.parent.parent / "prompts"
-        self.jinja_env = Environment(loader=FileSystemLoader(prompts_dir))
+        self.jinja_env = self._create_environment(prompts_dir)
+
+    def _create_environment(self, configured: Path | None) -> Environment:
+        """Create a Jinja environment using either a provided path or packaged defaults."""
+        if configured is not None:
+            loader = FileSystemLoader(configured)
+        else:
+            template_text = (
+                resources.files("egregora.prompts")
+                .joinpath(DEFAULT_TEMPLATE_NAME)
+                .read_text(encoding="utf-8")
+            )
+            loader = DictLoader({DEFAULT_TEMPLATE_NAME: template_text})
+
+        return Environment(
+            loader=loader,
+            autoescape=select_autoescape(enabled_extensions=("jinja", "jinja2", "html", "xml")),
+        )
 
     def generate_from_feed(
         self,
         task_feed: Feed,
+        *,
         batch_mode: bool = False,
     ) -> Feed:
-        """Generate banners from a feed of tasks.
-
-        Args:
-            task_feed: Feed containing banner generation tasks
-            batch_mode: If True and using GeminiProvider, use batch API
-
-        Returns:
-            Feed with MEDIA documents containing generated banners
-        """
+        """Generate banners from a feed of tasks."""
         results: list[BannerGenerationResult] = []
 
         if batch_mode and isinstance(self.provider, GeminiImageGenerationProvider):
@@ -140,17 +121,14 @@ class FeedBannerGenerator:
         else:
             results = self._generate_sequential(task_feed.entries)
 
-        # Convert results to feed entries
         output_entries = []
         for result in results:
             if result.success and result.document:
                 output_entries.append(result.document)
             else:
-                # Create error document
                 error_doc = self._create_error_document(result)
                 output_entries.append(error_doc)
 
-        # Create output feed
         return Feed(
             id=f"{task_feed.id}:results",
             title=f"{task_feed.title} - Results",
@@ -168,7 +146,6 @@ class FeedBannerGenerator:
             task = BannerTaskEntry(entry)
             banner_input = task.to_banner_input()
 
-            # Use provider if available, otherwise use default generate_banner
             if self.provider:
                 result = self._generate_with_provider(task, banner_input)
             else:
@@ -179,18 +156,13 @@ class FeedBannerGenerator:
         return results
 
     def _generate_batch(self, entries: list[Entry]) -> list[BannerGenerationResult]:
-        """Generate banners using batch API (for Gemini provider).
-
-        Note: This requires the GeminiImageGenerationProvider with batch support.
-        """
+        """Generate banners using batch API (for Gemini provider)."""
         if not isinstance(self.provider, GeminiImageGenerationProvider):
-            # Fallback to sequential if not using Gemini
             return self._generate_sequential(entries)
 
         results = []
         tasks = [BannerTaskEntry(entry) for entry in entries]
 
-        # Prepare batch requests
         requests = [
             ImageGenerationRequest(
                 prompt=self._build_prompt(task.to_banner_input()),
@@ -200,9 +172,7 @@ class FeedBannerGenerator:
             for task in tasks
         ]
 
-        # Process batch (note: current Gemini provider processes one at a time)
-        # This is a placeholder for future batch API support
-        for task, request in zip(tasks, requests):
+        for task, request in zip(tasks, requests, strict=True):
             try:
                 batch_result = self.provider.generate(request)
                 if batch_result.has_image and batch_result.image_bytes:
@@ -211,9 +181,7 @@ class FeedBannerGenerator:
                         batch_result.image_bytes,
                         batch_result.mime_type or "image/png",
                     )
-                    results.append(
-                        BannerGenerationResult(task.entry, document=document)
-                    )
+                    results.append(BannerGenerationResult(task.entry, document=document))
                 else:
                     results.append(
                         BannerGenerationResult(
@@ -222,11 +190,11 @@ class FeedBannerGenerator:
                             error_code=batch_result.error_code or "GENERATION_FAILED",
                         )
                     )
-            except Exception as e:
+            except (RuntimeError, ValueError) as exc:
                 results.append(
                     BannerGenerationResult(
                         task.entry,
-                        error=str(e),
+                        error=str(exc),
                         error_code="GENERATION_EXCEPTION",
                     )
                 )
@@ -252,16 +220,15 @@ class FeedBannerGenerator:
                     result.mime_type or "image/png",
                 )
                 return BannerGenerationResult(task.entry, document=document)
-            else:
-                return BannerGenerationResult(
-                    task.entry,
-                    error=result.error or "Unknown error",
-                    error_code=result.error_code or "GENERATION_FAILED",
-                )
-        except Exception as e:
             return BannerGenerationResult(
                 task.entry,
-                error=str(e),
+                error=result.error or "Unknown error",
+                error_code=result.error_code or "GENERATION_FAILED",
+            )
+        except (RuntimeError, ValueError) as exc:
+            return BannerGenerationResult(
+                task.entry,
+                error=str(exc),
                 error_code="GENERATION_EXCEPTION",
             )
 
@@ -272,41 +239,29 @@ class FeedBannerGenerator:
         result = generate_banner(**banner_input.model_dump())
 
         if result.document:
-            # Link to original task
             if result.document.internal_metadata is None:
                 result.document.internal_metadata = {}
             result.document.internal_metadata["task_id"] = task.entry.id
 
             return BannerGenerationResult(task.entry, document=result.document)
-        else:
-            return BannerGenerationResult(
-                task.entry,
-                error=result.error or "Unknown error",
-                error_code=result.error_code or "GENERATION_FAILED",
-            )
+        return BannerGenerationResult(
+            task.entry,
+            error=result.error or "Unknown error",
+            error_code=result.error_code or "GENERATION_FAILED",
+        )
 
     def _build_prompt(self, banner_input: BannerInput) -> str:
-        """Build the prompt for banner generation.
-
-        This uses the same logic as the existing generate_banner function.
-        """
+        """Build the prompt for banner generation."""
         template = self.jinja_env.get_template("banner.jinja")
         return template.render(
             post_title=banner_input.post_title,
             post_summary=banner_input.post_summary,
         )
 
-    def _create_media_document(
-        self, task_entry: Entry, image_data: bytes, mime_type: str
-    ) -> Document:
+    def _create_media_document(self, task_entry: Entry, image_data: bytes, mime_type: str) -> Document:
         """Create a MEDIA document for the generated banner."""
-        slug = (
-            task_entry.internal_metadata.get("slug")
-            if task_entry.internal_metadata
-            else None
-        )
+        slug = task_entry.internal_metadata.get("slug") if task_entry.internal_metadata else None
 
-        # Encode binary image data as base64 for text storage
         content = base64.b64encode(image_data).decode("ascii")
 
         doc = Document.create(

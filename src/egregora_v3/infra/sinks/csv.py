@@ -19,6 +19,7 @@ class CSVOutputSink:
 
         Args:
             csv_path: Path where the CSV file will be created
+
         """
         self.csv_path = Path(csv_path)
 
@@ -31,6 +32,7 @@ class CSVOutputSink:
         Only publishes documents with status=PUBLISHED.
         Creates parent directories if they don't exist.
         Overwrites existing file.
+
         """
         # Create parent directories if needed
         self.csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -58,7 +60,7 @@ class CSVOutputSink:
         ]
 
         # Write CSV file
-        with open(self.csv_path, "w", newline="", encoding="utf-8") as f:
+        with self.csv_path.open("w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
 
@@ -73,23 +75,12 @@ class CSVOutputSink:
 
         Returns:
             Dictionary mapping fieldnames to values
+
         """
         # Serialize lists to JSON
-        authors_json = (
-            json.dumps([author.model_dump() for author in doc.authors])
-            if doc.authors
-            else ""
-        )
-        categories_json = (
-            json.dumps([cat.model_dump() for cat in doc.categories])
-            if doc.categories
-            else ""
-        )
-        links_json = (
-            json.dumps([link.model_dump() for link in doc.links])
-            if doc.links
-            else ""
-        )
+        authors_json = json.dumps([author.model_dump() for author in doc.authors]) if doc.authors else ""
+        categories_json = json.dumps([cat.model_dump() for cat in doc.categories]) if doc.categories else ""
+        links_json = json.dumps([link.model_dump() for link in doc.links]) if doc.links else ""
 
         # Format timestamps as ISO 8601
         published_str = doc.published.isoformat() if doc.published else ""

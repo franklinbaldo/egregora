@@ -172,7 +172,7 @@ def test_invalid_root_type(tmp_path):
     config_file.write_text("- list-root-value")
 
     loader = ConfigLoader(tmp_path)
-    with pytest.raises(ValueError, match="root must be a mapping"):
+    with pytest.raises(TypeError, match="root must be a mapping"):
         loader.load()
 
 

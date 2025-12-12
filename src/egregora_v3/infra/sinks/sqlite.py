@@ -19,6 +19,7 @@ class SQLiteOutputSink:
 
         Args:
             db_path: Path where the SQLite database will be created
+
         """
         self.db_path = Path(db_path)
 
@@ -31,6 +32,7 @@ class SQLiteOutputSink:
         Only publishes documents with status=PUBLISHED.
         Creates parent directories if they don't exist.
         Overwrites existing database.
+
         """
         # Create parent directories if needed
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -80,23 +82,12 @@ class SQLiteOutputSink:
         Args:
             cursor: SQLite cursor
             doc: Document to insert
+
         """
         # Serialize lists to JSON
-        authors_json = (
-            json.dumps([author.model_dump() for author in doc.authors])
-            if doc.authors
-            else None
-        )
-        categories_json = (
-            json.dumps([cat.model_dump() for cat in doc.categories])
-            if doc.categories
-            else None
-        )
-        links_json = (
-            json.dumps([link.model_dump() for link in doc.links])
-            if doc.links
-            else None
-        )
+        authors_json = json.dumps([author.model_dump() for author in doc.authors]) if doc.authors else None
+        categories_json = json.dumps([cat.model_dump() for cat in doc.categories]) if doc.categories else None
+        links_json = json.dumps([link.model_dump() for link in doc.links]) if doc.links else None
 
         # Format timestamps as ISO 8601
         published_str = doc.published.isoformat() if doc.published else None

@@ -35,10 +35,12 @@ import ibis.common.exceptions
 from google import genai
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
-from egregora.agents.enricher import EnrichmentRuntimeContext, schedule_enrichment
+from egregora.agents.banner.worker import BannerWorker
+from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
 from egregora.agents.model_limits import PromptTooLargeError, get_model_context_limit
+from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.writer import write_posts_for_window
+from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config.settings import EgregoraConfig, load_egregora_config
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
@@ -50,14 +52,15 @@ from egregora.input_adapters.base import MediaMapping
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.media import process_media_for_window
+from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
-from egregora.orchestration.workers import BannerWorker, EnrichmentWorker, ProfileWorker
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.rag import index_documents, reset_backend
 from egregora.transformations import (
+    WindowConfig,
     create_windows,
     load_checkpoint,
     save_checkpoint,
@@ -66,6 +69,7 @@ from egregora.transformations import (
 from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
+from egregora.utils.rate_limit import init_rate_limiter
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
@@ -73,6 +77,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 __all__ = ["WhatsAppProcessOptions", "process_whatsapp_export", "run"]
+
+MIN_WINDOWS_WARNING_THRESHOLD = 5
 
 
 @dataclass(frozen=True)
@@ -272,10 +278,10 @@ def _process_single_window(
             # For now, we persist everything.
             try:
                 output_sink.persist(media_doc)
-            except (OSError, PermissionError) as exc:  # pragma: no cover - defensive
-                logger.exception("Failed to write media file %s: %s", media_doc.metadata.get("filename"), exc)
-            except ValueError as exc:  # pragma: no cover - defensive
-                logger.exception("Invalid media document %s: %s", media_doc.metadata.get("filename"), exc)
+            except (OSError, PermissionError):  # pragma: no cover - defensive
+                logger.exception("Failed to write media file %s", media_doc.metadata.get("filename"))
+            except ValueError:  # pragma: no cover - defensive
+                logger.exception("Invalid media document %s", media_doc.metadata.get("filename"))
 
     # Enrichment (Schedule tasks)
     if ctx.enable_enrichment:
@@ -288,7 +294,7 @@ def _process_single_window(
     resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
 
-    result = write_posts_for_window(
+    params = WindowProcessingParams(
         table=enriched_table,
         window_start=window.start_time,
         window_end=window.end_time,
@@ -299,20 +305,35 @@ def _process_single_window(
         adapter_generation_instructions=adapter_instructions,
         run_id=str(ctx.run_id) if ctx.run_id else None,
     )
-    post_count = len(result.get("posts", []))
-    profile_count = len(result.get("profiles", []))
+    result = write_posts_for_window(params)
 
-    # Check for scheduled tasks
-    # TODO: We might want to inspect result for scheduled tasks specifically,
-    # but currently write_posts_for_window returns lists of persisted paths.
-    # The capability implementation returns "pending:<task_id>" as path.
-    # We can rely on the task store for accurate counts.
+    posts = result.get("posts", [])
+    profiles = result.get("profiles", [])
+
+    # Scheduled tasks are returned as "pending:<task_id>"
+    scheduled_posts = sum(1 for p in posts if p.startswith("pending:"))
+    generated_posts = len(posts) - scheduled_posts
+
+    scheduled_profiles = sum(1 for p in profiles if p.startswith("pending:"))
+    generated_profiles = len(profiles) - scheduled_profiles
+
+    # Construct status message
+    status_parts = []
+    if generated_posts > 0:
+        status_parts.append(f"{generated_posts} posts")
+    if scheduled_posts > 0:
+        status_parts.append(f"{scheduled_posts} scheduled posts")
+    if generated_profiles > 0:
+        status_parts.append(f"{generated_profiles} profiles")
+    if scheduled_profiles > 0:
+        status_parts.append(f"{scheduled_profiles} scheduled profiles")
+
+    status_msg = ", ".join(status_parts) if status_parts else "0 items"
 
     logger.info(
-        "%s[green]✔ Generated[/] %s posts / %s profiles for %s",
+        "%s[green]✔ Generated[/] %s for %s",
         indent,
-        post_count,
-        profile_count,
+        status_msg,
         window_label,
     )
 
@@ -544,6 +565,13 @@ def _process_all_windows(
         # Check if we've hit the max_windows limit
         if max_windows is not None and windows_processed >= max_windows:
             logger.info("Reached max_windows limit (%d). Stopping processing.", max_windows)
+            if max_windows < MIN_WINDOWS_WARNING_THRESHOLD:
+                logger.warning(
+                    "⚠️  Processing stopped early due to low 'max_windows' setting (%d). "
+                    "This may result in incomplete data coverage. "
+                    "Use --max-windows 0 or remove the limit to process all data.",
+                    max_windows,
+                )
             break
         # Skip empty windows
         if window.size == 0:
@@ -782,13 +810,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
     quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
 
-    # Initialize global rate limiter
-    from egregora.utils.rate_limit import init_rate_limiter
-
-    init_rate_limiter(
-        requests_per_second=run_params.config.quota.per_second_limit,
-        max_concurrency=run_params.config.quota.concurrency,
-    )
+    _init_global_rate_limiter(run_params.config.quota)
 
     output_registry = create_default_output_registry()
 
@@ -1051,12 +1073,15 @@ def _prepare_pipeline_data(
     )
 
     logger.info("🎯 [bold cyan]Creating windows:[/] step_size=%s, unit=%s", step_size, step_unit)
-    windows_iterator = create_windows(
-        messages_table,
+    window_config = WindowConfig(
         step_size=step_size,
         step_unit=step_unit,
         overlap_ratio=overlap_ratio,
         max_window_time=max_window_time,
+    )
+    windows_iterator = create_windows(
+        messages_table,
+        config=window_config,
     )
 
     # Update context with adapter
@@ -1247,11 +1272,30 @@ def _apply_filters(
     messages_table = _apply_date_filters(messages_table, options.from_date, options.to_date)
 
     # Checkpoint-based resume logic
-    messages_table = _apply_checkpoint_filter(
+    return _apply_checkpoint_filter(
         messages_table, checkpoint_path, checkpoint_enabled=options.checkpoint_enabled
     )
 
-    return messages_table
+
+def _init_global_rate_limiter(quota_config: any) -> None:
+    """Initialize the global rate limiter."""
+    init_rate_limiter(
+        requests_per_second=quota_config.per_second_limit,
+        max_concurrency=quota_config.concurrency,
+    )
+
+
+def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
+    """Generate semantic taxonomy if enabled."""
+    if dataset.context.config.rag.enabled:
+        logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
+        try:
+            tagged_count = generate_semantic_taxonomy(dataset.context.output_format, dataset.context.config)
+            if tagged_count > 0:
+                logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
+        except Exception as e:  # noqa: BLE001
+            # Non-critical failure
+            logger.warning("Auto-taxonomy failed: %s", e)
 
 
 def _record_run_start(run_store: RunStore | None, run_id: uuid.UUID, started_at: datetime) -> None:
@@ -1403,26 +1447,13 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             dataset = _prepare_pipeline_data(adapter, run_params, ctx)
             results, max_processed_timestamp = _process_all_windows(dataset.windows_iterator, dataset.context)
             _index_media_into_rag(
-                dataset.enable_enrichment,
-                results,
-                dataset.context,
-                dataset.embedding_model,
+                enable_enrichment=dataset.enable_enrichment,
+                results=results,
+                ctx=dataset.context,
+                embedding_model=dataset.embedding_model,
             )
 
-            # 2. Taxonomy Generation (New)
-            if dataset.context.config.rag.enabled:
-                from egregora.ops.taxonomy import generate_semantic_taxonomy
-
-                logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
-                try:
-                    tagged_count = generate_semantic_taxonomy(
-                        dataset.context.output_format, dataset.context.config
-                    )
-                    if tagged_count > 0:
-                        logger.info(f"[green]✓ Applied semantic tags to {tagged_count} posts[/]")
-                except Exception as e:
-                    # Non-critical failure
-                    logger.warning("Auto-taxonomy failed: %s", e)
+            _generate_taxonomy(dataset)
 
             # Save checkpoint first (critical path)
             _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
@@ -1430,6 +1461,14 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             # Process remaining background tasks after all windows are done
             # (In case there are stragglers)
             _process_background_tasks(dataset.context)
+
+            # Regenerate tags page with word cloud visualization
+            if hasattr(dataset.context.output_format, "regenerate_tags_page"):
+                try:
+                    logger.info("[bold cyan]🏷️  Regenerating tags page with word cloud...[/]")
+                    dataset.context.output_format.regenerate_tags_page()
+                except (OSError, AttributeError, TypeError) as e:
+                    logger.warning("Failed to regenerate tags page: %s", e)
 
             # Update run to completed
             _record_run_completion(run_store, run_id, started_at, results)

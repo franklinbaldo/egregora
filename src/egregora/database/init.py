@@ -16,6 +16,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from egregora.database.ir_schema import IR_MESSAGE_SCHEMA, create_table_if_not_exists
+
 if TYPE_CHECKING:
     from ibis.backends.base import BaseBackend
 
@@ -43,8 +45,6 @@ def initialize_database(backend: BaseBackend) -> None:
         >>> # All tables now exist and can be used
 
     """
-    from egregora.database.ir_schema import IR_MESSAGE_SCHEMA, create_table_if_not_exists
-
     logger.info("Initializing database tables...")
 
     # Get the connection for raw SQL execution
@@ -95,7 +95,10 @@ def initialize_database(backend: BaseBackend) -> None:
     logger.info("✓ Database tables initialized successfully")
 
 
-def _execute_sql(conn: object, sql: str) -> None:
+from typing import Any
+
+
+def _execute_sql(conn: Any, sql: str) -> None:
     """Execute raw SQL on a connection or backend.
 
     Args:
@@ -106,9 +109,12 @@ def _execute_sql(conn: object, sql: str) -> None:
     if hasattr(conn, "raw_sql"):
         # Ibis backend
         conn.raw_sql(sql)
-    else:
+    elif hasattr(conn, "execute"):
         # Raw DuckDB connection
         conn.execute(sql)
+    else:
+        # Fallback for unexpected connection objects
+        raise AttributeError(f"Connection object {type(conn)} does not support raw_sql or execute")
 
 
 __all__ = ["initialize_database"]

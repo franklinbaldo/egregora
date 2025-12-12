@@ -138,13 +138,15 @@ def run_reader_evaluation(
             }
 
             elo_store.update_ratings(
-                post_a_slug=slug_a,
-                post_b_slug=slug_b,
-                rating_a_new=new_rating_a,
-                rating_b_new=new_rating_b,
-                winner=comparison.winner,
-                comparison_id=str(uuid.uuid4()),
-                reader_feedback=json.dumps(feedback_payload),
+                EloStore.UpdateParams(
+                    post_a_slug=slug_a,
+                    post_b_slug=slug_b,
+                    rating_a_new=new_rating_a,
+                    rating_b_new=new_rating_b,
+                    winner=comparison.winner,
+                    comparison_id=str(uuid.uuid4()),
+                    reader_feedback=json.dumps(feedback_payload),
+                )
             )
 
             logger.info(

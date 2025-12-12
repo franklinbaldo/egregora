@@ -37,6 +37,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import re
+import tempfile
 import threading
 import uuid
 from collections.abc import Sequence
@@ -210,8 +211,8 @@ class DuckDBStorageManager:
         logger.warning("Resetting DuckDB connection after fatal error (db=%s)", db_str)
         try:
             self._conn.close()
-        except Exception as close_exc:  # pragma: no cover - defensive logging
-            logger.exception("Failed closing invalidated DuckDB connection: %s", close_exc)
+        except Exception:  # pragma: no cover - defensive logging
+            logger.exception("Failed closing invalidated DuckDB connection")
 
         def _connect() -> None:
             # Re-initialize via Ibis to maintain shared connection
@@ -225,8 +226,8 @@ class DuckDBStorageManager:
                 logger.warning("Recreating DuckDB database file after fatal invalidation: %s", db_str)
                 try:
                     Path(db_str).unlink(missing_ok=True)
-                except Exception as unlink_exc:  # pragma: no cover - defensive logging
-                    logger.exception("Failed to remove invalidated DuckDB file %s: %s", db_str, unlink_exc)
+                except Exception:  # pragma: no cover - defensive logging
+                    logger.exception("Failed to remove invalidated DuckDB file %s", db_str)
                 _connect()
             else:
                 raise
@@ -321,8 +322,8 @@ class DuckDBStorageManager:
                 self._reset_connection()
                 try:
                     return self.ibis_conn.table(name)
-                except Exception:
-                    pass
+                except duckdb.Error as retry_exc:
+                    logger.debug("Retry after connection reset failed: %s", retry_exc)
             msg = f"Table '{name}' not found in database"
             logger.exception(msg)
             raise ValueError(msg) from e
@@ -667,8 +668,6 @@ def temp_storage() -> DuckDBStorageManager:
 
     """
     # Use standard temporary directory instead of hardcoded /tmp path
-    import tempfile
-
     temp_dir = Path(tempfile.gettempdir()) / ".egregora-temp"
     return DuckDBStorageManager(db_path=None, checkpoint_dir=temp_dir)
 

@@ -34,7 +34,7 @@ class PipelineContext:
     workspace_id: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Ensure metadata is copied to avoid external mutation."""
         # Use object.__setattr__ since dataclass is frozen
         # We copy the dict to ensure the context holds its own version

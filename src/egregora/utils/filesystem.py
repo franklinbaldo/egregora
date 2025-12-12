@@ -26,25 +26,28 @@ ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
 _DATE_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
-def _extract_clean_date(date_str: str) -> str:
-    """Extract a clean ``YYYY-MM-DD`` date from user-provided strings."""
-    import datetime
+def _extract_clean_date(date_obj: str | date | datetime) -> str:
+    """Extract a clean ``YYYY-MM-DD`` date from user-provided input."""
+    if isinstance(date_obj, datetime):
+        return date_obj.date().isoformat()
+    if isinstance(date_obj, date):
+        return date_obj.isoformat()
 
-    date_str = date_str.strip()
+    date_str = str(date_obj).strip()
 
     try:
         if len(date_str) == ISO_DATE_LENGTH and date_str[4] == "-" and date_str[7] == "-":
-            datetime.date.fromisoformat(date_str)
+            date.fromisoformat(date_str)
             return date_str
-    except (ValueError, AttributeError):
+    except ValueError:
         pass
 
-    match = _DATE_PATTERN.match(date_str)
+    match = _DATE_PATTERN.search(date_str)
     if match:
         clean_date = match.group(1)
         try:
-            datetime.date.fromisoformat(clean_date)
-        except (ValueError, AttributeError):
+            date.fromisoformat(clean_date)
+        except ValueError:
             pass
         else:
             return clean_date
@@ -73,35 +76,58 @@ def ensure_author_entries(output_dir: Path, author_ids: list[str] | None) -> Non
     if not author_ids:
         return
 
-    site_root = output_dir.resolve().parent
-    authors_path = site_root / ".authors.yml"
+    authors_path = _find_authors_yml(output_dir)
+    authors = _load_authors_yml(authors_path)
 
+    new_ids = _register_new_authors(authors, author_ids)
+
+    if new_ids:
+        _save_authors_yml(authors_path, authors, len(new_ids))
+
+
+def _find_authors_yml(output_dir: Path) -> Path:
+    current = output_dir.resolve()
+    for _ in range(5):  # Limit traversal depth
+        if current.name == "docs" or (current / ".authors.yml").exists():
+            return current / ".authors.yml"
+        parent = current.parent
+        if parent == current:  # Reached filesystem root
+            break
+        current = parent
+
+    # Fallback: assume output_dir's grandparent is docs (posts/posts -> docs)
+    return output_dir.resolve().parent.parent / ".authors.yml"
+
+
+def _load_authors_yml(path: Path) -> dict:
     try:
-        authors = yaml.safe_load(authors_path.read_text(encoding="utf-8")) or {}
+        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except (OSError, yaml.YAMLError):
-        authors = {}
+        return {}
 
-    new_ids: list[str] = []
+
+def _register_new_authors(authors: dict, author_ids: list[str]) -> list[str]:
+    new_ids = []
     for author_id in author_ids:
-        if not author_id:
-            continue
-        if author_id in authors:
-            continue
-        authors[author_id] = {"name": author_id}
-        new_ids.append(author_id)
+        if author_id and author_id not in authors:
+            authors[author_id] = {
+                "name": author_id,
+                "url": f"profiles/{author_id}.md",
+            }
+            new_ids.append(author_id)
+    return new_ids
 
-    if not new_ids:
-        return
 
+def _save_authors_yml(path: Path, authors: dict, count: int) -> None:
     try:
-        authors_path.parent.mkdir(parents=True, exist_ok=True)
-        authors_path.write_text(
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
             yaml.dump(authors, default_flow_style=False, allow_unicode=True, sort_keys=False),
             encoding="utf-8",
         )
-        logger.info("Registered %d new author(s) in %s", len(new_ids), authors_path)
+        logger.info("Registered %d new author(s) in %s", count, path)
     except OSError as exc:
-        logger.warning("Failed to update %s: %s", authors_path, exc)
+        logger.warning("Failed to update %s: %s", path, exc)
 
 
 def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
@@ -158,3 +184,60 @@ def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path
     full_post = f"---\n{yaml_front}---\n\n{content}"
     filepath.write_text(full_post, encoding="utf-8")
     return str(filepath)
+
+
+def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> int:
+    """Scan all posts and ensure every referenced author exists in .authors.yml.
+
+    This function traverses all markdown files in posts_dir, extracts author IDs
+    from their frontmatter, and registers any missing authors in .authors.yml.
+
+    Args:
+        posts_dir: Directory containing post markdown files (recursively scanned).
+        docs_dir: Root docs directory where .authors.yml lives. If None, derived from posts_dir.
+
+    Returns:
+        Number of new authors registered.
+
+    """
+    if docs_dir is None:
+        # Derive docs_dir: posts_dir is typically docs/posts/posts, so go up 2 levels
+        docs_dir = posts_dir.resolve().parent.parent
+
+    authors_path = docs_dir / ".authors.yml"
+    authors = _load_authors_yml(authors_path)
+
+    # Collect all unique author IDs from posts
+    all_author_ids: set[str] = set()
+
+    for md_file in posts_dir.rglob("*.md"):
+        try:
+            content = md_file.read_text(encoding="utf-8")
+            if not content.startswith("---"):
+                continue
+
+            # Extract frontmatter (needs at least 3 parts: before, frontmatter, content)
+            min_parts = 3
+            parts = content.split("---", 2)
+            if len(parts) < min_parts:
+                continue
+
+            frontmatter = yaml.safe_load(parts[1])
+            if frontmatter and "authors" in frontmatter:
+                author_list = frontmatter["authors"]
+                if isinstance(author_list, list):
+                    all_author_ids.update(str(a) for a in author_list if a)
+                elif author_list:
+                    all_author_ids.add(str(author_list))
+        except (OSError, yaml.YAMLError) as exc:
+            logger.debug("Skipping %s: %s", md_file, exc)
+            continue
+
+    # Register missing authors
+    new_ids = _register_new_authors(authors, list(all_author_ids))
+
+    if new_ids:
+        _save_authors_yml(authors_path, authors, len(new_ids))
+        logger.info("Synced %d new author(s) from posts to %s", len(new_ids), authors_path)
+
+    return len(new_ids)

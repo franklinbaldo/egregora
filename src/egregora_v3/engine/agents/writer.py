@@ -3,7 +3,6 @@
 Uses Pydantic-AI for structured output with output_type=Document.
 """
 
-import json
 from datetime import UTC, datetime
 
 from pydantic_ai import Agent
@@ -25,6 +24,7 @@ class WriterAgent:
 
         Args:
             model: Model name (e.g., "google-gla:gemini-2.0-flash", "test")
+
         """
         self.model_name = model
 
@@ -87,6 +87,7 @@ Return a Document with:
 
         Raises:
             ValueError: If entries list is empty
+
         """
         if not entries:
             msg = "WriterAgent requires at least one entry to generate a post"
@@ -131,6 +132,7 @@ Return a Document with:
 
         Returns:
             Formatted prompt string
+
         """
         lines = ["Generate a blog post from these entries:", ""]
 

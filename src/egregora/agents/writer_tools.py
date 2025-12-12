@@ -254,8 +254,8 @@ def search_media_impl(query: str, top_k: int = 5) -> SearchMediaResult:
     except ValueError as exc:
         logger.warning("Invalid query for media search: %s", exc)
         return SearchMediaResult(results=[])
-    except (AttributeError, KeyError) as exc:
-        logger.exception("Malformed response from RAG media search: %s", exc)
+    except (AttributeError, KeyError):
+        logger.exception("Malformed response from RAG media search")
         return SearchMediaResult(results=[])
 
 

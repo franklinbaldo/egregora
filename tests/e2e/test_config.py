@@ -53,6 +53,23 @@ class TimezoneConfig:
     INVALID: str = "Invalid/Timezone"
 
 
+@dataclass
+class WriteCommandOptions:
+    """Optional arguments for the write command."""
+
+    step_size: str | None = None
+    step_unit: str | None = None
+    source_type: str | None = None
+    from_date: str | None = None
+    to_date: str | None = None
+    timezone: str | None = None
+    overlap: str | None = None
+    enable_enrichment: bool = True
+    retrieval_mode: str | None = None
+    max_windows: int | None = None
+    max_prompt_tokens: int | None = None
+
+
 # =============================================================================
 # Test Fixtures
 # =============================================================================
@@ -105,18 +122,7 @@ def test_timezones() -> TimezoneConfig:
 def build_write_command_args(
     test_zip_file: str,
     output_dir: str,
-    *,
-    step_size: str | None = None,
-    step_unit: str | None = None,
-    source_type: str | None = None,
-    from_date: str | None = None,
-    to_date: str | None = None,
-    timezone: str | None = None,
-    overlap: str | None = None,
-    enable_enrichment: bool = True,
-    retrieval_mode: str | None = None,
-    max_windows: int | None = None,
-    max_prompt_tokens: int | None = None,
+    options: WriteCommandOptions | None = None,
 ) -> list[str]:
     """Build write command arguments with sensible defaults.
 
@@ -125,42 +131,35 @@ def build_write_command_args(
     Args:
         test_zip_file: Path to test ZIP file
         output_dir: Output directory path
-        **kwargs: Optional command arguments
+        options: Optional command configuration object
 
     Returns:
         List of command arguments ready for runner.invoke()
     """
     args = ["write", str(test_zip_file), "--output-dir", str(output_dir)]
+    opts = options or WriteCommandOptions()
 
-    if step_size and step_unit:
-        args.extend(["--step-size", step_size, "--step-unit", step_unit])
+    if opts.step_size and opts.step_unit:
+        args.extend(["--step-size", opts.step_size, "--step-unit", opts.step_unit])
 
-    if source_type:
-        args.extend(["--source-type", source_type])
-
-    if from_date:
-        args.extend(["--from-date", from_date])
-
-    if to_date:
-        args.extend(["--to-date", to_date])
-
-    if timezone:
-        args.extend(["--timezone", timezone])
-
-    if overlap:
-        args.extend(["--overlap", overlap])
-
-    if not enable_enrichment:
+    if not opts.enable_enrichment:
         args.append("--no-enable-enrichment")
 
-    if retrieval_mode:
-        args.extend(["--retrieval-mode", retrieval_mode])
+    # Map flags to values, filtering out Nones
+    flag_map = {
+        "--source-type": opts.source_type,
+        "--from-date": opts.from_date,
+        "--to-date": opts.to_date,
+        "--timezone": opts.timezone,
+        "--overlap": opts.overlap,
+        "--retrieval-mode": opts.retrieval_mode,
+        "--max-windows": str(opts.max_windows) if opts.max_windows is not None else None,
+        "--max-prompt-tokens": str(opts.max_prompt_tokens) if opts.max_prompt_tokens is not None else None,
+    }
 
-    if max_windows is not None:
-        args.extend(["--max-windows", str(max_windows)])
-
-    if max_prompt_tokens is not None:
-        args.extend(["--max-prompt-tokens", str(max_prompt_tokens)])
+    for flag, value in flag_map.items():
+        if value:
+            args.extend([flag, value])
 
     return args
 

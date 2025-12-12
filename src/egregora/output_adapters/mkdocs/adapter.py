@@ -14,7 +14,9 @@ MODERN (2025-11-18): Imports site path resolution from
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -24,21 +26,20 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
-from egregora.output_adapters.base import OutputAdapter, SiteConfiguration
+from egregora.knowledge.profiles import generate_fallback_avatar_url
+from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
-from egregora.utils.filesystem import (
-    ensure_author_entries,
-    format_frontmatter_datetime,
-)
+from egregora.utils.datetime_utils import parse_datetime_flexible
+from egregora.utils.filesystem import ensure_author_entries
 from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import slugify
 
 logger = logging.getLogger(__name__)
 
 
-class MkDocsAdapter(OutputAdapter):
+class MkDocsAdapter(BaseOutputSink):
     """Unified MkDocs output adapter.
 
     **ISP-COMPLIANT** (2025-11-22): This adapter implements both:
@@ -99,7 +100,7 @@ class MkDocsAdapter(OutputAdapter):
     def url_context(self) -> UrlContext:
         return self._ctx
 
-    def persist(self, document: Document) -> None:
+    def persist(self, document: Document) -> None:  # noqa: C901
         doc_id = document.document_id
         url = self._url_convention.canonical_url(document, self._ctx)
         path = self._url_to_path(url, document)
@@ -139,7 +140,7 @@ class MkDocsAdapter(OutputAdapter):
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
 
-    def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path | None:
+    def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path | None:  # noqa: PLR0911
         """Resolve filesystem path for a document based on its type.
 
         Args:
@@ -533,6 +534,24 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # MkDocs identifiers are relative paths from site_root
         return (self._site_root / identifier).resolve()
 
+    # REMOVED: finalize_window() logic for profile regeneration.
+    # Rationale: Profile regeneration is now handled by the ProfileWorker and site_generator.py
+    # which aggregates stats dynamically. The adapter should focus on persistence (OutputSink)
+    # and not orchestration logic.
+
+    # def finalize_window(
+    #    self,
+    #    window_label: str,
+    #    posts_created: list[str],
+    #    profiles_updated: list[str],
+    #    metadata: dict[str, Any] | None = None,
+    # ) -> None:
+    #    """Post-processing hook called after writer agent completes a window.
+    #
+    #    Regenerates the profiles index page to include any newly created or updated profiles.
+    #    """
+    #    ...
+
     def _list_from_dir(
         self,
         directory: Path,
@@ -589,7 +608,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             metadata.setdefault("mtime_ns", 0)
         return Document(content=body.strip(), type=doc_type, metadata=metadata)
 
-    def _url_to_path(self, url: str, document: Document) -> Path:
+    def _url_to_path(self, url: str, document: Document) -> Path:  # noqa: PLR0911
         base = self._ctx.base_url.rstrip("/")
         if url.startswith(base):
             url_path = url[len(base) :]
@@ -640,11 +659,13 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     # Document Writing Strategies ---------------------------------------------
 
     def _write_post_doc(self, document: Document, path: Path) -> None:
-        import yaml as _yaml
-
         metadata = dict(document.metadata or {})
         if "date" in metadata:
-            metadata["date"] = format_frontmatter_datetime(metadata["date"])
+            # Parse to datetime object for proper YAML serialization (unquoted)
+            # Material blog plugin requires native datetime type, not string
+            dt = parse_datetime_flexible(metadata["date"])
+            if dt:
+                metadata["date"] = dt
         if "authors" in metadata:
             ensure_author_entries(path.parent, metadata.get("authors"))
 
@@ -673,23 +694,17 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             if related_posts_list:
                 metadata["related_posts"] = related_posts_list
 
-        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
     def _write_journal_doc(self, document: Document, path: Path) -> None:
-        import yaml as _yaml
-
         metadata = self._ensure_hidden(dict(document.metadata or {}))
-        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
     def _write_profile_doc(self, document: Document, path: Path) -> None:
-        import yaml as _yaml
-
-        from egregora.knowledge.profiles import generate_fallback_avatar_url
-
         # Ensure UUID is in metadata
         author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
         if not author_uuid:
@@ -703,7 +718,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if "avatar" not in metadata:
             metadata["avatar"] = generate_fallback_avatar_url(author_uuid)
 
-        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
         all_posts = list(self.documents())
         author_posts_docs = [post for post in all_posts if author_uuid in post.metadata.get("authors", [])]
@@ -727,8 +742,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         path.write_text(full_content, encoding="utf-8")
 
     def _write_enrichment_doc(self, document: Document, path: Path) -> None:
-        import yaml as _yaml
-
         metadata = self._ensure_hidden(document.metadata.copy())
         metadata.setdefault("document_type", document.type.value)
         metadata.setdefault("slug", document.slug)
@@ -737,7 +750,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if document.parent and document.parent.metadata.get("slug"):
             metadata.setdefault("parent_slug", document.parent.metadata.get("slug"))
 
-        yaml_front = _yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
@@ -901,8 +914,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 avatar = metadata.get("avatar", "")
                 # Generate fallback avatar if missing
                 if not avatar:
-                    from egregora.knowledge.profiles import generate_fallback_avatar_url
-
                     avatar = generate_fallback_avatar_url(author_uuid)
 
                 profiles.append(
@@ -1009,8 +1020,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
             # Generate fallback avatar if not set
             if not avatar:
-                from egregora.knowledge.profiles import generate_fallback_avatar_url
-
                 avatar = generate_fallback_avatar_url(author_id)
 
             authors_data.append(
@@ -1031,6 +1040,75 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         except (OSError, TemplateError) as e:
             logger.warning("Failed to render author cards template: %s", e)
             return content
+
+    def regenerate_tags_page(self) -> None:
+        """Regenerate the tags.md page with current tag frequencies for word cloud visualization.
+
+        Collects all tags from posts, calculates frequencies, and renders an updated
+        tags page with interactive word cloud and alphabetical list.
+        """
+        if not hasattr(self, "posts_dir") or not self.posts_dir.exists():
+            logger.debug("Posts directory not found, skipping tags page regeneration")
+            return
+
+        # Collect all tags from posts
+        tag_counts: Counter = Counter()
+        all_posts = list(self.documents())
+
+        for post in all_posts:
+            if post.type != DocumentType.POST:
+                continue
+            tags = post.metadata.get("tags", [])
+            for tag in tags:
+                if isinstance(tag, str) and tag.strip():
+                    tag_counts[tag.strip()] += 1
+
+        if not tag_counts:
+            logger.info("No tags found in posts, skipping tags page regeneration")
+            return
+
+        # Calculate frequency levels (1-10 scale) for word cloud sizing
+        max_count = max(tag_counts.values())
+        min_count = min(tag_counts.values())
+        count_range = max_count - min_count if max_count > min_count else 1
+
+        tags_data = []
+        for tag_name, count in tag_counts.items():
+            # Normalize to 1-10 scale for CSS data-frequency attribute
+            if count_range > 0:
+                frequency_level = int(((count - min_count) / count_range) * 9) + 1
+            else:
+                frequency_level = 5  # Middle value if all tags have same count
+
+            tags_data.append(
+                {
+                    "name": tag_name,
+                    "slug": slugify(tag_name),
+                    "count": count,
+                    "frequency_level": min(10, max(1, frequency_level)),
+                }
+            )
+
+        # Sort by count (descending) for word cloud
+        tags_data.sort(key=lambda x: x["count"], reverse=True)
+
+        # Render the tags page template
+        try:
+            templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
+            env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
+
+            template = env.get_template("docs/posts/tags.md.jinja")
+            content = template.render(
+                tags=tags_data,
+                generated_date=datetime.now(UTC).strftime("%Y-%m-%d"),
+            )
+
+            tags_path = self.posts_dir / "tags.md"
+            tags_path.write_text(content, encoding="utf-8")
+            logger.info("Regenerated tags page with %d unique tags", len(tags_data))
+
+        except (OSError, TemplateError):
+            logger.exception("Failed to regenerate tags page")
 
 
 # ============================================================================

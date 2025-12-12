@@ -7,7 +7,7 @@ from typing import Any
 
 import yaml
 
-from egregora_v3.core.config import EgregoraConfig, ModelSettings, PathsSettings, PipelineSettings
+from egregora_v3.core.config import EgregoraConfig
 
 
 class ConfigLoader:
@@ -17,7 +17,7 @@ class ConfigLoader:
     to automatically apply environment variable overrides.
     """
 
-    def __init__(self, site_root: Path | None = None):
+    def __init__(self, site_root: Path | None = None) -> None:
         """Initialize config loader.
 
         Args:
@@ -50,7 +50,7 @@ class ConfigLoader:
         paths = normalized.get("paths", {}) or {}
         if not isinstance(paths, dict):
             msg = f"Configuration 'paths' must be a dictionary, got {type(paths).__name__}"
-            raise ValueError(msg)
+            raise TypeError(msg)
 
         paths["site_root"] = self.site_root
         normalized["paths"] = paths
@@ -81,7 +81,7 @@ class ConfigLoader:
         merged = deepcopy(base)
 
         for key, value in override.items():
-            path = current_path + (str(key).lower(),)
+            path = (*current_path, str(key).lower())
             if path in env_override_paths:
                 continue
 
@@ -102,11 +102,9 @@ class ConfigLoader:
             with config_path.open(encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
                 if not isinstance(data, dict):
-                    msg = (
-                        "Configuration root must be a mapping (dictionary), "
-                        f"got {type(data).__name__}"
-                    )
-                    raise ValueError(msg)
+                    msg = f"Configuration root must be a mapping (dictionary), got {type(data).__name__}"
+                    raise TypeError(msg)
                 return data
         except yaml.YAMLError as e:
-            raise ValueError(f"Invalid YAML in {config_path}: {e}") from e
+            msg = f"Invalid YAML in {config_path}: {e}"
+            raise ValueError(msg) from e

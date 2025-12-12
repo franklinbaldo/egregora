@@ -11,6 +11,7 @@ from unittest.mock import patch
 from typer.testing import CliRunner
 
 from egregora.cli.main import app
+from egregora.diagnostics import DiagnosticResult, HealthStatus
 
 # Create a CLI runner for testing
 runner = CliRunner()
@@ -77,9 +78,7 @@ class TestDoctorCommand:
     def test_doctor_exit_code_on_success(self):
         """Test doctor exits with 0 when all checks pass (mocked)."""
         # This test mocks the diagnostics to all return OK
-        with patch("egregora.diagnostics.run_diagnostics") as mock_diagnostics:
-            from egregora.diagnostics import DiagnosticResult, HealthStatus
-
+        with patch("egregora.cli.main.run_diagnostics") as mock_diagnostics:
             mock_diagnostics.return_value = [
                 DiagnosticResult(check="Python Version", status=HealthStatus.OK, message="Python 3.12.0"),
                 DiagnosticResult(
@@ -92,9 +91,7 @@ class TestDoctorCommand:
 
     def test_doctor_exit_code_on_error(self):
         """Test doctor exits with 1 when errors are found (mocked)."""
-        with patch("egregora.diagnostics.run_diagnostics") as mock_diagnostics:
-            from egregora.diagnostics import DiagnosticResult, HealthStatus
-
+        with patch("egregora.cli.main.run_diagnostics") as mock_diagnostics:
             mock_diagnostics.return_value = [
                 DiagnosticResult(
                     check="API Key", status=HealthStatus.ERROR, message="GOOGLE_API_KEY not set"
@@ -106,9 +103,7 @@ class TestDoctorCommand:
 
     def test_doctor_continues_on_warnings(self):
         """Test doctor exits with 0 even when warnings are found."""
-        with patch("egregora.diagnostics.run_diagnostics") as mock_diagnostics:
-            from egregora.diagnostics import DiagnosticResult, HealthStatus
-
+        with patch("egregora.cli.main.run_diagnostics") as mock_diagnostics:
             mock_diagnostics.return_value = [
                 DiagnosticResult(
                     check="Some Warning", status=HealthStatus.WARNING, message="Generic warning message"

@@ -27,6 +27,7 @@ async def get_recent_posts(
 
     Returns:
         List of recent posts, ordered by updated timestamp (newest first)
+
     """
     # Access ContentLibrary through context
     library = context.library
@@ -60,6 +61,7 @@ async def search_prior_work(
         - Vector embeddings of documents
         - Configured vector store (LanceDB)
         - Embedding model for query vectorization
+
     """
     # Placeholder: In a real implementation, this would:
     # 1. Generate embedding for query using embedding model
@@ -82,6 +84,7 @@ async def get_document_by_id(
 
     Returns:
         Document if found, None otherwise
+
     """
     library = context.library
 
@@ -111,6 +114,7 @@ async def count_documents_by_type(
 
     Returns:
         Number of documents of the specified type
+
     """
     library = context.library
 
@@ -140,6 +144,7 @@ async def get_pipeline_metadata(
 
     Returns:
         Dictionary with pipeline metadata including run_id
+
     """
     # Return metadata with run_id
     return {

@@ -7,14 +7,15 @@ Tests:
 4. Snapshot testing with syrupy for regression detection
 """
 
+import re
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 import pytest
 from faker import Faker
 from freezegun import freeze_time
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from lxml import etree
 from syrupy.assertion import SnapshotAssertion
 
@@ -24,7 +25,6 @@ from egregora_v3.core.types import (
     Document,
     DocumentStatus,
     DocumentType,
-    Entry,
     Feed,
     InReplyTo,
     Link,
@@ -117,6 +117,7 @@ def test_roundtrip_feed_to_xml_to_entries(sample_feed: Feed, tmp_path: Path) -> 
     for original, parsed in zip(
         sorted(sample_feed.entries, key=lambda e: e.id),
         sorted(parsed_entries, key=lambda e: e.id),
+        strict=False,
     ):
         assert original.title == parsed.title
         assert original.content == parsed.content
@@ -151,14 +152,10 @@ def test_roundtrip_preserves_timestamps(tmp_path: Path) -> None:
 
     assert len(parsed_entries) == 1
     # Updated timestamp should be preserved (within second precision)
-    assert parsed_entries[0].updated.replace(microsecond=0) == doc.updated.replace(
-        microsecond=0
-    )
+    assert parsed_entries[0].updated.replace(microsecond=0) == doc.updated.replace(microsecond=0)
     # Published datetime should be preserved if exported
     if parsed_entries[0].published:
-        assert parsed_entries[0].published.replace(microsecond=0) == doc.published.replace(
-            microsecond=0
-        )
+        assert parsed_entries[0].published.replace(microsecond=0) == doc.published.replace(microsecond=0)
 
 
 def test_roundtrip_preserves_authors(sample_feed: Feed, tmp_path: Path) -> None:
@@ -187,11 +184,7 @@ def test_roundtrip_preserves_links(sample_feed: Feed, tmp_path: Path) -> None:
 
     # Find entry with enclosure link
     entry_with_enclosure = next(
-        (
-            e
-            for e in parsed_entries
-            if any(link.rel == "enclosure" for link in e.links)
-        ),
+        (e for e in parsed_entries if any(link.rel == "enclosure" for link in e.links)),
         None,
     )
     assert entry_with_enclosure is not None
@@ -210,10 +203,8 @@ def test_roundtrip_preserves_links(sample_feed: Feed, tmp_path: Path) -> None:
 
 def test_feed_validates_against_atom_rfc_4287_schema(sample_feed: Feed) -> None:
     """Test that generated XML validates against Atom 1.0 schema."""
-    try:
-        import xmlschema
-    except ImportError:
-        pytest.skip("xmlschema not installed")
+    xmlschema = pytest.importorskip("xmlschema")
+    assert xmlschema is not None
 
     xml_output = sample_feed.to_xml()
 
@@ -263,8 +254,6 @@ def test_feed_datetime_format_rfc_3339_compliant(sample_feed: Feed) -> None:
     updated_text = updated_elem.text
 
     # RFC 3339 format: 2025-12-06T10:00:00Z
-    import re
-
     rfc3339_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
     assert re.match(rfc3339_pattern, updated_text), f"Invalid RFC 3339 format: {updated_text}"
 

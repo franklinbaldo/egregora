@@ -15,11 +15,11 @@ from egregora_v3.core.catalog import ContentLibrary
 from egregora_v3.core.context import PipelineContext
 from egregora_v3.core.types import Document, DocumentType
 from egregora_v3.engine.tools import (
+    count_documents_by_type,
+    get_document_by_id,
+    get_pipeline_metadata,
     get_recent_posts,
     search_prior_work,
-    get_document_by_id,
-    count_documents_by_type,
-    get_pipeline_metadata,
 )
 from egregora_v3.infra.repository.duckdb import DuckDBDocumentRepository
 

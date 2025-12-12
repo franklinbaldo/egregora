@@ -11,14 +11,15 @@ from typing import Any, TypedDict, Unpack
 
 import ibis
 
-from egregora.constants import AuthorPrivacyStrategy
+from egregora.constants import AuthorPrivacyStrategy, MentionPrivacyStrategy
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
 from egregora.input_adapters.privacy_config import AdapterPrivacyConfig
 from egregora.input_adapters.whatsapp.commands import EGREGORA_COMMAND_PATTERN
 from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
 from egregora.input_adapters.whatsapp.utils import discover_chat_file
-from egregora.privacy.anonymizer import anonymize_table
+from egregora.ops.media import detect_media_type
+from egregora.privacy.anonymizer import anonymize_mentions, anonymize_table
 from egregora.utils.paths import slugify
 
 logger = logging.getLogger(__name__)
@@ -127,20 +128,23 @@ class WhatsAppAdapter(InputAdapter):
             Table with privacy strategies applied
 
         """
+        # Apply mention strategy FIRST so we have access to original author names for mapping
+        if self._privacy_config.mention_strategy != MentionPrivacyStrategy.NONE:
+            table = anonymize_mentions(table, strategy=self._privacy_config.mention_strategy)
+
         # Apply author anonymization strategy
         if self._privacy_config.author_strategy != AuthorPrivacyStrategy.NONE:
             # For now, use existing anonymize_table for UUID_MAPPING
             # TODO: Implement other strategies (FULL_REDACTION, ROLE_BASED)
             if self._privacy_config.author_strategy == AuthorPrivacyStrategy.UUID_MAPPING:
-                table = anonymize_table(table, enabled=True)
+                table = anonymize_table(table, enabled=True, process_mentions=False)
             else:
                 logger.warning(
                     "Author strategy %s not yet implemented, falling back to UUID_MAPPING",
                     self._privacy_config.author_strategy,
                 )
-                table = anonymize_table(table, enabled=True)
+                table = anonymize_table(table, enabled=True, process_mentions=False)
 
-        # TODO: Apply mention strategy
         # TODO: Apply phone/email PII strategies
 
         return table
@@ -214,8 +218,6 @@ class WhatsAppAdapter(InputAdapter):
         return None
 
     def _detect_media_type(self, media_path: Path) -> str | None:
-        from egregora.ops.media import detect_media_type
-
         return detect_media_type(media_path)
 
     def get_metadata(self, input_path: Path, **_kwargs: _EmptyKwargs) -> dict[str, Any]:

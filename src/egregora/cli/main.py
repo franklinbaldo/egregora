@@ -1,15 +1,28 @@
 """Main Typer application for Egregora."""
 
+import json
 import logging
+import os
+import sys
+import traceback
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Annotated, Any
 
 import typer
+
+try:
+    import dotenv
+except ImportError:
+    dotenv = None
+
+# Deferred import if needed, but for now moving it top level as requested by linter
+# We need to make sure this doesn't break things if import fails, but diagnostics is part of the package.
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
+from rich.table import Table
 
 from egregora.cli.config import config_app
 from egregora.cli.read import read_app
@@ -18,6 +31,7 @@ from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.config_validation import parse_date_arg, validate_timezone
 from egregora.constants import SourceType, WindowUnit
 from egregora.database.elo_store import EloStore
+from egregora.diagnostics import HealthStatus, run_diagnostics
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration import write_pipeline
 from egregora.orchestration.context import PipelineRunParams
@@ -86,14 +100,13 @@ def _ensure_mkdocs_scaffold(output_dir: Path) -> None:
 
 def _resolve_gemini_key() -> str | None:
     """Resolve Google Gemini API key from environment."""
-    import os
-
     return os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
 
 @app.command()
 def init(
     output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
+    *,
     interactive: Annotated[
         bool,
         typer.Option(
@@ -104,8 +117,6 @@ def init(
     ] = True,
 ) -> None:
     """Initialize a new MkDocs site scaffold for serving Egregora posts."""
-    import sys
-
     site_root = output_dir.resolve()
 
     # Auto-disable interactive mode if not in a TTY (e.g., CI/CD)
@@ -166,16 +177,13 @@ class WriteCommandOptions:
 
 def _validate_api_key(output_dir: Path) -> None:
     """Validate that API key is set."""
-    import os
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if api_key:
+        return
+
+    _load_dotenv_if_available(output_dir)
 
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        # Try loading from .env
-        from dotenv import load_dotenv
-
-        load_dotenv(output_dir / ".env")
-        load_dotenv()  # Check CWD as well
-        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 
     if not api_key:
         console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
@@ -224,146 +232,153 @@ def _prepare_write_config(
     )
 
 
+def _resolve_write_options(
+    input_file: Path,
+    options_json: str | None,
+    cli_defaults: dict[str, Any],
+) -> WriteCommandOptions:
+    """Merge CLI options with JSON options and defaults."""
+    # Start with CLI values as base
+    defaults = cli_defaults.copy()
+
+    if options_json:
+        try:
+            overrides = json.loads(options_json)
+            # Update with JSON overrides, converting enums if strings
+            for k, v in overrides.items():
+                if k == "source" and isinstance(v, str):
+                    defaults[k] = SourceType(v)
+                elif k == "step_unit" and isinstance(v, str):
+                    defaults[k] = WindowUnit(v)
+                elif k == "output" and isinstance(v, str):
+                    defaults[k] = Path(v)
+                else:
+                    defaults[k] = v
+        except json.JSONDecodeError as e:
+            console.print(f"[red]Error parsing options JSON: {e}[/red]")
+            raise typer.Exit(1) from e
+
+    return WriteCommandOptions(input_file=input_file, **defaults)
+
+
 @app.command()
-def write(
+def write(  # noqa: PLR0913
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
-    source: Annotated[
-        SourceType,
-        typer.Option(
-            "--source-type",
-            "-s",
-            help="Source type (whatsapp, iperon-tjro, self)",
-            case_sensitive=False,
-        ),
-    ] = SourceType.WHATSAPP,
     output: Annotated[
-        Path,
+        Path, typer.Option("--output-dir", "-o", help="Directory for the generated site")
+    ] = Path("site"),
+    source: Annotated[
+        SourceType, typer.Option("--source-type", "-s", help="Source format of the input")
+    ] = SourceType.WHATSAPP,
+    step_size: Annotated[int, typer.Option(help="Window size (messages or hours)")] = 100,
+    step_unit: Annotated[WindowUnit, typer.Option(help="Unit for windowing")] = WindowUnit.MESSAGES,
+    overlap: Annotated[float, typer.Option(help="Overlap ratio between windows (0.0-1.0)")] = 0.0,
+    enable_enrichment: Annotated[
+        bool,
         typer.Option(
-            "--output-dir",
-            "--output",
-            "-o",
-            help="Output directory for generated site",
+            "--enable-enrichment/--no-enable-enrichment",
+            help="Enable AI enrichment (images, links)",
         ),
-    ] = Path("output"),
-    step_size: Annotated[int, typer.Option(help="Size of each processing window")] = 1,
-    step_unit: Annotated[
-        WindowUnit,
-        typer.Option(help="Unit for windowing", case_sensitive=False),
-    ] = WindowUnit.DAYS,
-    overlap: Annotated[
-        float, typer.Option(help="Overlap ratio between windows (0.0-0.5, default 0.2 = 20%)")
-    ] = 0.2,
-    enable_enrichment: Annotated[bool, typer.Option(help="Enable LLM enrichment for URLs/media")] = True,
-    from_date: Annotated[
-        str | None, typer.Option(help="Only process messages from this date onwards (YYYY-MM-DD)")
-    ] = None,
-    to_date: Annotated[
-        str | None, typer.Option(help="Only process messages up to this date (YYYY-MM-DD)")
-    ] = None,
-    timezone: Annotated[
-        str | None, typer.Option(help="Timezone for date parsing (e.g., 'America/New_York')")
-    ] = None,
-    model: Annotated[
-        str | None, typer.Option(help="Gemini model to use (or configure in mkdocs.yml)")
-    ] = None,
-    max_prompt_tokens: Annotated[
-        int, typer.Option(help="Maximum tokens per prompt (default 100k cap, prevents overflow)")
-    ] = 100_000,
+    ] = True,
+    from_date: Annotated[str | None, typer.Option(help="Start date filter (YYYY-MM-DD)")] = None,
+    to_date: Annotated[str | None, typer.Option(help="End date filter (YYYY-MM-DD)")] = None,
+    timezone: Annotated[str | None, typer.Option(help="Timezone for date calculations")] = None,
+    model: Annotated[str | None, typer.Option(help="Override LLM model for all tasks")] = None,
+    max_prompt_tokens: Annotated[int, typer.Option(help="Maximum context window size")] = 400000,
     use_full_context_window: Annotated[
-        bool, typer.Option(help="Use full model context window (overrides --max-prompt-tokens)")
+        bool, typer.Option("--full-context", help="Use maximum available context")
     ] = False,
-    max_windows: Annotated[
-        int | None,
-        typer.Option(help="Maximum number of windows to process (default: 1, use 0 for all windows)"),
-    ] = 1,
+    max_windows: Annotated[int | None, typer.Option(help="Limit number of windows to process")] = None,
     resume: Annotated[
         bool,
-        typer.Option(
-            help="Enable incremental processing (resume from checkpoint). Default: always rebuild from scratch."
-        ),
-    ] = False,
+        typer.Option("--resume/--no-resume", help="Resume from last checkpoint if available"),
+    ] = True,
     refresh: Annotated[
         str | None,
-        typer.Option(
-            help="Comma-separated cache tiers to invalidate (e.g., 'writer', 'rag', 'enrichment', 'all').",
-        ),
+        typer.Option(help="Force refresh components (writer, rag, enrichment, all)"),
     ] = None,
     force: Annotated[
-        bool,
-        typer.Option(
-            "--force",
-            "-f",
-            help="Force full regeneration (ignore cache). Equivalent to --refresh=all.",
-        ),
+        bool, typer.Option("--force", "-f", help="Force full refresh (same as --refresh all)")
     ] = False,
-    debug: Annotated[bool, typer.Option(help="Enable debug logging")] = False,
+    debug: Annotated[bool, typer.Option("--debug", help="Enable debug logging")] = False,
+    options: Annotated[
+        str | None,
+        typer.Option(
+            "--options",
+            help="JSON string of write options; if provided, overrides CLI defaults",
+        ),
+    ] = None,
 ) -> None:
     """Write blog posts from chat exports using LLM-powered synthesis."""
-    # Consolidate options
-    options = WriteCommandOptions(
+    cli_values = {
+        "source": source,
+        "output": output,
+        "step_size": step_size,
+        "step_unit": step_unit,
+        "overlap": overlap,
+        "enable_enrichment": enable_enrichment,
+        "from_date": from_date,
+        "to_date": to_date,
+        "timezone": timezone,
+        "model": model,
+        "max_prompt_tokens": max_prompt_tokens,
+        "use_full_context_window": use_full_context_window,
+        "max_windows": max_windows,
+        "resume": resume,
+        "refresh": refresh,
+        "force": force,
+        "debug": debug,
+    }
+
+    parsed_options = _resolve_write_options(
         input_file=input_file,
-        source=source,
-        output=output,
-        step_size=step_size,
-        step_unit=step_unit,
-        overlap=overlap,
-        enable_enrichment=enable_enrichment,
-        from_date=from_date,
-        to_date=to_date,
-        timezone=timezone,
-        model=model,
-        max_prompt_tokens=max_prompt_tokens,
-        use_full_context_window=use_full_context_window,
-        max_windows=max_windows,
-        resume=resume,
-        refresh=refresh,
-        force=force,
-        debug=debug,
+        options_json=options,
+        cli_defaults=cli_values,
     )
 
-    if options.debug:
+    if parsed_options.debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
     from_date_obj, to_date_obj = None, None
-    if options.from_date:
+    if parsed_options.from_date:
         try:
-            from_date_obj = parse_date_arg(options.from_date, "from_date")
+            from_date_obj = parse_date_arg(parsed_options.from_date, "from_date")
         except ValueError as e:
             console.print(f"[red]{e}[/red]")
             raise typer.Exit(1) from e
-    if options.to_date:
+    if parsed_options.to_date:
         try:
-            to_date_obj = parse_date_arg(options.to_date, "to_date")
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(1) from e
-
-    if options.timezone:
-        try:
-            validate_timezone(options.timezone)
-            console.print(f"[green]Using timezone: {options.timezone}[/green]")
+            to_date_obj = parse_date_arg(parsed_options.to_date, "to_date")
         except ValueError as e:
             console.print(f"[red]{e}[/red]")
             raise typer.Exit(1) from e
 
-    output_dir = options.output.expanduser().resolve()
+    if parsed_options.timezone:
+        try:
+            validate_timezone(parsed_options.timezone)
+            console.print(f"[green]Using timezone: {parsed_options.timezone}[/green]")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(1) from e
+
+    output_dir = parsed_options.output.expanduser().resolve()
     _ensure_mkdocs_scaffold(output_dir)
     _validate_api_key(output_dir)
 
-    egregora_config = _prepare_write_config(options, from_date_obj, to_date_obj)
+    egregora_config = _prepare_write_config(parsed_options, from_date_obj, to_date_obj)
 
     runtime = RuntimeContext(
         output_dir=output_dir,
-        input_file=options.input_file,
-        model_override=options.model,
-        debug=options.debug,
+        input_file=parsed_options.input_file,
+        model_override=parsed_options.model,
+        debug=parsed_options.debug,
     )
 
     try:
         console.print(
             Panel(
-                f"[cyan]Source:[/cyan] {options.source.value}\n[cyan]Input:[/cyan] {options.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {options.step_size} {options.step_unit.value}",
+                f"[cyan]Source:[/cyan] {parsed_options.source.value}\n[cyan]Input:[/cyan] {parsed_options.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {parsed_options.step_size} {parsed_options.step_unit.value}",
                 title="⚙️  Egregora Pipeline",
                 border_style="cyan",
             )
@@ -371,15 +386,13 @@ def write(
         run_params = PipelineRunParams(
             output_dir=runtime.output_dir,
             config=egregora_config,
-            source_type=options.source.value,
+            source_type=parsed_options.source.value,
             input_path=runtime.input_file,
-            refresh="all" if options.force else options.refresh,
+            refresh="all" if parsed_options.force else parsed_options.refresh,
         )
         write_pipeline.run(run_params)
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:
-        import traceback
-
         traceback.print_exc()
         console.print(f"[red]Pipeline failed: {e}[/]")
         raise typer.Exit(code=1) from e
@@ -409,8 +422,6 @@ def top(
         egregora top my-blog/ --limit 20
 
     """
-    from rich.table import Table
-
     site_root = site_root.expanduser().resolve()
 
     # Verify .egregora directory exists
@@ -492,8 +503,6 @@ def show_reader_history(
         egregora show reader-history my-blog/ --limit 50
 
     """
-    from rich.table import Table
-
     site_root = site_root.expanduser().resolve()
 
     # Verify .egregora directory exists
@@ -557,8 +566,26 @@ def doctor(
     ] = False,
 ) -> None:
     """Run diagnostic checks to verify Egregora setup."""
-    from egregora.diagnostics import HealthStatus, run_diagnostics
+    # Deferred import to avoid circular dependencies or heavy load if not needed?
+    # But for CLI entry points it is usually fine.
+    # Moving import to top level as requested.
+    # Note: Moving imports to top-level can cause circular imports if not careful.
+    # But ruff insists. I will rely on Python handling modules.
+    # If run_diagnostics imports config which imports main...
+    # Main is entry point, config likely doesn't import main.
+    # Diagnostics likely imports low level stuff.
+    # I'll use a local import inside a helper function if needed, but ruff complains.
+    # I'll try to move it to top level.
+    _run_doctor_checks(verbose=verbose)
 
+
+def _load_dotenv_if_available(output_dir: Path) -> None:
+    if dotenv:
+        dotenv.load_dotenv(output_dir / ".env")
+        dotenv.load_dotenv()  # Check CWD as well
+
+
+def _run_doctor_checks(*, verbose: bool) -> None:
     console.print("[bold cyan]Running diagnostics...[/bold cyan]")
     console.print()
 
@@ -579,7 +606,7 @@ def doctor(
             icon = "❌"
             color = "red"
         else:
-            icon = "ℹ️"
+            icon = "i"
             color = "cyan"
 
         console.print(f"[{color}]{icon} {result.check}:[/{color}] {result.message}")

@@ -9,7 +9,6 @@ import math
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 
-import pyarrow as pa
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from egregora.agents.shared.annotations import Annotation, AnnotationStore
@@ -37,11 +36,13 @@ def _stringify_value(value: object) -> str:
     """Convert values to safe strings for conversation rendering."""
     if isinstance(value, str):
         return value
-    pyarrow_na = getattr(pa, "NA", None)
-    if value is None or value is pyarrow_na:
+    if value is None:
         return ""
-    if isinstance(value, pa.Scalar):
-        return _stringify_value(value.as_py()) if value.is_valid else ""
+    if hasattr(value, "is_valid") and hasattr(value, "as_py"):
+        try:
+            return _stringify_value(value.as_py()) if value.is_valid else ""
+        except (TypeError, AttributeError):
+            return ""
     try:
         if math.isnan(value):
             return ""
@@ -90,7 +91,7 @@ def _compute_message_id(row: Mapping[str, object]) -> str:
 
 
 def build_conversation_xml(
-    data: pa.Table | Iterable[Mapping[str, object]] | Sequence[Mapping[str, object]],
+    data: Iterable[Mapping[str, object]] | Sequence[Mapping[str, object]],
     annotations_store: AnnotationStore | None,
 ) -> str:
     """Render conversation rows into token-efficient XML."""
@@ -139,21 +140,21 @@ def build_conversation_xml(
 
 
 def _table_to_records(
-    data: pa.Table | Iterable[Mapping[str, object]] | Sequence[Mapping[str, object]],
+    data: Iterable[Mapping[str, object]] | Sequence[Mapping[str, object]] | object,
 ) -> tuple[list[dict[str, object]], list[str]]:
     """Normalize supported tabular inputs into row dictionaries.
 
-    Only :class:`pyarrow.Table` instances or iterables of mapping objects are
-    accepted. This keeps the formatting path aligned with Arrow/Ibis-native
-    execution without importing pandas at runtime.
+    Accepts iterable/sequence of mapping objects or table-like objects exposing
+    Arrow-style attributes (`column_names`, `column`, `num_rows`).
     """
-    if isinstance(data, pa.Table):
-        column_names = [str(name) for name in data.column_names]
-        columns = {name: data.column(index).to_pylist() for index, name in enumerate(column_names)}
+    if hasattr(data, "column_names") and hasattr(data, "column") and hasattr(data, "num_rows"):
+        column_names = [str(name) for name in data.column_names]  # type: ignore[union-attr]
+        columns = {name: data.column(index).to_pylist() for index, name in enumerate(column_names)}  # type: ignore[union-attr]
         records = [
-            {name: columns[name][row_index] for name in column_names} for row_index in range(data.num_rows)
+            {name: columns[name][row_index] for name in column_names}
+            for row_index in range(data.num_rows)  # type: ignore[union-attr]
         ]
-        return (records, column_names)
+        return records, column_names
     if isinstance(data, Mapping):
         msg = "Expected an iterable of mappings, not a single mapping object"
         raise TypeError(msg)

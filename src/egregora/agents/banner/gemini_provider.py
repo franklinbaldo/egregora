@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import base64
+import json
 import logging
+import tempfile
+import time
+from pathlib import Path
+from typing import Any
 
+import httpx
 from google import genai
+from google.genai import types
 
 from egregora.agents.banner.image_generation import (
     ImageGenerationProvider,
@@ -26,123 +34,124 @@ class GeminiImageGenerationProvider(ImageGenerationProvider):
 
     def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult:
         """Generate image using Batch API lifecycle."""
-        import json
-        import os
-        import tempfile
-        import time
+        payload = self._build_payload(request)
+        temp_path = self._write_payload(payload)
+        try:
+            uploaded_file = self._upload_payload(temp_path)
+            job = self._create_batch_job(uploaded_file.name)
+            completed_job = self._wait_for_completion(job.name)
+            if completed_job is None:
+                return ImageGenerationResult(
+                    image_bytes=None, mime_type=None, error="Batch job timed out", error_code="TIMEOUT"
+                )
 
-        from google.genai import types
+            if completed_job.state.name != "SUCCEEDED":
+                error_msg = f"Batch job failed with state {completed_job.state.name}: {completed_job.error}"
+                logger.error(error_msg)
+                return ImageGenerationResult(
+                    image_bytes=None, mime_type=None, error=error_msg, error_code="BATCH_FAILED"
+                )
 
-        # 1. Prepare JSONL payload
-        payload = {
+            data = self._download_result(completed_job.output_uri)
+            return self._extract_image(data)
+        finally:
+            self._cleanup_temp_file(temp_path)
+
+    def _build_payload(self, request: ImageGenerationRequest) -> dict[str, Any]:
+        payload: dict[str, Any] = {
             "key": "banner-req",
             "request": {
                 "contents": [{"parts": [{"text": request.prompt}]}],
                 "generation_config": {},
             },
         }
-
         if request.response_modalities:
             payload["request"]["generation_config"]["responseModalities"] = list(request.response_modalities)
         if request.aspect_ratio:
             payload["request"]["generation_config"]["aspectRatio"] = request.aspect_ratio
+        return payload
 
-        # 2. Create temp file and upload
-        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".jsonl") as f:
-            f.write(json.dumps(payload) + "\n")
-            temp_path = f.name
+    def _write_payload(self, payload: dict[str, Any]) -> Path:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".jsonl") as temp_file:
+            temp_file.write(json.dumps(payload) + "\n")
+            return Path(temp_file.name)
 
-        try:
-            uploaded_file = self._client.files.upload(
-                file=temp_path,
-                config=types.UploadFileConfig(display_name="banner-batch", mime_type="application/json"),
+    def _upload_payload(self, temp_path: Path) -> types.File:
+        return self._client.files.upload(
+            file=str(temp_path),
+            config=types.UploadFileConfig(display_name="banner-batch", mime_type="application/json"),
+        )
+
+    def _create_batch_job(self, src: str) -> types.BatchJob:
+        job = self._client.batches.create(
+            model=self._model,
+            src=src,
+            config=types.CreateBatchJobConfig(display_name="banner-batch-job"),
+        )
+        logger.info("Created banner batch job: %s", job.name)
+        return job
+
+    def _wait_for_completion(self, job_name: str) -> types.BatchJob | None:
+        start_time = time.time()
+        while time.time() - start_time < self._timeout:
+            job = self._client.batches.get(name=job_name)
+            if job.state.name in ("PROCESSING", "PENDING", "STATE_UNSPECIFIED"):
+                time.sleep(self._poll_interval)
+                continue
+            return job
+        return None
+
+    def _download_result(self, output_uri: str) -> dict[str, Any]:
+        response = httpx.get(output_uri, timeout=self._timeout)
+        response.raise_for_status()
+
+        line = response.text.strip()
+        if not line:
+            return {"error": "Empty result file"}
+        return json.loads(line)
+
+    def _extract_image(self, data: dict[str, Any]) -> ImageGenerationResult:
+        if "error" in data:
+            return ImageGenerationResult(
+                image_bytes=None, mime_type=None, error=str(data["error"]), error_code="GENERATION_ERROR"
             )
 
-            # 3. Create batch job
-            batch_job = self._client.batches.create(
-                model=self._model,
-                src=uploaded_file.name,
-                config=types.CreateBatchJobConfig(display_name="banner-batch-job"),
+        candidates = data.get("response", {}).get("candidates", [])
+        image_bytes: bytes | None = None
+        mime_type: str | None = None
+        debug_text_parts: list[str] = []
+
+        for candidate in candidates:
+            for part in candidate.get("content", {}).get("parts", []):
+                text = part.get("text")
+                if text:
+                    debug_text_parts.append(text)
+                inline = part.get("inlineData")
+                if inline and image_bytes is None:
+                    image_bytes, mime_type = self._decode_inline_data(inline)
+
+        debug_text = "\n".join(debug_text_parts) if debug_text_parts else None
+
+        if image_bytes is None:
+            return ImageGenerationResult(
+                image_bytes=None,
+                mime_type=None,
+                debug_text=debug_text,
+                error="No image data found in response",
+                error_code="NO_IMAGE",
             )
-            logger.info("Created banner batch job: %s", batch_job.name)
 
-            # 4. Poll for completion
-            start_time = time.time()
-            while time.time() - start_time < self._timeout:
-                job = self._client.batches.get(name=batch_job.name)
-                if job.state.name in ("PROCESSING", "PENDING", "STATE_UNSPECIFIED"):
-                    time.sleep(self._poll_interval)
-                    continue
+        return ImageGenerationResult(image_bytes=image_bytes, mime_type=mime_type, debug_text=debug_text)
 
-                if job.state.name != "SUCCEEDED":
-                    error_msg = f"Batch job failed with state {job.state.name}: {job.error}"
-                    logger.error(error_msg)
-                    return ImageGenerationResult(
-                        image_bytes=None, mime_type=None, error=error_msg, error_code="BATCH_FAILED"
-                    )
-                break
-            else:
-                return ImageGenerationResult(
-                    image_bytes=None, mime_type=None, error="Batch job timed out", error_code="TIMEOUT"
-                )
+    def _decode_inline_data(self, inline: dict[str, Any]) -> tuple[bytes | None, str | None]:
+        data_field = inline.get("data")
+        image_bytes: bytes | None = None
+        if isinstance(data_field, str):
+            image_bytes = base64.b64decode(data_field)
+        elif isinstance(data_field, bytes):
+            image_bytes = data_field
+        return image_bytes, inline.get("mimeType")
 
-            # 5. Download and parse results
-            # The output_uri is a URL we can GET
-            import httpx
-
-            resp = httpx.get(job.output_uri)
-            resp.raise_for_status()
-
-            # Parse JSONL response
-            # There should be only one line since we sent one request
-            line = resp.text.strip()
-            if not line:
-                return ImageGenerationResult(
-                    image_bytes=None, mime_type=None, error="Empty result file", error_code="EMPTY_RESULT"
-                )
-
-            data = json.loads(line)
-            if "error" in data:
-                return ImageGenerationResult(
-                    image_bytes=None, mime_type=None, error=str(data["error"]), error_code="GENERATION_ERROR"
-                )
-
-            # Extract image from response
-            # Structure: response -> candidates -> content -> parts -> inlineData
-            candidates = data.get("response", {}).get("candidates", [])
-
-            image_bytes: bytes | None = None
-            mime_type: str | None = None
-            debug_text_parts: list[str] = []
-
-            for cand in candidates:
-                for part in cand.get("content", {}).get("parts", []):
-                    if "text" in part:
-                        debug_text_parts.append(part["text"])
-                    if "inlineData" in part and image_bytes is None:
-                        inline = part["inlineData"]
-                        data_field = inline.get("data")
-                        if isinstance(data_field, str):
-                            import base64
-
-                            image_bytes = base64.b64decode(data_field)
-                        else:
-                            image_bytes = data_field
-                        mime_type = inline.get("mimeType")
-
-            debug_text = "\n".join(debug_text_parts) if debug_text_parts else None
-
-            if image_bytes is None:
-                return ImageGenerationResult(
-                    image_bytes=None,
-                    mime_type=None,
-                    debug_text=debug_text,
-                    error="No image data found in response",
-                    error_code="NO_IMAGE",
-                )
-
-            return ImageGenerationResult(image_bytes=image_bytes, mime_type=mime_type, debug_text=debug_text)
-
-        finally:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
+    def _cleanup_temp_file(self, temp_path: Path) -> None:
+        if temp_path.exists():
+            temp_path.unlink()

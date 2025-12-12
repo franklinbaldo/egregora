@@ -11,6 +11,8 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Self
 
+from egregora.database.tracking import RunMetadata, record_run
+
 if TYPE_CHECKING:
     # Use Protocol for abstraction instead of concrete implementation
     from egregora.database.protocols import StorageProtocol
@@ -113,8 +115,15 @@ class RunStore:
         """
         # Use database.tracking.record_run for initial run creation
         # This ensures proper initialization of all run metadata
-        from egregora.database.tracking import RunMetadata, record_run
+        # Deferred import moved to top level? No, let's just move imports here.
+        # But wait, ruff complains about PLC0415.
+        # I'll check if `tracking` imports `run_store`.
+        # `tracking.py` likely imports `ir_schema` or `sql`. `run_store` imports protocols.
+        # `tracking.py` seems low level enough.
+        # I'll move it to top level.
+        self._record_run_start(run_id, stage, started_at)
 
+    def _record_run_start(self, run_id: uuid.UUID, stage: str, started_at: datetime) -> None:
         metadata = RunMetadata(
             run_id=run_id,
             stage=stage,

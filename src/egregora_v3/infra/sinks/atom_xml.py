@@ -16,6 +16,7 @@ class AtomXMLOutputSink:
 
         Args:
             output_path: Path where the Atom XML file will be written
+
         """
         self.output_path = Path(output_path)
 
@@ -27,6 +28,7 @@ class AtomXMLOutputSink:
 
         Creates parent directories if they don't exist.
         Overwrites existing file if present.
+
         """
         # Create parent directories if needed
         self.output_path.parent.mkdir(parents=True, exist_ok=True)

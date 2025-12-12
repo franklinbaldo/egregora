@@ -8,7 +8,6 @@ Following TDD Red-Green-Refactor cycle:
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 import httpx
 import pytest
@@ -38,51 +37,51 @@ def sample_atom_feed() -> str:
     atom_ns = "http://www.w3.org/2005/Atom"
     nsmap = {None: atom_ns}
 
-    feed = etree.Element("{%s}feed" % atom_ns, nsmap=nsmap)
+    feed = etree.Element(f"{{{atom_ns}}}feed", nsmap=nsmap)
 
     # Feed metadata
-    title = etree.SubElement(feed, "{%s}title" % atom_ns)
+    title = etree.SubElement(feed, f"{{{atom_ns}}}title")
     title.text = fake.catch_phrase()
 
-    link = etree.SubElement(feed, "{%s}link" % atom_ns)
+    link = etree.SubElement(feed, f"{{{atom_ns}}}link")
     link.set("href", fake.url())
 
-    updated = etree.SubElement(feed, "{%s}updated" % atom_ns)
+    updated = etree.SubElement(feed, f"{{{atom_ns}}}updated")
     updated.text = "2025-12-06T10:00:00Z"
 
     # Entry 1
-    entry1 = etree.SubElement(feed, "{%s}entry" % atom_ns)
+    entry1 = etree.SubElement(feed, f"{{{atom_ns}}}entry")
 
-    entry1_id = etree.SubElement(entry1, "{%s}id" % atom_ns)
+    entry1_id = etree.SubElement(entry1, f"{{{atom_ns}}}id")
     entry1_id.text = f"urn:uuid:{fake.uuid4()}"
 
-    entry1_title = etree.SubElement(entry1, "{%s}title" % atom_ns)
+    entry1_title = etree.SubElement(entry1, f"{{{atom_ns}}}title")
     entry1_title.text = fake.sentence()
 
-    entry1_updated = etree.SubElement(entry1, "{%s}updated" % atom_ns)
+    entry1_updated = etree.SubElement(entry1, f"{{{atom_ns}}}updated")
     entry1_updated.text = "2025-12-05T09:00:00Z"
 
-    entry1_content = etree.SubElement(entry1, "{%s}content" % atom_ns)
+    entry1_content = etree.SubElement(entry1, f"{{{atom_ns}}}content")
     entry1_content.set("type", "html")
     entry1_content.text = fake.paragraph()
 
-    entry1_author = etree.SubElement(entry1, "{%s}author" % atom_ns)
-    entry1_author_name = etree.SubElement(entry1_author, "{%s}name" % atom_ns)
+    entry1_author = etree.SubElement(entry1, f"{{{atom_ns}}}author")
+    entry1_author_name = etree.SubElement(entry1_author, f"{{{atom_ns}}}name")
     entry1_author_name.text = fake.name()
 
     # Entry 2
-    entry2 = etree.SubElement(feed, "{%s}entry" % atom_ns)
+    entry2 = etree.SubElement(feed, f"{{{atom_ns}}}entry")
 
-    entry2_id = etree.SubElement(entry2, "{%s}id" % atom_ns)
+    entry2_id = etree.SubElement(entry2, f"{{{atom_ns}}}id")
     entry2_id.text = f"urn:uuid:{fake.uuid4()}"
 
-    entry2_title = etree.SubElement(entry2, "{%s}title" % atom_ns)
+    entry2_title = etree.SubElement(entry2, f"{{{atom_ns}}}title")
     entry2_title.text = fake.sentence()
 
-    entry2_updated = etree.SubElement(entry2, "{%s}updated" % atom_ns)
+    entry2_updated = etree.SubElement(entry2, f"{{{atom_ns}}}updated")
     entry2_updated.text = "2025-12-04T08:00:00Z"
 
-    entry2_content = etree.SubElement(entry2, "{%s}content" % atom_ns)
+    entry2_content = etree.SubElement(entry2, f"{{{atom_ns}}}content")
     entry2_content.set("type", "text")
     entry2_content.text = fake.text()
 
@@ -158,9 +157,7 @@ def test_parse_atom_feed_from_url(rss_adapter: RSSAdapter, sample_atom_feed: str
     assert entries[0].updated is not None
 
 
-def test_parse_atom_feed_from_file(
-    rss_adapter: RSSAdapter, sample_atom_feed: str, tmp_path: Path
-) -> None:
+def test_parse_atom_feed_from_file(rss_adapter: RSSAdapter, sample_atom_feed: str, tmp_path: Path) -> None:
     """Test parsing Atom feed from local file."""
     feed_file = tmp_path / "feed.atom"
     feed_file.write_text(sample_atom_feed)
@@ -212,9 +209,7 @@ def test_parse_rss2_feed_from_url(rss_adapter: RSSAdapter, sample_rss2_feed: str
     assert all(isinstance(e, Entry) for e in entries)
 
 
-def test_parse_rss2_feed_from_file(
-    rss_adapter: RSSAdapter, sample_rss2_feed: str, tmp_path: Path
-) -> None:
+def test_parse_rss2_feed_from_file(rss_adapter: RSSAdapter, sample_rss2_feed: str, tmp_path: Path) -> None:
     """Test parsing RSS 2.0 feed from local file."""
     feed_file = tmp_path / "feed.rss"
     feed_file.write_text(sample_rss2_feed)
@@ -272,13 +267,11 @@ def test_parse_malformed_xml_raises_error(rss_adapter: RSSAdapter, tmp_path: Pat
     feed_file = tmp_path / "malformed.xml"
     feed_file.write_text(malformed_xml)
 
-    with pytest.raises(Exception):  # Will be more specific in implementation
+    with pytest.raises(etree.XMLSyntaxError):
         list(rss_adapter.parse(feed_file))
 
 
-def test_parse_missing_required_fields_skips_entry(
-    rss_adapter: RSSAdapter, tmp_path: Path
-) -> None:
+def test_parse_missing_required_fields_skips_entry(rss_adapter: RSSAdapter, tmp_path: Path) -> None:
     """Test that entries missing required fields are skipped with warning."""
     incomplete_atom = """<?xml version="1.0" encoding="utf-8"?>
     <feed xmlns="http://www.w3.org/2005/Atom">
@@ -431,12 +424,12 @@ def test_atom_entry_links_parsed(rss_adapter: RSSAdapter, tmp_path: Path) -> Non
     assert len(entries[0].links) == 2
 
     # Check alternate link
-    alternate = next((l for l in entries[0].links if l.rel == "alternate"), None)
+    alternate = next((link for link in entries[0].links if link.rel == "alternate"), None)
     assert alternate is not None
     assert alternate.href == "https://example.com/post"
 
     # Check enclosure link
-    enclosure = next((l for l in entries[0].links if l.rel == "enclosure"), None)
+    enclosure = next((link for link in entries[0].links if link.rel == "enclosure"), None)
     assert enclosure is not None
     assert enclosure.href == "https://example.com/image.jpg"
     assert enclosure.type == "image/jpeg"

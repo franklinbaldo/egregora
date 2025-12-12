@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-import defusedxml.ElementTree as ET
+from defusedxml import ElementTree
 
 from egregora_v3.core.types import (
     Author,
@@ -130,7 +130,7 @@ def test_feed_parses_as_valid_xml():
     xml = feed.to_xml()
 
     # Should parse without error
-    root = ET.fromstring(xml)
+    root = ElementTree.fromstring(xml)
 
     # Check namespace
     assert root.tag == "{http://www.w3.org/2005/Atom}feed"

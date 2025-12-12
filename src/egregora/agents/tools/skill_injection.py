@@ -15,6 +15,7 @@ from pydantic_ai import Agent, RunContext
 from pydantic_ai.models import Model
 
 from egregora.agents.tools.skill_loader import get_skill_loader
+from egregora.resources.prompts import render_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -106,9 +107,6 @@ def use_skill(ctx: RunContext[Any], skill_name: str, task: str) -> str:
         )
         logger.exception(error_msg)
         return f"ERROR: {error_msg}"
-
-    # Create sub-agent with skill context injected
-    from egregora.resources.prompts import render_prompt
 
     truncate_limit = 500
     truncated = len(skill_content.content) > truncate_limit

@@ -16,11 +16,16 @@ Usage:
 
 import importlib.util
 import os
+import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any
+
+from egregora.config import load_egregora_config
+from egregora.input_adapters import list_adapters
 
 # Constants
 MIN_API_KEY_LENGTH_FOR_MASKING = 12  # Minimum length to safely mask API key (8 + 4 chars)
@@ -55,8 +60,6 @@ class DiagnosticResult:
 
 def check_python_version() -> DiagnosticResult:
     """Check if Python version meets minimum requirement (3.12+)."""
-    import sys
-
     version = sys.version_info
     if version >= (3, 12):
         return DiagnosticResult(
@@ -184,7 +187,7 @@ def check_duckdb_zipfs() -> DiagnosticResult:
         finally:
             conn.close()
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # Diagnostic check failure shouldn't crash the tool, just report as INFO/ERROR
         return DiagnosticResult(
             check="DuckDB ZipFS Extension",
@@ -197,13 +200,12 @@ def check_git() -> DiagnosticResult:
     """Check if git is available for code_ref tracking."""
     try:
         # Resolve full path to git to avoid S607 (partial executable path)
-        import shutil
-
         git_path = shutil.which("git")
         if not git_path:
-            raise FileNotFoundError("git executable not found")
+            msg = "git executable not found"
+            raise FileNotFoundError(msg)  # noqa: TRY301
 
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: S603
             [git_path, "--version"],
             capture_output=True,
             text=True,
@@ -284,8 +286,6 @@ def check_egregora_config() -> DiagnosticResult:
 
     try:
         # Try loading config
-        from egregora.config import load_egregora_config
-
         config = load_egregora_config(config_file.parent.parent)  # Pass site root
 
         return DiagnosticResult(
@@ -299,7 +299,7 @@ def check_egregora_config() -> DiagnosticResult:
             },
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # Catch configuration loading errors (validation, parsing, etc.)
         return DiagnosticResult(
             check="Egregora Config",
@@ -311,8 +311,6 @@ def check_egregora_config() -> DiagnosticResult:
 def check_adapters() -> DiagnosticResult:
     """Check available source adapters."""
     try:
-        from egregora.input_adapters import list_adapters
-
         sources = list_adapters()
 
         if sources:
@@ -329,7 +327,7 @@ def check_adapters() -> DiagnosticResult:
             message="No adapters registered",
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # Adapter listing failure shouldn't crash diagnostics
         return DiagnosticResult(
             check="Source Adapters",
@@ -366,7 +364,7 @@ def run_diagnostics() -> list[DiagnosticResult]:
         try:
             result = check_func()
             results.append(result)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # Catch-all for unexpected check failures to ensure report is generated
             check_name = getattr(check_func, "__name__", "Unknown Check")
             check_name = check_name.replace("check_", "").replace("_", " ").title()

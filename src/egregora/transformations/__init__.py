@@ -56,6 +56,7 @@ from egregora.ops.media import (
 )
 from egregora.transformations.windowing import (
     Window,
+    WindowConfig,
     create_windows,
     load_checkpoint,
     save_checkpoint,
@@ -63,6 +64,8 @@ from egregora.transformations.windowing import (
 )
 
 __all__ = [
+    "Window",
+    "WindowConfig",
     "create_windows",
     "extract_media_references",
     "generate_window_signature",

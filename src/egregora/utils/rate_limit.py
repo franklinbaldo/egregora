@@ -22,7 +22,7 @@ class GlobalRateLimiter:
     _lock: threading.Lock = field(default_factory=threading.Lock)
     _semaphore: threading.Semaphore = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self._semaphore = threading.Semaphore(self.max_concurrency)
         self._tokens = self.requests_per_second
 
@@ -68,7 +68,7 @@ _limiter_lock = threading.Lock()
 
 def get_rate_limiter() -> GlobalRateLimiter:
     """Get or create the global rate limiter singleton."""
-    global _limiter
+    global _limiter  # noqa: PLW0603
     with _limiter_lock:
         if _limiter is None:
             # Default to conservative limits if not initialized
@@ -78,7 +78,7 @@ def get_rate_limiter() -> GlobalRateLimiter:
 
 def init_rate_limiter(requests_per_second: float, max_concurrency: int) -> None:
     """Initialize the global rate limiter with specific config."""
-    global _limiter
+    global _limiter  # noqa: PLW0603
     with _limiter_lock:
         _limiter = GlobalRateLimiter(requests_per_second=requests_per_second, max_concurrency=max_concurrency)
     logger.info(

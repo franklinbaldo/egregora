@@ -139,10 +139,10 @@ def generate_config_docs() -> str:
         QuotaSettings,
     ]
 
-    for cls in settings_classes:
-        lines.append(
-            f"- [`{cls.__name__}`](#{cls.__name__.lower()}) - {cls.__doc__ or 'Configuration settings'}"
-        )
+    lines.extend(
+        f"- [`{cls.__name__}`](#{cls.__name__.lower()}) - {cls.__doc__ or 'Configuration settings'}"
+        for cls in settings_classes
+    )
 
     lines.extend(
         [
@@ -161,8 +161,7 @@ def generate_config_docs() -> str:
     lines.append("## Settings Classes")
     lines.append("")
 
-    for cls in settings_classes:
-        lines.append(document_model(cls, level=3))
+    lines.extend(document_model(cls, level=3) for cls in settings_classes)
 
     # Add example configuration
     lines.extend(

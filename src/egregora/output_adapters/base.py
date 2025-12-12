@@ -12,9 +12,11 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 import ibis.expr.datatypes as dt
+import yaml
 
 from egregora.data_primitives import DocumentMetadata, OutputSink, UrlConvention
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.utils import safe_path_join, slugify
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
@@ -45,7 +47,7 @@ class SiteConfiguration:
     additional_paths: dict[str, Path] | None = None
 
 
-class OutputAdapter(OutputSink, ABC):
+class BaseOutputSink(OutputSink, ABC):
     """Abstract base class for output formats focused on document IO.
 
     Output formats are responsible for persisting ``Document`` instances and
@@ -173,8 +175,6 @@ class OutputAdapter(OutputSink, ABC):
     @staticmethod
     def normalize_slug(slug: str) -> str:
         """Normalize slug to be URL-safe and filesystem-safe."""
-        from egregora.utils import slugify
-
         return slugify(slug)
 
     @staticmethod
@@ -211,8 +211,6 @@ class OutputAdapter(OutputSink, ABC):
     @staticmethod
     def generate_unique_filename(base_dir: Path, filename_pattern: str, max_attempts: int = 1000) -> Path:
         """Generate unique filename by adding suffix if file exists."""
-        from egregora.utils import safe_path_join
-
         # Try original filename first
         if "{suffix}" not in filename_pattern:
             # Add suffix placeholder before extension
@@ -242,8 +240,6 @@ class OutputAdapter(OutputSink, ABC):
 
     def parse_frontmatter(self, content: str) -> tuple[dict, str]:
         """Parse frontmatter from markdown content."""
-        import yaml
-
         if not content.startswith("---\n"):
             return {}, content
 
@@ -282,29 +278,35 @@ class OutputAdapter(OutputSink, ABC):
         # Base implementation does nothing - subclasses override for specific tasks
 
 
-class OutputAdapterRegistry:
+class OutputSinkRegistry:
     """Registry for managing available output formats."""
 
     def __init__(self) -> None:
-        self._formats: dict[str, type[OutputAdapter]] = {}
+        self._formats: dict[str, type[BaseOutputSink]] = {}
 
-    def register(self, format_class: type[OutputAdapter]) -> None:
+    def register(self, format_class: type[BaseOutputSink]) -> None:
         """Register an output format class."""
-        instance = format_class()
+        # Create temporary instance to get format_type.
+        # This assumes __init__ takes no arguments, which is true for concrete adapters.
+        # However, abstract OutputAdapter cannot be instantiated.
+        # We assume concrete implementations are registered.
+        # To fix type error, we cast format_class to Callable[[], OutputAdapter] implicitly
+        instance = format_class()  # type: ignore[abstract]
         self._formats[instance.format_type] = format_class
 
-    def get_format(self, format_type: str) -> OutputAdapter:
+    def get_format(self, format_type: str) -> BaseOutputSink:
         """Get an output format by type."""
         if format_type not in self._formats:
             available = ", ".join(self._formats.keys())
             msg = f"Output format '{format_type}' not found. Available: {available}"
             raise KeyError(msg)
-        return self._formats[format_type]()
+        # Instantiate the class. Assumes no-arg constructor for initial creation.
+        return self._formats[format_type]()  # type: ignore[abstract]
 
-    def detect_format(self, site_root: Path) -> OutputAdapter | None:
+    def detect_format(self, site_root: Path) -> BaseOutputSink | None:
         """Auto-detect the appropriate output format for a given site."""
         for format_class in self._formats.values():
-            instance = format_class()
+            instance = format_class()  # type: ignore[abstract]
             if instance.supports_site(site_root):
                 return instance
         return None
@@ -314,20 +316,20 @@ class OutputAdapterRegistry:
         return list(self._formats.keys())
 
 
-def create_output_registry() -> OutputAdapterRegistry:
+def create_output_registry() -> OutputSinkRegistry:
     """Create a fresh output adapter registry."""
-    return OutputAdapterRegistry()
+    return OutputSinkRegistry()
 
 
-def create_output_format(
+def create_output_sink(
     site_root: Path,
     format_type: str = "mkdocs",
     *,
-    registry: OutputAdapterRegistry | None = None,
-) -> OutputAdapter:
-    """Create and initialize an OutputAdapter based on configuration."""
+    registry: OutputSinkRegistry | None = None,
+) -> BaseOutputSink:
+    """Create and initialize a BaseOutputSink based on configuration."""
     if registry is None:
-        msg = "An OutputAdapterRegistry instance must be provided to create output formats."
+        msg = "An OutputSinkRegistry instance must be provided to create output formats."
         raise ValueError(msg)
 
     output_format = registry.get_format(format_type)

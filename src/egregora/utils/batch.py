@@ -6,7 +6,7 @@ import logging
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import httpx
 from google.genai import types as genai_types
@@ -90,12 +90,17 @@ class EmbeddingBatchResult:
     error: genai_types.JobError | None = None
 
 
+def _raise_no_embedding() -> None:
+    msg = "No embedding returned"
+    raise UnexpectedModelBehavior(msg)
+
+
 class GeminiBatchClient:
     """Synchronous Gemini batch helper built on the official google-genai client."""
 
     def __init__(
         self,
-        client: object,
+        client: Any,
         default_model: str,
         poll_interval: float = 5.0,
         timeout: float | None = 900.0,
@@ -110,7 +115,7 @@ class GeminiBatchClient:
         """Return the default generative model for this batch client."""
         return self._default_model
 
-    def upload_file(self, *, path: str, _display_name: str | None = None) -> File:
+    def upload_file(self, *, path: str, _display_name: str | None = None) -> genai_types.File:
         display_name = _display_name or path
         return self._client.files.upload(file=path, display_name=display_name)
 
@@ -185,8 +190,7 @@ class GeminiBatchClient:
                     values = None
 
                 if values is None:
-                    msg = "No embedding returned"
-                    raise UnexpectedModelBehavior(msg)
+                    _raise_no_embedding()
 
                 results.append(EmbeddingBatchResult(tag=req.tag, embedding=list(values), error=None))
             except Exception as exc:  # pragma: no cover - exercised in integration

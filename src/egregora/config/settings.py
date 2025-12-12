@@ -22,12 +22,14 @@ Strategy:
 from __future__ import annotations
 
 import logging
+import os
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from egregora.config.overrides import ConfigOverrideBuilder
@@ -45,15 +47,15 @@ logger = logging.getLogger(__name__)
 # Constants
 # ============================================================================
 
-DEFAULT_MODEL = "google-gla:gemini-2.0-flash"
+DEFAULT_MODEL = "google-gla:gemini-flash-latest"  # More reliable availability
 DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
 DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash-image"
 EMBEDDING_DIM = 768  # Embedding vector dimensions
 
 # Quota defaults
 # Quota defaults
-DEFAULT_DAILY_LLM_REQUESTS = 220
-DEFAULT_PER_SECOND_LIMIT = 1
+DEFAULT_DAILY_LLM_REQUESTS = 100  # Conservative default
+DEFAULT_PER_SECOND_LIMIT = 0.05  # ~3 requests/min to avoid 429 on free tier
 DEFAULT_CONCURRENCY = 1
 
 # Default database connection strings
@@ -216,10 +218,11 @@ class RAGSettings(BaseModel):
     @classmethod
     def validate_top_k(cls, v: int) -> int:
         """Validate top_k is reasonable and warn if too high."""
-        if v > 15:
+        if v > RAG_TOP_K_WARNING_THRESHOLD:
             logger.warning(
-                f"RAG top_k={v} is unusually high. "
-                f"Consider values between 5-10 for better performance and relevance."
+                "RAG top_k=%s is unusually high. "
+                "Consider values between 5-10 for better performance and relevance.",
+                v,
             )
         return v
 
@@ -544,6 +547,33 @@ class PathsSettings(BaseModel):
         description="Agent execution journals directory",
     )
 
+    @field_validator(
+        "egregora_dir",
+        "rag_dir",
+        "lancedb_dir",
+        "cache_dir",
+        "prompts_dir",
+        "docs_dir",
+        "posts_dir",
+        "profiles_dir",
+        "media_dir",
+        "journal_dir",
+        mode="after",
+    )
+    @classmethod
+    def validate_safe_path(cls, v: str) -> str:
+        """Validate path is relative and does not contain traversal sequences."""
+        if not v:
+            return v
+        path = Path(v)
+        if path.is_absolute():
+            msg = f"Path must be relative, not absolute: {v}"
+            raise ValueError(msg)
+        if any(part == ".." for part in path.parts):
+            msg = f"Path must not contain traversal sequences ('..'): {v}"
+            raise ValueError(msg)
+        return v
+
 
 class OutputSettings(BaseModel):
     """Output format configuration.
@@ -632,9 +662,9 @@ class QuotaSettings(BaseModel):
         ge=1,
         description="Soft limit for daily LLM calls (writer + enrichment).",
     )
-    per_second_limit: int = Field(
+    per_second_limit: float = Field(
         default=DEFAULT_PER_SECOND_LIMIT,
-        ge=1,
+        ge=0.01,
         description="Maximum number of LLM calls allowed per second (for async guard).",
     )
     concurrency: int = Field(
@@ -757,10 +787,11 @@ class EgregoraConfig(BaseSettings):
             raise ValueError(msg)
 
         # Warn about very high max_prompt_tokens
-        if self.pipeline.max_prompt_tokens > 200_000:
+        if self.pipeline.max_prompt_tokens > MAX_PROMPT_TOKENS_WARNING_THRESHOLD:
             logger.warning(
-                f"pipeline.max_prompt_tokens={self.pipeline.max_prompt_tokens} exceeds most model limits. "
-                "Consider using pipeline.use_full_context_window=true instead of setting a high token limit."
+                "pipeline.max_prompt_tokens=%s exceeds most model limits. "
+                "Consider using pipeline.use_full_context_window=true instead of setting a high token limit.",
+                self.pipeline.max_prompt_tokens,
             )
 
         # Warn if use_full_context_window is enabled
@@ -786,13 +817,15 @@ class EgregoraConfig(BaseSettings):
         """
         builder = ConfigOverrideBuilder(base_config)
 
+        from_date = cli_args.get("from_date")
+        to_date = cli_args.get("to_date")
         builder.with_pipeline(
             step_size=cli_args.get("step_size"),
             step_unit=cli_args.get("step_unit"),
             overlap_ratio=cli_args.get("overlap_ratio"),
             timezone=str(cli_args["timezone"]) if cli_args.get("timezone") is not None else None,
-            from_date=cli_args.get("from_date").isoformat() if cli_args.get("from_date") else None,
-            to_date=cli_args.get("to_date").isoformat() if cli_args.get("to_date") else None,
+            from_date=from_date.isoformat() if from_date else None,
+            to_date=to_date.isoformat() if to_date else None,
             max_prompt_tokens=cli_args.get("max_prompt_tokens"),
             use_full_context_window=cli_args.get("use_full_context_window"),
         )
@@ -837,8 +870,6 @@ def find_egregora_config(start_dir: Path) -> Path | None:
 
 def _collect_env_override_paths() -> set[tuple[str, ...]]:
     """Return the set of config paths defined via environment variables."""
-    import os
-
     prefix = "EGREGORA_"
     env_paths: set[tuple[str, ...]] = set()
 
@@ -859,12 +890,10 @@ def _merge_config(
     current_path: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Merge override into base, skipping keys provided via env vars."""
-    from copy import deepcopy
-
     merged = deepcopy(base)
 
     for key, value in override.items():
-        path = current_path + (str(key).lower(),)
+        path = (*current_path, str(key).lower())
         if path in env_override_paths:
             continue
 
@@ -899,6 +928,7 @@ def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
 
         # Use explicit path (e.g., from CLI --site-root flag)
         config = load_egregora_config(Path("/path/to/site"))
+
     """
     if site_root is None:
         site_root = Path.cwd()
@@ -1019,7 +1049,7 @@ class RuntimeContext:
     debug: Annotated[bool, "Enable debug logging"] = False
 
     @property
-    def input_path(self) -> Path:
+    def input_path(self) -> Path | None:
         """Alias for input_file (source-agnostic naming)."""
         return self.input_file
 
@@ -1079,13 +1109,13 @@ class PipelineEnrichmentConfig:
             raise ValueError(msg)
 
     @classmethod
-    def from_cli_args(cls, **kwargs: int | bool) -> PipelineEnrichmentConfig:
+    def from_cli_args(cls, **kwargs: Any) -> PipelineEnrichmentConfig:
         """Create config from CLI arguments."""
         return cls(
-            batch_threshold=kwargs.get("batch_threshold", 10),
-            max_enrichments=kwargs.get("max_enrichments", 500),
-            enable_url=kwargs.get("enable_url", True),
-            enable_media=kwargs.get("enable_media", True),
+            batch_threshold=int(kwargs.get("batch_threshold", 10)),
+            max_enrichments=int(kwargs.get("max_enrichments", 500)),
+            enable_url=bool(kwargs.get("enable_url", True)),
+            enable_media=bool(kwargs.get("enable_media", True)),
         )
 
 
@@ -1130,8 +1160,6 @@ __all__ = [
 
 def get_openrouter_api_key() -> str:
     """Get OpenRouter API key from environment."""
-    import os
-
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         msg = "OPENROUTER_API_KEY environment variable is required for OpenRouter models"
@@ -1142,6 +1170,4 @@ def get_openrouter_api_key() -> str:
 
 def openrouter_api_key_status() -> bool:
     """Check if OPENROUTER_API_KEY is configured."""
-    import os
-
     return bool(os.environ.get("OPENROUTER_API_KEY"))

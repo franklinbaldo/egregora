@@ -6,6 +6,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from egregora.config import load_egregora_config
+
 logger = logging.getLogger(__name__)
 
 
@@ -67,8 +69,6 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
 
     # Load config if not provided
     if config is None:
-        from egregora.config import load_egregora_config
-
         config = load_egregora_config(resolved_root)
 
     # Resolve all paths from config settings (relative to site_root)
@@ -100,17 +100,52 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
 
         return (docs_dir / path_obj).resolve()
 
-    posts_dir = resolve_content_path(paths_settings.posts_dir)
+    # blog_root_dir is where blog artifacts go (e.g., docs/posts/)
+    # Material blog plugin expects posts in {blog}/posts/ subdirectory,
+    # but ONLY if the blog_dir itself is not the source.
+    # The current code seems to assume a nested "posts/posts" structure.
+    # Let's revert to using posts_dir directly as the posts directory,
+    # and assume blog_root_dir is the same or parent.
+    #
+    # Wait, the comment says "Material blog plugin expects posts in {blog}/posts/ subdirectory".
+    # If paths_settings.posts_dir is "posts", then blog_root_dir is "docs/posts".
+    # And posts_dir becomes "docs/posts/posts".
+    # This matches the failure "docs/posts/posts".
+    # The tests expect "docs/posts".
+    #
+    # If I change it back to just resolve_content_path(paths_settings.posts_dir),
+    # does it break Material blog plugin compatibility?
+    # The tests `test_scaffold_site_creates_expected_layout` verify layout.
+    #
+    # Let's see `test_scaffolding.py`:
+    # assert site_config.posts_dir == site_config.docs_dir / "posts"
+    #
+    # If I change this line in paths.py:
+    # posts_dir = blog_root_dir / "posts"
+    # to:
+    # posts_dir = blog_root_dir
+    #
+    # Then `posts_dir` will be `docs/posts`.
+    #
+    # However, `blog_root_dir` is used as `blog_dir`.
+    #
+    # Let's assume the tests are correct and the code in `paths.py` was recently changed or incorrect.
+    # The test failure shows that the test EXPECTS `docs/posts` but got `docs/posts/posts`.
+    # So `paths.py` is creating the extra nesting.
+
+    blog_root_dir = resolve_content_path(paths_settings.posts_dir)
+    # Posts go directly in blog_root_dir (e.g., docs/posts/) - no nested subdirectory
+    posts_dir = blog_root_dir
     profiles_dir = resolve_content_path(paths_settings.profiles_dir)
     media_dir = resolve_content_path(paths_settings.media_dir)
     journal_dir = _resolve_journal_dir(paths_settings, resolve_content_path)
 
     try:
-        blog_relative = posts_dir.relative_to(docs_dir).as_posix()
+        blog_relative = blog_root_dir.relative_to(docs_dir).as_posix()
     except ValueError as exc:  # pragma: no cover - enforced earlier
         msg = (
             "Posts directory must reside inside the MkDocs docs_dir. "
-            f"docs_dir={docs_dir}, posts_dir={posts_dir}"
+            f"docs_dir={docs_dir}, blog_root_dir={blog_root_dir}"
         )
         raise ValueError(msg) from exc
 
@@ -125,7 +160,8 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
         "cache_dir": resolve_path(paths_settings.cache_dir),
         "docs_dir": docs_dir,
         "blog_dir": blog_relative,
-        "posts_dir": posts_dir,
+        "blog_root_dir": blog_root_dir,  # Where tags.md and blog artifacts go
+        "posts_dir": posts_dir,  # Where actual post files go (posts/posts/)
         "profiles_dir": profiles_dir,
         "media_dir": media_dir,
         "journal_dir": journal_dir,

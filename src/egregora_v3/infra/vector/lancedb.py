@@ -57,6 +57,7 @@ class LanceDBVectorStore:
             db_dir: Directory for LanceDB database
             table_name: Name of the table to store vectors
             embed_fn: Function that takes texts and returns embeddings
+
         """
         self._db_dir = Path(db_dir)
         self._table_name = table_name
@@ -87,6 +88,7 @@ class LanceDBVectorStore:
 
         Each document is embedded based on its content and stored with
         its full metadata for retrieval.
+
         """
         if not docs:
             logger.info("No documents to index")
@@ -142,6 +144,7 @@ class LanceDBVectorStore:
 
         Returns:
             List of Document objects ranked by relevance
+
         """
         # Check if table is empty
         try:
@@ -153,7 +156,7 @@ class LanceDBVectorStore:
             arrow_table = self._table.search().limit(1).to_arrow()
             if len(arrow_table) == 0:
                 return []
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Table might not exist yet
             return []
 
@@ -184,7 +187,7 @@ class LanceDBVectorStore:
                 # Reconstruct Document from dict
                 doc = self._reconstruct_document(doc_dict)
                 documents.append(doc)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 logger.warning(
                     "Failed to deserialize document %s: %s",
                     row.get("document_id", "unknown"),
@@ -203,6 +206,7 @@ class LanceDBVectorStore:
 
         Returns:
             Reconstructed Document object
+
         """
         # Convert enum strings back to enums
         if "doc_type" in doc_dict:
@@ -211,11 +215,11 @@ class LanceDBVectorStore:
             doc_dict["status"] = DocumentStatus(doc_dict["status"])
 
         # Convert nested objects
-        if "authors" in doc_dict and doc_dict["authors"]:
+        if doc_dict.get("authors"):
             doc_dict["authors"] = [Author(**a) for a in doc_dict["authors"]]
-        if "categories" in doc_dict and doc_dict["categories"]:
+        if doc_dict.get("categories"):
             doc_dict["categories"] = [Category(**c) for c in doc_dict["categories"]]
-        if "links" in doc_dict and doc_dict["links"]:
+        if doc_dict.get("links"):
             doc_dict["links"] = [Link(**link) for link in doc_dict["links"]]
 
         return Document(**doc_dict)

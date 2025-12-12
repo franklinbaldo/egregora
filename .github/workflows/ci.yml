@@ -9,65 +9,81 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  PYTHON_VERSION: "3.12"
+  ARTIFACT_RETENTION_DAYS: "7"
+  COVERAGE_RETENTION_DAYS: "30"
+
 on:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
 
 jobs:
-  lint:
-    name: Lint (ruff + mypy)
+  lint-ruff-check:
+    name: Ruff (lint)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
         with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --all-extras
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
 
       - name: Run ruff (lint)
         run: uv run ruff check src/ tests/
 
+  lint-ruff-format:
+    name: Ruff (format)
+    runs-on: ubuntu-latest
+    needs: [lint-ruff-check]
+    steps:
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
+
       - name: Run ruff (format check)
         run: uv run ruff format --check src/ tests/
+
+  lint-mypy:
+    name: Mypy
+    runs-on: ubuntu-latest
+    needs: [lint-ruff-check, lint-ruff-format]
+    steps:
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
 
       - name: Run mypy
         run: uv run mypy src/
 
   test-unit:
-    name: Unit Tests
+    name: Unit Tests (Python ${{ env.PYTHON_VERSION }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
         with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
 
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --all-extras
-
-      - name: Run unit tests with coverage
+      - name: Run unit tests
         env:
           GEMINI_API_KEY: "test-key"
-        run: uv run pytest tests/unit/ -v --cov=src --cov-branch --cov-report=xml --cov-report=term
+        run: |
+          uv run pytest tests/unit/ -v --cov=src --cov-branch --cov-report=xml:coverage.xml --cov-report=term
 
       - name: Upload coverage to Codecov
+        if: github.repository == 'franklinbaldo/egregora'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -82,7 +98,7 @@ jobs:
         with:
           name: coverage-unit
           path: coverage.xml
-          retention-days: 7
+          retention-days: ${{ env.COVERAGE_RETENTION_DAYS }}
 
       - name: Upload test results on failure
         if: failure()
@@ -92,26 +108,20 @@ jobs:
           path: |
             .pytest_cache/
             *.log
-          retention-days: 7
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
   test-e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: [lint-ruff-check, lint-ruff-format, lint-mypy]
+    if: always()
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
         with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --all-extras
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
 
       - name: Run E2E tests with coverage
         env:
@@ -119,6 +129,7 @@ jobs:
         run: uv run pytest tests/e2e/ -v --cov=src --cov-branch --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov
+        if: github.repository == 'franklinbaldo/egregora'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -133,7 +144,7 @@ jobs:
         with:
           name: coverage-e2e
           path: coverage.xml
-          retention-days: 7
+          retention-days: ${{ env.COVERAGE_RETENTION_DAYS }}
 
       - name: Upload test results on failure
         if: failure()
@@ -144,46 +155,50 @@ jobs:
             .pytest_cache/
             *.log
             .egregora/
-          retention-days: 7
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    needs: [lint-ruff-check, lint-ruff-format, lint-mypy]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
         with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
-        run: uv sync --all-extras
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
 
       - name: Run safety check
-        run: |
-          uv pip install safety
-          uv run safety check --json
-        # Remove continue-on-error - let security issues fail the build
+        run: uvx safety check --full-report
+
+      - name: Run pip-audit
+        run: uvx pip-audit
+
+      - name: Run bandit (security linter)
+        continue-on-error: true
+        run: uvx bandit -r src/ -f sarif -o bandit-report.sarif
+
+      - name: Upload Bandit results (SARIF)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit-report.sarif
 
   build:
     name: Build Package
     runs-on: ubuntu-latest
+    needs: [lint-ruff-check, lint-ruff-format, lint-mypy, test-unit, test-e2e, security]
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
         with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Set up Python
-        run: uv python install 3.12
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
 
       - name: Build package
         run: uv build
@@ -193,42 +208,45 @@ jobs:
         with:
           name: dist
           path: dist/
-          retention-days: 30
+          retention-days: ${{ env.COVERAGE_RETENTION_DAYS }}
 
   docs:
     name: Build & Deploy Docs
-    # Only run on main branch pushes after lint and tests pass
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [lint, test-unit, test-e2e]
+    needs: [build, security, quality]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write  # Required for GitHub Pages deployment
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Set up Python
-        run: uv python install 3.12
-
-      - name: Install dependencies
+      - name: Determine if docs should run
+        id: docs_condition
         run: |
-          uv sync --extra docs
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Python environment
+        if: steps.docs_condition.outputs.run == 'true'
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--extra docs"
 
       - name: Build Documentation
-        run: |
-          uv run mkdocs build
+        if: steps.docs_condition.outputs.run == 'true'
+        run: uv run mkdocs build
 
       - name: Setup Node.js
+        if: steps.docs_condition.outputs.run == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: 20
+          cache: npm
 
       - name: Generate Repomix bundles
+        if: steps.docs_condition.outputs.run == 'true'
         run: |
           mkdir -p /tmp/bundles
           npx repomix -c repomix-docs.json --output /tmp/bundles/docs.bundle.md
@@ -238,14 +256,79 @@ jobs:
           cp /tmp/bundles/*.bundle.md site/bundles/
 
       - name: Deploy to GitHub Pages
+        if: steps.docs_condition.outputs.run == 'true' && github.repository == 'franklinbaldo/egregora'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./site
 
       - name: Upload bundles artifact
+        if: steps.docs_condition.outputs.run == 'true'
         uses: actions/upload-artifact@v5
         with:
           name: bundles
           path: /tmp/bundles/
-          retention-days: 7
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+
+      - name: Docs build skipped
+        if: steps.docs_condition.outputs.run == 'false'
+        run: echo "Documentation build skipped for this event."
+
+  quality:
+    name: Code Quality Metrics
+    runs-on: ubuntu-latest
+    needs: [lint-ruff-check, lint-ruff-format, lint-mypy, test-unit]
+    timeout-minutes: 10
+    steps:
+      - name: Determine if quality checks should run
+        id: quality_condition
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.event_name }}" == "schedule" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Python environment
+        if: steps.quality_condition.outputs.run == 'true'
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
+
+      - name: Run radon (complexity)
+        if: steps.quality_condition.outputs.run == 'true'
+        run: uv run radon cc src/ -a
+
+      - name: Run xenon (threshold enforcement)
+        if: steps.quality_condition.outputs.run == 'true'
+        continue-on-error: true
+        run: uv run xenon src/ --max-absolute B --max-modules B --max-average B
+
+      - name: Quality checks skipped
+        if: steps.quality_condition.outputs.run == 'false'
+        run: echo "Quality checks skipped for this event."
+
+  summary:
+    name: Workflow Summary
+    runs-on: ubuntu-latest
+    needs: [lint-ruff-check, lint-ruff-format, lint-mypy, test-unit, test-e2e, security, quality, build, docs]
+    if: always()
+    steps:
+      - name: Post summary
+        run: |
+          cat <<'EOF' >> $GITHUB_STEP_SUMMARY
+          ## Workflow Summary
+
+          | Job | Result |
+          | --- | ------ |
+          | Ruff Lint | ${{ needs['lint-ruff-check'].result }} |
+          | Ruff Format | ${{ needs['lint-ruff-format'].result }} |
+          | Mypy | ${{ needs['lint-mypy'].result }} |
+          | Unit Tests | ${{ needs['test-unit'].result }} |
+          | E2E Tests | ${{ needs['test-e2e'].result }} |
+          | Security | ${{ needs.security.result }} |
+          | Quality | ${{ needs.quality.result }} |
+          | Build | ${{ needs.build.result }} |
+          | Docs | ${{ needs.docs.result }} |
+          EOF

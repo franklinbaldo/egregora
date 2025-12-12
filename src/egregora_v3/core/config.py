@@ -1,8 +1,8 @@
+import importlib
 from pathlib import Path
 from typing import Literal
 
-import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,7 +27,7 @@ class PathsSettings(BaseModel):
 
     site_root: Path = Field(
         default_factory=Path.cwd,
-        description="Root directory of the site (defaults to current working directory)"
+        description="Root directory of the site (defaults to current working directory)",
     )
 
     # Content
@@ -119,7 +119,8 @@ class EgregoraConfig(BaseSettings):
 
             # Use explicit path (e.g., from CLI --site-root flag)
             config = EgregoraConfig.load(Path("/path/to/site"))
-        """
-        from egregora_v3.core.config_loader import ConfigLoader
 
-        return ConfigLoader(site_root).load()
+        """
+        # Dynamic import to avoid circular dependency with ConfigLoader
+        loader_module = importlib.import_module("egregora_v3.core.config_loader")
+        return loader_module.ConfigLoader(site_root).load()

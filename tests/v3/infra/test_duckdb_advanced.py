@@ -10,23 +10,18 @@ Tests demonstrate:
 Following TDD approach - these tests verify existing implementation.
 """
 
+import time
 from datetime import UTC, datetime
-from pathlib import Path
 
+import duckdb
 import ibis
 import pytest
 from faker import Faker
 from freezegun import freeze_time
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
-from egregora_v3.core.types import (
-    Author,
-    Category,
-    Document,
-    DocumentStatus,
-    DocumentType,
-    Link,
-)
+from egregora_v3.core.types import Author, Category, Document, DocumentStatus, DocumentType, Link
 from egregora_v3.infra.repository.duckdb import DuckDBDocumentRepository
 
 fake = Faker()
@@ -236,8 +231,6 @@ def test_repository_with_unicode_content(repo: DuckDBDocumentRepository) -> None
 @freeze_time("2025-12-06 10:00:00")
 def test_documents_sorted_by_updated_timestamp(repo: DuckDBDocumentRepository) -> None:
     """Test that documents can be sorted by their updated timestamp."""
-    import time
-
     docs = []
     for i in range(5):
         doc = Document.create(
@@ -524,16 +517,22 @@ def test_repository_survives_malformed_json_in_database(
             f"INSERT INTO {repo.table_name} (id, doc_type, json_data, updated) "
             "VALUES ('bad-id', 'post', '{invalid json}', CURRENT_TIMESTAMP)"
         )
-    except Exception:
+    except duckdb.Error as exc:
         # Some databases might reject invalid JSON
-        pytest.skip("Database rejects invalid JSON")
+        pytest.skip(f"Database rejects invalid JSON: {exc}")
 
     # list() should either skip bad record or raise clear error
     # (Implementation dependent - document behavior)
+    error_message = None
     try:
         docs = repo.list()
+    except (duckdb.Error, ValueError) as exc:
+        # Some connectors may surface parsing errors as exceptions
+        error_message = str(exc).lower()
+        docs = None
+
+    if error_message is not None:
+        assert "json" in error_message or "parse" in error_message
+    else:
         # If successful, bad record should be skipped
         assert all(d.id != "bad-id" for d in docs)
-    except Exception as e:
-        # Or it might raise - that's also acceptable
-        assert "json" in str(e).lower() or "parse" in str(e).lower()
