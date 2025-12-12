@@ -959,7 +959,6 @@ class EnrichmentWorker(BaseWorker):
         from google import genai
         from google.genai import types
 
-        from egregora.models.model_cycler import GeminiModelCycler
 
         api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if not api_key:
@@ -987,14 +986,17 @@ class EnrichmentWorker(BaseWorker):
             pii_prevention=getattr(self.ctx.config.privacy, "pii_prevention", None),
         ).strip()
 
-        # Build model cycler if enabled
+        # Build model+key rotator if enabled
         rotation_enabled = getattr(self.ctx.config.enrichment, "model_rotation_enabled", True)
         rotation_models = getattr(self.ctx.config.enrichment, "rotation_models", None)
 
         if rotation_enabled:
-            cycler = GeminiModelCycler(models=rotation_models)
+            from egregora.models.model_key_rotator import ModelKeyRotator
 
-            def call_with_model(model: str) -> str:
+            rotator = ModelKeyRotator(models=rotation_models)
+
+            def call_with_model_and_key(model: str, api_key: str) -> str:
+                client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
                     model=model,
                     contents=[{"parts": [{"text": combined_prompt}]}],
@@ -1002,10 +1004,12 @@ class EnrichmentWorker(BaseWorker):
                 )
                 return response.text or ""
 
-            response_text = cycler.call_with_rotation(call_with_model)
+            response_text = rotator.call_with_rotation(call_with_model_and_key)
         else:
-            # No rotation - use configured model
+            # No rotation - use configured model and API key
             model_name = self.ctx.config.models.enricher
+            api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+            client = genai.Client(api_key=api_key)
             response = client.models.generate_content(
                 model=model_name,
                 contents=[{"parts": [{"text": combined_prompt}]}],
@@ -1325,16 +1329,17 @@ class EnrichmentWorker(BaseWorker):
         # Build the request: prompt first, then all images
         request_parts = [{"text": combined_prompt}] + parts
 
-        # Build model cycler if enabled
-        from egregora.models.model_cycler import GeminiModelCycler
+        # Build model+key rotator if enabled
+        from egregora.models.model_key_rotator import ModelKeyRotator
 
         rotation_enabled = getattr(self.ctx.config.enrichment, "model_rotation_enabled", True)
         rotation_models = getattr(self.ctx.config.enrichment, "rotation_models", None)
 
         if rotation_enabled:
-            cycler = GeminiModelCycler(models=rotation_models)
+            rotator = ModelKeyRotator(models=rotation_models)
 
-            def call_with_model(model: str) -> str:
+            def call_with_model_and_key(model: str, api_key: str) -> str:
+                client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
                     model=model,
                     contents=[{"parts": request_parts}],
@@ -1342,9 +1347,9 @@ class EnrichmentWorker(BaseWorker):
                 )
                 return response.text or ""
 
-            response_text = cycler.call_with_rotation(call_with_model)
+            response_text = rotator.call_with_rotation(call_with_model_and_key)
         else:
-            # No rotation - use configured model
+            # No rotation - use configured model and API key
             response = client.models.generate_content(
                 model=model_name,
                 contents=[{"parts": request_parts}],
