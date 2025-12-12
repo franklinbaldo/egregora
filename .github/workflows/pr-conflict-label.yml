@@ -113,3 +113,98 @@ jobs:
                 }
               }
             }
+
+  auto-update-branch:
+    name: Auto-update PR branch
+    runs-on: ubuntu-latest
+    needs: [label-conflicts]
+    if: always()
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Update branch if behind and clean
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+
+            // Retry logic to wait for GitHub to calculate mergeability
+            let prData;
+            let attempts = 0;
+            const maxAttempts = 5;
+            const baseDelay = 2000;
+
+            while (attempts < maxAttempts) {
+              attempts++;
+
+              const { data } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number,
+              });
+              prData = data;
+
+              if (prData.mergeable_state !== 'unknown') {
+                console.log(`Mergeable state: ${prData.mergeable_state}`);
+                break;
+              }
+
+              if (attempts < maxAttempts) {
+                const delay = baseDelay * Math.pow(2, attempts - 1);
+                console.log(`Waiting ${delay}ms for mergeable state...`);
+                await new Promise((resolve) => setTimeout(resolve, delay));
+              }
+            }
+
+            // Check if branch is behind and clean (no conflicts)
+            const isBehind = prData.mergeable_state === 'behind';
+            const isClean = prData.mergeable_state === 'clean';
+            const hasConflicts = prData.mergeable_state === 'dirty';
+
+            console.log(`PR Status:
+              - Behind: ${isBehind}
+              - Clean: ${isClean}
+              - Has conflicts: ${hasConflicts}
+              - Mergeable: ${prData.mergeable}
+            `);
+
+            // Only update if behind and no conflicts
+            if (isBehind && prData.mergeable !== false) {
+              try {
+                console.log('Branch is behind and has no conflicts - updating...');
+
+                await github.rest.pulls.updateBranch({
+                  owner,
+                  repo,
+                  pull_number,
+                });
+
+                console.log('✅ Branch updated successfully!');
+
+                // Post a comment about the auto-update
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pull_number,
+                  body: '🔄 **Branch automatically updated** with latest changes from base branch.'
+                });
+
+              } catch (error) {
+                if (error.status === 422) {
+                  console.log('⚠️ Branch update not possible (might have restrictions or conflicts)');
+                } else if (error.status === 403) {
+                  console.log('⚠️ No permission to update branch (might be from a fork)');
+                } else {
+                  console.error('❌ Failed to update branch:', error.message);
+                  throw error;
+                }
+              }
+            } else if (hasConflicts) {
+              console.log('⏭️ Skipping update - PR has merge conflicts');
+            } else if (isClean) {
+              console.log('✅ Branch is already up to date');
+            } else {
+              console.log(`ℹ️ No update needed (state: ${prData.mergeable_state})`);
+            }
