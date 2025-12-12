@@ -34,6 +34,7 @@ from egregora.diagnostics import HealthStatus, run_diagnostics
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration import write_pipeline
 from egregora.orchestration.context import PipelineRunParams
+from egregora.utils.env import validate_gemini_api_key
 
 app = typer.Typer(
     name="egregora",
@@ -182,14 +183,11 @@ class WriteCommandOptions:
 
 
 def _validate_api_key(output_dir: Path) -> None:
-    """Validate that API key is set."""
+    """Validate that API key is set and valid."""
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-    if api_key:
-        return
-
-    _load_dotenv_if_available(output_dir)
-
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        _load_dotenv_if_available(output_dir)
+        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 
     if not api_key:
         console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
@@ -198,6 +196,18 @@ def _validate_api_key(output_dir: Path) -> None:
         )
         console.print("You can also create a .env file in the output directory or current directory.")
         raise typer.Exit(1)
+
+    # Validate the API key with a lightweight call
+    console.print("[cyan]Validating Gemini API key...[/cyan]")
+    try:
+        validate_gemini_api_key(api_key)
+        console.print("[green]✓ API key validated successfully[/green]")
+    except ValueError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
+    except ImportError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1) from e
 
 
 def _prepare_write_config(
