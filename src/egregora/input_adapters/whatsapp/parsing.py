@@ -170,7 +170,8 @@ class MessageBuilder:
         original_text = "\n".join(msg["_original_lines"]).strip()
 
         author_raw = msg["author_raw"]
-        # Simple deterministic UUID generation
+        # Deterministic UUID generation: same author_raw always produces the same UUID
+        # Uses UUID5 (name-based) with OID namespace for consistent, reproducible author IDs
         author_uuid = uuid.uuid5(uuid.NAMESPACE_OID, f"{self.source_identifier}:{author_raw}")
 
         return {
