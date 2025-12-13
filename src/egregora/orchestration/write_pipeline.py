@@ -289,54 +289,17 @@ def _process_single_window(
     else:
         enriched_table = window_table_processed
 
+
     # Write posts
     resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
 
-
-    # NEW: Process /egregora commands before sending to LLM
-    from egregora.agents.commands import extract_commands, filter_commands, command_to_announcement
-    
-    # Convert table to list of messages for command processing
-    # Ibis tables are lazy expressions - use .to_pyarrow().to_pylist() for conversion
-    try:
-        # Correct way: to_pyarrow() returns arrow table, then to_pylist()
-        messages_list = enriched_table.to_pyarrow().to_pylist()
-    except (AttributeError, TypeError) as e:
-        # Fallback: if it's already a list or has different interface
-        if isinstance(enriched_table, list):
-            messages_list = enriched_table
-        else:
-            # Last resort: try pandas conversion
-            try:
-                df = enriched_table.to_pandas()
-                messages_list = df.to_dict('records')
-            except Exception:
-                logger.error("Failed to convert table to list: %s", e)
-                messages_list = []
-    
-    
-    # Extract and generate announcements from commands
-    command_messages = extract_commands(messages_list)
-    announcements_generated = 0
-    if command_messages:
-        logger.info("%s📢 [cyan]Processing %d commands[/] for window %s", indent, len(command_messages), window_label)
-        for cmd_msg in command_messages:
-            try:
-                announcement = command_to_announcement(cmd_msg)
-                output_sink.persist(announcement)
-                announcements_generated += 1
-            except Exception as exc:
-                logger.exception("Failed to generate announcement from command: %s", exc)
-    
-    # Filter commands from messages before LLM
-    clean_messages_list = filter_commands(messages_list)
-    
-    # Convert back to table if needed (simplified for now - writer accepts lists)
-    # TODO: If writer expects ibis table, convert back using ibis.memtable()
+    # TODO: Command processing (Phase 5b)
+    # Commands should be processed INSIDE the writer where we already convert tables
+    # For now, skip command processing to avoid premature table conversion bugs
     
     params = WindowProcessingParams(
-        table=enriched_table,  # Keep original for now; writer filters internally if needed
+        table=enriched_table,
         window_start=window.start_time,
         window_end=window.end_time,
         resources=resources,
@@ -351,35 +314,10 @@ def _process_single_window(
     posts = result.get("posts", [])
     profiles = result.get("profiles", [])
     
-    # NEW: Generate PROFILE posts (Egregora writing ABOUT each author)
-    from egregora.agents.profile.generator import generate_profile_posts
-    
-    window_date = window.start_time.strftime("%Y-%m-%d")
-    try:
-        profile_docs = asyncio.run(generate_profile_posts(
-            ctx=ctx,
-            messages=clean_messages_list,
-            window_date=window_date
-        ))
-        
-        # Persist PROFILE documents
-        for profile_doc in profile_docs:
-            try:
-                output_sink.persist(profile_doc)
-                # Track as profile
-                profiles.append(profile_doc.document_id)
-            except Exception as exc:
-                logger.exception("Failed to persist profile: %s", exc)
-        
-        if profile_docs:
-            logger.info(
-                "%s👥 [cyan]Generated %d profile posts[/] for window %s",
-                indent,
-                len(profile_docs),
-                window_label
-            )
-    except Exception as exc:
-        logger.exception("Failed to generate profile posts: %s", exc)
+    # TODO: Generate PROFILE posts (Phase 5c)
+    # Profile generation also needs table conversion - defer until writer integration
+    # from egregora.agents.profile.generator import generate_profile_posts
+
 
     # Scheduled tasks are returned as "pending:<task_id>"
     scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
