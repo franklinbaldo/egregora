@@ -293,16 +293,23 @@ def _process_single_window(
     resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
 
+
     # NEW: Process /egregora commands before sending to LLM
     from egregora.agents.commands import extract_commands, filter_commands, command_to_announcement
     
     # Convert table to list of messages for command processing
-    # ibis Tables need explicit conversion via to_pylist()
+    # ibis Tables need .execute() before .to_pylist()
     try:
-        messages_list = enriched_table.to_pylist()
-    except AttributeError:
-        # Fallback if not an ibis table
-        messages_list = list(enriched_table) if hasattr(enriched_table, '__iter__') else []
+        # Try ibis table conversion
+        messages_list = enriched_table.execute().to_pylist()
+    except (AttributeError, TypeError):
+        # Fallback: try direct to_pylist (for arrow tables)
+        try:
+            messages_list = enriched_table.to_pylist()
+        except (AttributeError, TypeError):
+            # Last resort: assume it's already a list
+            messages_list = enriched_table if isinstance(enriched_table, list) else []
+            logger.warning("Could not convert table to list, using fallback")
     
     # Extract and generate announcements from commands
     command_messages = extract_commands(messages_list)
