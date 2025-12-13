@@ -17,6 +17,7 @@ dependencies = [
     "mkdocs-material[imaging]>=9.7",
     "mkdocs-rss-plugin>=1.17",
     "pillow>=11.3",
+    "psutil>=6.1",  # Memory monitoring and profiling
     "pyarrow",
     "pydantic>=2.12",
     "pydantic-settings>=2.7",

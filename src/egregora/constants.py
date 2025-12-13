@@ -137,6 +137,12 @@ class SystemIdentifier(str, Enum):
     ANONYMOUS_USER = "anonymous"
 
 
+# Egregora system author constants
+# Used when Egregora generates content (PROFILE posts, ANNOUNCEMENT posts)
+EGREGORA_UUID = "00000000-0000-0000-0000-000000000000"
+EGREGORA_NAME = "Egregora"
+
+
 class OutputAdapter(str, Enum):
     """Output format options for data export."""
 

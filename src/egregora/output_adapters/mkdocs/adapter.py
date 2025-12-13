@@ -728,25 +728,31 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         match document.type:
             case DocumentType.POST:
-                # Route to author folder if authors exist in metadata
-                authors = document.metadata.get("authors", [])
-                if authors:
-                    # Extract UUID from first author (primary author)
-                    if isinstance(authors[0], dict):
-                        author_uuid = authors[0].get("uuid")
-                    else:
-                        author_uuid = authors[0]
-                    
-                    if author_uuid:
-                        author_dir = self._get_author_dir(author_uuid)
-                        slug = url_path.split("/")[-1]
-                        return author_dir / f"{slug}.md"
-                
-                # Fallback to top-level posts/
-                return self.posts_dir / f"{url_path.split('/')[-1]}.md"
+                # ALL regular posts go to top-level posts/
+                # (Not to author folders - those are for PROFILE posts ABOUT authors)
+                slug = url_path.split("/")[-1]
+                return self.posts_dir / f"{slug}.md"
+            
             case DocumentType.PROFILE:
-                # UNIFIED: profiles go to posts_dir now
-                return self.posts_dir / f"{url_path.split('/')[-1]}.md"
+                # PROFILE posts (Egregora writing ABOUT author) go to author's folder
+                subject_uuid = document.metadata.get("subject")
+                if not subject_uuid:
+                    # Fallback for backwards compatibility
+                    logger.warning("PROFILE doc missing 'subject' metadata, falling back to posts/")
+                    slug = url_path.split("/")[-1]
+                    return self.posts_dir / f"{slug}.md"
+                
+                author_dir = self._get_author_dir(subject_uuid)
+                slug = url_path.split("/")[-1]
+                return author_dir / f"{slug}.md"
+            
+            case DocumentType.ANNOUNCEMENT:
+                # System announcements (/egregora commands) go to announcements/
+                slug = url_path.split("/")[-1]
+                announcements_dir = self.posts_dir / "announcements"
+                announcements_dir.mkdir(parents=True, exist_ok=True)
+                return announcements_dir / f"{slug}.md"
+            
             case DocumentType.JOURNAL:
                 # When url_path is just "journal" (root journal URL), return journal.md in docs root
                 # Otherwise, extract the slug and put it in journal/
