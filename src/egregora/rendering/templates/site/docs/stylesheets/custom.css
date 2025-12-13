@@ -2,8 +2,7 @@
 
 /* 1. Typography Improvements */
 :root {
-    --md-text-font: "Roboto", sans-serif;
-    --md-code-font: "Roboto Mono", monospace;
+    /* Font family is handled by mkdocs.yml 'font' setting */
     --md-typeset-font-size: 1.05rem; /* Slightly larger base text */
     --md-line-height: 1.7; /* Improved reading spacing */
 }

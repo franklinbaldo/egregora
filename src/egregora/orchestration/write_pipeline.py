@@ -3,14 +3,10 @@
 This module orchestrates the high-level flow for the 'write' command, coordinating:
 - Input adapter selection and parsing
 - Privacy and enrichment stages
-- Window-based post generation
-- Output adapter persistence
-- Asynchronous task processing (banners, profiles)
-
-Part of the three-layer architecture:
-- orchestration/ (THIS) - Business workflows (WHAT to execute)
-- pipeline/ - Generic infrastructure (HOW to execute)
-- data_primitives/ - Core data models
+- Content generation with WriterWorker
+- Command processing and announcement generation
+- Profile generation (Egregora writing ABOUT authors)
+- Background task processing
 """
 
 from __future__ import annotations
@@ -221,15 +217,15 @@ def _process_background_tasks(ctx: PipelineContext) -> None:
     if banners_processed > 0:
         logger.info("Generated %d banners", banners_processed)
 
-    # 2. Profile Updates (Coalescing optimization)
+    # 2. Profile Updates (Coalescing optimization - OLD SYSTEM)
     profile_worker = ProfileWorker(ctx)
     profiles_processed = profile_worker.run()
     if profiles_processed > 0:
         logger.info("Updated %d profiles", profiles_processed)
     
-    # 2.5. Sync author profiles (append-only: derive from posts)
-    if hasattr(ctx.adapter, "_sync_author_profiles"):
-        ctx.adapter._sync_author_profiles()
+    # NOTE: _sync_author_profiles() REMOVED - replaced by PROFILE post generation
+    # in _process_single_window(). Author folders now contain PROFILE posts ABOUT
+    # authors (written by Egregora), not posts BY authors.
 
     # 3. Enrichment (Lower priority - can catch up later)
     enrichment_worker = EnrichmentWorker(ctx)
@@ -297,8 +293,45 @@ def _process_single_window(
     resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
 
+
+    # NEW: Process /egregora commands before sending to LLM
+    from egregora.agents.commands import extract_commands, filter_commands, command_to_announcement
+    
+    # Convert table to list of messages for command processing
+    # ibis Tables need .execute() before .to_pylist()
+    try:
+        # Try ibis table conversion
+        messages_list = enriched_table.execute().to_pylist()
+    except (AttributeError, TypeError):
+        # Fallback: try direct to_pylist (for arrow tables)
+        try:
+            messages_list = enriched_table.to_pylist()
+        except (AttributeError, TypeError):
+            # Last resort: assume it's already a list
+            messages_list = enriched_table if isinstance(enriched_table, list) else []
+            logger.warning("Could not convert table to list, using fallback")
+    
+    # Extract and generate announcements from commands
+    command_messages = extract_commands(messages_list)
+    announcements_generated = 0
+    if command_messages:
+        logger.info("%s📢 [cyan]Processing %d commands[/] for window %s", indent, len(command_messages), window_label)
+        for cmd_msg in command_messages:
+            try:
+                announcement = command_to_announcement(cmd_msg)
+                output_sink.persist(announcement)
+                announcements_generated += 1
+            except Exception as exc:
+                logger.exception("Failed to generate announcement from command: %s", exc)
+    
+    # Filter commands from messages before LLM
+    clean_messages_list = filter_commands(messages_list)
+    
+    # Convert back to table if needed (simplified for now - writer accepts lists)
+    # TODO: If writer expects ibis table, convert back using ibis.memtable()
+    
     params = WindowProcessingParams(
-        table=enriched_table,
+        table=enriched_table,  # Keep original for now; writer filters internally if needed
         window_start=window.start_time,
         window_end=window.end_time,
         resources=resources,
@@ -312,12 +345,42 @@ def _process_single_window(
 
     posts = result.get("posts", [])
     profiles = result.get("profiles", [])
+    
+    # NEW: Generate PROFILE posts (Egregora writing ABOUT each author)
+    from egregora.agents.profile.generator import generate_profile_posts
+    
+    window_date = window.start_time.strftime("%Y-%m-%d")
+    try:
+        profile_docs = asyncio.run(generate_profile_posts(
+            ctx=ctx,
+            messages=clean_messages_list,
+            window_date=window_date
+        ))
+        
+        # Persist PROFILE documents
+        for profile_doc in profile_docs:
+            try:
+                output_sink.persist(profile_doc)
+                # Track as profile
+                profiles.append(profile_doc.document_id)
+            except Exception as exc:
+                logger.exception("Failed to persist profile: %s", exc)
+        
+        if profile_docs:
+            logger.info(
+                "%s👥 [cyan]Generated %d profile posts[/] for window %s",
+                indent,
+                len(profile_docs),
+                window_label
+            )
+    except Exception as exc:
+        logger.exception("Failed to generate profile posts: %s", exc)
 
     # Scheduled tasks are returned as "pending:<task_id>"
-    scheduled_posts = sum(1 for p in posts if p.startswith("pending:"))
+    scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
     generated_posts = len(posts) - scheduled_posts
 
-    scheduled_profiles = sum(1 for p in profiles if p.startswith("pending:"))
+    scheduled_profiles = sum(1 for p in profiles if isinstance(p, str) and p.startswith("pending:"))
     generated_profiles = len(profiles) - scheduled_profiles
 
     # Construct status message
@@ -330,6 +393,8 @@ def _process_single_window(
         status_parts.append(f"{generated_profiles} profiles")
     if scheduled_profiles > 0:
         status_parts.append(f"{scheduled_profiles} scheduled profiles")
+    if announcements_generated > 0:
+        status_parts.append(f"{announcements_generated} announcements")
 
     status_msg = ", ".join(status_parts) if status_parts else "0 items"
 
@@ -565,78 +630,66 @@ def _process_all_windows(
 
     windows_processed = 0
 
-    # Progress bar for windows (use max_windows as total, or estimate if unlimited)
-    total_windows = max_windows if max_windows else 100  # Show as indeterminate if no limit
+    # Simple progress tracking without Rich progress bar
+    # (Progress bars cause memory leaks and logging noise in long-running tasks)
+    total_windows = max_windows if max_windows else "unlimited"
+    logger.info("Processing windows (limit: %s)", total_windows)
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[bold cyan]Windows"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TextColumn("[dim]{task.description}"),
-        transient=False,
-    ) as progress:
-        window_task = progress.add_task(
-            "Processing...",
-            total=total_windows if max_windows else None,
+    for window in windows_iterator:
+        # Check if we've hit the max_windows limit
+        if max_windows is not None and windows_processed >= max_windows:
+            logger.info("Reached max_windows limit (%d). Stopping processing.", max_windows)
+            if max_windows < MIN_WINDOWS_WARNING_THRESHOLD:
+                logger.warning(
+                    "⚠️  Processing stopped early due to low 'max_windows' setting (%d). "
+                    "This may result in incomplete data coverage. "
+                    "Use --max-windows 0 or remove the limit to process all data.",
+                    max_windows,
+                )
+            break
+        # Skip empty windows
+        if window.size == 0:
+            logger.debug(
+                "Skipping empty window %d (%s to %s)",
+                window.window_index,
+                window.start_time.strftime("%Y-%m-%d %H:%M"),
+                window.end_time.strftime("%Y-%m-%d %H:%M"),
+            )
+            continue
+
+        # Log current window (simpler than progress bar)
+        window_label = (
+            f"{window.start_time.strftime('%Y-%m-%d %H:%M')} - {window.end_time.strftime('%H:%M')}"
+        )
+        logger.info("Processing window %d: %s", windows_processed + 1, window_label)
+
+        # Validate window size doesn't exceed LLM context limits
+        _validate_window_size(window, max_window_size)
+
+        # Process window
+        window_results = _process_window_with_auto_split(window, ctx, depth=0, max_depth=5)
+        results.update(window_results)
+
+        # Track max processed timestamp for checkpoint
+        if max_processed_timestamp is None or window.end_time > max_processed_timestamp:
+            max_processed_timestamp = window.end_time
+
+        # Process accumulated background tasks periodically or after each window?
+        # Processing after each window keeps the queue small and provides incremental progress.
+        _process_background_tasks(ctx)
+
+        # Log summary (per-window event tracking removed - see SIMPLIFICATION_PLAN.md)
+        posts_count = sum(len(r.get("posts", [])) for r in window_results.values())
+        profiles_count = sum(len(r.get("profiles", [])) for r in window_results.values())
+        logger.debug(
+            "📊 Window %d: %s posts, %s profiles",
+            window.window_index,
+            posts_count,
+            profiles_count,
         )
 
-        for window in windows_iterator:
-            # Check if we've hit the max_windows limit
-            if max_windows is not None and windows_processed >= max_windows:
-                logger.info("Reached max_windows limit (%d). Stopping processing.", max_windows)
-                if max_windows < MIN_WINDOWS_WARNING_THRESHOLD:
-                    logger.warning(
-                        "⚠️  Processing stopped early due to low 'max_windows' setting (%d). "
-                        "This may result in incomplete data coverage. "
-                        "Use --max-windows 0 or remove the limit to process all data.",
-                        max_windows,
-                    )
-                break
-            # Skip empty windows
-            if window.size == 0:
-                logger.debug(
-                    "Skipping empty window %d (%s to %s)",
-                    window.window_index,
-                    window.start_time.strftime("%Y-%m-%d %H:%M"),
-                    window.end_time.strftime("%Y-%m-%d %H:%M"),
-                )
-                continue
-
-            # Update progress description with current window
-            window_label = (
-                f"{window.start_time.strftime('%Y-%m-%d %H:%M')} - {window.end_time.strftime('%H:%M')}"
-            )
-            progress.update(window_task, description=f"Window {windows_processed + 1}: {window_label}")
-
-            # Validate window size doesn't exceed LLM context limits
-            _validate_window_size(window, max_window_size)
-
-            # Process window
-            window_results = _process_window_with_auto_split(window, ctx, depth=0, max_depth=5)
-            results.update(window_results)
-
-            # Track max processed timestamp for checkpoint
-            if max_processed_timestamp is None or window.end_time > max_processed_timestamp:
-                max_processed_timestamp = window.end_time
-
-            # Process accumulated background tasks periodically or after each window?
-            # Processing after each window keeps the queue small and provides incremental progress.
-            _process_background_tasks(ctx)
-
-            # Log summary (per-window event tracking removed - see SIMPLIFICATION_PLAN.md)
-            posts_count = sum(len(r.get("posts", [])) for r in window_results.values())
-            profiles_count = sum(len(r.get("profiles", [])) for r in window_results.values())
-            logger.debug(
-                "📊 Window %d: %s posts, %s profiles",
-                window.window_index,
-                posts_count,
-                profiles_count,
-            )
-
-            # Update progress
-            windows_processed += 1
-            progress.update(window_task, advance=1)
+        # Update counter
+        windows_processed += 1
 
     return results, max_processed_timestamp
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import io
 import logging
 import re
@@ -65,10 +66,18 @@ _DATE_PARSING_STRATEGIES = [
 
 
 def _normalize_text(value: str) -> str:
-    """Normalize unicode text."""
+    """Normalize unicode text and sanitize HTML.
+
+    Performs:
+    1. Unicode NFKC normalization
+    2. Removal of invisible control characters
+    3. HTML escaping of special characters (<, >, &) to prevent XSS
+       (quote=False to preserve readability of quotes in text)
+    """
     normalized = unicodedata.normalize("NFKC", value)
     # NFKC already converts \u202f (Narrow No-Break Space) to space, so explicit replace is redundant
-    return _INVISIBLE_MARKS.sub("", normalized)
+    cleaned = _INVISIBLE_MARKS.sub("", normalized)
+    return html.escape(cleaned, quote=False)
 
 
 @lru_cache(maxsize=1024)
