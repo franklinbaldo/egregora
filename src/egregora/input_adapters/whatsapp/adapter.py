@@ -11,16 +11,12 @@ from typing import Any, TypedDict, Unpack
 
 import ibis
 
-# DISABLED: Privacy module being removed
-# from egregora.constants import AuthorPrivacyStrategy, MentionPrivacyStrategy
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
-# from egregora.input_adapters.privacy_config import AdapterPrivacyConfig
 from egregora.input_adapters.whatsapp.commands import EGREGORA_COMMAND_PATTERN
 from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_source
 from egregora.input_adapters.whatsapp.utils import discover_chat_file
 from egregora.ops.media import detect_media_type
-# from egregora.privacy.anonymizer import anonymize_mentions, anonymize_table
 from egregora.utils.paths import slugify
 
 logger = logging.getLogger(__name__)
@@ -54,14 +50,6 @@ class WhatsAppAdapter(InputAdapter):
         """
         self._author_namespace = author_namespace
         self._config = config
-
-        # DISABLED: Privacy module being removed
-        # # Build adapter-specific privacy config
-        # if config is not None and config.privacy.structural.enabled:
-        #     self._privacy_config = AdapterPrivacyConfig.from_egregora_config(config)
-        # else:
-        #     # Privacy disabled or no config - use NONE strategies
-        #     self._privacy_config = AdapterPrivacyConfig.disabled()
 
     @property
     def source_name(self) -> str:
@@ -113,45 +101,8 @@ class WhatsAppAdapter(InputAdapter):
             expose_raw_author=True,  # Always expose raw initially
         )
 
-        # DISABLED: Privacy module being removed - no privacy applied
-        # # Apply privacy strategies based on configuration
-        # if self._config is not None and self._config.privacy.structural.enabled:
-        #     messages_table = self._apply_privacy(messages_table)
-
         logger.debug("Parsed WhatsApp export with %s messages", messages_table.count().execute())
         return messages_table
-
-    # DISABLED: Privacy module being removed
-    # def _apply_privacy(self, table: ibis.Table) -> ibis.Table:
-    #     """Apply granular privacy strategies to messages table.
-    #
-    #     Args:
-    #         table: Messages table with raw author data
-    #
-    #     Returns:
-    #         Table with privacy strategies applied
-    #
-    #     """
-    #     # Apply mention strategy FIRST so we have access to original author names for mapping
-    #     if self._privacy_config.mention_strategy != MentionPrivacyStrategy.NONE:
-    #         table = anonymize_mentions(table, strategy=self._privacy_config.mention_strategy)
-    #
-    #     # Apply author anonymization strategy
-    #     if self._privacy_config.author_strategy != AuthorPrivacyStrategy.NONE:
-    #         # For now, use existing anonymize_table for UUID_MAPPING
-    #         # TODO: Implement other strategies (FULL_REDACTION, ROLE_BASED)
-    #         if self._privacy_config.author_strategy == AuthorPrivacyStrategy.UUID_MAPPING:
-    #             table = anonymize_table(table, enabled=True, process_mentions=False)
-    #         else:
-    #             logger.warning(
-    #                 "Author strategy %s not yet implemented, falling back to UUID_MAPPING",
-    #                 self._privacy_config.author_strategy,
-    #             )
-    #             table = anonymize_table(table, enabled=True, process_mentions=False)
-    #
-    #     # TODO: Apply phone/email PII strategies
-    #
-    #     return table
 
     def deliver_media(self, media_reference: str, **kwargs: Unpack[DeliverMediaKwargs]) -> Document | None:
         """Deliver media file from WhatsApp ZIP as a Document."""

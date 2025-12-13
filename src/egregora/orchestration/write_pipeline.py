@@ -659,18 +659,7 @@ def _perform_enrichment(
         Enriched table
 
     """
-    # DISABLED: Privacy module being removed
-    # # Build PII prevention context for enricher from config
-    # pii_settings = ctx.config.privacy.pii_prevention.enricher
     pii_prevention = None
-    # if pii_settings.enabled:
-    #     pii_prevention = {
-    #         "enabled": True,
-    #         "scope": pii_settings.scope.value,
-    #         "custom_definition": pii_settings.custom_definition
-    #         if pii_settings.scope.value == "custom"
-    #         else None,
-    #     }
 
     enrichment_context = EnrichmentRuntimeContext(
         cache=ctx.enrichment_cache,
