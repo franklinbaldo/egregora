@@ -226,6 +226,10 @@ def _process_background_tasks(ctx: PipelineContext) -> None:
     profiles_processed = profile_worker.run()
     if profiles_processed > 0:
         logger.info("Updated %d profiles", profiles_processed)
+    
+    # 2.5. Sync author profiles (append-only: derive from posts)
+    if hasattr(ctx.adapter, "_sync_author_profiles"):
+        ctx.adapter._sync_author_profiles()
 
     # 3. Enrichment (Lower priority - can catch up later)
     enrichment_worker = EnrichmentWorker(ctx)
