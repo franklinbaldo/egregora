@@ -137,10 +137,24 @@ For each post:
   - ❌ "The group discussed mesa-optimizers"
   - ❌ "I'm increasingly worried about gradient descent producing unintended optimizers"
   - ✅ "What keeps me up at night? The idea that gradient descent might be quietly building optimizers we never intended to create. Let me show you why this should worry you too."
-- **authors**: List of UUIDs who *actively contributed* to this specific topic.
+- **authors**: List of author objects who *actively contributed* to this specific topic.
   - ⚠️ CRITICAL: Do NOT simply copy the "Active authors" list.
   - Only include authors whose messages you actually used or synthesized in this post.
   - If a user just said "lol" or "agree", exclude them.
+  - **Format**: Each author as an object with:
+    - `uuid`: The author's UUID
+    - `name`: The author's display name
+    - `bio`: (Optional) Brief bio update if their contribution reveals new interests/expertise
+    - `interests`: (Optional) List of interest tags if this post shows new areas
+  - **Example**:
+    ```yaml
+    authors:
+      - uuid: "bf06d1fe-8326-5c2c"
+        name: "John Doe"
+        bio: "AI safety researcher exploring mesa-optimizers"
+        interests: ["AI safety", "optimization"]
+    ```
+  - **Note**: Author metadata accumulates over time. Later posts can update bio/interests.
 - **content**: Full markdown post in conversational first-person
 
 **Content Structure:**

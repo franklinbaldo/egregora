@@ -28,6 +28,9 @@ jobs:
     name: Ruff (lint)
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
@@ -41,6 +44,9 @@ jobs:
     name: Ruff (format)
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
@@ -55,6 +61,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
@@ -101,6 +110,9 @@ jobs:
     timeout-minutes: 30
     needs: [lint-ruff-check, lint-ruff-format]
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
@@ -151,6 +163,9 @@ jobs:
       contents: read
       security-events: write
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
@@ -179,6 +194,9 @@ jobs:
     if: ${{ !cancelled() && !contains(needs.*.result, 'failure') }}
     timeout-minutes: 10
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
@@ -204,6 +222,9 @@ jobs:
     permissions:
       contents: write  # Required for GitHub Pages deployment
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
@@ -249,6 +270,9 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.event_name == 'schedule'
     timeout-minutes: 10
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
