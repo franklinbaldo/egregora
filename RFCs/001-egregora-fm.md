@@ -27,10 +27,10 @@ We treat Egregora as a *publishing* engine (Atom/RSS -> HTML). But the Atom spec
 ### Processing
 **Evolution:** Initially conceived as a multi-stage pipeline (Script -> TTS -> Mixer), recent advances in **native multimodal generation** allow us to collapse this into a single, elegant step.
 
-1.  **Direct Audio Generation:** We leverage models like `gemini-2.5-flash` with native audio output capabilities (`response_modalities=["AUDIO"]`).
-    *   Instead of writing a script, we feed the raw chat logs (context) and a "Producer Prompt" (instruction) directly to the model.
-    *   *Prompt:* "You are two podcast hosts reviewing this chat log. Create a 5-minute summary with banter, distinct voices, and sound effects."
-    *   The model generates the full audio waveform directly, handling timing, tone, and voice switching internally.
+1.  **Direct Audio Generation (NotebookLM Enterprise API):** We leverage the purpose-built `podcast` endpoint from the NotebookLM Enterprise API (`https://discoveryengine.googleapis.com/v1/.../podcasts`).
+    *   *Why:* This API is specifically optimized for generating "Deep Dive" audio overviews from source documents. It handles the "banter," "host personalities," and "structure" out-of-the-box, saving us from complex prompt engineering and state management.
+    *   *Mechanism:* We construct a JSON payload with `contexts` (the chat logs as text segments) and `podcastConfig` (setting `focus` to specific topics like "Weekend Update" and `length` to "SHORT" or "STANDARD").
+    *   The API returns an MP3 file directly, which we simply save and link.
 2.  **Specialized Audio Modeling (VibeVoice):** For scenarios requiring extreme fidelity or specific speaker control (e.g., preserving distinct "character" voices over a long saga), we can integrate **VibeVoice**.
     *   *Why:* Unlike generic TTS, VibeVoice uses continuous speech tokenizers (7.5 Hz) and a diffusion head to handle multi-speaker turn-taking, laughter, and emotional nuance ("Spontaneous Emotion") that generic LLMs might smooth over.
     *   It allows for "Long Conversational Speech" (up to 90 minutes) which fits perfectly with our "Monthly Digest" use case.
