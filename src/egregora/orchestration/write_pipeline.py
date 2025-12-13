@@ -289,15 +289,36 @@ def _process_single_window(
     else:
         enriched_table = window_table_processed
 
-
     # Write posts
     resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
 
-    # TODO: Command processing (Phase 5b)
-    # Commands should be processed INSIDE the writer where we already convert tables
-    # For now, skip command processing to avoid premature table conversion bugs
+    # Convert table to list ONCE for command/profile processing
+    # Use .to_pyarrow().to_pylist() which we verified works in test_table_conversion.py
+    try:
+        messages_list = enriched_table.to_pyarrow().to_pylist()
+    except (AttributeError, TypeError) as e:
+        logger.warning("Could not convert table to list: %s. Skipping command/profile processing.", e)
+        messages_list = []
     
+    # Phase 5b: Process /egregora commands
+    from egregora.agents.commands import extract_commands, filter_commands, command_to_announcement
+    
+    command_messages = extract_commands(messages_list)
+    announcements_generated = 0
+    if command_messages:
+        logger.info("%s📢 [cyan]Processing %d commands[/] for window %s", indent, len(command_messages), window_label)
+        for cmd_msg in command_messages:
+            try:
+                announcement = command_to_announcement(cmd_msg)
+                output_sink.persist(announcement)
+                announcements_generated += 1
+            except Exception as exc:
+                logger.exception("Failed to generate announcement from command: %s", exc)
+    
+    # Filter commands from messages before passing to writer
+    clean_messages_list = filter_commands(messages_list)
+
     params = WindowProcessingParams(
         table=enriched_table,
         window_start=window.start_time,
@@ -314,18 +335,45 @@ def _process_single_window(
     posts = result.get("posts", [])
     profiles = result.get("profiles", [])
     
-    # TODO: Generate PROFILE posts (Phase 5c)
-    # Profile generation also needs table conversion - defer until writer integration
-    # from egregora.agents.profile.generator import generate_profile_posts
-
+    # Phase 5c: Generate PROFILE posts (Egregora writing ABOUT each author)
+    from egregora.agents.profile.generator import generate_profile_posts
+    
+    window_date = window.start_time.strftime("%Y-%m-%d")
+    generated_profiles = 0
+    try:
+        profile_docs = asyncio.run(generate_profile_posts(
+            ctx=ctx,
+            messages=clean_messages_list,
+            window_date=window_date
+        ))
+        
+        # Persist PROFILE documents
+        for profile_doc in profile_docs:
+            try:
+                output_sink.persist(profile_doc)
+                generated_profiles += 1
+                # Track as profile in results
+                profiles.append(profile_doc.document_id)
+            except Exception as exc:
+                logger.exception("Failed to persist profile: %s", exc)
+        
+        if profile_docs:
+            logger.info(
+                "%s👥 [cyan]Generated %d profile posts[/] for window %s",
+                indent,
+                len(profile_docs),
+                window_label
+            )
+    except Exception as exc:
+        logger.exception("Failed to generate profile posts: %s", exc)
 
     # Scheduled tasks are returned as "pending:<task_id>"
     scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
     generated_posts = len(posts) - scheduled_posts
     scheduled_profiles = sum(1 for p in profiles if isinstance(p, str) and p.startswith("pending:"))
-    generated_profiles = len(profiles) - scheduled_profiles
+    # generated_profiles already counted above
 
-    # Build status message (removed announcements since command processing not integrated yet)
+    # Build status message
     status_parts = []
     if generated_posts > 0:
         status_parts.append(f"{generated_posts} posts")
@@ -335,6 +383,8 @@ def _process_single_window(
         status_parts.append(f"{generated_profiles} profiles")
     if scheduled_profiles > 0:
         status_parts.append(f"{scheduled_profiles} scheduled profiles")
+    if announcements_generated > 0:
+        status_parts.append(f"{announcements_generated} announcements")
 
     status_msg = ", ".join(status_parts) if status_parts else "no documents"
 
