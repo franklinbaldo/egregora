@@ -1017,7 +1017,7 @@ class EnrichmentWorker(BaseWorker):
             )
             response_text = response.text or ""
 
-        logger.debug("[URLEnricher] Single-call response: %s", response_text[:500])
+        logger.debug("[URLEnricher] Single-call response received (length: %d)", len(response_text) if response_text else 0)
 
         # Parse JSON response
         try:
