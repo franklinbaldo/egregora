@@ -110,6 +110,22 @@ class MkDocsAdapter(BaseOutputSink):
     def url_context(self) -> UrlContext:
         return self._ctx
 
+    def _get_author_dir(self, author_uuid: str) -> Path:
+        """Get or create author's folder in posts/authors/{uuid}/.
+        
+        Args:
+            author_uuid: Full or partial UUID of the author
+            
+        Returns:
+            Path to author's folder (created if doesn't exist)
+        """
+        # Use first 16 chars of UUID for shorter folder names
+        short_uuid = author_uuid[:16] if len(author_uuid) > 16 else author_uuid
+        author_dir = self.posts_dir / "authors" / short_uuid
+        author_dir.mkdir(parents=True, exist_ok=True)
+        return author_dir
+
+
     def persist(self, document: Document) -> None:  # noqa: C901
         doc_id = document.document_id
         url = self._url_convention.canonical_url(document, self._ctx)
@@ -712,6 +728,21 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         match document.type:
             case DocumentType.POST:
+                # Route to author folder if authors exist in metadata
+                authors = document.metadata.get("authors", [])
+                if authors:
+                    # Extract UUID from first author (primary author)
+                    if isinstance(authors[0], dict):
+                        author_uuid = authors[0].get("uuid")
+                    else:
+                        author_uuid = authors[0]
+                    
+                    if author_uuid:
+                        author_dir = self._get_author_dir(author_uuid)
+                        slug = url_path.split("/")[-1]
+                        return author_dir / f"{slug}.md"
+                
+                # Fallback to top-level posts/
                 return self.posts_dir / f"{url_path.split('/')[-1]}.md"
             case DocumentType.PROFILE:
                 # UNIFIED: profiles go to posts_dir now
