@@ -63,7 +63,7 @@ Egregora is highly configurable via the `.egregora/config.yml` file generated in
 *   **Privacy:** Configure PII redaction and anonymization.
 *   **Pipeline:** Adjust how many days of chat form a single post (`step_size`, `step_unit`).
 
-👉 **[Full Configuration Reference](docs/configuration.md)**
+👉 **[Full Configuration Reference](docs/getting-started/configuration.md)**
 
 ### Customizing the AI
 *   **Prompts:** Edit `.egregora/prompts/writer.jinja` to change the tone and style of the writing.
