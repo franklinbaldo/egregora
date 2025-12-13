@@ -750,17 +750,6 @@ def _extract_media_candidates(
     return [(ref, document_lookup[ref], metadata_lookup[ref]) for ref in sorted_refs[:limit]]
 
 
-def _replace_pii_media_references(
-    messages_table: Table,
-    media_mapping: MediaMapping,
-) -> Table:
-    """Replace media references in messages after PII deletion."""
-
-    @ibis.udf.scalar.python
-    def replace_media_udf(text: str) -> str:
-        return replace_media_mentions(text, media_mapping) if text else text
-
-    return messages_table.mutate(text=replace_media_udf(messages_table.text))
 
 
 class EnrichmentWorker(BaseWorker):
@@ -802,9 +791,9 @@ class EnrichmentWorker(BaseWorker):
 
     def __exit__(
         self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
+        _exc_type: type[BaseException] | None,
+        _exc_val: BaseException | None,
+        _exc_tb: TracebackType | None,
     ) -> None:
         """Context manager exit - ensures ZIP handle is closed."""
         self.close()
