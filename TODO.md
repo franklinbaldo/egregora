@@ -1,42 +1,61 @@
-# TODO (Current Version – Egregora)
+# Egregora V3: Tactical Backlog (TODO.md)
 
-These tasks focus on improving the current architecture without unnecessary breaking changes for existing users.
+This backlog directs the engineering team on *what* to build next to stabilize the current architecture and prepare for the V3 migration.
 
-## High Priority
+**Priorities:**
+*   🔴 **HIGH**: Blocking issues, critical technical debt, or architectural violations.
+*   🟡 **MEDIUM**: Important refactors, feature enablers, or cleanup.
+*   🟢 **LOW**: Nice-to-haves, minor cleanup, or optimizations.
 
-- [x] **Decouple Writer Agent from Output Format**
-  - **Rationale:** The writer currently assumes MkDocs structure. It should output agnostic `Document` objects that a separate adapter handles.
-  - **Modules:** `src/egregora/agents/writer.py`, `src/egregora/agents/writer_tools.py`
-  - **Implementation:** Updated `src/egregora/agents/writer.py` to rely on tool names (`write_post_tool`, `write_profile_tool`) instead of checking file path strings (e.g., `"/posts/"`). Removed explicit path replacement (`../media/` -> `/media/`) in `_save_journal_to_file`. Added regression test `tests/unit/agents/test_writer_logic.py`.
+---
 
-- [ ] **Standardize CLI Entry Points**
-  - **Rationale:** `egregora.cli.main` handles `write` orchestration directly. This logic should be moved to `src/egregora/orchestration/pipelines/write.py` to match the intended layering.
-  - **Modules:** `src/egregora/cli/main.py`, `src/egregora/orchestration/`
+## 🔴 High Priority (Blocking / Critical Debt)
 
-- [ ] **Unify RAG Interfaces**
-  - **Rationale:** References exist to both `egregora.rag` and `egregora.agents.shared.rag`. Consolidate into a single, clean `src/egregora/rag` package with a defined `VectorStore` protocol.
-  - **Modules:** `src/egregora/rag/`, `src/egregora/agents/shared/rag/`
+- [ ] **[Refactor] Extract `write_pipeline.py` to `PipelineRunner`**
+    - **Context**: `write_pipeline.py` is a procedural script that mixes high-level orchestration with low-level details.
+    - **Task**: Create a `PipelineRunner` class in `src/egregora/orchestration/runner.py`.
+    - **Action**: Move the `run()` loop and window processing logic into this class. Use Dependency Injection to pass `PipelineContext` and `OutputSink`.
+    - **Goal**: Make the pipeline testable without running the full CLI command.
 
-## Medium Priority
+- [ ] **[Refactor] Modularize Writer Agent**
+    - **Context**: `src/egregora/agents/writer.py` and its neighbors (`writer_helpers.py`, etc.) form a "God Module".
+    - **Task**: Move these files into a package `src/egregora/agents/writer/`.
+    - **Action**:
+        - Create `src/egregora/agents/writer/__init__.py`.
+        - Rename `writer.py` to `agent.py` (or keep as entry point).
+        - Move helpers to submodules like `tools.py`, `context.py`, `deps.py`.
+    - **Goal**: improve cohesion and discoverability.
 
-- [ ] **Centralize Privacy Utilities**
-  - **Rationale:** Privacy logic (anonymization, PII redaction) is scattered across adapters and agents. Move to `src/egregora/privacy/`.
-  - **Modules:** `src/egregora/input_adapters/`, `src/egregora/agents/writer_helpers.py`
+- [ ] **[Privacy] Centralize PII Stripping in Ingestion**
+    - **Context**: PII settings are passed deep into the Writer agent context, violating the "No PII leaves Ingestion" rule.
+    - **Task**: Enforce PII stripping at the Adapter/Parser level.
+    - **Action**: Ensure `_parse_and_validate_source` returns a table where PII is *already* masked/hashed if privacy is enabled. Remove PII logic from `WriterContext`.
 
-- [ ] **Isolate MkDocs Publishing**
-  - **Rationale:** MkDocs-specific logic (YAML manipulation, theme overrides) should live strictly in `src/egregora/output_adapters/mkdocs/`, not leak into general site generation code.
-  - **Modules:** `src/egregora/rendering/`, `src/egregora/output_adapters/mkdocs/`
+## 🟡 Medium Priority (Important Refactors)
 
-- [ ] **Clean Up `writer` Module Sprawl**
-  - **Rationale:** The `writer` agent is split across `writer.py`, `writer_setup.py`, `writer_tools.py`, `writer_helpers.py`. Reorganize into a cohesive `src/egregora/agents/writer/` package.
-  - **Modules:** `src/egregora/agents/writer*.py`
+- [ ] **[Infrastructure] Introduce `ContentLibrary` Abstraction**
+    - **Context**: Code accesses `ctx.posts_dir` or `ctx.media_dir` directly.
+    - **Task**: Create `ContentLibrary` in `src/egregora/knowledge/library.py`.
+    - **Action**: Provide methods like `save_post(doc)`, `get_media(path)`.
+    - **Goal**: Decouple business logic from the filesystem layout.
 
-## Low Priority / Opportunistic
+- [ ] **[RAG] Decouple Indexing from Pipeline**
+    - **Context**: `_index_new_content_in_rag` is called explicitly in the write loop.
+    - **Task**: Use an event-based approach or a "Hook" system.
+    - **Action**: `ContentLibrary.save_post()` could emit an event that the RAG system listens to.
+    - **Goal**: Remove hard dependency on RAG from the core pipeline loop.
 
-- [ ] **Remove Legacy V2-V3 Bridge Code**
-  - **Rationale:** If V3 code (`src/egregora_v3`) is present, ensure no "temporary" bridges in V2 code are creating hidden dependencies.
-  - **Modules:** `src/egregora/`
+- [ ] **[Database] Dependency Injection for Storage**
+    - **Context**: `DuckDBStorageManager` is instantiated inside `write_pipeline.py`.
+    - **Task**: Pass storage managers via `PipelineContext` or a `ServiceContainer`.
+    - **Action**: Update `PipelineContext` to hold the initialized storage strategies.
 
-- [ ] **Improve Test Isolation**
-  - **Rationale:** Many tests rely on VCR cassettes or live API calls. Introduce more `TestModel`-based tests for agents to reduce flake and cost.
-  - **Modules:** `tests/`
+## 🟢 Low Priority (Cleanup)
+
+- [ ] **[Cleanup] Remove Legacy Pandas Compat**
+    - **Context**: `pyproject.toml` contains `flake8-tidy-imports` bans for pandas, but some compat code might exist.
+    - **Task**: grep for `pandas` and remove unused compatibility shims if Ibis is fully adopted.
+
+- [ ] **[Testing] Add Architecture Tests**
+    - **Task**: Add a test that fails if `agents` import `cli` or `orchestration`.
+    - **Goal**: Prevent dependency inversion violations.
