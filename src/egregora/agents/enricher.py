@@ -890,19 +890,41 @@ class EnrichmentWorker(BaseWorker):
                 tasks_data.append({"task": task, "url": url, "prompt": prompt})
             except Exception as exc:
                 logger.exception("Failed to prepare URL task %s", task["task_id"])
+```
                 self.task_store.mark_failed(task["task_id"], f"Preparation failed: {exc!s}")
 
         return tasks_data
 
     def _determine_concurrency(self, task_count: int) -> int:
-        enrichment_concurrency = getattr(self.ctx.config.enrichment, "max_concurrent_enrichments", 5)
-        global_concurrency = getattr(self.ctx.config.quota, "concurrency", 1)
-        max_concurrent = min(enrichment_concurrency, global_concurrency)
+        """Determine optimal concurrency based on available API keys.
+        
+        Auto-detects number of API keys and uses them in parallel instead of
+        sequential rotation.
+        """
+        from egregora.models.model_cycler import get_api_keys
+        
+        # Auto-detect available API keys
+        api_keys = get_api_keys()
+        num_keys = len(api_keys) if api_keys else 1
+        
+        # Use configured value or auto-detected key count
+        enrichment_concurrency = getattr(
+            self.ctx.config.enrichment, 
+            "max_concurrent_enrichments", 
+            num_keys  # Default to number of keys
+        )
+        
+        global_concurrency = getattr(self.ctx.config.quota, "concurrency", num_keys)
+        
+        # Use all available keys in parallel (up to task count)
+        max_concurrent = min(enrichment_concurrency, global_concurrency, task_count, num_keys)
 
         logger.info(
-            "Processing %d enrichment tasks with max concurrency of %d (enrichment limit: %d, global limit: %d)",
+            "Processing %d enrichment tasks with max concurrency of %d "
+            "(API keys: %d, enrichment limit: %d, global limit: %d)",
             task_count,
             max_concurrent,
+            num_keys,
             enrichment_concurrency,
             global_concurrency,
         )
