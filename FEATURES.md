@@ -132,6 +132,51 @@ Advanced model management and API resilience.
 
 ---
 
+## 👤 Author Profiles (Append-Only Architecture)
+
+**NEW**: Profiles derived from post metadata, fully append-only.
+
+### How It Works
+
+**No separate profile documents**. Instead:
+1. Posts contain author metadata in frontmatter
+2. Build process scans posts chronologically
+3. Later posts override earlier metadata
+4. `index.md` auto-generated from derived state
+
+### Structure
+
+```
+posts/authors/{uuid}/
+├── 2025-03-01-first-post.md      # Contains: name, bio
+├── 2025-03-02-second-post.md     # Updates: bio
+├── 2025-03-03-third-post.md      # Adds: avatar, interests
+└── index.md                       # AUTO-GENERATED from above
+```
+
+### Post Frontmatter
+
+```yaml
+---
+title: "My Post"
+authors:
+  - uuid: bf06d1fe-8326-5c2c
+    name: John Doe
+    bio: AI safety researcher
+    interests: [AI, safety, optimization]
+---
+```
+
+### Benefits
+
+✅ **Pure append-only** - only add post files  
+✅ **Sequential updates** - later posts override earlier  
+✅ **Self-healing** - rebuild profiles anytime  
+✅ **Git-friendly** - every change is a new file  
+✅ **No duplication** - single source (posts)  
+
+---
+
 ## 📊 Orchestration
 
 Pipeline coordination and workflow management.
