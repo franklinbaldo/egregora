@@ -7,14 +7,16 @@ from egregora.output_adapters.base import (
     create_output_sink,
 )
 from egregora.output_adapters.mkdocs import MkDocsAdapter
-from egregora.output_adapters.parquet.adapter import ParquetAdapter
+# DISABLED: Removing parquet adapter as part of simplification
+# from egregora.output_adapters.parquet.adapter import ParquetAdapter
 
 
 def create_default_output_registry() -> OutputSinkRegistry:
     """Create a registry pre-populated with built-in adapters."""
     registry = create_output_registry()
     registry.register(MkDocsAdapter)
-    registry.register(ParquetAdapter)
+    # DISABLED: Removing parquet adapter
+    # registry.register(ParquetAdapter)
     return registry
 
 
@@ -22,7 +24,8 @@ __all__ = [
     "BaseOutputSink",
     "MkDocsAdapter",
     "OutputSinkRegistry",
-    "ParquetAdapter",
+    # DISABLED: Removing parquet adapter
+    # "ParquetAdapter",
     "create_default_output_registry",
     "create_output_registry",
     "create_output_sink",

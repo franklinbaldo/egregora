@@ -1,5 +1,6 @@
-{% import '_privacy_macros.jinja' as privacy %}
-{{ privacy.pii_prevention_block(pii_prevention, context="enrichment") }}
+{# DISABLED: Privacy module being removed #}
+{# {% import '_privacy_macros.jinja' as privacy %} #}
+{# {{ privacy.pii_prevention_block(pii_prevention, context="enrichment") }} #}
 
 {% macro media_type_instructions(media_type) -%}
 {% if media_type == "image" %}

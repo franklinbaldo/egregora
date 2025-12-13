@@ -23,9 +23,13 @@ from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.table import Table
 
-from egregora.cli.config import config_app
+# DISABLED: Removing CLI commands as part of simplification
+# from egregora.cli.config import config_app
 from egregora.cli.read import read_app
-from egregora.cli.runs import get_storage, runs_app
+# from egregora.cli.runs import get_storage, runs_app
+# NOTE: Moved get_storage locally to support top/history commands
+import contextlib
+import duckdb
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.config_validation import parse_date_arg, validate_timezone
 from egregora.constants import SourceType, WindowUnit
@@ -36,13 +40,43 @@ from egregora.orchestration import write_pipeline
 from egregora.orchestration.context import PipelineRunParams
 from egregora.utils.env import validate_gemini_api_key
 
+
+# MOVED from runs.py to support top/history commands
+class _RunsDuckDBStorage:
+    """Minimal DuckDB storage used by CLI commands without initializing Ibis."""
+
+    def __init__(self, db_path: Path) -> None:
+        self.db_path = db_path
+        self._conn = duckdb.connect(str(db_path))
+
+    @contextlib.contextmanager
+    def connection(self) -> contextlib.AbstractContextManager[duckdb.DuckDBPyConnection]:
+        yield self._conn
+
+    def execute_query(self, sql: str, params: list | None = None) -> list[tuple]:
+        return self._conn.execute(sql, params or []).fetchall()
+
+    def execute_query_single(self, sql: str, params: list | None = None) -> tuple | None:
+        return self._conn.execute(sql, params or []).fetchone()
+
+    def get_table_columns(self, table_name: str) -> set[str]:
+        info = self._conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
+        return {row[1] for row in info}
+
+
+def get_storage(db_path: Path):
+    """Get a DuckDBStorageManager instance."""
+    return _RunsDuckDBStorage(db_path)
+
+
 app = typer.Typer(
     name="egregora",
     help="Ultra-simple WhatsApp to blog pipeline with LLM-powered content generation",
     add_completion=False,
 )
-app.add_typer(config_app)
-app.add_typer(runs_app)
+# DISABLED: Removing CLI commands as part of simplification
+# app.add_typer(config_app)
+# app.add_typer(runs_app)
 app.add_typer(read_app)
 
 # Show subcommands
