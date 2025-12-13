@@ -19,6 +19,7 @@ from lancedb.pydantic import LanceModel, Vector
 
 from egregora.config import EMBEDDING_DIM
 from egregora.data_primitives.document import Document
+from egregora.rag.backend import VectorStore
 from egregora.rag.ingestion import chunks_from_documents
 from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
 
@@ -47,9 +48,6 @@ def _json_serialize_metadata(metadata: dict) -> str:
 
 # Type alias for embedding functions
 # task_type should be "RETRIEVAL_DOCUMENT" for indexing, "RETRIEVAL_QUERY" for searching
-# Updated to async for compatibility with async embedding router
-# Type alias for embedding functions
-# task_type should be "RETRIEVAL_DOCUMENT" for indexing, "RETRIEVAL_QUERY" for searching
 EmbedFn = Callable[[Sequence[str], str], list[list[float]]]
 
 
@@ -68,7 +66,7 @@ class RagChunkModel(LanceModel):
     metadata_json: str  # JSON-serialized metadata for flexibility
 
 
-class LanceDBRAGBackend:
+class LanceDBRAGBackend(VectorStore):
     """LanceDB-based RAG backend.
 
     Responsibilities:
@@ -130,8 +128,8 @@ class LanceDBRAGBackend:
             logger.info("Opening existing LanceDB table: %s", table_name)
             self._table = self._db.open_table(table_name)
 
-    def index_documents(self, docs: Sequence[Document]) -> None:
-        """Index a batch of Documents into the RAG knowledge base.
+    def add(self, documents: Sequence[Document]) -> int:
+        """Add documents to the store.
 
         Implementation:
             1. Convert Documents to chunks using ingestion module
@@ -139,7 +137,10 @@ class LanceDBRAGBackend:
             3. Atomic upsert into LanceDB (merge_insert with update/insert)
 
         Args:
-            docs: Sequence of Document instances to index
+            documents: Sequence of Document instances to index
+
+        Returns:
+            Number of documents successfully indexed
 
         Raises:
             ValueError: If documents are invalid
@@ -147,13 +148,13 @@ class LanceDBRAGBackend:
 
         """
         # Convert documents to chunks
-        chunks = chunks_from_documents(docs, indexable_types=self._indexable_types)
+        chunks = chunks_from_documents(documents, indexable_types=self._indexable_types)
 
         if not chunks:
             logger.info("No chunks to index (empty or filtered documents)")
-            return
+            return 0
 
-        logger.info("Indexing %d chunks from %d documents", len(chunks), len(docs))
+        logger.info("Indexing %d chunks from %d documents", len(chunks), len(documents))
 
         # Extract texts for embedding
         texts = [c.text for c in chunks]
@@ -188,9 +189,14 @@ class LanceDBRAGBackend:
                 "chunk_id"
             ).when_matched_update_all().when_not_matched_insert_all().execute(rows)
             logger.info("Successfully indexed %d chunks (atomic upsert)", len(rows))
+            return len(documents)
         except Exception as e:
             msg = f"Failed to upsert chunks to LanceDB: {e}"
             raise RuntimeError(msg) from e
+
+    # Alias for backward compatibility if needed, though we should use add()
+    def index_documents(self, docs: Sequence[Document]) -> None:
+        self.add(docs)
 
     def query(self, request: RAGQueryRequest) -> RAGQueryResponse:
         """Execute vector search in the knowledge base.
@@ -245,11 +251,6 @@ class LanceDBRAGBackend:
             distance = float(row.get("_distance", 0.0))
 
             # Convert distance to similarity score
-            # For cosine distance: distance ∈ [0, 2], similarity = 1 - distance ∈ [-1, 1]
-            # Normalize to [0, 1] range: score = (1 - distance) / 2 + 0.5
-            # Simplified: score = (2 - distance) / 2 = 1 - (distance / 2)
-            # However, for typical use cases, distance should be in [0, 2] range
-            # and we want higher similarity scores for lower distances
             score = 1.0 - distance
 
             # Extract and deserialize metadata
@@ -272,6 +273,47 @@ class LanceDBRAGBackend:
 
         logger.info("Found %d hits for query (top_k=%d)", len(hits), top_k)
         return RAGQueryResponse(hits=hits)
+
+    def delete(self, document_ids: list[str]) -> int:
+        """Delete documents from the store.
+
+        Args:
+            document_ids: List of document IDs to delete
+
+        Returns:
+            Number of documents deleted
+        """
+        if not document_ids:
+            return 0
+
+        # Construct filter expression: document_id IN ('id1', 'id2')
+        # LanceDB SQL filter syntax
+        ids_str = ", ".join(f"'{did}'" for did in document_ids)
+        filter_expr = f"document_id IN ({ids_str})"
+
+        try:
+            self._table.delete(filter_expr)
+            # LanceDB delete doesn't return count easily without another query
+            # We assume success if no exception
+            return len(document_ids)
+        except Exception as e:
+            logger.error("Failed to delete documents: %s", e)
+            raise RuntimeError(f"Delete failed: {e}") from e
+
+    def count(self) -> int:
+        """Count total documents in the store.
+
+        Note: This counts chunks, not unique documents.
+        """
+        return self._table.count_rows()
+
+    def get_stats(self) -> dict[str, Any]:
+        """Get statistics about the store."""
+        return {
+            "chunk_count": self.count(),
+            "backend": "lancedb",
+            "path": str(self._db_dir)
+        }
 
     def get_all_post_vectors(self) -> tuple[list[str], np.ndarray]:
         """Retrieve IDs and Centroid Vectors for all indexed posts.

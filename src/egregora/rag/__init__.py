@@ -1,220 +1,118 @@
-r"""RAG (Retrieval-Augmented Generation) package for Egregora.
+"""RAG (Retrieval Augmented Generation) module.
 
-This package provides a simple RAG implementation using LanceDB for vector storage,
-with DuckDB integration for SQL-based analytics and filtering.
+This module provides a high-level API for indexing and retrieving documents
+using vector embeddings. It abstracts the underlying storage and embedding
+implementation details.
 
-Public API:
-    - get_backend(): Get the configured LanceDB RAG backend
-    - index_documents(): Index documents into RAG
-    - search(): Execute vector similarity search
-    - RAGHit, RAGQueryRequest, RAGQueryResponse: Core data models
+Key Components:
+- index_documents: Index a list of documents
+- search: Search for relevant documents using a query string
+- backend: The configured RAG backend (DuckDB or LanceDB)
 
-DuckDB Integration:
-    - search_to_table(): Convert RAG results to Ibis/DuckDB table
-    - join_with_messages(): Join RAG results with message data
-    - search_with_filters(): Vector search with SQL filtering
-
-Configuration:
-    Set paths in .egregora/config.yml:
-    ```yaml
-    paths:
-        lancedb_dir: .egregora/lancedb
-
-    rag:
-        top_k: 5
-    ```
-
-Example:
-    >>> from egregora.rag import index_documents, search, RAGQueryRequest
-    >>> from egregora.data_primitives import Document, DocumentType
-    >>>
-    >>> # Index documents
-    >>> doc = Document(content="# Post\n\nContent", type=DocumentType.POST)
-    >>> index_documents([doc])
-    >>>
-    >>> # Search
-    >>> request = RAGQueryRequest(text="search query", top_k=5)
-    >>> response = search(request)
-    >>> for hit in response.hits:
-    ...     print(f"{hit.score:.2f}: {hit.text[:50]}")
-    >>>
-    >>> # DuckDB integration - query results as SQL table
-    >>> from egregora.rag.duckdb_integration import search_to_table
-    >>> table = search_to_table(RAGQueryRequest(text="query", top_k=10))
-    >>> high_scores = table.filter(table.score > 0.8)
-    >>> print(high_scores.execute())
-
+Usage:
+    >>> from egregora.rag import index_documents, search
+    >>> index_documents([doc1, doc2])
+    >>> results = search("what is the meaning of life?", top_k=5)
 """
 
-from __future__ import annotations
-
 import logging
-from collections.abc import Sequence
-from pathlib import Path
+from contextlib import suppress
+from functools import lru_cache
+from typing import TYPE_CHECKING
 
-from egregora.config.settings import EgregoraConfig, load_egregora_config
-from egregora.data_primitives.document import Document, DocumentType
-from egregora.rag.backend import RAGBackend
-from egregora.rag.embedding_router import EmbeddingRouter, create_embedding_router
+from egregora.config.settings import RAGSettings
+from egregora.rag.backend import VectorStore
+from egregora.rag.embedding_router import EmbeddingRouter, TaskType, get_embedding_router
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
-from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
+from egregora.rag.models import RAGQueryRequest, RAGQueryResponse
+
+if TYPE_CHECKING:
+    from egregora_v3.core.types import Document
+
 
 logger = logging.getLogger(__name__)
 
 
-# Global backend instance (lazy-initialized)
-def _create_backend() -> RAGBackend:
-    """Create LanceDB RAG backend based on configuration.
+# Global backend instance (lazily initialized)
+_backend: VectorStore | None = None
 
-    Returns:
-        LanceDBRAGBackend instance
 
-    Raises:
-        RuntimeError: If backend initialization fails
+def get_backend() -> VectorStore:
+    """Get or initialize the global RAG backend."""
+    global _backend
+    if _backend is None:
+        from pathlib import Path
+        from egregora.config import load_egregora_config
 
-    """
-    # Try to load config from current directory
-    try:
-        config = load_egregora_config(Path.cwd())
-    except (OSError, ValueError):
-        logger.exception(
-            "Failed to load .egregora/config.yml - using default configuration. "
-            "Your custom settings will be ignored."
+        try:
+            config = load_egregora_config()
+            lancedb_path = Path(config.paths.lancedb_dir)
+        except Exception:  # noqa: BLE001
+            logger.warning("Could not load RAG config, using defaults")
+            # Default fallback matching PathsSettings
+            lancedb_path = Path(".egregora/lancedb")
+
+        # Initialize LanceDB backend with embedding function
+        # Note: We inject embed_fn here to decouple backend from router
+        _backend = LanceDBRAGBackend(
+            db_dir=lancedb_path,
+            table_name="vectors",
+            embed_fn=embed_fn,
         )
-        # Fall back to default config
-        config = EgregoraConfig()
-
-    # Determine lancedb_dir from config
-    lancedb_dir = Path.cwd() / ".egregora" / "lancedb"
-    if hasattr(config, "paths") and hasattr(config.paths, "lancedb_dir"):
-        lancedb_dir = Path.cwd() / config.paths.lancedb_dir
-
-    # Get embedding model
-    rag_settings = config.rag
-    embedding_model = config.models.embedding
-
-    # Convert indexable_types from string list to DocumentType set
-    indexable_types: set[DocumentType] | None = None
-    if hasattr(config.rag, "indexable_types") and config.rag.indexable_types:
-        indexable_types = set()
-        for type_str in config.rag.indexable_types:
-            try:
-                doc_type = DocumentType[type_str.upper()]
-                indexable_types.add(doc_type)
-            except KeyError:
-                logger.warning("Unknown document type in config: %s (skipping)", type_str)
-
-    # Create sync embedding function that uses the dual-queue router
-    # IMPORTANT: Google Gemini embeddings are asymmetric - documents and queries
-    # must use different task_type values for optimal retrieval quality.
-    # The caller (LanceDBRAGBackend) is responsible for specifying the correct task_type.
-    router: EmbeddingRouter | None = None
-
-    def embed_fn(texts: Sequence[str], task_type: str) -> list[list[float]]:
-        nonlocal router
-        if router is None:
-            router = create_embedding_router(
-                model=embedding_model,
-                api_key=None,
-                max_batch_size=rag_settings.embedding_max_batch_size,
-                timeout=rag_settings.embedding_timeout,
-            )
-
-        return router.embed(list(texts), task_type=task_type)
-
-    logger.info("Creating LanceDB RAG backend at %s", lancedb_dir)
-    return LanceDBRAGBackend(
-        db_dir=lancedb_dir,
-        table_name="rag_embeddings",
-        embed_fn=embed_fn,
-        indexable_types=indexable_types,
-    )
+    return _backend
 
 
-def get_backend() -> RAGBackend:
-    """Get the configured RAG backend.
-
-    Lazily initializes the LanceDB backend on first call.
-
-    Returns:
-        RAGBackend instance (LanceDB implementation)
-
-    Raises:
-        RuntimeError: If backend initialization fails
-
-    """
-    # Use function attribute for singleton
-    if not hasattr(get_backend, "_instance") or get_backend._instance is None:
-        get_backend._instance = _create_backend()
-    return get_backend._instance
+def reset_backend() -> None:
+    """Reset the global backend instance (for testing/re-init)."""
+    global _backend
+    _backend = None
 
 
-def index_documents(docs: Sequence[Document]) -> None:
-    r"""Index documents into the RAG knowledge base (sync).
-
-    Uses the sync embedding router for optimal throughput.
+def index_documents(documents: list["Document"]) -> int:
+    """Index a list of documents into the vector store.
 
     Args:
-        docs: Sequence of Document instances to index
+        documents: List of Document objects to index
 
-    Raises:
-        ValueError: If documents are invalid
-        RuntimeError: If indexing fails
-
-    Example:
-        >>> from egregora.data_primitives import Document, DocumentType
-        >>> doc = Document(content="# Post\n\nContent", type=DocumentType.POST)
-        >>> index_documents([doc])
-
+    Returns:
+        Number of documents successfully indexed
     """
+    if not documents:
+        return 0
+
     backend = get_backend()
-    backend.index_documents(docs)
+    return backend.add(documents)
 
 
 def search(request: RAGQueryRequest) -> RAGQueryResponse:
-    """Execute vector similarity search (sync).
-
-    Uses the sync embedding router for optimal throughput.
+    """Search for documents similar to the query.
 
     Args:
-        request: Query parameters (text, top_k, filters)
+        request: Search request object
 
     Returns:
-        Response containing ranked RAGHit results
-
-    Raises:
-        ValueError: If query parameters are invalid
-        RuntimeError: If search fails
-
-    Example:
-        >>> request = RAGQueryRequest(text="search query", top_k=5)
-        >>> response = search(request)
-        >>> for hit in response.hits:
-        ...     print(f"{hit.score:.2f}: {hit.text[:50]}")
-
+        Search result object containing hits
     """
     backend = get_backend()
     return backend.query(request)
 
 
-__all__ = [
-    "RAGBackend",
-    "RAGHit",
-    "RAGQueryRequest",
-    "RAGQueryResponse",
-    "get_backend",
-    "index_documents",
-    "reset_backend",
-    "search",
-    # DuckDB integration (import from duckdb_integration module)
-]
+# Re-export embedding function helper for convenience
+@lru_cache(maxsize=1)
+def embed_fn(
+    texts: tuple[str],
+    task_type: TaskType = "RETRIEVAL_DOCUMENT",
+    model: str | None = None,
+) -> list[list[float]]:
+    """Generate embeddings for a list of texts using the configured router.
 
+    Args:
+        texts: Tuple of strings to embed (tuple for lru_cache)
+        task_type: Type of task (retrieval_query, retrieval_document, etc.)
+        model: Optional model override
 
-def reset_backend() -> None:
-    """Reset the global RAG backend.
-
-    Forces recreation of the backend (and its embedding router) on the next call
-    to get_backend().
+    Returns:
+        List of embedding vectors
     """
-    if hasattr(get_backend, "_instance"):
-        get_backend._instance = None
+    router = get_embedding_router()
+    return router.embed(list(texts), task_type=task_type)
