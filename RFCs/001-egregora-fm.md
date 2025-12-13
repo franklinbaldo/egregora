@@ -1,0 +1,51 @@
+# RFC: Egregora FM
+**Status:** Moonshot Proposal
+**Date:** 2025-05-28
+**Disruption Level:** High (Multi-Modal Shift)
+
+## 1. The Vision
+It's Monday morning. You're commuting. Instead of scrolling through 800 unread messages from "The Weekend Crew," you tap a button on your podcast app.
+
+**"Welcome back to Egregora FM,"** says a voice that sounds eerily like the collective vibe of your group—witty, slightly chaotic, but warm. **"This weekend was… intense. Dave started a debate about carbonara that lasted six hours, and Sarah posted 45 photos of her cat. Let's dive in."**
+
+Suddenly, the hosts introduce a musical segment. **"You know what? This carbonara debate deserves an anthem."** A fully produced, 80s synth-pop track kicks in, with lyrics summarizing the argument: *"Cream in the sauce? That's a crime / Guanciale only, every time."* You laugh out loud.
+
+You arrive at work feeling connected, without the "unreads anxiety."
+
+## 2. The Broken Assumption
+> "We currently assume that the output of a chat archive must be text (a blog), but this prevents us from engaging users who are fatigued by reading."
+
+We treat Egregora as a *publishing* engine (Atom/RSS -> HTML). But the Atom spec supports `enclosure` links (podcasts). We are stuck in the "Gutenberg Parenthesis"—thinking print is the primary medium for knowledge. Group chats are conversational; their natural summary format is *conversation*, not an essay.
+
+## 3. The Mechanics (High Level)
+
+### Input
+*   **Chat Logs:** The standard `Entry` stream.
+*   **Prosody/Vibe Analysis:** Analyze the sentiment, capitalization, and emoji usage to determine the "emotional tone" of segments.
+*   **Voice Notes:** Extract audio attachments (already supported in V3 plan) and transcribe them (Speech-to-Text) for context, but keep raw audio for mixing.
+
+### Processing
+**Evolution:** Initially conceived as a multi-stage pipeline (Script -> TTS -> Mixer), recent advances in **native multimodal generation** allow us to collapse this into a single, elegant step.
+
+1.  **Direct Audio Generation (NotebookLM Enterprise API):** We leverage the purpose-built `podcast` endpoint from the NotebookLM Enterprise API (`https://discoveryengine.googleapis.com/v1/.../podcasts`).
+    *   *Why:* This API is specifically optimized for generating "Deep Dive" audio overviews from source documents. It handles the "banter," "host personalities," and "structure" out-of-the-box, saving us from complex prompt engineering and state management.
+    *   *Mechanism:* We construct a JSON payload with `contexts` (the chat logs as text segments) and `podcastConfig` (setting `focus` to specific topics like "Weekend Update" and `length` to "SHORT" or "STANDARD").
+    *   The API returns an MP3 file directly, which we simply save and link.
+2.  **Specialized Audio Modeling (VibeVoice):** For scenarios requiring extreme fidelity or specific speaker control (e.g., preserving distinct "character" voices over a long saga), we can integrate **VibeVoice**.
+    *   *Why:* Unlike generic TTS, VibeVoice uses continuous speech tokenizers (7.5 Hz) and a diffusion head to handle multi-speaker turn-taking, laughter, and emotional nuance ("Spontaneous Emotion") that generic LLMs might smooth over.
+    *   It allows for "Long Conversational Speech" (up to 90 minutes) which fits perfectly with our "Monthly Digest" use case.
+3.  **Musical "Jingles" & Soundtracks (Suno v5):** To elevate the production value, we integrate **Suno v5**.
+    *   *Concept:* The "Scriptwriter Agent" detects high-emotion or repetitive threads (e.g., a recurring inside joke or heated debate) and generates lyrics.
+    *   *Execution:* We call the Suno API to generate a 30-second "Stinger" or a full "Anthem" for the week.
+    *   *Why:* Music encodes emotional memory better than speech. A "Carbonara Anthem" becomes a persistent cultural artifact for the group in a way a text summary never could.
+
+### Output
+*   **The Artifact:** An `.mp3` file (e.g., `2025-05-28-weekend-digest.mp3`).
+*   **The Delivery:** The Atom Feed (`feed.xml`) includes `<link rel="enclosure" href="..." type="audio/mpeg" />`.
+*   **The UX:** Any podcast player (Apple Podcasts, Overcast) can subscribe to your private Egregora feed.
+
+## 4. The Value Proposition
+*   **10x Delight:** Transforming "homework" (reading logs) into "entertainment" (listening to a show).
+*   **Accessibility:** consume the group chat while driving, running, or cooking.
+*   **Emotional Resonance:** Hearing the "voice" of the group creates a stronger bond than reading text.
+*   **Differentiation:** No other "chat to blog" tool does this. It makes Egregora not just an archiver, but a *media production studio*.
