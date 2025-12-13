@@ -32,6 +32,7 @@ class MockPipelineContext:
         self.storage = Mock()
         self.input_path = None
         self.output_dir = Path("/tmp/test")
+        self.site_root = Path("/tmp/test-site")  # Add site_root
 
 
 def create_url_tasks(count: int) -> list[dict]:
