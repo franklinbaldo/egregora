@@ -251,6 +251,29 @@ rm -rf src/egregora/output_adapters/parquet/
 - `src/egregora/config/settings.py`: Remove concurrent and daily limit fields from rate limiting config
 - Search and remove any enforcement logic for concurrent/daily limits
 
+### 3.6 Phase 3 Status: COMPLETED ✅
+
+**Date**: 2025-12-13
+
+**Results**: Successfully removed 2,141 lines of code across 24 files.
+
+**Deleted**:
+- Privacy module (entire directory - 4 files)
+- Parquet adapter (entire directory - 3 files)
+- CLI commands (config.py, runs.py)
+- Privacy tests (3 test files)
+- Privacy configuration classes
+- Privacy constants/enums
+- All commented code from Phase 1
+
+**Modified**:
+- Cleaned up 8 Python files
+- Cleaned up 2 Jinja2 templates
+- Updated config schema
+- Simplified constants
+
+**Dead Code Detection**: See `DEAD_CODE_DETECTION.md` for vulture usage guide. Estimated ~375 additional lines could be removed with vulture analysis in a proper dev environment.
+
 ---
 
 ## Phase 4: Documentation Update
