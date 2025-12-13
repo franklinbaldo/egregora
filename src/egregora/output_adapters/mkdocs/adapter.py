@@ -1329,6 +1329,71 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
 
 
+    # Author Profile Generation (Append-Only) ---------------------------------
+
+    def _build_author_profile(self, author_uuid: str) -> dict | None:
+        """Build author profile by scanning all their posts chronologically.
+        
+        Sequential metadata updates: later posts override earlier values.
+        
+        Args:
+            author_uuid: UUID of the author
+            
+        Returns:
+            Profile dictionary with derived state, or None if no posts found
+        """
+        author_dir = self.posts_dir / "authors" / author_uuid[:16]
+        if not author_dir.exists():
+            return None
+        
+        posts = sorted(author_dir.glob("*.md"), key=lambda p: p.stem)
+        
+        profile = {
+            "uuid": author_uuid,
+            "name": None,
+            "bio": None,
+            "avatar": None,
+            "interests": set(),
+            "posts": [],
+        }
+        
+        for post_path in posts:
+            if post_path.name == "index.md":
+                continue
+            
+            frontmatter = self._parse_frontmatter(post_path)
+            authors = frontmatter.get("authors", [])
+            
+            # Find this author's metadata in the post
+            for author in authors:
+                if isinstance(author, dict):
+                    author_uuid_in_post = author.get("uuid", "")
+                    if author_uuid_in_post.startswith(author_uuid[:16]):
+                        # Sequential merge: later values win
+                        if "name" in author:
+                            profile["name"] = author["name"]
+                        if "bio" in author:
+                            profile["bio"] = author["bio"]
+                        if "avatar" in author:
+                            profile["avatar"] = author["avatar"]
+                        if "interests" in author:
+                            profile["interests"].update(author["interests"])
+            
+            # Track this post
+            profile["posts"].append({
+                "title": frontmatter.get("title", post_path.stem),
+                "date": frontmatter.get("date", ""),
+                "slug": post_path.stem,
+                "path": post_path,
+            })
+        
+        if not profile["name"]:
+            return None  # No valid profile without a name
+        
+        profile["interests"] = sorted(profile["interests"])
+        return profile
+
+
 # ============================================================================
 # MkDocs filesystem storage helpers
 # ============================================================================
