@@ -31,7 +31,10 @@ We treat Egregora as a *publishing* engine (Atom/RSS -> HTML). But the Atom spec
     *   Instead of writing a script, we feed the raw chat logs (context) and a "Producer Prompt" (instruction) directly to the model.
     *   *Prompt:* "You are two podcast hosts reviewing this chat log. Create a 5-minute summary with banter, distinct voices, and sound effects."
     *   The model generates the full audio waveform directly, handling timing, tone, and voice switching internally.
-2.  **The "Live" Option (Future):** Using the `google.genai` Live API (WebSockets), we could offer an interactive mode where the user can interrupt the "hosts" to ask questions ("Wait, *why* did Dave say that?") in real-time, effectively turning the archive into a conversational partner.
+2.  **Specialized Audio Modeling (VibeVoice):** For scenarios requiring extreme fidelity or specific speaker control (e.g., preserving distinct "character" voices over a long saga), we can integrate **VibeVoice**.
+    *   *Why:* Unlike generic TTS, VibeVoice uses continuous speech tokenizers (7.5 Hz) and a diffusion head to handle multi-speaker turn-taking, laughter, and emotional nuance ("Spontaneous Emotion") that generic LLMs might smooth over.
+    *   It allows for "Long Conversational Speech" (up to 90 minutes) which fits perfectly with our "Monthly Digest" use case.
+3.  **The "Live" Option (Future):** Using the `google.genai` Live API (WebSockets), we could offer an interactive mode where the user can interrupt the "hosts" to ask questions ("Wait, *why* did Dave say that?") in real-time, effectively turning the archive into a conversational partner.
 
 ### Output
 *   **The Artifact:** An `.mp3` file (e.g., `2025-05-28-weekend-digest.mp3`).
