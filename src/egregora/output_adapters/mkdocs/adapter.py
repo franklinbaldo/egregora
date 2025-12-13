@@ -783,6 +783,31 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             rel_path = rel_path[6:]
         return rel_path
 
+    def _get_author_dir(self, author_uuid: str) -> Path:
+        """Get the directory for a given author UUID."""
+        author_dir = self.posts_dir / "authors" / author_uuid
+        author_dir.mkdir(parents=True, exist_ok=True)
+        return author_dir
+
+    def _parse_frontmatter(self, path: Path) -> dict:
+        """Extract YAML frontmatter from markdown file.
+        
+        Args:
+            path: Path to markdown file
+            
+        Returns:
+            Dictionary of frontmatter metadata (empty if none found)
+        """
+        try:
+            content = path.read_text(encoding="utf-8")
+            if content.startswith("---"):
+                parts = content.split("---", 2)
+                if len(parts) >= 3:
+                    return yaml.safe_load(parts[1]) or {}
+        except Exception as e:
+            logger.warning(f"Failed to parse frontmatter from {path}: {e}")
+        return {}
+
     # Document Writing Strategies ---------------------------------------------
 
     @staticmethod
