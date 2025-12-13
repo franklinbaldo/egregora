@@ -298,18 +298,23 @@ def _process_single_window(
     from egregora.agents.commands import extract_commands, filter_commands, command_to_announcement
     
     # Convert table to list of messages for command processing
-    # ibis Tables need .execute() before .to_pylist()
+    # Ibis tables are lazy expressions - use .to_pyarrow().to_pylist() for conversion
     try:
-        # Try ibis table conversion
-        messages_list = enriched_table.execute().to_pylist()
-    except (AttributeError, TypeError):
-        # Fallback: try direct to_pylist (for arrow tables)
-        try:
-            messages_list = enriched_table.to_pylist()
-        except (AttributeError, TypeError):
-            # Last resort: assume it's already a list
-            messages_list = enriched_table if isinstance(enriched_table, list) else []
-            logger.warning("Could not convert table to list, using fallback")
+        # Correct way: to_pyarrow() returns arrow table, then to_pylist()
+        messages_list = enriched_table.to_pyarrow().to_pylist()
+    except (AttributeError, TypeError) as e:
+        # Fallback: if it's already a list or has different interface
+        if isinstance(enriched_table, list):
+            messages_list = enriched_table
+        else:
+            # Last resort: try pandas conversion
+            try:
+                df = enriched_table.to_pandas()
+                messages_list = df.to_dict('records')
+            except Exception:
+                logger.error("Failed to convert table to list: %s", e)
+                messages_list = []
+    
     
     # Extract and generate announcements from commands
     command_messages = extract_commands(messages_list)
