@@ -297,7 +297,12 @@ def _process_single_window(
     from egregora.agents.commands import extract_commands, filter_commands, command_to_announcement
     
     # Convert table to list of messages for command processing
-    messages_list = enriched_table.to_pylist() if hasattr(enriched_table, 'to_pylist') else enriched_table
+    # ibis Tables need explicit conversion via to_pylist()
+    try:
+        messages_list = enriched_table.to_pylist()
+    except AttributeError:
+        # Fallback if not an ibis table
+        messages_list = list(enriched_table) if hasattr(enriched_table, '__iter__') else []
     
     # Extract and generate announcements from commands
     command_messages = extract_commands(messages_list)
