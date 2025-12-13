@@ -9,7 +9,7 @@ These tasks focus on improving the current architecture without unnecessary brea
   - **Modules:** `src/egregora/agents/writer.py`, `src/egregora/agents/writer_tools.py`
   - **Implementation:** Updated `src/egregora/agents/writer.py` to rely on tool names (`write_post_tool`, `write_profile_tool`) instead of checking file path strings (e.g., `"/posts/"`). Removed explicit path replacement (`../media/` -> `/media/`) in `_save_journal_to_file`. Added regression test `tests/unit/agents/test_writer_logic.py`.
 
-- [ ] **Standardize CLI Entry Points**
+- [x] **Standardize CLI Entry Points**
   - **Rationale:** `egregora.cli.main` handles `write` orchestration directly. This logic should be moved to `src/egregora/orchestration/pipelines/write.py` to match the intended layering.
   - **Modules:** `src/egregora/cli/main.py`, `src/egregora/orchestration/`
 
