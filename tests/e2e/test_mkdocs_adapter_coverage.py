@@ -36,9 +36,9 @@ def test_write_profile_doc_generates_fallback_avatar(adapter):
     assert profile_path.exists()
     content = profile_path.read_text(encoding="utf-8")
 
-    # Verify avatar in frontmatter (fallback URL from getavataaars)
+    # Verify avatar in frontmatter (fallback URL from avataaars.io)
     # Check for prefix to be robust
-    assert "avatar: https://getavataaars.com/?" in content
+    assert "avatar: https://avataaars.io/?" in content
 
     # Verify avatar image in content (MkDocs macro)
     # The adapter prepends the avatar macro to the content

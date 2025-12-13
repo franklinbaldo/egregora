@@ -1326,9 +1326,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 # MkDocs filesystem storage helpers
 # ============================================================================
 
-ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
-
-
     # Author Profile Generation (Append-Only) ---------------------------------
 
     def _build_author_profile(self, author_uuid: str) -> dict | None:
