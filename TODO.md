@@ -13,7 +13,7 @@ These tasks focus on improving the current architecture without unnecessary brea
   - **Rationale:** `egregora.cli.main` handles `write` orchestration directly. This logic should be moved to `src/egregora/orchestration/pipelines/write.py` to match the intended layering.
   - **Modules:** `src/egregora/cli/main.py`, `src/egregora/orchestration/`
 
-- [ ] **Unify RAG Interfaces**
+- [x] **Unify RAG Interfaces**
   - **Rationale:** References exist to both `egregora.rag` and `egregora.agents.shared.rag`. Consolidate into a single, clean `src/egregora/rag` package with a defined `VectorStore` protocol.
   - **Modules:** `src/egregora/rag/`, `src/egregora/agents/shared/rag/`
 

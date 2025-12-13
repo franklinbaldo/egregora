@@ -1,71 +1,72 @@
-"""RAG backend protocol.
+"""VectorStore protocol.
 
 Defines the interface that all RAG backends must implement.
 """
 
 from __future__ import annotations
 
+from abc import abstractmethod
 from collections.abc import Sequence
-from typing import Protocol
+from typing import Any, Protocol, runtime_checkable
 
 from egregora.data_primitives.document import Document
 from egregora.rag.models import RAGQueryRequest, RAGQueryResponse
 
 
-class RAGBackend(Protocol):
-    """Interface for RAG backends.
+@runtime_checkable
+class VectorStore(Protocol):
+    """Interface for Vector Store backends.
 
     This protocol defines the contract that all RAG backend implementations
-    must satisfy. Backends are responsible for:
-
-    - Filtering documents to text-only content
-    - Chunking documents into manageable pieces
-    - Computing embeddings for chunks
-    - Upserting chunks into the vector store
-    - Executing vector similarity search
-
-    Implementations:
-
-        - LanceDBRAGBackend: New LanceDB implementation (recommended)
-
+    must satisfy. Backends are responsible for storage and retrieval of
+    embeddings.
     """
 
-    def index_documents(self, docs: Sequence[Document]) -> None:
-        """Index a batch of Documents into the RAG knowledge base.
-
-        The implementation is responsible for:
-        - Filtering to text documents (skipping bytes content)
-        - Chunking per document according to backend strategy
-        - Computing embeddings for all chunks
-        - Upserting into the vector store
+    @abstractmethod
+    def add(self, documents: Sequence[Document]) -> int:
+        """Add documents to the store.
 
         Args:
-            docs: Sequence of Document instances to index
+            documents: Sequence of Document instances to index
 
-        Raises:
-            ValueError: If documents are invalid or cannot be indexed
-            RuntimeError: If embedding or storage operations fail
-
+        Returns:
+            Number of documents successfully indexed
         """
         ...
 
+    @abstractmethod
     def query(self, request: RAGQueryRequest) -> RAGQueryResponse:
         """Execute vector search in the knowledge base.
 
-        Returns ranked hits pointing back to original documents.
-
         Args:
-            request: Query parameters (text, top_k, filters)
+            request: Query parameters
 
         Returns:
-            Response containing ranked RAGHit results
-
-        Raises:
-            ValueError: If query parameters are invalid
-            RuntimeError: If search operation fails
-
+            Response containing ranked results
         """
         ...
 
+    @abstractmethod
+    def delete(self, document_ids: list[str]) -> int:
+        """Delete documents from the store.
 
-__all__ = ["RAGBackend"]
+        Args:
+            document_ids: List of document IDs to delete
+
+        Returns:
+            Number of documents deleted
+        """
+        ...
+
+    @abstractmethod
+    def count(self) -> int:
+        """Count total documents in the store."""
+        ...
+
+    @abstractmethod
+    def get_stats(self) -> dict[str, Any]:
+        """Get statistics about the store (index size, etc)."""
+        ...
+
+
+__all__ = ["VectorStore"]
