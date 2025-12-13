@@ -22,12 +22,49 @@ on:
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Enable debug logging'
+        type: boolean
+        default: false
+      skip_tests:
+        description: 'Skip test jobs (for workflow debugging only)'
+        type: boolean
+        default: false
+      skip_security:
+        description: 'Skip security scans (faster feedback)'
+        type: boolean
+        default: false
 
 jobs:
+  pre-commit:
+    name: Pre-commit Hooks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
+
+      - name: Run pre-commit on all files
+        run: |
+          uv run pre-commit run --all-files --show-diff-on-failure
+
   lint-ruff-check:
     name: Ruff (lint)
     runs-on: ubuntu-latest
     steps:
+      - name: Enable debug logging
+        if: ${{ inputs.debug_enabled }}
+        run: |
+          echo "ACTIONS_STEP_DEBUG=true" >> $GITHUB_ENV
+          echo "ACTIONS_RUNNER_DEBUG=true" >> $GITHUB_ENV
+          echo "::notice::Debug logging enabled"
+
       - name: Checkout code
         uses: actions/checkout@v6
 
@@ -60,6 +97,7 @@ jobs:
     name: Unit Tests (Python ${{ env.PYTHON_VERSION }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    if: ${{ !inputs.skip_tests }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -108,6 +146,7 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    if: ${{ !inputs.skip_tests }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -156,6 +195,7 @@ jobs:
     name: Security Scan
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    if: ${{ !inputs.skip_security }}
     permissions:
       contents: read
       security-events: write
@@ -188,7 +228,7 @@ jobs:
     name: Build Package
     runs-on: ubuntu-latest
     needs: [lint-ruff-check, lint-ruff-format, test-unit, test-e2e]
-    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') }}
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && (success() || inputs.skip_tests) }}
     timeout-minutes: 10
     steps:
       - name: Checkout code
@@ -286,7 +326,7 @@ jobs:
   summary:
     name: Workflow Summary
     runs-on: ubuntu-latest
-    needs: [lint-ruff-check, lint-ruff-format, test-unit, test-e2e, security, quality, build, docs]
+    needs: [pre-commit, lint-ruff-check, lint-ruff-format, test-unit, test-e2e, security, quality, build, docs]
     if: always()
     steps:
       - name: Post summary
@@ -296,6 +336,7 @@ jobs:
 
           | Job | Result |
           | --- | ------ |
+          | Pre-commit Hooks | ${{ needs['pre-commit'].result }} |
           | Ruff Lint | ${{ needs['lint-ruff-check'].result }} |
           | Ruff Format | ${{ needs['lint-ruff-format'].result }} |
           | Unit Tests | ${{ needs['test-unit'].result }} |
