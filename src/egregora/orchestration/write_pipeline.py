@@ -632,7 +632,8 @@ def _process_all_windows(
         BarColumn(),
         MofNCompleteColumn(),
         TextColumn("[dim]{task.description}"),
-        transient=False,
+        transient=True,  # Auto-clear - prevents memory leak from preserving render history
+        refresh_per_second=4,  # Reduce refresh rate to save CPU/memory
     ) as progress:
         window_task = progress.add_task(
             "Processing...",
@@ -662,6 +663,7 @@ def _process_all_windows(
                 continue
 
             # Update progress description with current window
+            # Only update every window (not every message) to reduce string allocations
             window_label = (
                 f"{window.start_time.strftime('%Y-%m-%d %H:%M')} - {window.end_time.strftime('%H:%M')}"
             )
