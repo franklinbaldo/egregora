@@ -623,80 +623,66 @@ def _process_all_windows(
 
     windows_processed = 0
 
-    # Progress bar for windows (use max_windows as total, or estimate if unlimited)
-    total_windows = max_windows if max_windows else 100  # Show as indeterminate if no limit
+    # Simple progress tracking without Rich progress bar
+    # (Progress bars cause memory leaks and logging noise in long-running tasks)
+    total_windows = max_windows if max_windows else "unlimited"
+    logger.info("Processing windows (limit: %s)", total_windows)
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[bold cyan]Windows"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TextColumn("[dim]{task.description}"),
-        transient=True,  # Auto-clear - prevents memory leak from preserving render history
-        refresh_per_second=4,  # Reduce refresh rate to save CPU/memory
-    ) as progress:
-        window_task = progress.add_task(
-            "Processing...",
-            total=total_windows if max_windows else None,
+    for window in windows_iterator:
+        # Check if we've hit the max_windows limit
+        if max_windows is not None and windows_processed >= max_windows:
+            logger.info("Reached max_windows limit (%d). Stopping processing.", max_windows)
+            if max_windows < MIN_WINDOWS_WARNING_THRESHOLD:
+                logger.warning(
+                    "⚠️  Processing stopped early due to low 'max_windows' setting (%d). "
+                    "This may result in incomplete data coverage. "
+                    "Use --max-windows 0 or remove the limit to process all data.",
+                    max_windows,
+                )
+            break
+        # Skip empty windows
+        if window.size == 0:
+            logger.debug(
+                "Skipping empty window %d (%s to %s)",
+                window.window_index,
+                window.start_time.strftime("%Y-%m-%d %H:%M"),
+                window.end_time.strftime("%Y-%m-%d %H:%M"),
+            )
+            continue
+
+        # Log current window (simpler than progress bar)
+        window_label = (
+            f"{window.start_time.strftime('%Y-%m-%d %H:%M')} - {window.end_time.strftime('%H:%M')}"
+        )
+        logger.info("Processing window %d: %s", windows_processed + 1, window_label)
+
+        # Validate window size doesn't exceed LLM context limits
+        _validate_window_size(window, max_window_size)
+
+        # Process window
+        window_results = _process_window_with_auto_split(window, ctx, depth=0, max_depth=5)
+        results.update(window_results)
+
+        # Track max processed timestamp for checkpoint
+        if max_processed_timestamp is None or window.end_time > max_processed_timestamp:
+            max_processed_timestamp = window.end_time
+
+        # Process accumulated background tasks periodically or after each window?
+        # Processing after each window keeps the queue small and provides incremental progress.
+        _process_background_tasks(ctx)
+
+        # Log summary (per-window event tracking removed - see SIMPLIFICATION_PLAN.md)
+        posts_count = sum(len(r.get("posts", [])) for r in window_results.values())
+        profiles_count = sum(len(r.get("profiles", [])) for r in window_results.values())
+        logger.debug(
+            "📊 Window %d: %s posts, %s profiles",
+            window.window_index,
+            posts_count,
+            profiles_count,
         )
 
-        for window in windows_iterator:
-            # Check if we've hit the max_windows limit
-            if max_windows is not None and windows_processed >= max_windows:
-                logger.info("Reached max_windows limit (%d). Stopping processing.", max_windows)
-                if max_windows < MIN_WINDOWS_WARNING_THRESHOLD:
-                    logger.warning(
-                        "⚠️  Processing stopped early due to low 'max_windows' setting (%d). "
-                        "This may result in incomplete data coverage. "
-                        "Use --max-windows 0 or remove the limit to process all data.",
-                        max_windows,
-                    )
-                break
-            # Skip empty windows
-            if window.size == 0:
-                logger.debug(
-                    "Skipping empty window %d (%s to %s)",
-                    window.window_index,
-                    window.start_time.strftime("%Y-%m-%d %H:%M"),
-                    window.end_time.strftime("%Y-%m-%d %H:%M"),
-                )
-                continue
-
-            # Update progress description with current window
-            # Only update every window (not every message) to reduce string allocations
-            window_label = (
-                f"{window.start_time.strftime('%Y-%m-%d %H:%M')} - {window.end_time.strftime('%H:%M')}"
-            )
-            progress.update(window_task, description=f"Window {windows_processed + 1}: {window_label}")
-
-            # Validate window size doesn't exceed LLM context limits
-            _validate_window_size(window, max_window_size)
-
-            # Process window
-            window_results = _process_window_with_auto_split(window, ctx, depth=0, max_depth=5)
-            results.update(window_results)
-
-            # Track max processed timestamp for checkpoint
-            if max_processed_timestamp is None or window.end_time > max_processed_timestamp:
-                max_processed_timestamp = window.end_time
-
-            # Process accumulated background tasks periodically or after each window?
-            # Processing after each window keeps the queue small and provides incremental progress.
-            _process_background_tasks(ctx)
-
-            # Log summary (per-window event tracking removed - see SIMPLIFICATION_PLAN.md)
-            posts_count = sum(len(r.get("posts", [])) for r in window_results.values())
-            profiles_count = sum(len(r.get("profiles", [])) for r in window_results.values())
-            logger.debug(
-                "📊 Window %d: %s posts, %s profiles",
-                window.window_index,
-                posts_count,
-                profiles_count,
-            )
-
-            # Update progress
-            windows_processed += 1
-            progress.update(window_task, advance=1)
+        # Update counter
+        windows_processed += 1
 
     return results, max_processed_timestamp
 
