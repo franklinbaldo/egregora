@@ -890,8 +890,6 @@ class EnrichmentWorker(BaseWorker):
                 tasks_data.append({"task": task, "url": url, "prompt": prompt})
             except Exception as exc:
                 logger.exception("Failed to prepare URL task %s", task["task_id"])
-```
-                self.task_store.mark_failed(task["task_id"], f"Preparation failed: {exc!s}")
 
         return tasks_data
 
