@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from functools import lru_cache
 
 # ============================================================================
 # Frozen UUID5 Namespaces (DO NOT MODIFY)
@@ -100,8 +101,13 @@ class NamespaceContext:
 # ============================================================================
 
 
+@lru_cache(maxsize=1024)
 def deterministic_author_uuid(tenant_id: str, source: str, author_raw: str) -> uuid.UUID:
     """Generate deterministic UUID for an author.
+
+    Performance: Uses lru_cache because author names repeat frequently in a chat log,
+    and generating UUIDv5 involves hashing which is relatively expensive when
+    done for every single message.
 
     This function ensures:
     1. Same author → same UUID across runs (determinism)
