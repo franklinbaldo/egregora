@@ -1393,6 +1393,77 @@ ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
         profile["interests"] = sorted(profile["interests"])
         return profile
 
+    def _render_author_index(self, profile: dict) -> str:
+        """Render author index.md content from profile data.
+        
+        Args:
+            profile: Profile dictionary with derived state
+            
+        Returns:
+            Markdown content for index.md
+        """
+        # Generate avatar HTML if available
+        avatar_html = ""
+        if profile.get("avatar"):
+            avatar_html = f"![Avatar]({profile['avatar']}){{ align=left width=150 }}\n\n"
+        
+        # Build post list (newest first)
+        posts_md = "\n".join([
+            f"- [{p['title']}]({p['slug']}.md) - {p['date']}"
+            for p in reversed(profile["posts"])
+        ])
+        
+        # Build frontmatter
+        frontmatter = f"""---
+title: {profile['name']}
+type: profile
+uuid: {profile['uuid']}
+avatar: {profile.get('avatar', '')}
+bio: {profile.get('bio', '')}
+interests: {profile.get('interests', [])}
+---
+
+{avatar_html}# {profile['name']}
+
+{profile.get('bio', '')}
+
+## Posts ({len(profile['posts'])})
+
+{posts_md}
+
+## Interests
+
+{', '.join(profile.get('interests', []))}
+"""
+        return frontmatter
+
+    def _sync_author_profiles(self) -> None:
+        """Generate index.md for all authors from derived state."""
+        authors_dir = self.posts_dir / "authors"
+        if not authors_dir.exists():
+            logger.info("No authors directory found, skipping profile sync")
+            return
+        
+        authors_synced = 0
+        for author_dir in authors_dir.glob("*/"):
+            uuid = author_dir.name
+            profile = self._build_author_profile(uuid)
+            
+            if not profile:
+                logger.warning(f"Skipping author {uuid}: no valid profile data")
+                continue
+            
+            # Render and write index.md
+            content = self._render_author_index(profile)
+            index_path = author_dir / "index.md"
+            index_path.write_text(content, encoding="utf-8")
+            
+            authors_synced += 1
+            logger.info(f"Generated profile for {profile['name']} ({uuid})")
+        
+        logger.info(f"Synced {authors_synced} author profiles")
+
+
 
 # ============================================================================
 # MkDocs filesystem storage helpers
