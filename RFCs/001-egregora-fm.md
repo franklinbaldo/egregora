@@ -8,9 +8,9 @@ It's Monday morning. You're commuting. Instead of scrolling through 800 unread m
 
 **"Welcome back to Egregora FM,"** says a voice that sounds eerily like the collective vibe of your group—witty, slightly chaotic, but warm. **"This weekend was… intense. Dave started a debate about carbonara that lasted six hours, and Sarah posted 45 photos of her cat. Let's dive in."**
 
-For the next 5 minutes, two AI hosts (a "Play-by-Play" announcer and a "Color Commentator") banter through the highlights. They play audio clips (synthesized reenactments or actual voice notes). They verify facts ("Dave claimed carbonara uses cream. Fact check: False."). They summarize the mood.
+Suddenly, the hosts introduce a musical segment. **"You know what? This carbonara debate deserves an anthem."** A fully produced, 80s synth-pop track kicks in, with lyrics summarizing the argument: *"Cream in the sauce? That's a crime / Guanciale only, every time."* You laugh out loud.
 
-You laugh, you get caught up, and you arrive at work feeling connected, without the "unreads anxiety."
+You arrive at work feeling connected, without the "unreads anxiety."
 
 ## 2. The Broken Assumption
 > "We currently assume that the output of a chat archive must be text (a blog), but this prevents us from engaging users who are fatigued by reading."
@@ -34,7 +34,10 @@ We treat Egregora as a *publishing* engine (Atom/RSS -> HTML). But the Atom spec
 2.  **Specialized Audio Modeling (VibeVoice):** For scenarios requiring extreme fidelity or specific speaker control (e.g., preserving distinct "character" voices over a long saga), we can integrate **VibeVoice**.
     *   *Why:* Unlike generic TTS, VibeVoice uses continuous speech tokenizers (7.5 Hz) and a diffusion head to handle multi-speaker turn-taking, laughter, and emotional nuance ("Spontaneous Emotion") that generic LLMs might smooth over.
     *   It allows for "Long Conversational Speech" (up to 90 minutes) which fits perfectly with our "Monthly Digest" use case.
-3.  **The "Live" Option (Future):** Using the `google.genai` Live API (WebSockets), we could offer an interactive mode where the user can interrupt the "hosts" to ask questions ("Wait, *why* did Dave say that?") in real-time, effectively turning the archive into a conversational partner.
+3.  **Musical "Jingles" & Soundtracks (Suno v5):** To elevate the production value, we integrate **Suno v5**.
+    *   *Concept:* The "Scriptwriter Agent" detects high-emotion or repetitive threads (e.g., a recurring inside joke or heated debate) and generates lyrics.
+    *   *Execution:* We call the Suno API to generate a 30-second "Stinger" or a full "Anthem" for the week.
+    *   *Why:* Music encodes emotional memory better than speech. A "Carbonara Anthem" becomes a persistent cultural artifact for the group in a way a text summary never could.
 
 ### Output
 *   **The Artifact:** An `.mp3` file (e.g., `2025-05-28-weekend-digest.mp3`).
