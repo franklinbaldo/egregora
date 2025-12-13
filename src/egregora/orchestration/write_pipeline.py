@@ -3,14 +3,10 @@
 This module orchestrates the high-level flow for the 'write' command, coordinating:
 - Input adapter selection and parsing
 - Privacy and enrichment stages
-- Window-based post generation
-- Output adapter persistence
-- Asynchronous task processing (banners, profiles)
-
-Part of the three-layer architecture:
-- orchestration/ (THIS) - Business workflows (WHAT to execute)
-- pipeline/ - Generic infrastructure (HOW to execute)
-- data_primitives/ - Core data models
+- Content generation with WriterWorker
+- Command processing and announcement generation
+- Profile generation (Egregora writing ABOUT authors)
+- Background task processing
 """
 
 from __future__ import annotations
@@ -221,15 +217,15 @@ def _process_background_tasks(ctx: PipelineContext) -> None:
     if banners_processed > 0:
         logger.info("Generated %d banners", banners_processed)
 
-    # 2. Profile Updates (Coalescing optimization)
+    # 2. Profile Updates (Coalescing optimization - OLD SYSTEM)
     profile_worker = ProfileWorker(ctx)
     profiles_processed = profile_worker.run()
     if profiles_processed > 0:
         logger.info("Updated %d profiles", profiles_processed)
     
-    # 2.5. Sync author profiles (append-only: derive from posts)
-    if hasattr(ctx.adapter, "_sync_author_profiles"):
-        ctx.adapter._sync_author_profiles()
+    # NOTE: _sync_author_profiles() REMOVED - replaced by PROFILE post generation
+    # in _process_single_window(). Author folders now contain PROFILE posts ABOUT
+    # authors (written by Egregora), not posts BY authors.
 
     # 3. Enrichment (Lower priority - can catch up later)
     enrichment_worker = EnrichmentWorker(ctx)
@@ -297,8 +293,33 @@ def _process_single_window(
     resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
 
+    # NEW: Process /egregora commands before sending to LLM
+    from egregora.agents.commands import extract_commands, filter_commands, command_to_announcement
+    
+    # Convert table to list of messages for command processing
+    messages_list = enriched_table.to_pylist() if hasattr(enriched_table, 'to_pylist') else enriched_table
+    
+    # Extract and generate announcements from commands
+    command_messages = extract_commands(messages_list)
+    announcements_generated = 0
+    if command_messages:
+        logger.info("%s📢 [cyan]Processing %d commands[/] for window %s", indent, len(command_messages), window_label)
+        for cmd_msg in command_messages:
+            try:
+                announcement = command_to_announcement(cmd_msg)
+                output_sink.persist(announcement)
+                announcements_generated += 1
+            except Exception as exc:
+                logger.exception("Failed to generate announcement from command: %s", exc)
+    
+    # Filter commands from messages before LLM
+    clean_messages_list = filter_commands(messages_list)
+    
+    # Convert back to table if needed (simplified for now - writer accepts lists)
+    # TODO: If writer expects ibis table, convert back using ibis.memtable()
+    
     params = WindowProcessingParams(
-        table=enriched_table,
+        table=enriched_table,  # Keep original for now; writer filters internally if needed
         window_start=window.start_time,
         window_end=window.end_time,
         resources=resources,
@@ -312,12 +333,42 @@ def _process_single_window(
 
     posts = result.get("posts", [])
     profiles = result.get("profiles", [])
+    
+    # NEW: Generate PROFILE posts (Egregora writing ABOUT each author)
+    from egregora.agents.profile.generator import generate_profile_posts
+    
+    window_date = window.start_time.strftime("%Y-%m-%d")
+    try:
+        profile_docs = asyncio.run(generate_profile_posts(
+            ctx=ctx,
+            messages=clean_messages_list,
+            window_date=window_date
+        ))
+        
+        # Persist PROFILE documents
+        for profile_doc in profile_docs:
+            try:
+                output_sink.persist(profile_doc)
+                # Track as profile
+                profiles.append(profile_doc.document_id)
+            except Exception as exc:
+                logger.exception("Failed to persist profile: %s", exc)
+        
+        if profile_docs:
+            logger.info(
+                "%s👥 [cyan]Generated %d profile posts[/] for window %s",
+                indent,
+                len(profile_docs),
+                window_label
+            )
+    except Exception as exc:
+        logger.exception("Failed to generate profile posts: %s", exc)
 
     # Scheduled tasks are returned as "pending:<task_id>"
-    scheduled_posts = sum(1 for p in posts if p.startswith("pending:"))
+    scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
     generated_posts = len(posts) - scheduled_posts
 
-    scheduled_profiles = sum(1 for p in profiles if p.startswith("pending:"))
+    scheduled_profiles = sum(1 for p in profiles if isinstance(p, str) and p.startswith("pending:"))
     generated_profiles = len(profiles) - scheduled_profiles
 
     # Construct status message
@@ -330,6 +381,8 @@ def _process_single_window(
         status_parts.append(f"{generated_profiles} profiles")
     if scheduled_profiles > 0:
         status_parts.append(f"{scheduled_profiles} scheduled profiles")
+    if announcements_generated > 0:
+        status_parts.append(f"{announcements_generated} announcements")
 
     status_msg = ", ".join(status_parts) if status_parts else "0 items"
 
