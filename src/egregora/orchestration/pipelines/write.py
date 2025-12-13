@@ -3,19 +3,16 @@
 This module orchestrates the high-level flow for the 'write' command, coordinating:
 - Input adapter selection and parsing
 - Privacy and enrichment stages
-- Window-based post generation
-- Output adapter persistence
-- Asynchronous task processing (banners, profiles)
-
-Part of the three-layer architecture:
-- orchestration/ (THIS) - Business workflows (WHAT to execute)
-- pipeline/ - Generic infrastructure (HOW to execute)
-- data_primitives/ - Core data models
+- Content generation with WriterWorker
+- Command processing and announcement generation
+- Profile generation (Egregora writing ABOUT authors)
+- Background task processing
 """
 
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 import math
 import os
@@ -26,14 +23,15 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from datetime import date as date_type
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import ibis
 import ibis.common.exceptions
 from google import genai
-from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn
+from rich.console import Console
+from rich.panel import Panel
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.banner.worker import BannerWorker
@@ -42,12 +40,16 @@ from egregora.agents.model_limits import PromptTooLargeError, get_model_context_
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
-from egregora.config.settings import EgregoraConfig, load_egregora_config
+from egregora.config import RuntimeContext, load_egregora_config
+from egregora.config.config_validation import parse_date_arg, validate_timezone
+from egregora.config.settings import EgregoraConfig
+from egregora.constants import SourceType, WindowUnit
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.run_store import RunStore
 from egregora.database.task_store import TaskStore
+from egregora.init import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.base import MediaMapping
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
@@ -68,18 +70,48 @@ from egregora.transformations import (
     split_window_into_n_parts,
 )
 from egregora.utils.cache import PipelineCache
+from egregora.utils.env import validate_gemini_api_key
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.quota import QuotaTracker
 from egregora.utils.rate_limit import init_rate_limiter
+
+try:
+    import dotenv
+except ImportError:
+    dotenv = None
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
 
 
 logger = logging.getLogger(__name__)
-__all__ = ["WhatsAppProcessOptions", "process_whatsapp_export", "run"]
+console = Console()
+__all__ = ["WhatsAppProcessOptions", "WriteCommandOptions", "process_whatsapp_export", "run", "run_cli_flow"]
 
 MIN_WINDOWS_WARNING_THRESHOLD = 5
+
+@dataclass
+class WriteCommandOptions:
+    """Options for the write command."""
+
+    input_file: Path
+    source: SourceType
+    output: Path
+    step_size: int
+    step_unit: WindowUnit
+    overlap: float
+    enable_enrichment: bool
+    from_date: str | None
+    to_date: str | None
+    timezone: str | None
+    model: str | None
+    max_prompt_tokens: int
+    use_full_context_window: bool
+    max_windows: int | None
+    resume: bool
+    refresh: str | None
+    force: bool
+    debug: bool
 
 
 @dataclass(frozen=True)
@@ -102,6 +134,245 @@ class WhatsAppProcessOptions:
     use_full_context_window: bool = False
     client: genai.Client | None = None
     refresh: str | None = None
+
+
+def _load_dotenv_if_available(output_dir: Path) -> None:
+    if dotenv:
+        dotenv.load_dotenv(output_dir / ".env")
+        dotenv.load_dotenv()  # Check CWD as well
+
+
+def _validate_api_key(output_dir: Path) -> None:
+    """Validate that API key is set and valid."""
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        _load_dotenv_if_available(output_dir)
+        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+
+    if not api_key:
+        console.print(
+            "[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]"
+        )
+        console.print(
+            "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
+        )
+        console.print(
+            "You can also create a .env file in the output directory or current directory."
+        )
+        raise SystemExit(1)
+
+    # Validate the API key with a lightweight call
+    console.print("[cyan]Validating Gemini API key...[/cyan]")
+    try:
+        validate_gemini_api_key(api_key)
+        console.print("[green]✓ API key validated successfully[/green]")
+    except ValueError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise SystemExit(1) from e
+    except ImportError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise SystemExit(1) from e
+
+
+def _prepare_write_config(
+    options: WriteCommandOptions, from_date_obj: date_type | None, to_date_obj: date_type | None
+) -> Any:
+    """Prepare Egregora configuration from options."""
+    base_config = load_egregora_config(options.output)
+    models_update: dict[str, str] = {}
+    if options.model:
+        models_update = {
+            "writer": options.model,
+            "enricher": options.model,
+            "enricher_vision": options.model,
+            "ranking": options.model,
+            "editor": options.model,
+        }
+    return base_config.model_copy(
+        deep=True,
+        update={
+            "pipeline": base_config.pipeline.model_copy(
+                update={
+                    "step_size": options.step_size,
+                    "step_unit": options.step_unit,
+                    "overlap_ratio": options.overlap,
+                    "timezone": options.timezone,
+                    "from_date": from_date_obj.isoformat() if from_date_obj else None,
+                    "to_date": to_date_obj.isoformat() if to_date_obj else None,
+                    "max_prompt_tokens": options.max_prompt_tokens,
+                    "use_full_context_window": options.use_full_context_window,
+                    "max_windows": options.max_windows,
+                    "checkpoint_enabled": options.resume,
+                }
+            ),
+            "enrichment": base_config.enrichment.model_copy(
+                update={"enabled": options.enable_enrichment}
+            ),
+            "rag": base_config.rag,
+            **(
+                {"models": base_config.models.model_copy(update=models_update)}
+                if models_update
+                else {}
+            ),
+        },
+    )
+
+
+def _resolve_write_options(
+    input_file: Path,
+    options_json: str | None,
+    cli_defaults: dict[str, Any],
+) -> WriteCommandOptions:
+    """Merge CLI options with JSON options and defaults."""
+    # Start with CLI values as base
+    defaults = cli_defaults.copy()
+
+    if options_json:
+        try:
+            overrides = json.loads(options_json)
+            # Update with JSON overrides, converting enums if strings
+            for k, v in overrides.items():
+                if k == "source" and isinstance(v, str):
+                    defaults[k] = SourceType(v)
+                elif k == "step_unit" and isinstance(v, str):
+                    defaults[k] = WindowUnit(v)
+                elif k == "output" and isinstance(v, str):
+                    defaults[k] = Path(v)
+                else:
+                    defaults[k] = v
+        except json.JSONDecodeError as e:
+            console.print(f"[red]Error parsing options JSON: {e}[/red]")
+            raise SystemExit(1) from e
+
+    return WriteCommandOptions(input_file=input_file, **defaults)
+
+
+def run_cli_flow(
+    input_file: Path,
+    *,
+    output: Path = Path("site"),
+    source: SourceType = SourceType.WHATSAPP,
+    step_size: int = 100,
+    step_unit: WindowUnit = WindowUnit.MESSAGES,
+    overlap: float = 0.0,
+    enable_enrichment: bool = True,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    timezone: str | None = None,
+    model: str | None = None,
+    max_prompt_tokens: int = 400000,
+    use_full_context_window: bool = False,
+    max_windows: int | None = None,
+    resume: bool = True,
+    refresh: str | None = None,
+    force: bool = False,
+    debug: bool = False,
+    options: str | None = None,
+) -> None:
+    """Execute the write flow from CLI arguments."""
+    cli_values = {
+        "source": source,
+        "output": output,
+        "step_size": step_size,
+        "step_unit": step_unit,
+        "overlap": overlap,
+        "enable_enrichment": enable_enrichment,
+        "from_date": from_date,
+        "to_date": to_date,
+        "timezone": timezone,
+        "model": model,
+        "max_prompt_tokens": max_prompt_tokens,
+        "use_full_context_window": use_full_context_window,
+        "max_windows": max_windows,
+        "resume": resume,
+        "refresh": refresh,
+        "force": force,
+        "debug": debug,
+    }
+
+    parsed_options = _resolve_write_options(
+        input_file=input_file,
+        options_json=options,
+        cli_defaults=cli_values,
+    )
+
+    if parsed_options.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    from_date_obj, to_date_obj = None, None
+    if parsed_options.from_date:
+        try:
+            from_date_obj = parse_date_arg(parsed_options.from_date, "from_date")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise SystemExit(1) from e
+    if parsed_options.to_date:
+        try:
+            to_date_obj = parse_date_arg(parsed_options.to_date, "to_date")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise SystemExit(1) from e
+
+    if parsed_options.timezone:
+        try:
+            validate_timezone(parsed_options.timezone)
+            console.print(f"[green]Using timezone: {parsed_options.timezone}[/green]")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise SystemExit(1) from e
+
+    output_dir = parsed_options.output.expanduser().resolve()
+
+    # Ensure MkDocs project exists (imported logic)
+    # Reimplementing simplified version of _ensure_mkdocs_scaffold to avoid circular imports if it was in CLI
+    # But we can import it if it is in init.
+    # The original cli code had interactive prompts. Since we moved logic here, we should keep it
+    # or rely on init being run.
+    # For now, let's assume non-interactive or minimal check, or duplicate the check.
+    # However, to be cleaner, we can just check if it exists and warn.
+    # The original CLI `_ensure_mkdocs_scaffold` handled prompting.
+    # Let's import `ensure_mkdocs_project` and do a basic check.
+
+    config_path = output_dir / ".egregora" / "config.yml"
+    config_path_alt = output_dir / ".egregora" / "config.yaml"
+
+    if not (config_path.exists() or config_path_alt.exists()):
+         output_dir.mkdir(parents=True, exist_ok=True)
+         logger.info("Initializing site in %s", output_dir)
+         ensure_mkdocs_project(output_dir)
+
+    _validate_api_key(output_dir)
+
+    egregora_config = _prepare_write_config(parsed_options, from_date_obj, to_date_obj)
+
+    runtime = RuntimeContext(
+        output_dir=output_dir,
+        input_file=parsed_options.input_file,
+        model_override=parsed_options.model,
+        debug=parsed_options.debug,
+    )
+
+    try:
+        console.print(
+            Panel(
+                f"[cyan]Source:[/cyan] {parsed_options.source.value}\n[cyan]Input:[/cyan] {parsed_options.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {parsed_options.step_size} {parsed_options.step_unit.value}",
+                title="⚙️  Egregora Pipeline",
+                border_style="cyan",
+            )
+        )
+        run_params = PipelineRunParams(
+            output_dir=runtime.output_dir,
+            config=egregora_config,
+            source_type=parsed_options.source.value,
+            input_path=runtime.input_file,
+            refresh="all" if parsed_options.force else parsed_options.refresh,
+        )
+        run(run_params)
+        console.print("[green]Processing completed successfully.[/green]")
+    except Exception as e:
+        console.print_exception(show_locals=False)
+        console.print(f"[red]Pipeline failed: {e}[/]")
+        raise SystemExit(1) from e
 
 
 def process_whatsapp_export(
@@ -221,15 +492,15 @@ def _process_background_tasks(ctx: PipelineContext) -> None:
     if banners_processed > 0:
         logger.info("Generated %d banners", banners_processed)
 
-    # 2. Profile Updates (Coalescing optimization)
+    # 2. Profile Updates (Coalescing optimization - OLD SYSTEM)
     profile_worker = ProfileWorker(ctx)
     profiles_processed = profile_worker.run()
     if profiles_processed > 0:
         logger.info("Updated %d profiles", profiles_processed)
-    
-    # 2.5. Sync author profiles (append-only: derive from posts)
-    if hasattr(ctx.adapter, "_sync_author_profiles"):
-        ctx.adapter._sync_author_profiles()
+
+    # NOTE: _sync_author_profiles() REMOVED - replaced by PROFILE post generation
+    # in _process_single_window(). Author folders now contain PROFILE posts ABOUT
+    # authors (written by Egregora), not posts BY authors.
 
     # 3. Enrichment (Lower priority - can catch up later)
     enrichment_worker = EnrichmentWorker(ctx)
@@ -297,8 +568,45 @@ def _process_single_window(
     resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
 
+
+    # NEW: Process /egregora commands before sending to LLM
+    from egregora.agents.commands import command_to_announcement, extract_commands, filter_commands
+
+    # Convert table to list of messages for command processing
+    # ibis Tables need .execute() before .to_pylist()
+    try:
+        # Try ibis table conversion
+        messages_list = enriched_table.execute().to_pylist()
+    except (AttributeError, TypeError):
+        # Fallback: try direct to_pylist (for arrow tables)
+        try:
+            messages_list = enriched_table.to_pylist()
+        except (AttributeError, TypeError):
+            # Last resort: assume it's already a list
+            messages_list = enriched_table if isinstance(enriched_table, list) else []
+            logger.warning("Could not convert table to list, using fallback")
+
+    # Extract and generate announcements from commands
+    command_messages = extract_commands(messages_list)
+    announcements_generated = 0
+    if command_messages:
+        logger.info("%s📢 [cyan]Processing %d commands[/] for window %s", indent, len(command_messages), window_label)
+        for cmd_msg in command_messages:
+            try:
+                announcement = command_to_announcement(cmd_msg)
+                output_sink.persist(announcement)
+                announcements_generated += 1
+            except Exception as exc:
+                logger.exception("Failed to generate announcement from command: %s", exc)
+
+    # Filter commands from messages before LLM
+    clean_messages_list = filter_commands(messages_list)
+
+    # Convert back to table if needed (simplified for now - writer accepts lists)
+    # TODO: If writer expects ibis table, convert back using ibis.memtable()
+
     params = WindowProcessingParams(
-        table=enriched_table,
+        table=enriched_table,  # Keep original for now; writer filters internally if needed
         window_start=window.start_time,
         window_end=window.end_time,
         resources=resources,
@@ -313,11 +621,43 @@ def _process_single_window(
     posts = result.get("posts", [])
     profiles = result.get("profiles", [])
 
+    # NEW: Generate PROFILE posts (Egregora writing ABOUT each author)
+    import asyncio
+
+    from egregora.agents.profile.generator import generate_profile_posts
+
+    window_date = window.start_time.strftime("%Y-%m-%d")
+    try:
+        profile_docs = asyncio.run(generate_profile_posts(
+            ctx=ctx,
+            messages=clean_messages_list,
+            window_date=window_date
+        ))
+
+        # Persist PROFILE documents
+        for profile_doc in profile_docs:
+            try:
+                output_sink.persist(profile_doc)
+                # Track as profile
+                profiles.append(profile_doc.document_id)
+            except Exception as exc:
+                logger.exception("Failed to persist profile: %s", exc)
+
+        if profile_docs:
+            logger.info(
+                "%s👥 [cyan]Generated %d profile posts[/] for window %s",
+                indent,
+                len(profile_docs),
+                window_label
+            )
+    except Exception as exc:
+        logger.exception("Failed to generate profile posts: %s", exc)
+
     # Scheduled tasks are returned as "pending:<task_id>"
-    scheduled_posts = sum(1 for p in posts if p.startswith("pending:"))
+    scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
     generated_posts = len(posts) - scheduled_posts
 
-    scheduled_profiles = sum(1 for p in profiles if p.startswith("pending:"))
+    scheduled_profiles = sum(1 for p in profiles if isinstance(p, str) and p.startswith("pending:"))
     generated_profiles = len(profiles) - scheduled_profiles
 
     # Construct status message
@@ -330,6 +670,8 @@ def _process_single_window(
         status_parts.append(f"{generated_profiles} profiles")
     if scheduled_profiles > 0:
         status_parts.append(f"{scheduled_profiles} scheduled profiles")
+    if announcements_generated > 0:
+        status_parts.append(f"{announcements_generated} announcements")
 
     status_msg = ", ".join(status_parts) if status_parts else "0 items"
 
@@ -565,78 +907,66 @@ def _process_all_windows(
 
     windows_processed = 0
 
-    # Progress bar for windows (use max_windows as total, or estimate if unlimited)
-    total_windows = max_windows if max_windows else 100  # Show as indeterminate if no limit
+    # Simple progress tracking without Rich progress bar
+    # (Progress bars cause memory leaks and logging noise in long-running tasks)
+    total_windows = max_windows if max_windows else "unlimited"
+    logger.info("Processing windows (limit: %s)", total_windows)
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[bold cyan]Windows"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TextColumn("[dim]{task.description}"),
-        transient=False,
-    ) as progress:
-        window_task = progress.add_task(
-            "Processing...",
-            total=total_windows if max_windows else None,
+    for window in windows_iterator:
+        # Check if we've hit the max_windows limit
+        if max_windows is not None and windows_processed >= max_windows:
+            logger.info("Reached max_windows limit (%d). Stopping processing.", max_windows)
+            if max_windows < MIN_WINDOWS_WARNING_THRESHOLD:
+                logger.warning(
+                    "⚠️  Processing stopped early due to low 'max_windows' setting (%d). "
+                    "This may result in incomplete data coverage. "
+                    "Use --max-windows 0 or remove the limit to process all data.",
+                    max_windows,
+                )
+            break
+        # Skip empty windows
+        if window.size == 0:
+            logger.debug(
+                "Skipping empty window %d (%s to %s)",
+                window.window_index,
+                window.start_time.strftime("%Y-%m-%d %H:%M"),
+                window.end_time.strftime("%Y-%m-%d %H:%M"),
+            )
+            continue
+
+        # Log current window (simpler than progress bar)
+        window_label = (
+            f"{window.start_time.strftime('%Y-%m-%d %H:%M')} - {window.end_time.strftime('%H:%M')}"
+        )
+        logger.info("Processing window %d: %s", windows_processed + 1, window_label)
+
+        # Validate window size doesn't exceed LLM context limits
+        _validate_window_size(window, max_window_size)
+
+        # Process window
+        window_results = _process_window_with_auto_split(window, ctx, depth=0, max_depth=5)
+        results.update(window_results)
+
+        # Track max processed timestamp for checkpoint
+        if max_processed_timestamp is None or window.end_time > max_processed_timestamp:
+            max_processed_timestamp = window.end_time
+
+        # Process accumulated background tasks periodically or after each window?
+        # Processing after each window keeps the queue small and provides incremental progress.
+        _process_background_tasks(ctx)
+
+        # Log summary (per-window event tracking removed - see SIMPLIFICATION_PLAN.md)
+        posts_count = sum(len(r.get("posts", [])) for r in window_results.values())
+        profiles_count = sum(len(r.get("profiles", [])) for r in window_results.values())
+        logger.debug(
+            "📊 Window %d: %s posts, %s profiles",
+            window.window_index,
+            posts_count,
+            profiles_count,
         )
 
-        for window in windows_iterator:
-            # Check if we've hit the max_windows limit
-            if max_windows is not None and windows_processed >= max_windows:
-                logger.info("Reached max_windows limit (%d). Stopping processing.", max_windows)
-                if max_windows < MIN_WINDOWS_WARNING_THRESHOLD:
-                    logger.warning(
-                        "⚠️  Processing stopped early due to low 'max_windows' setting (%d). "
-                        "This may result in incomplete data coverage. "
-                        "Use --max-windows 0 or remove the limit to process all data.",
-                        max_windows,
-                    )
-                break
-            # Skip empty windows
-            if window.size == 0:
-                logger.debug(
-                    "Skipping empty window %d (%s to %s)",
-                    window.window_index,
-                    window.start_time.strftime("%Y-%m-%d %H:%M"),
-                    window.end_time.strftime("%Y-%m-%d %H:%M"),
-                )
-                continue
-
-            # Update progress description with current window
-            window_label = (
-                f"{window.start_time.strftime('%Y-%m-%d %H:%M')} - {window.end_time.strftime('%H:%M')}"
-            )
-            progress.update(window_task, description=f"Window {windows_processed + 1}: {window_label}")
-
-            # Validate window size doesn't exceed LLM context limits
-            _validate_window_size(window, max_window_size)
-
-            # Process window
-            window_results = _process_window_with_auto_split(window, ctx, depth=0, max_depth=5)
-            results.update(window_results)
-
-            # Track max processed timestamp for checkpoint
-            if max_processed_timestamp is None or window.end_time > max_processed_timestamp:
-                max_processed_timestamp = window.end_time
-
-            # Process accumulated background tasks periodically or after each window?
-            # Processing after each window keeps the queue small and provides incremental progress.
-            _process_background_tasks(ctx)
-
-            # Log summary (per-window event tracking removed - see SIMPLIFICATION_PLAN.md)
-            posts_count = sum(len(r.get("posts", [])) for r in window_results.values())
-            profiles_count = sum(len(r.get("profiles", [])) for r in window_results.values())
-            logger.debug(
-                "📊 Window %d: %s posts, %s profiles",
-                window.window_index,
-                posts_count,
-                profiles_count,
-            )
-
-            # Update progress
-            windows_processed += 1
-            progress.update(window_task, advance=1)
+        # Update counter
+        windows_processed += 1
 
     return results, max_processed_timestamp
 

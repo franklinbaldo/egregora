@@ -14,7 +14,17 @@ updates:
       prefix: "chore"
       include: "scope"
 
-  # Python dependencies (pip)
+  # Python dependencies
+  # NOTE: This project uses uv (not pip), which Dependabot doesn't support yet.
+  # Dependabot will read pyproject.toml but won't update uv.lock correctly.
+  #
+  # Options for better dependency management:
+  # 1. Use Renovate (https://docs.renovatebot.com/) - has experimental uv support
+  # 2. Manually update: `uv lock --upgrade` and commit
+  # 3. Wait for official Dependabot uv support (tracking: github/feedback#9)
+  #
+  # For now, keeping pip ecosystem enabled for pyproject.toml awareness,
+  # but expect manual intervention for uv.lock updates.
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
@@ -35,5 +45,5 @@ updates:
         update-types:
           - "minor"
           - "patch"
-    # Allow up to 10 open PRs at a time
-    open-pull-requests-limit: 10
+    # Limit open PRs since manual uv lock updates will be needed
+    open-pull-requests-limit: 5

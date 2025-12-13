@@ -229,7 +229,7 @@ results = store.query_media(query, media_types=types, ...)
 
 #### Fixed
 - VSS extension now loaded explicitly before HNSW operations (PR #893)
-- Fallback avatar generation using getavataaars.com (deterministic from UUID hash)
+- Fallback avatar generation using avataaars.io (deterministic from UUID hash)
 - Banner path conversion to web-friendly relative URLs
 - Idempotent scaffold (detects existing mkdocs.yml)
 

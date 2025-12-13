@@ -645,6 +645,7 @@ dependencies = [
     { name = "mkdocs-material", extra = ["imaging"] },
     { name = "mkdocs-rss-plugin" },
     { name = "pillow" },
+    { name = "psutil" },
     { name = "pyarrow" },
     { name = "pydantic" },
     { name = "pydantic-ai" },
@@ -700,6 +701,12 @@ dev = [
     { name = "faker" },
     { name = "freezegun" },
     { name = "hypothesis" },
+    { name = "mkdocs-blogging-plugin" },
+    { name = "mkdocs-git-revision-date-localized-plugin" },
+    { name = "mkdocs-macros-plugin" },
+    { name = "mkdocs-minify-plugin" },
+    { name = "mkdocs-rss-plugin" },
+    { name = "mkdocstrings-python" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -743,6 +750,7 @@ requires-dist = [
     { name = "mkdocs-static-i18n", marker = "extra == 'docs'", specifier = ">=1.3.0" },
     { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=1.0.0" },
     { name = "pillow", specifier = ">=11.3" },
+    { name = "psutil", specifier = ">=6.1" },
     { name = "pyarrow" },
     { name = "pydantic", specifier = ">=2.12" },
     { name = "pydantic-ai", specifier = ">=1.25" },
@@ -777,6 +785,12 @@ dev = [
     { name = "faker", specifier = ">=34.1" },
     { name = "freezegun", specifier = ">=1.5" },
     { name = "hypothesis", specifier = ">=6.134" },
+    { name = "mkdocs-blogging-plugin", specifier = ">=2.2.11" },
+    { name = "mkdocs-git-revision-date-localized-plugin", specifier = ">=1.5.0" },
+    { name = "mkdocs-macros-plugin", specifier = ">=1.5.0" },
+    { name = "mkdocs-minify-plugin", specifier = ">=0.8.0" },
+    { name = "mkdocs-rss-plugin", specifier = ">=1.17.7" },
+    { name = "mkdocstrings-python", specifier = ">=2.0.0" },
     { name = "pre-commit", specifier = ">=4.5" },
     { name = "pytest", specifier = ">=9.0" },
     { name = "pytest-asyncio", specifier = ">=0.25" },
@@ -1694,6 +1708,21 @@ wheels = [
 ]
 
 [[package]]
+name = "mkdocs-blogging-plugin"
+version = "2.2.11"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "babel" },
+    { name = "gitpython" },
+    { name = "jinja2" },
+    { name = "mkdocs" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/da/1e/fb81d3ac143643c3ecf52ba7c3d1af24c5000e7ec5f43763bda7b289e378/mkdocs-blogging-plugin-2.2.11.tar.gz", hash = "sha256:91b3ebc1ee3870958a0f9304d985f73a8e170a1f8d17948488415fa1a4257b2e", size = 14344, upload-time = "2023-07-21T03:55:45.739Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a0/46/bbcbb8e1eb3e7f223f69c1851f1785292a5fbd51af6443ba9e00715528bf/mkdocs_blogging_plugin-2.2.11-py3-none-any.whl", hash = "sha256:7e0f14e5a5d9d7fa106ee014b04a49e2fdb5ffe70a0026106dceb79930ba8ac2", size = 18696, upload-time = "2023-07-21T03:55:44.302Z" },
+]
+
+[[package]]
 name = "mkdocs-get-deps"
 version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2278,6 +2307,20 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/6c/04/98f6f8cf5b07ab1294c13f34b4e69b3722bb609c5b701d6c169828f9f8aa/protobuf-5.29.5-cp38-abi3-manylinux2014_aarch64.whl", hash = "sha256:fa18533a299d7ab6c55a238bf8629311439995f2e7eca5caaff08663606e9015", size = 319824, upload-time = "2025-05-28T23:51:47.545Z" },
     { url = "https://files.pythonhosted.org/packages/85/e4/07c80521879c2d15f321465ac24c70efe2381378c00bf5e56a0f4fbac8cd/protobuf-5.29.5-cp38-abi3-manylinux2014_x86_64.whl", hash = "sha256:63848923da3325e1bf7e9003d680ce6e14b07e55d0473253a690c3a8b8fd6e61", size = 319942, upload-time = "2025-05-28T23:51:49.11Z" },
     { url = "https://files.pythonhosted.org/packages/7e/cc/7e77861000a0691aeea8f4566e5d3aa716f2b1dece4a24439437e41d3d25/protobuf-5.29.5-py3-none-any.whl", hash = "sha256:6cf42630262c59b2d8de33954443d94b746c952b01434fc58a417fdbd2e84bd5", size = 172823, upload-time = "2025-05-28T23:51:58.157Z" },
+]
+
+[[package]]
+name = "psutil"
+version = "7.1.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e1/88/bdd0a41e5857d5d703287598cbf08dad90aed56774ea52ae071bae9071b6/psutil-7.1.3.tar.gz", hash = "sha256:6c86281738d77335af7aec228328e944b30930899ea760ecf33a4dba66be5e74", size = 489059, upload-time = "2025-11-02T12:25:54.619Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ef/94/46b9154a800253e7ecff5aaacdf8ebf43db99de4a2dfa18575b02548654e/psutil-7.1.3-cp36-abi3-macosx_10_9_x86_64.whl", hash = "sha256:2bdbcd0e58ca14996a42adf3621a6244f1bb2e2e528886959c72cf1e326677ab", size = 238359, upload-time = "2025-11-02T12:26:25.284Z" },
+    { url = "https://files.pythonhosted.org/packages/68/3a/9f93cff5c025029a36d9a92fef47220ab4692ee7f2be0fba9f92813d0cb8/psutil-7.1.3-cp36-abi3-macosx_11_0_arm64.whl", hash = "sha256:bc31fa00f1fbc3c3802141eede66f3a2d51d89716a194bf2cd6fc68310a19880", size = 239171, upload-time = "2025-11-02T12:26:27.23Z" },
+    { url = "https://files.pythonhosted.org/packages/ce/b1/5f49af514f76431ba4eea935b8ad3725cdeb397e9245ab919dbc1d1dc20f/psutil-7.1.3-cp36-abi3-manylinux2010_x86_64.manylinux_2_12_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:3bb428f9f05c1225a558f53e30ccbad9930b11c3fc206836242de1091d3e7dd3", size = 263261, upload-time = "2025-11-02T12:26:29.48Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/95/992c8816a74016eb095e73585d747e0a8ea21a061ed3689474fabb29a395/psutil-7.1.3-cp36-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:56d974e02ca2c8eb4812c3f76c30e28836fffc311d55d979f1465c1feeb2b68b", size = 264635, upload-time = "2025-11-02T12:26:31.74Z" },
+    { url = "https://files.pythonhosted.org/packages/55/4c/c3ed1a622b6ae2fd3c945a366e64eb35247a31e4db16cf5095e269e8eb3c/psutil-7.1.3-cp37-abi3-win_amd64.whl", hash = "sha256:f39c2c19fe824b47484b96f9692932248a54c43799a84282cfe58d05a6449efd", size = 247633, upload-time = "2025-11-02T12:26:33.887Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/ad/33b2ccec09bf96c2b2ef3f9a6f66baac8253d7565d8839e024a6b905d45d/psutil-7.1.3-cp37-abi3-win_arm64.whl", hash = "sha256:bd0d69cee829226a761e92f28140bec9a5ee9d5b4fb4b0cc589068dbfff559b1", size = 244608, upload-time = "2025-11-02T12:26:36.136Z" },
 ]
 
 [[package]]

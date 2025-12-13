@@ -1,0 +1,103 @@
+name: Auto-merge dependency updates
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Enable auto-merge for dependency PRs
+    runs-on: ubuntu-latest
+    # Only run for dependabot or renovate PRs
+    if: |
+      github.actor == 'dependabot[bot]' ||
+      github.actor == 'renovate[bot]'
+
+    steps:
+      - name: Get PR metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Approve PR
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+
+            await github.rest.pulls.createReview({
+              owner,
+              repo,
+              pull_number,
+              event: 'APPROVE',
+              body: '✅ Auto-approved by CI workflow - dependency update'
+            });
+
+            console.log('✅ PR approved');
+
+      - name: Enable auto-merge
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            const updateType = '${{ steps.metadata.outputs.update-type }}';
+
+            console.log(`Update type: ${updateType}`);
+
+            // Only auto-merge minor/patch updates
+            if (updateType === 'version-update:semver-patch' ||
+                updateType === 'version-update:semver-minor') {
+
+              try {
+                // Enable GitHub's native auto-merge feature
+                await github.graphql(`
+                  mutation($pullRequestId: ID!) {
+                    enablePullRequestAutoMerge(input: {
+                      pullRequestId: $pullRequestId,
+                      mergeMethod: SQUASH
+                    }) {
+                      pullRequest {
+                        autoMergeRequest {
+                          enabledAt
+                        }
+                      }
+                    }
+                  }
+                `, {
+                  pullRequestId: context.payload.pull_request.node_id
+                });
+
+                console.log('✅ Auto-merge enabled - PR will merge when all checks pass');
+
+                // Post a comment explaining what will happen
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pull_number,
+                  body: '🤖 **Auto-merge enabled**\n\nThis PR will automatically merge when all required checks pass.\n\n_Update type: `' + updateType + '`_'
+                });
+
+              } catch (error) {
+                console.log(`⚠️ Could not enable auto-merge: ${error.message}`);
+                console.log('Note: Auto-merge requires branch protection rules to be enabled');
+              }
+            } else {
+              console.log(`⏭️ Skipping auto-merge - update type is ${updateType}`);
+              console.log('Only auto-merging patch and minor updates');
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pull_number,
+                body: `ℹ️ **Manual review required**\n\nThis is a \`${updateType}\` update, which requires manual approval before merging.`
+              });
+            }
+

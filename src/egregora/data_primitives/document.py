@@ -32,7 +32,8 @@ class DocumentType(Enum):
     """
 
     POST = "post"  # Blog posts
-    PROFILE = "profile"  # Author profiles
+    PROFILE = "profile"  # Author profiles (Egregora writing ABOUT authors)
+    ANNOUNCEMENT = "announcement"  # System events (/egregora commands)
     JOURNAL = "journal"  # Agent execution journals
     ENRICHMENT_URL = "enrichment_url"  # URL descriptions
     ENRICHMENT_MEDIA = "enrichment_media"  # Media file descriptions

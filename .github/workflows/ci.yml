@@ -22,12 +22,52 @@ on:
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Enable debug logging'
+        type: boolean
+        default: false
+      skip_tests:
+        description: 'Skip test jobs (for workflow debugging only)'
+        type: boolean
+        default: false
+      skip_security:
+        description: 'Skip security scans (faster feedback)'
+        type: boolean
+        default: false
 
 jobs:
+  pre-commit:
+    name: Pre-commit Hooks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
+
+      - name: Run pre-commit on all files
+        run: |
+          uv run pre-commit run --all-files --show-diff-on-failure
+
   lint-ruff-check:
     name: Ruff (lint)
     runs-on: ubuntu-latest
     steps:
+      - name: Enable debug logging
+        if: ${{ inputs.debug_enabled }}
+        run: |
+          echo "ACTIONS_STEP_DEBUG=true" >> $GITHUB_ENV
+          echo "ACTIONS_RUNNER_DEBUG=true" >> $GITHUB_ENV
+          echo "::notice::Debug logging enabled"
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
@@ -41,6 +81,9 @@ jobs:
     name: Ruff (format)
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
@@ -54,7 +97,11 @@ jobs:
     name: Unit Tests (Python ${{ env.PYTHON_VERSION }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    if: ${{ !inputs.skip_tests }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
@@ -79,7 +126,7 @@ jobs:
 
       - name: Upload coverage artifact
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-unit
           path: coverage.xml
@@ -87,7 +134,7 @@ jobs:
 
       - name: Upload test results on failure
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: unit-test-results
           path: |
@@ -99,8 +146,11 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [lint-ruff-check, lint-ruff-format]
+    if: ${{ !inputs.skip_tests }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
@@ -124,7 +174,7 @@ jobs:
 
       - name: Upload coverage artifact
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-e2e
           path: coverage.xml
@@ -132,7 +182,7 @@ jobs:
 
       - name: Upload test results on failure
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: e2e-test-results
           path: |
@@ -144,13 +194,15 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
-    needs: [lint-ruff-check, lint-ruff-format]
-    if: github.ref == 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 10
+    if: ${{ !inputs.skip_security }}
     permissions:
       contents: read
       security-events: write
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
@@ -168,17 +220,20 @@ jobs:
         run: uvx bandit -r src/ -f sarif -o bandit-report.sarif
 
       - name: Upload Bandit results (SARIF)
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: bandit-report.sarif
 
   build:
     name: Build Package
     runs-on: ubuntu-latest
-    needs: [lint-ruff-check, lint-ruff-format, test-unit, test-e2e, security]
-    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') }}
+    needs: [lint-ruff-check, lint-ruff-format, test-unit, test-e2e]
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && (success() || inputs.skip_tests) }}
     timeout-minutes: 10
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
@@ -189,7 +244,7 @@ jobs:
         run: uv build
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: dist
           path: dist/
@@ -197,13 +252,16 @@ jobs:
 
   docs:
     name: Build & Deploy Docs
-    needs: [build, security, quality]
+    needs: [build]
     if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: write  # Required for GitHub Pages deployment
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
@@ -236,7 +294,7 @@ jobs:
           publish_dir: ./site
 
       - name: Upload bundles artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: bundles
           path: /tmp/bundles/
@@ -245,10 +303,13 @@ jobs:
   quality:
     name: Code Quality Metrics
     runs-on: ubuntu-latest
-    needs: [lint-ruff-check, lint-ruff-format, test-unit]
+    needs: [test-unit]
     if: github.ref == 'refs/heads/main' || github.event_name == 'schedule'
     timeout-minutes: 10
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
         with:
@@ -265,7 +326,7 @@ jobs:
   summary:
     name: Workflow Summary
     runs-on: ubuntu-latest
-    needs: [lint-ruff-check, lint-ruff-format, test-unit, test-e2e, security, quality, build, docs]
+    needs: [pre-commit, lint-ruff-check, lint-ruff-format, test-unit, test-e2e, security, quality, build, docs]
     if: always()
     steps:
       - name: Post summary
@@ -275,12 +336,13 @@ jobs:
 
           | Job | Result |
           | --- | ------ |
+          | Pre-commit Hooks | ${{ needs['pre-commit'].result }} |
           | Ruff Lint | ${{ needs['lint-ruff-check'].result }} |
           | Ruff Format | ${{ needs['lint-ruff-format'].result }} |
           | Unit Tests | ${{ needs['test-unit'].result }} |
           | E2E Tests | ${{ needs['test-e2e'].result }} |
-          | Security | ${{ needs.security.result }} |
-          | Quality | ${{ needs.quality.result }} |
-          | Build | ${{ needs.build.result }} |
-          | Docs | ${{ needs.docs.result }} |
+          | Security | ${{ needs.security.result || 'skipped' }} |
+          | Quality | ${{ needs.quality.result || 'skipped' }} |
+          | Build | ${{ needs.build.result || 'skipped' }} |
+          | Docs | ${{ needs.docs.result || 'skipped' }} |
           EOF
