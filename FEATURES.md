@@ -348,8 +348,6 @@ Command-line interface for all operations.
 - `egregora write` - run blog generation pipeline
 - `egregora init` - initialize new site
 - `egregora read` - query and search content
-- `egregora config` - manage configuration
-- `egregora runs` - view run history
 
 ### Flags
 - `--max-windows` - limit processing
