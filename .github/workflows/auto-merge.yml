@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   auto-merge:
-    name: Auto-merge dependency PRs
+    name: Enable auto-merge for dependency PRs
     runs-on: ubuntu-latest
     # Only run for dependabot or renovate PRs
     if: |
@@ -24,80 +24,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Wait for CI checks
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const pull_number = context.payload.pull_request.number;
-
-            console.log(`Waiting for CI checks on PR #${pull_number}...`);
-
-            // Wait up to 15 minutes for checks to complete
-            const maxAttempts = 30;
-            const delayMs = 30000; // 30 seconds
-
-            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-              const { data: pr } = await github.rest.pulls.get({
-                owner,
-                repo,
-                pull_number,
-              });
-
-              // Get check runs
-              const { data: checks } = await github.rest.checks.listForRef({
-                owner,
-                repo,
-                ref: pr.head.sha,
-              });
-
-              // Get commit statuses
-              const { data: statuses } = await github.rest.repos.getCombinedStatusForRef({
-                owner,
-                repo,
-                ref: pr.head.sha,
-              });
-
-              const allChecks = checks.check_runs;
-              const totalChecks = allChecks.length;
-              const completedChecks = allChecks.filter(c => c.status === 'completed');
-              const successfulChecks = completedChecks.filter(c => c.conclusion === 'success');
-              const failedChecks = completedChecks.filter(c => c.conclusion === 'failure');
-
-              console.log(`Attempt ${attempt}/${maxAttempts}: ${completedChecks.length}/${totalChecks} checks completed`);
-              console.log(`  Success: ${successfulChecks.length}, Failed: ${failedChecks.length}`);
-
-              // If any check failed, exit
-              if (failedChecks.length > 0) {
-                console.log('❌ Checks failed - will not auto-merge');
-                core.setFailed('CI checks failed');
-                return;
-              }
-
-              // If all checks passed
-              if (totalChecks > 0 && completedChecks.length === totalChecks && statuses.state !== 'pending') {
-                if (statuses.state === 'success' || statuses.state === 'pending') {
-                  console.log('✅ All checks passed!');
-                  return;
-                } else {
-                  console.log(`❌ Combined status is ${statuses.state}`);
-                  core.setFailed('Status checks failed');
-                  return;
-                }
-              }
-
-              // Wait before next attempt
-              if (attempt < maxAttempts) {
-                console.log(`Waiting ${delayMs/1000}s before next check...`);
-                await new Promise(resolve => setTimeout(resolve, delayMs));
-              }
-            }
-
-            console.log('⏱️ Timeout waiting for checks');
-            core.setFailed('Timeout waiting for CI checks');
-
       - name: Approve PR
-        if: success()
         uses: actions/github-script@v8
         with:
           script: |
@@ -109,50 +36,68 @@ jobs:
               repo,
               pull_number,
               event: 'APPROVE',
-              body: '✅ Auto-approved by CI workflow after all checks passed'
+              body: '✅ Auto-approved by CI workflow - dependency update'
             });
 
             console.log('✅ PR approved');
 
       - name: Enable auto-merge
-        if: success()
         uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
-
-            // Determine merge method based on update type
             const updateType = '${{ steps.metadata.outputs.update-type }}';
-            const dependencyType = '${{ steps.metadata.outputs.dependency-type }}';
 
             console.log(`Update type: ${updateType}`);
-            console.log(`Dependency type: ${dependencyType}`);
 
-            // Only auto-merge minor/patch updates of direct dependencies
+            // Only auto-merge minor/patch updates
             if (updateType === 'version-update:semver-patch' ||
                 updateType === 'version-update:semver-minor') {
 
-              if (dependencyType === 'direct:production' ||
-                  dependencyType === 'direct:development') {
+              try {
+                // Enable GitHub's native auto-merge feature
+                await github.graphql(`
+                  mutation($pullRequestId: ID!) {
+                    enablePullRequestAutoMerge(input: {
+                      pullRequestId: $pullRequestId,
+                      mergeMethod: SQUASH
+                    }) {
+                      pullRequest {
+                        autoMergeRequest {
+                          enabledAt
+                        }
+                      }
+                    }
+                  }
+                `, {
+                  pullRequestId: context.payload.pull_request.node_id
+                });
 
-                try {
-                  await github.rest.pulls.merge({
-                    owner,
-                    repo,
-                    pull_number,
-                    merge_method: 'squash',
-                  });
+                console.log('✅ Auto-merge enabled - PR will merge when all checks pass');
 
-                  console.log('✅ PR auto-merged successfully!');
-                } catch (error) {
-                  console.log(`⚠️ Could not auto-merge: ${error.message}`);
-                  // Don't fail the workflow, just log it
-                }
-              } else {
-                console.log('⏭️ Skipping auto-merge - not a direct dependency');
+                // Post a comment explaining what will happen
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pull_number,
+                  body: '🤖 **Auto-merge enabled**\n\nThis PR will automatically merge when all required checks pass.\n\n_Update type: `' + updateType + '`_'
+                });
+
+              } catch (error) {
+                console.log(`⚠️ Could not enable auto-merge: ${error.message}`);
+                console.log('Note: Auto-merge requires branch protection rules to be enabled');
               }
             } else {
-              console.log(`⏭️ Skipping auto-merge - update type is ${updateType} (only auto-merging patch/minor)`);
+              console.log(`⏭️ Skipping auto-merge - update type is ${updateType}`);
+              console.log('Only auto-merging patch and minor updates');
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pull_number,
+                body: `ℹ️ **Manual review required**\n\nThis is a \`${updateType}\` update, which requires manual approval before merging.`
+              });
             }
+
