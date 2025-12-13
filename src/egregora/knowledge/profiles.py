@@ -225,7 +225,7 @@ def write_profile(
 
 
 def generate_fallback_avatar_url(author_uuid: str) -> str:
-    """Generate a deterministic fallback avatar URL using getavataaars.com.
+    """Generate a deterministic fallback avatar URL using avataaars.io.
 
     Args:
         author_uuid: The author's UUID
@@ -256,7 +256,7 @@ def generate_fallback_avatar_url(author_uuid: str) -> str:
         f"topType={pick(AVATAR_TOPS, 14)}",
     ]
 
-    return f"https://getavataaars.com/?{'&'.join(params)}"
+    return f"https://avataaars.io/?{'&'.join(params)}"
 
 
 def get_active_authors(

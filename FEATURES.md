@@ -86,7 +86,7 @@ AI-powered workers that process and generate content.
 
 ### Avatar Agent
 - Generate profile avatars
-- Fallback to [getavataaars.com](https://getavataaars.com)
+- Fallback to [avataaars.io](https://avataaars.io)
 - Avatar command processing (`/avatar set`)
 
 ### Taxonomy Agent
