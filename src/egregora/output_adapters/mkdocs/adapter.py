@@ -1326,69 +1326,143 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 # MkDocs filesystem storage helpers
 # ============================================================================
 
-    # Author Profile Generation (Append-Only) ---------------------------------
+ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
 
-    def _build_author_profile(self, author_uuid: str) -> dict | None:
-        """Build author profile by scanning all their posts chronologically.
+
+# Author Profile Generation (Append-Only) ---------------------------------
+
+def _build_author_profile(self, author_uuid: str) -> dict | None:
+    """Build author profile by scanning all their posts chronologically.
+    
+    Sequential metadata updates: later posts override earlier values.
+    
+    Args:
+        author_uuid: UUID of the author
         
-        Sequential metadata updates: later posts override earlier values.
+    Returns:
+        Profile dictionary with derived state, or None if no posts found
+    """
+    author_dir = self.posts_dir / "authors" / author_uuid[:16]
+    if not author_dir.exists():
+        return None
+    
+    posts = sorted(author_dir.glob("*.md"), key=lambda p: p.stem)
+    
+    profile = {
+        "uuid": author_uuid,
+        "name": None,
+        "bio": None,
+        "avatar": None,
+        "interests": set(),
+        "posts": [],
+    }
+    
+    for post_path in posts:
+        if post_path.name == "index.md":
+            continue
         
-        Args:
-            author_uuid: UUID of the author
-            
-        Returns:
-            Profile dictionary with derived state, or None if no posts found
-        """
-        author_dir = self.posts_dir / "authors" / author_uuid[:16]
-        if not author_dir.exists():
-            return None
+        frontmatter = self._parse_frontmatter(post_path)
+        authors = frontmatter.get("authors", [])
         
-        posts = sorted(author_dir.glob("*.md"), key=lambda p: p.stem)
+        # Find this author's metadata in the post
+        for author in authors:
+            if isinstance(author, dict):
+                author_uuid_in_post = author.get("uuid", "")
+                if author_uuid_in_post.startswith(author_uuid[:16]):
+                    # Sequential merge: later values win
+                    if "name" in author:
+                        profile["name"] = author["name"]
+                    if "bio" in author:
+                        profile["bio"] = author["bio"]
+                    if "avatar" in author:
+                        profile["avatar"] = author["avatar"]
+                    if "interests" in author:
+                        profile["interests"].update(author["interests"])
         
-        profile = {
-            "uuid": author_uuid,
-            "name": None,
-            "bio": None,
-            "avatar": None,
-            "interests": set(),
-            "posts": [],
-        }
+        # Track this post
+        profile["posts"].append({
+            "title": frontmatter.get("title", post_path.stem),
+            "date": frontmatter.get("date", ""),
+            "slug": post_path.stem,
+            "path": post_path,
+        })
+    
+    if not profile["name"]:
+        return None  # No valid profile without a name
+    
+    profile["interests"] = sorted(profile["interests"])
+    return profile
+
+def _render_author_index(self, profile: dict) -> str:
+    """Render author index.md content from profile data.
+    
+    Args:
+        profile: Profile dictionary with derived state
         
-        for post_path in posts:
-            if post_path.name == "index.md":
-                continue
-            
-            frontmatter = self._parse_frontmatter(post_path)
-            authors = frontmatter.get("authors", [])
-            
-            # Find this author's metadata in the post
-            for author in authors:
-                if isinstance(author, dict):
-                    author_uuid_in_post = author.get("uuid", "")
-                    if author_uuid_in_post.startswith(author_uuid[:16]):
-                        # Sequential merge: later values win
-                        if "name" in author:
-                            profile["name"] = author["name"]
-                        if "bio" in author:
-                            profile["bio"] = author["bio"]
-                        if "avatar" in author:
-                            profile["avatar"] = author["avatar"]
-                        if "interests" in author:
-                            profile["interests"].update(author["interests"])
-            
-            # Track this post
-            profile["posts"].append({
-                "title": frontmatter.get("title", post_path.stem),
-                "date": frontmatter.get("date", ""),
-                "slug": post_path.stem,
-                "path": post_path,
-            })
+    Returns:
+        Markdown content for index.md
+    """
+    # Generate avatar HTML if available
+    avatar_html = ""
+    if profile.get("avatar"):
+        avatar_html = f"![Avatar]({profile['avatar']}){{ align=left width=150 }}\n\n"
+    
+    # Build post list (newest first)
+    posts_md = "\n".join([
+        f"- [{p['title']}]({p['slug']}.md) - {p['date']}"
+        for p in reversed(profile["posts"])
+    ])
+    
+    # Build frontmatter
+    frontmatter = f"""---
+title: {profile['name']}
+type: profile
+uuid: {profile['uuid']}
+avatar: {profile.get('avatar', '')}
+bio: {profile.get('bio', '')}
+interests: {profile.get('interests', [])}
+---
+
+{avatar_html}# {profile['name']}
+
+{profile.get('bio', '')}
+
+## Posts ({len(profile['posts'])})
+
+{posts_md}
+
+## Interests
+
+{', '.join(profile.get('interests', []))}
+"""
+    return frontmatter
+
+def _sync_author_profiles(self) -> None:
+    """Generate index.md for all authors from derived state."""
+    authors_dir = self.posts_dir / "authors"
+    if not authors_dir.exists():
+        logger.info("No authors directory found, skipping profile sync")
+        return
+    
+    authors_synced = 0
+    for author_dir in authors_dir.glob("*/"):
+        uuid = author_dir.name
+        profile = self._build_author_profile(uuid)
         
-        if not profile["name"]:
-            return None  # No valid profile without a name
+        if not profile:
+            logger.warning(f"Skipping author {uuid}: no valid profile data")
+            continue
         
-        profile["interests"] = sorted(profile["interests"])
-        return profile
+        # Render and write index.md
+        content = self._render_author_index(profile)
+        index_path = author_dir / "index.md"
+        index_path.write_text(content, encoding="utf-8")
+        
+        authors_synced += 1
+        logger.info(f"Generated profile for {profile['name']} ({uuid})")
+    
+    logger.info(f"Synced {authors_synced} author profiles")
+
 
 
 # ============================================================================
