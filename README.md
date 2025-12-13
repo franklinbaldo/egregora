@@ -2,10 +2,12 @@
 > *Turn your chaotic group chat into a structured, readable blog.*
 
 [![CI](https://github.com/franklinbaldo/egregora/actions/workflows/ci.yml/badge.svg)](https://github.com/franklinbaldo/egregora/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/franklinbaldo/egregora/actions/workflows/codeql.yml/badge.svg)](https://github.com/franklinbaldo/egregora/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/franklinbaldo/egregora/branch/main/graph/badge.svg)](https://codecov.io/gh/franklinbaldo/egregora)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![uv](https://img.shields.io/badge/uv-powered-FF6C37.svg)](https://github.com/astral-sh/uv)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 [![Pydantic-AI](https://img.shields.io/badge/Pydantic--AI-type--safe-00D9FF.svg)](https://ai.pydantic.dev/)
 [![Docs](https://img.shields.io/badge/docs-live-green.svg)](https://franklinbaldo.github.io/egregora/)
 
