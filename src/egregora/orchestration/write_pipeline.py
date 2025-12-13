@@ -322,11 +322,10 @@ def _process_single_window(
     # Scheduled tasks are returned as "pending:<task_id>"
     scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
     generated_posts = len(posts) - scheduled_posts
-
     scheduled_profiles = sum(1 for p in profiles if isinstance(p, str) and p.startswith("pending:"))
     generated_profiles = len(profiles) - scheduled_profiles
 
-    # Construct status message
+    # Build status message (removed announcements since command processing not integrated yet)
     status_parts = []
     if generated_posts > 0:
         status_parts.append(f"{generated_posts} posts")
@@ -336,10 +335,8 @@ def _process_single_window(
         status_parts.append(f"{generated_profiles} profiles")
     if scheduled_profiles > 0:
         status_parts.append(f"{scheduled_profiles} scheduled profiles")
-    if announcements_generated > 0:
-        status_parts.append(f"{announcements_generated} announcements")
 
-    status_msg = ", ".join(status_parts) if status_parts else "0 items"
+    status_msg = ", ".join(status_parts) if status_parts else "no documents"
 
     logger.info(
         "%s[green]✔ Generated[/] %s for %s",
