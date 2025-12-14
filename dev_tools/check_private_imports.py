@@ -70,7 +70,7 @@ def main() -> int:
 
     if all_errors:
         for _error in all_errors:
-            print(_error)
+            pass
         return 1
 
     return 0
