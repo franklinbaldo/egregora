@@ -36,5 +36,5 @@ These models define query parameters, responses, and hit structures for retrieva
 
 ## Related
 
-- [RAG Backend Protocol](rag.md#ragbackend-protocol)
-- [LanceDB Backend](rag.md#lancedb-implementation)
+- [RAG Backend Protocol](knowledge/rag.md#backend-protocol)
+- [LanceDB Backend](knowledge/rag.md#lancedb-backend)
