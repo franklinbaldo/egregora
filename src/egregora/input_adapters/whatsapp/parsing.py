@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import html
 import io
 import logging
 import re
 import unicodedata
+import uuid
 import zipfile
-from functools import lru_cache
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
@@ -22,8 +24,6 @@ from pydantic import BaseModel
 
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.utils import build_message_attrs
-from egregora.privacy.anonymizer import anonymize_table
-from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 if TYPE_CHECKING:
@@ -65,16 +65,24 @@ _DATE_PARSING_STRATEGIES = [
 
 
 def _normalize_text(value: str) -> str:
-    """Normalize unicode text."""
+    """Normalize unicode text and sanitize HTML.
+
+    Performs:
+    1. Unicode NFKC normalization
+    2. Removal of invisible control characters
+    3. HTML escaping of special characters (<, >, &) to prevent XSS
+       (quote=False to preserve readability of quotes in text)
+    """
     normalized = unicodedata.normalize("NFKC", value)
-    normalized = normalized.replace("\u202f", " ")
-    return _INVISIBLE_MARKS.sub("", normalized)
+    # NFKC already converts \u202f (Narrow No-Break Space) to space, so explicit replace is redundant
+    cleaned = _INVISIBLE_MARKS.sub("", normalized)
+    return html.escape(cleaned, quote=False)
 
 
 @lru_cache(maxsize=1024)
 def _parse_message_date(token: str) -> date | None:
     """Parse date token into a date object using multiple parsing strategies.
-    
+
     Performance: Uses lru_cache since WhatsApp logs contain many repeated
     date strings (messages from the same day).
     """
@@ -96,7 +104,7 @@ def _parse_message_date(token: str) -> date | None:
 @lru_cache(maxsize=256)
 def _parse_message_time(time_token: str) -> datetime.time | None:
     """Parse time token into a time object (naive, for later localization).
-    
+
     Performance: Uses lru_cache since messages at the same time of day
     (e.g., "10:30") repeat frequently across different dates.
     """
@@ -171,7 +179,9 @@ class MessageBuilder:
         original_text = "\n".join(msg["_original_lines"]).strip()
 
         author_raw = msg["author_raw"]
-        author_uuid = deterministic_author_uuid(self.tenant_id, self.source_identifier, author_raw)
+        # Deterministic UUID generation: same author_raw always produces the same UUID
+        # Uses UUID5 (name-based) with OID namespace for consistent, reproducible author IDs
+        author_uuid = uuid.uuid5(uuid.NAMESPACE_OID, f"{self.source_identifier}:{author_raw}")
 
         return {
             "ts": msg["timestamp"],
@@ -308,9 +318,6 @@ def parse_source(
 
     if "_import_order" in messages.columns:
         messages = messages.drop("_import_order")
-
-    if not expose_raw_author:
-        messages = anonymize_table(messages)
 
     helper_columns = ["_author_uuid_hex"]
     columns_to_drop = [col for col in helper_columns if col in messages.columns]

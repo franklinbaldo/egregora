@@ -28,7 +28,7 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
-from egregora.output_adapters.conventions import StandardUrlConvention
+from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 from egregora.utils.datetime_utils import parse_datetime_flexible
@@ -84,6 +84,17 @@ class MkDocsAdapter(BaseOutputSink):
         self.posts_dir.mkdir(parents=True, exist_ok=True)
         # profiles_dir and journal_dir point to posts_dir, so no need to mkdir them separately
         self.media_dir.mkdir(parents=True, exist_ok=True)
+
+        # Configure URL convention to match filesystem layout
+        # This ensures that generated URLs align with where files are actually stored
+        routes = RouteConfig(
+            posts_prefix=self.posts_dir.relative_to(self.docs_dir).as_posix(),
+            profiles_prefix=self.profiles_dir.relative_to(self.docs_dir).as_posix(),
+            media_prefix=self.media_dir.relative_to(self.docs_dir).as_posix(),
+            journal_prefix=self.journal_dir.relative_to(self.docs_dir).as_posix(),
+        )
+        self._url_convention = StandardUrlConvention(routes)
+
         self._initialized = True
 
     @property
@@ -98,6 +109,22 @@ class MkDocsAdapter(BaseOutputSink):
     @property
     def url_context(self) -> UrlContext:
         return self._ctx
+
+    def _get_author_dir(self, author_uuid: str) -> Path:
+        """Get or create author's folder in posts/authors/{uuid}/.
+
+        Args:
+            author_uuid: Full or partial UUID of the author
+
+        Returns:
+            Path to author's folder (created if doesn't exist)
+
+        """
+        # Use first 16 chars of UUID for shorter folder names
+        short_uuid = author_uuid[:16] if len(author_uuid) > 16 else author_uuid
+        author_dir = self.posts_dir / "authors" / short_uuid
+        author_dir.mkdir(parents=True, exist_ok=True)
+        return author_dir
 
     def persist(self, document: Document) -> None:  # noqa: C901
         doc_id = document.document_id
@@ -581,13 +608,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             # Detect by category
             if "Authors" in categories:
                 return DocumentType.PROFILE
-            elif "Journal" in categories:
+            if "Journal" in categories:
                 return DocumentType.JOURNAL
-            elif "Enrichment" in categories:
+            if "Enrichment" in categories:
                 return DocumentType.ENRICHMENT_URL
-            else:
-                # Default to POST (including posts without categories)
-                return DocumentType.POST
+            # Default to POST (including posts without categories)
+            return DocumentType.POST
 
         except (OSError, yaml.YAMLError):
             # If we can't read/parse, assume POST
@@ -702,10 +728,31 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         match document.type:
             case DocumentType.POST:
-                return self.posts_dir / f"{url_path.split('/')[-1]}.md"
+                # ALL regular posts go to top-level posts/
+                # (Not to author folders - those are for PROFILE posts ABOUT authors)
+                slug = url_path.split("/")[-1]
+                return self.posts_dir / f"{slug}.md"
+
             case DocumentType.PROFILE:
-                # UNIFIED: profiles go to posts_dir now
-                return self.posts_dir / f"{url_path.split('/')[-1]}.md"
+                # PROFILE posts (Egregora writing ABOUT author) go to author's folder
+                subject_uuid = document.metadata.get("subject")
+                if not subject_uuid:
+                    # Fallback for backwards compatibility
+                    logger.warning("PROFILE doc missing 'subject' metadata, falling back to posts/")
+                    slug = url_path.split("/")[-1]
+                    return self.posts_dir / f"{slug}.md"
+
+                author_dir = self._get_author_dir(subject_uuid)
+                slug = url_path.split("/")[-1]
+                return author_dir / f"{slug}.md"
+
+            case DocumentType.ANNOUNCEMENT:
+                # System announcements (/egregora commands) go to announcements/
+                slug = url_path.split("/")[-1]
+                announcements_dir = self.posts_dir / "announcements"
+                announcements_dir.mkdir(parents=True, exist_ok=True)
+                return announcements_dir / f"{slug}.md"
+
             case DocumentType.JOURNAL:
                 # When url_path is just "journal" (root journal URL), return journal.md in docs root
                 # Otherwise, extract the slug and put it in journal/
@@ -741,6 +788,32 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         elif rel_path.startswith("media/"):
             rel_path = rel_path[6:]
         return rel_path
+
+    def _get_author_dir(self, author_uuid: str) -> Path:
+        """Get the directory for a given author UUID."""
+        author_dir = self.posts_dir / "authors" / author_uuid
+        author_dir.mkdir(parents=True, exist_ok=True)
+        return author_dir
+
+    def _parse_frontmatter(self, path: Path) -> dict:
+        """Extract YAML frontmatter from markdown file.
+
+        Args:
+            path: Path to markdown file
+
+        Returns:
+            Dictionary of frontmatter metadata (empty if none found)
+
+        """
+        try:
+            content = path.read_text(encoding="utf-8")
+            if content.startswith("---"):
+                parts = content.split("---", 2)
+                if len(parts) >= 3:
+                    return yaml.safe_load(parts[1]) or {}
+        except Exception as e:
+            logger.warning(f"Failed to parse frontmatter from {path}: {e}")
+        return {}
 
     # Document Writing Strategies ---------------------------------------------
 
@@ -813,6 +886,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     def _write_journal_doc(self, document: Document, path: Path) -> None:
         metadata = self._ensure_hidden(dict(document.metadata or {}))
 
+        # Add type for categorization
+        metadata["type"] = "journal"
+
         # Add Journal category using helper (handles malformed data)
         metadata = self._ensure_category(metadata, "Journal")
 
@@ -829,6 +905,9 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         # Use standard frontmatter writing logic
         metadata = dict(document.metadata or {})
+
+        # Add type for categorization
+        metadata["type"] = "profile"
 
         # Ensure avatar is present (fallback if needed)
         if "avatar" not in metadata:
@@ -1132,7 +1211,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         # Load .authors.yml
         authors_file = None
         if hasattr(self, "site_root") and self.site_root:
-            for potential_path in [self.site_root / "docs" / ".authors.yml", self.site_root / ".authors.yml"]:
+            for potential_path in [
+                self.site_root / "docs" / ".authors.yml",
+                self.site_root / ".authors.yml",
+            ]:
                 if potential_path.exists():
                     authors_file = potential_path
                     break
@@ -1252,6 +1334,147 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 # ============================================================================
 
 ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
+
+
+# Author Profile Generation (Append-Only) ---------------------------------
+
+
+def _build_author_profile(self, author_uuid: str) -> dict | None:
+    """Build author profile by scanning all their posts chronologically.
+
+    Sequential metadata updates: later posts override earlier values.
+
+    Args:
+        author_uuid: UUID of the author
+
+    Returns:
+        Profile dictionary with derived state, or None if no posts found
+
+    """
+    author_dir = self.posts_dir / "authors" / author_uuid[:16]
+    if not author_dir.exists():
+        return None
+
+    posts = sorted(author_dir.glob("*.md"), key=lambda p: p.stem)
+
+    profile = {
+        "uuid": author_uuid,
+        "name": None,
+        "bio": None,
+        "avatar": None,
+        "interests": set(),
+        "posts": [],
+    }
+
+    for post_path in posts:
+        if post_path.name == "index.md":
+            continue
+
+        frontmatter = self._parse_frontmatter(post_path)
+        authors = frontmatter.get("authors", [])
+
+        # Find this author's metadata in the post
+        for author in authors:
+            if isinstance(author, dict):
+                author_uuid_in_post = author.get("uuid", "")
+                if author_uuid_in_post.startswith(author_uuid[:16]):
+                    # Sequential merge: later values win
+                    if "name" in author:
+                        profile["name"] = author["name"]
+                    if "bio" in author:
+                        profile["bio"] = author["bio"]
+                    if "avatar" in author:
+                        profile["avatar"] = author["avatar"]
+                    if "interests" in author:
+                        profile["interests"].update(author["interests"])
+
+        # Track this post
+        profile["posts"].append(
+            {
+                "title": frontmatter.get("title", post_path.stem),
+                "date": frontmatter.get("date", ""),
+                "slug": post_path.stem,
+                "path": post_path,
+            }
+        )
+
+    if not profile["name"]:
+        return None  # No valid profile without a name
+
+    profile["interests"] = sorted(profile["interests"])
+    return profile
+
+
+def _render_author_index(self, profile: dict) -> str:
+    """Render author index.md content from profile data.
+
+    Args:
+        profile: Profile dictionary with derived state
+
+    Returns:
+        Markdown content for index.md
+
+    """
+    # Generate avatar HTML if available
+    avatar_html = ""
+    if profile.get("avatar"):
+        avatar_html = f"![Avatar]({profile['avatar']}){{ align=left width=150 }}\n\n"
+
+    # Build post list (newest first)
+    posts_md = "\n".join(
+        [f"- [{p['title']}]({p['slug']}.md) - {p['date']}" for p in reversed(profile["posts"])]
+    )
+
+    # Build frontmatter
+    frontmatter = f"""---
+title: {profile["name"]}
+type: profile
+uuid: {profile["uuid"]}
+avatar: {profile.get("avatar", "")}
+bio: {profile.get("bio", "")}
+interests: {profile.get("interests", [])}
+---
+
+{avatar_html}# {profile["name"]}
+
+{profile.get("bio", "")}
+
+## Posts ({len(profile["posts"])})
+
+{posts_md}
+
+## Interests
+
+{", ".join(profile.get("interests", []))}
+"""
+    return frontmatter
+
+
+def _sync_author_profiles(self) -> None:
+    """Generate index.md for all authors from derived state."""
+    authors_dir = self.posts_dir / "authors"
+    if not authors_dir.exists():
+        logger.info("No authors directory found, skipping profile sync")
+        return
+
+    authors_synced = 0
+    for author_dir in authors_dir.glob("*/"):
+        uuid = author_dir.name
+        profile = self._build_author_profile(uuid)
+
+        if not profile:
+            logger.warning(f"Skipping author {uuid}: no valid profile data")
+            continue
+
+        # Render and write index.md
+        content = self._render_author_index(profile)
+        index_path = author_dir / "index.md"
+        index_path.write_text(content, encoding="utf-8")
+
+        authors_synced += 1
+        logger.info(f"Generated profile for {profile['name']} ({uuid})")
+
+    logger.info(f"Synced {authors_synced} author profiles")
 
 
 # ============================================================================

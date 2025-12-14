@@ -5,11 +5,8 @@ from __future__ import annotations
 import base64
 import json
 import logging
-import os
-import tempfile
 from collections.abc import Iterable
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -112,7 +109,7 @@ class GoogleBatchModel(Model):
     # HTTP batch helpers
     # ------------------------------------------------------------------ #
     def run_batch(self, requests: list[dict[str, Any]]) -> list[BatchResult]:
-        """Run a batch of requests using the Gemini Batch API.
+        """Run a batch of requests using the Gemini Batch API with inline requests.
 
         Args:
             requests: List of request dictionaries. Each dict must have:
@@ -127,62 +124,112 @@ class GoogleBatchModel(Model):
         if not requests:
             return []
 
-        jsonl_lines = []
+        # Build inline requests (no file upload needed for <20MB)
+        inline_requests = []
         for req in requests:
-            record = {
-                "key": req["tag"],
-                "request": {
-                    "contents": req["contents"],
-                    "generation_config": req.get("config") or {},
-                },
+            inline_req = {
+                "contents": req["contents"],
             }
-            jsonl_lines.append(json.dumps(record))
-        jsonl_body = "\n".join(jsonl_lines)
+            if req.get("config"):
+                inline_req["generation_config"] = req["config"]
+            inline_requests.append(inline_req)
 
         client = genai.Client(api_key=self.api_key)
 
-        # Create a temporary file for upload
-        fd, temp_path_str = tempfile.mkstemp(suffix=".jsonl", text=True)
-        temp_path = Path(temp_path_str)
-
         try:
-            with os.fdopen(fd, "w") as f:
-                f.write(jsonl_body)
+            logger.info("[BatchAPI] Creating batch job with %d inline requests", len(inline_requests))
 
-            # Upload file (blocking IO)
-            uploaded_file = client.files.upload(
-                file=temp_path,
-                config=types.UploadFileConfig(display_name="pydantic-ai-batch", mime_type="application/json"),
-            )
-
-            # Create batch job (blocking IO)
+            # Create batch job with inline requests (no file upload)
             batch_job = client.batches.create(
                 model=self.model_name,
-                src=uploaded_file.name,
-                config=types.CreateBatchJobConfig(display_name="pydantic-ai-batch"),
+                src=inline_requests,
+                config=types.CreateBatchJobConfig(display_name="egregora-batch"),
             )
 
-            # Poll for completion (sync poll)
+            logger.info("[BatchAPI] Batch job created: %s", batch_job.name)
+
+            # Poll for completion
             completed_job = self._poll_job(client, batch_job.name)
 
-            # Download results (blocking IO)
-            return self._download_results(client, completed_job.output_uri, requests)
+            logger.info("[BatchAPI] Batch job completed: %s", completed_job.state.name)
+
+            # Get results from inlineResponse (inline requests return inline responses)
+            return self._extract_inline_results(completed_job, requests)
 
         except genai.errors.ClientError as e:
             if e.code == HTTP_TOO_MANY_REQUESTS:
-                logger.exception("Google GenAI ClientError (429 Details: %s)", e.message)
-                # Try to extract more details if available
-                if hasattr(e, "details"):
-                    logger.exception("Error Details: %s", e.details)
-
+                logger.warning("[BatchAPI] Quota exceeded: %s", e.message)
                 msg = f"Google Batch API Quota Exceeded: {e.message}"
                 raise UsageLimitExceeded(msg) from e
-            logger.exception("Google GenAI ClientError")
+            logger.exception("[BatchAPI] ClientError")
             raise ModelHTTPError(status_code=e.code, model_name=self.model_name, body=str(e)) from e
 
-        finally:
-            if temp_path.exists():
-                temp_path.unlink()
+    def _extract_inline_results(self, job: Any, requests: list[dict[str, Any]]) -> list[BatchResult]:
+        """Extract results from inline batch response."""
+        results: list[BatchResult] = []
+
+        # For inline requests, results come in job.dest.inline_responses
+        inline_responses = getattr(job, "dest", None)
+        if inline_responses and hasattr(inline_responses, "inline_responses"):
+            responses = inline_responses.inline_responses or []
+            for idx, resp in enumerate(responses):
+                tag = requests[idx]["tag"] if idx < len(requests) else f"idx-{idx}"
+
+                # Extract response or error
+                if hasattr(resp, "error") and resp.error:
+                    results.append(
+                        BatchResult(
+                            tag=tag,
+                            response=None,
+                            error={"message": str(resp.error), "code": getattr(resp.error, "code", None)},
+                        )
+                    )
+                elif hasattr(resp, "response") and resp.response:
+                    # Convert response to dict format expected by _extract_text
+                    response_dict = self._response_to_dict(resp.response)
+                    results.append(BatchResult(tag=tag, response=response_dict, error=None))
+                else:
+                    results.append(BatchResult(tag=tag, response=None, error={"message": "No response"}))
+        else:
+            # Fallback: try to get results from output_uri (file-based response)
+            if hasattr(job, "output_uri") and job.output_uri:
+                logger.info("[BatchAPI] Using output_uri for results: %s", job.output_uri)
+                return self._download_results(genai.Client(api_key=self.api_key), job.output_uri, requests)
+
+            # No results available
+            for idx, req in enumerate(requests):
+                results.append(
+                    BatchResult(
+                        tag=req["tag"], response=None, error={"message": "No inline response available"}
+                    )
+                )
+
+        return results
+
+    def _response_to_dict(self, response: Any) -> dict[str, Any]:
+        """Convert SDK response object to dict format."""
+        if isinstance(response, dict):
+            return response
+
+        result: dict[str, Any] = {}
+        if hasattr(response, "candidates"):
+            candidates = []
+            for cand in response.candidates or []:
+                cand_dict: dict[str, Any] = {}
+                if hasattr(cand, "content") and cand.content:
+                    content_dict: dict[str, Any] = {}
+                    if hasattr(cand.content, "parts"):
+                        parts = []
+                        for part in cand.content.parts or []:
+                            if hasattr(part, "text"):
+                                parts.append({"text": part.text})
+                        content_dict["parts"] = parts
+                    if hasattr(cand.content, "role"):
+                        content_dict["role"] = cand.content.role
+                    cand_dict["content"] = content_dict
+                candidates.append(cand_dict)
+            result["candidates"] = candidates
+        return result
 
     def _poll_job(self, client: Any, job_name: str) -> Any:
         """Poll the batch job for completion using tenacity."""

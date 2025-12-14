@@ -33,13 +33,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator, model_v
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from egregora.config.overrides import ConfigOverrideBuilder
-from egregora.constants import (
-    AuthorPrivacyStrategy,
-    MentionPrivacyStrategy,
-    PIIScope,
-    TextPIIStrategy,
-    WindowUnit,
-)
+from egregora.constants import WindowUnit
 
 logger = logging.getLogger(__name__)
 
@@ -236,177 +230,6 @@ class WriterAgentSettings(BaseModel):
     )
 
 
-class AgentPIISettings(BaseModel):
-    """PII prevention settings for a specific agent (LLM-native).
-
-    LLMs naturally understand what constitutes PII without regex patterns.
-    We just tell them what we consider private using declarative scopes.
-    """
-
-    enabled: bool = Field(
-        default=True,
-        description="Enable PII prevention for this agent",
-    )
-
-    scope: PIIScope = Field(
-        default=PIIScope.CONTACT_INFO,
-        description="What PII to protect (LLM understands these categories natively)",
-    )
-
-    custom_definition: str | None = Field(
-        default=None,
-        description="Custom PII definition (when scope=custom). LLM will interpret this.",
-    )
-
-    apply_to_journals: bool = Field(
-        default=True,
-        description="Also protect agent execution journals (not just main output)",
-    )
-
-
-class PIIPreventionSettings(BaseModel):
-    """LLM-native PII prevention settings for all agents.
-
-    No regex patterns needed - LLMs naturally understand PII.
-    """
-
-    enricher: AgentPIISettings = Field(
-        default_factory=lambda: AgentPIISettings(
-            enabled=True,
-            scope=PIIScope.CONTACT_INFO,
-            apply_to_journals=False,  # Enricher journals typically internal
-        ),
-        description="Enricher agent PII prevention",
-    )
-
-    writer: AgentPIISettings = Field(
-        default_factory=lambda: AgentPIISettings(
-            enabled=True,
-            scope=PIIScope.ALL_PII,
-            apply_to_journals=True,  # CRITICAL: protect journals too
-        ),
-        description="Writer agent PII prevention",
-    )
-
-    banner: AgentPIISettings = Field(
-        default_factory=lambda: AgentPIISettings(
-            enabled=False,
-            scope=PIIScope.CONTACT_INFO,
-            apply_to_journals=False,
-        ),
-        description="Banner agent PII prevention (image generation)",
-    )
-
-    reader: AgentPIISettings = Field(
-        default_factory=lambda: AgentPIISettings(
-            enabled=False,
-            scope=PIIScope.CONTACT_INFO,
-            apply_to_journals=False,
-        ),
-        description="Reader agent PII prevention (typically disabled)",
-    )
-
-
-class StructuralPrivacySettings(BaseModel):
-    """Structural anonymization settings (adapter-level, deterministic preprocessing).
-
-    Uses simple regex patterns for deterministic preprocessing of raw input data.
-    This is separate from LLM-native PII prevention which uses natural language.
-    """
-
-    enabled: bool = Field(
-        default=True,
-        description="Enable structural anonymization",
-    )
-
-    author_strategy: AuthorPrivacyStrategy = Field(
-        default=AuthorPrivacyStrategy.UUID_MAPPING,
-        description="Author anonymization strategy",
-    )
-
-    mention_strategy: MentionPrivacyStrategy = Field(
-        default=MentionPrivacyStrategy.UUID_REPLACEMENT,
-        description="Mention handling strategy",
-    )
-
-    phone_strategy: TextPIIStrategy = Field(
-        default=TextPIIStrategy.REDACT,
-        description="Phone number handling in raw text",
-    )
-
-    email_strategy: TextPIIStrategy = Field(
-        default=TextPIIStrategy.REDACT,
-        description="Email handling in raw text",
-    )
-
-
-class PrivacySettings(BaseModel):
-    """Privacy and data protection settings (YAML configuration).
-
-    Two-level privacy model:
-    1. **Structural** (Level 1): Deterministic preprocessing of raw input data
-    2. **PII Prevention** (Level 2): LLM-native PII understanding in agent outputs
-
-    .. warning::
-       Disabling privacy features should only be done for public datasets
-       (e.g., judicial records, public archives, news articles).
-
-       For private conversations, always keep privacy enabled to protect PII.
-
-    This Pydantic model (for YAML config) has the same name as the dataclass in
-    ``egregora.privacy.config.PrivacySettings`` (for runtime policy). They serve
-    different purposes:
-
-    - **This class**: YAML configuration (persisted to config.yml)
-    - **privacy.config.PrivacySettings**: Runtime policy with tenant isolation
-    """
-
-    structural: StructuralPrivacySettings = Field(
-        default_factory=StructuralPrivacySettings,
-        description="Structural anonymization settings (adapter-level)",
-    )
-
-    pii_prevention: PIIPreventionSettings = Field(
-        default_factory=PIIPreventionSettings,
-        description="PII prevention in LLM outputs (per-agent, LLM-native)",
-    )
-
-    # Backward compatibility properties
-    @property
-    def enabled(self) -> bool:
-        """Legacy: overall privacy enabled (checks structural privacy)."""
-        return self.structural.enabled
-
-    @property
-    def anonymize_authors(self) -> bool:
-        """Legacy: check if authors are being anonymized."""
-        return self.structural.author_strategy != AuthorPrivacyStrategy.NONE
-
-    @model_validator(mode="after")
-    def validate_privacy_settings(self) -> PrivacySettings:
-        """Validate privacy settings and warn if disabled."""
-        if not self.structural.enabled:
-            logger.warning(
-                "⚠️  Structural privacy is DISABLED (privacy.structural.enabled=false). "
-                "Only use for public datasets! Private conversations will NOT be anonymized."
-            )
-
-        if self.structural.author_strategy == AuthorPrivacyStrategy.NONE and self.structural.enabled:
-            logger.warning(
-                "Author anonymization is disabled (strategy=none) but structural privacy is enabled. "
-                "Author names will appear in output."
-            )
-
-        # Warn about journal protection
-        if self.pii_prevention.writer.enabled and not self.pii_prevention.writer.apply_to_journals:
-            logger.warning(
-                "Writer PII prevention is enabled but apply_to_journals=false. "
-                "Agent execution journals may contain PII!"
-            )
-
-        return self
-
-
 class EnrichmentSettings(BaseModel):
     """Enrichment settings for URLs and media."""
 
@@ -421,6 +244,24 @@ class EnrichmentSettings(BaseModel):
     enable_media: bool = Field(
         default=True,
         description="Enrich images/videos with LLM-generated descriptions",
+    )
+    strategy: Literal["individual", "batch_api", "batch_all"] = Field(
+        default="batch_all",
+        description="Enrichment strategy: individual (1 call per item), batch_api (Gemini batch), batch_all (all in one call)",
+    )
+    model_rotation_enabled: bool = Field(
+        default=True,
+        description="Rotate through Gemini models on 429 errors",
+    )
+    rotation_models: list[str] = Field(
+        default=[
+            "gemini-2.5-flash-lite",
+            "gemini-2.0-flash",
+            "gemini-2.5-flash",
+            "gemini-flash-latest",
+            "gemini-2.5-pro",
+        ],
+        description="List of Gemini models to rotate through on rate limits",
     )
     max_enrichments: int = Field(
         default=50,
@@ -734,10 +575,6 @@ class EgregoraConfig(BaseSettings):
     reader: ReaderSettings = Field(
         default_factory=ReaderSettings,
         description="Reader agent configuration",
-    )
-    privacy: PrivacySettings = Field(
-        default_factory=PrivacySettings,
-        description="Privacy settings",
     )
     enrichment: EnrichmentSettings = Field(
         default_factory=EnrichmentSettings,

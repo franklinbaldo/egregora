@@ -109,7 +109,8 @@ date: 2025-01-01
     # Try to build (may fail if mkdocs-material not installed, skip gracefully)
     result = subprocess.run(
         [sys.executable, "-m", "mkdocs", "build", "-f", ".egregora/mkdocs.yml"],
-        check=False, cwd=site_root,
+        check=False,
+        cwd=site_root,
         capture_output=True,
         text=True,
         env={**os.environ},

@@ -218,24 +218,23 @@ class DuckDBDocumentRepository(DocumentRepository):
 
     def get_entries_by_source(self, source_id: str) -> builtins.list[Entry]:
         """Lists entries by source ID."""
-        t = self._get_table()
-
-        # Filter by JSON path: source.id == source_id
-        try:
-            query = t.filter(t.json_data["source"]["id"] == source_id)
-            result = query.select("json_data", "doc_type").execute()
-        except (AttributeError, NotImplementedError, TypeError, KeyError):
-            # Fallback for backends/versions where Ibis JSON getitem might fail
-            # AttributeError: JSON getitem not supported
-            # NotImplementedError: Backend doesn't implement this feature
-            # TypeError: Type mismatch in filter operation
-            # KeyError: Column or key access failure
-            if hasattr(self.conn, "con"):
-                # DuckDB raw SQL for JSON extraction
-                sql = f"SELECT json_data, doc_type FROM {self.table_name} WHERE json_extract_string(json_data, '$.source.id') = ?"
-                result = self.conn.con.execute(sql, [source_id]).fetch_df()
-            else:
-                # If we can't filter, return empty (or could fetch all and filter in python, but that's slow)
+        # Prioritize raw SQL for DuckDB as Ibis JSON extraction can be flaky/strict on types
+        if hasattr(self.conn, "con"):
+            # DuckDB raw SQL for JSON extraction
+            sql = f"SELECT json_data, doc_type FROM {self.table_name} WHERE json_extract_string(json_data, '$.source.id') = ?"
+            result = self.conn.con.execute(sql, [source_id]).fetch_df()
+        else:
+            t = self._get_table()
+            # Filter by JSON path: source.id == source_id
+            try:
+                query = t.filter(t.json_data["source"]["id"] == source_id)
+                result = query.select("json_data", "doc_type").execute()
+            except (AttributeError, NotImplementedError, TypeError, KeyError):
+                # Fallback for backends/versions where Ibis JSON getitem might fail
+                # AttributeError: JSON getitem not supported
+                # NotImplementedError: Backend doesn't implement this feature
+                # TypeError: Type mismatch in filter operation
+                # KeyError: Column or key access failure
                 return []
 
         entries = []

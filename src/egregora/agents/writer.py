@@ -204,18 +204,7 @@ def _build_writer_context(params: WriterContextParams) -> WriterContext:
             filter(None, [custom_instructions, params.adapter_generation_instructions])
         )
 
-    # Build PII prevention context for LLM-native privacy protection
-    pii_settings = params.config.privacy.pii_prevention.writer
     pii_prevention = None
-    if pii_settings.enabled:
-        pii_prevention = {
-            "enabled": True,
-            "scope": pii_settings.scope.value,
-            "custom_definition": pii_settings.custom_definition
-            if pii_settings.scope.value == "custom"
-            else None,
-            "apply_to_journals": pii_settings.apply_to_journals,
-        }
 
     return WriterContext(
         conversation_xml=conversation_xml,
@@ -379,8 +368,8 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
                 "window_label": params.window_label,
                 "window_start": window_start_iso,
                 "window_end": window_end_iso,
-                "date": now_utc.isoformat(),
-                "created_at": now_utc.isoformat(),
+                "date": now_utc.strftime("%Y-%m-%d %H:%M"),
+                "created_at": now_utc.strftime("%Y-%m-%d %H:%M"),
                 "slug": journal_slug,
                 "nav_exclude": True,
                 "hide": ["navigation"],

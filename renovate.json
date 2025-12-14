@@ -1,0 +1,75 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":enablePreCommit"
+  ],
+  "labels": ["dependencies"],
+  "commitMessagePrefix": "chore(deps):",
+  "schedule": ["before 6am on Monday"],
+  "timezone": "UTC",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on Monday"]
+  },
+  "packageRules": [
+    {
+      "description": "Group Python minor and patch updates",
+      "matchManagers": ["pip_requirements", "pip_setup", "pep621"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "Python dependencies (non-major)",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false
+    },
+    {
+      "description": "Separate major Python updates",
+      "matchManagers": ["pip_requirements", "pip_setup", "pep621"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "Python dependencies (major)",
+      "automerge": false
+    },
+    {
+      "description": "Group GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "GitHub Actions",
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Auto-merge pre-commit hook updates",
+      "matchManagers": ["pre-commit"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Pin GitHub Actions to digests for security",
+      "matchManagers": ["github-actions"],
+      "pinDigests": true
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "Update Python version in pyproject.toml",
+      "customType": "regex",
+      "fileMatch": ["^pyproject\\.toml$"],
+      "matchStrings": [
+        "requires-python\\s*=\\s*\">=(?<currentValue>\\d+\\.\\d+)\""
+      ],
+      "datasourceTemplate": "python-version",
+      "depNameTemplate": "python"
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"],
+    "automerge": true,
+    "schedule": ["at any time"]
+  },
+  "osvVulnerabilityAlerts": true
+}

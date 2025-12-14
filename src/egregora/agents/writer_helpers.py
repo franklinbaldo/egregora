@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic_ai import RunContext
@@ -102,16 +101,17 @@ def register_writer_tools(
 
 def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
     """Load profiles for top active authors via output_sink.
-    
+
     Uses output_sink.read_document() to read profiles from the unified
     output directory (e.g., posts/ in MkDocs), rather than direct file access.
-    
+
     Args:
         active_authors: List of author UUIDs to load profiles for
         output_sink: OutputSink instance that knows where profiles are stored
-        
+
     Returns:
         Formatted string with profile context for each author
+
     """
     if not active_authors:
         return ""
@@ -129,7 +129,7 @@ def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:
         except (OSError, ValueError, AttributeError) as exc:
             logger.debug("Could not read profile for %s: %s", author_uuid, exc)
             profile_content = ""
-        
+
         parts.append(f"### Author: {author_uuid}\n")
         if profile_content:
             parts.append(f"{profile_content}\n\n")

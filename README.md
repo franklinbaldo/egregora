@@ -2,10 +2,12 @@
 > *Turn your chaotic group chat into a structured, readable blog.*
 
 [![CI](https://github.com/franklinbaldo/egregora/actions/workflows/ci.yml/badge.svg)](https://github.com/franklinbaldo/egregora/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/franklinbaldo/egregora/actions/workflows/codeql.yml/badge.svg)](https://github.com/franklinbaldo/egregora/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/franklinbaldo/egregora/branch/main/graph/badge.svg)](https://codecov.io/gh/franklinbaldo/egregora)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![uv](https://img.shields.io/badge/uv-powered-FF6C37.svg)](https://github.com/astral-sh/uv)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 [![Pydantic-AI](https://img.shields.io/badge/Pydantic--AI-type--safe-00D9FF.svg)](https://ai.pydantic.dev/)
 [![Docs](https://img.shields.io/badge/docs-live-green.svg)](https://franklinbaldo.github.io/egregora/)
 
@@ -17,8 +19,15 @@
 
 Egregora transforms a WhatsApp export (ZIP) into a static website powered by [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/).
 
-### 1. Prerequisites
-You need **Python 3.12+** and **[uv](https://github.com/astral-sh/uv)** installed. You will also need a Google Gemini API key (free tier available).
+### 1. Installation
+
+Install Egregora using [uv](https://github.com/astral-sh/uv) (requires Python 3.12+):
+
+```bash
+uv tool install git+https://github.com/franklinbaldo/egregora
+```
+
+You will also need a Google Gemini API key (free tier available):
 
 ```bash
 export GOOGLE_API_KEY="your-api-key"
@@ -28,19 +37,21 @@ export GOOGLE_API_KEY="your-api-key"
 
 **1. Initialize a new site:**
 ```bash
-uvx --from git+https://github.com/franklinbaldo/egregora \
-    egregora init ./my-blog
+egregora init ./my-blog
 cd my-blog
 ```
 
 **2. Generate posts from your chat export:**
 ```bash
-uv run egregora write path/to/chat_export.zip --output=.
+egregora write path/to/chat_export.zip --output=.
 ```
 
 **3. Preview your site:**
 ```bash
-uvx --with mkdocs-material --with mkdocs-macros-plugin --with mkdocs-rss-plugin mkdocs serve -f .egregora/mkdocs.yml
+uvx --with mkdocs-material \
+    --with mkdocs-macros-plugin \
+    --with mkdocs-rss-plugin \
+    mkdocs serve -f .egregora/mkdocs.yml
 ```
 *Visit http://localhost:8000 to read your new blog.*
 
@@ -51,10 +62,9 @@ uvx --with mkdocs-material --with mkdocs-macros-plugin --with mkdocs-rss-plugin 
 Egregora is highly configurable via the `.egregora/config.yml` file generated in your site directory.
 
 *   **Models:** Switch between models (e.g., `google-gla:gemini-2.0-flash`, `google-gla:gemini-1.5-pro`) or use OpenRouter.
-*   **Privacy:** Configure PII redaction and anonymization.
 *   **Pipeline:** Adjust how many days of chat form a single post (`step_size`, `step_unit`).
 
-👉 **[Full Configuration Reference](docs/configuration.md)**
+👉 **[Full Configuration Reference](docs/getting-started/configuration.md)**
 
 ### Customizing the AI
 *   **Prompts:** Edit `.egregora/prompts/writer.jinja` to change the tone and style of the writing.
@@ -110,4 +120,3 @@ To run tests:
 uv sync --all-extras
 uv run pytest tests/
 ```
-Fri Dec  5 07:50:57 -04 2025

@@ -13,10 +13,15 @@ permissions:
   pull-requests: write
 
 jobs:
-  label-conflicts:
+  manage-pr:
+    name: Manage PR conflicts and updates
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
     steps:
-      - name: Update conflict label
+      - name: Check conflicts and auto-update branch
         uses: actions/github-script@v8
         with:
           script: |
@@ -37,8 +42,19 @@ jobs:
             });
 
             const mergeableState = prData.mergeable_state;
+            const isBehind = mergeableState === 'behind';
+            const isClean = mergeableState === 'clean';
+            const hasConflicts = mergeableState === 'dirty';
 
-            // Ensure the label exists
+            console.log(`PR Status:
+              - State: ${mergeableState}
+              - Behind: ${isBehind}
+              - Clean: ${isClean}
+              - Has conflicts: ${hasConflicts}
+              - Mergeable: ${prData.mergeable}
+            `);
+
+            // Step 1: Ensure the conflict label exists
             try {
               await github.rest.issues.getLabel({
                 owner,
@@ -55,6 +71,7 @@ jobs:
                     color: labelColor,
                     description: labelDescription,
                   });
+                  console.log('Created conflict label');
                 } catch (createError) {
                   if (createError.status !== 422) {
                     throw createError;
@@ -65,9 +82,10 @@ jobs:
               }
             }
 
+            // Step 2: Update conflict label
             const existingLabels = prData.labels.map((label) => label.name);
 
-            if (mergeableState === 'dirty') {
+            if (hasConflicts) {
               if (!existingLabels.includes(labelName)) {
                 await github.rest.issues.addLabels({
                   owner,
@@ -75,8 +93,9 @@ jobs:
                   issue_number: pull_number,
                   labels: [labelName],
                 });
+                console.log('✅ Added conflict label');
               }
-            } else if (['clean', 'unstable'].includes(mergeableState)) {
+            } else if (['clean', 'unstable', 'behind'].includes(mergeableState)) {
               if (existingLabels.includes(labelName)) {
                 try {
                   await github.rest.issues.removeLabel({
@@ -85,10 +104,49 @@ jobs:
                     issue_number: pull_number,
                     name: labelName,
                   });
+                  console.log('✅ Removed conflict label');
                 } catch (removeError) {
                   if (removeError.status !== 404) {
                     throw removeError;
                   }
                 }
               }
+            }
+
+            // Step 3: Auto-update branch if behind and no conflicts
+            if (isBehind && prData.mergeable !== false) {
+              try {
+                console.log('Branch is behind and has no conflicts - updating...');
+
+                await github.rest.pulls.updateBranch({
+                  owner,
+                  repo,
+                  pull_number,
+                });
+
+                console.log('✅ Branch updated successfully!');
+
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pull_number,
+                  body: '🔄 **Branch automatically updated** with latest changes from base branch.'
+                });
+
+              } catch (error) {
+                if (error.status === 422) {
+                  console.log('⚠️ Branch update not possible (might have restrictions or conflicts)');
+                } else if (error.status === 403) {
+                  console.log('⚠️ No permission to update branch (might be from a fork)');
+                } else {
+                  console.error('❌ Failed to update branch:', error.message);
+                  throw error;
+                }
+              }
+            } else if (hasConflicts) {
+              console.log('⏭️ Skipping update - PR has merge conflicts');
+            } else if (isClean) {
+              console.log('✅ Branch is already up to date');
+            } else {
+              console.log(`ℹ️ No update needed (state: ${mergeableState})`);
             }
