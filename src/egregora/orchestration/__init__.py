@@ -17,6 +17,11 @@ Future workflows:
 - edit_pipeline: Apply feedback and edit published content (edit command)
 """
 
-from egregora.orchestration import write_pipeline
+# Export from the new location to maintain backward compatibility if needed,
+# or just update the export to point to the new location.
+# Since we deleted write_pipeline.py, we can't import it directly.
+# We can expose the 'pipelines' package or specific pipelines.
+
+from egregora.orchestration.pipelines import write as write_pipeline
 
 __all__ = ["write_pipeline"]

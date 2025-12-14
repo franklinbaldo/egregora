@@ -25,7 +25,6 @@ from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Self
 
-import ibis
 from ibis.common.exceptions import IbisError
 from ibis.expr.types import Table
 from pydantic import BaseModel
@@ -40,7 +39,7 @@ from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.input_adapters.base import MediaMapping
 from egregora.models.google_batch import GoogleBatchModel
-from egregora.ops.media import extract_urls, find_media_references, replace_media_mentions
+from egregora.ops.media import extract_urls, find_media_references
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
@@ -750,19 +749,6 @@ def _extract_media_candidates(
     return [(ref, document_lookup[ref], metadata_lookup[ref]) for ref in sorted_refs[:limit]]
 
 
-def _replace_pii_media_references(
-    messages_table: Table,
-    media_mapping: MediaMapping,
-) -> Table:
-    """Replace media references in messages after PII deletion."""
-
-    @ibis.udf.scalar.python
-    def replace_media_udf(text: str) -> str:
-        return replace_media_mentions(text, media_mapping) if text else text
-
-    return messages_table.mutate(text=replace_media_udf(messages_table.text))
-
-
 class EnrichmentWorker(BaseWorker):
     """Worker for media enrichment (e.g. image description)."""
 
@@ -802,9 +788,9 @@ class EnrichmentWorker(BaseWorker):
 
     def __exit__(
         self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
+        _exc_type: type[BaseException] | None,
+        _exc_val: BaseException | None,
+        _exc_tb: TracebackType | None,
     ) -> None:
         """Context manager exit - ensures ZIP handle is closed."""
         self.close()
@@ -888,21 +874,41 @@ class EnrichmentWorker(BaseWorker):
                 ).strip()
 
                 tasks_data.append({"task": task, "url": url, "prompt": prompt})
-            except Exception as exc:
+            except Exception:
                 logger.exception("Failed to prepare URL task %s", task["task_id"])
-                self.task_store.mark_failed(task["task_id"], f"Preparation failed: {exc!s}")
 
         return tasks_data
 
     def _determine_concurrency(self, task_count: int) -> int:
-        enrichment_concurrency = getattr(self.ctx.config.enrichment, "max_concurrent_enrichments", 5)
-        global_concurrency = getattr(self.ctx.config.quota, "concurrency", 1)
-        max_concurrent = min(enrichment_concurrency, global_concurrency)
+        """Determine optimal concurrency based on available API keys.
+
+        Auto-detects number of API keys and uses them in parallel instead of
+        sequential rotation.
+        """
+        from egregora.models.model_cycler import get_api_keys
+
+        # Auto-detect available API keys
+        api_keys = get_api_keys()
+        num_keys = len(api_keys) if api_keys else 1
+
+        # Use configured value or auto-detected key count
+        enrichment_concurrency = getattr(
+            self.ctx.config.enrichment,
+            "max_concurrent_enrichments",
+            num_keys,  # Default to number of keys
+        )
+
+        global_concurrency = getattr(self.ctx.config.quota, "concurrency", num_keys)
+
+        # Use all available keys in parallel (up to task count)
+        max_concurrent = min(enrichment_concurrency, global_concurrency, task_count, num_keys)
 
         logger.info(
-            "Processing %d enrichment tasks with max concurrency of %d (enrichment limit: %d, global limit: %d)",
+            "Processing %d enrichment tasks with max concurrency of %d "
+            "(API keys: %d, enrichment limit: %d, global limit: %d)",
             task_count,
             max_concurrent,
+            num_keys,
             enrichment_concurrency,
             global_concurrency,
         )
@@ -958,7 +964,6 @@ class EnrichmentWorker(BaseWorker):
         """
         from google import genai
         from google.genai import types
-
 
         api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if not api_key:
@@ -1017,7 +1022,10 @@ class EnrichmentWorker(BaseWorker):
             )
             response_text = response.text or ""
 
-        logger.debug("[URLEnricher] Single-call response received (length: %d)", len(response_text) if response_text else 0)
+        logger.debug(
+            "[URLEnricher] Single-call response received (length: %d)",
+            len(response_text) if response_text else 0,
+        )
 
         # Parse JSON response
         try:
