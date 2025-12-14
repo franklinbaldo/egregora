@@ -31,6 +31,7 @@ class VectorStore(Protocol):
 
         Returns:
             Number of documents successfully indexed
+
         """
         ...
 
@@ -43,6 +44,7 @@ class VectorStore(Protocol):
 
         Returns:
             Response containing ranked results
+
         """
         ...
 
@@ -55,6 +57,7 @@ class VectorStore(Protocol):
 
         Returns:
             Number of documents deleted
+
         """
         ...
 

@@ -1,6 +1,3 @@
-{% import '_privacy_macros.jinja' as privacy %}
-{{ privacy.pii_prevention_block(pii_prevention, context="enrichment") }}
-
 {% macro media_type_instructions(media_type) -%}
 {% if media_type == "image" %}
 - Treat this like a high-value archival photograph. Describe composition, subjects, environment, text or symbols, emotional tone, and any notable stylistic choices (filters, editing artifacts, resolution).

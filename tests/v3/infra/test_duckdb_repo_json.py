@@ -1,10 +1,12 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 import ibis
-import pytest
+
 from egregora_v3.core.types import Entry, Source
 from egregora_v3.infra.repository.duckdb import DuckDBDocumentRepository
 
-UTC = timezone.utc
+UTC = UTC
+
 
 def test_get_entries_by_source_uses_raw_sql_path_for_duckdb(tmp_path):
     """
@@ -17,12 +19,7 @@ def test_get_entries_by_source_uses_raw_sql_path_for_duckdb(tmp_path):
     repo.initialize()
 
     source_id = "test-source-123"
-    entry = Entry(
-        id="e1",
-        title="Test Entry",
-        updated=datetime.now(UTC),
-        source=Source(id=source_id)
-    )
+    entry = Entry(id="e1", title="Test Entry", updated=datetime.now(UTC), source=Source(id=source_id))
     repo.save_entry(entry)
 
     # This call triggers the logic in get_entries_by_source

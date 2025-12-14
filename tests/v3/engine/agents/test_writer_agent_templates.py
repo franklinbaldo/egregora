@@ -213,5 +213,4 @@ class TestWriterAgentEndToEndWithTemplates:
 
         # Prompts should have different formatting due to template
         # Template includes more metadata (published dates, etc.)
-        assert len(prompt_with_template) != len(prompt_hardcoded) or \
-               prompt_with_template != prompt_hardcoded
+        assert len(prompt_with_template) != len(prompt_hardcoded) or prompt_with_template != prompt_hardcoded

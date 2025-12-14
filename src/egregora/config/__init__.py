@@ -70,7 +70,6 @@ from egregora.config.settings import (
     ModelType,
     PipelineEnrichmentConfig,
     PipelineSettings,
-    PrivacySettings,
     # Runtime dataclasses (for function parameters, not persisted)
     RAGSettings,
     RuntimeContext,  # Minimal runtime-only context
@@ -92,7 +91,6 @@ __all__ = [
     "ModelType",
     "PipelineEnrichmentConfig",
     "PipelineSettings",
-    "PrivacySettings",
     "RAGSettings",
     "RuntimeContext",
     "WriterAgentSettings",

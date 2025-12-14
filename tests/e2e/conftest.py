@@ -1,6 +1,5 @@
 """Common test configuration and fixtures."""
 
-import os
 import shutil
 import warnings
 from types import SimpleNamespace
@@ -34,12 +33,14 @@ def mock_batch_client(monkeypatch):
     # Mock batch operations if needed
     return mock_client
 
+
 @pytest.fixture
 def mocked_writer_agent(writer_test_agent):
     """
     Alias for writer_test_agent to match E2E test expectations.
     """
     return writer_test_agent
+
 
 @pytest.fixture
 def mock_vector_store(monkeypatch):
@@ -65,9 +66,7 @@ def mock_vector_store(monkeypatch):
     )
 
     # Patch where search is used in writer_helpers
-    monkeypatch.setattr(
-        "egregora.agents.writer_helpers.search", mock_search, raising=False
-    )
+    monkeypatch.setattr("egregora.agents.writer_helpers.search", mock_search, raising=False)
 
     # Return the list so tests can verify what was indexed
     return indexed_documents
@@ -83,13 +82,9 @@ def temp_site_dir(tmp_path):
     if site_dir.exists():
         shutil.rmtree(site_dir)
 
+
 @pytest.fixture
 def llm_response_mocks():
     """Mock responses for LLM calls (enrichment, writer, etc)."""
     # Simple dictionary mock. In a real scenario, this might load from a JSON file.
-    return {
-        "url_enrichments": {},
-        "media_enrichments": {},
-        "writer_post": "Mock post content"
-    }
-
+    return {"url_enrichments": {}, "media_enrichments": {}, "writer_post": "Mock post content"}

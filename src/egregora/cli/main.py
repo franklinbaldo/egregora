@@ -19,23 +19,21 @@ from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.table import Table
 
-from egregora.cli.config import config_app
 from egregora.cli.read import read_app
-from egregora.cli.runs import get_storage, runs_app
 from egregora.config import load_egregora_config
 from egregora.constants import SourceType, WindowUnit
 from egregora.database.elo_store import EloStore
+from egregora.database.utils import get_simple_storage
 from egregora.diagnostics import HealthStatus, run_diagnostics
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration.pipelines.write import run_cli_flow
+
 
 app = typer.Typer(
     name="egregora",
     help="Ultra-simple WhatsApp to blog pipeline with LLM-powered content generation",
     add_completion=False,
 )
-app.add_typer(config_app)
-app.add_typer(runs_app)
 app.add_typer(read_app)
 
 # Show subcommands
@@ -70,9 +68,7 @@ def main() -> None:
 
 @app.command()
 def init(
-    output_dir: Annotated[
-        Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")
-    ],
+    output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
     *,
     interactive: Annotated[
         bool,
@@ -146,9 +142,7 @@ def write(  # noqa: PLR0913
     use_full_context_window: Annotated[
         bool, typer.Option("--full-context", help="Use maximum available context")
     ] = False,
-    max_windows: Annotated[
-        int | None, typer.Option(help="Limit number of windows to process")
-    ] = None,
+    max_windows: Annotated[int | None, typer.Option(help="Limit number of windows to process")] = None,
     resume: Annotated[
         bool,
         typer.Option("--resume/--no-resume", help="Resume from last checkpoint if available"),
@@ -235,7 +229,7 @@ def top(
         console.print("Run 'egregora read' first to generate rankings")
         raise typer.Exit(1)
 
-    storage = get_storage(db_path)
+    storage = get_simple_storage(db_path)
     elo_store = EloStore(storage)
 
     top_posts = elo_store.get_top_posts(limit=limit).execute()
@@ -316,7 +310,7 @@ def show_reader_history(
         console.print("Run 'egregora read' first to generate rankings")
         raise typer.Exit(1)
 
-    storage = get_storage(db_path)
+    storage = get_simple_storage(db_path)
     elo_store = EloStore(storage)
 
     history = elo_store.get_comparison_history(
@@ -413,9 +407,7 @@ def _run_doctor_checks(*, verbose: bool) -> None:
         )
 
     console.print()
-    console.print(
-        f"[dim]Summary: {ok_count} OK, {warning_count} warnings, {error_count} errors[/dim]"
-    )
+    console.print(f"[dim]Summary: {ok_count} OK, {warning_count} warnings, {error_count} errors[/dim]")
 
     if error_count > 0:
         raise typer.Exit(1)

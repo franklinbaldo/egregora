@@ -800,6 +800,7 @@ def _update_authors_yml(site_root: Path, author_uuid: str, front_matter: dict[st
     except (OSError, yaml.YAMLError) as e:
         logger.warning("Failed to write .authors.yml: %s", e)
 
+
 def _build_author_entry(profile_path: Path, metadata: dict) -> dict:
     """Build an author entry dict from profile metadata."""
     author_uuid = profile_path.stem

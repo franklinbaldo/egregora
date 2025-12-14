@@ -6,8 +6,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from egregora.orchestration.pipelines.write import (
-    PreparedPipelineData,
-    _index_media_into_rag,
     _prepare_pipeline_data,
 )
 
@@ -69,12 +67,13 @@ def test_prepare_pipeline_data_handles_rag_connection_error(
             mock_pipeline_context.output_format.documents.return_value = ["doc1"]
 
             # Mock other dependencies to avoid side effects
-            with patch("egregora.orchestration.pipelines.write._parse_and_validate_source"), \
-                 patch("egregora.orchestration.pipelines.write._setup_content_directories"), \
-                 patch("egregora.orchestration.pipelines.write._process_commands_and_avatars"), \
-                 patch("egregora.orchestration.pipelines.write._apply_filters"), \
-                 patch("egregora.orchestration.pipelines.write.create_windows"):
-
+            with (
+                patch("egregora.orchestration.pipelines.write._parse_and_validate_source"),
+                patch("egregora.orchestration.pipelines.write._setup_content_directories"),
+                patch("egregora.orchestration.pipelines.write._process_commands_and_avatars"),
+                patch("egregora.orchestration.pipelines.write._apply_filters"),
+                patch("egregora.orchestration.pipelines.write.create_windows"),
+            ):
                 # Execute function
                 with caplog.at_level(logging.WARNING):
                     _prepare_pipeline_data(mock_adapter, mock_run_params, mock_pipeline_context)
@@ -99,12 +98,13 @@ def test_prepare_pipeline_data_handles_rag_value_error(
             mock_pipeline_context.with_adapter.return_value = mock_pipeline_context
             mock_pipeline_context.output_format.documents.return_value = ["doc1"]
 
-            with patch("egregora.orchestration.pipelines.write._parse_and_validate_source"), \
-                 patch("egregora.orchestration.pipelines.write._setup_content_directories"), \
-                 patch("egregora.orchestration.pipelines.write._process_commands_and_avatars"), \
-                 patch("egregora.orchestration.pipelines.write._apply_filters"), \
-                 patch("egregora.orchestration.pipelines.write.create_windows"):
-
+            with (
+                patch("egregora.orchestration.pipelines.write._parse_and_validate_source"),
+                patch("egregora.orchestration.pipelines.write._setup_content_directories"),
+                patch("egregora.orchestration.pipelines.write._process_commands_and_avatars"),
+                patch("egregora.orchestration.pipelines.write._apply_filters"),
+                patch("egregora.orchestration.pipelines.write.create_windows"),
+            ):
                 with caplog.at_level(logging.WARNING):
                     _prepare_pipeline_data(mock_adapter, mock_run_params, mock_pipeline_context)
 
@@ -127,12 +127,13 @@ def test_prepare_pipeline_data_handles_rag_os_error(
             mock_pipeline_context.with_adapter.return_value = mock_pipeline_context
             mock_pipeline_context.output_format.documents.return_value = ["doc1"]
 
-            with patch("egregora.orchestration.pipelines.write._parse_and_validate_source"), \
-                 patch("egregora.orchestration.pipelines.write._setup_content_directories"), \
-                 patch("egregora.orchestration.pipelines.write._process_commands_and_avatars"), \
-                 patch("egregora.orchestration.pipelines.write._apply_filters"), \
-                 patch("egregora.orchestration.pipelines.write.create_windows"):
-
+            with (
+                patch("egregora.orchestration.pipelines.write._parse_and_validate_source"),
+                patch("egregora.orchestration.pipelines.write._setup_content_directories"),
+                patch("egregora.orchestration.pipelines.write._process_commands_and_avatars"),
+                patch("egregora.orchestration.pipelines.write._apply_filters"),
+                patch("egregora.orchestration.pipelines.write.create_windows"),
+            ):
                 with caplog.at_level(logging.WARNING):
                     _prepare_pipeline_data(mock_adapter, mock_run_params, mock_pipeline_context)
 
