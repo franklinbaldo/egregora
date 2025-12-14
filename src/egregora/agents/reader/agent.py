@@ -19,8 +19,8 @@ from tenacity import Retrying
 
 from egregora.agents.reader.models import PostComparison, ReaderFeedback
 from egregora.config.settings import EgregoraConfig
+from egregora.infra.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.resources.prompts import render_prompt
-from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.utils.model_fallback import create_fallback_model
 
 if TYPE_CHECKING:

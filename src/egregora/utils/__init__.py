@@ -3,12 +3,6 @@
 MODERN (Phase 3): Added consolidated date/time and filesystem utilities.
 """
 
-from egregora.utils.batch import (
-    BatchPromptRequest,
-    BatchPromptResult,
-    EmbeddingBatchRequest,
-    EmbeddingBatchResult,
-)
 from egregora.utils.cache import ENRICHMENT_CACHE_VERSION, EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.network import SSRFValidationError, validate_public_url
@@ -23,10 +17,6 @@ from egregora.utils.zip import (
 
 __all__ = [
     "ENRICHMENT_CACHE_VERSION",
-    "BatchPromptRequest",
-    "BatchPromptResult",
-    "EmbeddingBatchRequest",
-    "EmbeddingBatchResult",
     "EnrichmentCache",
     "PathTraversalError",
     "SSRFValidationError",

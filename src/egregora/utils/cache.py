@@ -140,8 +140,6 @@ class EnrichmentCache:
 class CacheTier(str, Enum):
     """Enumeration of available cache tiers."""
 
-    ENRICHMENT = "enrichment"  # L1: Assets (Immutable)
-    RAG = "rag"  # L2: Retrieval (Invalidates on Index Change)
     WRITER = "writer"  # L3: Synthesis (Invalidates on Prompt/Data Change)
 
 

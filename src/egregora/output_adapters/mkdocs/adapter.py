@@ -27,13 +27,13 @@ from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import generate_fallback_avatar_url
+from egregora.markdown.frontmatter import parse_frontmatter
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.filesystem import ensure_author_entries
-from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import slugify
 
 logger = logging.getLogger(__name__)
@@ -1426,7 +1426,7 @@ def _render_author_index(self, profile: dict) -> str:
     )
 
     # Build frontmatter
-    frontmatter = f"""---
+    return f"""---
 title: {profile["name"]}
 type: profile
 uuid: {profile["uuid"]}
@@ -1447,7 +1447,6 @@ interests: {profile.get("interests", [])}
 
 {", ".join(profile.get("interests", []))}
 """
-    return frontmatter
 
 
 def _sync_author_profiles(self) -> None:

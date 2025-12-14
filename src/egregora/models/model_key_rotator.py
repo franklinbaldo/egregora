@@ -115,7 +115,6 @@ class ModelKeyRotator:
         if is_rate_limit_error is None:
             is_rate_limit_error = _default_rate_limit_check
 
-        last_exception: Exception | None = None
         self.reset()
 
         while True:
@@ -127,7 +126,6 @@ class ModelKeyRotator:
                 self.reset()
                 return result
             except Exception as exc:
-                last_exception = exc
 
                 if is_rate_limit_error(exc):
                     # Try next key for same model
@@ -143,7 +141,7 @@ class ModelKeyRotator:
                         continue
 
                     # All models+keys exhausted
-                    logger.error("[ModelKeyRotator] All models and keys exhausted")
+                    logger.exception("[ModelKeyRotator] All models and keys exhausted")
                     raise
 
                 # Non-rate-limit error - propagate immediately

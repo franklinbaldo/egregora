@@ -20,8 +20,8 @@ from egregora.agents.banner.gemini_provider import GeminiImageGenerationProvider
 from egregora.agents.banner.image_generation import ImageGenerationRequest
 from egregora.config import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.infra.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.resources.prompts import render_prompt
-from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
 
 logger = logging.getLogger(__name__)
 

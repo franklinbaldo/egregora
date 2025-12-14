@@ -28,7 +28,6 @@ from egregora.diagnostics import HealthStatus, run_diagnostics
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration.pipelines.write import run_cli_flow
 
-
 app = typer.Typer(
     name="egregora",
     help="Ultra-simple WhatsApp to blog pipeline with LLM-powered content generation",

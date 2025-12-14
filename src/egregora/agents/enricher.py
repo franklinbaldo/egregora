@@ -47,7 +47,6 @@ from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.model_fallback import create_fallback_model
 from egregora.utils.paths import slugify
-from egregora.utils.quota import QuotaTracker
 
 if TYPE_CHECKING:
     from ibis.backends.duckdb import Backend as DuckDBBackend
@@ -169,7 +168,7 @@ class EnrichmentRuntimeContext:
     site_root: Path | None = None
     duckdb_connection: DuckDBBackend | None = None
     target_table: str | None = None
-    quota: QuotaTracker | None = None
+    quota: Any | None = None
     usage_tracker: UsageTracker | None = None
     pii_prevention: dict[str, Any] | None = None  # LLM-native PII prevention settings
     task_store: Any | None = None  # Added for job queue scheduling
@@ -752,7 +751,7 @@ def _extract_media_candidates(
 class EnrichmentWorker(BaseWorker):
     """Worker for media enrichment (e.g. image description)."""
 
-    def __init__(self, ctx: PipelineContext | EnrichmentRuntimeContext):
+    def __init__(self, ctx: PipelineContext | EnrichmentRuntimeContext) -> None:
         super().__init__(ctx)
         self.zip_handle: zipfile.ZipFile | None = None
         self.media_index: dict[str, str] = {}
@@ -1032,7 +1031,8 @@ class EnrichmentWorker(BaseWorker):
             results_dict = json.loads(response_text)
         except json.JSONDecodeError as e:
             logger.warning("[URLEnricher] Failed to parse JSON response: %s", e)
-            raise ValueError(f"Failed to parse batch response: {e}") from e
+            msg = f"Failed to parse batch response: {e}"
+            raise ValueError(msg) from e
 
         # Convert to result tuples
         results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
@@ -1335,7 +1335,7 @@ class EnrichmentWorker(BaseWorker):
         ).strip()
 
         # Build the request: prompt first, then all images
-        request_parts = [{"text": combined_prompt}] + parts
+        request_parts = [{"text": combined_prompt}, *parts]
 
         # Build model+key rotator if enabled
         from egregora.models.model_key_rotator import ModelKeyRotator
@@ -1371,7 +1371,8 @@ class EnrichmentWorker(BaseWorker):
             results_dict = json.loads(response_text)
         except json.JSONDecodeError as e:
             logger.warning("[MediaEnricher] Failed to parse JSON response: %s", e)
-            raise ValueError(f"Failed to parse batch response: {e}") from e
+            msg = f"Failed to parse batch response: {e}"
+            raise ValueError(msg) from e
 
         # Convert to BatchResult-like objects
         results = []

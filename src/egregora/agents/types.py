@@ -30,7 +30,6 @@ if TYPE_CHECKING:
     from egregora.database.task_store import TaskStore
     from egregora.output_adapters import OutputSinkRegistry
     from egregora.utils.metrics import UsageTracker
-    from egregora.utils.quota import QuotaTracker
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +128,7 @@ class WriterResources:
     journal_dir: Path
     prompts_dir: Path | None
     client: genai.Client | None
-    quota: QuotaTracker | None
+    quota: Any | None
     usage: UsageTracker | None
     task_store: TaskStore | None = None
     output_registry: OutputSinkRegistry | None = None

@@ -16,7 +16,6 @@ from egregora.config.settings import (
 )
 from egregora.input_adapters.whatsapp import WhatsAppExport, discover_chat_file
 from egregora.utils.zip import validate_zip_contents
-from tests.utils.mock_batch_client import MockGeminiClient
 from tests.utils.pydantic_test_models import MockEmbeddingModel, install_writer_test_model
 
 try:
@@ -172,30 +171,6 @@ def stub_enrichment_agents(monkeypatch):
     )
 
 
-@pytest.fixture
-def mock_batch_client(monkeypatch):
-    """Monkey-patch genai.Client with mocks for fast tests.
-
-    This fixture replaces all API client instances with mocks that return
-    instant fake responses without API calls. Tests run ~100x faster.
-
-    Usage:
-        def test_with_mock(mock_batch_client):
-            # All API calls are now mocked
-            process_whatsapp_export(..., options=WhatsAppProcessOptions())
-    """
-    # Patch genai.Client - this is the main client used everywhere
-    monkeypatch.setattr(
-        "google.genai.Client",
-        MockGeminiClient,
-    )
-    # Patch where genai is imported in egregora modules
-    monkeypatch.setattr(
-        "egregora.orchestration.write_pipeline.genai.Client",
-        MockGeminiClient,
-    )
-
-    return MockGeminiClient
 
 
 @pytest.fixture
