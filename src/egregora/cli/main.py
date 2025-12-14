@@ -14,10 +14,6 @@ except ImportError:
 
 # Deferred import if needed, but for now moving it top level as requested by linter
 # We need to make sure this doesn't break things if import fails, but diagnostics is part of the package.
-# Moved get_storage locally to support top/history commands
-import contextlib
-
-import duckdb
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
@@ -27,37 +23,10 @@ from egregora.cli.read import read_app
 from egregora.config import load_egregora_config
 from egregora.constants import SourceType, WindowUnit
 from egregora.database.elo_store import EloStore
+from egregora.database.utils import get_simple_storage
 from egregora.diagnostics import HealthStatus, run_diagnostics
 from egregora.init import ensure_mkdocs_project
 from egregora.orchestration.pipelines.write import run_cli_flow
-
-
-# MOVED from runs.py to support top/history commands
-class _RunsDuckDBStorage:
-    """Minimal DuckDB storage used by CLI commands without initializing Ibis."""
-
-    def __init__(self, db_path: Path) -> None:
-        self.db_path = db_path
-        self._conn = duckdb.connect(str(db_path))
-
-    @contextlib.contextmanager
-    def connection(self) -> contextlib.AbstractContextManager[duckdb.DuckDBPyConnection]:
-        yield self._conn
-
-    def execute_query(self, sql: str, params: list | None = None) -> list[tuple]:
-        return self._conn.execute(sql, params or []).fetchall()
-
-    def execute_query_single(self, sql: str, params: list | None = None) -> tuple | None:
-        return self._conn.execute(sql, params or []).fetchone()
-
-    def get_table_columns(self, table_name: str) -> set[str]:
-        info = self._conn.execute(f"PRAGMA table_info('{table_name}')").fetchall()
-        return {row[1] for row in info}
-
-
-def get_storage(db_path: Path):
-    """Get a DuckDBStorageManager instance."""
-    return _RunsDuckDBStorage(db_path)
 
 
 app = typer.Typer(
@@ -260,7 +229,7 @@ def top(
         console.print("Run 'egregora read' first to generate rankings")
         raise typer.Exit(1)
 
-    storage = get_storage(db_path)
+    storage = get_simple_storage(db_path)
     elo_store = EloStore(storage)
 
     top_posts = elo_store.get_top_posts(limit=limit).execute()
@@ -341,7 +310,7 @@ def show_reader_history(
         console.print("Run 'egregora read' first to generate rankings")
         raise typer.Exit(1)
 
-    storage = get_storage(db_path)
+    storage = get_simple_storage(db_path)
     elo_store = EloStore(storage)
 
     history = elo_store.get_comparison_history(

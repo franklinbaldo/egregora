@@ -86,12 +86,13 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
     site_dir = _build_site(tmp_path, docs_dir)
 
     # With unified output, profiles/journals/enrichment go to posts/ directory
-    # but URL convention still generates type-specific URLs (profiles/, journal/, etc.)
+    # URL conventions reflect this unified structure
     # So we verify: (1) file exists, (2) built site serves correctly
     for stored_doc in (post, profile, journal, fallback_journal, enrichment, media):
         canonical_url = adapter.url_convention.canonical_url(stored_doc, adapter._ctx)  # type: ignore[arg-type]
         if stored_doc is fallback_journal:
-            assert canonical_url == "/journal/"
+            # Fallback journals without metadata use posts/ in unified structure
+            assert canonical_url == "/posts/"
         stored_path = adapter._index[stored_doc.document_id]
 
         # (1) Verify the file was persisted
@@ -106,11 +107,8 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
             # Unified: profiles go to posts/
             assert str(stored_relative).startswith("posts/")
         elif stored_doc.type == DocumentType.JOURNAL:
-            # Unified: journals go to posts/, except fallback journal which goes to docs root
-            if stored_doc is fallback_journal:
-                assert stored_relative == Path("journal.md")
-            else:
-                assert str(stored_relative).startswith("posts/")
+            # Unified: all journals go to posts/ directory
+            assert str(stored_relative).startswith("posts/")
         elif stored_doc.type == DocumentType.ENRICHMENT_URL:
             # Unified: enrichment URLs go to posts/
             assert str(stored_relative).startswith("posts/")
