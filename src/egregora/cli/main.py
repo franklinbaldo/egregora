@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import sys
+import traceback
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -399,7 +400,7 @@ def write(  # noqa: PLR0913
         write_pipeline.run(run_params)
         console.print("[green]Processing completed successfully.[/green]")
     except Exception as e:
-        console.print_exception(show_locals=False)
+        traceback.print_exc()
         console.print(f"[red]Pipeline failed: {e}[/]")
         raise typer.Exit(code=1) from e
 

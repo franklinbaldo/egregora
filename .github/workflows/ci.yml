@@ -40,6 +40,7 @@ jobs:
   lint-ruff-format:
     name: Ruff (format)
     runs-on: ubuntu-latest
+    needs: [lint-ruff-check]
     steps:
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
@@ -49,6 +50,20 @@ jobs:
 
       - name: Run ruff (format check)
         run: uv run ruff format --check src/ tests/
+
+  lint-mypy:
+    name: Mypy
+    runs-on: ubuntu-latest
+    needs: [lint-ruff-check, lint-ruff-format]
+    steps:
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--all-extras"
+
+      - name: Run mypy
+        run: uv run mypy src/
 
   test-unit:
     name: Unit Tests (Python ${{ env.PYTHON_VERSION }})
@@ -99,7 +114,8 @@ jobs:
     name: E2E Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [lint-ruff-check, lint-ruff-format]
+    needs: [lint-ruff-check, lint-ruff-format, lint-mypy]
+    if: always()
     steps:
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-uv
@@ -144,7 +160,7 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
-    needs: [lint-ruff-check, lint-ruff-format]
+    needs: [lint-ruff-check, lint-ruff-format, lint-mypy]
     if: github.ref == 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 10
     permissions:
@@ -175,8 +191,7 @@ jobs:
   build:
     name: Build Package
     runs-on: ubuntu-latest
-    needs: [lint-ruff-check, lint-ruff-format, test-unit, test-e2e, security]
-    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') }}
+    needs: [lint-ruff-check, lint-ruff-format, lint-mypy, test-unit, test-e2e, security]
     timeout-minutes: 10
     steps:
       - name: Setup Python environment
@@ -198,28 +213,40 @@ jobs:
   docs:
     name: Build & Deploy Docs
     needs: [build, security, quality]
-    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: write  # Required for GitHub Pages deployment
     steps:
+      - name: Determine if docs should run
+        id: docs_condition
+        run: |
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Python environment
+        if: steps.docs_condition.outputs.run == 'true'
         uses: ./.github/actions/setup-python-uv
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           extras: "--extra docs"
 
       - name: Build Documentation
+        if: steps.docs_condition.outputs.run == 'true'
         run: uv run mkdocs build
 
       - name: Setup Node.js
+        if: steps.docs_condition.outputs.run == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
 
       - name: Generate Repomix bundles
+        if: steps.docs_condition.outputs.run == 'true'
         run: |
           mkdir -p /tmp/bundles
           npx repomix -c repomix-docs.json --output /tmp/bundles/docs.bundle.md
@@ -229,43 +256,63 @@ jobs:
           cp /tmp/bundles/*.bundle.md site/bundles/
 
       - name: Deploy to GitHub Pages
-        if: github.repository == 'franklinbaldo/egregora'
+        if: steps.docs_condition.outputs.run == 'true' && github.repository == 'franklinbaldo/egregora'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./site
 
       - name: Upload bundles artifact
+        if: steps.docs_condition.outputs.run == 'true'
         uses: actions/upload-artifact@v5
         with:
           name: bundles
           path: /tmp/bundles/
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
 
+      - name: Docs build skipped
+        if: steps.docs_condition.outputs.run == 'false'
+        run: echo "Documentation build skipped for this event."
+
   quality:
     name: Code Quality Metrics
     runs-on: ubuntu-latest
-    needs: [lint-ruff-check, lint-ruff-format, test-unit]
-    if: github.ref == 'refs/heads/main' || github.event_name == 'schedule'
+    needs: [lint-ruff-check, lint-ruff-format, lint-mypy, test-unit]
     timeout-minutes: 10
     steps:
+      - name: Determine if quality checks should run
+        id: quality_condition
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.event_name }}" == "schedule" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Python environment
+        if: steps.quality_condition.outputs.run == 'true'
         uses: ./.github/actions/setup-python-uv
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           extras: "--all-extras"
 
       - name: Run radon (complexity)
+        if: steps.quality_condition.outputs.run == 'true'
         run: uv run radon cc src/ -a
 
       - name: Run xenon (threshold enforcement)
+        if: steps.quality_condition.outputs.run == 'true'
         continue-on-error: true
         run: uv run xenon src/ --max-absolute B --max-modules B --max-average B
+
+      - name: Quality checks skipped
+        if: steps.quality_condition.outputs.run == 'false'
+        run: echo "Quality checks skipped for this event."
 
   summary:
     name: Workflow Summary
     runs-on: ubuntu-latest
-    needs: [lint-ruff-check, lint-ruff-format, test-unit, test-e2e, security, quality, build, docs]
+    needs: [lint-ruff-check, lint-ruff-format, lint-mypy, test-unit, test-e2e, security, quality, build, docs]
     if: always()
     steps:
       - name: Post summary
@@ -277,6 +324,7 @@ jobs:
           | --- | ------ |
           | Ruff Lint | ${{ needs['lint-ruff-check'].result }} |
           | Ruff Format | ${{ needs['lint-ruff-format'].result }} |
+          | Mypy | ${{ needs['lint-mypy'].result }} |
           | Unit Tests | ${{ needs['test-unit'].result }} |
           | E2E Tests | ${{ needs['test-e2e'].result }} |
           | Security | ${{ needs.security.result }} |
