@@ -24,10 +24,13 @@ from pydantic import BaseModel
 
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.utils import build_message_attrs
+from egregora.privacy import anonymize_author, scrub_pii
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
+
+    from egregora.config.settings import EgregoraConfig
 
 logger = logging.getLogger(__name__)
 
@@ -64,19 +67,24 @@ _DATE_PARSING_STRATEGIES = [
 ]
 
 
-def _normalize_text(value: str) -> str:
+def _normalize_text(value: str, config: EgregoraConfig | None = None) -> str:
     """Normalize unicode text and sanitize HTML.
 
     Performs:
     1. Unicode NFKC normalization
     2. Removal of invisible control characters
-    3. HTML escaping of special characters (<, >, &) to prevent XSS
+    3. PII scrubbing (if enabled)
+    4. HTML escaping of special characters (<, >, &) to prevent XSS
        (quote=False to preserve readability of quotes in text)
     """
     normalized = unicodedata.normalize("NFKC", value)
     # NFKC already converts \u202f (Narrow No-Break Space) to space, so explicit replace is redundant
     cleaned = _INVISIBLE_MARKS.sub("", normalized)
-    return html.escape(cleaned, quote=False)
+
+    # Scrub PII before HTML escaping
+    scrubbed = scrub_pii(cleaned, config)
+
+    return html.escape(scrubbed, quote=False)
 
 
 @lru_cache(maxsize=1024)
@@ -181,7 +189,10 @@ class MessageBuilder:
         author_raw = msg["author_raw"]
         # Deterministic UUID generation: same author_raw always produces the same UUID
         # Uses UUID5 (name-based) with OID namespace for consistent, reproducible author IDs
-        author_uuid = uuid.uuid5(uuid.NAMESPACE_OID, f"{self.source_identifier}:{author_raw}")
+        author_key = f"{self.source_identifier}:{author_raw}"
+        author_uuid_str = anonymize_author(author_key, uuid.NAMESPACE_OID)
+        # Convert back to UUID object for hex property (TODO: refactor to use str consistently)
+        author_uuid = uuid.UUID(author_uuid_str)
 
         return {
             "ts": msg["timestamp"],
@@ -189,7 +200,7 @@ class MessageBuilder:
             "message_date": msg["date"].isoformat(),
             "author": author_raw,
             "author_raw": author_raw,
-            "author_uuid": str(author_uuid),
+            "author_uuid": author_uuid_str,
             "_author_uuid_hex": author_uuid.hex,
             "text": message_text,
             "original_line": original_text or None,
@@ -205,8 +216,9 @@ class MessageBuilder:
 class ZipMessageSource:
     """Iterates over lines from a WhatsApp chat export inside a ZIP file."""
 
-    def __init__(self, export: WhatsAppExport) -> None:
+    def __init__(self, export: WhatsAppExport, config: EgregoraConfig | None = None) -> None:
         self.export = export
+        self.config = config
 
     def lines(self) -> Iterator[str]:
         """Yield normalized lines from the source file."""
@@ -217,7 +229,7 @@ class ZipMessageSource:
                 with zf.open(self.export.chat_file) as raw:
                     text_stream = io.TextIOWrapper(raw, encoding="utf-8", errors="strict")
                     for line in text_stream:
-                        yield _normalize_text(line.rstrip("\n"))
+                        yield _normalize_text(line.rstrip("\n"), self.config)
             except UnicodeDecodeError as exc:
                 msg = f"Failed to decode chat file '{self.export.chat_file}': {exc}"
                 raise ZipValidationError(msg) from exc
@@ -299,9 +311,10 @@ def parse_source(
     *,
     expose_raw_author: bool = False,
     source_identifier: str = "whatsapp",
+    config: EgregoraConfig | None = None,
 ) -> Table:
     """Parse WhatsApp export using pure Ibis/DuckDB operations."""
-    source = ZipMessageSource(export)
+    source = ZipMessageSource(export, config)
     rows = _parse_whatsapp_lines(source, export, timezone)
 
     if not rows:
@@ -315,6 +328,11 @@ def parse_source(
         messages = messages.order_by("ts")
 
     messages = _add_message_ids(messages)
+
+    if not expose_raw_author:
+        # Redact raw author names if not explicitly exposed
+        # Replace author_raw with author_uuid to maintain a valid string
+        messages = messages.mutate(author_raw=messages.author_uuid)
 
     if "_import_order" in messages.columns:
         messages = messages.drop("_import_order")

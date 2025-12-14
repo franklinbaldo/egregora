@@ -19,7 +19,7 @@ These tasks focus on improving the current architecture without unnecessary brea
 
 ## Medium Priority
 
-- [ ] **Centralize Privacy Utilities**
+- [x] **Centralize Privacy Utilities**
   - **Rationale:** Privacy logic (anonymization, PII redaction) is scattered across adapters and agents. Move to `src/egregora/privacy/`.
   - **Modules:** `src/egregora/input_adapters/`, `src/egregora/agents/writer_helpers.py`
 

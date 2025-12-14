@@ -206,6 +206,8 @@ def _build_writer_context(params: WriterContextParams) -> WriterContext:
         )
 
     pii_prevention = None
+    if params.config.privacy.pii_detection_enabled:
+        pii_prevention = params.config.privacy.model_dump()
 
     return WriterContext(
         conversation_xml=conversation_xml,

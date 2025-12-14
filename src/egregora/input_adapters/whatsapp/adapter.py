@@ -99,6 +99,7 @@ class WhatsAppAdapter(InputAdapter):
             export,
             timezone=timezone,
             expose_raw_author=True,  # Always expose raw initially
+            config=self._config,
         )
 
         logger.debug("Parsed WhatsApp export with %s messages", messages_table.count().execute())
