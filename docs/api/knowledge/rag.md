@@ -65,13 +65,13 @@ rag:
 
 ### Backend Protocol
 
-::: egregora.rag.backend.RAGBackend
+::: egregora.rag.backend.VectorStore
     options:
       show_root_heading: true
       heading_level: 3
       members:
-        - index_documents
-        - search
+        - add
+        - query
         - delete
 
 ### LanceDB Backend

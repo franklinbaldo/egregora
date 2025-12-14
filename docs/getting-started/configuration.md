@@ -43,13 +43,6 @@ egregora process [OPTIONS] EXPORT_PATH
 | `--retrieval-nprobe` | ANN search quality (1-100) | `10` |
 | `--embedding-dimensions` | Embedding dimensions | `768` |
 
-### Privacy Options
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--anonymize/--no-anonymize` | Enable/disable name anonymization | `True` |
-| `--detect-pii/--no-detect-pii` | Enable/disable PII detection | `True` |
-
 ### Feature Flags
 
 | Option | Description | Default |
@@ -97,11 +90,6 @@ writer:
     Write in a casual, friendly tone inspired by longform journalism.
   enable_banners: true        # Generate banner images
   max_prompt_tokens: 100000   # Token limit per prompt
-
-# Privacy settings
-privacy:
-  anonymization_enabled: true
-  pii_detection_enabled: true
 
 # Enrichment settings
 enrichment:
@@ -256,15 +244,6 @@ egregora write export.zip \
   --model=models/gemini-flash-latest \
   --step-size=7 --step-unit=days \
   --retrieval-mode=exact \
-  --no-enrich
-```
-
-### Privacy-Focused
-
-```bash
-egregora write export.zip \
-  --anonymize \
-  --detect-pii \
   --no-enrich
 ```
 
