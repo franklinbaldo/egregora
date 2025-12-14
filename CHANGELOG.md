@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 2025-12-13 - Simplification: Remove Over-Engineered Sub-Features
+
+#### Removed
+- **Privacy Module:** Removed entire PII detection and structural anonymization system
+  - Deleted `src/egregora/privacy/` directory (anonymizer, UUID namespaces, privacy config)
+  - Removed privacy integration from WhatsApp adapter and agents
+  - Removed privacy-related configuration classes (`PrivacySettings`, `PIIPreventionSettings`, etc.)
+  - Removed privacy constants (`AuthorPrivacyStrategy`, `MentionPrivacyStrategy`, `PIIScope`, etc.)
+  - **Impact:** 600+ lines removed
+
+- **CLI Commands:** Removed `egregora config` and `egregora runs` commands
+  - Deleted `src/egregora/cli/config.py` and `src/egregora/cli/runs.py`
+  - Core commands (`write`, `init`, `read`) remain functional
+  - **Impact:** 400+ lines removed
+
+- **Output Formats:** Removed Parquet/JSON export adapter
+  - Deleted `src/egregora/output_adapters/parquet/` directory
+  - Kept MkDocs as the only output format (as documented in FEATURES.md)
+  - **Impact:** 200+ lines removed
+
+- **Dead Code Cleanup:** Removed PII remnants detected by Vulture
+  - Removed `_replace_pii_media_references()` function from enricher
+  - **Impact:** 13+ lines removed
+
+#### Rationale
+Removed over-engineered implementation details (sub-features) to reduce complexity while maintaining all core functionality. Total impact: **2,154 lines removed** across 27 files.
+
+Core features (RAG, media processing, banner generation, ELO ratings, model rotation) remain unchanged and fully functional.
+
+See `REMOVAL_PLAN.md` for detailed removal strategy and `VULTURE_ANALYSIS.md` for dead code analysis.
+
 ### 2025-11-28 - De-Async Refactor & Privacy Alignment
 
 #### Changed
@@ -198,7 +229,7 @@ results = store.query_media(query, media_types=types, ...)
 
 #### Fixed
 - VSS extension now loaded explicitly before HNSW operations (PR #893)
-- Fallback avatar generation using getavataaars.com (deterministic from UUID hash)
+- Fallback avatar generation using avataaars.io (deterministic from UUID hash)
 - Banner path conversion to web-friendly relative URLs
 - Idempotent scaffold (detects existing mkdocs.yml)
 

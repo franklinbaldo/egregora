@@ -1,6 +1,6 @@
 """Tests for datetime-safe JSON serialization in LanceDB backend."""
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -12,11 +12,11 @@ class TestJsonSerializeMetadata:
 
     def test_serializes_datetime_to_iso(self) -> None:
         """Datetime objects should be serialized to ISO format strings."""
-        dt = datetime(2024, 3, 15, 10, 30, 0, tzinfo=timezone.utc)
+        dt = datetime(2024, 3, 15, 10, 30, 0, tzinfo=UTC)
         metadata = {"created_at": dt, "title": "Test"}
-        
+
         result = _json_serialize_metadata(metadata)
-        
+
         assert '"created_at": "2024-03-15T10:30:00+00:00"' in result
         assert '"title": "Test"' in result
 
@@ -24,14 +24,14 @@ class TestJsonSerializeMetadata:
         """Date objects should be serialized to ISO format strings."""
         d = date(2024, 3, 15)
         metadata = {"published_date": d}
-        
+
         result = _json_serialize_metadata(metadata)
-        
+
         assert '"published_date": "2024-03-15"' in result
 
     def test_handles_mixed_types(self) -> None:
         """Should handle metadata with various types including datetime."""
-        dt = datetime(2024, 3, 15, 10, 30, 0, tzinfo=timezone.utc)
+        dt = datetime(2024, 3, 15, 10, 30, 0, tzinfo=UTC)
         metadata = {
             "title": "Test Post",
             "created_at": dt,
@@ -39,9 +39,9 @@ class TestJsonSerializeMetadata:
             "active": True,
             "tags": ["a", "b"],
         }
-        
+
         result = _json_serialize_metadata(metadata)
-        
+
         # Should not raise and should contain all fields
         assert "Test Post" in result
         assert "2024-03-15" in result
@@ -51,12 +51,12 @@ class TestJsonSerializeMetadata:
 
     def test_raises_on_unsupported_type(self) -> None:
         """Should raise TypeError for unsupported types."""
-        
+
         class CustomClass:
             pass
-        
+
         metadata = {"custom": CustomClass()}
-        
+
         with pytest.raises(TypeError, match="not JSON serializable"):
             _json_serialize_metadata(metadata)
 

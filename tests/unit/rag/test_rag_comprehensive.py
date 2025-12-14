@@ -607,19 +607,19 @@ def test_high_level_api_index_and_search():
     """Test the high-level index_documents() and search() API."""
     with (
         tempfile.TemporaryDirectory(),
-        patch("egregora.rag._create_backend") as mock_create,
+        patch("egregora.rag.get_backend") as mock_get_backend,
     ):
         mock_backend = Mock()
-        mock_create.return_value = mock_backend
+        mock_get_backend.return_value = mock_backend
 
         # Reset global backend
-        egregora.rag._backend = None
+        egregora.rag.reset_backend()
 
         # Use high-level API
         docs = [Document(content="Test", type=DocumentType.POST)]
         index_documents(docs)
 
-        mock_backend.index_documents.assert_called_once_with(docs)
+        mock_backend.add.assert_called_once_with(docs)
 
         # Search
         request = RAGQueryRequest(text="Test", top_k=5)
@@ -630,9 +630,9 @@ def test_high_level_api_index_and_search():
 
 def test_high_level_api_backend_singleton():
     """Test that get_backend() returns singleton instance."""
-    with patch("egregora.rag._create_backend") as mock_create:
+    with patch("egregora.rag.LanceDBRAGBackend") as mock_backend_class:
         mock_backend1 = Mock()
-        mock_create.return_value = mock_backend1
+        mock_backend_class.return_value = mock_backend1
 
         # Reset global backend
         egregora.rag.reset_backend()
@@ -644,7 +644,7 @@ def test_high_level_api_backend_singleton():
         # Should be same instance
         assert backend1 is backend2
         # Should only create once
-        assert mock_create.call_count == 1
+        assert mock_backend_class.call_count == 1
 
 
 # ============================================================================

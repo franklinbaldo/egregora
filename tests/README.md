@@ -1,10 +1,13 @@
-# Test Organization
+# Egregora Test Suite (De-wheeled)
 
 This document explains the test organization strategy in Egregora, helping contributors understand where to place new tests and how to run existing ones.
 
-## New Testing Strategy (2025-01-09)
+## Philosophy
 
-Egregora has shifted to an **End-to-End (E2E) first testing strategy**. We rely exclusively on E2E tests to validate the entire pipeline, ensuring that the system works correctly from user input to final output.
+1.  **Offline by Default**: No network calls. Enforced by `pytest-socket`.
+2.  **Deterministic**: No "CPU lottery" or race conditions.
+3.  **Fixture-First**: Use shared fixtures in `tests/conftest.py`.
+4.  **Snapshots**: Verify complex outputs with `syrupy` or golden files.
 
 The `tests/` directory is organized as follows:
 

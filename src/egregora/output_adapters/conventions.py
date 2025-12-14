@@ -103,9 +103,9 @@ def _remove_url_extension(url_path: str) -> str:
 class RouteConfig:
     """Configuration for URL routing segments."""
 
-    posts_prefix: str = "blog/posts"
+    posts_prefix: str = "posts"
     profiles_prefix: str = "profiles"
-    media_prefix: str = "media"  # Changed from "blog/posts/media" to fix path duplication
+    media_prefix: str = "media"  # Fixed: Changed from "posts/media" to "media" to avoid path duplication
     journal_prefix: str = "journal"
     # Defines if dates should be part of the URL structure: /2025-01-01-slug/ vs /slug/
     date_in_url: bool = True
@@ -212,8 +212,8 @@ class StandardUrlConvention(UrlConvention):
         if slug_value:
             safe_label = slugify(slug_value)
             return self._join(ctx, self.routes.journal_prefix, safe_label)
-        # Fallback: no window_label or slug, return journal root
-        return self._join(ctx, self.routes.journal_prefix)
+        # Fallback: no window_label or slug, unified output goes to posts/
+        return self._join(ctx, self.routes.posts_prefix)
 
     def _format_url_enrichment_url(self, ctx: UrlContext, document: Document) -> str:
         if document.suggested_path:

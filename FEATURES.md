@@ -50,9 +50,7 @@ Semantic search and context retrieval for LLM generation.
 - Thread-based concurrent processing
 
 ### Search Capabilities
-- Keyword search
 - Semantic search (vector similarity)
-- Hybrid search (keyword + semantic)
 - Context window construction
 - Relevance scoring
 
@@ -86,7 +84,7 @@ AI-powered workers that process and generate content.
 
 ### Avatar Agent
 - Generate profile avatars
-- Fallback to [getavataaars.com](https://getavataaars.com)
+- Fallback to [avataaars.io](https://avataaars.io)
 - Avatar command processing (`/avatar set`)
 
 ### Taxonomy Agent
@@ -230,16 +228,16 @@ DuckDB-based data management.
 
 ---
 
-## 📝 Output Adapters
+## 📝 Output Adapter
 
-Generate final output in various formats.
+Generate final output as static site.
 
 ### MkDocs Adapter
 - Generate static blog sites
 - Material theme with customization
 - **Automatic index page generation**:
   - Journal index
-  - Profiles index  
+  - Profiles index
   - Media index
   - Tags page with word cloud
 - Profile pages with structured templates
@@ -247,38 +245,6 @@ Generate final output in various formats.
 - **Banner generation** for posts
 - Git integration for timestamps
 - **Slug-based media naming** with reference updates
-
-### Markdown Exporter
-- Export posts as standalone markdown
-- Preserve frontmatter
-- Relative linking
-
-### JSON/API Export
-- Structured data export
-- API-ready formats
-- Custom schema support
-
----
-
-## 🔒 Privacy
-
-PII detection and anonymization.
-
-### PII Prevention
-- Automatic PII detection (emails, phones, addresses, SSNs, etc.)
-- Redaction with placeholder tokens
-- Configurable sensitivity levels
-- Allowlist for known safe entities
-
-### Phone Number Scrubbing
-- Format-agnostic phone detection
-- International number support
-- Context-aware replacement
-
-### Privacy Controls
-- Per-source privacy settings
-- Granular redaction controls
-- Audit trail of redactions
 
 ---
 
@@ -319,9 +285,8 @@ Flexible configuration system.
 ### YAML Configuration
 - Site settings (title, description, theme)
 - Model providers and API keys
-- Rate limiting (per-second, concurrent, daily)
+- Rate limiting (per-second)
 - Enrichment strategy selection
-- Privacy controls
 - Template paths
 
 ### Settings Schema
@@ -332,9 +297,7 @@ Flexible configuration system.
 - Nested configuration sections
 
 ### Overrides
-- CLI flag overrides
-- Environment variables
-- Config file cascading
+- Environment variables override YAML values
 
 ---
 
@@ -385,8 +348,6 @@ Command-line interface for all operations.
 - `egregora write` - run blog generation pipeline
 - `egregora init` - initialize new site
 - `egregora read` - query and search content
-- `egregora config` - manage configuration
-- `egregora runs` - view run history
 
 ### Flags
 - `--max-windows` - limit processing
@@ -470,6 +431,7 @@ Helper functions and tools.
 - **5 Gemini models** in rotation
 - **N API keys** × 5 models = maximum resilience
 - **4 input adapters** (WhatsApp, Slack, Markdown, Self-Reflection)
-- **Multiple output formats** (MkDocs, Markdown, JSON)
+- **MkDocs static site output**
+- **Semantic-only search** for focused retrieval
 - **Dual-queue RAG** with key cycling
 - **10 Jinja2 prompt templates**
