@@ -56,3 +56,46 @@ def parse_frontmatter_file(path: Path, *, encoding: str = "utf-8") -> tuple[dict
     """
     content = path.read_text(encoding=encoding)
     return parse_frontmatter(content)
+
+
+def read_frontmatter_only(path: Path, *, encoding: str = "utf-8") -> dict[str, Any]:
+    """Read only the frontmatter from a Markdown file, stopping at the delimiter.
+
+    This avoids reading the entire file into memory when only metadata is needed.
+
+    Args:
+        path: File system path to the Markdown document.
+        encoding: File encoding used to read the file.
+
+    Returns:
+        Metadata dict. Returns empty dict if no frontmatter found or parsing fails.
+
+    """
+    try:
+        with path.open("r", encoding=encoding) as f:
+            first_line = f.readline()
+            if not first_line.startswith("---"):
+                return {}
+
+            lines = []
+            for line in f:
+                if line.rstrip() == "---":
+                    break
+                lines.append(line)
+            else:
+                # EOF reached without closing '---', treat as invalid frontmatter
+                # or possibly the whole file is frontmatter?
+                # Standard behavior dictates closing delimiter.
+                # However, python-frontmatter might be more lenient.
+                # We'll be strict here: no closing delimiter = no frontmatter.
+                return {}
+
+            yaml_content = "".join(lines)
+            data = yaml.safe_load(yaml_content)
+            if isinstance(data, dict):
+                return data
+            return {}
+
+    except (OSError, yaml.YAMLError) as exc:
+        logger.debug("Failed to read frontmatter from %s: %s", path, exc)
+        return {}

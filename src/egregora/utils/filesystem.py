@@ -17,6 +17,8 @@ from pathlib import Path
 import yaml
 
 from egregora.utils.datetime_utils import parse_datetime_flexible
+from egregora.utils.frontmatter_utils import read_frontmatter_only
+from egregora.utils.paths import safe_path_join, slugify
 
 logger = logging.getLogger(__name__)
 
@@ -128,3 +130,104 @@ def _save_authors_yml(path: Path, authors: dict, count: int) -> None:
         logger.warning("Failed to update %s: %s", path, exc)
 
 
+def write_markdown_post(content: str, metadata: dict[str, Any], output_dir: Path) -> str:
+    """Save a markdown post with YAML front matter and unique slugging.
+
+    Handles:
+    - Slug generation and collision resolution
+    - Date formatting
+    - Frontmatter serialization
+    - Author registration (side effect)
+    """
+    required = ["title", "slug", "date"]
+    for key in required:
+        if key not in metadata:
+            msg = f"Missing required metadata: {key}"
+            raise ValueError(msg)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    raw_date = metadata["date"]
+    date_prefix = _extract_clean_date(raw_date)
+
+    base_slug = slugify(metadata["slug"])
+    slug_candidate = base_slug
+    filename = f"{date_prefix}-{slug_candidate}.md"
+    filepath = safe_path_join(output_dir, filename)
+    suffix = 2
+    while filepath.exists():
+        slug_candidate = f"{base_slug}-{suffix}"
+        filename = f"{date_prefix}-{slug_candidate}.md"
+        filepath = safe_path_join(output_dir, filename)
+        suffix += 1
+
+    front_matter = {
+        "title": metadata["title"],
+        "slug": slug_candidate,
+    }
+
+    front_matter["date"] = format_frontmatter_datetime(raw_date)
+
+    if "authors" in metadata:
+        ensure_author_entries(output_dir, metadata.get("authors"))
+
+    if "tags" in metadata:
+        front_matter["tags"] = metadata["tags"]
+    if "summary" in metadata:
+        front_matter["summary"] = metadata["summary"]
+    if "authors" in metadata:
+        front_matter["authors"] = metadata["authors"]
+    if "category" in metadata:
+        front_matter["category"] = metadata["category"]
+
+    yaml_front = yaml.dump(front_matter, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    full_post = f"---\n{yaml_front}---\n\n{content}"
+    filepath.write_text(full_post, encoding="utf-8")
+    return str(filepath)
+
+
+def sync_authors_from_posts(posts_dir: Path, docs_dir: Path | None = None) -> int:
+    """Scan all posts and ensure every referenced author exists in .authors.yml.
+
+    This function traverses all markdown files in posts_dir, extracts author IDs
+    from their frontmatter, and registers any missing authors in .authors.yml.
+
+    Args:
+        posts_dir: Directory containing post markdown files (recursively scanned).
+        docs_dir: Root docs directory where .authors.yml lives. If None, derived from posts_dir.
+
+    Returns:
+        Number of new authors registered.
+
+    """
+    if docs_dir is None:
+        # Derive docs_dir: posts_dir is typically docs/posts/posts, so go up 2 levels
+        docs_dir = posts_dir.resolve().parent.parent
+
+    authors_path = docs_dir / ".authors.yml"
+    authors = _load_authors_yml(authors_path)
+
+    # Collect all unique author IDs from posts
+    all_author_ids: set[str] = set()
+
+    for md_file in posts_dir.rglob("*.md"):
+        try:
+            frontmatter = read_frontmatter_only(md_file)
+            if frontmatter and "authors" in frontmatter:
+                author_list = frontmatter["authors"]
+                if isinstance(author_list, list):
+                    all_author_ids.update(str(a) for a in author_list if a)
+                elif author_list:
+                    all_author_ids.add(str(author_list))
+        except OSError as exc:
+            logger.debug("Skipping %s: %s", md_file, exc)
+            continue
+
+    # Register missing authors
+    new_ids = _register_new_authors(authors, list(all_author_ids))
+
+    if new_ids:
+        _save_authors_yml(authors_path, authors, len(new_ids))
+        logger.info("Synced %d new author(s) from posts to %s", len(new_ids), authors_path)
+
+    return len(new_ids)
