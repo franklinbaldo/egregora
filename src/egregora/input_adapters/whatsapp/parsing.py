@@ -337,6 +337,9 @@ def parse_source(
     if "_import_order" in messages.columns:
         messages = messages.drop("_import_order")
 
+    if not expose_raw_author:
+        messages = messages.mutate(author_raw=messages.author_uuid)
+
     helper_columns = ["_author_uuid_hex"]
     columns_to_drop = [col for col in helper_columns if col in messages.columns]
     if columns_to_drop:
