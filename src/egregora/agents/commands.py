@@ -20,6 +20,7 @@ def is_command(text: str) -> bool:
 
     Returns:
         True if text starts with /egregora (case-insensitive)
+
     """
     return text.strip().lower().startswith("/egregora")
 
@@ -39,6 +40,7 @@ def parse_command(text: str) -> dict[str, Any]:
 
         >>> parse_command("/egregora bio I am a researcher")
         {'type': 'bio', 'action': 'update', 'params': {'bio': 'I am a researcher'}}
+
     """
     # Remove /egregora prefix (case-insensitive)
     text = re.sub(r"^/egregora\s+", "", text.strip(), flags=re.IGNORECASE)
@@ -57,34 +59,17 @@ def parse_command(text: str) -> dict[str, Any]:
         action_parts = rest.split(None, 1)
         action = action_parts[0] if action_parts else "set"
         url = action_parts[1] if len(action_parts) > 1 else ""
-        return {
-            "type": "avatar",
-            "action": action,
-            "params": {"url": url}
-        }
+        return {"type": "avatar", "action": action, "params": {"url": url}}
 
-    elif cmd_type == "bio":
+    if cmd_type == "bio":
         # /egregora bio TEXT
-        return {
-            "type": "bio",
-            "action": "update",
-            "params": {"bio": rest}
-        }
+        return {"type": "bio", "action": "update", "params": {"bio": rest}}
 
-    elif cmd_type == "interests":
+    if cmd_type == "interests":
         # /egregora interests COMMA,SEPARATED,LIST
-        return {
-            "type": "interests",
-            "action": "update",
-            "params": {"interests": rest}
-        }
+        return {"type": "interests", "action": "update", "params": {"interests": rest}}
 
-    else:
-        return {
-            "type": cmd_type,
-            "action": "unknown",
-            "params": {"raw": rest}
-        }
+    return {"type": cmd_type, "action": "unknown", "params": {"raw": rest}}
 
 
 def filter_commands(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -97,6 +82,7 @@ def filter_commands(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     Returns:
         List of messages without commands
+
     """
     return [msg for msg in messages if not is_command(msg.get("text", ""))]
 
@@ -109,6 +95,7 @@ def extract_commands(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     Returns:
         List of only command messages
+
     """
     return [msg for msg in messages if is_command(msg.get("text", ""))]
 
@@ -125,6 +112,7 @@ def command_to_announcement(message: dict[str, Any]) -> Document:
 
     Returns:
         ANNOUNCEMENT Document
+
     """
     text = message["text"]
     author_uuid = message["author_uuid"]
@@ -195,11 +183,9 @@ These interests help shape the topics and themes in our discussions.
         metadata={
             "title": title,
             "slug": slug,
-            "authors": [
-                {"uuid": EGREGORA_UUID, "name": EGREGORA_NAME}
-            ],
+            "authors": [{"uuid": EGREGORA_UUID, "name": EGREGORA_NAME}],
             "event_type": event_type,
             "actor": author_uuid,
-            "date": date
-        }
+            "date": date,
+        },
     )

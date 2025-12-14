@@ -6,12 +6,12 @@ TDD: Profile generation from author's full message history.
 - Egregora authorship
 """
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from datetime import datetime
+from unittest.mock import Mock, patch
 
+import pytest
+
+from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import DocumentType
-from egregora.constants import EGREGORA_UUID, EGREGORA_NAME
 
 
 class TestProfileMetadata:
@@ -29,8 +29,8 @@ class TestProfileMetadata:
                 "slug": "2025-03-07-john-contributions",
                 "authors": [{"uuid": EGREGORA_UUID, "name": EGREGORA_NAME}],
                 "subject": "john-uuid",
-                "date": "2025-03-07"
-            }
+                "date": "2025-03-07",
+            },
         )
 
         assert profile.metadata["authors"][0]["uuid"] == EGREGORA_UUID
@@ -46,8 +46,8 @@ class TestProfileMetadata:
             metadata={
                 "slug": "test",
                 "authors": [{"uuid": EGREGORA_UUID}],
-                "subject": "alice-uuid"  # Required!
-            }
+                "subject": "alice-uuid",  # Required!
+            },
         )
 
         assert "subject" in profile.metadata
@@ -79,11 +79,7 @@ class TestProfileGeneration:
         with patch("egregora.agents.profile.generator._generate_profile_content") as mock_gen:
             mock_gen.return_value = "# Profile content"
 
-            profiles = await generate_profile_posts(
-                ctx=ctx,
-                messages=messages,
-                window_date="2025-03-07"
-            )
+            profiles = await generate_profile_posts(ctx=ctx, messages=messages, window_date="2025-03-07")
 
         # Should create 2 profiles (one per author)
         assert len(profiles) == 2
@@ -92,10 +88,7 @@ class TestProfileGeneration:
         assert all(p.type == DocumentType.PROFILE for p in profiles)
 
         # All authored by Egregora
-        assert all(
-            p.metadata["authors"][0]["uuid"] == EGREGORA_UUID
-            for p in profiles
-        )
+        assert all(p.metadata["authors"][0]["uuid"] == EGREGORA_UUID for p in profiles)
 
     @pytest.mark.asyncio
     async def test_profile_analyzes_full_history(self):
@@ -109,8 +102,7 @@ class TestProfileGeneration:
 
         # 5 messages from one author
         messages = [
-            {"author_uuid": "john-uuid", "author_name": "John", "text": f"Message {i}"}
-            for i in range(5)
+            {"author_uuid": "john-uuid", "author_name": "John", "text": f"Message {i}"} for i in range(5)
         ]
 
         # Track what was passed to content generator
@@ -147,10 +139,7 @@ class TestProfileGeneration:
             mock_llm.return_value = "# John's AI Safety Focus\n\nJohn shows deep concern for AI alignment..."
 
             content = await _generate_profile_content(
-                ctx=ctx,
-                author_messages=author_messages,
-                author_name="John",
-                author_uuid="john-uuid"
+                ctx=ctx, author_messages=author_messages, author_name="John", author_uuid="john-uuid"
             )
 
         # Should have called LLM
@@ -180,11 +169,7 @@ class TestProfilePrompt:
             {"text": "Message 3", "timestamp": "2025-03-03"},
         ]
 
-        prompt = _build_profile_prompt(
-            author_name="John",
-            author_messages=messages,
-            window_date="2025-03-07"
-        )
+        prompt = _build_profile_prompt(author_name="John", author_messages=messages, window_date="2025-03-07")
 
         # All messages should be in prompt
         assert "Message 1" in prompt
@@ -198,7 +183,7 @@ class TestProfilePrompt:
         prompt = _build_profile_prompt(
             author_name="Alice",
             author_messages=[{"text": "Test", "timestamp": "2025-03-01"}],
-            window_date="2025-03-07"
+            window_date="2025-03-07",
         )
 
         # Should instruct LLM to analyze
@@ -208,7 +193,9 @@ class TestProfilePrompt:
         assert "Alice" in prompt
 
         # Should ask for flattering/positive tone
-        assert "positive" in prompt.lower() or "flattering" in prompt.lower() or "appreciative" in prompt.lower()
+        assert (
+            "positive" in prompt.lower() or "flattering" in prompt.lower() or "appreciative" in prompt.lower()
+        )
 
     def test_prompt_specifies_format(self):
         """Prompt specifies PROFILE post format."""
@@ -217,7 +204,7 @@ class TestProfilePrompt:
         prompt = _build_profile_prompt(
             author_name="Bob",
             author_messages=[{"text": "Test", "timestamp": "2025-03-01"}],
-            window_date="2025-03-07"
+            window_date="2025-03-07",
         )
 
         # Should specify it's a profile post

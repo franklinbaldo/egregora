@@ -1,18 +1,17 @@
 """Tests for writer agent decoupling logic."""
-from unittest.mock import MagicMock, patch
+
 from datetime import datetime
-import pytest
+from unittest.mock import MagicMock, patch
 
 from egregora.agents.writer import (
+    JournalEntry,
+    JournalEntryParams,
     _process_single_tool_result,
     _save_journal_to_file,
-    JournalEntryParams,
-    JournalEntry,
 )
-from egregora.data_primitives.document import DocumentType
+
 
 class TestWriterDecoupling:
-
     def test_process_tool_result_ignores_path_structure(self):
         """Test that tool result processing relies on tool_name, not path string structure."""
         saved_posts = []

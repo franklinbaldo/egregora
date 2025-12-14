@@ -10,9 +10,9 @@ Design:
 - Flattering, appreciative tone
 """
 
-from typing import Any
-from collections import defaultdict
 import logging
+from collections import defaultdict
+from typing import Any
 
 from pydantic_ai import Agent
 
@@ -22,12 +22,7 @@ from egregora.data_primitives.document import Document, DocumentType
 logger = logging.getLogger(__name__)
 
 
-
-def _build_profile_prompt(
-    author_name: str,
-    author_messages: list[dict[str, Any]],
-    window_date: str
-) -> str:
+def _build_profile_prompt(author_name: str, author_messages: list[dict[str, Any]], window_date: str) -> str:
     """Build prompt for LLM to generate profile content.
 
     Args:
@@ -37,12 +32,12 @@ def _build_profile_prompt(
 
     Returns:
         Prompt string for LLM
+
     """
     # Format messages for prompt
-    messages_text = "\n".join([
-        f"[{msg.get('timestamp', 'unknown')}] {msg.get('text', '')}"
-        for msg in author_messages
-    ])
+    messages_text = "\n".join(
+        [f"[{msg.get('timestamp', 'unknown')}] {msg.get('text', '')}" for msg in author_messages]
+    )
 
     prompt = f"""You are Egregora, writing a profile post ABOUT {author_name}.
 
@@ -68,10 +63,7 @@ Write the profile post now:"""
 
 
 async def _generate_profile_content(
-    ctx: Any,
-    author_messages: list[dict[str, Any]],
-    author_name: str,
-    author_uuid: str
+    ctx: Any, author_messages: list[dict[str, Any]], author_name: str, author_uuid: str
 ) -> str:
     """Generate profile content using LLM.
 
@@ -83,12 +75,13 @@ async def _generate_profile_content(
 
     Returns:
         Generated profile content (markdown)
+
     """
     # Build prompt
     prompt = _build_profile_prompt(
         author_name=author_name,
         author_messages=author_messages,
-        window_date=author_messages[0].get("timestamp", "").split("T")[0] if author_messages else ""
+        window_date=author_messages[0].get("timestamp", "").split("T")[0] if author_messages else "",
     )
 
     # Call LLM
@@ -106,6 +99,7 @@ async def _call_llm(prompt: str, ctx: Any) -> str:
 
     Returns:
         LLM response
+
     """
     # Get model from config
     model_name = ctx.config.models.writer
@@ -120,9 +114,7 @@ async def _call_llm(prompt: str, ctx: Any) -> str:
 
 
 async def generate_profile_posts(
-    ctx: Any,
-    messages: list[dict[str, Any]],
-    window_date: str
+    ctx: Any, messages: list[dict[str, Any]], window_date: str
 ) -> list[Document]:
     """Generate PROFILE posts for all active authors in window.
 
@@ -136,6 +128,7 @@ async def generate_profile_posts(
 
     Returns:
         List of PROFILE documents (one per author)
+
     """
     # Group messages by author
     author_messages = defaultdict(list)
@@ -155,19 +148,12 @@ async def generate_profile_posts(
     for author_uuid, msgs in author_messages.items():
         author_name = author_names[author_uuid]
 
-        logger.info(
-            "Generating profile for %s (%d messages)",
-            author_name,
-            len(msgs)
-        )
+        logger.info("Generating profile for %s (%d messages)", author_name, len(msgs))
 
         try:
             # Generate content
             content = await _generate_profile_content(
-                ctx=ctx,
-                author_messages=msgs,
-                author_name=author_name,
-                author_uuid=author_uuid
+                ctx=ctx, author_messages=msgs, author_name=author_name, author_uuid=author_uuid
             )
 
             # Extract title from content (first H1)
@@ -187,18 +173,16 @@ async def generate_profile_posts(
                 metadata={
                     "title": title,
                     "slug": slug,
-                    "authors": [
-                        {"uuid": EGREGORA_UUID, "name": EGREGORA_NAME}
-                    ],
+                    "authors": [{"uuid": EGREGORA_UUID, "name": EGREGORA_NAME}],
                     "subject": author_uuid,
-                    "date": window_date
-                }
+                    "date": window_date,
+                },
             )
 
             profiles.append(profile)
             logger.info("Generated profile for %s: %s", author_name, title)
 
-        except Exception as exc:
+        except Exception:
             logger.exception("Failed to generate profile for %s", author_name)
             continue
 

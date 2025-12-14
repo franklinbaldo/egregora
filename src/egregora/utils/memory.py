@@ -5,12 +5,12 @@ Tracks memory usage during blog generation to identify bottlenecks.
 
 import gc
 import logging
-import os
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import psutil
 
@@ -22,6 +22,7 @@ def get_memory_usage() -> dict[str, float]:
 
     Returns:
         Dictionary with memory stats in MB
+
     """
     process = psutil.Process()
     mem_info = process.memory_info()
@@ -65,12 +66,9 @@ def monitor_memory(label: str):
         gc.collect()
         end_mem = get_memory_usage()
         duration = time.time() - start_time
-        delta = end_mem['rss_mb'] - start_mem['rss_mb']
+        delta = end_mem["rss_mb"] - start_mem["rss_mb"]
 
-        logger.info(
-            f"[Memory] {label} - END: {end_mem['rss_mb']:.1f}MB "
-            f"(Δ{delta:+.1f}MB in {duration:.1f}s)"
-        )
+        logger.info(f"[Memory] {label} - END: {end_mem['rss_mb']:.1f}MB (Δ{delta:+.1f}MB in {duration:.1f}s)")
 
 
 def profile_memory(func: Callable) -> Callable:
@@ -81,10 +79,12 @@ def profile_memory(func: Callable) -> Callable:
         def my_function():
             ...
     """
+
     @wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         with monitor_memory(f"{func.__module__}.{func.__name__}"):
             return func(*args, **kwargs)
+
     return wrapper
 
 
@@ -93,6 +93,7 @@ def track_object_sizes(show_top: int = 10) -> None:
 
     Args:
         show_top: Number of top objects to show
+
     """
     import sys
     from collections import defaultdict
@@ -111,18 +112,18 @@ def track_object_sizes(show_top: int = 10) -> None:
     # Sort by size
     sorted_types = sorted(type_sizes.items(), key=lambda x: x[1], reverse=True)
 
-    logger.info(f"\n{'='*60}")
+    logger.info(f"\n{'=' * 60}")
     logger.info(f"TOP {show_top} MEMORY CONSUMERS")
-    logger.info(f"{'='*60}")
+    logger.info(f"{'=' * 60}")
     logger.info(f"{'Type':<30} {'Count':<10} {'Size (MB)':<15}")
-    logger.info(f"{'-'*60}")
+    logger.info(f"{'-' * 60}")
 
     for obj_type, size in sorted_types[:show_top]:
         count = type_counts[obj_type]
         size_mb = size / 1024 / 1024
         logger.info(f"{obj_type:<30} {count:<10} {size_mb:<15.2f}")
 
-    logger.info(f"{'='*60}\n")
+    logger.info(f"{'=' * 60}\n")
 
 
 def estimate_lancedb_size(lancedb_dir: Path) -> dict[str, float]:
@@ -133,6 +134,7 @@ def estimate_lancedb_size(lancedb_dir: Path) -> dict[str, float]:
 
     Returns:
         Dictionary with size estimates
+
     """
     if not lancedb_dir.exists():
         return {"disk_mb": 0, "estimated_ram_mb": 0}
@@ -158,6 +160,7 @@ def estimate_zip_size(zip_path: Path) -> dict[str, float]:
 
     Returns:
         Dictionary with size estimates
+
     """
     import zipfile
 
@@ -187,6 +190,7 @@ class MemoryMonitor:
         Args:
             interval: Sampling interval in seconds
             log_file: Optional file to write memory logs
+
         """
         self.interval = interval
         self.log_file = log_file
@@ -205,7 +209,7 @@ class MemoryMonitor:
     def stop(self) -> None:
         """Stop monitoring and save results."""
         self._running = False
-        if hasattr(self, '_thread'):
+        if hasattr(self, "_thread"):
             self._thread.join(timeout=self.interval * 2)
 
         if self.log_file and self.samples:
@@ -230,7 +234,7 @@ class MemoryMonitor:
 
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(self.log_file, 'w', newline='') as f:
+        with open(self.log_file, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=self.samples[0].keys())
             writer.writeheader()
             writer.writerows(self.samples)
@@ -242,18 +246,18 @@ class MemoryMonitor:
         if not self.samples:
             return
 
-        rss_values = [s['rss_mb'] for s in self.samples]
+        rss_values = [s["rss_mb"] for s in self.samples]
 
-        logger.info(f"\n{'='*60}")
-        logger.info(f"MEMORY USAGE SUMMARY")
-        logger.info(f"{'='*60}")
+        logger.info(f"\n{'=' * 60}")
+        logger.info("MEMORY USAGE SUMMARY")
+        logger.info(f"{'=' * 60}")
         logger.info(f"  Samples: {len(self.samples)}")
         logger.info(f"  Duration: {self.samples[-1]['timestamp'] - self.samples[0]['timestamp']:.1f}s")
         logger.info(f"  Peak RSS: {max(rss_values):.1f}MB")
         logger.info(f"  Min RSS: {min(rss_values):.1f}MB")
-        logger.info(f"  Avg RSS: {sum(rss_values)/len(rss_values):.1f}MB")
+        logger.info(f"  Avg RSS: {sum(rss_values) / len(rss_values):.1f}MB")
         logger.info(f"  Peak %: {max(s['percent'] for s in self.samples):.1f}%")
-        logger.info(f"{'='*60}\n")
+        logger.info(f"{'=' * 60}\n")
 
 
 def diagnose_memory_issues(
@@ -265,14 +269,15 @@ def diagnose_memory_issues(
     Args:
         zip_path: Path to input ZIP file
         lancedb_dir: Path to LanceDB directory
+
     """
-    logger.info(f"\n{'='*60}")
-    logger.info(f"MEMORY DIAGNOSTICS")
-    logger.info(f"{'='*60}")
+    logger.info(f"\n{'=' * 60}")
+    logger.info("MEMORY DIAGNOSTICS")
+    logger.info(f"{'=' * 60}")
 
     # Current memory
     current = get_memory_usage()
-    logger.info(f"\nCurrent Memory:")
+    logger.info("\nCurrent Memory:")
     logger.info(f"  RSS: {current['rss_mb']:.1f}MB")
     logger.info(f"  Available: {current['available_mb']:.1f}MB")
     logger.info(f"  Process %: {current['percent']:.1f}%")
@@ -280,7 +285,7 @@ def diagnose_memory_issues(
     # ZIP analysis
     if zip_path and zip_path.exists():
         zip_info = estimate_zip_size(zip_path)
-        logger.info(f"\nZIP File:")
+        logger.info("\nZIP File:")
         logger.info(f"  Compressed: {zip_info['compressed_mb']:.1f}MB")
         logger.info(f"  Uncompressed: {zip_info['uncompressed_mb']:.1f}MB")
         logger.info(f"  Ratio: {zip_info['compression_ratio']:.1f}x")
@@ -289,7 +294,7 @@ def diagnose_memory_issues(
     # LanceDB analysis
     if lancedb_dir and lancedb_dir.exists():
         db_info = estimate_lancedb_size(lancedb_dir)
-        logger.info(f"\nLanceDB:")
+        logger.info("\nLanceDB:")
         logger.info(f"  Disk: {db_info['disk_mb']:.1f}MB")
         logger.info(f"  Estimated RAM: {db_info['estimated_ram_mb']:.1f}MB")
         logger.info(f"  Files: {db_info['files']}")
@@ -298,23 +303,23 @@ def diagnose_memory_issues(
     # Total estimated usage
     total_estimated = 0
     if zip_path and zip_path.exists():
-        total_estimated += estimate_zip_size(zip_path)['uncompressed_mb']
+        total_estimated += estimate_zip_size(zip_path)["uncompressed_mb"]
     if lancedb_dir and lancedb_dir.exists():
-        total_estimated += estimate_lancedb_size(lancedb_dir)['estimated_ram_mb']
+        total_estimated += estimate_lancedb_size(lancedb_dir)["estimated_ram_mb"]
 
     if total_estimated > 0:
         logger.info(f"\nEstimated Total: {total_estimated:.1f}MB")
-        if total_estimated > current['available_mb'] * 0.8:
+        if total_estimated > current["available_mb"] * 0.8:
             logger.warning(
                 f"⚠️  WARNING: Estimated usage ({total_estimated:.1f}MB) "
                 f"exceeds 80% of available RAM ({current['available_mb']:.1f}MB)"
             )
 
     # Object analysis
-    logger.info(f"\nObject Analysis:")
+    logger.info("\nObject Analysis:")
     track_object_sizes(show_top=5)
 
-    logger.info(f"{'='*60}\n")
+    logger.info(f"{'=' * 60}\n")
 
 
 # Convenience function for CLI usage
@@ -330,6 +335,7 @@ def monitor_pipeline(
 
     Returns:
         MemoryMonitor instance (call .stop() when done)
+
     """
     log_file = output_dir / ".egregora" / "memory_profile.csv"
     monitor = MemoryMonitor(interval=interval, log_file=log_file)

@@ -5,10 +5,9 @@ Location: duckdb_manager.py:585 in next_sequence_values()
 """
 
 import tempfile
-from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
-import duckdb
 import pytest
 
 from egregora.database.duckdb_manager import DuckDBStorageManager
@@ -74,8 +73,7 @@ def test_sequence_values_concurrent_threads():
 
         # If we got the specific error, the bug is reproduced
         readonly_errors = [
-            e for e in errors
-            if "read-only" in str(e).lower() and "transaction" in str(e).lower()
+            e for e in errors if "read-only" in str(e).lower() and "transaction" in str(e).lower()
         ]
 
         if readonly_errors:
@@ -138,10 +136,7 @@ def test_sequence_values_rapid_fire():
         manager.close()
 
         if errors:
-            readonly_errors = [
-                (i, e) for i, e in errors
-                if "read-only" in str(e).lower()
-            ]
+            readonly_errors = [(i, e) for i, e in errors if "read-only" in str(e).lower()]
             if readonly_errors:
                 pytest.fail(
                     f"Bug reproduced in rapid-fire test! "

@@ -4,8 +4,8 @@ TDD: Write tests first, then implement functionality.
 """
 
 import pytest
-from unittest.mock import Mock
-from egregora.constants import EGREGORA_UUID, EGREGORA_NAME
+
+from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import DocumentType
 
 
@@ -109,7 +109,7 @@ class TestAnnouncementGeneration:
             "text": "/egregora avatar set https://example.com/avatar.jpg",
             "author_uuid": "john-uuid",
             "author_name": "John Doe",
-            "timestamp": "2025-03-07T10:00:00"
+            "timestamp": "2025-03-07T10:00:00",
         }
 
         doc = command_to_announcement(message)
@@ -129,7 +129,7 @@ class TestAnnouncementGeneration:
             "text": "/egregora bio I am an AI researcher",
             "author_uuid": "alice-uuid",
             "author_name": "Alice",
-            "timestamp": "2025-03-07T11:00:00"
+            "timestamp": "2025-03-07T11:00:00",
         }
 
         doc = command_to_announcement(message)
@@ -147,7 +147,7 @@ class TestAnnouncementGeneration:
             "text": "/egregora interests AI, ethics, philosophy",
             "author_uuid": "bob-uuid",
             "author_name": "Bob",
-            "timestamp": "2025-03-07T12:00:00"
+            "timestamp": "2025-03-07T12:00:00",
         }
 
         doc = command_to_announcement(message)
@@ -165,7 +165,7 @@ class TestAnnouncementGeneration:
             "text": "/egregora avatar set url",
             "author_uuid": "test-uuid",
             "author_name": "Test User",
-            "timestamp": "2025-03-07T10:00:00"
+            "timestamp": "2025-03-07T10:00:00",
         }
 
         doc = command_to_announcement(message)
@@ -205,11 +205,23 @@ class TestCommandPipeline:
 
     def test_commands_generate_announcements(self):
         """Commands generate ANNOUNCEMENT documents in pipeline."""
-        from egregora.agents.commands import extract_commands, command_to_announcement
+        from egregora.agents.commands import command_to_announcement, extract_commands
 
         messages = [
-            {"text": "Regular", "author": "john", "author_uuid": "j", "author_name": "John", "timestamp": "2025-03-07"},
-            {"text": "/egregora avatar set url", "author": "alice", "author_uuid": "a", "author_name": "Alice", "timestamp": "2025-03-07"},
+            {
+                "text": "Regular",
+                "author": "john",
+                "author_uuid": "j",
+                "author_name": "John",
+                "timestamp": "2025-03-07",
+            },
+            {
+                "text": "/egregora avatar set url",
+                "author": "alice",
+                "author_uuid": "a",
+                "author_name": "Alice",
+                "timestamp": "2025-03-07",
+            },
         ]
 
         # Extract commands

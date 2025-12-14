@@ -31,9 +31,9 @@ def main():
         print("  --diagnose    Run diagnostics and exit")
         print("  --interval N  Sampling interval in seconds (default: 5)")
         sys.exit(1)
-
+    
     output_dir = Path(sys.argv[1])
-
+    
     # Parse options
     diagnose = "--diagnose" in sys.argv
     interval = 5.0
@@ -41,7 +41,7 @@ def main():
         idx = sys.argv.index("--interval")
         if idx + 1 < len(sys.argv):
             interval = float(sys.argv[idx + 1])
-
+    
     if diagnose:
         # Run diagnostics
         print("Running memory diagnostics...")
@@ -54,30 +54,30 @@ def main():
                     break
             if zip_path:
                 break
-
+        
         lancedb_dir = output_dir / ".egregora" / "lancedb"
-
+        
         diagnose_memory_issues(zip_path=zip_path, lancedb_dir=lancedb_dir)
         return
-
+    
     # Start continuous monitoring
     print(f"Starting memory monitor (interval={interval}s)")
     print(f"Output dir: {output_dir}")
     print(f"Log file: {output_dir}/.egregora/memory_profile.csv")
     print("\nPress Ctrl+C to stop...\n")
-
+    
     monitor = MemoryMonitor(
         interval=interval,
         log_file=output_dir / ".egregora" / "memory_profile.csv"
     )
-
+    
     try:
         monitor.start()
-
+        
         # Keep running until interrupted
         while True:
             time.sleep(1)
-
+            
     except KeyboardInterrupt:
         print("\n\nStopping monitor...")
         monitor.stop()

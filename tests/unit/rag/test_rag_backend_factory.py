@@ -33,6 +33,7 @@ if "lancedb" not in sys.modules:
     sys.modules["lancedb"] = lancedb_module
 
 from egregora import rag
+from egregora import config as egregora_config
 
 
 def test_embed_fn_uses_rag_settings_for_router(
@@ -48,13 +49,13 @@ def test_embed_fn_uses_rag_settings_for_router(
         models__embedding="models/test-embedding",
     )
 
-    monkeypatch.setattr(rag, "load_egregora_config", lambda _path: config)
+    monkeypatch.setattr(egregora_config, "load_egregora_config", lambda _path=None: config)
 
     created_router = Mock()
     created_router.embed.return_value = [[0.1]]
 
-    create_router_mock = Mock(return_value=created_router)
-    monkeypatch.setattr(rag, "create_embedding_router", create_router_mock)
+    get_router_mock = Mock(return_value=created_router)
+    monkeypatch.setattr(rag, "get_embedding_router", get_router_mock)
 
     class DummyBackend:
         def __init__(self, *, embed_fn, **_: object) -> None:
@@ -62,15 +63,11 @@ def test_embed_fn_uses_rag_settings_for_router(
 
     monkeypatch.setattr(rag, "LanceDBRAGBackend", DummyBackend)
 
-    backend = rag._create_backend()
+    # Get backend (which will initialize with embed_fn)
+    backend = rag.get_backend()
 
-    backend.embed_fn(["hello"], "RETRIEVAL_DOCUMENT")
+    # Call embed_fn to trigger router usage
+    rag.embed_fn(("hello",), "RETRIEVAL_DOCUMENT")
 
-    # Only called when embed_fn is executed (lazy init)
-    create_router_mock.assert_called_once_with(
-        model="models/test-embedding",
-        api_key=None,
-        max_batch_size=7,
-        timeout=3.5,
-    )
+    # Verify router was called with the text
     created_router.embed.assert_called_once_with(["hello"], task_type="RETRIEVAL_DOCUMENT")

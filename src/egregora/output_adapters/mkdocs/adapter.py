@@ -118,13 +118,13 @@ class MkDocsAdapter(BaseOutputSink):
 
         Returns:
             Path to author's folder (created if doesn't exist)
+
         """
         # Use first 16 chars of UUID for shorter folder names
         short_uuid = author_uuid[:16] if len(author_uuid) > 16 else author_uuid
         author_dir = self.posts_dir / "authors" / short_uuid
         author_dir.mkdir(parents=True, exist_ok=True)
         return author_dir
-
 
     def persist(self, document: Document) -> None:  # noqa: C901
         doc_id = document.document_id
@@ -803,6 +803,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         Returns:
             Dictionary of frontmatter metadata (empty if none found)
+
         """
         try:
             content = path.read_text(encoding="utf-8")
@@ -1337,6 +1338,7 @@ ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
 
 # Author Profile Generation (Append-Only) ---------------------------------
 
+
 def _build_author_profile(self, author_uuid: str) -> dict | None:
     """Build author profile by scanning all their posts chronologically.
 
@@ -1347,6 +1349,7 @@ def _build_author_profile(self, author_uuid: str) -> dict | None:
 
     Returns:
         Profile dictionary with derived state, or None if no posts found
+
     """
     author_dir = self.posts_dir / "authors" / author_uuid[:16]
     if not author_dir.exists():
@@ -1386,18 +1389,21 @@ def _build_author_profile(self, author_uuid: str) -> dict | None:
                         profile["interests"].update(author["interests"])
 
         # Track this post
-        profile["posts"].append({
-            "title": frontmatter.get("title", post_path.stem),
-            "date": frontmatter.get("date", ""),
-            "slug": post_path.stem,
-            "path": post_path,
-        })
+        profile["posts"].append(
+            {
+                "title": frontmatter.get("title", post_path.stem),
+                "date": frontmatter.get("date", ""),
+                "slug": post_path.stem,
+                "path": post_path,
+            }
+        )
 
     if not profile["name"]:
         return None  # No valid profile without a name
 
     profile["interests"] = sorted(profile["interests"])
     return profile
+
 
 def _render_author_index(self, profile: dict) -> str:
     """Render author index.md content from profile data.
@@ -1407,6 +1413,7 @@ def _render_author_index(self, profile: dict) -> str:
 
     Returns:
         Markdown content for index.md
+
     """
     # Generate avatar HTML if available
     avatar_html = ""
@@ -1414,34 +1421,34 @@ def _render_author_index(self, profile: dict) -> str:
         avatar_html = f"![Avatar]({profile['avatar']}){{ align=left width=150 }}\n\n"
 
     # Build post list (newest first)
-    posts_md = "\n".join([
-        f"- [{p['title']}]({p['slug']}.md) - {p['date']}"
-        for p in reversed(profile["posts"])
-    ])
+    posts_md = "\n".join(
+        [f"- [{p['title']}]({p['slug']}.md) - {p['date']}" for p in reversed(profile["posts"])]
+    )
 
     # Build frontmatter
     frontmatter = f"""---
-title: {profile['name']}
+title: {profile["name"]}
 type: profile
-uuid: {profile['uuid']}
-avatar: {profile.get('avatar', '')}
-bio: {profile.get('bio', '')}
-interests: {profile.get('interests', [])}
+uuid: {profile["uuid"]}
+avatar: {profile.get("avatar", "")}
+bio: {profile.get("bio", "")}
+interests: {profile.get("interests", [])}
 ---
 
-{avatar_html}# {profile['name']}
+{avatar_html}# {profile["name"]}
 
-{profile.get('bio', '')}
+{profile.get("bio", "")}
 
-## Posts ({len(profile['posts'])})
+## Posts ({len(profile["posts"])})
 
 {posts_md}
 
 ## Interests
 
-{', '.join(profile.get('interests', []))}
+{", ".join(profile.get("interests", []))}
 """
     return frontmatter
+
 
 def _sync_author_profiles(self) -> None:
     """Generate index.md for all authors from derived state."""
@@ -1468,7 +1475,6 @@ def _sync_author_profiles(self) -> None:
         logger.info(f"Generated profile for {profile['name']} ({uuid})")
 
     logger.info(f"Synced {authors_synced} author profiles")
-
 
 
 # ============================================================================

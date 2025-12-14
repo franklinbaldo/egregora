@@ -14,7 +14,7 @@ Parse and ingest data from various sources into egregora.
 - Support for group chats and direct messages
 - Media file extraction from `.zip` archives
 
-### Slack Adapter
+### Slack Adapter  
 - Parse Slack export archives
 - Thread reconstruction
 - User mapping and profile extraction
@@ -50,9 +50,7 @@ Semantic search and context retrieval for LLM generation.
 - Thread-based concurrent processing
 
 ### Search Capabilities
-- Keyword search
 - Semantic search (vector similarity)
-- Hybrid search (keyword + semantic)
 - Context window construction
 - Relevance scoring
 
@@ -75,7 +73,7 @@ AI-powered workers that process and generate content.
 - **Media enrichment** - generate descriptions for images/videos
 - **3 enrichment strategies**:
   - `batch_all` - all items in one API call (default)
-  - `batch_api` - Gemini Batch API
+  - `batch_api` - Gemini Batch API  
   - `individual` - one call per item
 - **ModelKeyRotator** - exhausts all API keys for each model before rotating
   - Rotation: Model1+Key1→Key2→Key3, then Model2+Key1→Key2→Key3, etc.
@@ -107,7 +105,7 @@ Advanced model management and API resilience.
   1. gemini-2.5-flash-lite
   2. gemini-2.0-flash
   3. gemini-2.5-flash
-  4. gemini-flash-latest
+  4. gemini-flash-latest  
   5. gemini-2.5-pro
 - Load multiple API keys from `GEMINI_API_KEYS` env var
 - Automatic retry with next key/model on 429 errors
@@ -169,11 +167,11 @@ authors:
 
 ### Benefits
 
-✅ **Pure append-only** - only add post files
-✅ **Sequential updates** - later posts override earlier
-✅ **Self-healing** - rebuild profiles anytime
-✅ **Git-friendly** - every change is a new file
-✅ **No duplication** - single source (posts)
+✅ **Pure append-only** - only add post files  
+✅ **Sequential updates** - later posts override earlier  
+✅ **Self-healing** - rebuild profiles anytime  
+✅ **Git-friendly** - every change is a new file  
+✅ **No duplication** - single source (posts)  
 
 ---
 
@@ -230,9 +228,9 @@ DuckDB-based data management.
 
 ---
 
-## 📝 Output Adapters
+## 📝 Output Adapter
 
-Generate final output in various formats.
+Generate final output as static site.
 
 ### MkDocs Adapter
 - Generate static blog sites
@@ -247,38 +245,6 @@ Generate final output in various formats.
 - **Banner generation** for posts
 - Git integration for timestamps
 - **Slug-based media naming** with reference updates
-
-### Markdown Exporter
-- Export posts as standalone markdown
-- Preserve frontmatter
-- Relative linking
-
-### JSON/API Export
-- Structured data export
-- API-ready formats
-- Custom schema support
-
----
-
-## 🔒 Privacy
-
-PII detection and anonymization.
-
-### PII Prevention
-- Automatic PII detection (emails, phones, addresses, SSNs, etc.)
-- Redaction with placeholder tokens
-- Configurable sensitivity levels
-- Allowlist for known safe entities
-
-### Phone Number Scrubbing
-- Format-agnostic phone detection
-- International number support
-- Context-aware replacement
-
-### Privacy Controls
-- Per-source privacy settings
-- Granular redaction controls
-- Audit trail of redactions
 
 ---
 
@@ -306,7 +272,7 @@ Content generation and formatting.
 
 ### Media Handling
 - Image optimization
-- Video thumbnail generation
+- Video thumbnail generation  
 - Media type detection
 - Responsive embeds
 
@@ -319,9 +285,8 @@ Flexible configuration system.
 ### YAML Configuration
 - Site settings (title, description, theme)
 - Model providers and API keys
-- Rate limiting (per-second, concurrent, daily)
+- Rate limiting (per-second)
 - Enrichment strategy selection
-- Privacy controls
 - Template paths
 
 ### Settings Schema
@@ -332,9 +297,7 @@ Flexible configuration system.
 - Nested configuration sections
 
 ### Overrides
-- CLI flag overrides
-- Environment variables
-- Config file cascading
+- Environment variables override YAML values
 
 ---
 
@@ -369,7 +332,7 @@ Structured knowledge extraction.
 - Key events extraction
 - Timeline reconstruction
 
-### Semantic Taxonomy
+### Semantic Taxonomy  
 - Clustering analysis
 - Topic modeling
 - Tag generation
@@ -385,8 +348,6 @@ Command-line interface for all operations.
 - `egregora write` - run blog generation pipeline
 - `egregora init` - initialize new site
 - `egregora read` - query and search content
-- `egregora config` - manage configuration
-- `egregora runs` - view run history
 
 ### Flags
 - `--max-windows` - limit processing
@@ -470,6 +431,7 @@ Helper functions and tools.
 - **5 Gemini models** in rotation
 - **N API keys** × 5 models = maximum resilience
 - **4 input adapters** (WhatsApp, Slack, Markdown, Self-Reflection)
-- **Multiple output formats** (MkDocs, Markdown, JSON)
+- **MkDocs static site output**
+- **Semantic-only search** for focused retrieval
 - **Dual-queue RAG** with key cycling
 - **10 Jinja2 prompt templates**

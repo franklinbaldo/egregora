@@ -113,7 +113,8 @@
   margin-top: 0.5rem;
 }
 
-.author-container:hover .author-card-wrapper {
+.author-container:hover .author-card-wrapper,
+.author-container:focus-within .author-card-wrapper {
   display: block;
 }
 

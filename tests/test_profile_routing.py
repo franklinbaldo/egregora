@@ -4,13 +4,14 @@ Test-Driven Development: These tests define the expected behavior
 before implementation is complete.
 """
 
-import pytest
 from pathlib import Path
 from unittest.mock import Mock
 
+import pytest
+
+from egregora.constants import EGREGORA_NAME, EGREGORA_UUID
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.output_adapters.mkdocs.adapter import MkDocsAdapter
-from egregora.constants import EGREGORA_UUID, EGREGORA_NAME
 
 
 @pytest.fixture
@@ -40,8 +41,8 @@ class TestPostRouting:
             metadata={
                 "title": "Test Post",
                 "slug": "test-post",
-                "authors": [{"uuid": "john-uuid", "name": "John"}]
-            }
+                "authors": [{"uuid": "john-uuid", "name": "John"}],
+            },
         )
 
         # Simulate URL from slug
@@ -59,11 +60,8 @@ class TestPostRouting:
             type=DocumentType.POST,
             metadata={
                 "slug": "collaborative-post",
-                "authors": [
-                    {"uuid": "john-uuid", "name": "John"},
-                    {"uuid": "alice-uuid", "name": "Alice"}
-                ]
-            }
+                "authors": [{"uuid": "john-uuid", "name": "John"}, {"uuid": "alice-uuid", "name": "Alice"}],
+            },
         )
 
         url = f"/posts/{doc.metadata['slug']}"
@@ -85,8 +83,8 @@ class TestProfileRouting:
                 "slug": "john-interests",
                 "authors": [{"uuid": EGREGORA_UUID, "name": EGREGORA_NAME}],
                 "subject": "john-uuid-12345678",
-                "profile_aspect": "interests"
-            }
+                "profile_aspect": "interests",
+            },
         )
 
         url = f"/profiles/{doc.metadata['slug']}"
@@ -102,10 +100,7 @@ class TestProfileRouting:
         doc = Document(
             content="# Profile",
             type=DocumentType.PROFILE,
-            metadata={
-                "slug": "orphan-profile",
-                "authors": [{"uuid": EGREGORA_UUID}]
-            }
+            metadata={"slug": "orphan-profile", "authors": [{"uuid": EGREGORA_UUID}]},
         )
 
         url = f"/profiles/{doc.metadata['slug']}"
@@ -122,8 +117,8 @@ class TestProfileRouting:
             metadata={
                 "slug": "john-contributions",
                 "authors": [{"uuid": EGREGORA_UUID, "name": EGREGORA_NAME}],
-                "subject": "john-uuid"
-            }
+                "subject": "john-uuid",
+            },
         )
 
         # Verify Egregora is the author
@@ -144,8 +139,8 @@ class TestAnnouncementRouting:
                 "slug": "john-avatar-update",
                 "authors": [{"uuid": EGREGORA_UUID}],
                 "event_type": "avatar_update",
-                "actor": "john-uuid"
-            }
+                "actor": "john-uuid",
+            },
         )
 
         url = f"/announcements/{doc.metadata['slug']}"
@@ -163,8 +158,8 @@ class TestAnnouncementRouting:
             metadata={
                 "slug": "bio-update",
                 "authors": [{"uuid": EGREGORA_UUID, "name": EGREGORA_NAME}],
-                "event_type": "bio_update"
-            }
+                "event_type": "bio_update",
+            },
         )
 
         assert doc.metadata["authors"][0]["uuid"] == EGREGORA_UUID
@@ -178,23 +173,19 @@ class TestRoutingIntegration:
         post = Document(
             content="Regular post",
             type=DocumentType.POST,
-            metadata={"slug": "regular", "authors": [{"uuid": "john-uuid"}]}
+            metadata={"slug": "regular", "authors": [{"uuid": "john-uuid"}]},
         )
 
         profile = Document(
             content="Profile",
             type=DocumentType.PROFILE,
-            metadata={
-                "slug": "john-profile",
-                "authors": [{"uuid": EGREGORA_UUID}],
-                "subject": "john-uuid"
-            }
+            metadata={"slug": "john-profile", "authors": [{"uuid": EGREGORA_UUID}], "subject": "john-uuid"},
         )
 
         announcement = Document(
             content="Announcement",
             type=DocumentType.ANNOUNCEMENT,
-            metadata={"slug": "update", "authors": [{"uuid": EGREGORA_UUID}]}
+            metadata={"slug": "update", "authors": [{"uuid": EGREGORA_UUID}]},
         )
 
         post_path = adapter._url_to_path("/posts/regular", post)
@@ -221,8 +212,8 @@ class TestRoutingIntegration:
                 "slug": "test",
                 "authors": [{"uuid": EGREGORA_UUID}],
                 "subject": "john-uuid",  # Required!
-                "profile_aspect": "interests"
-            }
+                "profile_aspect": "interests",
+            },
         )
 
         assert "subject" in profile.metadata
@@ -236,8 +227,8 @@ class TestRoutingIntegration:
                 "slug": "test",
                 "authors": [{"uuid": EGREGORA_UUID}],
                 "event_type": "avatar_update",  # Required!
-                "actor": "john-uuid"  # Required!
-            }
+                "actor": "john-uuid",  # Required!
+            },
         )
 
         assert "event_type" in announcement.metadata

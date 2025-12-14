@@ -6,12 +6,9 @@ and sends them in a single API call, rather than individual calls.
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
-
-import pytest
+from unittest.mock import Mock, patch
 
 from egregora.agents.enricher import EnrichmentWorker
-from egregora.data_primitives.document import DocumentType
 
 
 class MockPipelineContext:
@@ -42,11 +39,9 @@ def create_url_tasks(count: int) -> list[dict]:
         task = {
             "task_id": f"task-{i}",
             "task_type": "enrich_url",
-            "payload": json.dumps({
-                "type": "url",
-                "url": f"https://example.com/page-{i}",
-                "message_metadata": {}
-            }),
+            "payload": json.dumps(
+                {"type": "url", "url": f"https://example.com/page-{i}", "message_metadata": {}}
+            ),
             "status": "pending",
         }
         tasks.append(task)
@@ -65,7 +60,8 @@ def test_batch_all_accumulates_before_calling_api():
     items_per_call = []
 
     # Mock the LLM call to track batching
-    with patch.object(worker, '_execute_url_single_call') as mock_single_call:
+    with patch.object(worker, "_execute_url_single_call") as mock_single_call:
+
         def track_batch_call(tasks_data):
             nonlocal api_call_count
             api_call_count += 1
@@ -84,7 +80,7 @@ def test_batch_all_accumulates_before_calling_api():
         worker._process_url_batch(tasks)
 
     # Verify batching behavior
-    print(f"\nBatch Strategy Test Results:")
+    print("\nBatch Strategy Test Results:")
     print(f"  Total API calls: {api_call_count}")
     print(f"  Items per call: {items_per_call}")
     print(f"  Total items: {sum(items_per_call)}")
@@ -107,11 +103,12 @@ def test_individual_strategy_makes_separate_calls():
     api_call_count = 0
 
     # Mock individual enrichment
-    with patch.object(worker, '_enrich_single_url') as mock_enrich:
+    with patch.object(worker, "_enrich_single_url") as mock_enrich:
+
         def track_individual_call(task_data):
             nonlocal api_call_count
             api_call_count += 1
-            return (task_data['task'], Mock(), None)
+            return (task_data["task"], Mock(), None)
 
         mock_enrich.side_effect = track_individual_call
 
@@ -123,7 +120,7 @@ def test_individual_strategy_makes_separate_calls():
         # Run enrichment
         worker._process_url_batch(tasks)
 
-    print(f"\nIndividual Strategy Test Results:")
+    print("\nIndividual Strategy Test Results:")
     print(f"  Total API calls: {api_call_count}")
 
     # Individual strategy should make 5 separate calls
@@ -137,11 +134,11 @@ def test_batching_efficiency_comparison():
 
     test_sizes = [1, 5, 10, 20, 50]
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("BATCHING EFFICIENCY COMPARISON")
-    print("="*60)
+    print("=" * 60)
     print(f"{'Items':<10} {'Batch_All':<15} {'Individual':<15} {'Savings':<15}")
-    print("-"*60)
+    print("-" * 60)
 
     for size in test_sizes:
         # batch_all: 1 call regardless of size
@@ -154,11 +151,13 @@ def test_batching_efficiency_comparison():
         concurrency = 5
         parallel_batches = (size + concurrency - 1) // concurrency
 
-        savings_pct = ((individual_calls - batch_calls) / individual_calls * 100) if individual_calls > 0 else 0
+        savings_pct = (
+            ((individual_calls - batch_calls) / individual_calls * 100) if individual_calls > 0 else 0
+        )
 
         print(f"{size:<10} {batch_calls:<15} {individual_calls:<15} {savings_pct:.1f}%")
 
-    print("="*60)
+    print("=" * 60)
     print("\nConclusion: batch_all provides massive API call reduction!")
 
 
@@ -176,8 +175,8 @@ def test_concurrent_batching():
     print("\nConcurrent Batching Test:")
     print(f"  Tasks: {len(tasks)}")
     print(f"  Concurrency: {ctx.config.enrichment.max_concurrent_enrichments}")
-    print(f"  Expected: 1 batch call with all 15 items (batch_all)")
-    print(f"  Fallback: 3 parallel batches of ~5 items each (if batch_all fails)")
+    print("  Expected: 1 batch call with all 15 items (batch_all)")
+    print("  Fallback: 3 parallel batches of ~5 items each (if batch_all fails)")
 
 
 def test_verify_batching_logs():
@@ -190,7 +189,7 @@ def test_verify_batching_logs():
     handler = logging.StreamHandler(log_stream)
     handler.setLevel(logging.INFO)
 
-    logger = logging.getLogger('egregora.agents.enricher')
+    logger = logging.getLogger("egregora.agents.enricher")
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
 
@@ -200,7 +199,7 @@ def test_verify_batching_logs():
 
         tasks = create_url_tasks(8)
 
-        with patch.object(worker, '_execute_url_single_call') as mock_call:
+        with patch.object(worker, "_execute_url_single_call") as mock_call:
             mock_call.return_value = [(task, Mock(), None) for task in tasks]
 
             ctx.task_store.fetch_pending.return_value = tasks
@@ -210,11 +209,11 @@ def test_verify_batching_logs():
             worker._process_url_batch(tasks)
 
         logs = log_stream.getvalue()
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("ENRICHMENT LOGS:")
-        print("="*60)
+        print("=" * 60)
         print(logs)
-        print("="*60)
+        print("=" * 60)
 
         # Verify log mentions batching
         assert "batch" in logs.lower() or "8" in logs, "Logs should mention batch processing"
@@ -224,9 +223,9 @@ def test_verify_batching_logs():
 
 
 if __name__ == "__main__":
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("ENRICHMENT BATCHING VERIFICATION TESTS")
-    print("="*60)
+    print("=" * 60)
 
     print("\n1. Testing batch_all strategy (accumulate before API call)...")
     test_batch_all_accumulates_before_calling_api()
@@ -243,9 +242,9 @@ if __name__ == "__main__":
     print("\n5. Verifying logs...")
     test_verify_batching_logs()
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("ALL TESTS PASSED ✓")
-    print("="*60)
+    print("=" * 60)
     print("\nConclusion:")
     print("  - batch_all: Sends ALL items in 1 API call")
     print("  - individual: Sends 1 item per API call")

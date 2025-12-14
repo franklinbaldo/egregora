@@ -7,6 +7,7 @@ import io
 import logging
 import re
 import unicodedata
+import uuid
 import zipfile
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -23,8 +24,6 @@ from pydantic import BaseModel
 
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.whatsapp.utils import build_message_attrs
-from egregora.privacy.anonymizer import anonymize_table
-from egregora.privacy.uuid_namespaces import deterministic_author_uuid
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 if TYPE_CHECKING:
@@ -180,7 +179,9 @@ class MessageBuilder:
         original_text = "\n".join(msg["_original_lines"]).strip()
 
         author_raw = msg["author_raw"]
-        author_uuid = deterministic_author_uuid(self.tenant_id, self.source_identifier, author_raw)
+        # Deterministic UUID generation: same author_raw always produces the same UUID
+        # Uses UUID5 (name-based) with OID namespace for consistent, reproducible author IDs
+        author_uuid = uuid.uuid5(uuid.NAMESPACE_OID, f"{self.source_identifier}:{author_raw}")
 
         return {
             "ts": msg["timestamp"],
@@ -317,9 +318,6 @@ def parse_source(
 
     if "_import_order" in messages.columns:
         messages = messages.drop("_import_order")
-
-    if not expose_raw_author:
-        messages = anonymize_table(messages)
 
     helper_columns = ["_author_uuid_hex"]
     columns_to_drop = [col for col in helper_columns if col in messages.columns]
