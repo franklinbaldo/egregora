@@ -14,17 +14,17 @@ except ImportError:
 
 # Deferred import if needed, but for now moving it top level as requested by linter
 # We need to make sure this doesn't break things if import fails, but diagnostics is part of the package.
+# Moved get_storage locally to support top/history commands
+import contextlib
+
+import duckdb
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.table import Table
 
 from egregora.cli.read import read_app
-# Moved get_storage locally to support top/history commands
-import contextlib
-import duckdb
-from egregora.config import RuntimeContext, load_egregora_config
-from egregora.config.config_validation import parse_date_arg, validate_timezone
+from egregora.config import load_egregora_config
 from egregora.constants import SourceType, WindowUnit
 from egregora.database.elo_store import EloStore
 from egregora.diagnostics import HealthStatus, run_diagnostics
@@ -99,9 +99,7 @@ def main() -> None:
 
 @app.command()
 def init(
-    output_dir: Annotated[
-        Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")
-    ],
+    output_dir: Annotated[Path, typer.Argument(help="Directory path for the new site (e.g., 'my-blog')")],
     *,
     interactive: Annotated[
         bool,
@@ -175,9 +173,7 @@ def write(  # noqa: PLR0913
     use_full_context_window: Annotated[
         bool, typer.Option("--full-context", help="Use maximum available context")
     ] = False,
-    max_windows: Annotated[
-        int | None, typer.Option(help="Limit number of windows to process")
-    ] = None,
+    max_windows: Annotated[int | None, typer.Option(help="Limit number of windows to process")] = None,
     resume: Annotated[
         bool,
         typer.Option("--resume/--no-resume", help="Resume from last checkpoint if available"),
@@ -442,9 +438,7 @@ def _run_doctor_checks(*, verbose: bool) -> None:
         )
 
     console.print()
-    console.print(
-        f"[dim]Summary: {ok_count} OK, {warning_count} warnings, {error_count} errors[/dim]"
-    )
+    console.print(f"[dim]Summary: {ok_count} OK, {warning_count} warnings, {error_count} errors[/dim]")
 
     if error_count > 0:
         raise typer.Exit(1)

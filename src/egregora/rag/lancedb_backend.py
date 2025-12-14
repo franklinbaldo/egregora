@@ -28,13 +28,15 @@ logger = logging.getLogger(__name__)
 
 def _json_serialize_metadata(metadata: dict) -> str:
     """Serialize metadata dict to JSON, converting datetime objects to ISO format.
-    
+
     Args:
         metadata: Dictionary that may contain datetime objects
-        
+
     Returns:
         JSON string with datetime objects converted to ISO format strings
+
     """
+
     def default_serializer(obj: Any) -> str:
         if isinstance(obj, datetime):
             return obj.isoformat()
@@ -42,7 +44,7 @@ def _json_serialize_metadata(metadata: dict) -> str:
             return obj.isoformat()
         msg = f"Object of type {type(obj).__name__} is not JSON serializable"
         raise TypeError(msg)
-    
+
     return json.dumps(metadata, default=default_serializer)
 
 
@@ -282,6 +284,7 @@ class LanceDBRAGBackend(VectorStore):
 
         Returns:
             Number of documents deleted
+
         """
         if not document_ids:
             return 0
@@ -309,11 +312,7 @@ class LanceDBRAGBackend(VectorStore):
 
     def get_stats(self) -> dict[str, Any]:
         """Get statistics about the store."""
-        return {
-            "chunk_count": self.count(),
-            "backend": "lancedb",
-            "path": str(self._db_dir)
-        }
+        return {"chunk_count": self.count(), "backend": "lancedb", "path": str(self._db_dir)}
 
     def get_all_post_vectors(self) -> tuple[list[str], np.ndarray]:
         """Retrieve IDs and Centroid Vectors for all indexed posts.

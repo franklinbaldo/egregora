@@ -42,6 +42,7 @@ def get_backend() -> VectorStore:
     global _backend
     if _backend is None:
         from pathlib import Path
+
         from egregora.config import load_egregora_config
 
         try:
@@ -76,6 +77,7 @@ def index_documents(documents: list["Document"]) -> int:
 
     Returns:
         Number of documents successfully indexed
+
     """
     if not documents:
         return 0
@@ -92,6 +94,7 @@ def search(request: RAGQueryRequest) -> RAGQueryResponse:
 
     Returns:
         Search result object containing hits
+
     """
     backend = get_backend()
     return backend.query(request)
@@ -113,6 +116,7 @@ def embed_fn(
 
     Returns:
         List of embedding vectors
+
     """
     router = get_embedding_router()
     return router.embed(list(texts), task_type=task_type)

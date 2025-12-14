@@ -90,6 +90,7 @@ __all__ = ["WhatsAppProcessOptions", "WriteCommandOptions", "process_whatsapp_ex
 
 MIN_WINDOWS_WARNING_THRESHOLD = 5
 
+
 @dataclass
 class WriteCommandOptions:
     """Options for the write command."""
@@ -150,15 +151,11 @@ def _validate_api_key(output_dir: Path) -> None:
         api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 
     if not api_key:
-        console.print(
-            "[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]"
-        )
+        console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
         console.print(
             "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
         )
-        console.print(
-            "You can also create a .env file in the output directory or current directory."
-        )
+        console.print("You can also create a .env file in the output directory or current directory.")
         raise SystemExit(1)
 
     # Validate the API key with a lightweight call
@@ -205,15 +202,9 @@ def _prepare_write_config(
                     "checkpoint_enabled": options.resume,
                 }
             ),
-            "enrichment": base_config.enrichment.model_copy(
-                update={"enabled": options.enable_enrichment}
-            ),
+            "enrichment": base_config.enrichment.model_copy(update={"enabled": options.enable_enrichment}),
             "rag": base_config.rag,
-            **(
-                {"models": base_config.models.model_copy(update=models_update)}
-                if models_update
-                else {}
-            ),
+            **({"models": base_config.models.model_copy(update=models_update)} if models_update else {}),
         },
     )
 
@@ -337,9 +328,9 @@ def run_cli_flow(
     config_path_alt = output_dir / ".egregora" / "config.yaml"
 
     if not (config_path.exists() or config_path_alt.exists()):
-         output_dir.mkdir(parents=True, exist_ok=True)
-         logger.info("Initializing site in %s", output_dir)
-         ensure_mkdocs_project(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        logger.info("Initializing site in %s", output_dir)
+        ensure_mkdocs_project(output_dir)
 
     _validate_api_key(output_dir)
 
@@ -568,7 +559,6 @@ def _process_single_window(
     resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
 
-
     # NEW: Process /egregora commands before sending to LLM
     from egregora.agents.commands import command_to_announcement, extract_commands, filter_commands
 
@@ -590,7 +580,9 @@ def _process_single_window(
     command_messages = extract_commands(messages_list)
     announcements_generated = 0
     if command_messages:
-        logger.info("%s📢 [cyan]Processing %d commands[/] for window %s", indent, len(command_messages), window_label)
+        logger.info(
+            "%s📢 [cyan]Processing %d commands[/] for window %s", indent, len(command_messages), window_label
+        )
         for cmd_msg in command_messages:
             try:
                 announcement = command_to_announcement(cmd_msg)
@@ -628,11 +620,9 @@ def _process_single_window(
 
     window_date = window.start_time.strftime("%Y-%m-%d")
     try:
-        profile_docs = asyncio.run(generate_profile_posts(
-            ctx=ctx,
-            messages=clean_messages_list,
-            window_date=window_date
-        ))
+        profile_docs = asyncio.run(
+            generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
+        )
 
         # Persist PROFILE documents
         for profile_doc in profile_docs:
@@ -648,7 +638,7 @@ def _process_single_window(
                 "%s👥 [cyan]Generated %d profile posts[/] for window %s",
                 indent,
                 len(profile_docs),
-                window_label
+                window_label,
             )
     except Exception as exc:
         logger.exception("Failed to generate profile posts: %s", exc)
@@ -935,9 +925,7 @@ def _process_all_windows(
             continue
 
         # Log current window (simpler than progress bar)
-        window_label = (
-            f"{window.start_time.strftime('%Y-%m-%d %H:%M')} - {window.end_time.strftime('%H:%M')}"
-        )
+        window_label = f"{window.start_time.strftime('%Y-%m-%d %H:%M')} - {window.end_time.strftime('%H:%M')}"
         logger.info("Processing window %d: %s", windows_processed + 1, window_label)
 
         # Validate window size doesn't exceed LLM context limits

@@ -10,9 +10,9 @@ Design:
 - Flattering, appreciative tone
 """
 
-from typing import Any
-from collections import defaultdict
 import logging
+from collections import defaultdict
+from typing import Any
 
 from pydantic_ai import Agent
 
@@ -22,28 +22,23 @@ from egregora.data_primitives.document import Document, DocumentType
 logger = logging.getLogger(__name__)
 
 
-
-def _build_profile_prompt(
-    author_name: str,
-    author_messages: list[dict[str, Any]],
-    window_date: str
-) -> str:
+def _build_profile_prompt(author_name: str, author_messages: list[dict[str, Any]], window_date: str) -> str:
     """Build prompt for LLM to generate profile content.
-    
+
     Args:
         author_name: Name of author being profiled
         author_messages: All messages from this author in window
         window_date: Date of the window
-        
+
     Returns:
         Prompt string for LLM
+
     """
     # Format messages for prompt
-    messages_text = "\n".join([
-        f"[{msg.get('timestamp', 'unknown')}] {msg.get('text', '')}"
-        for msg in author_messages
-    ])
-    
+    messages_text = "\n".join(
+        [f"[{msg.get('timestamp', 'unknown')}] {msg.get('text', '')}" for msg in author_messages]
+    )
+
     prompt = f"""You are Egregora, writing a profile post ABOUT {author_name}.
 
 Analyze {author_name}'s contributions, interests, and interactions based on their message history below.
@@ -63,123 +58,114 @@ Length: 1-2 paragraphs
 {messages_text}
 
 Write the profile post now:"""
-    
+
     return prompt
 
 
 async def _generate_profile_content(
-    ctx: Any,
-    author_messages: list[dict[str, Any]],
-    author_name: str,
-    author_uuid: str
+    ctx: Any, author_messages: list[dict[str, Any]], author_name: str, author_uuid: str
 ) -> str:
     """Generate profile content using LLM.
-    
+
     Args:
         ctx: Pipeline context with config
         author_messages: All messages from author
         author_name: Author's name
         author_uuid: Author's UUID
-        
+
     Returns:
         Generated profile content (markdown)
+
     """
     # Build prompt
     prompt = _build_profile_prompt(
         author_name=author_name,
         author_messages=author_messages,
-        window_date=author_messages[0].get("timestamp", "").split("T")[0] if author_messages else ""
+        window_date=author_messages[0].get("timestamp", "").split("T")[0] if author_messages else "",
     )
-    
+
     # Call LLM
     content = await _call_llm(prompt, ctx)
-    
+
     return content
 
 
 async def _call_llm(prompt: str, ctx: Any) -> str:
     """Call LLM with prompt.
-    
+
     Args:
         prompt: Prompt text
         ctx: Pipeline context with model config
-        
+
     Returns:
         LLM response
+
     """
     # Get model from config
     model_name = ctx.config.models.writer
-    
+
     # Create pydantic-ai agent
     agent = Agent(model_name)
-    
+
     # Run agent
     result = await agent.run(prompt)
-    
+
     return result.data
 
 
 async def generate_profile_posts(
-    ctx: Any,
-    messages: list[dict[str, Any]],
-    window_date: str
+    ctx: Any, messages: list[dict[str, Any]], window_date: str
 ) -> list[Document]:
     """Generate PROFILE posts for all active authors in window.
-    
+
     Generates ONE profile post per author, analyzing their full
     message history. LLM decides what to write about.
-    
+
     Args:
         ctx: Pipeline context
         messages: All messages in window
         window_date: Window date (YYYY-MM-DD)
-        
+
     Returns:
         List of PROFILE documents (one per author)
+
     """
     # Group messages by author
     author_messages = defaultdict(list)
     author_names = {}
-    
+
     for msg in messages:
         author_uuid = msg.get("author_uuid")
         if not author_uuid:
             continue
-        
+
         author_messages[author_uuid].append(msg)
         author_names[author_uuid] = msg.get("author_name", "Unknown")
-    
+
     # Generate one profile per author
     profiles = []
-    
+
     for author_uuid, msgs in author_messages.items():
         author_name = author_names[author_uuid]
-        
-        logger.info(
-            "Generating profile for %s (%d messages)",
-            author_name,
-            len(msgs)
-        )
-        
+
+        logger.info("Generating profile for %s (%d messages)", author_name, len(msgs))
+
         try:
             # Generate content
             content = await _generate_profile_content(
-                ctx=ctx,
-                author_messages=msgs,
-                author_name=author_name,
-                author_uuid=author_uuid
+                ctx=ctx, author_messages=msgs, author_name=author_name, author_uuid=author_uuid
             )
-            
+
             # Extract title from content (first H1)
             title_match = content.split("\n")[0]
             if title_match.startswith("# "):
                 title = title_match[2:].strip()
             else:
                 title = f"{author_name}: Profile"
-            
+
             # Create slug
             slug = f"{window_date}-{author_uuid[:8]}-profile"
-            
+
             # Create PROFILE document
             profile = Document(
                 content=content,
@@ -187,19 +173,17 @@ async def generate_profile_posts(
                 metadata={
                     "title": title,
                     "slug": slug,
-                    "authors": [
-                        {"uuid": EGREGORA_UUID, "name": EGREGORA_NAME}
-                    ],
+                    "authors": [{"uuid": EGREGORA_UUID, "name": EGREGORA_NAME}],
                     "subject": author_uuid,
-                    "date": window_date
-                }
+                    "date": window_date,
+                },
             )
-            
+
             profiles.append(profile)
             logger.info("Generated profile for %s: %s", author_name, title)
-            
-        except Exception as exc:
+
+        except Exception:
             logger.exception("Failed to generate profile for %s", author_name)
             continue
-    
+
     return profiles

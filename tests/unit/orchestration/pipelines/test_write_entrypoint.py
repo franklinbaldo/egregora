@@ -1,13 +1,17 @@
-from unittest.mock import MagicMock, patch
 from pathlib import Path
-from egregora.constants import SourceType, WindowUnit
+from unittest.mock import MagicMock, patch
+
+from egregora.constants import SourceType
+
 
 def test_write_pipeline_importable():
     """
     GREEN TEST: Verify that the module now exists and can be imported.
     """
     import egregora.orchestration.pipelines.write
+
     assert hasattr(egregora.orchestration.pipelines.write, "run_cli_flow")
+
 
 @patch("egregora.orchestration.pipelines.write.run")
 @patch("egregora.orchestration.pipelines.write.load_egregora_config")
@@ -26,11 +30,7 @@ def test_run_cli_flow(mock_ensure_mkdocs, mock_validate_key, mock_load_config, m
     mock_config.model_copy.return_value = mock_config
     mock_config.pipeline.model_copy.return_value = mock_config.pipeline
 
-    run_cli_flow(
-        input_file=Path("test.zip"),
-        output=Path("site"),
-        source=SourceType.WHATSAPP
-    )
+    run_cli_flow(input_file=Path("test.zip"), output=Path("site"), source=SourceType.WHATSAPP)
 
     # Verify run was called
     assert mock_run.called
