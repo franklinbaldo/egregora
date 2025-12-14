@@ -25,11 +25,24 @@ class MediaCarousel {
     }
 
     detectEmbedType(url) {
-        if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
-        if (url.includes('vimeo.com')) return 'vimeo';
-        if (url.includes('twitter.com') || url.includes('x.com')) return 'twitter';
-        if (url.includes('spotify.com')) return 'spotify';
-        if (url.includes('github.com')) return 'github';
+        try {
+            const parsed = new URL(url);
+            const hostname = parsed.hostname.toLowerCase();
+            // YouTube: youtube.com and youtu.be (and subdomains)
+            if (hostname === 'youtube.com' || hostname.endsWith('.youtube.com') ||
+                hostname === 'youtu.be' || hostname.endsWith('.youtu.be')) return 'youtube';
+            // Vimeo
+            if (hostname === 'vimeo.com' || hostname.endsWith('.vimeo.com')) return 'vimeo';
+            // Twitter/X
+            if (hostname === 'twitter.com' || hostname.endsWith('.twitter.com') ||
+                hostname === 'x.com' || hostname.endsWith('.x.com')) return 'twitter';
+            // Spotify
+            if (hostname === 'spotify.com' || hostname.endsWith('.spotify.com')) return 'spotify';
+            // GitHub
+            if (hostname === 'github.com' || hostname.endsWith('.github.com')) return 'github';
+        } catch (e) {
+            // Malformed URL, fallback to card
+        }
         return 'card';
     }
 
