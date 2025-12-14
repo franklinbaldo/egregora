@@ -14,21 +14,24 @@ from typing import TYPE_CHECKING, Any
 
 import ibis
 
-from egregora.rag import RAGQueryRequest, search
+from egregora.rag import RAGQueryRequest
 
 if TYPE_CHECKING:
     import ibis.expr.types as ir
 
+    from egregora.rag.backend import RAGBackend
+
 logger = logging.getLogger(__name__)
 
 
-def search_to_table(request: RAGQueryRequest) -> ir.Table:
+def search_to_table(backend: RAGBackend, request: RAGQueryRequest) -> ir.Table:
     """Execute RAG search and return results as an Ibis table (sync).
 
     This allows you to use DuckDB's SQL capabilities on vector search results,
     including joins with other tables, aggregations, and filtering.
 
     Args:
+        backend: RAG backend instance
         request: RAG query request
 
     Returns:
@@ -37,14 +40,15 @@ def search_to_table(request: RAGQueryRequest) -> ir.Table:
     Example:
         >>> from egregora.rag import RAGQueryRequest
         >>> from egregora.rag.duckdb_integration import search_to_table
+        >>> # backend = create_rag_backend(config)
         >>> request = RAGQueryRequest(text="machine learning", top_k=10)
-        >>> results_table = search_to_table(request)
+        >>> results_table = search_to_table(backend, request)
         >>> # Now you can query with SQL
         >>> top_results = results_table.filter(results_table.score > 0.8)
         >>> print(top_results.execute())
 
     """
-    response = search(request)
+    response = backend.query(request)
 
     # Convert RAGHit results to dictionary records
     records = []
@@ -109,7 +113,9 @@ def join_with_messages(
     return rag_results.inner_join(messages_table, rag_results[on_column] == messages_table[on_column])
 
 
-def create_rag_analytics_view(storage_manager: Any, rag_query: str, top_k: int = 100) -> ir.Table:
+def create_rag_analytics_view(
+    storage_manager: Any, backend: RAGBackend, rag_query: str, top_k: int = 100
+) -> ir.Table:
     """Create a DuckDB view combining RAG results with analytics (sync).
 
     This creates a materialized view that you can query with SQL, joining
@@ -117,28 +123,17 @@ def create_rag_analytics_view(storage_manager: Any, rag_query: str, top_k: int =
 
     Args:
         storage_manager: DuckDB storage manager
+        backend: RAG backend instance
         rag_query: Query text for RAG search
         top_k: Number of results to include
 
     Returns:
         Ibis table representing the analytics view
 
-    Example:
-        >>> from egregora.database.duckdb_manager import DuckDBStorageManager
-        >>> storage = DuckDBStorageManager()
-        >>> view = create_rag_analytics_view(
-        ...     storage,
-        ...     rag_query="machine learning trends",
-        ...     top_k=50
-        ... )
-        >>> # Query the view with SQL
-        >>> high_confidence = view.filter(view.score > 0.85)
-        >>> print(high_confidence.count().execute())
-
     """
     # Execute RAG search
     request = RAGQueryRequest(text=rag_query, top_k=top_k)
-    rag_table = search_to_table(request)
+    rag_table = search_to_table(backend, request)
 
     # Register as a DuckDB table for querying
     with storage_manager.connection() as conn:
@@ -159,6 +154,7 @@ def create_rag_analytics_view(storage_manager: Any, rag_query: str, top_k: int =
 
 
 def search_with_filters(
+    backend: RAGBackend,
     query: str,
     *,
     min_score: float = 0.7,
@@ -170,6 +166,7 @@ def search_with_filters(
     This combines vector search with SQL filtering for more precise results.
 
     Args:
+        backend: RAG backend instance
         query: Search query text
         min_score: Minimum similarity score (default: 0.7)
         document_types: Filter by document types (e.g., ["POST", "NOTE"])
@@ -178,20 +175,10 @@ def search_with_filters(
     Returns:
         Filtered Ibis table with search results
 
-    Example:
-        >>> results = search_with_filters(
-        ...     "python programming",
-        ...     min_score=0.8,
-        ...     document_types=["POST"],
-        ...     top_k=5
-        ... )
-        >>> for row in results.execute().to_pylist():
-        ...     print(f"{row['text'][:50]}... (score: {row['score']:.2f})")
-
     """
     # Execute RAG search with higher top_k for pre-filtering
     request = RAGQueryRequest(text=query, top_k=top_k * 2)
-    results = search_to_table(request)
+    results = search_to_table(backend, request)
 
     # Apply SQL filters
     filtered = results.filter(results.score >= min_score)

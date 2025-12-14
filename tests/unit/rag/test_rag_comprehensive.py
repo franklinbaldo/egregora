@@ -28,7 +28,6 @@ import pytest
 
 import egregora.rag
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.rag import get_backend, index_documents, search
 from egregora.rag.ingestion import DEFAULT_MAX_CHARS, chunks_from_document, chunks_from_documents
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
 from egregora.rag.models import RAGQueryRequest
@@ -603,48 +602,7 @@ def test_backend_query_with_filters(temp_db_dir: Path, mock_embed_fn):
 # ============================================================================
 
 
-def test_high_level_api_index_and_search():
-    """Test the high-level index_documents() and search() API."""
-    with (
-        tempfile.TemporaryDirectory(),
-        patch("egregora.rag.get_backend") as mock_get_backend,
-    ):
-        mock_backend = Mock()
-        mock_get_backend.return_value = mock_backend
-
-        # Reset global backend
-        egregora.rag.reset_backend()
-
-        # Use high-level API
-        docs = [Document(content="Test", type=DocumentType.POST)]
-        index_documents(docs)
-
-        mock_backend.add.assert_called_once_with(docs)
-
-        # Search
-        request = RAGQueryRequest(text="Test", top_k=5)
-        search(request)
-
-        mock_backend.query.assert_called_once_with(request)
-
-
-def test_high_level_api_backend_singleton():
-    """Test that get_backend() returns singleton instance."""
-    with patch("egregora.rag.LanceDBRAGBackend") as mock_backend_class:
-        mock_backend1 = Mock()
-        mock_backend_class.return_value = mock_backend1
-
-        # Reset global backend
-        egregora.rag.reset_backend()
-
-        # Get backend twice
-        backend1 = get_backend()
-        backend2 = get_backend()
-
-        # Should be same instance
-        assert backend1 is backend2
-        # Should only create once
-        assert mock_backend_class.call_count == 1
+# Global API tests removed as the singleton API has been deprecated/removed
 
 
 # ============================================================================

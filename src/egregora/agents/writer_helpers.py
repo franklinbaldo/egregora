@@ -24,7 +24,7 @@ from egregora.agents.types import (
     WriterDeps,
 )
 from egregora.data_primitives.document import DocumentType
-from egregora.rag import RAGQueryRequest, reset_backend, search
+from egregora.rag import RAGQueryRequest
 
 if TYPE_CHECKING:
     from pydantic_ai import Agent
@@ -94,87 +94,9 @@ def register_writer_tools(
 # ============================================================================
 
 
-def build_rag_context_for_prompt(
-    table_markdown: str,
-    *,
-    top_k: int = 5,
-    cache: Any | None = None,
-) -> str:
-    """Build RAG context by searching for similar posts.
-
-    Uses the new egregora.rag API to find relevant posts based on the conversation content.
-
-    Args:
-        table_markdown: Conversation content in markdown format to search against
-        top_k: Number of similar posts to retrieve (default: 5)
-        cache: Optional cache for RAG queries
-
-    Returns:
-        Formatted string with similar posts context, or empty string if no results
-
-    """
-    if not table_markdown or not table_markdown.strip():
-        return ""
-
-    query_text = table_markdown[:500]
-    cached = _get_cached_rag_context(cache, query_text)
-    if cached is not None:
-        return cached
-
-    response = _run_rag_query(query_text, top_k)
-    if response is None or not response.hits:
-        return ""
-
-    context = _format_rag_hits(response.hits)
-    _store_rag_context(cache, query_text, context)
-    logger.info("Built RAG context with %d similar posts", len(response.hits))
-    return context
-
-
-def _get_cached_rag_context(cache: Any | None, query_text: str) -> str | None:
-    if cache is None:
-        return None
-    try:
-        cache_key = f"rag_context_{hash(query_text)}"
-        return cache.rag.get(cache_key)
-    except (AttributeError, KeyError, TypeError):
-        logger.warning("Cache retrieval failed")
-        return None
-
-
-def _run_rag_query(query_text: str, top_k: int) -> Any | None:
-    try:
-        reset_backend()
-        return search(RAGQueryRequest(text=query_text, top_k=top_k))
-    except (ConnectionError, TimeoutError) as exc:
-        logger.warning("RAG backend unavailable, continuing without context: %s", exc)
-    except ValueError as exc:
-        logger.warning("Invalid RAG query, continuing without context: %s", exc)
-    except (AttributeError, KeyError, TypeError):
-        logger.exception("Malformed RAG response, continuing without context")
-    return None
-
-
-def _format_rag_hits(hits: list[Any]) -> str:
-    parts = [
-        "\n\n## Similar Posts (for context and inspiration):\n",
-        "These are similar posts from previous conversations that might provide useful context:\n\n",
-    ]
-    for idx, hit in enumerate(hits, 1):
-        similarity_pct = int(hit.score * 100)
-        parts.append(f"### Similar Post {idx} (similarity: {similarity_pct}%)\n")
-        parts.append(f"{hit.text[:500]}...\n\n")
-    return "".join(parts)
-
-
-def _store_rag_context(cache: Any | None, query_text: str, context: str) -> None:
-    if cache is None:
-        return
-    try:
-        cache_key = f"rag_context_{hash(query_text)}"
-        cache.rag.set(cache_key, context)
-    except (AttributeError, KeyError, TypeError):
-        logger.warning("Cache storage failed")
+# RAG Context Building logic removed as it requires dynamic dependency injection
+# which is better handled by @agent.system_prompt within writer_setup.py.
+# The previous implementation relied on global state which we are removing.
 
 
 def load_profiles_context(active_authors: list[str], output_sink: Any) -> str:

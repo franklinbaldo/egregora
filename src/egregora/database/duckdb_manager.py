@@ -112,7 +112,7 @@ class DuckDBStorageManager:
 
         # Initialize Ibis backend first (it manages the DuckDB connection)
         db_str = str(db_path) if db_path else ":memory:"
-        self.ibis_conn = ibis.duckdb.connect(database=db_str, read_only=False)
+        self.ibis_conn = ibis.duckdb.connect(database=db_str)
 
         # Use the underlying DuckDB connection from Ibis to ensure we share the same connection
         # This prevents "read-only transaction" errors caused by multiple connections to the same file
@@ -190,7 +190,7 @@ class DuckDBStorageManager:
         else:
             msg = "Provided backend does not expose a raw 'con' attribute (expected DuckDB backend)"
             raise ValueError(msg)
-
+        
         # Extract db_path from connection so _reset_connection works correctly
         # PRAGMA database_list returns rows as (oid, name, file)
         try:
@@ -223,35 +223,21 @@ class DuckDBStorageManager:
 
         def _connect() -> None:
             # Re-initialize via Ibis to maintain shared connection
-            # Explicitly request read_write access
-            self.ibis_conn = ibis.duckdb.connect(database=db_str, read_only=False)
+            self.ibis_conn = ibis.duckdb.connect(database=db_str)
             self._conn = self.ibis_conn.con
 
         try:
             _connect()
-        except Exception as exc:
-            # Check for specific invalidation error that requires file removal
-            if isinstance(exc, duckdb.Error) and self._is_invalidated_error(exc) and self.db_path:
+        except duckdb.Error as exc:
+            if self._is_invalidated_error(exc) and self.db_path:
                 logger.warning("Recreating DuckDB database file after fatal invalidation: %s", db_str)
                 try:
                     Path(db_str).unlink(missing_ok=True)
-                    _connect()
-                    return
-                except Exception:
-                    logger.exception("Failed to recover via file deletion")
-
-            # Fallback to memory if file open/recovery fails
-            logger.warning("Failed to reconnect to %s, falling back to memory. Error: %s", db_str, exc)
-            db_str = ":memory:"
-            try:
+                except Exception:  # pragma: no cover - defensive logging
+                    logger.exception("Failed to remove invalidated DuckDB file %s", db_str)
                 _connect()
-            except Exception:
-                msg = "Critical failure: Could not connect to in-memory database after reset"
-                logger.critical(msg)
-                raise RuntimeError(msg) from exc
-
-        self.db_path = Path(db_str) if db_str != ":memory:" else None
-        logger.info("DuckDB connection reset successfully (db=%s)", db_str)
+            else:
+                raise
 
         self.sql = SQLManager()
         self._table_info_cache.clear()
@@ -574,15 +560,12 @@ class DuckDBStorageManager:
 
         with self._lock:
             try:
-                # Rollback any pending transaction, then start a fresh write transaction
+                # Rollback any pending transaction, then start fresh
                 try:
                     self._conn.rollback()
                 except duckdb.Error:
                     pass  # Rollback may fail if no transaction is active
-
-                # Explicitly begin a write transaction before nextval() to avoid
-                # "read-only transaction but has made changes" error
-                self._conn.begin()
+                    
                 cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
                 values = [int(row[0]) for row in cursor.fetchall()]
                 self._conn.commit()
@@ -594,17 +577,14 @@ class DuckDBStorageManager:
                 # Recreate the connection and retry once so the pipeline can continue.
                 logger.warning("DuckDB connection invalidated, resetting: %s", exc)
                 self._reset_connection()
-
+                
                 # After connection reset, ensure sequence exists (may have been lost)
                 state = self.get_sequence_state(sequence_name)
                 if state is None:
-                    logger.warning(
-                        "Sequence '%s' not found after connection reset, recreating", sequence_name
-                    )
+                    logger.warning("Sequence '%s' not found after connection reset, recreating", sequence_name)
                     self.ensure_sequence(sequence_name)
-
+                
                 try:
-                    self._conn.begin()
                     cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
                     values = [int(row[0]) for row in cursor.fetchall()]
                     self._conn.commit()

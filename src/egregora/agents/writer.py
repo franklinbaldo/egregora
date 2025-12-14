@@ -56,7 +56,6 @@ from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.knowledge.profiles import get_active_authors
 from egregora.output_adapters import OutputSinkRegistry, create_default_output_registry
-from egregora.rag import index_documents, reset_backend
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
@@ -627,7 +626,7 @@ def _index_new_content_in_rag(
 
     """
     # Check if RAG is enabled and we have posts to index
-    if not (resources.retrieval_config.enabled and saved_posts):
+    if not (resources.retrieval_config.enabled and saved_posts and resources.rag_backend):
         return
 
     try:
@@ -644,7 +643,7 @@ def _index_new_content_in_rag(
                         break
 
         if docs:
-            index_documents(docs)
+            resources.rag_backend.index_documents(docs)
             logger.info("Indexed %d new posts in RAG", len(docs))
         else:
             logger.debug("No new documents to index in RAG")
@@ -656,11 +655,6 @@ def _index_new_content_in_rag(
         logger.warning("Invalid document data for RAG indexing, skipping: %s", exc)
     except (OSError, PermissionError) as exc:
         logger.warning("Cannot access RAG storage, skipping indexing: %s", exc)
-    finally:
-        # Reset backend to clear loop-bound clients (httpx) as defensive programming
-        # NOTE: Not strictly needed in sync mode but prevents potential issues
-        # if async operations are added in the future or called from async contexts
-        reset_backend()
 
 
 @dataclass

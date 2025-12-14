@@ -22,9 +22,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import TracebackType
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any
 
+import ibis
 from ibis.common.exceptions import IbisError
 from ibis.expr.types import Table
 from pydantic import BaseModel
@@ -39,7 +39,7 @@ from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.input_adapters.base import MediaMapping
 from egregora.models.google_batch import GoogleBatchModel
-from egregora.ops.media import extract_urls, find_media_references
+from egregora.ops.media import extract_urls, find_media_references, replace_media_mentions
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
@@ -108,7 +108,6 @@ def _normalize_slug(candidate: str | None, identifier: str) -> str:
 
     Raises:
         ValueError: If candidate is None, empty, or doesn't produce a valid slug
-
     """
     if not isinstance(candidate, str) or not candidate.strip():
         msg = f"LLM failed to generate slug for: {identifier[:100]}"
@@ -728,14 +727,14 @@ def _extract_media_candidates(
                 # The ID is deterministic based on the ref
                 doc_id = str(uuid.uuid5(uuid.NAMESPACE_URL, ref))
                 document_lookup[ref] = Document(
-                    content=b"",  # Empty content for placeholder
+                    content=b"", # Empty content for placeholder
                     type=DocumentType.MEDIA,
-                    id=doc_id,  # Deterministic ID
+                    id=doc_id, # Deterministic ID
                     metadata={
                         "filename": ref,
                         "original_filename": ref,
-                        "media_type": mimetypes.guess_type(ref)[0] or "application/octet-stream",
-                    },
+                        "media_type": mimetypes.guess_type(ref)[0] or "application/octet-stream"
+                    }
                 )
 
         if len(unique_media) >= limit:
@@ -743,57 +742,32 @@ def _extract_media_candidates(
 
     # Sort by timestamp
     sorted_refs = sorted(
-        unique_media, key=lambda r: (metadata_lookup[r]["ts"] is None, metadata_lookup[r]["ts"])
+        unique_media,
+        key=lambda r: (metadata_lookup[r]["ts"] is None, metadata_lookup[r]["ts"])
     )
 
-    return [(ref, document_lookup[ref], metadata_lookup[ref]) for ref in sorted_refs[:limit]]
+    return [
+        (ref, document_lookup[ref], metadata_lookup[ref])
+        for ref in sorted_refs[:limit]
+    ]
+
+
+
+def _replace_pii_media_references(
+    messages_table: Table,
+    media_mapping: MediaMapping,
+) -> Table:
+    """Replace media references in messages after PII deletion."""
+
+    @ibis.udf.scalar.python
+    def replace_media_udf(text: str) -> str:
+        return replace_media_mentions(text, media_mapping) if text else text
+
+    return messages_table.mutate(text=replace_media_udf(messages_table.text))
 
 
 class EnrichmentWorker(BaseWorker):
     """Worker for media enrichment (e.g. image description)."""
-
-    def __init__(self, ctx: PipelineContext | EnrichmentRuntimeContext):
-        super().__init__(ctx)
-        self.zip_handle: zipfile.ZipFile | None = None
-        self.media_index: dict[str, str] = {}
-
-        if self.ctx.input_path and self.ctx.input_path.exists() and self.ctx.input_path.is_file():
-            try:
-                self.zip_handle = zipfile.ZipFile(self.ctx.input_path, "r")
-                # Build index for O(1) lookup
-                for info in self.zip_handle.infolist():
-                    if not info.is_dir():
-                        self.media_index[Path(info.filename).name.lower()] = info.filename
-            except Exception:
-                logger.warning("Failed to open source ZIP %s", self.ctx.input_path)
-
-    def close(self) -> None:
-        """Explicitly close the ZIP handle to release resources.
-
-        Should be called when done with the worker. Also called by __exit__
-        for context manager support.
-        """
-        if self.zip_handle:
-            try:
-                self.zip_handle.close()
-            except OSError:
-                logger.debug("Error closing ZIP handle", exc_info=True)
-            finally:
-                self.zip_handle = None
-                self.media_index = {}
-
-    def __enter__(self) -> Self:
-        """Context manager entry."""
-        return self
-
-    def __exit__(
-        self,
-        _exc_type: type[BaseException] | None,
-        _exc_val: BaseException | None,
-        _exc_tb: TracebackType | None,
-    ) -> None:
-        """Context manager exit - ensures ZIP handle is closed."""
-        self.close()
 
     def run(self) -> int:
         """Process pending enrichment tasks in batches."""
@@ -802,27 +776,17 @@ class EnrichmentWorker(BaseWorker):
         tasks = self.task_store.fetch_pending(task_type="enrich_url", limit=batch_size)
         media_tasks = self.task_store.fetch_pending(task_type="enrich_media", limit=batch_size)
 
-        total_tasks = len(tasks) + len(media_tasks)
-        if not total_tasks:
-            return 0
-
-        logger.info(
-            "[Enrichment] Processing %d tasks (URL: %d, Media: %d)", total_tasks, len(tasks), len(media_tasks)
-        )
+        if tasks or media_tasks:
+            logger.info("EnrichmentWorker fetch: %d URL tasks, %d Media tasks", len(tasks), len(media_tasks))
 
         processed_count = 0
 
         if tasks:
-            count = self._process_url_batch(tasks)
-            processed_count += count
-            logger.info("[Enrichment] URL batch complete: %d/%d", count, len(tasks))
+            processed_count += self._process_url_batch(tasks)
 
         if media_tasks:
-            count = self._process_media_batch(media_tasks)
-            processed_count += count
-            logger.info("[Enrichment] Media batch complete: %d/%d", count, len(media_tasks))
+            processed_count += self._process_media_batch(media_tasks)
 
-        logger.info("Enrichment complete: %d/%d tasks processed", processed_count, total_tasks)
         return processed_count
 
     def _process_url_batch(self, tasks: list[dict[str, Any]]) -> int:
@@ -874,41 +838,21 @@ class EnrichmentWorker(BaseWorker):
                 ).strip()
 
                 tasks_data.append({"task": task, "url": url, "prompt": prompt})
-            except Exception:
+            except Exception as exc:
                 logger.exception("Failed to prepare URL task %s", task["task_id"])
+                self.task_store.mark_failed(task["task_id"], f"Preparation failed: {exc!s}")
 
         return tasks_data
 
     def _determine_concurrency(self, task_count: int) -> int:
-        """Determine optimal concurrency based on available API keys.
-
-        Auto-detects number of API keys and uses them in parallel instead of
-        sequential rotation.
-        """
-        from egregora.models.model_cycler import get_api_keys
-
-        # Auto-detect available API keys
-        api_keys = get_api_keys()
-        num_keys = len(api_keys) if api_keys else 1
-
-        # Use configured value or auto-detected key count
-        enrichment_concurrency = getattr(
-            self.ctx.config.enrichment,
-            "max_concurrent_enrichments",
-            num_keys,  # Default to number of keys
-        )
-
-        global_concurrency = getattr(self.ctx.config.quota, "concurrency", num_keys)
-
-        # Use all available keys in parallel (up to task count)
-        max_concurrent = min(enrichment_concurrency, global_concurrency, task_count, num_keys)
+        enrichment_concurrency = getattr(self.ctx.config.enrichment, "max_concurrent_enrichments", 5)
+        global_concurrency = getattr(self.ctx.config.quota, "concurrency", 1)
+        max_concurrent = min(enrichment_concurrency, global_concurrency)
 
         logger.info(
-            "Processing %d enrichment tasks with max concurrency of %d "
-            "(API keys: %d, enrichment limit: %d, global limit: %d)",
+            "Processing %d enrichment tasks with max concurrency of %d (enrichment limit: %d, global limit: %d)",
             task_count,
             max_concurrent,
-            num_keys,
             enrichment_concurrency,
             global_concurrency,
         )
@@ -918,156 +862,17 @@ class EnrichmentWorker(BaseWorker):
     def _execute_url_enrichments(
         self, tasks_data: list[dict[str, Any]], max_concurrent: int
     ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
-        """Execute URL enrichments based on configured strategy."""
-        strategy = getattr(self.ctx.config.enrichment, "strategy", "individual")
-        total = len(tasks_data)
-
-        # Use single-call batch for batch_all strategy with multiple URLs
-        if strategy == "batch_all" and total > 1:
-            try:
-                logger.info("[URLEnricher] Using single-call batch mode for %d URLs", total)
-                return self._execute_url_single_call(tasks_data)
-            except Exception as single_call_exc:
-                logger.warning(
-                    "[URLEnricher] Single-call batch failed (%s), falling back to individual",
-                    single_call_exc,
-                )
-
-        # Individual calls (default fallback)
-        return self._execute_url_individual(tasks_data, max_concurrent)
-
-    def _execute_url_individual(
-        self, tasks_data: list[dict[str, Any]], max_concurrent: int
-    ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
-        """Execute URL enrichments individually with model rotation."""
         results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
-        total = len(tasks_data)
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
             future_to_task = {executor.submit(self._enrich_single_url, td): td for td in tasks_data}
-            for i, future in enumerate(as_completed(future_to_task), 1):
+            for future in as_completed(future_to_task):
                 try:
                     results.append(future.result())
-                    logger.info("[Enrichment] URL task %d/%d complete", i, total)
                 except Exception as exc:
                     task = future_to_task[future]["task"]
                     logger.exception("Enrichment failed for %s", task["task_id"])
                     results.append((task, None, str(exc)))
 
-        return results
-
-    def _execute_url_single_call(
-        self, tasks_data: list[dict[str, Any]]
-    ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
-        """Execute all URL enrichments in a single API call.
-
-        Sends all URLs together with a combined prompt asking for JSON dict result.
-        """
-        from google import genai
-        from google.genai import types
-
-        api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for URL enrichment"
-            raise ValueError(msg)
-
-        client = genai.Client(api_key=api_key)
-
-        # Extract URLs from tasks
-        urls = []
-        for td in tasks_data:
-            task = td["task"]
-            payload = task.get("_parsed_payload") or json.loads(task.get("payload", "{}"))
-            url = payload.get("url", "")
-            urls.append(url)
-
-        # Render prompt from Jinja template
-        prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
-        combined_prompt = render_prompt(
-            "enrichment.jinja",
-            mode="url_batch",
-            prompts_dir=prompts_dir,
-            url_count=len(urls),
-            urls_json=json.dumps(urls),
-            pii_prevention=getattr(self.ctx.config.privacy, "pii_prevention", None),
-        ).strip()
-
-        # Build model+key rotator if enabled
-        rotation_enabled = getattr(self.ctx.config.enrichment, "model_rotation_enabled", True)
-        rotation_models = getattr(self.ctx.config.enrichment, "rotation_models", None)
-
-        if rotation_enabled:
-            from egregora.models.model_key_rotator import ModelKeyRotator
-
-            rotator = ModelKeyRotator(models=rotation_models)
-
-            def call_with_model_and_key(model: str, api_key: str) -> str:
-                client = genai.Client(api_key=api_key)
-                response = client.models.generate_content(
-                    model=model,
-                    contents=[{"parts": [{"text": combined_prompt}]}],
-                    config=types.GenerateContentConfig(response_mime_type="application/json"),
-                )
-                return response.text or ""
-
-            response_text = rotator.call_with_rotation(call_with_model_and_key)
-        else:
-            # No rotation - use configured model and API key
-            model_name = self.ctx.config.models.enricher
-            api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-            client = genai.Client(api_key=api_key)
-            response = client.models.generate_content(
-                model=model_name,
-                contents=[{"parts": [{"text": combined_prompt}]}],
-                config=types.GenerateContentConfig(response_mime_type="application/json"),
-            )
-            response_text = response.text or ""
-
-        logger.debug(
-            "[URLEnricher] Single-call response received (length: %d)",
-            len(response_text) if response_text else 0,
-        )
-
-        # Parse JSON response
-        try:
-            results_dict = json.loads(response_text)
-        except json.JSONDecodeError as e:
-            logger.warning("[URLEnricher] Failed to parse JSON response: %s", e)
-            raise ValueError(f"Failed to parse batch response: {e}") from e
-
-        # Convert to result tuples
-        results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
-        for td in tasks_data:
-            task = td["task"]
-            payload = task.get("_parsed_payload") or json.loads(task.get("payload", "{}"))
-            url = payload.get("url", "")
-
-            enrichment = results_dict.get(url, {})
-            if enrichment:
-                # Build EnrichmentOutput from result
-                slug = enrichment.get("slug", "")
-                summary = enrichment.get("summary", "")
-                takeaways = enrichment.get("key_takeaways", [])
-
-                # Build markdown from enrichment data
-                takeaways_md = "\n".join(f"- {t}" for t in takeaways) if takeaways else ""
-                markdown = f"""# {slug}
-
-## Summary
-{summary}
-
-## Key Takeaways
-{takeaways_md}
-
----
-*Source: [{url}]({url})*
-"""
-                output = EnrichmentOutput(slug=slug, markdown=markdown)
-                results.append((task, output, None))
-                logger.info("[URLEnricher] Processed %s via single-call batch", url)
-            else:
-                results.append((task, None, f"No result for {url}"))
-
-        logger.info("[URLEnricher] Single-call batch complete: %d/%d", len(results), len(tasks_data))
         return results
 
     def _persist_url_results(self, results: list[tuple[dict, EnrichmentOutput | None, str | None]]) -> int:
@@ -1200,277 +1005,63 @@ class EnrichmentWorker(BaseWorker):
         return requests, task_map
 
     def _load_media_bytes(self, task: dict[str, Any], payload: dict[str, Any]) -> bytes | None:
-        """Load media bytes directly from source ZIP file via index."""
+        """Load media bytes directly from source ZIP file.
+
+        Uses original_filename from payload to find media in the ZIP,
+        with case-insensitive matching.
+        """
         original_filename = payload.get("original_filename") or payload.get("filename")
         if not original_filename:
             logger.warning("No filename in media task %s", task["task_id"])
             self.task_store.mark_failed(task["task_id"], "No filename in task payload")
             return None
 
-        zf = self.zip_handle
-        media_index = self.media_index
-        should_close = False
-
-        # Fallback initialization if ZIP wasn't opened in __init__
-        if zf is None:
-            input_path = self.ctx.input_path
-            if not input_path or not input_path.exists():
-                logger.warning("Input path not available for media task %s", task["task_id"])
-                self.task_store.mark_failed(task["task_id"], "Input path not available")
-                return None
-            try:
-                zf = zipfile.ZipFile(input_path, "r")
-                should_close = True
-                # Build index on the fly
-                media_index = {}
-                for info in zf.infolist():
-                    if not info.is_dir():
-                        media_index[Path(info.filename).name.lower()] = info.filename
-            except Exception as exc:
-                logger.warning("Failed to open source ZIP %s: %s", input_path, exc)
-                self.task_store.mark_failed(task["task_id"], f"Failed to open ZIP: {exc}")
-                return None
+        input_path = self.ctx.input_path
+        if not input_path or not input_path.exists():
+            logger.warning("Input path not available for media task %s", task["task_id"])
+            self.task_store.mark_failed(task["task_id"], "Input path not available")
+            return None
 
         try:
-            target_lower = original_filename.lower()
-            full_path = media_index.get(target_lower)
+            with zipfile.ZipFile(input_path, 'r') as zf:
+                # Case-insensitive search for media file
+                target_lower = original_filename.lower()
+                for info in zf.infolist():
+                    if info.is_dir():
+                        continue
+                    if Path(info.filename).name.lower() == target_lower:
+                        media_bytes = zf.read(info.filename)
+                        logger.debug("Loaded %d bytes from %s", len(media_bytes), info.filename)
+                        return media_bytes
 
-            if full_path:
-                media_bytes = zf.read(full_path)
-                logger.debug("Loaded %d bytes from %s", len(media_bytes), full_path)
-                return media_bytes
-
-            logger.warning("Media file %s not found in ZIP for task %s", original_filename, task["task_id"])
-            self.task_store.mark_failed(task["task_id"], f"Media file not found: {original_filename}")
-            return None
+                # Not found
+                logger.warning("Media file %s not found in ZIP for task %s",
+                             original_filename, task["task_id"])
+                self.task_store.mark_failed(task["task_id"], f"Media file not found: {original_filename}")
+                return None
 
         except (OSError, zipfile.BadZipFile) as exc:
             logger.warning("Failed to read media from ZIP for task %s: %s", task["task_id"], exc)
             self.task_store.mark_failed(task["task_id"], f"Failed to read ZIP: {exc}")
             return None
-        finally:
-            if should_close and zf:
-                zf.close()
 
     def _execute_media_batch(
         self, requests: list[dict[str, Any]], task_map: dict[str, dict[str, Any]]
     ) -> list[Any]:
-        """Execute media enrichments based on configured strategy."""
         model_name = self.ctx.config.models.enricher_vision
         api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if not api_key:
             msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment"
             raise ValueError(msg)
 
-        # Use strategy-based dispatch
-        strategy = getattr(self.ctx.config.enrichment, "strategy", "individual")
-        if strategy == "batch_all" and len(requests) > 1:
-            try:
-                logger.info("[MediaEnricher] Using single-call batch mode for %d images", len(requests))
-                return self._execute_media_single_call(requests, task_map, model_name, api_key)
-            except Exception as single_call_exc:
-                logger.warning(
-                    "[MediaEnricher] Single-call batch failed (%s), falling back to standard batch",
-                    single_call_exc,
-                )
-
-        # Standard batch API (one request per image)
         model = GoogleBatchModel(api_key=api_key, model_name=model_name)
         try:
             return asyncio.run(model.run_batch(requests))
-        except Exception as batch_exc:
-            # Batch failed (likely quota exceeded) - fallback to individual calls
-            logger.warning(
-                "Batch API failed (%s), falling back to individual calls for %d requests",
-                batch_exc,
-                len(requests),
-            )
-            return self._execute_media_individual(requests, task_map, model_name, api_key)
-
-    def _execute_media_single_call(
-        self,
-        requests: list[dict[str, Any]],
-        task_map: dict[str, dict[str, Any]],
-        model_name: str,
-        api_key: str,
-    ) -> list[Any]:
-        """Execute all media enrichments in a single API call using Gemini's large context.
-
-        Sends all images together with a combined prompt asking for JSON dict with
-        results keyed by filename. This reduces 12 API calls to 1.
-        """
-        from google import genai
-        from google.genai import types
-
-        client = genai.Client(api_key=api_key)
-
-        # Build combined prompt with all images
-        parts: list[dict[str, Any]] = []
-
-        # Extract filenames and build prompt
-        filenames = []
-        for req in requests:
-            tag = req.get("tag")
-            task = task_map.get(tag, {})
-            payload = task.get("_parsed_payload", {})
-            filename = payload.get("filename", tag)
-            filenames.append(filename)
-
-            # Add each image's inline data from the request
-            contents = req.get("contents", [])
-            for content in contents:
-                for part in content.get("parts", []):
-                    if "inlineData" in part:
-                        parts.append({"inlineData": part["inlineData"]})
-
-        # Render prompt from Jinja template
-        prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
-        combined_prompt = render_prompt(
-            "enrichment.jinja",
-            mode="media_batch",
-            prompts_dir=prompts_dir,
-            image_count=len(filenames),
-            filenames_json=json.dumps(filenames),
-            pii_prevention=getattr(self.ctx.config.privacy, "pii_prevention", None),
-        ).strip()
-
-        # Build the request: prompt first, then all images
-        request_parts = [{"text": combined_prompt}] + parts
-
-        # Build model+key rotator if enabled
-        from egregora.models.model_key_rotator import ModelKeyRotator
-
-        rotation_enabled = getattr(self.ctx.config.enrichment, "model_rotation_enabled", True)
-        rotation_models = getattr(self.ctx.config.enrichment, "rotation_models", None)
-
-        if rotation_enabled:
-            rotator = ModelKeyRotator(models=rotation_models)
-
-            def call_with_model_and_key(model: str, api_key: str) -> str:
-                client = genai.Client(api_key=api_key)
-                response = client.models.generate_content(
-                    model=model,
-                    contents=[{"parts": request_parts}],
-                    config=types.GenerateContentConfig(response_mime_type="application/json"),
-                )
-                return response.text or ""
-
-            response_text = rotator.call_with_rotation(call_with_model_and_key)
-        else:
-            # No rotation - use configured model and API key
-            response = client.models.generate_content(
-                model=model_name,
-                contents=[{"parts": request_parts}],
-                config=types.GenerateContentConfig(response_mime_type="application/json"),
-            )
-            response_text = response.text if response.text else ""
-
-        logger.debug("[MediaEnricher] Single-call response: %s", response_text[:500])
-
-        try:
-            results_dict = json.loads(response_text)
-        except json.JSONDecodeError as e:
-            logger.warning("[MediaEnricher] Failed to parse JSON response: %s", e)
-            raise ValueError(f"Failed to parse batch response: {e}") from e
-
-        # Convert to BatchResult-like objects
-        results = []
-        for req in requests:
-            tag = req.get("tag")
-            task = task_map.get(tag, {})
-            payload = task.get("_parsed_payload", {})
-            filename = payload.get("filename", tag)
-
-            # Get enrichment data for this filename
-            enrichment = results_dict.get(filename, {})
-            if enrichment:
-                # Build response in expected format
-                response_data = {
-                    "text": json.dumps(
-                        {
-                            "slug": enrichment.get("slug", ""),
-                            "description": enrichment.get("description", ""),
-                            "alt_text": enrichment.get("alt_text", ""),
-                            "filename": filename,
-                        }
-                    )
-                }
-                result = type(
-                    "BatchResult",
-                    (),
-                    {"tag": tag, "response": response_data, "error": None},
-                )()
-            else:
-                result = type(
-                    "BatchResult",
-                    (),
-                    {"tag": tag, "response": None, "error": {"message": f"No result for {filename}"}},
-                )()
-            results.append(result)
-            logger.info("[MediaEnricher] Processed %s via single-call batch", filename)
-
-        logger.info("[MediaEnricher] Single-call batch complete: %d/%d", len(results), len(requests))
-        return results
-
-    def _execute_media_individual(
-        self,
-        requests: list[dict[str, Any]],
-        task_map: dict[str, dict[str, Any]],
-        model_name: str,
-        api_key: str,
-    ) -> list[Any]:
-        """Execute media enrichment requests individually (fallback when batch fails)."""
-        from google import genai
-        from google.genai import types
-
-        client = genai.Client(api_key=api_key)
-        results = []
-
-        for req in requests:
-            tag = req.get("tag")
-            task = task_map.get(tag)
-            if not task:
-                continue
-
-            try:
-                # Build the request content
-                contents = req.get("contents", [])
-                config = req.get("config", {})
-
-                # Call Gemini API directly
-                response = client.models.generate_content(
-                    model=model_name,
-                    contents=contents,
-                    config=types.GenerateContentConfig(**config) if config else None,
-                )
-
-                # Create BatchResult-like object
-                result = type(
-                    "BatchResult",
-                    (),
-                    {
-                        "tag": tag,
-                        "response": {"text": response.text} if response.text else None,
-                        "error": None,
-                    },
-                )()
-                results.append(result)
-                logger.info("[MediaEnricher] Processed %s via individual call", tag)
-
-            except Exception as exc:
-                logger.warning("[MediaEnricher] Individual call failed for %s: %s", tag, exc)
-                result = type(
-                    "BatchResult",
-                    (),
-                    {
-                        "tag": tag,
-                        "response": None,
-                        "error": {"message": str(exc)},
-                    },
-                )()
-                results.append(result)
-
-        return results
+        except Exception as exc:
+            logger.exception("Media enrichment batch failed")
+            for task in task_map.values():
+                self.task_store.mark_failed(task["task_id"], f"Batch failed: {exc!s}")
+            return []
 
     def _persist_media_results(self, results: list[Any], task_map: dict[str, dict[str, Any]]) -> int:
         new_rows = []
@@ -1502,7 +1093,7 @@ class EnrichmentWorker(BaseWorker):
             # Create media document with slug-based metadata
             media_metadata = {
                 "original_filename": payload.get("original_filename"),
-                "filename": f"{slug_value}{Path(filename).suffix}",  # Use slug for filename
+                "filename": f"{slug_value}{Path(filename).suffix}", # Use slug for filename
                 "media_type": media_type,
                 "slug": slug_value,
                 "nav_exclude": True,
@@ -1515,7 +1106,7 @@ class EnrichmentWorker(BaseWorker):
                 type=DocumentType.MEDIA,
                 metadata=media_metadata,
                 id=media_id if media_id else str(uuid.uuid4()),
-                parent_id=media_id,  # Link to original placeholder ID if exists
+                parent_id=media_id, # Link to original placeholder ID if exists
             )
 
             try:
@@ -1570,12 +1161,9 @@ class EnrichmentWorker(BaseWorker):
 
                 # Determine subfolder based on media_type
                 media_subdir = "files"
-                if media_type and media_type.startswith("image"):
-                    media_subdir = "images"
-                elif media_type and media_type.startswith("video"):
-                    media_subdir = "videos"
-                elif media_type and media_type.startswith("audio"):
-                    media_subdir = "audio"
+                if media_type and media_type.startswith("image"): media_subdir = "images"
+                elif media_type and media_type.startswith("video"): media_subdir = "videos"
+                elif media_type and media_type.startswith("audio"): media_subdir = "audio"
 
                 new_path = f"media/{media_subdir}/{slug_value}{Path(filename).suffix}"
 
