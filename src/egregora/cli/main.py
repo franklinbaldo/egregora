@@ -2,6 +2,9 @@
 
 import logging
 import sys
+import traceback
+from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Annotated
 
@@ -186,6 +189,69 @@ def write(  # noqa: PLR0913
         options=options,
     )
 
+<<<<<<< HEAD
+=======
+    if parsed_options.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    from_date_obj, to_date_obj = None, None
+    if parsed_options.from_date:
+        try:
+            from_date_obj = parse_date_arg(parsed_options.from_date, "from_date")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(1) from e
+    if parsed_options.to_date:
+        try:
+            to_date_obj = parse_date_arg(parsed_options.to_date, "to_date")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(1) from e
+
+    if parsed_options.timezone:
+        try:
+            validate_timezone(parsed_options.timezone)
+            console.print(f"[green]Using timezone: {parsed_options.timezone}[/green]")
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(1) from e
+
+    output_dir = parsed_options.output.expanduser().resolve()
+    _ensure_mkdocs_scaffold(output_dir)
+    _validate_api_key(output_dir)
+
+    egregora_config = _prepare_write_config(parsed_options, from_date_obj, to_date_obj)
+
+    runtime = RuntimeContext(
+        output_dir=output_dir,
+        input_file=parsed_options.input_file,
+        model_override=parsed_options.model,
+        debug=parsed_options.debug,
+    )
+
+    try:
+        console.print(
+            Panel(
+                f"[cyan]Source:[/cyan] {parsed_options.source.value}\n[cyan]Input:[/cyan] {parsed_options.input_file}\n[cyan]Output:[/cyan] {output_dir}\n[cyan]Windowing:[/cyan] {parsed_options.step_size} {parsed_options.step_unit.value}",
+                title="⚙️  Egregora Pipeline",
+                border_style="cyan",
+            )
+        )
+        run_params = PipelineRunParams(
+            output_dir=runtime.output_dir,
+            config=egregora_config,
+            source_type=parsed_options.source.value,
+            input_path=runtime.input_file,
+            refresh="all" if parsed_options.force else parsed_options.refresh,
+        )
+        write_pipeline.run(run_params)
+        console.print("[green]Processing completed successfully.[/green]")
+    except Exception as e:
+        traceback.print_exc()
+        console.print(f"[red]Pipeline failed: {e}[/]")
+        raise typer.Exit(code=1) from e
+
+>>>>>>> origin/refactor-smells-global-state-rag-4132462485747550791
 
 @app.command()
 def top(

@@ -46,7 +46,6 @@ from egregora.config.settings import EgregoraConfig
 from egregora.constants import SourceType, WindowUnit
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
-from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.run_store import RunStore
 from egregora.database.task_store import TaskStore
 from egregora.init import ensure_mkdocs_project
@@ -58,16 +57,15 @@ from egregora.ops.media import process_media_for_window
 from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
+from egregora.orchestration.strategies import process_with_auto_split
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
-from egregora.rag import index_documents, reset_backend
 from egregora.transformations import (
     WindowConfig,
     create_windows,
     load_checkpoint,
     save_checkpoint,
-    split_window_into_n_parts,
 )
 from egregora.utils.cache import PipelineCache
 from egregora.utils.env import validate_gemini_api_key
@@ -501,7 +499,7 @@ def _process_background_tasks(ctx: PipelineContext) -> None:
 
 
 def _process_single_window(
-    window: any, ctx: PipelineContext, *, depth: int = 0
+    window: any, ctx: PipelineContext, depth: int = 0
 ) -> dict[str, dict[str, list[str]]]:
     """Process a single window with media extraction, enrichment, and post writing.
 
@@ -675,115 +673,6 @@ def _process_single_window(
     return {window_label: result}
 
 
-def _process_window_with_auto_split(
-    window: any, ctx: PipelineContext, *, depth: int = 0, max_depth: int = 5
-) -> dict[str, dict[str, list[str]]]:
-    """Process a window with automatic splitting if prompt exceeds model limit.
-
-    Args:
-        window: Window to process
-        ctx: Pipeline context
-        depth: Current split depth
-        max_depth: Maximum split depth before failing
-
-    Returns:
-        Dict mapping window labels to {'posts': [...], 'profiles': [...]}
-
-    """
-    min_window_size = 5
-    results: dict[str, dict[str, list[str]]] = {}
-    queue: deque[tuple[any, int]] = deque([(window, depth)])
-
-    while queue:
-        current_window, current_depth = queue.popleft()
-        indent = "  " * current_depth
-        window_label = f"{current_window.start_time:%Y-%m-%d %H:%M} to {current_window.end_time:%H:%M}"
-
-        _warn_if_window_too_small(current_window.size, indent, window_label, min_window_size)
-        _ensure_split_depth(current_depth, max_depth, indent, window_label)
-
-        try:
-            window_results = _process_single_window(current_window, ctx, depth=current_depth)
-        except PromptTooLargeError as error:
-            split_work = _split_window_for_retry(
-                current_window,
-                error,
-                current_depth,
-                indent,
-                split_window_into_n_parts,
-            )
-            queue.extendleft(reversed(split_work))
-            continue
-
-        results.update(window_results)
-
-    return results
-
-
-def _warn_if_window_too_small(size: int, indent: str, label: str, minimum: int) -> None:
-    if size < minimum:
-        logger.warning(
-            "%s⚠️  Window %s too small to split (%d messages) - attempting anyway",
-            indent,
-            label,
-            size,
-        )
-
-
-def _ensure_split_depth(depth: int, max_depth: int, indent: str, label: str) -> None:
-    if depth >= max_depth:
-        error_msg = (
-            f"Max split depth {max_depth} reached for window {label}. "
-            "Window cannot be split enough to fit in model context (possible miscalculation). "
-            "Try increasing --max-prompt-tokens or using --use-full-context-window."
-        )
-        logger.error("%s❌ %s", indent, error_msg)
-        raise RuntimeError(error_msg)
-
-
-def _split_window_for_retry(
-    window: any,
-    error: Exception,
-    depth: int,
-    indent: str,
-    splitter: any,
-) -> list[tuple[any, int]]:
-    estimated_tokens = getattr(error, "estimated_tokens", 0)
-    effective_limit = getattr(error, "effective_limit", 1) or 1
-
-    logger.warning(
-        "%s⚡ [yellow]Splitting window[/] %s (prompt: %dk tokens > %dk limit)",
-        indent,
-        f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}",
-        estimated_tokens // 1000,
-        effective_limit // 1000,
-    )
-
-    num_splits = max(1, math.ceil(estimated_tokens / effective_limit))
-    logger.info("%s↳ [dim]Splitting into %d parts[/]", indent, num_splits)
-
-    split_windows = splitter(window, num_splits)
-    if not split_windows:
-        error_msg = (
-            f"Cannot split window {window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
-            " - all splits would be empty"
-        )
-        logger.exception("%s❌ %s", indent, error_msg)
-        raise RuntimeError(error_msg) from error
-
-    scheduled: list[tuple[any, int]] = []
-    for index, split_window in enumerate(split_windows, 1):
-        split_label = f"{split_window.start_time:%Y-%m-%d %H:%M} to {split_window.end_time:%H:%M}"
-        logger.info(
-            "%s↳ [dim]Processing part %d/%d: %s[/]",
-            indent,
-            index,
-            len(split_windows),
-            split_label,
-        )
-        scheduled.append((split_window, depth + 1))
-
-    return scheduled
 
 
 # _ensure_run_events_table_exists and _record_run_event - REMOVED (2025-11-17)
@@ -932,7 +821,9 @@ def _process_all_windows(
         _validate_window_size(window, max_window_size)
 
         # Process window
-        window_results = _process_window_with_auto_split(window, ctx, depth=0, max_depth=5)
+        window_results = process_with_auto_split(
+            window, ctx, _process_single_window, depth=0, max_depth=5
+        )
         results.update(window_results)
 
         # Track max processed timestamp for checkpoint
@@ -1000,18 +891,17 @@ def _perform_enrichment(
 
     # Execute enrichment immediately (synchronously) to ensure writer has access
     # to enriched media and updated references.
-    # Using context manager to ensure ZIP resources are properly released.
-    with EnrichmentWorker(ctx) as worker:
-        total_processed = 0
-        while True:
-            processed = worker.run()
-            if processed == 0:
-                break
-            total_processed += processed
-            logger.info("Synchronously processed %d enrichment tasks", processed)
+    worker = EnrichmentWorker(ctx)
+    total_processed = 0
+    while True:
+        processed = worker.run()
+        if processed == 0:
+            break
+        total_processed += processed
+        logger.info("Synchronously processed %d enrichment tasks", processed)
 
-        if total_processed > 0:
-            logger.info("Enrichment complete. Processed %d items.", total_processed)
+    if total_processed > 0:
+        logger.info("Enrichment complete. Processed %d items.", total_processed)
 
     # Return original table since enrichment happens in background
     return window_table
@@ -1155,7 +1045,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
 
     # Use the pipeline backend for storage to ensure we share the same connection
     # This prevents "read-only transaction" errors and database invalidation
-    storage = DuckDBStorageManager.from_ibis_backend(pipeline_backend)
+    storage = PipelineFactory.create_storage_from_backend(pipeline_backend)
     annotations_store = AnnotationStore(storage)
 
     # Initialize TaskStore for async operations
@@ -1441,15 +1331,14 @@ def _prepare_pipeline_data(
     ctx = ctx.with_adapter(adapter)
 
     # Index existing documents into RAG
-    if ctx.config.rag.enabled:
+    if ctx.config.rag.enabled and ctx.rag_backend:
         logger.info("[bold cyan]📚 Indexing existing documents into RAG...[/]")
         try:
             # Get existing documents from output format
             existing_docs = list(output_format.documents())
             if existing_docs:
-                index_documents(existing_docs)
+                ctx.rag_backend.index_documents(existing_docs)
                 logger.info("[green]✓ Indexed %d existing documents into RAG[/]", len(existing_docs))
-                reset_backend()
             else:
                 logger.info("[dim]No existing documents to index[/]")
         except (ConnectionError, TimeoutError) as exc:
@@ -1643,7 +1532,11 @@ def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
     if dataset.context.config.rag.enabled:
         logger.info("[bold cyan]🏷️  Generating Semantic Taxonomy...[/]")
         try:
-            tagged_count = generate_semantic_taxonomy(dataset.context.output_format, dataset.context.config)
+            tagged_count = generate_semantic_taxonomy(
+                dataset.context.output_format,
+                dataset.context.config,
+                dataset.context.rag_backend,
+            )
             if tagged_count > 0:
                 logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
         except Exception as e:  # noqa: BLE001
@@ -1788,7 +1681,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
         run_store = None
         if runs_conn is not None:
             # Properly wrap the connection to ensure ibis_conn is synchronized
-            temp_storage = DuckDBStorageManager.from_connection(runs_conn)
+            temp_storage = PipelineFactory.create_storage_from_connection(runs_conn)
             run_store = RunStore(temp_storage)
         else:
             logger.warning("Unable to access DuckDB connection for run tracking - runs will not be recorded")

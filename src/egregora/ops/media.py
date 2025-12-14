@@ -358,7 +358,9 @@ def _prepare_media_document(document: Document, media_ref: str) -> MediaAsset:
     if not filename:
         safe_slug = slugify(slug_hint, lowercase=False) if slug_hint else metadata.get("filename", "")
         slug_base = safe_slug or Path(extension_source or "").stem or document.document_id[:8]
-        # Hash suffix removed per user request to simplify filename matching
+        unique_suffix = document.document_id[:8]
+        if unique_suffix not in slug_base:
+            slug_base = f"{slug_base}-{unique_suffix}"
         filename = f"{slug_base}{extension}"
 
     suggested_path = metadata.get("suggested_path") or f"media/{media_subdir}/{filename}"
