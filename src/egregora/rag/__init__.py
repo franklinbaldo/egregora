@@ -100,6 +100,10 @@ def search(request: RAGQueryRequest) -> RAGQueryResponse:
 
 
 # Re-export embedding function helper for convenience
+# Default embedding model for RAG
+DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
+
+
 def embed_fn(
     texts: list[str] | tuple[str, ...],
     task_type: TaskType = "RETRIEVAL_DOCUMENT",
@@ -116,6 +120,5 @@ def embed_fn(
         List of embedding vectors
 
     """
-    router = get_embedding_router()
+    router = get_embedding_router(model=model or DEFAULT_EMBEDDING_MODEL)
     return router.embed(list(texts), task_type=task_type)
-
