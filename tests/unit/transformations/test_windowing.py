@@ -1,14 +1,16 @@
 """Unit tests for windowing strategies."""
 
-import pytest
-import ibis
 from datetime import datetime, timedelta
+
+import ibis
+import pytest
+
 from egregora.transformations.windowing import (
-    create_windows,
     WindowConfig,
+    create_windows,
     split_window_into_n_parts,
 )
-import pandas as pd
+
 
 # Helper to create test data
 def create_test_table(num_messages=100, start_time=None):
@@ -17,12 +19,9 @@ def create_test_table(num_messages=100, start_time=None):
 
     data = []
     for i in range(num_messages):
-        data.append({
-            "ts": start_time + timedelta(minutes=i),
-            "text": f"message {i}",
-            "sender": "Alice"
-        })
+        data.append({"ts": start_time + timedelta(minutes=i), "text": f"message {i}", "sender": "Alice"})
     return ibis.memtable(data)
+
 
 def _extract_scalar(val):
     """Helper to safely extract scalar from pandas/ibis result."""
@@ -32,6 +31,7 @@ def _extract_scalar(val):
     if hasattr(val, "item"):
         return val.item()
     return val
+
 
 def test_window_by_count():
     """Test windowing by message count."""
@@ -50,6 +50,7 @@ def test_window_by_count():
     assert windows[0].window_index == 0
     assert windows[1].window_index == 1
     assert windows[2].window_index == 2
+
 
 def test_window_by_count_with_overlap():
     """Test windowing by message count with overlap."""
@@ -81,6 +82,7 @@ def test_window_by_count_with_overlap():
     assert w0_min == start
     assert w1_min == start + timedelta(minutes=50)
 
+
 def test_window_by_time_hours():
     """Test windowing by hours."""
     # 5 hours of messages (300 mins)
@@ -99,6 +101,7 @@ def test_window_by_time_hours():
     assert windows[1].size == 120
     # Third window: 240-300 mins (60 messages)
     assert windows[2].size == 60
+
 
 def test_window_by_bytes():
     """Test windowing by bytes."""
@@ -122,6 +125,7 @@ def test_window_by_bytes():
     for w in windows:
         assert w.size > 0
 
+
 def test_split_window_into_n_parts():
     """Test splitting a window."""
     table = create_test_table(100)
@@ -138,6 +142,7 @@ def test_split_window_into_n_parts():
     # Messages are exactly 1 per min. So 50 messages each.
     assert parts[0].size == 50
     assert parts[1].size == 50
+
 
 def test_invalid_config():
     """Test invalid configuration raises error."""

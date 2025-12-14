@@ -37,6 +37,9 @@ GENAI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 HTTP_TOO_MANY_REQUESTS = 429
 HTTP_SERVER_ERROR = 500
 
+# Type alias for task type
+TaskType = str
+
 
 class EmbeddingError(Exception):
     """Exception raised for embedding API errors with detailed error message."""
@@ -569,6 +572,10 @@ def get_router(
     return _router
 
 
+# Alias for backward compatibility
+get_embedding_router = get_router
+
+
 def shutdown_router() -> None:
     """Shutdown global router (for cleanup)."""
     global _router  # noqa: PLW0603
@@ -627,7 +634,9 @@ __all__ = [
     "EmbeddingRouter",
     "EndpointType",
     "RateLimitState",
+    "TaskType",
     "create_embedding_router",
+    "get_embedding_router",
     "get_router",
     "shutdown_router",
     "validate_api_key",

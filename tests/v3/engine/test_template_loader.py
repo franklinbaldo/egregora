@@ -50,16 +50,11 @@ class TestTemplateLoading:
         writer_dir.mkdir()
 
         system_template = writer_dir / "system.jinja2"
-        system_template.write_text(
-            "You are a helpful writing assistant.\n"
-            "Current date: {{ current_date }}"
-        )
+        system_template.write_text("You are a helpful writing assistant.\nCurrent date: {{ current_date }}")
 
         generate_template = writer_dir / "generate_post.jinja2"
         generate_template.write_text(
-            "Generate a blog post about:\n"
-            "Title: {{ entry.title }}\n"
-            "Content: {{ entry.content }}"
+            "Generate a blog post about:\nTitle: {{ entry.title }}\nContent: {{ entry.content }}"
         )
 
         return prompts_dir
@@ -87,10 +82,7 @@ class TestTemplateLoading:
             title = "Test Post"
             content = "Test content"
 
-        result = loader.render_template(
-            "writer/generate_post.jinja2",
-            entry=MockEntry()
-        )
+        result = loader.render_template("writer/generate_post.jinja2", entry=MockEntry())
 
         assert "Test Post" in result
         assert "Test content" in result
@@ -128,7 +120,7 @@ class TestCustomFilters:
             "test/filters.jinja2",
             date=test_date,
             text="One two three four five six seven",
-            title="Hello World Example"
+            title="Hello World Example",
         )
 
         # format_datetime should format date nicely
@@ -144,7 +136,7 @@ class TestCustomFilters:
             "test/filters.jinja2",
             date=test_date,
             text="One two three four five six seven",
-            title="Hello World Example"
+            title="Hello World Example",
         )
 
         # isoformat should produce ISO 8601 format
@@ -159,7 +151,7 @@ class TestCustomFilters:
             "test/filters.jinja2",
             date=test_date,
             text="One two three four five six seven",
-            title="Hello World Example"
+            title="Hello World Example",
         )
 
         # truncate_words(5) should keep first 5 words
@@ -175,7 +167,7 @@ class TestCustomFilters:
             "test/filters.jinja2",
             date=test_date,
             text="One two three four five six seven",
-            title="Hello World Example"
+            title="Hello World Example",
         )
 
         # slugify should convert to URL-safe slug
@@ -204,10 +196,7 @@ class TestTemplateInheritance:
         writer_dir.mkdir()
         child_template = writer_dir / "child.jinja2"
         child_template.write_text(
-            "{% extends 'base.jinja2' %}\n"
-            "{% block instructions %}\n"
-            "Generate a blog post.\n"
-            "{% endblock %}"
+            "{% extends 'base.jinja2' %}\n{% block instructions %}\nGenerate a blog post.\n{% endblock %}"
         )
 
         return prompts_dir
@@ -216,10 +205,7 @@ class TestTemplateInheritance:
         """TemplateLoader should support Jinja2 template inheritance."""
         loader = TemplateLoader(template_dir=template_dir)
 
-        result = loader.render_template(
-            "writer/child.jinja2",
-            current_date="2024-12-12"
-        )
+        result = loader.render_template("writer/child.jinja2", current_date="2024-12-12")
 
         # Should contain base template content
         assert "helpful AI assistant" in result

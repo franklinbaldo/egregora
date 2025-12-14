@@ -31,10 +31,6 @@ models:
 rag:
   enabled: true
   top_k: 5
-
-privacy:
-  enabled: true
-  pii_action: warn
 """
     )
 
@@ -42,7 +38,6 @@ privacy:
     config = load_egregora_config(tmp_path)
     assert config.models.writer == DEFAULT_MODEL
     assert config.rag.enabled is True
-    assert config.privacy.enabled is True
 
 
 def test_config_validate_with_invalid_model_format(tmp_path: Path):
@@ -91,51 +86,6 @@ def test_config_validate_cross_field_rag_requires_lancedb():
     assert "lancedb_dir is not set" in str(exc.value)
 
 
-def test_config_privacy_settings_defaults(minimal_config):
-    """Test privacy settings have secure defaults."""
-    config = minimal_config
-
-    # Test new two-level privacy structure
-    assert config.privacy.structural.enabled is True
-    assert config.privacy.structural.author_strategy.value == "uuid_mapping"
-    assert config.privacy.pii_prevention.writer.enabled is True
-    assert config.privacy.pii_prevention.writer.scope.value == "all_pii"
-    assert config.privacy.pii_prevention.enricher.enabled is True
-
-    # Test backward compatibility
-    assert config.privacy.enabled is True  # Maps to structural.enabled
-    assert config.privacy.anonymize_authors is True  # Author strategy != NONE
-
-
-def test_config_privacy_settings_configurable():
-    """Test privacy settings can be configured."""
-    config = EgregoraConfig(
-        privacy={
-            "structural": {
-                "enabled": False,
-                "author_strategy": "none",
-            },
-            "pii_prevention": {
-                "writer": {
-                    "enabled": False,
-                },
-                "enricher": {
-                    "enabled": False,
-                },
-            },
-        }
-    )
-
-    assert config.privacy.structural.enabled is False
-    assert config.privacy.structural.author_strategy.value == "none"
-    assert config.privacy.pii_prevention.writer.enabled is False
-    assert config.privacy.pii_prevention.enricher.enabled is False
-
-    # Test backward compatibility
-    assert config.privacy.enabled is False  # Maps to structural.enabled
-    assert config.privacy.anonymize_authors is False  # Author strategy == NONE
-
-
 def test_config_rag_top_k_bounds():
     """Test RAG top_k has proper bounds."""
     # Valid top_k
@@ -177,7 +127,6 @@ def test_config_yaml_roundtrip(tmp_path: Path):
     config = EgregoraConfig(
         models={"writer": custom_model},
         rag={"enabled": False, "top_k": 10},
-        privacy={"structural": {"enabled": False}},
     )
 
     # Save to file
@@ -189,8 +138,6 @@ def test_config_yaml_roundtrip(tmp_path: Path):
     assert loaded.models.writer == custom_model
     assert loaded.rag.enabled is False
     assert loaded.rag.top_k == 10
-    assert loaded.privacy.structural.enabled is False
-    assert loaded.privacy.enabled is False  # Backward compat property
 
 
 def test_config_load_from_cwd(tmp_path: Path, monkeypatch):

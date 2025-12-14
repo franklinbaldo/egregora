@@ -120,6 +120,19 @@ markdown_extensions:
   # - pymdownx.arithmatex:
   #     generic: true
 
+  # Technical writing & formatting
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.tabbed:
+      alternate_style: true
+
+validation:
+  absolute_links: relative_to_docs
+  anchor_links: warn
+  unrecognized_links: warn
+
 nav:
   - Home: index.md
   - Blog:

@@ -67,16 +67,12 @@ class GeminiImageGenerationProvider(ImageGenerationProvider):
         }
         if request.response_modalities:
             payload["request"]["generation_config"]["responseModalities"] = list(request.response_modalities)
-        if request.negative_prompt:
-            payload["request"]["generation_config"]["negativePrompt"] = request.negative_prompt
 
         # Aspect ratio is currently causing INVALID_ARGUMENT errors with recent Gemini models.
         # Disabled until API support is consistent or model version is updated.
         # if request.aspect_ratio:
         #     payload["request"]["generation_config"]["aspectRatio"] = request.aspect_ratio
 
-        if request.sample_count:
-            payload["request"]["generation_config"]["sampleCount"] = request.sample_count
         return payload
 
     def _write_payload(self, payload: dict[str, Any]) -> Path:

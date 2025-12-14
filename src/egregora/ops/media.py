@@ -17,8 +17,8 @@ import hashlib
 import logging
 import mimetypes
 import re
-from pathlib import Path
 import uuid
+from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 from egregora.data_primitives.document import Document, DocumentType, MediaAsset
@@ -298,24 +298,24 @@ def process_media_for_window(
         # Optimization: Don't extract media content here.
         # We create a lightweight placeholder document.
         # The actual content processing happens during enrichment.
-        
+
         # Infer basic metadata from filename
         media_type = detect_media_type(Path(media_ref)) or "file"
-        
+
         # Create placeholder document
         # We use a deterministic ID based on the reference
         doc_id = str(uuid.uuid5(uuid.NAMESPACE_URL, media_ref))
-        
+
         document = Document(
-            content=b"", # Empty content
+            content=b"",  # Empty content
             type=DocumentType.MEDIA,
             id=doc_id,
             metadata={
                 "original_filename": media_ref,
                 "media_type": media_type,
                 "nav_exclude": True,
-                "hide": ["navigation"]
-            }
+                "hide": ["navigation"],
+            },
         )
 
         try:

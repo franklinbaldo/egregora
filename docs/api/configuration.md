@@ -81,18 +81,6 @@ RAG (Retrieval-Augmented Generation) configuration.
       members_order: source
       heading_level: 4
 
-### PrivacySettings
-
-Privacy and data protection settings.
-
-::: egregora.config.settings.PrivacySettings
-    options:
-      show_source: false
-      show_root_heading: true
-      show_category_heading: true
-      members_order: source
-      heading_level: 4
-
 ### PipelineSettings
 
 Pipeline execution settings.
@@ -150,14 +138,6 @@ writer:
   custom_instructions: |
     Write in a casual, friendly tone.
     Focus on practical examples.
-
-# Privacy settings
-privacy:
-  enabled: true                    # Enable anonymization & PII detection
-  pii_detection_enabled: true      # Warn about PII in content
-  pii_action: warn                 # "warn", "redact", or "skip"
-  anonymize_authors: true          # Replace names with UUIDs
-  custom_pii_patterns: []          # Additional regex patterns
 
 # Enrichment
 enrichment:
@@ -289,4 +269,4 @@ config = overrides.build(base_config)
 
 - [Getting Started - Configuration](../getting-started/configuration.md)
 - [Privacy Guide](../guide/privacy.md)
-- [RAG Configuration](./rag.md)
+- [RAG Configuration](knowledge/rag.md)
