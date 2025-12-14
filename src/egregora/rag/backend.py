@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from collections.abc import Sequence
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from egregora.data_primitives.document import Document
 from egregora.rag.models import RAGQueryRequest, RAGQueryResponse
@@ -66,10 +66,6 @@ class VectorStore(Protocol):
         """Count total documents in the store."""
         ...
 
-    @abstractmethod
-    def get_stats(self) -> dict[str, Any]:
-        """Get statistics about the store (index size, etc)."""
-        ...
 
 
 __all__ = ["VectorStore"]

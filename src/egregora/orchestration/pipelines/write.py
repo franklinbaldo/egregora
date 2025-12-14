@@ -72,7 +72,6 @@ from egregora.transformations import (
 from egregora.utils.cache import PipelineCache
 from egregora.utils.env import validate_gemini_api_key
 from egregora.utils.metrics import UsageTracker
-from egregora.utils.quota import QuotaTracker
 from egregora.utils.rate_limit import init_rate_limiter
 
 try:
@@ -1160,7 +1159,7 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     # Initialize TaskStore for async operations
     task_store = TaskStore(storage)
 
-    quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
+    quota_tracker = None
 
     _init_global_rate_limiter(run_params.config.quota)
 

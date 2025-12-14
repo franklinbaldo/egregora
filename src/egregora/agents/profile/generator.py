@@ -39,7 +39,7 @@ def _build_profile_prompt(author_name: str, author_messages: list[dict[str, Any]
         [f"[{msg.get('timestamp', 'unknown')}] {msg.get('text', '')}" for msg in author_messages]
     )
 
-    prompt = f"""You are Egregora, writing a profile post ABOUT {author_name}.
+    return f"""You are Egregora, writing a profile post ABOUT {author_name}.
 
 Analyze {author_name}'s contributions, interests, and interactions based on their message history below.
 
@@ -59,7 +59,6 @@ Length: 1-2 paragraphs
 
 Write the profile post now:"""
 
-    return prompt
 
 
 async def _generate_profile_content(
@@ -85,9 +84,8 @@ async def _generate_profile_content(
     )
 
     # Call LLM
-    content = await _call_llm(prompt, ctx)
+    return await _call_llm(prompt, ctx)
 
-    return content
 
 
 async def _call_llm(prompt: str, ctx: Any) -> str:

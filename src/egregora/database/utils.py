@@ -61,5 +61,6 @@ def get_simple_storage(db_path: Path) -> SimpleDuckDBStorage:
 
     Note:
         This is used by CLI read commands that don't need the full Ibis stack.
+
     """
     return SimpleDuckDBStorage(db_path)

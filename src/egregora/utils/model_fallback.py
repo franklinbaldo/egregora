@@ -30,10 +30,6 @@ GOOGLE_FALLBACK_MODELS = [
     "google-gla:gemini-2.5-flash-lite",
 ]
 
-# Priority order for text agents (Google -> OpenRouter free models)
-# Will be populated dynamically with free OpenRouter models
-FALLBACK_MODELS = GOOGLE_FALLBACK_MODELS.copy()
-
 
 def get_openrouter_free_models(modality: str = "text") -> list[str]:  # noqa: C901
     """Fetch list of free OpenRouter models from their API.

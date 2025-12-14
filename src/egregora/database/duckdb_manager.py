@@ -495,7 +495,8 @@ class DuckDBStorageManager:
         state = self.get_sequence_state(name)
         if state is None:
             logger.error("Failed to create sequence %s - sequence not found after creation", name)
-            raise RuntimeError(f"Sequence {name} was not created")
+            msg = f"Sequence {name} was not created"
+            raise RuntimeError(msg)
         logger.debug("Sequence %s verified (start=%d)", name, state.start_value)
 
     def get_sequence_state(self, name: str) -> SequenceState | None:

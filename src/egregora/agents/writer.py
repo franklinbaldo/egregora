@@ -54,12 +54,12 @@ from egregora.agents.writer_setup import (
 )
 from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.infra.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.knowledge.profiles import get_active_authors
 from egregora.output_adapters import OutputSinkRegistry, create_default_output_registry
 from egregora.rag import index_documents, reset_backend
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
-from egregora.utils.batch import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.utils.cache import CacheTier, PipelineCache
 from egregora.utils.metrics import UsageTracker
 
