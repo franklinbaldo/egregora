@@ -98,7 +98,12 @@ def init(
     if mkdocs_created:
         console.print(
             Panel(
-                f"[bold green]✅ MkDocs site scaffold initialized successfully![/bold green]\n\n📁 Site root: {site_root}\n📝 Docs directory: {docs_dir}\n\n[bold]Next steps:[/bold]\n• Install MkDocs: [cyan]pip install 'mkdocs-material[imaging]'[/cyan]\n• Change to site directory: [cyan]cd {output_dir}[/cyan]\n• Serve the site: [cyan]mkdocs serve[/cyan]\n• Process WhatsApp export: [cyan]egregora process export.zip --output={output_dir}[/cyan]",
+                f"[bold green]✅ MkDocs site scaffold initialized successfully![/bold green]\n\n"
+                f"📁 Site root: {site_root}\n"
+                f"📝 Docs directory: {docs_dir}\n\n"
+                f"[bold]Next steps:[/bold]\n"
+                f"1. Generate content:\n   [cyan]egregora write path/to/chat_export.zip --output-dir {output_dir}[/cyan]\n"
+                f"2. Preview the site:\n   [cyan]cd {output_dir}[/cyan]\n   [cyan]uvx --with mkdocs-material --with mkdocs-rss-plugin mkdocs serve[/cyan]",
                 title="🛠️ Initialization Complete",
                 border_style="green",
             )
