@@ -105,7 +105,7 @@ class RouteConfig:
 
     posts_prefix: str = "blog/posts"
     profiles_prefix: str = "profiles"
-    media_prefix: str = "blog/posts/media"
+    media_prefix: str = "media"  # Changed from "blog/posts/media" to fix path duplication
     journal_prefix: str = "journal"
     # Defines if dates should be part of the URL structure: /2025-01-01-slug/ vs /slug/
     date_in_url: bool = True
