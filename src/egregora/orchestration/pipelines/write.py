@@ -559,18 +559,18 @@ def _process_single_window(
     resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
 
-    # NEW: Process /egregora commands before sending to LLM
+    # Process /egregora commands before sending to LLM
     from egregora.agents.commands import command_to_announcement, extract_commands, filter_commands
 
     # Convert table to list of messages for command processing
-    # ibis Tables need .execute() before .to_pylist()
+    # Use robust conversion with multiple fallbacks to handle different table types
     try:
-        # Try ibis table conversion
+        # Try ibis table conversion first (proper ibis way)
         messages_list = enriched_table.execute().to_pylist()
     except (AttributeError, TypeError):
-        # Fallback: try direct to_pylist (for arrow tables)
+        # Fallback: try PyArrow conversion (for arrow tables)
         try:
-            messages_list = enriched_table.to_pylist()
+            messages_list = enriched_table.to_pyarrow().to_pylist()
         except (AttributeError, TypeError):
             # Last resort: assume it's already a list
             messages_list = enriched_table if isinstance(enriched_table, list) else []
@@ -594,11 +594,9 @@ def _process_single_window(
     # Filter commands from messages before LLM
     clean_messages_list = filter_commands(messages_list)
 
-    # Convert back to table if needed (simplified for now - writer accepts lists)
-    # TODO: If writer expects ibis table, convert back using ibis.memtable()
 
     params = WindowProcessingParams(
-        table=enriched_table,  # Keep original for now; writer filters internally if needed
+        table=enriched_table,
         window_start=window.start_time,
         window_end=window.end_time,
         resources=resources,
@@ -613,12 +611,13 @@ def _process_single_window(
     posts = result.get("posts", [])
     profiles = result.get("profiles", [])
 
-    # NEW: Generate PROFILE posts (Egregora writing ABOUT each author)
+    # Generate PROFILE posts (Egregora writing ABOUT each author)
     import asyncio
 
     from egregora.agents.profile.generator import generate_profile_posts
 
     window_date = window.start_time.strftime("%Y-%m-%d")
+    generated_profiles = 0
     try:
         profile_docs = asyncio.run(
             generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
@@ -628,7 +627,8 @@ def _process_single_window(
         for profile_doc in profile_docs:
             try:
                 output_sink.persist(profile_doc)
-                # Track as profile
+                generated_profiles += 1
+                # Track as profile in results
                 profiles.append(profile_doc.document_id)
             except Exception as exc:
                 logger.exception("Failed to persist profile: %s", exc)
@@ -646,11 +646,10 @@ def _process_single_window(
     # Scheduled tasks are returned as "pending:<task_id>"
     scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
     generated_posts = len(posts) - scheduled_posts
-
     scheduled_profiles = sum(1 for p in profiles if isinstance(p, str) and p.startswith("pending:"))
-    generated_profiles = len(profiles) - scheduled_profiles
+    # generated_profiles already counted above
 
-    # Construct status message
+    # Build status message
     status_parts = []
     if generated_posts > 0:
         status_parts.append(f"{generated_posts} posts")
@@ -663,7 +662,7 @@ def _process_single_window(
     if announcements_generated > 0:
         status_parts.append(f"{announcements_generated} announcements")
 
-    status_msg = ", ".join(status_parts) if status_parts else "0 items"
+    status_msg = ", ".join(status_parts) if status_parts else "no documents"
 
     logger.info(
         "%s[green]✔ Generated[/] %s for %s",
