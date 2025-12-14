@@ -72,6 +72,7 @@ from egregora.transformations import (
 )
 from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
+from egregora.utils.env import validate_gemini_api_key
 from egregora.utils.quota import QuotaTracker
 from egregora.utils.rate_limit import init_rate_limiter
 
@@ -220,20 +221,17 @@ def _ensure_mkdocs_scaffold(output_dir: Path, force: bool = False) -> None:
 
 
 def _validate_api_key(output_dir: Path) -> None:
-    """Validate that API key is set."""
+    """Validate that API key is set and working."""
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-    if api_key:
-        return
-
-    # Try loading .env
-    try:
-        import dotenv
-        dotenv.load_dotenv(output_dir / ".env")
-        dotenv.load_dotenv()
-    except ImportError:
-        pass
-
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        # Try loading .env
+        try:
+            import dotenv
+            dotenv.load_dotenv(output_dir / ".env")
+            dotenv.load_dotenv()
+        except ImportError:
+            pass
+        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
 
     if not api_key:
         console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
@@ -242,6 +240,18 @@ def _validate_api_key(output_dir: Path) -> None:
         )
         console.print("You can also create a .env file in the output directory or current directory.")
         raise RuntimeError("Missing API Key")
+
+    # Validate the API key with a lightweight call (feature ported from main)
+    logger.info("Validating Gemini API key...")
+    try:
+        validate_gemini_api_key(api_key)
+        logger.info("✓ API key validated successfully")
+    except ValueError as e:
+        console.print(f"[red]Error validating API key: {e}[/red]")
+        raise RuntimeError(f"Invalid API Key: {e}") from e
+    except ImportError as e:
+        console.print(f"[red]Error importing validation util: {e}[/red]")
+        raise RuntimeError(f"Dependency error: {e}") from e
 
 
 def _prepare_write_config(
