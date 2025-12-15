@@ -132,6 +132,7 @@ class WriterResources:
     task_store: TaskStore | None = None
     output_registry: OutputSinkRegistry | None = None
     run_id: uuid.UUID | str | None = None
+    quota: Any | None = None
 
 
 @dataclass(frozen=True)

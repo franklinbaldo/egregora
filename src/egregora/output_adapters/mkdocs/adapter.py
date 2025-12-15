@@ -14,6 +14,7 @@ MODERN (2025-11-18): Imports site path resolution from
 from __future__ import annotations
 
 import logging
+import shutil
 from collections import Counter
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -959,6 +960,27 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if document.metadata.get("pii_deleted"):
             logger.info("Skipping persistence of PII-containing media: %s", path.name)
             return
+
+        # V3 Large File Support: If source_path is present, move/copy from there
+        # instead of loading content into memory.
+        source_path = document.metadata.get("source_path")
+        if source_path:
+            src = Path(source_path)
+            if src.exists():
+                logger.debug("Moving media file from %s to %s", src, path)
+                # We use move to be efficient (atomic on same filesystem), falling back to copy if needed.
+                # Since the source is usually a temp staging file, moving is preferred.
+                try:
+                    shutil.move(src, path)
+                except OSError:
+                    # Fallback if cross-device or other issue
+                    shutil.copy2(src, path)
+                    try:
+                        src.unlink()
+                    except OSError:
+                        pass
+                return
+            logger.warning("Source path %s provided but does not exist, falling back to content", source_path)
 
         payload = (
             document.content if isinstance(document.content, bytes) else document.content.encode("utf-8")
