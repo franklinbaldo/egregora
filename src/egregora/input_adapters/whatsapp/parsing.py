@@ -191,8 +191,8 @@ class MessageBuilder:
         # Uses UUID5 (name-based) with OID namespace for consistent, reproducible author IDs
         author_key = f"{self.source_identifier}:{author_raw}"
         author_uuid_str = anonymize_author(author_key, uuid.NAMESPACE_OID)
-        # Convert back to UUID object for hex property (TODO: refactor to use str consistently)
-        author_uuid = uuid.UUID(author_uuid_str)
+        # Compute hex representation directly from UUID string (hyphens removed)
+        author_uuid_hex = author_uuid_str.replace("-", "")
 
         return {
             "ts": msg["timestamp"],
@@ -201,7 +201,7 @@ class MessageBuilder:
             "author": author_raw,
             "author_raw": author_raw,
             "author_uuid": author_uuid_str,
-            "_author_uuid_hex": author_uuid.hex,
+            "_author_uuid_hex": author_uuid_hex,
             "text": message_text,
             "original_line": original_text or None,
             "tagged_line": None,

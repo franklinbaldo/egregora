@@ -75,8 +75,6 @@ class PipelineFactory:
 
         annotations_store = AnnotationStore(storage)
 
-        quota_tracker = None
-
         output_registry = create_default_output_registry()
 
         url_ctx = UrlContext(
@@ -105,7 +103,6 @@ class PipelineFactory:
             storage=storage,
             cache=cache,
             annotations_store=annotations_store,
-            quota_tracker=quota_tracker,
             usage_tracker=UsageTracker(),
             output_registry=output_registry,
         )
@@ -255,7 +252,6 @@ class PipelineFactory:
             journal_dir=journal_dir,
             prompts_dir=prompts_dir,
             client=ctx.client,
-            quota=ctx.quota_tracker,
             usage=ctx.usage_tracker,
         )
 

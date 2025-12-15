@@ -128,7 +128,6 @@ class WriterResources:
     journal_dir: Path
     prompts_dir: Path | None
     client: genai.Client | None
-    quota: Any | None
     usage: UsageTracker | None
     task_store: TaskStore | None = None
     output_registry: OutputSinkRegistry | None = None

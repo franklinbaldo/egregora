@@ -139,9 +139,6 @@ class PipelineState:
     # V3 Content Library Facade
     library: ContentLibrary | None = None
 
-    # Quota tracking
-    quota_tracker: Any | None = None
-
     # Output & Adapters (Initialized lazily or updated)
     output_format: OutputSink | None = None  # ISP-compliant: Runtime data operations only
     adapter: Any = None  # InputAdapter protocol
@@ -255,10 +252,6 @@ class PipelineContext:
     @property
     def usage_tracker(self) -> UsageTracker | None:
         return self.state.usage_tracker
-
-    @property
-    def quota_tracker(self) -> Any | None:
-        return self.state.quota_tracker
 
     @property
     def embedding_router(self) -> EmbeddingRouter | None:

@@ -456,7 +456,6 @@ def _prepare_deps(
         journal_dir=ctx.site_root / "journal" if ctx.site_root else None,
         prompts_dir=prompts_dir,
         client=getattr(ctx, "client", None),
-        quota=ctx.quota_tracker,
         usage=ctx.usage_tracker,
         output_registry=getattr(ctx, "output_registry", None),
         run_id=ctx.run_id,

@@ -981,7 +981,6 @@ def _perform_enrichment(
         cache=ctx.enrichment_cache,
         output_format=ctx.output_format,
         site_root=ctx.site_root,
-        quota=ctx.quota_tracker,
         usage_tracker=ctx.usage_tracker,
         pii_prevention=pii_prevention,
         task_store=ctx.task_store,
@@ -1159,8 +1158,6 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     # Initialize TaskStore for async operations
     task_store = TaskStore(storage)
 
-    quota_tracker = None
-
     _init_global_rate_limiter(run_params.config.quota)
 
     output_registry = create_default_output_registry()
@@ -1191,7 +1188,6 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         storage=storage,
         cache=cache,
         annotations_store=annotations_store,
-        quota_tracker=quota_tracker,
         usage_tracker=UsageTracker(),
         output_registry=output_registry,
     )
