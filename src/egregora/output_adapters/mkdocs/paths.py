@@ -137,9 +137,8 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
     # UNIFIED: No more nested structure. Everything goes into blog_root_dir.
     posts_dir = blog_root_dir
     profiles_dir = resolve_content_path(paths_settings.profiles_dir)
-    # UNIFIED: Media now inside posts_dir for simpler relative paths
-    # Posts can use 'media/image.jpg' instead of '../media/image.jpg'
-    media_dir = posts_dir / "media"
+    # UNIFIED: Media at root for consistent /media/ URLs matching tests
+    media_dir = docs_dir / "media"
     journal_dir = _resolve_journal_dir(paths_settings, resolve_content_path)
 
     try:

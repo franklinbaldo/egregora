@@ -335,6 +335,7 @@ def parse_source(
         messages.original_line, messages.tagged_line, messages.message_date
     ).cast(dt.json)
 
+    # Note: author_raw is inherited from messages table and should already be present
     result_table = messages.mutate(
         event_id=messages.message_id,
         tenant_id=tenant_literal,

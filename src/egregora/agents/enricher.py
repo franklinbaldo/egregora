@@ -1616,6 +1616,12 @@ class EnrichmentWorker(BaseWorker):
             slug = data.get("slug")
             markdown = data.get("markdown")
 
+            # Fallback for models that return description/alt_text instead of markdown
+            if not markdown and (data.get("description") or data.get("alt_text")):
+                description = data.get("description", "")
+                alt_text = data.get("alt_text", "")
+                markdown = f"{description}\n\n**Alt Text:** {alt_text}"
+
             if not slug or not markdown:
                 self.task_store.mark_failed(task["task_id"], "Missing slug or markdown")
                 return None

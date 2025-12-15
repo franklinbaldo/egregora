@@ -17,6 +17,7 @@ Usage:
 
 import logging
 from contextlib import suppress
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from egregora.config.settings import RAGSettings
@@ -100,19 +101,16 @@ def search(request: RAGQueryRequest) -> RAGQueryResponse:
 
 
 # Re-export embedding function helper for convenience
-# Default embedding model for RAG
-DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
-
-
+@lru_cache(maxsize=1)
 def embed_fn(
-    texts: list[str] | tuple[str, ...],
+    texts: tuple[str],
     task_type: TaskType = "RETRIEVAL_DOCUMENT",
     model: str | None = None,
 ) -> list[list[float]]:
     """Generate embeddings for a list of texts using the configured router.
 
     Args:
-        texts: Strings to embed (list or tuple)
+        texts: Tuple of strings to embed (tuple for lru_cache)
         task_type: Type of task (retrieval_query, retrieval_document, etc.)
         model: Optional model override
 
@@ -120,5 +118,5 @@ def embed_fn(
         List of embedding vectors
 
     """
-    router = get_embedding_router(model=model or DEFAULT_EMBEDDING_MODEL)
+    router = get_embedding_router()
     return router.embed(list(texts), task_type=task_type)
