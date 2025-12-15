@@ -345,9 +345,6 @@ def parse_source(
     if "_import_order" in messages.columns:
         messages = messages.drop("_import_order")
 
-    if not expose_raw_author:
-        messages = messages.mutate(author_raw=messages.author_uuid)
-
     helper_columns = ["_author_uuid_hex"]
     columns_to_drop = [col for col in helper_columns if col in messages.columns]
     if columns_to_drop:
@@ -364,6 +361,7 @@ def parse_source(
         messages.original_line, messages.tagged_line, messages.message_date
     ).cast(dt.json)
 
+    # Note: author_raw is inherited from messages table and should already be present
     result_table = messages.mutate(
         event_id=messages.message_id,
         tenant_id=tenant_literal,

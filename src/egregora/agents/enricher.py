@@ -1625,20 +1625,13 @@ class EnrichmentWorker(BaseWorker):
 
             data = json.loads(clean_text.strip())
             slug = data.get("slug")
-            
-            # Handle both formats:
-            # 1. Legacy: {"slug": "...", "markdown": "..."}
-            # 2. Batch: {"slug": "...", "description": "...", "alt_text": "..."}
             markdown = data.get("markdown")
-            if not markdown:
-                # Batch format - build markdown from description
+
+            # Fallback for models that return description/alt_text instead of markdown
+            if not markdown and (data.get("description") or data.get("alt_text")):
                 description = data.get("description", "")
                 alt_text = data.get("alt_text", "")
-                if description:
-                    # Build simple markdown from batch response
-                    markdown = f"{description}"
-                    if alt_text:
-                        markdown += f"\n\n*Alt text: {alt_text}*"
+                markdown = f"{description}\n\n**Alt Text:** {alt_text}"
 
             if not slug or not markdown:
                 self.task_store.mark_failed(task["task_id"], "Missing slug or markdown")
@@ -1652,4 +1645,3 @@ class EnrichmentWorker(BaseWorker):
             return None
         else:
             return payload, slug_value, markdown
-
