@@ -105,7 +105,8 @@ class RouteConfig:
 
     posts_prefix: str = "posts"
     profiles_prefix: str = "profiles"
-    media_prefix: str = "media"  # Fixed: Changed from "posts/media" to "media" to avoid path duplication
+    # ADR-001: Media goes inside posts directory
+    media_prefix: str = "posts/media"
     journal_prefix: str = "journal"
     # Defines if dates should be part of the URL structure: /2025-01-01-slug/ vs /slug/
     date_in_url: bool = True
