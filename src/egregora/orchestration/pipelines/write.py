@@ -109,6 +109,7 @@ class WriteCommandOptions:
     use_full_context_window: bool
     max_windows: int | None
     resume: bool
+    economic_mode: bool
     refresh: str | None
     force: bool
     debug: bool
@@ -132,6 +133,7 @@ class WhatsAppProcessOptions:
     # Note: retrieval_mode, retrieval_nprobe, retrieval_overfetch removed (legacy DuckDB VSS settings)
     max_prompt_tokens: int = 100_000
     use_full_context_window: bool = False
+    economic_mode: bool = False
     client: genai.Client | None = None
     refresh: str | None = None
 
@@ -199,6 +201,7 @@ def _prepare_write_config(
                     "use_full_context_window": options.use_full_context_window,
                     "max_windows": options.max_windows,
                     "checkpoint_enabled": options.resume,
+                    "economic_mode": options.economic_mode,
                 }
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": options.enable_enrichment}),
@@ -254,6 +257,7 @@ def run_cli_flow(
     use_full_context_window: bool = False,
     max_windows: int | None = None,
     resume: bool = True,
+    economic_mode: bool = False,
     refresh: str | None = None,
     force: bool = False,
     debug: bool = False,
@@ -275,6 +279,7 @@ def run_cli_flow(
         "use_full_context_window": use_full_context_window,
         "max_windows": max_windows,
         "resume": resume,
+        "economic_mode": economic_mode,
         "refresh": refresh,
         "force": force,
         "debug": debug,
@@ -404,6 +409,7 @@ def process_whatsapp_export(
                     "batch_threshold": opts.batch_threshold,
                     "max_prompt_tokens": opts.max_prompt_tokens,
                     "use_full_context_window": opts.use_full_context_window,
+                    "economic_mode": opts.economic_mode,
                 }
             ),
             "enrichment": base_config.enrichment.model_copy(update={"enabled": opts.enable_enrichment}),
@@ -549,8 +555,31 @@ def _process_single_window(
 
     # Enrichment (Schedule tasks)
     if ctx.enable_enrichment:
-        logger.info("%s✨ [cyan]Scheduling enrichment[/] for window %s", indent, window_label)
-        enriched_table = _perform_enrichment(window_table_processed, media_mapping, ctx)
+        # Check for economic mode
+        if getattr(ctx.config.pipeline, "economic_mode", False):
+            logger.info("%s💰 [cyan]Economic Mode:[/], forcing batch enrichment", indent)
+            # We can force batch strategy in context or just rely on perform_enrichment logic
+            # For now, let's update _perform_enrichment to respect economic_mode if needed,
+            # but economic_mode primarily affects the WRITER (no tools) and ENRICHER (single batch).
+            # The current _perform_enrichment already schedules and executes.
+            # We need to make sure the strategy is 'batch_all'.
+
+            # Create a modified config for enrichment to force batch_all and disable URLs
+            # to strictly adhere to "two LLM calls" (1 Media + 1 Writer)
+            enrichment_config = ctx.config.enrichment.model_copy(
+                update={"strategy": "batch_all", "enable_url": False}
+            )
+
+            # We need to temporarily patch the config in context or pass it down
+            # Since ctx.config is immutable (pydantic), we might need to handle this carefully.
+            # However, `schedule_enrichment` takes `ctx.config.enrichment` as an argument.
+            # So we can just pass the modified config object there.
+
+            logger.info("%s✨ [cyan]Scheduling enrichment (Economic Batch)[/] for window %s", indent, window_label)
+            enriched_table = _perform_enrichment(window_table_processed, media_mapping, ctx, override_config=enrichment_config)
+        else:
+            logger.info("%s✨ [cyan]Scheduling enrichment[/] for window %s", indent, window_label)
+            enriched_table = _perform_enrichment(window_table_processed, media_mapping, ctx)
     else:
         enriched_table = window_table_processed
 
@@ -564,13 +593,12 @@ def _process_single_window(
     # Convert table to list of messages for command processing
     # ibis Tables need .execute() before .to_pylist()
     try:
-        # Try ibis table conversion via pyarrow
-        # Ibis tables don't have direct .to_pylist() but can convert to PyArrow first
-        messages_list = enriched_table.to_pyarrow().to_pylist()
+        # Try ibis table conversion
+        messages_list = enriched_table.execute().to_pylist()
     except (AttributeError, TypeError):
-        # Fallback: try direct execute() then dicts (standard ibis)
+        # Fallback: try direct to_pylist (for arrow tables)
         try:
-            messages_list = enriched_table.execute().to_dict(orient="records")
+            messages_list = enriched_table.to_pylist()
         except (AttributeError, TypeError):
             # Last resort: assume it's already a list
             messages_list = enriched_table if isinstance(enriched_table, list) else []
@@ -963,6 +991,7 @@ def _perform_enrichment(
     window_table: ir.Table,
     media_mapping: MediaMapping,
     ctx: PipelineContext,
+    override_config: Any | None = None,
 ) -> ir.Table:
     """Execute enrichment for a window's table.
 
@@ -972,6 +1001,7 @@ def _perform_enrichment(
         window_table: Table to enrich
         media_mapping: Media file mapping
         ctx: Pipeline context
+        override_config: Optional enrichment config override (e.g. for economic mode)
 
     Returns:
         Enriched table
@@ -992,7 +1022,7 @@ def _perform_enrichment(
     schedule_enrichment(
         window_table,
         media_mapping,
-        ctx.config.enrichment,
+        override_config or ctx.config.enrichment,
         enrichment_context,
         run_id=ctx.run_id,
     )
@@ -1000,7 +1030,7 @@ def _perform_enrichment(
     # Execute enrichment immediately (synchronously) to ensure writer has access
     # to enriched media and updated references.
     # Using context manager to ensure ZIP resources are properly released.
-    with EnrichmentWorker(ctx) as worker:
+    with EnrichmentWorker(ctx, enrichment_config=override_config) as worker:
         total_processed = 0
         while True:
             processed = worker.run()

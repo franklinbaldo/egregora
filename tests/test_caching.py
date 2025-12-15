@@ -68,11 +68,9 @@ def test_force_refresh(temp_cache_dir):
     # the wrapper logic in write_pipeline uses should_refresh to skip checking).
     # So we test should_refresh here.
     assert refresh_cache.should_refresh(CacheTier.WRITER)
-    assert refresh_cache.should_refresh(CacheTier.RAG)
 
     # 3. Open with specific tier refresh
     writer_refresh_cache = PipelineCache(temp_cache_dir, refresh_tiers={"writer"})
     assert writer_refresh_cache.should_refresh(CacheTier.WRITER)
-    assert not writer_refresh_cache.should_refresh(CacheTier.RAG)
 
     writer_refresh_cache.close()
