@@ -35,7 +35,6 @@ from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
-from egregora.utils.quota import QuotaTracker
 
 logger = logging.getLogger(__name__)
 
@@ -76,8 +75,6 @@ class PipelineFactory:
 
         annotations_store = AnnotationStore(storage)
 
-        quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
-
         output_registry = create_default_output_registry()
 
         url_ctx = UrlContext(
@@ -106,7 +103,6 @@ class PipelineFactory:
             storage=storage,
             cache=cache,
             annotations_store=annotations_store,
-            quota_tracker=quota_tracker,
             usage_tracker=UsageTracker(),
             output_registry=output_registry,
         )
@@ -256,7 +252,6 @@ class PipelineFactory:
             journal_dir=journal_dir,
             prompts_dir=prompts_dir,
             client=ctx.client,
-            quota=ctx.quota_tracker,
             usage=ctx.usage_tracker,
         )
 

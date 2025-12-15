@@ -22,7 +22,8 @@ def test_model_key_rotator_exhausts_keys_per_model():
 
         # Fail first 8 calls (model-1: 3 keys, model-2: 3 keys, model-3: 2 keys)
         if call_count <= 8:
-            raise Exception("429 Too Many Requests")
+            msg = "429 Too Many Requests"
+            raise Exception(msg)
 
         # 9th call succeeds
         return f"Success with {model} and {api_key}"
@@ -48,7 +49,6 @@ def test_model_key_rotator_exhausts_keys_per_model():
 
     assert call_log == expected_order, f"Expected {expected_order}, got {call_log}"
     assert result == "Success with model-3 and key-c"
-    print("✓ ModelKeyRotator exhausts all keys per model before rotating")
 
 
 def test_model_key_rotator_fails_when_all_exhausted():
@@ -59,15 +59,16 @@ def test_model_key_rotator_fails_when_all_exhausted():
     rotator = ModelKeyRotator(models=models, api_keys=api_keys)
 
     def always_fails(model: str, api_key: str) -> str:
-        raise Exception("429 Too Many Requests")
+        msg = "429 Too Many Requests"
+        raise Exception(msg)
 
     # Should try all 4 combinations (2 models × 2 keys) then raise
     try:
         rotator.call_with_rotation(always_fails)
-        assert False, "Should have raised exception"
+        msg = "Should have raised exception"
+        raise AssertionError(msg)
     except Exception as e:
         assert "429" in str(e)
-        print("✓ ModelKeyRotator raises after exhausting all combinations")
 
 
 def test_model_key_rotator_succeeds_on_first_try():
@@ -89,23 +90,15 @@ def test_model_key_rotator_succeeds_on_first_try():
     assert len(call_log) == 1
     assert call_log[0] == ("model-1", "key-a")
     assert result == "Success"
-    print("✓ ModelKeyRotator succeeds on first try without rotation")
 
 
 if __name__ == "__main__":
     # Run tests
-    print("\n=== Testing ModelKeyRotator ===\n")
 
     try:
         test_model_key_rotator_exhausts_keys_per_model()
         test_model_key_rotator_succeeds_on_first_try()
         test_model_key_rotator_fails_when_all_exhausted()
 
-        print("\n✅ All tests passed!")
-        print("\nRotation order verified:")
-        print("  Model1+Key1 → Model1+Key2 → Model1+Key3 →")
-        print("  Model2+Key1 → Model2+Key2 → Model2+Key3 →")
-        print("  Model3+Key1 → etc.")
-    except AssertionError as e:
-        print(f"\n❌ Test failed: {e}")
+    except AssertionError:
         raise

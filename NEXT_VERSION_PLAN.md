@@ -228,7 +228,7 @@
   - Document generation with TestModel
   - PipelineContext integration
   - Edge cases (empty/single entry)
-  - Output validation
+  - Output validation (required fields, markdown content)
 - **Tools**: 11 comprehensive tests
   - Tool functions with PipelineContext dependency injection
   - ContentLibrary access patterns
@@ -338,7 +338,7 @@
   - get_pipeline_metadata access
   - Integration tests verifying shared library access
 - [x] Agent tests using `TestModel` (no live API calls) - [Plan:1050-1089](docs/v3_development_plan.md#L1050-L1089) - ✅ WriterAgent fully tested
-- [x] Mock-free testing with `TestModel` - [Plan:775](docs/v3_development_plan.md#L775) - ✅ All tests use TestModel
+- [x] Mock-free testing with `TestModel` - [Plan:775](docs/v3_development_plan.md#L775) - ✅ All tests use TestModel or real repositories
 
 #### Future Testing
 - [ ] Prompt rendering tests at 100% coverage - [Plan:774](docs/v3_development_plan.md#L774)

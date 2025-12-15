@@ -17,7 +17,6 @@ def test_lancedb_backend_implements_vector_store():
     assert hasattr(LanceDBRAGBackend, "query")
     assert hasattr(LanceDBRAGBackend, "delete")
     assert hasattr(LanceDBRAGBackend, "count")
-    assert hasattr(LanceDBRAGBackend, "get_stats")
 
 
 def test_rag_module_uses_vector_store_interface():

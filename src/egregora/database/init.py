@@ -114,7 +114,8 @@ def _execute_sql(conn: Any, sql: str) -> None:
         conn.execute(sql)
     else:
         # Fallback for unexpected connection objects
-        raise AttributeError(f"Connection object {type(conn)} does not support raw_sql or execute")
+        msg = f"Connection object {type(conn)} does not support raw_sql or execute"
+        raise AttributeError(msg)
 
 
 __all__ = ["initialize_database"]

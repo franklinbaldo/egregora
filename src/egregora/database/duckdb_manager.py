@@ -158,8 +158,7 @@ class DuckDBStorageManager:
         # Note: ibis.connect(conn) is not supported in current version, so we create a separate connection.
         # This might cause concurrency issues if not handled carefully.
         # Ideally we would use the same connection, but for now we accept the limitation for from_connection.
-        # CRITICAL: Must use read_only=False to avoid "read-only transaction made changes" errors
-        instance.ibis_conn = ibis.duckdb.connect(database=db_str, read_only=False)
+        instance.ibis_conn = ibis.duckdb.connect(database=db_str)
         instance.sql = SQLManager()
         instance._table_info_cache = {}
         instance._lock = threading.Lock()
@@ -495,7 +494,8 @@ class DuckDBStorageManager:
         state = self.get_sequence_state(name)
         if state is None:
             logger.error("Failed to create sequence %s - sequence not found after creation", name)
-            raise RuntimeError(f"Sequence {name} was not created")
+            msg = f"Sequence {name} was not created"
+            raise RuntimeError(msg)
         logger.debug("Sequence %s verified (start=%d)", name, state.start_value)
 
     def get_sequence_state(self, name: str) -> SequenceState | None:

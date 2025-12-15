@@ -83,7 +83,7 @@ def test_mkdocs_adapter_embeds_and_applies_standard_url_convention(tmp_path: Pat
     for document in (post, profile, journal, fallback_journal, enrichment, media):
         adapter.persist(document)
 
-    site_dir = _build_site(tmp_path, docs_dir)
+    _build_site(tmp_path, docs_dir)
 
     # With unified output, profiles/journals/enrichment go to posts/ directory
     # URL conventions reflect this unified structure

@@ -300,8 +300,9 @@ class LanceDBRAGBackend(VectorStore):
             # We assume success if no exception
             return len(document_ids)
         except Exception as e:
-            logger.error("Failed to delete documents: %s", e)
-            raise RuntimeError(f"Delete failed: {e}") from e
+            logger.exception("Failed to delete documents: %s", e)
+            msg = f"Delete failed: {e}"
+            raise RuntimeError(msg) from e
 
     def count(self) -> int:
         """Count total documents in the store.
@@ -310,9 +311,6 @@ class LanceDBRAGBackend(VectorStore):
         """
         return self._table.count_rows()
 
-    def get_stats(self) -> dict[str, Any]:
-        """Get statistics about the store."""
-        return {"chunk_count": self.count(), "backend": "lancedb", "path": str(self._db_dir)}
 
     def get_all_post_vectors(self) -> tuple[list[str], np.ndarray]:
         """Retrieve IDs and Centroid Vectors for all indexed posts.

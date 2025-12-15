@@ -4,6 +4,7 @@ Bug: "Attempting to commit a transaction that is read-only but has made changes"
 Location: duckdb_manager.py:585 in next_sequence_values()
 """
 
+import contextlib
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -50,11 +51,8 @@ def test_sequence_values_concurrent_threads():
         def get_sequence_batch(thread_id: int) -> list[int]:
             """Get a batch of sequence values in a thread."""
             try:
-                values = manager.next_sequence_values("test_seq", count=10)
-                print(f"Thread {thread_id}: Got {len(values)} values")
-                return values
-            except Exception as e:
-                print(f"Thread {thread_id}: Error - {e}")
+                return manager.next_sequence_values("test_seq", count=10)
+            except Exception:
                 raise
 
         # Run concurrent sequence requests
@@ -163,7 +161,6 @@ def test_sequence_after_connection_reset():
         assert len(values1) == 5
 
         # Simulate connection reset (like in the error recovery code)
-        old_conn = manager._conn
         manager._reset_connection()
 
         # Try to get more values after reset
@@ -178,28 +175,14 @@ def test_sequence_after_connection_reset():
 
 if __name__ == "__main__":
     # Run tests standalone for debugging
-    print("Test 1: Single thread...")
     test_sequence_values_single_thread()
-    print("✓ Passed\n")
 
-    print("Test 2: Concurrent threads...")
-    try:
+    with contextlib.suppress(Exception):
         test_sequence_values_concurrent_threads()
-        print("✓ Passed\n")
-    except Exception as e:
-        print(f"✗ Failed (bug reproduced!): {e}\n")
 
-    print("Test 3: Explicit transactions...")
     test_sequence_values_with_explicit_transactions()
-    print("✓ Passed\n")
 
-    print("Test 4: Rapid fire...")
-    try:
+    with contextlib.suppress(Exception):
         test_sequence_values_rapid_fire()
-        print("✓ Passed\n")
-    except Exception as e:
-        print(f"✗ Failed (bug reproduced!): {e}\n")
 
-    print("Test 5: After connection reset...")
     test_sequence_after_connection_reset()
-    print("✓ Passed")

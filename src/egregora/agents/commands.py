@@ -127,7 +127,7 @@ def command_to_announcement(message: dict[str, Any]) -> Document:
     # Extract date from timestamp
     if isinstance(timestamp, str):
         try:
-            date = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).date().isoformat()
+            date = datetime.fromisoformat(timestamp).date().isoformat()
         except (ValueError, AttributeError):
             date = timestamp.split("T")[0]  # Fallback to date part
     else:
