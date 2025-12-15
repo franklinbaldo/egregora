@@ -228,6 +228,16 @@ class WriterAgentSettings(BaseModel):
         default=None,
         description="Custom instructions to guide the writer agent",
     )
+    economic_system_instruction: str | None = Field(
+        default=None,
+        description="Override system instruction for economic mode writer",
+    )
+    economic_temperature: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Temperature for economic mode generation (0.0=deterministic, 1.0=creative)",
+    )
 
 
 class PrivacySettings(BaseModel):

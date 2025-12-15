@@ -932,19 +932,23 @@ def _execute_economic_writer(
     # We need the system instructions.
 
     # In full agent mode, system prompts are dynamic.
-    # Here we should probably construct a simple system instruction.
-    system_instruction = (
-        "You are an expert blog post writer. "
-        "Analyze the provided conversation log and write a blog post summarizing it. "
-        "Return ONLY the markdown content of the post. "
-        "Do not use any tools."
-    )
+    # Here we should probably construct a simple system instruction or use the configured override.
+    system_instruction = config.writer.economic_system_instruction
+    if not system_instruction:
+        system_instruction = (
+            "You are an expert blog post writer. "
+            "Analyze the provided conversation log and write a blog post summarizing it. "
+            "Return ONLY the markdown content of the post. "
+            "Do not use any tools."
+        )
 
-    # Add custom instructions if available
+    # Add custom instructions if available (append to base/override instruction)
     if deps.config and deps.config.writer.custom_instructions:
         system_instruction += f"\n\n{deps.config.writer.custom_instructions}"
 
-    logger.info("Generating content (Economic Mode)...")
+    temperature = config.writer.economic_temperature
+
+    logger.info("Generating content (Economic Mode, temp=%.1f)...", temperature)
 
     try:
         response = client.models.generate_content(
@@ -952,11 +956,19 @@ def _execute_economic_writer(
             contents=[prompt],
             config=genai.types.GenerateContentConfig(
                 system_instruction=system_instruction,
-                temperature=0.7,
+                temperature=temperature,
             )
         )
 
-        content = response.text
+        content = response.text or ""
+
+        # Extract title from content if possible
+        title = f"Summary: {deps.window_start.strftime('%Y-%m-%d')}"
+        lines = content.strip().splitlines()
+        if lines and lines[0].startswith("# "):
+            potential_title = lines[0][2:].strip()
+            if potential_title:
+                title = potential_title
 
         # Save content as a post
         # We need to manually create a document since we aren't using the tool
@@ -969,7 +981,7 @@ def _execute_economic_writer(
             metadata={
                 "slug": slug,
                 "date": deps.window_start.strftime("%Y-%m-%d"),
-                "title": f"Summary: {deps.window_start.strftime('%Y-%m-%d')}", # Simple title
+                "title": title,
             },
             source_window=deps.window_label
         )
