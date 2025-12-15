@@ -73,6 +73,35 @@ IR_MESSAGE_SCHEMA = ibis.schema(
 )
 
 # ----------------------------------------------------------------------------
+# Unified Schema (V3 Atom-Centric)
+# ----------------------------------------------------------------------------
+
+UNIFIED_SCHEMA = ibis.schema(
+    {
+        # Atom Core
+        "id": dt.String(nullable=False),
+        "title": dt.String(nullable=False),
+        "updated": dt.Timestamp(timezone="UTC", nullable=False),
+        "published": dt.Timestamp(timezone="UTC", nullable=True),
+        "links": dt.JSON(nullable=False),  # list[Link]
+        "authors": dt.JSON(nullable=False),  # list[Author]
+        "contributors": dt.JSON(nullable=False),  # list[Author]
+        "categories": dt.JSON(nullable=False),  # list[Category]
+        "summary": dt.String(nullable=True),
+        "content": dt.String(nullable=True),
+        "content_type": dt.String(nullable=True),
+        "source": dt.JSON(nullable=True),  # Source
+        "in_reply_to": dt.JSON(nullable=True),  # InReplyTo
+        # Extensions
+        "extensions": dt.JSON(nullable=False),  # dict[str, Any]
+        "internal_metadata": dt.JSON(nullable=False),  # dict[str, Any]
+        # Document Type & Status
+        "doc_type": dt.String(nullable=False),
+        "status": dt.String(nullable=False),
+    }
+)
+
+# ----------------------------------------------------------------------------
 # RAG Vector Store Schemas
 # ----------------------------------------------------------------------------
 # NOTE: Windows are runtime-only constructs (see pipeline.py Window dataclass).
@@ -620,6 +649,7 @@ __all__ = [
     "ELO_HISTORY_SCHEMA",
     "ELO_RATINGS_SCHEMA",
     "IR_MESSAGE_SCHEMA",
+    "UNIFIED_SCHEMA",
     # RAG schemas
     "RAG_CHUNKS_METADATA_SCHEMA",
     "RAG_CHUNKS_SCHEMA",
