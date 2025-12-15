@@ -15,6 +15,8 @@ import logging
 import mimetypes
 import os
 import re
+import shutil
+import tempfile
 import uuid
 import zipfile
 from collections.abc import Iterator
@@ -755,6 +757,9 @@ class EnrichmentWorker(BaseWorker):
         super().__init__(ctx)
         self.zip_handle: zipfile.ZipFile | None = None
         self.media_index: dict[str, str] = {}
+        # V3 Architecture: Ephemeral media staging
+        self.staging_dir = tempfile.TemporaryDirectory(prefix="egregora_staging_")
+        self.staged_files: set[str] = set()
 
         if self.ctx.input_path and self.ctx.input_path.exists() and self.ctx.input_path.is_file():
             try:
@@ -1159,13 +1164,18 @@ class EnrichmentWorker(BaseWorker):
                     payload = json.loads(payload)
                 task["_parsed_payload"] = payload
 
-                file_bytes = self._load_media_bytes(task, payload)
-                if file_bytes is None:
+                # Stage the file to disk (ephemeral)
+                staged_path = self._stage_file(task, payload)
+                if not staged_path:
                     continue
+
+                # Store staged path in task for later persistence
+                task["_staged_path"] = str(staged_path)
 
                 filename = payload["filename"]
                 media_type = payload["media_type"]
-                b64_data = base64.b64encode(file_bytes).decode("utf-8")
+
+                media_part = self._prepare_media_content(staged_path, media_type)
 
                 prompt = render_prompt(
                     "enrichment.jinja",
@@ -1183,12 +1193,7 @@ class EnrichmentWorker(BaseWorker):
                             {
                                 "parts": [
                                     {"text": prompt},
-                                    {
-                                        "inlineData": {
-                                            "mimeType": media_type,
-                                            "data": b64_data,
-                                        }
-                                    },
+                                    media_part,
                                 ]
                             }
                         ],
@@ -1203,24 +1208,30 @@ class EnrichmentWorker(BaseWorker):
 
         return requests, task_map
 
-    def _load_media_bytes(self, task: dict[str, Any], payload: dict[str, Any]) -> bytes | None:
-        """Load media bytes directly from source ZIP file via index."""
+    def _stage_file(self, task: dict[str, Any], payload: dict[str, Any]) -> Path | None:
+        """Extract media file from ZIP to ephemeral staging directory."""
         original_filename = payload.get("original_filename") or payload.get("filename")
         if not original_filename:
             logger.warning("No filename in media task %s", task["task_id"])
             self.task_store.mark_failed(task["task_id"], "No filename in task payload")
             return None
 
+        target_lower = original_filename.lower()
+
+        # Check if already staged (by original filename key)
+        # We use a hash or just the filename if unique enough.
+        # But we need the physical path.
+        # Let's check if we have it.
+
         zf = self.zip_handle
         media_index = self.media_index
         should_close = False
 
-        # Fallback initialization if ZIP wasn't opened in __init__
+        # Ensure ZIP handle
         if zf is None:
             input_path = self.ctx.input_path
             if not input_path or not input_path.exists():
                 logger.warning("Input path not available for media task %s", task["task_id"])
-                self.task_store.mark_failed(task["task_id"], "Input path not available")
                 return None
 
             zf = None
@@ -1228,39 +1239,86 @@ class EnrichmentWorker(BaseWorker):
             try:
                 zf = zipfile.ZipFile(input_path, "r")
                 should_close = True
-                validate_zip_contents(zf)
-                # Build index on the fly
                 media_index = {}
                 for info in zf.infolist():
                     if not info.is_dir():
                         media_index[Path(info.filename).name.lower()] = info.filename
             except Exception as exc:
-                logger.warning("Failed to open source ZIP %s: %s", input_path, exc)
-                self.task_store.mark_failed(task["task_id"], f"Failed to open ZIP: {exc}")
-                if should_close and zf:
-                    zf.close()
+                logger.warning("Failed to open source ZIP: %s", exc)
                 return None
 
         try:
-            target_lower = original_filename.lower()
             full_path = media_index.get(target_lower)
+            if not full_path:
+                logger.warning("Media file %s not found in ZIP", original_filename)
+                self.task_store.mark_failed(task["task_id"], f"Media file not found: {original_filename}")
+                return None
 
-            if full_path:
-                media_bytes = zf.read(full_path)
-                logger.debug("Loaded %d bytes from %s", len(media_bytes), full_path)
-                return media_bytes
+            # Extract
+            # We construct a safe output filename to avoid collisions
+            safe_name = f"{task['task_id']}_{Path(full_path).name}"
+            target_path = Path(self.staging_dir.name) / safe_name
 
-            logger.warning("Media file %s not found in ZIP for task %s", original_filename, task["task_id"])
-            self.task_store.mark_failed(task["task_id"], f"Media file not found: {original_filename}")
-            return None
+            if target_path.exists():
+                return target_path
 
-        except (OSError, zipfile.BadZipFile) as exc:
-            logger.warning("Failed to read media from ZIP for task %s: %s", task["task_id"], exc)
-            self.task_store.mark_failed(task["task_id"], f"Failed to read ZIP: {exc}")
+            # ZipFile.extract expects a member name, not just path
+            # We can use zf.open and shutil.copyfileobj to stream it
+            with zf.open(full_path) as source, open(target_path, "wb") as dest:
+                shutil.copyfileobj(source, dest)
+
+            self.staged_files.add(str(target_path))
+            return target_path
+
+        except Exception as exc:
+            logger.exception("Failed to stage media file %s", original_filename)
+            self.task_store.mark_failed(task["task_id"], f"Staging failed: {exc}")
             return None
         finally:
             if should_close and zf:
                 zf.close()
+
+    def _prepare_media_content(self, file_path: Path, mime_type: str) -> dict[str, Any]:
+        """Prepare media content for API request, using File API for large files."""
+        # Threshold: 20 MB
+        params = getattr(self.ctx.config.enrichment, "large_file_threshold_mb", 20)
+        threshold_bytes = params * 1024 * 1024
+
+        file_size = file_path.stat().st_size
+
+        if file_size > threshold_bytes:
+            from google import genai
+
+            logger.info("File %s is %.2f MB (threshold: %d MB), using File API upload",
+                        file_path.name, file_size / (1024 * 1024), params)
+
+            api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+            if not api_key:
+                raise ValueError("API key required for file upload")
+
+            client = genai.Client(api_key=api_key)
+
+            # Upload file
+            # Note: client.files.upload returns a File object with 'uri'
+            uploaded_file = client.files.upload(path=str(file_path), config={"mime_type": mime_type})
+            logger.info("Uploaded file %s to %s", file_path.name, uploaded_file.uri)
+
+            return {
+                "fileData": {
+                    "mimeType": mime_type,
+                    "fileUri": uploaded_file.uri
+                }
+            }
+        else:
+            # Inline base64 for small files
+            file_bytes = file_path.read_bytes()
+            b64_data = base64.b64encode(file_bytes).decode("utf-8")
+            return {
+                "inlineData": {
+                    "mimeType": mime_type,
+                    "data": b64_data,
+                }
+            }
 
     def _execute_media_batch(
         self, requests: list[dict[str, Any]], task_map: dict[str, dict[str, Any]]
@@ -1332,6 +1390,8 @@ class EnrichmentWorker(BaseWorker):
                 for part in content.get("parts", []):
                     if "inlineData" in part:
                         parts.append({"inlineData": part["inlineData"]})
+                    elif "fileData" in part:
+                        parts.append({"fileData": part["fileData"]})
 
         # Render prompt from Jinja template
         prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
@@ -1503,12 +1563,22 @@ class EnrichmentWorker(BaseWorker):
             media_type = payload["media_type"]
             media_id = payload.get("media_id")
 
-            # Load actual media content (was not persisted earlier)
-            media_bytes = self._load_media_bytes(task, payload)
-            if not media_bytes:
-                logger.warning("Could not load media bytes for persistence: %s", filename)
-                self.task_store.mark_failed(task["task_id"], "Failed to load media bytes for persistence")
-                continue
+            # Use staged path if available, or fall back to loading bytes (legacy/small files)
+            staged_path = task.get("_staged_path")
+            source_path = None
+            content_bytes = b""
+
+            if staged_path and os.path.exists(staged_path):
+                source_path = staged_path
+            else:
+                # Fallback to re-extraction (should be rare if staging works)
+                re_staged = self._stage_file(task, payload)
+                if re_staged:
+                    source_path = str(re_staged)
+                else:
+                    logger.warning("Could not stage media file for persistence: %s", filename)
+                    self.task_store.mark_failed(task["task_id"], "Failed to stage media file")
+                    continue
 
             # Create media document with slug-based metadata
             media_metadata = {
@@ -1518,11 +1588,13 @@ class EnrichmentWorker(BaseWorker):
                 "slug": slug_value,
                 "nav_exclude": True,
                 "hide": ["navigation"],
+                "source_path": source_path, # Path to staged file for efficient move
             }
 
             # Persist the actual media file
+            # We pass empty bytes for content because source_path is provided
             media_doc = Document(
-                content=media_bytes,
+                content=b"",
                 type=DocumentType.MEDIA,
                 metadata=media_metadata,
                 id=media_id if media_id else str(uuid.uuid4()),
