@@ -1715,17 +1715,26 @@ class EnrichmentWorker(BaseWorker):
             slug = data.get("slug")
             markdown = data.get("markdown")
 
-            # Fallback for models that return description/alt_text instead of markdown
-            if not markdown and (data.get("description") or data.get("alt_text")):
+            payload = task["_parsed_payload"]
+            filename = payload.get("filename", "")
+
+            # Fallback logic for missing markdown
+            if not markdown and slug:
                 description = data.get("description", "")
                 alt_text = data.get("alt_text", "")
-                markdown = f"{description}\n\n**Alt Text:** {alt_text}"
+                if description or alt_text:
+                    markdown = f"""# {slug}
+
+![{alt_text}]({filename})
+
+## Description
+{description}
+"""
+                    logger.info("Constructed fallback markdown for %s", filename)
 
             if not slug or not markdown:
                 self.task_store.mark_failed(task["task_id"], "Missing slug or markdown")
                 return None
-
-            payload = task["_parsed_payload"]
             slug_value = _normalize_slug(slug, payload["filename"])
         except Exception as exc:
             logger.exception("Failed to parse media result %s", task["task_id"])

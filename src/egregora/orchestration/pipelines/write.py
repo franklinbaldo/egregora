@@ -593,13 +593,12 @@ def _process_single_window(
     # Convert table to list of messages for command processing
     # ibis Tables need .execute() before .to_pylist()
     try:
-        # Try ibis table conversion via pyarrow
-        # Ibis tables don't have direct .to_pylist() but can convert to PyArrow first
-        messages_list = enriched_table.to_pyarrow().to_pylist()
+        # Try ibis table conversion
+        messages_list = enriched_table.execute().to_pylist()
     except (AttributeError, TypeError):
-        # Fallback: try direct execute() then dicts (standard ibis)
+        # Fallback: try direct to_pylist (for arrow tables)
         try:
-            messages_list = enriched_table.execute().to_dict(orient="records")
+            messages_list = enriched_table.to_pylist()
         except (AttributeError, TypeError):
             # Last resort: assume it's already a list
             messages_list = enriched_table if isinstance(enriched_table, list) else []

@@ -230,3 +230,18 @@ def test_media_enrichment_mock_returns_fixture_data(llm_response_mocks):
     assert result["contains_text"] is False
 
 
+@pytest.mark.e2e
+@pytest.mark.benchmark
+def test_mock_performance_baseline(llm_response_mocks):
+    """Ensure mocks execute quickly (< 1ms per call).
+
+    This validates that mocks don't introduce performance overhead.
+    """
+    # Simple performance check - mocks should be instant
+    start = time.time()
+    for _ in range(100):
+        mock_url_enrichment("https://docs.pydantic.dev")
+    elapsed = time.time() - start
+
+    # 100 calls should take < 10ms
+    assert elapsed < 0.01, f"Mocks too slow: {elapsed:.4f}s for 100 calls"
