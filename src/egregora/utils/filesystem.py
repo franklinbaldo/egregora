@@ -16,8 +16,8 @@ from pathlib import Path
 
 import yaml
 
+from egregora.markdown.frontmatter import read_frontmatter_only
 from egregora.utils.datetime_utils import parse_datetime_flexible
-from egregora.utils.frontmatter_utils import read_frontmatter_only
 from egregora.utils.paths import safe_path_join, slugify
 
 logger = logging.getLogger(__name__)

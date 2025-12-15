@@ -1,7 +1,7 @@
 
 import pytest
 from pathlib import Path
-from egregora.utils.frontmatter_utils import read_frontmatter_only
+from egregora.markdown.frontmatter import read_frontmatter_only
 
 def test_read_frontmatter_only_basic(tmp_path):
     p = tmp_path / "test.md"
