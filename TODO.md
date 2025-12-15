@@ -58,7 +58,38 @@ This backlog directs the engineering team on *what* to build next to stabilize t
     - **Task**: Pass storage managers via `PipelineContext` or a `ServiceContainer`.
     - **Action**: Update `PipelineContext` to hold the initialized storage strategies.
 
+- [ ] **[Ingestion] Refactor WhatsApp Adapter to Produce Entry Objects**
+    - **Context**: `WhatsAppAdapter` currently returns an Ibis table with V2 schema columns.
+    - **Task**: Update adapter to produce `Entry` objects directly.
+    - **Action**:
+        - Modify `parse_source` in `src/egregora/input_adapters/whatsapp/parsing.py` to yield `Entry` instances.
+        - Ensure `author` maps to `Entry.authors` and `timestamp` to `Entry.updated`.
+    - **Goal**: Align ingestion with V3 data model.
+
+- [ ] **[Privacy] Isolate Privacy Logic as Stream Transformation**
+    - **Context**: Privacy logic is scattered across adapters and helpers.
+    - **Task**: Centralize privacy as a functional transformation stage.
+    - **Action**:
+        - Ensure `src/egregora/privacy` is the sole owner of PII logic.
+        - Create a pipeable function `anonymize_stream(stream: Iterator[Entry]) -> Iterator[Entry]`.
+    - **Goal**: Make privacy a pure, composable transformation.
+
 ## 🟢 Low Priority (Cleanup)
+
+- [ ] **[CLI] Refactor Command Organization**
+    - **Context**: CLI commands are functional but can be better organized by domain.
+    - **Task**: Group commands using `typer` sub-apps.
+    - **Action**: Create sub-apps for `data`, `agent`, `site` commands.
+    - **Goal**: Improve CLI discoverability and maintainability.
+
+- [ ] **[Cleanup] Remove Legacy V2 Code**
+    - **Context**: V2 schemas and types will be obsolete once V3 is adopted.
+    - **Task**: Delete unused V2 code.
+    - **Action**:
+        - Remove `IR_MESSAGE_SCHEMA` once `UNIFIED_SCHEMA` is fully adopted.
+        - Remove `WhatsAppExport` intermediate dataclass if no longer needed.
+        - Audit and remove other V2-specific types and helpers.
+    - **Goal**: Reduce technical debt and code complexity.
 
 - [ ] **[Cleanup] Remove Legacy Pandas Compat**
     - **Context**: `pyproject.toml` contains `flake8-tidy-imports` bans for pandas, but some compat code might exist.
