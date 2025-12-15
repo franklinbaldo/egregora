@@ -356,6 +356,10 @@ class PipelineSettings(BaseModel):
         default=False,
         description="Enable incremental processing with checkpoints (opt-in). Default: always rebuild from scratch for simplicity.",
     )
+    economic_mode: bool = Field(
+        default=False,
+        description="Enable economic mode to reduce LLM costs (2 calls per window, no tool usage).",
+    )
 
 
 class PathsSettings(BaseModel):
