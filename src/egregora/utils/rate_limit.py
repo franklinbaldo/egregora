@@ -12,7 +12,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class GlobalRateLimiter:
-    """Thread-safe global rate limiter using token bucket and semaphore."""
+    """Thread-safe global rate limiter using token bucket and semaphore.
+    
+    Supports refunding tokens on failed requests (e.g., 429 errors) to allow
+    immediate retry with fallback models without waiting for rate limit reset.
+    """
 
     requests_per_second: float = 1.0
     max_concurrency: int = 1
@@ -59,6 +63,19 @@ class GlobalRateLimiter:
     def release(self) -> None:
         """Release concurrency slot."""
         self._semaphore.release()
+
+    def refund(self) -> None:
+        """Refund a token to the bucket after a failed request (e.g., 429 error).
+        
+        This allows immediate retry with fallback models without waiting for
+        the rate limit to reset. Call this when a request fails with a rate
+        limit error to allow the next model in a FallbackModel chain to try
+        immediately.
+        """
+        with self._lock:
+            # Add back the token that was consumed
+            self._tokens = min(self.requests_per_second, self._tokens + 1.0)
+            logger.debug("Rate limit token refunded, tokens=%.2f", self._tokens)
 
 
 # Global singleton instance
