@@ -161,6 +161,7 @@ nav:
     - Configuration: getting-started/configuration.md
   - User Guide:
     - Architecture Overview: guide/architecture.md
+    - Technical Reference: reference.md
     - Privacy & Anonymization: guide/privacy.md
     - RAG & Knowledge Base: guide/knowledge.md
     - Content Generation: guide/generation.md
