@@ -11,6 +11,14 @@ This backlog directs the engineering team on *what* to build next to stabilize t
 
 ## 🔴 High Priority (Blocking / Critical Debt)
 
+### 1. Unify Data Model (The "One Schema" Rule)
+*   **Context:** Currently, we have `IR_MESSAGE_SCHEMA` (V2) in DuckDB and `Entry`/`Document` (V3) in Pydantic. This duality causes friction.
+*   **Task:** Migrate the DuckDB `documents` table to fully support the V3 `Entry` schema.
+    *   [x] Update `src/egregora/database/ir_schema.py` to match fields in `src/egregora_v3/core/types.py`.
+    *   [ ] Add `doc_type` column (ENUM) to distinguish `message`, `post`, `profile`, `log`.
+    *   [ ] Add `extensions` column (JSON) for Atom extensions.
+    *   [ ] Create a migration script to alter existing tables.
+
 - [ ] **[Refactor] Extract `write_pipeline.py` to `PipelineRunner`**
     - **Context**: `write_pipeline.py` is a procedural script that mixes high-level orchestration with low-level details.
     - **Task**: Create a `PipelineRunner` class in `src/egregora/orchestration/runner.py`.
