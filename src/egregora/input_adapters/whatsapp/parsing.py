@@ -68,11 +68,14 @@ def _normalize_text(value: str) -> str:
     """Normalize unicode text and sanitize HTML.
 
     Performs:
-    1. Unicode NFKC normalization
+    1. Unicode NFKC normalization (if needed)
     2. Removal of invisible control characters
     3. HTML escaping of special characters (<, >, &) to prevent XSS
        (quote=False to preserve readability of quotes in text)
     """
+    if value.isascii():
+        return html.escape(value, quote=False)
+
     normalized = unicodedata.normalize("NFKC", value)
     # NFKC already converts \u202f (Narrow No-Break Space) to space, so explicit replace is redundant
     cleaned = _INVISIBLE_MARKS.sub("", normalized)
@@ -145,6 +148,7 @@ class MessageBuilder:
     message_count: int = 0
     _current_entry: dict[str, Any] | None = None
     _rows: list[dict[str, Any]] = field(default_factory=list)
+    _author_uuid_cache: dict[str, uuid.UUID] = field(default_factory=dict)
 
     def start_new_message(self, timestamp: datetime, author_raw: str, initial_text: str) -> None:
         """Finalize pending message and start a new one."""
@@ -181,7 +185,11 @@ class MessageBuilder:
         author_raw = msg["author_raw"]
         # Deterministic UUID generation: same author_raw always produces the same UUID
         # Uses UUID5 (name-based) with OID namespace for consistent, reproducible author IDs
-        author_uuid = uuid.uuid5(uuid.NAMESPACE_OID, f"{self.source_identifier}:{author_raw}")
+        if author_raw not in self._author_uuid_cache:
+            self._author_uuid_cache[author_raw] = uuid.uuid5(
+                uuid.NAMESPACE_OID, f"{self.source_identifier}:{author_raw}"
+            )
+        author_uuid = self._author_uuid_cache[author_raw]
 
         return {
             "ts": msg["timestamp"],
@@ -269,9 +277,6 @@ def _parse_whatsapp_lines(
 
 def _add_message_ids(messages: Table) -> Table:
     """Add deterministic message_id column based on milliseconds since group creation."""
-    if int(messages.count().execute()) == 0:
-        return messages
-
     min_ts = messages.ts.min()
     delta_ms = ((messages.ts.epoch_seconds() - min_ts.epoch_seconds()) * 1000).round().cast("int64")
 
