@@ -75,4 +75,10 @@ def test_force_refresh(temp_cache_dir):
     assert writer_refresh_cache.should_refresh(CacheTier.WRITER)
     assert not writer_refresh_cache.should_refresh(CacheTier.RAG)
 
+    # 4. Open with enrichment tier refresh
+    enrichment_refresh_cache = PipelineCache(temp_cache_dir, refresh_tiers={"enrichment"})
+    assert enrichment_refresh_cache.should_refresh(CacheTier.ENRICHMENT)
+    assert not enrichment_refresh_cache.should_refresh(CacheTier.WRITER)
+
     writer_refresh_cache.close()
+    enrichment_refresh_cache.close()
