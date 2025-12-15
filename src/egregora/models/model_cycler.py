@@ -74,7 +74,7 @@ class GeminiKeyRotator:
             raise ValueError(msg)
         self.current_idx = 0
         self._exhausted_keys: set[str] = set()
-        logger.info("[KeyRotator] Initialized with %d API keys", len(self.api_keys))
+        logger.info("[KeyRotator] Initialized with %d API keys (starting with key[0])", len(self.api_keys))
 
     @property
     def current_key(self) -> str:
@@ -100,9 +100,9 @@ class GeminiKeyRotator:
             next_idx = (self.current_idx + 1 + i) % len(self.api_keys)
             if self.api_keys[next_idx] not in self._exhausted_keys:
                 self.current_idx = next_idx
-                # Mask key for logging
+                # Mask key for logging - include key ID for debugging
                 masked = self.current_key[:8] + "..." + self.current_key[-4:]
-                logger.info("[KeyRotator] Rotating to key: %s", masked)
+                logger.info("[KeyRotator] Rotating to key[%d]: %s", self.current_idx, masked)
                 return self.current_key
 
         return None
@@ -137,8 +137,10 @@ class GeminiKeyRotator:
 
         while True:
             api_key = self.current_key
+            key_idx = self.current_idx  # Log which key we're using
 
             try:
+                logger.debug("[KeyRotator] Trying key[%d]", key_idx)
                 result = call_fn(api_key)
                 self.reset()
                 return result
@@ -146,8 +148,8 @@ class GeminiKeyRotator:
 
                 if is_rate_limit_error(exc):
                     masked = api_key[:8] + "..." + api_key[-4:]
-                    logger.warning("[KeyRotator] Rate limit on key %s: %s", masked, str(exc)[:100])
-                    next_key = self.next_key()
+                    logger.warning("[KeyRotator] Rate limit on key[%d] %s: %s", key_idx, masked, str(exc)[:100])
+                    next_key = self.next_key()  # Immediate rotation - no wait!
                     if next_key is None:
                         logger.exception("[KeyRotator] All API keys rate-limited")
                         raise
