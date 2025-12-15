@@ -147,8 +147,8 @@ class GeminiKeyRotator:
                 last_exception = exc
 
                 if is_rate_limit_error(exc):
-                    # DO NOT log API key material
-                    logger.warning("[KeyRotator] Rate limit on API key #%d: %s", self.key_index + 1, str(exc)[:100])
+                    masked = api_key[:8] + "..." + api_key[-4:]
+                    logger.warning("[KeyRotator] Rate limit on key %s: %s", masked, str(exc)[:100])
                     next_key = self.next_key()
                     if next_key is None:
                         logger.exception("[KeyRotator] All API keys rate-limited")

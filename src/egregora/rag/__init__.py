@@ -101,7 +101,7 @@ def search(request: RAGQueryRequest) -> RAGQueryResponse:
 
 
 # Re-export embedding function helper for convenience
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=16)
 def embed_fn(
     texts: tuple[str],
     task_type: TaskType = "RETRIEVAL_DOCUMENT",
