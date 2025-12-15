@@ -18,6 +18,7 @@ from egregora.input_adapters.whatsapp.parsing import WhatsAppExport, parse_sourc
 from egregora.input_adapters.whatsapp.utils import discover_chat_file
 from egregora.ops.media import detect_media_type
 from egregora.utils.paths import slugify
+from egregora.utils.zip import validate_zip_contents
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +137,7 @@ class WhatsAppAdapter(InputAdapter):
     def _extract_media_from_zip(self, zip_path: Path, media_reference: str) -> Document | None:
         try:
             with zipfile.ZipFile(zip_path, "r") as zf:
+                validate_zip_contents(zf)
                 found_path = self._find_media_in_zip(zf, media_reference)
                 if not found_path:
                     logger.debug("Media file not found in ZIP: %s", media_reference)

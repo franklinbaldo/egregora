@@ -44,6 +44,7 @@ from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
+from egregora.utils.zip import validate_zip_contents
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.model_fallback import create_fallback_model
 from egregora.utils.paths import slugify
@@ -758,12 +759,16 @@ class EnrichmentWorker(BaseWorker):
         if self.ctx.input_path and self.ctx.input_path.exists() and self.ctx.input_path.is_file():
             try:
                 self.zip_handle = zipfile.ZipFile(self.ctx.input_path, "r")
+                validate_zip_contents(self.zip_handle)
                 # Build index for O(1) lookup
                 for info in self.zip_handle.infolist():
                     if not info.is_dir():
                         self.media_index[Path(info.filename).name.lower()] = info.filename
             except Exception:
                 logger.warning("Failed to open source ZIP %s", self.ctx.input_path)
+                if self.zip_handle:
+                    self.zip_handle.close()
+                    self.zip_handle = None
 
     def close(self) -> None:
         """Explicitly close the ZIP handle to release resources.
@@ -1217,9 +1222,13 @@ class EnrichmentWorker(BaseWorker):
                 logger.warning("Input path not available for media task %s", task["task_id"])
                 self.task_store.mark_failed(task["task_id"], "Input path not available")
                 return None
+
+            zf = None
+            should_close = False
             try:
                 zf = zipfile.ZipFile(input_path, "r")
                 should_close = True
+                validate_zip_contents(zf)
                 # Build index on the fly
                 media_index = {}
                 for info in zf.infolist():
@@ -1228,6 +1237,8 @@ class EnrichmentWorker(BaseWorker):
             except Exception as exc:
                 logger.warning("Failed to open source ZIP %s: %s", input_path, exc)
                 self.task_store.mark_failed(task["task_id"], f"Failed to open ZIP: {exc}")
+                if should_close and zf:
+                    zf.close()
                 return None
 
         try:

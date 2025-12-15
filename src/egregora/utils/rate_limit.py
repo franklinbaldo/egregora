@@ -12,7 +12,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class GlobalRateLimiter:
-    """Thread-safe global rate limiter using token bucket and semaphore."""
+    """Thread-safe global rate limiter using token bucket and semaphore.
+    
+    Supports refunding tokens on failed requests (e.g., 429 errors) to allow
+    immediate retry with fallback models without waiting for rate limit reset.
+    """
 
     requests_per_second: float = 1.0
     max_concurrency: int = 1
@@ -38,9 +42,11 @@ class GlobalRateLimiter:
                 elapsed = now - self._last_update
                 self._last_update = now
 
-                # Refill tokens
+                # Refill tokens - use max(1.0, ...) as bucket cap to support
+                # refund() which adds 1.0 token for immediate fallback
+                bucket_cap = max(1.0, self.requests_per_second)
                 self._tokens = min(
-                    self.requests_per_second, self._tokens + elapsed * self.requests_per_second
+                    bucket_cap, self._tokens + elapsed * self.requests_per_second
                 )
 
                 if self._tokens < 1.0:
@@ -59,6 +65,22 @@ class GlobalRateLimiter:
     def release(self) -> None:
         """Release concurrency slot."""
         self._semaphore.release()
+
+    def refund(self) -> None:
+        """Refund a token to the bucket after a failed request (e.g., 429 error).
+        
+        This allows immediate retry with fallback models without waiting for
+        the rate limit to reset. Call this when a request fails with a rate
+        limit error to allow the next model in a FallbackModel chain to try
+        immediately.
+        """
+        with self._lock:
+            # Add back the token that was consumed
+            # Use max(1.0, ...) to ensure we can always make at least one request
+            # even if requests_per_second is very low (e.g., 0.05)
+            bucket_cap = max(1.0, self.requests_per_second)
+            self._tokens = min(bucket_cap, self._tokens + 1.0)
+            logger.info("Rate limit token refunded, tokens=%.2f (cap=%.2f)", self._tokens, bucket_cap)
 
 
 # Global singleton instance
