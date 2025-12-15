@@ -923,6 +923,11 @@ class EnrichmentWorker(BaseWorker):
     ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
         """Execute URL enrichments based on configured strategy."""
         strategy = getattr(self.ctx.config.enrichment, "strategy", "individual")
+
+        # Override strategy in economic mode
+        if getattr(self.ctx.config.pipeline, "economic_mode", False):
+            strategy = "batch_all"
+
         total = len(tasks_data)
 
         # Use single-call batch for batch_all strategy with multiple URLs
@@ -1274,6 +1279,11 @@ class EnrichmentWorker(BaseWorker):
 
         # Use strategy-based dispatch
         strategy = getattr(self.ctx.config.enrichment, "strategy", "individual")
+
+        # Override strategy in economic mode
+        if getattr(self.ctx.config.pipeline, "economic_mode", False):
+            strategy = "batch_all"
+
         if strategy == "batch_all" and len(requests) > 1:
             try:
                 logger.info("[MediaEnricher] Using single-call batch mode for %d images", len(requests))
@@ -1625,6 +1635,10 @@ class EnrichmentWorker(BaseWorker):
 
             data = json.loads(clean_text.strip())
             slug = data.get("slug")
+
+            # Handle both formats:
+            # 1. Legacy: {"slug": "...", "markdown": "..."}
+            # 2. Batch: {"slug": "...", "description": "...", "alt_text": "..."}
             markdown = data.get("markdown")
 
             # Fallback for models that return description/alt_text instead of markdown

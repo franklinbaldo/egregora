@@ -495,8 +495,20 @@ def write_posts_with_pydantic_agent(
         context.resources.quota.reserve(1)
 
     # Define usage limits
+    economic_mode = getattr(config.pipeline, "economic_mode", False)
+    # Economic mode restricts to minimal turns (one tool call round + one final response)
+    # 1. Agent -> ToolCall (e.g. write_post)
+    # 2. Tool -> ToolResult
+    # 3. Agent -> Final Response
+    # Total requests = 2 (initial + tool result processing)
+    # We allow 3 to be safe against slight deviations or "thinking" steps if any.
+    request_limit = 3 if economic_mode else 15
+
+    if economic_mode:
+        logger.info("Using economic mode for writer (request_limit=%d)", request_limit)
+
     usage_limits = UsageLimits(
-        request_limit=15,  # Reasonable limit for tool loops
+        request_limit=request_limit,
         # response_tokens_limit=... # Optional
     )
 

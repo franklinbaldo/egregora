@@ -112,6 +112,7 @@ class WriteCommandOptions:
     refresh: str | None
     force: bool
     debug: bool
+    economic_mode: bool
 
 
 @dataclass(frozen=True)
@@ -257,6 +258,7 @@ def run_cli_flow(
     refresh: str | None = None,
     force: bool = False,
     debug: bool = False,
+    economic_mode: bool = False,
     options: str | None = None,
 ) -> None:
     """Execute the write flow from CLI arguments."""
@@ -278,6 +280,7 @@ def run_cli_flow(
         "refresh": refresh,
         "force": force,
         "debug": debug,
+        "economic_mode": economic_mode,
     }
 
     parsed_options = _resolve_write_options(
@@ -593,9 +596,6 @@ def _process_single_window(
 
     # Filter commands from messages before LLM
     clean_messages_list = filter_commands(messages_list)
-
-    # Convert back to table if needed (simplified for now - writer accepts lists)
-    # TODO: If writer expects ibis table, convert back using ibis.memtable()
 
     params = WindowProcessingParams(
         table=enriched_table,  # Keep original for now; writer filters internally if needed
