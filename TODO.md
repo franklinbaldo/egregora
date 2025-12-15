@@ -14,7 +14,7 @@ This document outlines the concrete steps required to migrate the Egregora codeb
 ### 1. Unify Data Model (The "One Schema" Rule)
 *   **Context:** Currently, we have `IR_MESSAGE_SCHEMA` (V2) in DuckDB and `Entry`/`Document` (V3) in Pydantic. This duality causes friction.
 *   **Task:** Migrate the DuckDB `documents` table to fully support the V3 `Entry` schema.
-    *   [ ] Update `src/egregora/database/ir_schema.py` to match fields in `src/egregora_v3/core/types.py`.
+    *   [x] Update `src/egregora/database/ir_schema.py` to match fields in `src/egregora_v3/core/types.py`.
     *   [ ] Add `doc_type` column (ENUM) to distinguish `message`, `post`, `profile`, `log`.
     *   [ ] Add `extensions` column (JSON) for Atom extensions.
     *   [ ] Create a migration script to alter existing tables.
