@@ -42,9 +42,11 @@ class GlobalRateLimiter:
                 elapsed = now - self._last_update
                 self._last_update = now
 
-                # Refill tokens
+                # Refill tokens - use max(1.0, ...) as bucket cap to support
+                # refund() which adds 1.0 token for immediate fallback
+                bucket_cap = max(1.0, self.requests_per_second)
                 self._tokens = min(
-                    self.requests_per_second, self._tokens + elapsed * self.requests_per_second
+                    bucket_cap, self._tokens + elapsed * self.requests_per_second
                 )
 
                 if self._tokens < 1.0:
@@ -74,8 +76,11 @@ class GlobalRateLimiter:
         """
         with self._lock:
             # Add back the token that was consumed
-            self._tokens = min(self.requests_per_second, self._tokens + 1.0)
-            logger.debug("Rate limit token refunded, tokens=%.2f", self._tokens)
+            # Use max(1.0, ...) to ensure we can always make at least one request
+            # even if requests_per_second is very low (e.g., 0.05)
+            bucket_cap = max(1.0, self.requests_per_second)
+            self._tokens = min(bucket_cap, self._tokens + 1.0)
+            logger.info("Rate limit token refunded, tokens=%.2f (cap=%.2f)", self._tokens, bucket_cap)
 
 
 # Global singleton instance
