@@ -753,8 +753,13 @@ def _extract_media_candidates(
 class EnrichmentWorker(BaseWorker):
     """Worker for media enrichment (e.g. image description)."""
 
-    def __init__(self, ctx: PipelineContext | EnrichmentRuntimeContext) -> None:
+    def __init__(
+        self,
+        ctx: PipelineContext | EnrichmentRuntimeContext,
+        enrichment_config: EnrichmentSettings | None = None,
+    ):
         super().__init__(ctx)
+        self._enrichment_config_override = enrichment_config
         self.zip_handle: zipfile.ZipFile | None = None
         self.media_index: dict[str, str] = {}
         # V3 Architecture: Ephemeral media staging
@@ -887,6 +892,17 @@ class EnrichmentWorker(BaseWorker):
 
         return tasks_data
 
+    @property
+    def enrichment_config(self) -> EnrichmentSettings:
+        """Get effective enrichment configuration."""
+        if self._enrichment_config_override:
+            return self._enrichment_config_override
+        # Fallback to context config if available
+        if hasattr(self.ctx, "config"):
+            return self.ctx.config.enrichment
+        # Last resort fallback (should not happen in normal pipeline)
+        return EnrichmentSettings()
+
     def _determine_concurrency(self, task_count: int) -> int:
         """Determine optimal concurrency based on available API keys.
 
@@ -901,7 +917,7 @@ class EnrichmentWorker(BaseWorker):
 
         # Use configured value or auto-detected key count
         enrichment_concurrency = getattr(
-            self.ctx.config.enrichment,
+            self.enrichment_config,
             "max_concurrent_enrichments",
             num_keys,  # Default to number of keys
         )
@@ -927,7 +943,7 @@ class EnrichmentWorker(BaseWorker):
         self, tasks_data: list[dict[str, Any]], max_concurrent: int
     ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
         """Execute URL enrichments based on configured strategy."""
-        strategy = getattr(self.ctx.config.enrichment, "strategy", "individual")
+        strategy = getattr(self.enrichment_config, "strategy", "individual")
         total = len(tasks_data)
 
         # Use single-call batch for batch_all strategy with multiple URLs
@@ -1000,8 +1016,8 @@ class EnrichmentWorker(BaseWorker):
         ).strip()
 
         # Build model+key rotator if enabled
-        rotation_enabled = getattr(self.ctx.config.enrichment, "model_rotation_enabled", True)
-        rotation_models = getattr(self.ctx.config.enrichment, "rotation_models", None)
+        rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
+        rotation_models = getattr(self.enrichment_config, "rotation_models", None)
 
         if rotation_enabled:
             from egregora.models.model_key_rotator import ModelKeyRotator
@@ -1331,7 +1347,7 @@ class EnrichmentWorker(BaseWorker):
             raise ValueError(msg)
 
         # Use strategy-based dispatch
-        strategy = getattr(self.ctx.config.enrichment, "strategy", "individual")
+        strategy = getattr(self.enrichment_config, "strategy", "individual")
         if strategy == "batch_all" and len(requests) > 1:
             try:
                 logger.info("[MediaEnricher] Using single-call batch mode for %d images", len(requests))
@@ -1410,8 +1426,8 @@ class EnrichmentWorker(BaseWorker):
         # Build model+key rotator if enabled
         from egregora.models.model_key_rotator import ModelKeyRotator
 
-        rotation_enabled = getattr(self.ctx.config.enrichment, "model_rotation_enabled", True)
-        rotation_models = getattr(self.ctx.config.enrichment, "rotation_models", None)
+        rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
+        rotation_models = getattr(self.enrichment_config, "rotation_models", None)
 
         if rotation_enabled:
             rotator = ModelKeyRotator(models=rotation_models)
