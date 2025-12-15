@@ -1361,6 +1361,10 @@ ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
 # Author Profile Generation (Append-Only) ---------------------------------
 
 
+def get_author_profile(self, author_uuid: str) -> dict | None:
+    """Public alias for _build_author_profile."""
+    return self._build_author_profile(author_uuid)
+
 def _build_author_profile(self, author_uuid: str) -> dict | None:
     """Build author profile by scanning all their posts chronologically.
 
