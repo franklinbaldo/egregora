@@ -80,16 +80,11 @@ def test_batch_all_accumulates_before_calling_api():
         worker._process_url_batch(tasks)
 
     # Verify batching behavior
-    print("\nBatch Strategy Test Results:")
-    print(f"  Total API calls: {api_call_count}")
-    print(f"  Items per call: {items_per_call}")
-    print(f"  Total items: {sum(items_per_call)}")
 
     # CRITICAL: batch_all should make exactly 1 call with all 5 items
     assert api_call_count == 1, f"Expected 1 API call, got {api_call_count}"
     assert items_per_call[0] == 5, f"Expected 5 items in batch, got {items_per_call[0]}"
 
-    print("✓ Batching verified: 5 URL items sent in 1 API call")
 
 
 def test_individual_strategy_makes_separate_calls():
@@ -120,13 +115,10 @@ def test_individual_strategy_makes_separate_calls():
         # Run enrichment
         worker._process_url_batch(tasks)
 
-    print("\nIndividual Strategy Test Results:")
-    print(f"  Total API calls: {api_call_count}")
 
     # Individual strategy should make 5 separate calls
     assert api_call_count == 5, f"Expected 5 API calls, got {api_call_count}"
 
-    print("✓ Individual strategy verified: 5 separate API calls")
 
 
 def test_batching_efficiency_comparison():
@@ -134,11 +126,6 @@ def test_batching_efficiency_comparison():
 
     test_sizes = [1, 5, 10, 20, 50]
 
-    print("\n" + "=" * 60)
-    print("BATCHING EFFICIENCY COMPARISON")
-    print("=" * 60)
-    print(f"{'Items':<10} {'Batch_All':<15} {'Individual':<15} {'Savings':<15}")
-    print("-" * 60)
 
     for size in test_sizes:
         # batch_all: 1 call regardless of size
@@ -149,34 +136,26 @@ def test_batching_efficiency_comparison():
 
         # parallel batching: size / concurrency (rounded up)
         concurrency = 5
-        parallel_batches = (size + concurrency - 1) // concurrency
+        (size + concurrency - 1) // concurrency
 
-        savings_pct = (
+        (
             ((individual_calls - batch_calls) / individual_calls * 100) if individual_calls > 0 else 0
         )
 
-        print(f"{size:<10} {batch_calls:<15} {individual_calls:<15} {savings_pct:.1f}%")
 
-    print("=" * 60)
-    print("\nConclusion: batch_all provides massive API call reduction!")
 
 
 def test_concurrent_batching():
     """Test that concurrency splits work into parallel batches."""
-    ctx = MockPipelineContext(strategy="batch_all")
+    MockPipelineContext(strategy="batch_all")
 
     # Create 15 tasks (more than concurrency of 5)
-    tasks = create_url_tasks(15)
+    create_url_tasks(15)
 
     # With max_concurrent=5, we expect tasks to be split into groups
     # However, batch_all tries to process all in one call first
     # This test verifies the fallback to parallel execution
 
-    print("\nConcurrent Batching Test:")
-    print(f"  Tasks: {len(tasks)}")
-    print(f"  Concurrency: {ctx.config.enrichment.max_concurrent_enrichments}")
-    print("  Expected: 1 batch call with all 15 items (batch_all)")
-    print("  Fallback: 3 parallel batches of ~5 items each (if batch_all fails)")
 
 
 def test_verify_batching_logs():
@@ -209,11 +188,6 @@ def test_verify_batching_logs():
             worker._process_url_batch(tasks)
 
         logs = log_stream.getvalue()
-        print("\n" + "=" * 60)
-        print("ENRICHMENT LOGS:")
-        print("=" * 60)
-        print(logs)
-        print("=" * 60)
 
         # Verify log mentions batching
         assert "batch" in logs.lower() or "8" in logs, "Logs should mention batch processing"
@@ -223,30 +197,14 @@ def test_verify_batching_logs():
 
 
 if __name__ == "__main__":
-    print("\n" + "=" * 60)
-    print("ENRICHMENT BATCHING VERIFICATION TESTS")
-    print("=" * 60)
 
-    print("\n1. Testing batch_all strategy (accumulate before API call)...")
     test_batch_all_accumulates_before_calling_api()
 
-    print("\n2. Testing individual strategy (separate calls)...")
     test_individual_strategy_makes_separate_calls()
 
-    print("\n3. Comparing batching efficiency...")
     test_batching_efficiency_comparison()
 
-    print("\n4. Testing concurrent batching...")
     test_concurrent_batching()
 
-    print("\n5. Verifying logs...")
     test_verify_batching_logs()
 
-    print("\n" + "=" * 60)
-    print("ALL TESTS PASSED ✓")
-    print("=" * 60)
-    print("\nConclusion:")
-    print("  - batch_all: Sends ALL items in 1 API call")
-    print("  - individual: Sends 1 item per API call")
-    print("  - Savings: Up to 99% fewer API calls with batch_all")
-    print("  - With 5 keys in parallel: Even faster processing")

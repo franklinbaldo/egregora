@@ -29,9 +29,8 @@ def clean_env(monkeypatch):
 @pytest.fixture
 def mock_batch_client(monkeypatch):
     """Mock Gemini batch client to prevent actual API calls."""
-    mock_client = MagicMock()
+    return MagicMock()
     # Mock batch operations if needed
-    return mock_client
 
 
 @pytest.fixture

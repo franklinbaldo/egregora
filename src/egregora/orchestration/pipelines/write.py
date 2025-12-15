@@ -72,7 +72,6 @@ from egregora.transformations import (
 from egregora.utils.cache import PipelineCache
 from egregora.utils.env import validate_gemini_api_key
 from egregora.utils.metrics import UsageTracker
-from egregora.utils.quota import QuotaTracker
 from egregora.utils.rate_limit import init_rate_limiter
 
 try:
@@ -559,18 +558,19 @@ def _process_single_window(
     resources = PipelineFactory.create_writer_resources(ctx)
     adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
 
-    # Process /egregora commands before sending to LLM
+    # NEW: Process /egregora commands before sending to LLM
     from egregora.agents.commands import command_to_announcement, extract_commands, filter_commands
 
     # Convert table to list of messages for command processing
-    # Use robust conversion with multiple fallbacks to handle different table types
+    # ibis Tables need .execute() before .to_pylist()
     try:
-        # Try ibis table conversion first (proper ibis way)
-        messages_list = enriched_table.execute().to_pylist()
+        # Try ibis table conversion via pyarrow
+        # Ibis tables don't have direct .to_pylist() but can convert to PyArrow first
+        messages_list = enriched_table.to_pyarrow().to_pylist()
     except (AttributeError, TypeError):
-        # Fallback: try PyArrow conversion (for arrow tables)
+        # Fallback: try direct execute() then dicts (standard ibis)
         try:
-            messages_list = enriched_table.to_pyarrow().to_pylist()
+            messages_list = enriched_table.execute().to_dict(orient="records")
         except (AttributeError, TypeError):
             # Last resort: assume it's already a list
             messages_list = enriched_table if isinstance(enriched_table, list) else []
@@ -594,9 +594,11 @@ def _process_single_window(
     # Filter commands from messages before LLM
     clean_messages_list = filter_commands(messages_list)
 
+    # Convert back to table if needed (simplified for now - writer accepts lists)
+    # TODO: If writer expects ibis table, convert back using ibis.memtable()
 
     params = WindowProcessingParams(
-        table=enriched_table,
+        table=enriched_table,  # Keep original for now; writer filters internally if needed
         window_start=window.start_time,
         window_end=window.end_time,
         resources=resources,
@@ -611,13 +613,12 @@ def _process_single_window(
     posts = result.get("posts", [])
     profiles = result.get("profiles", [])
 
-    # Generate PROFILE posts (Egregora writing ABOUT each author)
+    # NEW: Generate PROFILE posts (Egregora writing ABOUT each author)
     import asyncio
 
     from egregora.agents.profile.generator import generate_profile_posts
 
     window_date = window.start_time.strftime("%Y-%m-%d")
-    generated_profiles = 0
     try:
         profile_docs = asyncio.run(
             generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
@@ -627,8 +628,7 @@ def _process_single_window(
         for profile_doc in profile_docs:
             try:
                 output_sink.persist(profile_doc)
-                generated_profiles += 1
-                # Track as profile in results
+                # Track as profile
                 profiles.append(profile_doc.document_id)
             except Exception as exc:
                 logger.exception("Failed to persist profile: %s", exc)
@@ -646,10 +646,11 @@ def _process_single_window(
     # Scheduled tasks are returned as "pending:<task_id>"
     scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
     generated_posts = len(posts) - scheduled_posts
-    scheduled_profiles = sum(1 for p in profiles if isinstance(p, str) and p.startswith("pending:"))
-    # generated_profiles already counted above
 
-    # Build status message
+    scheduled_profiles = sum(1 for p in profiles if isinstance(p, str) and p.startswith("pending:"))
+    generated_profiles = len(profiles) - scheduled_profiles
+
+    # Construct status message
     status_parts = []
     if generated_posts > 0:
         status_parts.append(f"{generated_posts} posts")
@@ -662,7 +663,7 @@ def _process_single_window(
     if announcements_generated > 0:
         status_parts.append(f"{announcements_generated} announcements")
 
-    status_msg = ", ".join(status_parts) if status_parts else "no documents"
+    status_msg = ", ".join(status_parts) if status_parts else "0 items"
 
     logger.info(
         "%s[green]✔ Generated[/] %s for %s",
@@ -982,7 +983,6 @@ def _perform_enrichment(
         cache=ctx.enrichment_cache,
         output_format=ctx.output_format,
         site_root=ctx.site_root,
-        quota=ctx.quota_tracker,
         usage_tracker=ctx.usage_tracker,
         pii_prevention=pii_prevention,
         task_store=ctx.task_store,
@@ -1112,14 +1112,18 @@ def _create_gemini_client() -> genai.Client:
     """Create a Gemini client with retry configuration.
 
     The client reads the API key from GOOGLE_API_KEY environment variable automatically.
+
+    We disable retries for 429 (Resource Exhausted) to allow our application-level
+    Model/Key rotator to handle it immediately (Story 8).
+    We still retry 503 (Service Unavailable).
     """
     http_options = genai.types.HttpOptions(
         retryOptions=genai.types.HttpRetryOptions(
-            attempts=15,
-            initialDelay=2.0,
-            maxDelay=60.0,
+            attempts=3, # Reduced from 15
+            initialDelay=1.0,
+            maxDelay=10.0,
             expBase=2.0,
-            httpStatusCodes=[429, 503],
+            httpStatusCodes=[503], # Only retry 503 at client level. 429 handled by app.
         )
     )
     return genai.Client(http_options=http_options)
@@ -1160,8 +1164,6 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     # Initialize TaskStore for async operations
     task_store = TaskStore(storage)
 
-    quota_tracker = QuotaTracker(site_paths["egregora_dir"], run_params.config.quota.daily_llm_requests)
-
     _init_global_rate_limiter(run_params.config.quota)
 
     output_registry = create_default_output_registry()
@@ -1192,7 +1194,6 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
         storage=storage,
         cache=cache,
         annotations_store=annotations_store,
-        quota_tracker=quota_tracker,
         usage_tracker=UsageTracker(),
         output_registry=output_registry,
     )
@@ -1598,7 +1599,7 @@ def _apply_filters(
     options: FilterOptions,
     checkpoint_path: Path,
 ) -> ir.Table:
-    """Apply all filters: egregora messages, opted-out users, date range, checkpoint resume.
+    """Apply all filters: opted-out users, date range, checkpoint resume.
 
     Args:
         messages_table: Input messages table
@@ -1610,10 +1611,9 @@ def _apply_filters(
         Filtered messages table
 
     """
-    # Filter egregora messages
-    messages_table, egregora_removed = filter_egregora_messages(messages_table)
-    if egregora_removed:
-        logger.info("[yellow]🧹 Removed[/] %s /egregora messages", egregora_removed)
+    # Note: We do NOT filter egregora messages here anymore (Story 4).
+    # We need them to reach the window processing loop so they can be converted to Announcements.
+    # Filtering happens inside _process_single_window before sending to Writer.
 
     # Filter opted-out authors
     messages_table, removed_count = filter_opted_out_authors(messages_table, ctx.profiles_dir)

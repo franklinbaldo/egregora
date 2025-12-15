@@ -14,40 +14,24 @@ from pathlib import Path
 import pytest
 import yaml
 
+from egregora.knowledge.profiles import sync_all_profiles
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
-from egregora.utils.filesystem import sync_authors_from_posts
 
 
 def test_sync_authors_from_posts(tmp_path: Path):
-    """Test that sync_authors_from_posts correctly syncs authors from post frontmatter."""
+    """Test that sync_all_profiles correctly syncs authors from profiles directory."""
     docs_dir = tmp_path / "docs"
-    posts_dir = docs_dir / "posts"  # Flat structure - no nesting
-    posts_dir.mkdir(parents=True)
+    profiles_dir = docs_dir / "profiles"
+    profiles_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create posts with different authors
-    post1 = """---
-title: Post 1
-date: 2025-01-01
-authors:
-  - author-uuid-1
-  - author-uuid-2
----
-# Post 1
-"""
-    post2 = """---
-title: Post 2
-date: 2025-01-02
-authors:
-  - author-uuid-2
-  - author-uuid-3
----
-# Post 2
-"""
-    (posts_dir / "2025-01-01-post1.md").write_text(post1, encoding="utf-8")
-    (posts_dir / "2025-01-02-post2.md").write_text(post2, encoding="utf-8")
+    # Create profiles
+    (profiles_dir / "author-uuid-1.md").write_text("---\nname: Author One\n---\n# Author One", encoding="utf-8")
+    (profiles_dir / "author-uuid-2.md").write_text("---\nname: Author Two\n---\n# Author Two", encoding="utf-8")
+    (profiles_dir / "author-uuid-3.md").write_text("---\nname: Author Three\n---\n# Author Three", encoding="utf-8")
 
-    # Sync authors
-    synced = sync_authors_from_posts(posts_dir, docs_dir)
+    # Sync authors from profiles directory
+    # Note: sync_all_profiles expects profiles directory as input
+    synced = sync_all_profiles(profiles_dir)
 
     # Verify
     assert synced == 3, f"Expected 3 unique authors, got {synced}"

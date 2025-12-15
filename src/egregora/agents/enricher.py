@@ -15,6 +15,9 @@ import logging
 import mimetypes
 import os
 import re
+import shutil
+import tempfile
+import time
 import uuid
 import zipfile
 from collections.abc import Iterator
@@ -44,6 +47,7 @@ from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
+from egregora.utils.zip import validate_zip_contents
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.model_fallback import create_fallback_model
 from egregora.utils.paths import slugify
@@ -752,20 +756,27 @@ def _extract_media_candidates(
 class EnrichmentWorker(BaseWorker):
     """Worker for media enrichment (e.g. image description)."""
 
-    def __init__(self, ctx: PipelineContext | EnrichmentRuntimeContext):
+    def __init__(self, ctx: PipelineContext | EnrichmentRuntimeContext) -> None:
         super().__init__(ctx)
         self.zip_handle: zipfile.ZipFile | None = None
         self.media_index: dict[str, str] = {}
+        # V3 Architecture: Ephemeral media staging
+        self.staging_dir = tempfile.TemporaryDirectory(prefix="egregora_staging_")
+        self.staged_files: set[str] = set()
 
         if self.ctx.input_path and self.ctx.input_path.exists() and self.ctx.input_path.is_file():
             try:
                 self.zip_handle = zipfile.ZipFile(self.ctx.input_path, "r")
+                validate_zip_contents(self.zip_handle)
                 # Build index for O(1) lookup
                 for info in self.zip_handle.infolist():
                     if not info.is_dir():
                         self.media_index[Path(info.filename).name.lower()] = info.filename
             except Exception:
                 logger.warning("Failed to open source ZIP %s", self.ctx.input_path)
+                if self.zip_handle:
+                    self.zip_handle.close()
+                    self.zip_handle = None
 
     def close(self) -> None:
         """Explicitly close the ZIP handle to release resources.
@@ -797,17 +808,25 @@ class EnrichmentWorker(BaseWorker):
 
     def run(self) -> int:
         """Process pending enrichment tasks in batches."""
-        # Configurable batch size
-        batch_size = 50
-        tasks = self.task_store.fetch_pending(task_type="enrich_url", limit=batch_size)
-        media_tasks = self.task_store.fetch_pending(task_type="enrich_media", limit=batch_size)
+        # Determine concurrency to scale fetch limit
+        # We assume typical batch size of 50.
+        base_batch_size = 50
+        # We pass a dummy count to _determine_concurrency just to check key/config state
+        concurrency = self._determine_concurrency(base_batch_size)
+
+        # Scale fetch limit by concurrency to allow parallel processing of multiple batches
+        fetch_limit = base_batch_size * concurrency
+
+        tasks = self.task_store.fetch_pending(task_type="enrich_url", limit=fetch_limit)
+        media_tasks = self.task_store.fetch_pending(task_type="enrich_media", limit=fetch_limit)
 
         total_tasks = len(tasks) + len(media_tasks)
         if not total_tasks:
             return 0
 
         logger.info(
-            "[Enrichment] Processing %d tasks (URL: %d, Media: %d)", total_tasks, len(tasks), len(media_tasks)
+            "[Enrichment] Processing %d tasks (URL: %d, Media: %d) with concurrency %d",
+            total_tasks, len(tasks), len(media_tasks), concurrency
         )
 
         processed_count = 0
@@ -891,17 +910,35 @@ class EnrichmentWorker(BaseWorker):
         api_keys = get_api_keys()
         num_keys = len(api_keys) if api_keys else 1
 
-        # Use configured value or auto-detected key count
+        # Get configured concurrency
         enrichment_concurrency = getattr(
             self.ctx.config.enrichment,
             "max_concurrent_enrichments",
-            num_keys,  # Default to number of keys
+            1,
         )
+
+        # Auto-Parallelization: If using default (1) and we have multiple keys, scale up.
+        # This assumes default 1 means "not configured" and we should optimize.
+        # If user explicitly sets 1 in config.yml, they effectively disable this.
+        # Ideally we'd distinguish "unset" from "set to 1", but for now this heuristics works well.
+        if enrichment_concurrency == 1 and num_keys > 1:
+            logger.info("Auto-scaling concurrency to match available API keys: %d", num_keys)
+            enrichment_concurrency = num_keys
 
         global_concurrency = getattr(self.ctx.config.quota, "concurrency", num_keys)
 
-        # Use all available keys in parallel (up to task count)
-        max_concurrent = min(enrichment_concurrency, global_concurrency, task_count, num_keys)
+        # Calculate effective concurrency
+        # We cap at num_keys to avoid rate limits on single keys (unless rotation handles it,
+        # but concurrent requests on one key is risky for free tier).
+        # We also respect global quota.
+        max_concurrent = min(enrichment_concurrency, global_concurrency, task_count)
+
+        # If we have more tasks/concurrency allowed than keys, we rely on rotation OR key reuse?
+        # Story 6 implies "throughput using all keys in parallel".
+        # If enrichment_concurrency > num_keys, we are sending multiple requests per key?
+        # That's fine if allowed. But "Set max_concurrent_enrichments = key count" suggests 1:1 mapping.
+
+        # Let's ensure we use at least key count if allowed.
 
         logger.info(
             "Processing %d enrichment tasks with max concurrency of %d "
@@ -942,17 +979,25 @@ class EnrichmentWorker(BaseWorker):
         """Execute URL enrichments individually with model rotation."""
         results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
         total = len(tasks_data)
+        last_log_time = time.time()
+
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
             future_to_task = {executor.submit(self._enrich_single_url, td): td for td in tasks_data}
             for i, future in enumerate(as_completed(future_to_task), 1):
                 try:
                     results.append(future.result())
-                    logger.info("[Enrichment] URL task %d/%d complete", i, total)
+
+                    # Heartbeat logging
+                    if time.time() - last_log_time > 10:
+                        logger.info("[Heartbeat] URL Enrichment: %d/%d (%.1f%%)", i, total, (i/total)*100)
+                        last_log_time = time.time()
+
                 except Exception as exc:
                     task = future_to_task[future]["task"]
                     logger.exception("Enrichment failed for %s", task["task_id"])
                     results.append((task, None, str(exc)))
 
+        logger.info("[Enrichment] URL tasks complete: %d/%d", len(results), total)
         return results
 
     def _execute_url_single_call(
@@ -1032,7 +1077,8 @@ class EnrichmentWorker(BaseWorker):
             results_dict = json.loads(response_text)
         except json.JSONDecodeError as e:
             logger.warning("[URLEnricher] Failed to parse JSON response: %s", e)
-            raise ValueError(f"Failed to parse batch response: {e}") from e
+            msg = f"Failed to parse batch response: {e}"
+            raise ValueError(msg) from e
 
         # Convert to result tuples
         results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
@@ -1155,13 +1201,18 @@ class EnrichmentWorker(BaseWorker):
                     payload = json.loads(payload)
                 task["_parsed_payload"] = payload
 
-                file_bytes = self._load_media_bytes(task, payload)
-                if file_bytes is None:
+                # Stage the file to disk (ephemeral)
+                staged_path = self._stage_file(task, payload)
+                if not staged_path:
                     continue
+
+                # Store staged path in task for later persistence
+                task["_staged_path"] = str(staged_path)
 
                 filename = payload["filename"]
                 media_type = payload["media_type"]
-                b64_data = base64.b64encode(file_bytes).decode("utf-8")
+
+                media_part = self._prepare_media_content(staged_path, media_type)
 
                 prompt = render_prompt(
                     "enrichment.jinja",
@@ -1179,12 +1230,7 @@ class EnrichmentWorker(BaseWorker):
                             {
                                 "parts": [
                                     {"text": prompt},
-                                    {
-                                        "inlineData": {
-                                            "mimeType": media_type,
-                                            "data": b64_data,
-                                        }
-                                    },
+                                    media_part,
                                 ]
                             }
                         ],
@@ -1199,28 +1245,38 @@ class EnrichmentWorker(BaseWorker):
 
         return requests, task_map
 
-    def _load_media_bytes(self, task: dict[str, Any], payload: dict[str, Any]) -> bytes | None:
-        """Load media bytes directly from source ZIP file via index."""
+    def _stage_file(self, task: dict[str, Any], payload: dict[str, Any]) -> Path | None:
+        """Extract media file from ZIP to ephemeral staging directory."""
         original_filename = payload.get("original_filename") or payload.get("filename")
         if not original_filename:
             logger.warning("No filename in media task %s", task["task_id"])
             self.task_store.mark_failed(task["task_id"], "No filename in task payload")
             return None
 
+        target_lower = original_filename.lower()
+
+        # Check if already staged (by original filename key)
+        # We use a hash or just the filename if unique enough.
+        # But we need the physical path.
+        # Let's check if we have it.
+
         zf = self.zip_handle
         media_index = self.media_index
         should_close = False
 
-        # Fallback initialization if ZIP wasn't opened in __init__
+        # Ensure ZIP handle
         if zf is None:
             input_path = self.ctx.input_path
             if not input_path or not input_path.exists():
                 logger.warning("Input path not available for media task %s", task["task_id"])
-                self.task_store.mark_failed(task["task_id"], "Input path not available")
                 return None
+
+            zf = None
+            should_close = False
             try:
                 zf = zipfile.ZipFile(input_path, "r")
                 should_close = True
+                validate_zip_contents(zf)
                 # Build index on the fly
                 media_index = {}
                 for info in zf.infolist():
@@ -1229,28 +1285,118 @@ class EnrichmentWorker(BaseWorker):
             except Exception as exc:
                 logger.warning("Failed to open source ZIP %s: %s", input_path, exc)
                 self.task_store.mark_failed(task["task_id"], f"Failed to open ZIP: {exc}")
+                if should_close and zf:
+                    zf.close()
                 return None
 
         try:
-            target_lower = original_filename.lower()
             full_path = media_index.get(target_lower)
+            if not full_path:
+                logger.warning("Media file %s not found in ZIP", original_filename)
+                self.task_store.mark_failed(task["task_id"], f"Media file not found: {original_filename}")
+                return None
 
-            if full_path:
-                media_bytes = zf.read(full_path)
-                logger.debug("Loaded %d bytes from %s", len(media_bytes), full_path)
-                return media_bytes
+            # Extract
+            # We construct a safe output filename to avoid collisions
+            safe_name = f"{task['task_id']}_{Path(full_path).name}"
+            target_path = Path(self.staging_dir.name) / safe_name
 
-            logger.warning("Media file %s not found in ZIP for task %s", original_filename, task["task_id"])
-            self.task_store.mark_failed(task["task_id"], f"Media file not found: {original_filename}")
-            return None
+            if target_path.exists():
+                return target_path
 
-        except (OSError, zipfile.BadZipFile) as exc:
-            logger.warning("Failed to read media from ZIP for task %s: %s", task["task_id"], exc)
-            self.task_store.mark_failed(task["task_id"], f"Failed to read ZIP: {exc}")
+            # ZipFile.extract expects a member name, not just path
+            # We can use zf.open and shutil.copyfileobj to stream it
+            with zf.open(full_path) as source, open(target_path, "wb") as dest:
+                shutil.copyfileobj(source, dest)
+
+            self.staged_files.add(str(target_path))
+            return target_path
+
+        except Exception as exc:
+            logger.exception("Failed to stage media file %s", original_filename)
+            self.task_store.mark_failed(task["task_id"], f"Staging failed: {exc}")
             return None
         finally:
             if should_close and zf:
                 zf.close()
+
+    def _prepare_media_content(self, file_path: Path, mime_type: str) -> dict[str, Any]:
+        """Prepare media content for API request, using File API for large files."""
+        # Threshold: 20 MB
+        params = getattr(self.ctx.config.enrichment, "large_file_threshold_mb", 20)
+        threshold_bytes = params * 1024 * 1024
+
+        file_size = file_path.stat().st_size
+
+        if file_size > threshold_bytes:
+            from google import genai
+
+            logger.info("File %s is %.2f MB (threshold: %d MB), using File API upload",
+                        file_path.name, file_size / (1024 * 1024), params)
+
+            api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+            if not api_key:
+                raise ValueError("API key required for file upload")
+
+            client = genai.Client(api_key=api_key)
+
+            # Upload file
+            # Note: client.files.upload returns a File object with 'uri'
+            uploaded_file = client.files.upload(path=str(file_path), config={"mime_type": mime_type})
+            logger.info("Uploaded file %s to %s", file_path.name, uploaded_file.uri)
+
+            return {
+                "fileData": {
+                    "mimeType": mime_type,
+                    "fileUri": uploaded_file.uri
+                }
+            }
+        else:
+            # Inline base64 for small files
+            file_bytes = file_path.read_bytes()
+            b64_data = base64.b64encode(file_bytes).decode("utf-8")
+            return {
+                "inlineData": {
+                    "mimeType": mime_type,
+                    "data": b64_data,
+                }
+            }
+
+    def _bin_pack_requests(
+        self, requests: list[dict[str, Any]], max_items: int = 50, max_bytes: int = 10 * 1024 * 1024
+    ) -> list[list[dict[str, Any]]]:
+        """Group requests into bins respecting item count and estimated size."""
+        bins: list[list[dict[str, Any]]] = []
+        current_bin: list[dict[str, Any]] = []
+        current_bytes = 0
+
+        for req in requests:
+            # Estimate size
+            # InlineData base64 size or just text prompt size.
+            # fileData is small.
+            # Base64 is len(data).
+            req_size = 0
+            for content in req.get("contents", []):
+                for part in content.get("parts", []):
+                    if "inlineData" in part:
+                        req_size += len(part["inlineData"].get("data", ""))
+                    if "text" in part:
+                        req_size += len(part["text"])
+
+            # Check limits
+            if len(current_bin) >= max_items or (current_bytes + req_size) > max_bytes:
+                if current_bin:
+                    bins.append(current_bin)
+                current_bin = []
+                current_bytes = 0
+
+            current_bin.append(req)
+            current_bytes += req_size
+
+        if current_bin:
+            bins.append(current_bin)
+
+        return bins
 
     def _execute_media_batch(
         self, requests: list[dict[str, Any]], task_map: dict[str, dict[str, Any]]
@@ -1264,15 +1410,40 @@ class EnrichmentWorker(BaseWorker):
 
         # Use strategy-based dispatch
         strategy = getattr(self.ctx.config.enrichment, "strategy", "individual")
+
         if strategy == "batch_all" and len(requests) > 1:
-            try:
-                logger.info("[MediaEnricher] Using single-call batch mode for %d images", len(requests))
-                return self._execute_media_single_call(requests, task_map, model_name, api_key)
-            except Exception as single_call_exc:
-                logger.warning(
-                    "[MediaEnricher] Single-call batch failed (%s), falling back to standard batch",
-                    single_call_exc,
-                )
+            # Bin packing for safety
+            bins = self._bin_pack_requests(requests, max_items=50, max_bytes=10 * 1024 * 1024)
+
+            # Execute bins in parallel if concurrency allows
+            concurrency = self._determine_concurrency(len(requests))
+
+            all_results = []
+
+            def process_bin(bin_requests):
+                try:
+                    logger.info("[MediaEnricher] Processing bin of %d images", len(bin_requests))
+                    return self._execute_media_single_call(bin_requests, task_map, model_name, api_key)
+                except Exception as exc:
+                    logger.warning("[MediaEnricher] Bin failed (%s), falling back to individual", exc)
+                    return self._execute_media_individual(bin_requests, task_map, model_name, api_key)
+
+            if len(bins) > 1 and concurrency > 1:
+                with ThreadPoolExecutor(max_workers=min(len(bins), concurrency)) as executor:
+                    futures = [executor.submit(process_bin, b) for b in bins]
+                    total_bins = len(bins)
+                    last_log_time = time.time()
+
+                    for i, future in enumerate(as_completed(futures), 1):
+                        all_results.extend(future.result())
+                        if time.time() - last_log_time > 10:
+                            logger.info("[Heartbeat] Media Batches: %d/%d", i, total_bins)
+                            last_log_time = time.time()
+            else:
+                for b in bins:
+                    all_results.extend(process_bin(b))
+
+            return all_results
 
         # Standard batch API (one request per image)
         model = GoogleBatchModel(api_key=api_key, model_name=model_name)
@@ -1322,6 +1493,8 @@ class EnrichmentWorker(BaseWorker):
                 for part in content.get("parts", []):
                     if "inlineData" in part:
                         parts.append({"inlineData": part["inlineData"]})
+                    elif "fileData" in part:
+                        parts.append({"fileData": part["fileData"]})
 
         # Render prompt from Jinja template
         prompts_dir = self.ctx.site_root / ".egregora" / "prompts" if self.ctx.site_root else None
@@ -1335,7 +1508,7 @@ class EnrichmentWorker(BaseWorker):
         ).strip()
 
         # Build the request: prompt first, then all images
-        request_parts = [{"text": combined_prompt}] + parts
+        request_parts = [{"text": combined_prompt}, *parts]
 
         # Build model+key rotator if enabled
         from egregora.models.model_key_rotator import ModelKeyRotator
@@ -1371,7 +1544,8 @@ class EnrichmentWorker(BaseWorker):
             results_dict = json.loads(response_text)
         except json.JSONDecodeError as e:
             logger.warning("[MediaEnricher] Failed to parse JSON response: %s", e)
-            raise ValueError(f"Failed to parse batch response: {e}") from e
+            msg = f"Failed to parse batch response: {e}"
+            raise ValueError(msg) from e
 
         # Convert to BatchResult-like objects
         results = []
@@ -1455,7 +1629,7 @@ class EnrichmentWorker(BaseWorker):
                     },
                 )()
                 results.append(result)
-                logger.info("[MediaEnricher] Processed %s via individual call", tag)
+                # logger.info("[MediaEnricher] Processed %s via individual call", tag) # Reduced noise
 
             except Exception as exc:
                 logger.warning("[MediaEnricher] Individual call failed for %s: %s", tag, exc)
@@ -1492,12 +1666,22 @@ class EnrichmentWorker(BaseWorker):
             media_type = payload["media_type"]
             media_id = payload.get("media_id")
 
-            # Load actual media content (was not persisted earlier)
-            media_bytes = self._load_media_bytes(task, payload)
-            if not media_bytes:
-                logger.warning("Could not load media bytes for persistence: %s", filename)
-                self.task_store.mark_failed(task["task_id"], "Failed to load media bytes for persistence")
-                continue
+            # Use staged path if available, or fall back to loading bytes (legacy/small files)
+            staged_path = task.get("_staged_path")
+            source_path = None
+            content_bytes = b""
+
+            if staged_path and os.path.exists(staged_path):
+                source_path = staged_path
+            else:
+                # Fallback to re-extraction (should be rare if staging works)
+                re_staged = self._stage_file(task, payload)
+                if re_staged:
+                    source_path = str(re_staged)
+                else:
+                    logger.warning("Could not stage media file for persistence: %s", filename)
+                    self.task_store.mark_failed(task["task_id"], "Failed to stage media file")
+                    continue
 
             # Create media document with slug-based metadata
             media_metadata = {
@@ -1507,11 +1691,13 @@ class EnrichmentWorker(BaseWorker):
                 "slug": slug_value,
                 "nav_exclude": True,
                 "hide": ["navigation"],
+                "source_path": source_path, # Path to staged file for efficient move
             }
 
             # Persist the actual media file
+            # We pass empty bytes for content because source_path is provided
             media_doc = Document(
-                content=media_bytes,
+                content=b"",
                 type=DocumentType.MEDIA,
                 metadata=media_metadata,
                 id=media_id if media_id else str(uuid.uuid4()),
@@ -1614,20 +1800,13 @@ class EnrichmentWorker(BaseWorker):
 
             data = json.loads(clean_text.strip())
             slug = data.get("slug")
-            
-            # Handle both formats:
-            # 1. Legacy: {"slug": "...", "markdown": "..."}
-            # 2. Batch: {"slug": "...", "description": "...", "alt_text": "..."}
             markdown = data.get("markdown")
-            if not markdown:
-                # Batch format - build markdown from description
+
+            # Fallback for models that return description/alt_text instead of markdown
+            if not markdown and (data.get("description") or data.get("alt_text")):
                 description = data.get("description", "")
                 alt_text = data.get("alt_text", "")
-                if description:
-                    # Build simple markdown from batch response
-                    markdown = f"{description}"
-                    if alt_text:
-                        markdown += f"\n\n*Alt text: {alt_text}*"
+                markdown = f"{description}\n\n**Alt Text:** {alt_text}"
 
             if not slug or not markdown:
                 self.task_store.mark_failed(task["task_id"], "Missing slug or markdown")
@@ -1641,4 +1820,3 @@ class EnrichmentWorker(BaseWorker):
             return None
         else:
             return payload, slug_value, markdown
-

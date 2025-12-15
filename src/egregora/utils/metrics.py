@@ -22,6 +22,3 @@ class UsageTracker:
         if len(self.history) > max_history:
             self.history.popleft()
 
-    def snapshot(self) -> RunUsage:
-        """Return cumulative usage."""
-        return self.usage

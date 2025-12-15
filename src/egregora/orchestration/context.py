@@ -30,7 +30,6 @@ from egregora.output_adapters import OutputSinkRegistry
 from egregora.rag.embedding_router import EmbeddingRouter
 from egregora.utils.cache import EnrichmentCache, PipelineCache
 from egregora.utils.metrics import UsageTracker
-from egregora.utils.quota import QuotaTracker
 
 __all__ = [
     "PipelineConfig",
@@ -139,9 +138,6 @@ class PipelineState:
 
     # V3 Content Library Facade
     library: ContentLibrary | None = None
-
-    # Quota tracking
-    quota_tracker: QuotaTracker | None = None
 
     # Output & Adapters (Initialized lazily or updated)
     output_format: OutputSink | None = None  # ISP-compliant: Runtime data operations only
@@ -256,10 +252,6 @@ class PipelineContext:
     @property
     def usage_tracker(self) -> UsageTracker | None:
         return self.state.usage_tracker
-
-    @property
-    def quota_tracker(self) -> QuotaTracker | None:
-        return self.state.quota_tracker
 
     @property
     def embedding_router(self) -> EmbeddingRouter | None:

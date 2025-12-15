@@ -32,8 +32,8 @@ if "lancedb" not in sys.modules:
     lancedb_module.connect = _connect
     sys.modules["lancedb"] = lancedb_module
 
-from egregora import rag
 from egregora import config as egregora_config
+from egregora import rag
 
 
 def test_embed_fn_uses_rag_settings_for_router(
@@ -64,7 +64,7 @@ def test_embed_fn_uses_rag_settings_for_router(
     monkeypatch.setattr(rag, "LanceDBRAGBackend", DummyBackend)
 
     # Get backend (which will initialize with embed_fn)
-    backend = rag.get_backend()
+    rag.get_backend()
 
     # Call embed_fn to trigger router usage
     rag.embed_fn(("hello",), "RETRIEVAL_DOCUMENT")

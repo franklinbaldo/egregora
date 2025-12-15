@@ -14,6 +14,7 @@ MODERN (2025-11-18): Imports site path resolution from
 from __future__ import annotations
 
 import logging
+import shutil
 from collections import Counter
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -27,13 +28,13 @@ from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import generate_fallback_avatar_url
+from egregora.markdown.frontmatter import parse_frontmatter
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.filesystem import ensure_author_entries
-from egregora.utils.frontmatter_utils import parse_frontmatter
 from egregora.utils.paths import slugify
 
 logger = logging.getLogger(__name__)
@@ -960,6 +961,27 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             logger.info("Skipping persistence of PII-containing media: %s", path.name)
             return
 
+        # V3 Large File Support: If source_path is present, move/copy from there
+        # instead of loading content into memory.
+        source_path = document.metadata.get("source_path")
+        if source_path:
+            src = Path(source_path)
+            if src.exists():
+                logger.debug("Moving media file from %s to %s", src, path)
+                # We use move to be efficient (atomic on same filesystem), falling back to copy if needed.
+                # Since the source is usually a temp staging file, moving is preferred.
+                try:
+                    shutil.move(src, path)
+                except OSError:
+                    # Fallback if cross-device or other issue
+                    shutil.copy2(src, path)
+                    try:
+                        src.unlink()
+                    except OSError:
+                        pass
+                return
+            logger.warning("Source path %s provided but does not exist, falling back to content", source_path)
+
         payload = (
             document.content if isinstance(document.content, bytes) else document.content.encode("utf-8")
         )
@@ -1339,6 +1361,10 @@ ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)
 # Author Profile Generation (Append-Only) ---------------------------------
 
 
+def get_author_profile(self, author_uuid: str) -> dict | None:
+    """Public alias for _build_author_profile."""
+    return self._build_author_profile(author_uuid)
+
 def _build_author_profile(self, author_uuid: str) -> dict | None:
     """Build author profile by scanning all their posts chronologically.
 
@@ -1426,7 +1452,7 @@ def _render_author_index(self, profile: dict) -> str:
     )
 
     # Build frontmatter
-    frontmatter = f"""---
+    return f"""---
 title: {profile["name"]}
 type: profile
 uuid: {profile["uuid"]}
@@ -1447,7 +1473,6 @@ interests: {profile.get("interests", [])}
 
 {", ".join(profile.get("interests", []))}
 """
-    return frontmatter
 
 
 def _sync_author_profiles(self) -> None:
