@@ -158,7 +158,7 @@ class DuckDBStorageManager:
         # Note: ibis.connect(conn) is not supported in current version, so we create a separate connection.
         # This might cause concurrency issues if not handled carefully.
         # Ideally we would use the same connection, but for now we accept the limitation for from_connection.
-        instance.ibis_conn = ibis.duckdb.connect(database=db_str)
+        instance.ibis_conn = ibis.duckdb.connect(database=db_str, read_only=False)
         instance.sql = SQLManager()
         instance._table_info_cache = {}
         instance._lock = threading.Lock()
