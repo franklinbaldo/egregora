@@ -261,27 +261,6 @@ class PrivacySettings(BaseModel):
     )
 
 
-class PrivacySettings(BaseModel):
-    """Privacy and PII configuration."""
-
-    anonymization_enabled: bool = Field(
-        default=True,
-        description="Enable author name anonymization",
-    )
-    pii_detection_enabled: bool = Field(
-        default=True,
-        description="Enable PII detection and redaction in content",
-    )
-    scrub_emails: bool = Field(
-        default=True,
-        description="Scrub email addresses",
-    )
-    scrub_phones: bool = Field(
-        default=True,
-        description="Scrub phone numbers",
-    )
-
-
 class EnrichmentSettings(BaseModel):
     """Enrichment settings for URLs and media."""
 
