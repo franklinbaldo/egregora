@@ -9,7 +9,7 @@ This document outlines the concrete steps required to migrate the Egregora codeb
 
 ---
 
-## 🔴 High Priority: The Core Foundation
+## 🔴 Phase 1: Foundations (High Priority)
 
 ### 1. Unify Data Model (The "One Schema" Rule)
 *   **Context:** Currently, we have `IR_MESSAGE_SCHEMA` (V2) in DuckDB and `Entry`/`Document` (V3) in Pydantic. This duality causes friction.
@@ -35,7 +35,7 @@ This document outlines the concrete steps required to migrate the Egregora codeb
 
 ---
 
-## 🟡 Medium Priority: Input & Processing
+## 🟡 Phase 2: Decoupling (Medium Priority)
 
 ### 4. Refactor WhatsApp Ingestion
 *   **Context:** The `WhatsAppAdapter` emits raw rows/dicts that match the old IR schema.
@@ -44,28 +44,56 @@ This document outlines the concrete steps required to migrate the Egregora codeb
     *   [ ] Ensure `author` is mapped to `Entry.authors`.
     *   [ ] Ensure `timestamp` is mapped to `Entry.updated`.
 
-### 5. Consolidate Configuration
-*   **Context:** `EgregoraConfig` is passed around, but some components still read env vars or have defaults hardcoded.
-*   **Task:** Enforce strict config hygiene.
-    *   [ ] Audit `src/egregora/agents` for `os.environ` usage.
-    *   [ ] Move all defaults into `src/egregora/config/settings.py`.
+### 5. Centralize Privacy Utilities (From Original TODO)
+*   **Context:** Privacy logic (anonymization, PII redaction) is scattered across adapters and agents.
+*   **Task:** Consolidate into a dedicated module/agent.
+    *   [ ] Create `src/egregora/privacy/` or `src/egregora/agents/privacy.py`.
+    *   [ ] Move anonymization logic from `input_adapters` and `writer_helpers` to this new location.
+    *   [ ] Ensure it operates on `Entry` objects (Feed -> Feed transformation).
+    *   [ ] **Invariants:** Privacy must be an explicit pipeline stage or agent, not hidden in helpers.
 
-### 6. Standardize Observability
-*   **Context:** Logging is inconsistent. `UsageTracker` is manually passed.
-*   **Task:** Implement a unified observer.
-    *   [ ] Define a `Telemetry` protocol in `src/egregora_v3/core/ports.py`.
-    *   [ ] Inject `Telemetry` into `PipelineContext`.
+### 6. Isolate MkDocs Publishing (From Original TODO)
+*   **Context:** MkDocs-specific logic (YAML manipulation, theme overrides) leaks into general site generation code.
+*   **Task:** Enforce strict separation.
+    *   [ ] Move all MkDocs logic to `src/egregora/output_adapters/mkdocs/`.
+    *   [ ] Ensure `SiteScaffolder` or `OutputSink` interfaces hide these details from the orchestration layer.
+
+### 7. Clean Up `writer` Module Sprawl (From Original TODO)
+*   **Context:** The `writer` agent is split across `writer.py`, `writer_setup.py`, `writer_tools.py`, `writer_helpers.py`, making navigation difficult.
+*   **Task:** Reorganize into a cohesive package.
+    *   [ ] Consolidate into `src/egregora/agents/writer/` package.
+    *   [ ] Define a clear public API in `__init__.py`.
 
 ---
 
-## 🟢 Low Priority: Polish
+## 🟢 Phase 3: Migration & Polish (Low Priority)
 
-### 7. CLI Cleanup
+### 8. CLI Cleanup
 *   **Context:** CLI commands are functional but could use better structure.
 *   **Task:** Refactor CLI to use `typer` best practices.
     *   [ ] Group commands by domain (`egregora data ...`, `egregora agent ...`).
 
-### 8. Plugin System
+### 9. Remove Legacy V2-V3 Bridge Code (From Original TODO)
+*   **Context:** Temporary bridges might exist during migration.
+*   **Task:** Audit and remove.
+    *   [ ] Identify "shim" code converting `Entry` back to dicts.
+    *   [ ] Remove once all consumers are V3-aware.
+
+### 10. Improve Test Isolation (From Original TODO)
+*   **Context:** Many tests rely on VCR cassettes or live API calls.
+*   **Task:** Adopt `TestModel`.
+    *   [ ] Introduce more `TestModel`-based tests for agents to reduce flake and cost.
+    *   [ ] Reduce reliance on VCR for unit tests.
+
+### 11. Plugin System
 *   **Context:** Ad-hoc registry for adapters.
 *   **Task:** Formalize the plugin interface.
     *   [ ] Use `entry_points` in `pyproject.toml` for adapter discovery.
+
+---
+
+## Completed Tasks (Retained History)
+
+- [x] **Decouple Writer Agent from Output Format** (Original)
+- [x] **Standardize CLI Entry Points** (Original)
+- [x] **Unify RAG Interfaces** (Original)
