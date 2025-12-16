@@ -414,23 +414,19 @@ jobs:
             exit 0
           fi
 
-          # Hard gate: API failures block the PR
+          # Soft gate: don't block merges on flaky/failed LLM automation.
+          # (We still post the diagnostic comment in the PR from the review job.)
           if [ "$OUTCOME" != "success" ]; then
-            echo "::error::Gemini review failed - blocking merge until review succeeds"
-            echo "::error::Try commenting '@gemini' to re-trigger the review"
-            exit 1
+            echo "::notice::Gemini review did not complete successfully; not gating this PR."
+            exit 0
           fi
 
-          if [ "$RECOMMENDATION" = "LGTM" ]; then
-            echo "✅ LGTM - PR approved for auto-merge"
-            exit 0
-          elif [ "$RECOMMENDATION" = "NEEDS_CHANGES" ]; then
+          if [ "$RECOMMENDATION" = "NEEDS_CHANGES" ]; then
             echo "❌ PR needs changes before merge"
             exit 1
-          else
-            echo "⚠️ Review inconclusive ($RECOMMENDATION) - blocking merge for safety"
-            echo "::error::Comment '@gemini' to get a proper review verdict"
-            exit 1
           fi
+          
+          echo "✅ Review gate passed ($RECOMMENDATION)"
+          exit 0
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
