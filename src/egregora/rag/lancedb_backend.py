@@ -311,7 +311,6 @@ class LanceDBRAGBackend(VectorStore):
         """
         return self._table.count_rows()
 
-
     def get_all_post_vectors(self) -> tuple[list[str], np.ndarray]:
         """Retrieve IDs and Centroid Vectors for all indexed posts.
 

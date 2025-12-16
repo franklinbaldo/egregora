@@ -126,7 +126,6 @@ class ModelKeyRotator:
                 self.reset()
                 return result
             except Exception as exc:
-
                 if is_rate_limit_error(exc):
                     # Try next key for same model
                     next_key = self.key_rotator.next_key()

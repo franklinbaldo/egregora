@@ -239,33 +239,33 @@ If no, explain what type of media it is instead (photo, infographic, screenshot,
 Output ONLY the markdown. No preamble. No code fences. Raw markdown that can be saved directly to a .md file.
 
 {% elif mode == "media_batch" %}
-You are analyzing {{ image_count }} images in a single batch. For EACH image, provide:
+You are analyzing {{ image_count }} media files (images or videos) in a single batch. For EACH file, provide:
 
 1. A short descriptive slug (lowercase, hyphens only, e.g., "sunset-beach-scene")
-2. A 2-3 sentence description of the image content
-3. Alt text for accessibility
+2. A 2-3 sentence description of the content
+3. Alt text or short summary for accessibility
 
 {% if pii_prevention and pii_prevention.enabled %}
-⚠️ **CRITICAL: PII Check** - If any image contains identifiable faces, license plates, IDs, or personal documents:
+⚠️ **CRITICAL: PII Check** - If any file contains identifiable faces, license plates, IDs, or personal documents:
 - Use generic descriptions (e.g., "a person" instead of describing facial features)
 - Do NOT include readable text containing personal information
 {% endif %}
 
-## Images to Process
-The following {{ image_count }} images are attached to this request (in order):
+## Media to Process
+The following {{ image_count }} files are attached to this request (in order):
 {{ filenames_json }}
 
 ## Output Format
 Return ONLY a valid JSON object where keys are the **exact original filenames** and values contain:
 - `slug`: short descriptive slug (lowercase, hyphens)
 - `description`: 2-3 sentence description
-- `alt_text`: accessibility description
+- `alt_text`: accessibility description (or video summary)
 
 Example format:
 ```json
 {
   "IMG-20250101.jpg": {"slug": "sunset-beach-view", "description": "A beautiful sunset over a sandy beach with waves.", "alt_text": "Orange sunset over ocean beach with gentle waves"},
-  "photo_002.png": {"slug": "coffee-cup-desk", "description": "A steaming cup of coffee on a wooden desk.", "alt_text": "White coffee mug on brown wooden desk"}
+  "video_002.mp4": {"slug": "cat-jumping", "description": "A video of a cat jumping onto a table.", "alt_text": "Cat jumping onto table"}
 }
 ```
 
