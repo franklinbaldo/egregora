@@ -439,7 +439,6 @@ class PathsSettings(BaseModel):
         "egregora_dir",
         "rag_dir",
         "lancedb_dir",
-        "cache_dir",
         "prompts_dir",
         "docs_dir",
         "posts_dir",

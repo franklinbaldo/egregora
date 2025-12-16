@@ -1184,7 +1184,11 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     initialize_database(pipeline_backend)
 
     client_instance = run_params.client or _create_gemini_client()
-    cache_dir = Path(".egregora-cache") / site_paths["site_root"].name
+    cache_path = Path(run_params.config.paths.cache_dir)
+    if cache_path.is_absolute():
+        cache_dir = cache_path
+    else:
+        cache_dir = site_paths["site_root"] / cache_path
     cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
     site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
 
