@@ -1,7 +1,7 @@
 """Centralized configuration for Egregora (ALPHA VERSION).
 
 This module consolidates ALL configuration code in one place:
-- Pydantic models for .egregora/config.yml
+- Pydantic models for .egregora/egregora.toml
 - Loading and saving functions
 - Runtime dataclasses for function parameters
 - Model configuration utilities
@@ -13,7 +13,7 @@ Benefits:
 - No backward compatibility - clean alpha design
 
 Strategy:
-- ONLY loads from .egregora/config.yml
+- ONLY loads from .egregora/egregora.toml
 - Creates default config if missing
 - No mkdocs.yml fallback
 - No legacy transformation
@@ -23,16 +23,18 @@ from __future__ import annotations
 
 import logging
 import os
+import tomllib  # Requires Python 3.11+
 from copy import deepcopy
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
+from zoneinfo import ZoneInfo
 
-import yaml
+import tomli_w
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from egregora.config.overrides import ConfigOverrideBuilder
 from egregora.constants import WindowUnit
 
 logger = logging.getLogger(__name__)
@@ -47,13 +49,11 @@ DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash-image"
 EMBEDDING_DIM = 768  # Embedding vector dimensions
 
 # Quota defaults
-# Quota defaults
 DEFAULT_DAILY_LLM_REQUESTS = 100  # Conservative default
 DEFAULT_PER_SECOND_LIMIT = 0.05  # ~3 requests/min to avoid 429 on free tier
 DEFAULT_CONCURRENCY = 1
 
 # Default database connection strings
-# Can be overridden via config.yml or environment variables
 DEFAULT_PIPELINE_DB = "duckdb:///./.egregora/pipeline.duckdb"
 DEFAULT_RUNS_DB = "duckdb:///./.egregora/runs.duckdb"
 
@@ -558,41 +558,10 @@ class QuotaSettings(BaseModel):
 class EgregoraConfig(BaseSettings):
     """Root configuration for Egregora.
 
-    This model defines the complete .egregora/config.yml schema.
+    This model defines the complete .egregora/egregora.toml schema.
 
     Supports environment variable overrides with the pattern:
     EGREGORA_SECTION__KEY (e.g., EGREGORA_MODELS__WRITER)
-
-    Example config.yml:
-    ```yaml
-    models:
-      writer: google-gla:gemini-flash-latest
-      enricher: google-gla:gemini-flash-latest
-
-    rag:
-      enabled: true
-      top_k: 5
-      min_similarity_threshold: 0.7
-
-    writer:
-      custom_instructions: "Write in a casual, friendly tone"
-      enable_banners: true
-
-    privacy:
-      anonymization_enabled: true
-      pii_detection_enabled: true
-
-    pipeline:
-      step_size: 1
-      step_unit: days
-
-    database:
-      pipeline_db: duckdb:///./.egregora/pipeline.duckdb
-      runs_db: duckdb:///./.egregora/runs.duckdb
-
-    output:
-      format: mkdocs
-    ```
     """
 
     models: ModelSettings = Field(
@@ -695,34 +664,62 @@ class EgregoraConfig(BaseSettings):
         CLI arguments are expected to be flat key-value pairs or dicts
         matching the argument structure of CLI commands.
         """
-        builder = ConfigOverrideBuilder(base_config)
+        # Apply pipeline settings overrides
+        pipeline_overrides = {}
+        for key in [
+            "step_size",
+            "step_unit",
+            "overlap_ratio",
+            "max_prompt_tokens",
+            "use_full_context_window",
+        ]:
+            if key in cli_args and cli_args[key] is not None:
+                pipeline_overrides[key] = cli_args[key]
+
+        if cli_args.get("timezone") is not None:
+            pipeline_overrides["timezone"] = str(cli_args["timezone"])
 
         from_date = cli_args.get("from_date")
+        if from_date:
+            pipeline_overrides["from_date"] = from_date.isoformat()
+
         to_date = cli_args.get("to_date")
-        builder.with_pipeline(
-            step_size=cli_args.get("step_size"),
-            step_unit=cli_args.get("step_unit"),
-            overlap_ratio=cli_args.get("overlap_ratio"),
-            timezone=str(cli_args["timezone"]) if cli_args.get("timezone") is not None else None,
-            from_date=from_date.isoformat() if from_date else None,
-            to_date=to_date.isoformat() if to_date else None,
-            max_prompt_tokens=cli_args.get("max_prompt_tokens"),
-            use_full_context_window=cli_args.get("use_full_context_window"),
-        )
+        if to_date:
+            pipeline_overrides["to_date"] = to_date.isoformat()
 
-        builder.with_enrichment(
-            enabled=cli_args.get("enable_enrichment") if "enable_enrichment" in cli_args else None
-        )
+        # Apply enrichment settings overrides
+        enrichment_overrides = {}
+        if "enable_enrichment" in cli_args and cli_args["enable_enrichment"] is not None:
+            enrichment_overrides["enabled"] = cli_args["enable_enrichment"]
 
-        builder.with_rag(
-            mode=cli_args.get("retrieval_mode"),
-            nprobe=cli_args.get("retrieval_nprobe"),
-            overfetch=cli_args.get("retrieval_overfetch"),
-        )
+        # Apply rag settings overrides
+        rag_overrides = {}
+        # NOTE: retrieval_mode/nprobe/overfetch removed from CLI args as per V3 simplification
 
-        builder.with_models(model=cli_args.get("model"))
+        # Apply model overrides
+        model_overrides = {}
+        if cli_args.get("model"):
+            model = cli_args["model"]
+            model_overrides = {
+                "writer": model,
+                "enricher": model,
+                "enricher_vision": model,
+                "ranking": model,
+                "editor": model,
+            }
 
-        return builder.build()
+        # Construct updates
+        updates = {}
+        if pipeline_overrides:
+            updates["pipeline"] = base_config.pipeline.model_copy(update=pipeline_overrides)
+        if enrichment_overrides:
+            updates["enrichment"] = base_config.enrichment.model_copy(update=enrichment_overrides)
+        if rag_overrides:
+            updates["rag"] = base_config.rag.model_copy(update=rag_overrides)
+        if model_overrides:
+            updates["models"] = base_config.models.model_copy(update=model_overrides)
+
+        return base_config.model_copy(update=updates)
 
 
 # ============================================================================
@@ -731,20 +728,27 @@ class EgregoraConfig(BaseSettings):
 
 
 def find_egregora_config(start_dir: Path) -> Path | None:
-    """Search upward for .egregora/config.yml.
+    """Search upward for .egregora/egregora.toml (or config.yml as fallback).
 
     Args:
         start_dir: Starting directory for upward search
 
     Returns:
-        Path to .egregora/config.yml if found, else None
+        Path to config file if found, else None
 
     """
     current = start_dir.expanduser().resolve()
     for candidate in (current, *current.parents):
-        config_path = candidate / ".egregora" / "config.yml"
-        if config_path.exists():
-            return config_path
+        # Prefer TOML
+        toml_path = candidate / ".egregora" / "egregora.toml"
+        if toml_path.exists():
+            return toml_path
+
+        # Fallback to YAML (but warn/deprecate? For now just support finding it)
+        yaml_path = candidate / ".egregora" / "config.yml"
+        if yaml_path.exists():
+            return yaml_path
+
     return None
 
 
@@ -786,12 +790,13 @@ def _merge_config(
 
 
 def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
-    """Load Egregora configuration from .egregora/config.yml.
+    """Load Egregora configuration from .egregora/egregora.toml.
 
     Configuration priority (highest to lowest):
-    1. Environment variables (EGREGORA_SECTION__KEY)
-    2. Config file (.egregora/config.yml)
-    3. Defaults
+    1. CLI (applied via from_cli_overrides later)
+    2. Environment variables (EGREGORA_SECTION__KEY)
+    3. Config file (.egregora/egregora.toml)
+    4. Defaults
 
     Args:
         site_root: Root directory of the site. If None, uses current working directory.
@@ -802,21 +807,18 @@ def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
     Raises:
         ValidationError: If config file contains invalid data
 
-    Examples:
-        # Use current working directory
-        config = load_egregora_config()
-
-        # Use explicit path (e.g., from CLI --site-root flag)
-        config = load_egregora_config(Path("/path/to/site"))
-
     """
     if site_root is None:
         site_root = Path.cwd()
 
-    config_path = site_root / ".egregora" / "config.yml"
+    config_path = find_egregora_config(site_root)
+
+    if not config_path:
+        # Check standard location if find failed
+        config_path = site_root / ".egregora" / "egregora.toml"
 
     if not config_path.exists():
-        logger.info("No .egregora/config.yml found, creating default config")
+        logger.info("No configuration found, creating default config at %s", config_path)
         return create_default_config(site_root)
 
     logger.info("Loading config from %s", config_path)
@@ -828,17 +830,24 @@ def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
         raise
 
     try:
-        file_data = yaml.safe_load(raw_config) or {}
-    except yaml.YAMLError:
-        logger.exception("Failed to parse YAML in %s", config_path)
+        if config_path.suffix == ".toml":
+            file_data = tomllib.loads(raw_config)
+        else:
+            # Fallback for YAML
+            import yaml
+
+            file_data = yaml.safe_load(raw_config) or {}
+    except (ValueError, ImportError) as e:
+        logger.exception("Failed to parse config in %s: %s", config_path, e)
         raise
 
     try:
-        # Create base config with defaults and environment variables
+        # Create base config with defaults
         base_config = EgregoraConfig()
         base_dict = base_config.model_dump(mode="json")
 
-        # Merge file config into base, skipping env var overrides
+        # Merge file config into base, skipping keys that are set in env vars
+        # This logic preserves: Env Vars > Config File > Defaults
         env_override_paths = _collect_env_override_paths()
         merged = _merge_config(base_dict, file_data, env_override_paths)
 
@@ -847,14 +856,14 @@ def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
     except ValidationError as e:
         logger.exception("Configuration validation failed for %s:", config_path)
         for error in e.errors():
-            loc = " → ".join(str(location_part) for location_part in error["loc"])
+            loc = " -> ".join(str(location_part) for location_part in error["loc"])
             logger.exception("  %s: %s", loc, error["msg"])
         logger.warning("Creating default config due to validation error")
         return create_default_config(site_root)
 
 
 def create_default_config(site_root: Path) -> EgregoraConfig:
-    """Create default .egregora/config.yml and return it.
+    """Create default .egregora/egregora.toml and return it.
 
     Args:
         site_root: Root directory of the site
@@ -865,12 +874,12 @@ def create_default_config(site_root: Path) -> EgregoraConfig:
     """
     config = EgregoraConfig()  # All defaults from Pydantic
     save_egregora_config(config, site_root)
-    logger.info("Created default config at %s/.egregora/config.yml", site_root)
+    logger.info("Created default config at %s/.egregora/egregora.toml", site_root)
     return config
 
 
 def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
-    """Save EgregoraConfig to .egregora/config.yml.
+    """Save EgregoraConfig to .egregora/egregora.toml.
 
     Creates .egregora/ directory if it doesn't exist.
 
@@ -885,35 +894,111 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
     egregora_dir = site_root / ".egregora"
     egregora_dir.mkdir(exist_ok=True, parents=True)
 
-    config_path = egregora_dir / "config.yml"
+    config_path = egregora_dir / "egregora.toml"
 
     # Export as dict
     data = config.model_dump(exclude_defaults=False, mode="json")
 
-    # Write with nice formatting
-    yaml_str = yaml.dump(
-        data,
-        default_flow_style=False,
-        sort_keys=False,
-        allow_unicode=True,
-    )
+    # Remove None values as tomli_w doesn't support them
+    def _clean_nones(d: dict[str, Any]) -> dict[str, Any]:
+        cleaned = {}
+        for k, v in d.items():
+            if v is None:
+                continue
+            if isinstance(v, dict):
+                v = _clean_nones(v)
+            cleaned[k] = v
+        return cleaned
 
-    config_path.write_text(yaml_str, encoding="utf-8")
+    data = _clean_nones(data)
+
+    # Write as TOML
+    toml_str = tomli_w.dumps(data)
+
+    config_path.write_text(toml_str, encoding="utf-8")
     logger.debug("Saved config to %s", config_path)
 
     return config_path
 
 
 # ============================================================================
+# Validation Utilities (Consolidated from config_validation.py)
+# ============================================================================
+
+
+def parse_date_arg(date_str: str, arg_name: str = "date") -> date:
+    """Parse a date string in YYYY-MM-DD format.
+
+    Args:
+        date_str: Date string in YYYY-MM-DD format
+        arg_name: Name of the argument (for error messages)
+
+    Returns:
+        date object in UTC
+
+    Raises:
+        ValueError: If date_str is not in YYYY-MM-DD format
+
+    """
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=UTC).date()
+    except ValueError as e:
+        msg = f"Invalid {arg_name} format: {e}. Expected format: YYYY-MM-DD"
+        raise ValueError(msg) from e
+
+
+def validate_timezone(timezone_str: str) -> ZoneInfo:
+    """Validate timezone string and return ZoneInfo object.
+
+    Args:
+        timezone_str: Timezone identifier (e.g., 'America/New_York', 'UTC')
+
+    Returns:
+        ZoneInfo object for the specified timezone
+
+    Raises:
+        ValueError: If timezone_str is not a valid timezone identifier
+
+    """
+    try:
+        return ZoneInfo(timezone_str)
+    except Exception as e:
+        msg = f"Invalid timezone '{timezone_str}': {e}"
+        raise ValueError(msg) from e
+
+
+def validate_retrieval_config(
+    retrieval_mode: str,
+    retrieval_nprobe: int | None = None,
+    retrieval_overfetch: int | None = None,
+) -> str:
+    """Validate and normalize retrieval mode configuration.
+
+    (Kept for compatibility with any remaining callers, though params are deprecated)
+    """
+    normalized_mode = (retrieval_mode or "ann").lower()
+    if normalized_mode not in {"ann", "exact"}:
+        msg = "Invalid retrieval mode. Choose 'ann' or 'exact'."
+        raise ValueError(msg)
+
+    if retrieval_nprobe is not None and retrieval_nprobe <= 0:
+        raise ValueError("retrieval_nprobe must be positive")
+
+    if retrieval_overfetch is not None and retrieval_overfetch <= 0:
+        raise ValueError("retrieval_overfetch must be positive")
+
+    return normalized_mode
+
+
+# ============================================================================
 # Runtime Configuration Dataclasses
 # ============================================================================
-# These dataclasses are used for function parameters (not persisted to YAML).
-# They replace parameter soup (12-16 params → 3-6 params).
+# These dataclasses are used for function parameters (not persisted to YAML/TOML).
 
 
 @dataclass
 class RuntimeContext:
-    """Runtime-only context that cannot be persisted to config.yml.
+    """Runtime-only context that cannot be persisted to config file.
 
     This is the minimal set of fields that are truly runtime-specific:
     - Paths resolved at invocation time
@@ -1034,7 +1119,10 @@ __all__ = [
     "create_default_config",
     "find_egregora_config",
     "load_egregora_config",
+    "parse_date_arg",
     "save_egregora_config",
+    "validate_retrieval_config",
+    "validate_timezone",
 ]
 
 
