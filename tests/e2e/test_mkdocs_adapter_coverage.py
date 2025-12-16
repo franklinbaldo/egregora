@@ -22,17 +22,18 @@ def test_write_profile_doc_generates_fallback_avatar(adapter):
     """
 
     # Create a profile document without avatar in metadata
+    author_uuid = "test-uuid-123"
     doc = Document(
         content="# Bio\nUser bio.",
         type=DocumentType.PROFILE,
-        metadata={"uuid": "test-uuid-123", "name": "Test User"},
+        metadata={"uuid": author_uuid, "subject": author_uuid, "slug": "bio", "name": "Test User"},
     )
 
     # Persist
     adapter.persist(doc)
 
     # Check file content
-    profile_path = adapter.profiles_dir / "test-uuid-123.md"
+    profile_path = adapter.profiles_dir / author_uuid / "bio.md"
     assert profile_path.exists()
     content = profile_path.read_text(encoding="utf-8")
 
@@ -90,7 +91,9 @@ def test_get_profiles_data_generates_stats(adapter):
 
     # Create profile
     profile = Document(
-        content="Bio", type=DocumentType.PROFILE, metadata={"uuid": uuid, "name": "Stats User"}
+        content="Bio",
+        type=DocumentType.PROFILE,
+        metadata={"uuid": uuid, "subject": uuid, "slug": "bio", "name": "Stats User"},
     )
     adapter.persist(profile)
 

@@ -25,7 +25,7 @@ def test_scaffold_site_creates_expected_layout(tmp_path: Path, scaffolder: MkDoc
     docs_dir = tmp_path / "docs"
     assert docs_dir.exists()
     assert (docs_dir / "index.md").exists()
-    assert (tmp_path / ".egregora" / "config.yml").exists()
+    assert (tmp_path / ".egregora.toml").exists()
 
 
 def test_scaffold_site_respects_existing_mkdocs(tmp_path: Path, scaffolder: MkDocsSiteScaffolder) -> None:

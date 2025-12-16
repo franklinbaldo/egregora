@@ -423,11 +423,11 @@ class PathsSettings(BaseModel):
         description="Blog posts directory",
     )
     profiles_dir: str = Field(
-        default="profiles",
+        default="posts/profiles",
         description="Author profiles directory",
     )
     media_dir: str = Field(
-        default="media",
+        default="posts/media",
         description="Media files (images, videos) directory",
     )
     journal_dir: str = Field(
@@ -885,6 +885,7 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
 
     """
     config_path = site_root / ".egregora.toml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Export as dict
     data = config.model_dump(exclude_defaults=False, mode="json")

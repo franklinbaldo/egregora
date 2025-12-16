@@ -198,11 +198,13 @@ class StandardUrlConvention(UrlConvention):
         return self._join(ctx, "documents", document.document_id)
 
     def _format_profile_url(self, ctx: UrlContext, document: Document) -> str:
-        author_uuid = document.metadata.get("uuid") or document.metadata.get("author_uuid")
-        if not author_uuid:
-            # Fallback to document ID if metadata missing, though rare
-            author_uuid = document.document_id
-        return self._join(ctx, self.routes.profiles_prefix, author_uuid)
+        subject_uuid = document.metadata.get("subject") or document.metadata.get("uuid") or document.metadata.get(
+            "author_uuid"
+        )
+        slug_value = document.metadata.get("slug") or document.metadata.get("profile_aspect") or document.document_id[:8]
+        if not subject_uuid:
+            return self._join(ctx, self.routes.posts_prefix, slugify(str(slug_value)))
+        return self._join(ctx, self.routes.profiles_prefix, str(subject_uuid), slugify(str(slug_value)))
 
     def _format_journal_url(self, ctx: UrlContext, document: Document) -> str:
         window_label = document.metadata.get("window_label")

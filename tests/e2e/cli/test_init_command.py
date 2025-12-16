@@ -30,8 +30,8 @@ def test_init_creates_all_template_files(tmp_path: Path):
         ".gitignore",
         "docs/index.md",
         "docs/about.md",
-        "docs/profiles/index.md",
-        "docs/media/index.md",
+        "docs/posts/profiles/index.md",
+        "docs/posts/media/index.md",
     ]
 
     for expected_path in expected_files:
@@ -51,12 +51,13 @@ def test_init_directory_structure(tmp_path: Path):
     # Verify directory structure (new structure: content at root level)
     expected_dirs = [
         "docs/posts",
-        "docs/profiles",
-        "docs/media",
-        "docs/media/images",
-        "docs/media/videos",
-        "docs/media/audio",
-        "docs/media/documents",
+        "docs/posts/profiles",
+        "docs/posts/media",
+        "docs/posts/media/images",
+        "docs/posts/media/videos",
+        "docs/posts/media/audio",
+        "docs/posts/media/documents",
+        "docs/posts/media/urls",
         "docs/journal",
     ]
 
@@ -65,8 +66,8 @@ def test_init_directory_structure(tmp_path: Path):
         assert full_path.is_dir(), f"Expected directory does not exist: {dir_path}"
 
     # Verify .gitkeep files in media subdirectories
-    for subdir in ["images", "videos", "audio", "documents"]:
-        gitkeep = tmp_path / "docs" / "media" / subdir / ".gitkeep"
+    for subdir in ["images", "videos", "audio", "documents", "urls"]:
+        gitkeep = tmp_path / "docs" / "posts" / "media" / subdir / ".gitkeep"
         assert gitkeep.exists(), f".gitkeep missing in media/{subdir}"
 
     journal_gitkeep = tmp_path / "docs" / "journal" / ".gitkeep"
@@ -91,9 +92,9 @@ def test_egregora_directory_created(tmp_path: Path):
     mkdocs_yml = egregora_dir / "mkdocs.yml"
     assert mkdocs_yml.exists(), ".egregora/mkdocs.yml should be created"
 
-    # Verify config.yml exists
-    config_yml = egregora_dir / "config.yml"
-    assert config_yml.exists(), ".egregora/config.yml should be created"
+    # Verify config exists in site root
+    config_toml = tmp_path / ".egregora.toml"
+    assert config_toml.exists(), ".egregora.toml should be created"
 
     # Verify prompts/ directory exists
     prompts_dir = egregora_dir / "prompts"
@@ -101,8 +102,8 @@ def test_egregora_directory_created(tmp_path: Path):
     assert prompts_dir.is_dir(), ".egregora/prompts should be a directory"
 
 
-def test_config_yml_structure(tmp_path: Path):
-    """Test that generated config.yml has correct structure."""
+def test_config_toml_structure(tmp_path: Path):
+    """Test that generated .egregora.toml has correct structure."""
     # Create and scaffold MkDocs site using OutputAdapter
     output_format = MkDocsAdapter()
     _mkdocs_path, created = output_format.scaffold_site(tmp_path, site_name="Test Site")
@@ -141,9 +142,7 @@ def test_mkdocs_yml_no_extra_egregora(tmp_path: Path):
 
     # Should NOT have extra.egregora
     extra_section = mkdocs_dict.get("extra", {})
-    assert "egregora" not in extra_section, (
-        "mkdocs.yml should NOT contain extra.egregora (config moved to .egregora/config.yml)"
-    )
+    assert "egregora" not in extra_section, "mkdocs.yml should NOT contain extra.egregora"
 
 
 def test_prompts_readme_created(tmp_path: Path):

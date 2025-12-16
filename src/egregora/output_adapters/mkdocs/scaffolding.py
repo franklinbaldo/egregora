@@ -213,7 +213,6 @@ class MkDocsSiteScaffolder:
             (docs_dir / "journal" / "index.md", "docs/journal/index.md.jinja"),
             (profiles_dir / "index.md", "docs/profiles/index.md.jinja"),
             (media_dir / "index.md", "docs/media/index.md.jinja"),
-            (media_dir / "index.md", "docs/media/index.md.jinja"),
             (site_paths["blog_root_dir"] / "index.md", "docs/posts/index.md.jinja"),
             (site_paths["blog_root_dir"] / "tags.md", "docs/posts/tags.md.jinja"),
             (site_paths["egregora_dir"] / "main.py", "main.py.jinja"),
@@ -249,14 +248,7 @@ class MkDocsSiteScaffolder:
     def _create_egregora_config(self, site_paths: dict[str, Path], env: Environment) -> None:
         config_path = site_paths["config_path"]
         if not config_path.exists():
-            try:
-                config_template = env.get_template(".egregora/config.yml.jinja")
-                config_content = config_template.render()
-                config_path.write_text(config_content, encoding="utf-8")
-                logger.info("Created .egregora/config.yml from template")
-            except (OSError, TemplateError) as e:
-                logger.warning("Failed to render config template: %s. Using Pydantic default.", e)
-                create_default_config(site_paths["site_root"])
+            create_default_config(site_paths["site_root"])
 
     def _create_egregora_structure(self, site_paths: dict[str, Path], env: Any | None = None) -> None:
         egregora_dir = site_paths["egregora_dir"]

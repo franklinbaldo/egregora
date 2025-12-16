@@ -787,7 +787,12 @@ def _update_authors_yml(site_root: Path, author_uuid: str, front_matter: dict[st
         author_entry.update(dict(front_matter["social"].items()))
 
     # URL to profile page (relative to docs root)
-    author_entry["url"] = f"profiles/{author_uuid}.md"
+    # ADR-002: profiles live under posts/profiles/{author_uuid}/{slug}.md
+    slug = front_matter.get("slug")
+    if isinstance(slug, str) and slug.strip():
+        author_entry["url"] = f"posts/profiles/{author_uuid}/{slug}.md"
+    else:
+        author_entry["url"] = f"profiles/{author_uuid}.md"
 
     # Update authors dict
     authors[author_uuid] = author_entry
@@ -801,9 +806,15 @@ def _update_authors_yml(site_root: Path, author_uuid: str, front_matter: dict[st
         logger.warning("Failed to write .authors.yml: %s", e)
 
 
-def _build_author_entry(profile_path: Path, metadata: dict) -> dict:
+def _build_author_entry(
+    profile_path: Path,
+    metadata: dict,
+    *,
+    author_uuid: str | None = None,
+    url: str | None = None,
+) -> dict:
     """Build an author entry dict from profile metadata."""
-    author_uuid = profile_path.stem
+    author_uuid = author_uuid or profile_path.stem
 
     # Ensure we have a name (default to UUID if missing)
     name = metadata.get("name", metadata.get("alias", author_uuid))
@@ -812,7 +823,7 @@ def _build_author_entry(profile_path: Path, metadata: dict) -> dict:
     avatar = metadata.get("avatar", generate_fallback_avatar_url(author_uuid))
 
     # Build entry
-    entry = {"name": metadata.get("alias", name), "url": f"profiles/{author_uuid}.md"}
+    entry = {"name": metadata.get("alias", name), "url": url or f"profiles/{author_uuid}.md"}
     if "bio" in metadata:
         entry["description"] = metadata["bio"]
     entry["avatar"] = avatar
@@ -820,6 +831,13 @@ def _build_author_entry(profile_path: Path, metadata: dict) -> dict:
         entry.update(metadata["social"])
 
     return entry
+
+
+def _infer_docs_dir_from_profiles_dir(profiles_dir: Path) -> Path:
+    """Return docs_dir given either legacy or posts-centric profiles_dir."""
+    if profiles_dir.name == "profiles" and profiles_dir.parent.name == "posts":
+        return profiles_dir.parent.parent
+    return profiles_dir.parent
 
 
 def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
@@ -835,22 +853,37 @@ def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
     if not profiles_dir.exists():
         return 0
 
-    site_root = profiles_dir.parent
-    authors_yml_path = site_root / ".authors.yml"
+    docs_dir = _infer_docs_dir_from_profiles_dir(profiles_dir)
+    authors_yml_path = docs_dir / ".authors.yml"
     authors = {}
 
     count = 0
-    for profile_path in profiles_dir.glob("*.md"):
-        if profile_path.name == "index.md":
-            continue
-
-        try:
-            metadata = _extract_profile_metadata(profile_path)
-            entry = _build_author_entry(profile_path, metadata)
-            authors[profile_path.stem] = entry
-            count += 1
-        except (OSError, yaml.YAMLError) as e:
-            logger.warning("Failed to sync profile %s: %s", profile_path, e)
+    author_dirs = [p for p in profiles_dir.iterdir() if p.is_dir()]
+    if author_dirs:
+        for author_dir in author_dirs:
+            candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
+            if not candidates:
+                continue
+            profile_path = max(candidates, key=lambda p: p.stat().st_mtime_ns)
+            try:
+                metadata = _extract_profile_metadata(profile_path)
+                relative_url = f"posts/profiles/{author_dir.name}/{profile_path.stem}.md"
+                entry = _build_author_entry(profile_path, metadata, author_uuid=author_dir.name, url=relative_url)
+                authors[author_dir.name] = entry
+                count += 1
+            except (OSError, yaml.YAMLError) as e:
+                logger.warning("Failed to sync profile %s: %s", profile_path, e)
+    else:
+        for profile_path in profiles_dir.glob("*.md"):
+            if profile_path.name == "index.md":
+                continue
+            try:
+                metadata = _extract_profile_metadata(profile_path)
+                entry = _build_author_entry(profile_path, metadata)
+                authors[profile_path.stem] = entry
+                count += 1
+            except (OSError, yaml.YAMLError) as e:
+                logger.warning("Failed to sync profile %s: %s", profile_path, e)
 
     # Write complete file
     try:

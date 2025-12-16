@@ -94,7 +94,7 @@ jobs:
         run: uv run ruff format --check src/ tests/
 
   test-unit:
-    name: Unit Tests (Python ${{ env.PYTHON_VERSION }})
+    name: Unit Tests (Python 3.12)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: ${{ !(github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') }}

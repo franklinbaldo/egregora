@@ -76,15 +76,16 @@ class MkDocsAdapter(BaseOutputSink):
         prefix = compute_site_prefix(self.site_root, site_paths["docs_dir"])
         self._ctx = url_context or UrlContext(base_url="", site_prefix=prefix, base_path=self.site_root)
         self.posts_dir = site_paths["posts_dir"]
-        # UNIFIED: Everything goes to posts_dir now
-        self.profiles_dir = self.posts_dir
+        self.profiles_dir = site_paths["profiles_dir"]
+        # Journal entries are stored as posts; the journal index page lives under docs/journal/.
         self.journal_dir = self.posts_dir
         self.media_dir = site_paths["media_dir"]
-        # Note: urls_dir removed - enrichment URLs now go to posts_dir
+        self.urls_dir = self.media_dir / "urls"
 
         self.posts_dir.mkdir(parents=True, exist_ok=True)
-        # profiles_dir and journal_dir point to posts_dir, so no need to mkdir them separately
+        self.profiles_dir.mkdir(parents=True, exist_ok=True)
         self.media_dir.mkdir(parents=True, exist_ok=True)
+        self.urls_dir.mkdir(parents=True, exist_ok=True)
 
         # Configure URL convention to match filesystem layout
         # This ensures that generated URLs align with where files are actually stored
@@ -92,7 +93,7 @@ class MkDocsAdapter(BaseOutputSink):
             posts_prefix=self.posts_dir.relative_to(self.docs_dir).as_posix(),
             profiles_prefix=self.profiles_dir.relative_to(self.docs_dir).as_posix(),
             media_prefix=self.media_dir.relative_to(self.docs_dir).as_posix(),
-            journal_prefix=self.journal_dir.relative_to(self.docs_dir).as_posix(),
+            journal_prefix="journal",
         )
         self._url_convention = StandardUrlConvention(routes)
 
@@ -182,8 +183,17 @@ class MkDocsAdapter(BaseOutputSink):
         """
         match doc_type:
             case DocumentType.PROFILE:
-                # Profiles: simple filename (e.g., "user-123.md")
-                return self.posts_dir / f"{identifier}.md"
+                # Profiles: "author_uuid/slug" (preferred) or "author_uuid" (latest)
+                if "/" in identifier:
+                    author_uuid, slug = identifier.split("/", 1)
+                    return self.profiles_dir / author_uuid / f"{slug}.md"
+                author_dir = self.profiles_dir / identifier
+                if not author_dir.exists():
+                    return None
+                candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
+                if not candidates:
+                    return None
+                return max(candidates, key=lambda p: p.stat().st_mtime_ns)
             case DocumentType.POST:
                 # Posts: dated filename (e.g., "2024-01-01-slug.md")
                 matches = list(self.posts_dir.glob(f"*-{identifier}.md"))
@@ -508,18 +518,29 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if not hasattr(self, "_site_root") or self._site_root is None:
             return
 
-        # UNIFIED: Scan posts_dir once, detect types by category metadata
-        # profiles_dir and journal_dir now point to posts_dir, so we only scan once
-        yield from self._list_from_unified_dir(self.posts_dir, doc_type)
+        # Scan docs/posts recursively and classify documents by path + frontmatter.
+        yield from self._list_from_posts_tree(doc_type)
 
-        # Media and enrichment media stay in separate directories
-        yield from self._list_from_dir(
-            self._site_root / "docs" / "media",
-            DocumentType.ENRICHMENT_MEDIA,
-            doc_type,
-            recursive=True,
-            exclude_names={"index.md"},
-        )
+    def _list_from_posts_tree(self, filter_type: DocumentType | None = None) -> Iterator[DocumentMetadata]:
+        exclude_names = {"index.md", "tags.md"}
+        for path in self.posts_dir.rglob("*.md"):
+            if not path.is_file() or path.name in exclude_names:
+                continue
+            if self.media_dir in path.parents and path.name == "index.md":
+                continue
+            detected_type = self._detect_document_type(path)
+            if filter_type is not None and detected_type != filter_type:
+                continue
+            identifier = str(path.relative_to(self._site_root))
+            try:
+                mtime_ns = path.stat().st_mtime_ns
+            except OSError:
+                mtime_ns = 0
+            yield DocumentMetadata(
+                identifier=identifier,
+                doc_type=detected_type,
+                metadata={"mtime_ns": mtime_ns, "path": str(path)},
+            )
 
     def _documents_from_dir(
         self,
@@ -586,38 +607,32 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     #    """
     #    ...
 
-    @staticmethod
-    def _detect_document_type_from_metadata(path: Path) -> DocumentType:
-        """Detect document type by reading category metadata from file.
+    def _detect_document_type(self, path: Path) -> DocumentType:
+        """Detect document type from path and (when needed) frontmatter."""
+        try:
+            relative = path.relative_to(self.posts_dir)
+        except ValueError:
+            relative = path
 
-        Returns the appropriate DocumentType based on categories in frontmatter.
-        Falls back to POST for documents without category metadata.
-        """
+        parts = relative.parts
+        if parts[:1] == ("profiles",):
+            return DocumentType.PROFILE
+        if parts[:2] == ("media", "urls"):
+            return DocumentType.ENRICHMENT_URL
+        if parts[:1] == ("media",):
+            return DocumentType.ENRICHMENT_MEDIA
+
         try:
             content = path.read_text(encoding="utf-8")
-            metadata, _ = parse_frontmatter(content)
-
-            if not metadata:
-                # No frontmatter, assume POST
-                return DocumentType.POST
-
-            categories = metadata.get("categories", [])
-            if not isinstance(categories, list):
-                categories = []
-
-            # Detect by category
-            if "Authors" in categories:
-                return DocumentType.PROFILE
-            if "Journal" in categories:
-                return DocumentType.JOURNAL
-            if "Enrichment" in categories:
-                return DocumentType.ENRICHMENT_URL
-            # Default to POST (including posts without categories)
+        except OSError:
             return DocumentType.POST
-
-        except (OSError, yaml.YAMLError):
-            # If we can't read/parse, assume POST
-            return DocumentType.POST
+        metadata, _ = parse_frontmatter(content)
+        categories = (metadata or {}).get("categories", [])
+        if not isinstance(categories, list):
+            categories = []
+        if "Journal" in categories:
+            return DocumentType.JOURNAL
+        return DocumentType.POST
 
     def _list_from_unified_dir(
         self,
@@ -642,7 +657,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
             try:
                 # Detect document type by reading category metadata
-                detected_type = self._detect_document_type_from_metadata(path)
+                detected_type = self._detect_document_type(path)
 
                 # Apply type filter if specified
                 if filter_type is not None and detected_type != filter_type:
@@ -741,10 +756,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                     logger.warning("PROFILE doc missing 'subject' metadata, falling back to posts/")
                     slug = url_path.split("/")[-1]
                     return self.posts_dir / f"{slug}.md"
-
-                author_dir = self._get_author_dir(subject_uuid)
+                profile_dir = self.profiles_dir / str(subject_uuid)
+                profile_dir.mkdir(parents=True, exist_ok=True)
                 slug = url_path.split("/")[-1]
-                return author_dir / f"{slug}.md"
+                return profile_dir / f"{slug}.md"
 
             case DocumentType.ANNOUNCEMENT:
                 # System announcements (/egregora commands) go to announcements/
@@ -782,11 +797,17 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     def _strip_media_prefix(self, url_path: str) -> str:
         """Helper to strip media prefixes from URL path."""
         rel_path = url_path
-        media_prefix = self._ctx.site_prefix + "/media" if self._ctx.site_prefix else "media"
-        if rel_path.startswith(media_prefix):
-            rel_path = rel_path[len(media_prefix) :].strip("/")
-        elif rel_path.startswith("media/"):
-            rel_path = rel_path[6:]
+        media_prefixes: list[str] = []
+        if hasattr(self._url_convention, "routes"):
+            media_prefixes.append(str(getattr(self._url_convention.routes, "media_prefix", "")).strip("/"))
+        media_prefixes.extend(["media", "posts/media"])
+        for prefix in [p for p in media_prefixes if p]:
+            if rel_path == prefix:
+                rel_path = ""
+                break
+            if rel_path.startswith(prefix + "/"):
+                rel_path = rel_path[len(prefix) + 1 :]
+                break
         return rel_path
 
     def _parse_frontmatter(self, path: Path) -> dict:
@@ -1082,18 +1103,25 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 [p for p in self.posts_dir.glob("*.md") if p.name not in {"index.md", "tags.md"}]
             )
 
-        # Count profiles (exclude index.md)
+        # Count profiles (unique authors with at least one profile doc)
         if self.profiles_dir.exists():
-            stats["profile_count"] = len([p for p in self.profiles_dir.glob("*.md") if p.name != "index.md"])
+            author_dirs = [p for p in self.profiles_dir.iterdir() if p.is_dir()]
+            stats["profile_count"] = len(author_dirs)
 
         # Count media (URLs + images + videos + audio - exclude indexes)
         if self.media_dir.exists():
             all_media = list(self.media_dir.rglob("*.md"))
             stats["media_count"] = len([p for p in all_media if p.name != "index.md"])
 
-        # Count journal entries (exclude index.md)
-        if self.journal_dir.exists():
-            stats["journal_count"] = len([p for p in self.journal_dir.glob("*.md") if p.name != "index.md"])
+        # Count journal entries by category
+        if self.posts_dir.exists():
+            journal_count = 0
+            for path in self.posts_dir.glob("*.md"):
+                if path.name in {"index.md", "tags.md"}:
+                    continue
+                if self._detect_document_type(path) == DocumentType.JOURNAL:
+                    journal_count += 1
+            stats["journal_count"] = journal_count
 
         return stats
 
@@ -1104,12 +1132,15 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         if not hasattr(self, "profiles_dir") or not self.profiles_dir.exists():
             return profiles
-
-        for profile_path in sorted(self.profiles_dir.glob("[!index]*.md")):
+        for author_dir in sorted([p for p in self.profiles_dir.iterdir() if p.is_dir()]):
             try:
+                candidates = [p for p in author_dir.glob("*.md") if p.name != "index.md"]
+                if not candidates:
+                    continue
+                profile_path = max(candidates, key=lambda p: p.stat().st_mtime_ns)
                 content = profile_path.read_text(encoding="utf-8")
                 metadata, _ = parse_frontmatter(content)
-                author_uuid = profile_path.stem
+                author_uuid = author_dir.name
 
                 author_posts = [
                     post
@@ -1154,7 +1185,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
     def get_recent_media(self, limit: int = 5) -> list[dict[str, Any]]:
         """Get recent media items for media index.
 
-        UNIFIED: Enrichment URLs now live in posts_dir with "Enrichment" category.
+        URL enrichments live in posts/media/urls (ADR-0004).
 
         Args:
             limit: Maximum number of items to return
@@ -1165,24 +1196,15 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         """
         media_items = []
 
-        if not hasattr(self, "posts_dir") or not self.posts_dir.exists():
+        urls_dir = getattr(self, "urls_dir", self.media_dir / "urls")
+        if not urls_dir.exists():
             return media_items
 
-        # Get all files from posts_dir, filter for Enrichment category
-        all_files = list(self.posts_dir.glob("*.md"))
-        enrichment_files = []
-
-        for path in all_files:
-            try:
-                # Check if file has Enrichment category
-                doc_type = self._detect_document_type_from_metadata(path)
-                if doc_type == DocumentType.ENRICHMENT_URL:
-                    enrichment_files.append(path)
-            except (OSError, yaml.YAMLError):
-                continue
-
-        # Sort by modification time (newest first) and limit
-        url_files = sorted(enrichment_files, key=lambda p: p.stat().st_mtime, reverse=True)[:limit]
+        url_files = sorted(
+            [p for p in urls_dir.glob("*.md") if p.name != "index.md"],
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )[:limit]
 
         for media_path in url_files:
             try:
