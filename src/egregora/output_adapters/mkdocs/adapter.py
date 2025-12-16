@@ -194,8 +194,8 @@ class MkDocsAdapter(BaseOutputSink):
                 # Journals: simple filename with slug
                 return self.posts_dir / f"{identifier.replace('/', '-')}.md"
             case DocumentType.ENRICHMENT_URL:
-                # Enrichment URLs: now in posts_dir (unified)
-                return self.posts_dir / f"{identifier}.md"
+                # Enrichment URLs: inside media_dir/urls (ADR-0004)
+                return self.media_dir / "urls" / f"{identifier}.md"
             case DocumentType.ENRICHMENT_MEDIA:
                 # Enrichment media: stays in media_dir
                 return self.media_dir / f"{identifier}.md"
@@ -762,10 +762,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                     return self.docs_dir / "journal.md"
                 return self.posts_dir / f"{slug}.md"
             case DocumentType.ENRICHMENT_URL:
-                # url_path might be 'media/urls/slug' -> we want 'slug.md' inside urls_dir
-                # UNIFIED: Enrichment URLs -> posts_dir
+                # url_path might be 'posts/media/urls/slug' -> we want 'slug.md' inside media_dir/urls
+                # ADR-0004: URL enrichments go to posts/media/urls/
                 slug = url_path.split("/")[-1]
-                return self.posts_dir / f"{slug}.md"
+                return self.media_dir / "urls" / f"{slug}.md"
             case DocumentType.ENRICHMENT_MEDIA:
                 # url_path is like 'media/images/foo' -> we want 'docs/media/images/foo.md'
                 rel_path = self._strip_media_prefix(url_path)
