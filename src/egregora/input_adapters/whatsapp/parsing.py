@@ -335,6 +335,11 @@ def parse_source(
     else:
         messages = messages.order_by("ts")
 
+    if not expose_raw_author:
+        # Anonymize author names to prevent leakage of PII into downstream tables
+        # We replace the raw name with the UUID string
+        messages = messages.mutate(author_raw=messages.author_uuid)
+
     messages = _add_message_ids(messages)
 
     if not expose_raw_author:

@@ -21,7 +21,7 @@ Media files go **inside** the posts directory:
 # conventions.py
 media_prefix: str = "posts/media"
 
-# paths.py
+# paths.py  
 media_dir = posts_dir / "media"
 ```
 

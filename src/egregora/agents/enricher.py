@@ -17,7 +17,6 @@ import os
 import re
 import shutil
 import tempfile
-import time
 import uuid
 import zipfile
 from collections.abc import Iterator
@@ -51,7 +50,6 @@ from egregora.utils.zip import validate_zip_contents
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.model_fallback import create_fallback_model
 from egregora.utils.paths import slugify
-from egregora.utils.quota import QuotaTracker
 
 if TYPE_CHECKING:
     from ibis.backends.duckdb import Backend as DuckDBBackend
@@ -173,7 +171,6 @@ class EnrichmentRuntimeContext:
     site_root: Path | None = None
     duckdb_connection: DuckDBBackend | None = None
     target_table: str | None = None
-    quota: QuotaTracker | None = None
     usage_tracker: UsageTracker | None = None
     pii_prevention: dict[str, Any] | None = None  # LLM-native PII prevention settings
     task_store: Any | None = None  # Added for job queue scheduling
@@ -756,8 +753,13 @@ def _extract_media_candidates(
 class EnrichmentWorker(BaseWorker):
     """Worker for media enrichment (e.g. image description)."""
 
-    def __init__(self, ctx: PipelineContext | EnrichmentRuntimeContext) -> None:
+    def __init__(
+        self,
+        ctx: PipelineContext | EnrichmentRuntimeContext,
+        enrichment_config: EnrichmentSettings | None = None,
+    ):
         super().__init__(ctx)
+        self._enrichment_config_override = enrichment_config
         self.zip_handle: zipfile.ZipFile | None = None
         self.media_index: dict[str, str] = {}
         # V3 Architecture: Ephemeral media staging
@@ -808,25 +810,17 @@ class EnrichmentWorker(BaseWorker):
 
     def run(self) -> int:
         """Process pending enrichment tasks in batches."""
-        # Determine concurrency to scale fetch limit
-        # We assume typical batch size of 50.
-        base_batch_size = 50
-        # We pass a dummy count to _determine_concurrency just to check key/config state
-        concurrency = self._determine_concurrency(base_batch_size)
-
-        # Scale fetch limit by concurrency to allow parallel processing of multiple batches
-        fetch_limit = base_batch_size * concurrency
-
-        tasks = self.task_store.fetch_pending(task_type="enrich_url", limit=fetch_limit)
-        media_tasks = self.task_store.fetch_pending(task_type="enrich_media", limit=fetch_limit)
+        # Configurable batch size
+        batch_size = 50
+        tasks = self.task_store.fetch_pending(task_type="enrich_url", limit=batch_size)
+        media_tasks = self.task_store.fetch_pending(task_type="enrich_media", limit=batch_size)
 
         total_tasks = len(tasks) + len(media_tasks)
         if not total_tasks:
             return 0
 
         logger.info(
-            "[Enrichment] Processing %d tasks (URL: %d, Media: %d) with concurrency %d",
-            total_tasks, len(tasks), len(media_tasks), concurrency
+            "[Enrichment] Processing %d tasks (URL: %d, Media: %d)", total_tasks, len(tasks), len(media_tasks)
         )
 
         processed_count = 0
@@ -898,6 +892,17 @@ class EnrichmentWorker(BaseWorker):
 
         return tasks_data
 
+    @property
+    def enrichment_config(self) -> EnrichmentSettings:
+        """Get effective enrichment configuration."""
+        if self._enrichment_config_override:
+            return self._enrichment_config_override
+        # Fallback to context config if available
+        if hasattr(self.ctx, "config"):
+            return self.ctx.config.enrichment
+        # Last resort fallback (should not happen in normal pipeline)
+        return EnrichmentSettings()
+
     def _determine_concurrency(self, task_count: int) -> int:
         """Determine optimal concurrency based on available API keys.
 
@@ -910,35 +915,17 @@ class EnrichmentWorker(BaseWorker):
         api_keys = get_api_keys()
         num_keys = len(api_keys) if api_keys else 1
 
-        # Get configured concurrency
+        # Use configured value or auto-detected key count
         enrichment_concurrency = getattr(
-            self.ctx.config.enrichment,
+            self.enrichment_config,
             "max_concurrent_enrichments",
-            1,
+            num_keys,  # Default to number of keys
         )
-
-        # Auto-Parallelization: If using default (1) and we have multiple keys, scale up.
-        # This assumes default 1 means "not configured" and we should optimize.
-        # If user explicitly sets 1 in config.yml, they effectively disable this.
-        # Ideally we'd distinguish "unset" from "set to 1", but for now this heuristics works well.
-        if enrichment_concurrency == 1 and num_keys > 1:
-            logger.info("Auto-scaling concurrency to match available API keys: %d", num_keys)
-            enrichment_concurrency = num_keys
 
         global_concurrency = getattr(self.ctx.config.quota, "concurrency", num_keys)
 
-        # Calculate effective concurrency
-        # We cap at num_keys to avoid rate limits on single keys (unless rotation handles it,
-        # but concurrent requests on one key is risky for free tier).
-        # We also respect global quota.
-        max_concurrent = min(enrichment_concurrency, global_concurrency, task_count)
-
-        # If we have more tasks/concurrency allowed than keys, we rely on rotation OR key reuse?
-        # Story 6 implies "throughput using all keys in parallel".
-        # If enrichment_concurrency > num_keys, we are sending multiple requests per key?
-        # That's fine if allowed. But "Set max_concurrent_enrichments = key count" suggests 1:1 mapping.
-
-        # Let's ensure we use at least key count if allowed.
+        # Use all available keys in parallel (up to task count)
+        max_concurrent = min(enrichment_concurrency, global_concurrency, task_count, num_keys)
 
         logger.info(
             "Processing %d enrichment tasks with max concurrency of %d "
@@ -956,7 +943,7 @@ class EnrichmentWorker(BaseWorker):
         self, tasks_data: list[dict[str, Any]], max_concurrent: int
     ) -> list[tuple[dict, EnrichmentOutput | None, str | None]]:
         """Execute URL enrichments based on configured strategy."""
-        strategy = getattr(self.ctx.config.enrichment, "strategy", "individual")
+        strategy = getattr(self.enrichment_config, "strategy", "individual")
         total = len(tasks_data)
 
         # Use single-call batch for batch_all strategy with multiple URLs
@@ -979,25 +966,17 @@ class EnrichmentWorker(BaseWorker):
         """Execute URL enrichments individually with model rotation."""
         results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
         total = len(tasks_data)
-        last_log_time = time.time()
-
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
             future_to_task = {executor.submit(self._enrich_single_url, td): td for td in tasks_data}
             for i, future in enumerate(as_completed(future_to_task), 1):
                 try:
                     results.append(future.result())
-
-                    # Heartbeat logging
-                    if time.time() - last_log_time > 10:
-                        logger.info("[Heartbeat] URL Enrichment: %d/%d (%.1f%%)", i, total, (i/total)*100)
-                        last_log_time = time.time()
-
+                    logger.info("[Enrichment] URL task %d/%d complete", i, total)
                 except Exception as exc:
                     task = future_to_task[future]["task"]
                     logger.exception("Enrichment failed for %s", task["task_id"])
                     results.append((task, None, str(exc)))
 
-        logger.info("[Enrichment] URL tasks complete: %d/%d", len(results), total)
         return results
 
     def _execute_url_single_call(
@@ -1037,8 +1016,8 @@ class EnrichmentWorker(BaseWorker):
         ).strip()
 
         # Build model+key rotator if enabled
-        rotation_enabled = getattr(self.ctx.config.enrichment, "model_rotation_enabled", True)
-        rotation_models = getattr(self.ctx.config.enrichment, "rotation_models", None)
+        rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
+        rotation_models = getattr(self.enrichment_config, "rotation_models", None)
 
         if rotation_enabled:
             from egregora.models.model_key_rotator import ModelKeyRotator
@@ -1276,17 +1255,12 @@ class EnrichmentWorker(BaseWorker):
             try:
                 zf = zipfile.ZipFile(input_path, "r")
                 should_close = True
-                validate_zip_contents(zf)
-                # Build index on the fly
                 media_index = {}
                 for info in zf.infolist():
                     if not info.is_dir():
                         media_index[Path(info.filename).name.lower()] = info.filename
             except Exception as exc:
-                logger.warning("Failed to open source ZIP %s: %s", input_path, exc)
-                self.task_store.mark_failed(task["task_id"], f"Failed to open ZIP: {exc}")
-                if should_close and zf:
-                    zf.close()
+                logger.warning("Failed to open source ZIP: %s", exc)
                 return None
 
         try:
@@ -1362,42 +1336,6 @@ class EnrichmentWorker(BaseWorker):
                 }
             }
 
-    def _bin_pack_requests(
-        self, requests: list[dict[str, Any]], max_items: int = 50, max_bytes: int = 10 * 1024 * 1024
-    ) -> list[list[dict[str, Any]]]:
-        """Group requests into bins respecting item count and estimated size."""
-        bins: list[list[dict[str, Any]]] = []
-        current_bin: list[dict[str, Any]] = []
-        current_bytes = 0
-
-        for req in requests:
-            # Estimate size
-            # InlineData base64 size or just text prompt size.
-            # fileData is small.
-            # Base64 is len(data).
-            req_size = 0
-            for content in req.get("contents", []):
-                for part in content.get("parts", []):
-                    if "inlineData" in part:
-                        req_size += len(part["inlineData"].get("data", ""))
-                    if "text" in part:
-                        req_size += len(part["text"])
-
-            # Check limits
-            if len(current_bin) >= max_items or (current_bytes + req_size) > max_bytes:
-                if current_bin:
-                    bins.append(current_bin)
-                current_bin = []
-                current_bytes = 0
-
-            current_bin.append(req)
-            current_bytes += req_size
-
-        if current_bin:
-            bins.append(current_bin)
-
-        return bins
-
     def _execute_media_batch(
         self, requests: list[dict[str, Any]], task_map: dict[str, dict[str, Any]]
     ) -> list[Any]:
@@ -1409,41 +1347,16 @@ class EnrichmentWorker(BaseWorker):
             raise ValueError(msg)
 
         # Use strategy-based dispatch
-        strategy = getattr(self.ctx.config.enrichment, "strategy", "individual")
-
+        strategy = getattr(self.enrichment_config, "strategy", "individual")
         if strategy == "batch_all" and len(requests) > 1:
-            # Bin packing for safety
-            bins = self._bin_pack_requests(requests, max_items=50, max_bytes=10 * 1024 * 1024)
-
-            # Execute bins in parallel if concurrency allows
-            concurrency = self._determine_concurrency(len(requests))
-
-            all_results = []
-
-            def process_bin(bin_requests):
-                try:
-                    logger.info("[MediaEnricher] Processing bin of %d images", len(bin_requests))
-                    return self._execute_media_single_call(bin_requests, task_map, model_name, api_key)
-                except Exception as exc:
-                    logger.warning("[MediaEnricher] Bin failed (%s), falling back to individual", exc)
-                    return self._execute_media_individual(bin_requests, task_map, model_name, api_key)
-
-            if len(bins) > 1 and concurrency > 1:
-                with ThreadPoolExecutor(max_workers=min(len(bins), concurrency)) as executor:
-                    futures = [executor.submit(process_bin, b) for b in bins]
-                    total_bins = len(bins)
-                    last_log_time = time.time()
-
-                    for i, future in enumerate(as_completed(futures), 1):
-                        all_results.extend(future.result())
-                        if time.time() - last_log_time > 10:
-                            logger.info("[Heartbeat] Media Batches: %d/%d", i, total_bins)
-                            last_log_time = time.time()
-            else:
-                for b in bins:
-                    all_results.extend(process_bin(b))
-
-            return all_results
+            try:
+                logger.info("[MediaEnricher] Using single-call batch mode for %d images", len(requests))
+                return self._execute_media_single_call(requests, task_map, model_name, api_key)
+            except Exception as single_call_exc:
+                logger.warning(
+                    "[MediaEnricher] Single-call batch failed (%s), falling back to standard batch",
+                    single_call_exc,
+                )
 
         # Standard batch API (one request per image)
         model = GoogleBatchModel(api_key=api_key, model_name=model_name)
@@ -1513,8 +1426,8 @@ class EnrichmentWorker(BaseWorker):
         # Build model+key rotator if enabled
         from egregora.models.model_key_rotator import ModelKeyRotator
 
-        rotation_enabled = getattr(self.ctx.config.enrichment, "model_rotation_enabled", True)
-        rotation_models = getattr(self.ctx.config.enrichment, "rotation_models", None)
+        rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
+        rotation_models = getattr(self.enrichment_config, "rotation_models", None)
 
         if rotation_enabled:
             rotator = ModelKeyRotator(models=rotation_models)
@@ -1629,7 +1542,7 @@ class EnrichmentWorker(BaseWorker):
                     },
                 )()
                 results.append(result)
-                # logger.info("[MediaEnricher] Processed %s via individual call", tag) # Reduced noise
+                logger.info("[MediaEnricher] Processed %s via individual call", tag)
 
             except Exception as exc:
                 logger.warning("[MediaEnricher] Individual call failed for %s: %s", tag, exc)
@@ -1802,17 +1715,26 @@ class EnrichmentWorker(BaseWorker):
             slug = data.get("slug")
             markdown = data.get("markdown")
 
-            # Fallback for models that return description/alt_text instead of markdown
-            if not markdown and (data.get("description") or data.get("alt_text")):
+            payload = task["_parsed_payload"]
+            filename = payload.get("filename", "")
+
+            # Fallback logic for missing markdown
+            if not markdown and slug:
                 description = data.get("description", "")
                 alt_text = data.get("alt_text", "")
-                markdown = f"{description}\n\n**Alt Text:** {alt_text}"
+                if description or alt_text:
+                    markdown = f"""# {slug}
+
+![{alt_text}]({filename})
+
+## Description
+{description}
+"""
+                    logger.info("Constructed fallback markdown for %s", filename)
 
             if not slug or not markdown:
                 self.task_store.mark_failed(task["task_id"], "Missing slug or markdown")
                 return None
-
-            payload = task["_parsed_payload"]
             slug_value = _normalize_slug(slug, payload["filename"])
         except Exception as exc:
             logger.exception("Failed to parse media result %s", task["task_id"])

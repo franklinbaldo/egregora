@@ -89,6 +89,7 @@ Update Content Guidelines (if significant):
 """
 
 
+
 async def _generate_profile_content(
     ctx: Any,
     author_messages: list[dict[str, Any]],
@@ -131,6 +132,7 @@ async def _generate_profile_content(
         return None
 
     return decision.content
+
 
 
 async def _call_llm_decision(prompt: str, ctx: Any) -> ProfileUpdateDecision:

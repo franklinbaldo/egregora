@@ -7,6 +7,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from tests.e2e.test_config import DateConfig, TimezoneConfig, TimeoutConfig, WindowConfig
+
 # Suppress Pydantic V2 warnings about fields not being initialized
 # (Common in tests when using mocks or partial models)
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
@@ -87,3 +89,27 @@ def llm_response_mocks():
     """Mock responses for LLM calls (enrichment, writer, etc)."""
     # Simple dictionary mock. In a real scenario, this might load from a JSON file.
     return {"url_enrichments": {}, "media_enrichments": {}, "writer_post": "Mock post content"}
+
+
+@pytest.fixture
+def test_dates() -> DateConfig:
+    """Provide test date constants."""
+    return DateConfig()
+
+
+@pytest.fixture
+def test_timezones() -> TimezoneConfig:
+    """Provide timezone constants."""
+    return TimezoneConfig()
+
+
+@pytest.fixture
+def test_timeouts() -> TimeoutConfig:
+    """Provide timeout constants for tests."""
+    return TimeoutConfig()
+
+
+@pytest.fixture
+def window_configs() -> WindowConfig:
+    """Provide windowing configuration constants."""
+    return WindowConfig()
