@@ -116,6 +116,23 @@ h1, h2, h3 {
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
+/* 10. TL;DR Admonition (Native Look) */
+/* Support !!! tldr "TL;DR" syntax */
+.admonition.tldr {
+    border-left-color: var(--md-accent-fg-color);
+}
+
+.admonition.tldr > .admonition-title {
+    background-color: rgba(var(--md-accent-fg-color--rgb), 0.1);
+    border-bottom: 1px solid rgba(var(--md-accent-fg-color--rgb), 0.1);
+}
+
+.admonition.tldr > .admonition-title::before {
+    background-color: var(--md-accent-fg-color);
+    -webkit-mask-image: var(--md-admonition-icon--note);
+    mask-image: var(--md-admonition-icon--note);
+}
+
 /* 9. Tag Cloud Visualization */
 .tag-cloud {
     display: flex;
