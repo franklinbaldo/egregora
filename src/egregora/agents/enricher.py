@@ -43,14 +43,15 @@ from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.input_adapters.base import MediaMapping
 from egregora.models.google_batch import GoogleBatchModel
 from egregora.ops.media import extract_urls, find_media_references
+from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
-from egregora.utils.zip import validate_zip_contents
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.model_fallback import create_fallback_model
 from egregora.utils.paths import slugify
+from egregora.utils.zip import validate_zip_contents
 
 if TYPE_CHECKING:
     from ibis.backends.duckdb import Backend as DuckDBBackend
@@ -839,7 +840,10 @@ class EnrichmentWorker(BaseWorker):
 
         logger.info(
             "[Enrichment] Processing %d tasks (URL: %d, Media: %d) with concurrency %d",
-            total_tasks, len(tasks), len(media_tasks), concurrency
+            total_tasks,
+            len(tasks),
+            len(media_tasks),
+            concurrency,
         )
 
         processed_count = 0
@@ -927,6 +931,15 @@ class EnrichmentWorker(BaseWorker):
 
         Auto-detects number of API keys and uses them in parallel instead of
         sequential rotation.
+
+        Note: Currently cannot distinguish between max_concurrent_enrichments
+        being unset (should auto-scale) vs explicitly set to 1 (disable auto-scale).
+        The heuristic treats default value of 1 as "not configured" and auto-scales
+        when multiple keys are detected. To explicitly disable auto-scaling with
+        multiple keys, set max_concurrent_enrichments to 1 in config.yml and ensure
+        it's the only key detection remains at 1.
+
+        Future improvement: Use Optional[int] = None to distinguish unset from explicit 1.
         """
         from egregora.models.model_cycler import get_api_keys
 
@@ -1013,7 +1026,7 @@ class EnrichmentWorker(BaseWorker):
 
                     # Heartbeat logging
                     if time.time() - last_log_time > 10:
-                        logger.info("[Heartbeat] URL Enrichment: %d/%d (%.1f%%)", i, total, (i/total)*100)
+                        logger.info("[Heartbeat] URL Enrichment: %d/%d (%.1f%%)", i, total, (i / total) * 100)
                         last_log_time = time.time()
 
                 except Exception as exc:
@@ -1350,8 +1363,12 @@ class EnrichmentWorker(BaseWorker):
         if file_size > threshold_bytes:
             from google import genai
 
-            logger.info("File %s is %.2f MB (threshold: %d MB), using File API upload",
-                        file_path.name, file_size / (1024 * 1024), params)
+            logger.info(
+                "File %s is %.2f MB (threshold: %d MB), using File API upload",
+                file_path.name,
+                file_size / (1024 * 1024),
+                params,
+            )
 
             api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
             if not api_key:
@@ -1364,12 +1381,7 @@ class EnrichmentWorker(BaseWorker):
             uploaded_file = client.files.upload(path=str(file_path), config={"mime_type": mime_type})
             logger.info("Uploaded file %s to %s", file_path.name, uploaded_file.uri)
 
-            return {
-                "fileData": {
-                    "mimeType": mime_type,
-                    "fileUri": uploaded_file.uri
-                }
-            }
+            return {"fileData": {"mimeType": mime_type, "fileUri": uploaded_file.uri}}
         else:
             # Inline base64 for small files
             file_bytes = file_path.read_bytes()
@@ -1627,7 +1639,6 @@ class EnrichmentWorker(BaseWorker):
             # Use staged path if available, or fall back to loading bytes (legacy/small files)
             staged_path = task.get("_staged_path")
             source_path = None
-            content_bytes = b""
 
             if staged_path and os.path.exists(staged_path):
                 source_path = staged_path
@@ -1649,7 +1660,7 @@ class EnrichmentWorker(BaseWorker):
                 "slug": slug_value,
                 "nav_exclude": True,
                 "hide": ["navigation"],
-                "source_path": source_path, # Path to staged file for efficient move
+                "source_path": source_path,  # Path to staged file for efficient move
             }
 
             # Persist the actual media file
