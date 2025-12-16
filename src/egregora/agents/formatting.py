@@ -8,12 +8,15 @@ import logging
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from egregora.agents.shared.annotations import Annotation, AnnotationStore
 from egregora.data_primitives.document import DocumentType
-from egregora.output_adapters.base import OutputSink
+
+if TYPE_CHECKING:
+    from egregora.agents.shared.annotations import Annotation, AnnotationStore
+    from egregora.output_adapters.base import OutputSink
 
 logger = logging.getLogger(__name__)
 

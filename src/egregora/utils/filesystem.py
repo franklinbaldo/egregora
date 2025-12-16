@@ -12,14 +12,16 @@ from __future__ import annotations
 import logging
 import re
 from datetime import UTC, date, datetime
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from egregora.markdown.frontmatter import read_frontmatter_only
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.paths import safe_path_join, slugify
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

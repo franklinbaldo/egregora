@@ -15,11 +15,12 @@ from typing import TYPE_CHECKING
 
 import ibis
 
-from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_record import ComparisonRecord
 
 if TYPE_CHECKING:
     from ibis.expr.types import Table
+
+    from egregora.database.duckdb_manager import DuckDBStorageManager
 
 logger = logging.getLogger(__name__)
 

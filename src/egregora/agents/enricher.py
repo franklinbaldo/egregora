@@ -20,16 +20,13 @@ import tempfile
 import time
 import uuid
 import zipfile
-from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import TracebackType
 from typing import TYPE_CHECKING, Any, Self
 
 from ibis.common.exceptions import IbisError
-from ibis.expr.types import Table
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import BinaryContent
@@ -40,21 +37,26 @@ from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.database.streaming import ensure_deterministic_order, stream_ibis
-from egregora.input_adapters.base import MediaMapping
 from egregora.models.google_batch import GoogleBatchModel
 from egregora.ops.media import extract_urls, find_media_references
-from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
-from egregora.utils.metrics import UsageTracker
 from egregora.utils.model_fallback import create_fallback_model
 from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from types import TracebackType
+
     from ibis.backends.duckdb import Backend as DuckDBBackend
+    from ibis.expr.types import Table
+
+    from egregora.input_adapters.base import MediaMapping
+    from egregora.orchestration.context import PipelineContext
+    from egregora.utils.metrics import UsageTracker
 
 logger = logging.getLogger(__name__)
 

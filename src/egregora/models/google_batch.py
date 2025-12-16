@@ -5,9 +5,8 @@ from __future__ import annotations
 import base64
 import json
 import logging
-from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from google import genai
@@ -17,6 +16,9 @@ from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models import Model, ModelRequestParameters, ModelSettings
 from pydantic_ai.usage import RequestUsage
 from tenacity import RetryError, retry, retry_if_result, stop_after_delay, wait_fixed
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 logger = logging.getLogger(__name__)
 

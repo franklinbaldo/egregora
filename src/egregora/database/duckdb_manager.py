@@ -40,18 +40,21 @@ import re
 import tempfile
 import threading
 import uuid
-from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, Self
+from typing import TYPE_CHECKING, Any, Literal, Self
 
 import duckdb
 import ibis
-from ibis.expr.types import Table
 
 from egregora.database import schemas
 from egregora.database.ir_schema import quote_identifier
 from egregora.database.sql import SQLManager
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
 

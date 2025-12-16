@@ -17,17 +17,19 @@ import logging
 import queue
 import threading
 import time
-from collections.abc import Sequence
 from concurrent.futures import Future
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import httpx
 
 from egregora.config import EMBEDDING_DIM
 from egregora.models.model_cycler import get_api_keys
 from egregora.utils.env import get_google_api_key
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 logger = logging.getLogger(__name__)
 

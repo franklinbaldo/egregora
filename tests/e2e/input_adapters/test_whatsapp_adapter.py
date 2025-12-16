@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 import uuid
 import zipfile
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import ibis
@@ -34,6 +33,8 @@ from egregora.transformations.windowing import Window
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from conftest import WhatsAppFixture
 
 

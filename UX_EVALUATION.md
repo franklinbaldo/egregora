@@ -2,8 +2,8 @@
 
 Comprehensive evaluation of the generated blog site from egregora pipeline.
 
-**Date**: 2025-12-12  
-**Site**: blog-test-v10  
+**Date**: 2025-12-12
+**Site**: blog-test-v10
 **Content**: 3 blog posts, 6 profiles, 1 journal entry, 15+ URL enrichments
 
 ---
@@ -34,7 +34,7 @@ The egregora-generated blog demonstrates a solid foundation with Material for Mk
 
 ### 1. **Visual Design** (8/10)
 - **Material Design** - Clean, modern aesthetic
-- **Typography** - Roboto font family, good readability  
+- **Typography** - Roboto font family, good readability
 - **Color Palette** - Professional dark/light mode support
 - **Card-based layout** - Clear content separation
 
@@ -81,9 +81,9 @@ site/
 
 **Build Warnings**:
 ```
-WARNING - A reference to 'media/index.md' is included in the 'nav' 
+WARNING - A reference to 'media/index.md' is included in the 'nav'
           configuration, which is not found in the documentation files.
-WARNING - Doc file 'posts/media/index.md' contains a link 
+WARNING - Doc file 'posts/media/index.md' contains a link
           '../journal/index.md', but target is not found
 ```
 
@@ -93,7 +93,7 @@ WARNING - Doc file 'posts/media/index.md' contains a link
 - Poor UX
 
 **Recommendation**:
-- Fix media/ path resolution  
+- Fix media/ path resolution
 - Update cross-references
 - Test all navigation links
 
@@ -127,7 +127,7 @@ posts/
 
 **RSS Plugin Errors**:
 ```
-ERROR - [RSS-plugin]: Incompatible date found: 
+ERROR - [RSS-plugin]: Incompatible date found:
         date_metatag_value='2025-12-12T22:38:49.959127+00:00' <class 'str'>
         Trace: time data does not match format '%Y-%m-%d %H:%M'
 ```
@@ -151,7 +151,7 @@ ERROR - [RSS-plugin]: Incompatible date found:
 **Current Nav Structure**:
 ```
 - Home
-- About  
+- About
 - Blog (links to posts/index.md)
 ```
 
@@ -231,7 +231,7 @@ nav:
 - ⚠️ Missing ARIA labels on some buttons
 - ⚠️ Images need alt text verification
 
-**Score**: 7/10  
+**Score**: 7/10
 **Recommendation**: Run axe-core audit, add missing labels
 
 ---
@@ -244,7 +244,7 @@ nav:
 - ✅ Cached assets
 - ✅ Minified CSS/JS (with plugin)
 
-**Score**: 7/10  
+**Score**: 7/10
 **Recommendation**: Add image optimization, lazy loading
 
 ---
@@ -324,7 +324,7 @@ nav:
 2. **Fix media/ navigation**:
    - Update `media/index.md` template
    - Remove references to `../journal/` (now in posts/)
-   
+
 3. **Date format normalization**:
    - Use `YYYY-MM-DD` format in frontmatter
    - No milliseconds or timezone for RSS compatibility
@@ -361,7 +361,7 @@ Egregora produces a **functionally sound** blog with excellent visual design, bu
 
 **Must Fix**:
 - Folder structure (already updated in templates ✅)
-- Broken media links  
+- Broken media links
 - Date format for RSS
 - Profile naming consistency
 

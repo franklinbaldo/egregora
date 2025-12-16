@@ -51,4 +51,3 @@ source_url: {original_url}
 
 ## Related
 - ADR-0001: Media and Routing Conventions
-

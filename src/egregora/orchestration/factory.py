@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import ibis
@@ -16,7 +16,6 @@ from google import genai
 
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.types import WriterResources
-from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import UrlContext
 from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
@@ -35,6 +34,9 @@ from egregora.output_adapters.mkdocs import derive_mkdocs_paths
 from egregora.output_adapters.mkdocs.paths import compute_site_prefix
 from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
+
+if TYPE_CHECKING:
+    from egregora.config.settings import EgregoraConfig
 
 logger = logging.getLogger(__name__)
 

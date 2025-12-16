@@ -424,7 +424,7 @@ jobs:
             echo "❌ PR needs changes before merge"
             exit 1
           fi
-          
+
           echo "✅ Review gate passed ($RECOMMENDATION)"
           exit 0
         env:

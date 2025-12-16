@@ -8,11 +8,13 @@ without coupling high-level logic to implementation details.
 from __future__ import annotations
 
 from contextlib import contextmanager
-from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
-import ibis
-from ibis.expr.types import Table
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import ibis
+    from ibis.expr.types import Table
 
 
 class StorageProtocol(Protocol):

@@ -10,18 +10,21 @@ import json
 import logging
 from collections.abc import Callable, Sequence
 from datetime import date, datetime
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import lancedb
 import numpy as np
 from lancedb.pydantic import LanceModel, Vector
 
-from egregora.config import EMBEDDING_DIM
-from egregora.data_primitives.document import Document
 from egregora.rag.backend import VectorStore
 from egregora.rag.ingestion import chunks_from_documents
 from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from egregora.config import EMBEDDING_DIM
+    from egregora.data_primitives.document import Document
 
 logger = logging.getLogger(__name__)
 

@@ -16,11 +16,10 @@ from __future__ import annotations
 import logging
 import shutil
 from collections import Counter
-from collections.abc import Iterator
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoescape
@@ -37,6 +36,9 @@ from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, sa
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.filesystem import ensure_author_entries
 from egregora.utils.paths import slugify
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 logger = logging.getLogger(__name__)
 

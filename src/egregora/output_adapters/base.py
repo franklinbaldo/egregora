@@ -5,7 +5,6 @@ from __future__ import annotations
 import datetime
 import re
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -15,11 +14,14 @@ import ibis.expr.datatypes as dt
 import yaml
 
 from egregora.data_primitives import DocumentMetadata, OutputSink, UrlConvention
-from egregora.data_primitives.document import Document, DocumentType
 from egregora.utils import safe_path_join, slugify
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from ibis.expr.types import Table
+
+    from egregora.data_primitives.document import Document, DocumentType
 
 # Constants
 ISO_DATE_LENGTH = 10  # Length of ISO date format (YYYY-MM-DD)

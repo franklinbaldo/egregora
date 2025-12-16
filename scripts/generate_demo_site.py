@@ -97,10 +97,10 @@ def _patch_pipeline_for_offline_demo() -> None:
     def _mock_search(_query, **_kwargs):
         return SimpleNamespace(hits=[])
 
-    async def _stub_url_enrichment_async(_agent, url, prompts_dir=None):
+    async def _stub_url_enrichment_async(_agent, url, prompts_dir=None) -> str:
         return f"Stub enrichment for {url}"
 
-    async def _stub_media_enrichment_async(_agent, file_path, mime_hint=None, prompts_dir=None):
+    async def _stub_media_enrichment_async(_agent, file_path, mime_hint=None, prompts_dir=None) -> str:
         return f"Stub enrichment for {file_path}"
 
     def _stub_url_agent(_model, _simple=True):
@@ -121,17 +121,25 @@ def _patch_pipeline_for_offline_demo() -> None:
         PatchSpec("egregora.rag.index_documents", _mock_index_documents),
         PatchSpec("egregora.rag.search", _mock_search),
         PatchSpec("egregora.rag.reset_backend", lambda **_kwargs: None),
-        PatchSpec("egregora.orchestration.pipelines.write.index_documents", _mock_index_documents, optional=True),
-        PatchSpec("egregora.orchestration.pipelines.write.reset_backend", lambda **_kwargs: None, optional=True),
+        PatchSpec(
+            "egregora.orchestration.pipelines.write.index_documents", _mock_index_documents, optional=True
+        ),
+        PatchSpec(
+            "egregora.orchestration.pipelines.write.reset_backend", lambda **_kwargs: None, optional=True
+        ),
         PatchSpec("egregora.agents.writer_helpers.search", _mock_search, optional=True),
         PatchSpec("egregora.agents.writer.index_documents", _mock_index_documents, optional=True),
         PatchSpec("egregora.agents.writer.reset_backend", lambda **_kwargs: None, optional=True),
         # Enrichment: avoid network and multimodal calls.
         PatchSpec("egregora.agents.enricher.create_url_enrichment_agent", _stub_url_agent, optional=True),
         PatchSpec("egregora.agents.enricher.create_media_enrichment_agent", _stub_media_agent, optional=True),
-        PatchSpec("egregora.agents.enricher._run_url_enrichment_async", _stub_url_enrichment_async, optional=True),
         PatchSpec(
-            "egregora.agents.enricher._run_media_enrichment_async", _stub_media_enrichment_async, optional=True
+            "egregora.agents.enricher._run_url_enrichment_async", _stub_url_enrichment_async, optional=True
+        ),
+        PatchSpec(
+            "egregora.agents.enricher._run_media_enrichment_async",
+            _stub_media_enrichment_async,
+            optional=True,
         ),
     ]
 
@@ -236,7 +244,8 @@ def main() -> int:
     fixture_zip = (repo_root / args.fixture_zip).resolve()
 
     if not fixture_zip.exists():
-        raise SystemExit(f"Fixture ZIP not found: {fixture_zip}")
+        msg = f"Fixture ZIP not found: {fixture_zip}"
+        raise SystemExit(msg)
 
     if output_dir.exists():
         shutil.rmtree(output_dir)
@@ -256,7 +265,9 @@ def main() -> int:
     (docs_dir / "journal").mkdir(parents=True, exist_ok=True)
     (docs_dir / "profiles").mkdir(parents=True, exist_ok=True)
     (docs_dir / "media").mkdir(parents=True, exist_ok=True)
-    (docs_dir / "journal" / "index.md").write_text("# Journal\n\n(Reserved for future demo content.)\n", encoding="utf-8")
+    (docs_dir / "journal" / "index.md").write_text(
+        "# Journal\n\n(Reserved for future demo content.)\n", encoding="utf-8"
+    )
     (docs_dir / "profiles" / "index.md").write_text(
         "# Profiles\n\n(Reserved for future demo content.)\n", encoding="utf-8"
     )
@@ -294,4 +305,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

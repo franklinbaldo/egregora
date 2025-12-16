@@ -6,11 +6,10 @@ operating on simple task payloads that mirror what the TaskStore enqueues.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -21,6 +20,9 @@ from egregora.agents.banner.image_generation import (
     ImageGenerationRequest,
 )
 from egregora.data_primitives.document import Document, DocumentType
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 @dataclass(slots=True)
