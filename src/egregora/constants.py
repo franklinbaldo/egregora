@@ -74,8 +74,13 @@ class SourceType(str, Enum):
     SELF_REFLECTION = "self"
 
 
-# Re-export from V3
-from egregora_v3.core.types import WindowUnit
+class WindowUnit(str, Enum):
+    """Units for windowing messages."""
+
+    MESSAGES = "messages"
+    HOURS = "hours"
+    DAYS = "days"
+    BYTES = "bytes"
 
 
 # Gemini model context limits (input tokens)

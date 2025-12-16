@@ -1,63 +1,48 @@
-"""LanceDB-based RAG backend (V3).
+"""LanceDB Vector Store for V3.
 
-Provides vector storage and similarity search using LanceDB.
-Supports both document chunking (for RAG) and full document storage.
+Simplified vector storage for semantic search over documents.
+Stores full documents (not chunks) with vector embeddings.
 """
-
-from __future__ import annotations
 
 import json
 import logging
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any
 
 import lancedb
 import numpy as np
 from lancedb.pydantic import LanceModel, Vector
 
-from egregora_v3.core.ingestion import chunks_from_documents
-from egregora_v3.core.search import RAGHit, RAGQueryRequest, RAGQueryResponse
+from egregora_v3.core.types import Author, Category, Document, DocumentStatus, DocumentType, Link
 
 logger = logging.getLogger(__name__)
-
-EMBEDDING_DIM = 768
-
-
-def _json_serialize_metadata(metadata: dict) -> str:
-    """Serialize metadata dict to JSON."""
-    return json.dumps(metadata, default=str)
-
 
 # Type alias for embedding functions
 # task_type should be "RETRIEVAL_DOCUMENT" for indexing, "RETRIEVAL_QUERY" for searching
 EmbedFn = Callable[[Sequence[str], str], list[list[float]]]
 
+# Default embedding dimension (adjust based on your model)
+EMBEDDING_DIM = 768
 
-# Pydantic-based schema for LanceDB (zero-copy Arrow)
-class RagChunkModel(LanceModel):
-    """Schema for RAG chunks stored in LanceDB."""
 
-    chunk_id: str
-    document_id: str
-    text: str
+# Pydantic schema for LanceDB
+class DocumentVectorModel(LanceModel):
+    """Schema for documents stored in LanceDB.
+
+    Stores full documents with vector embeddings.
+    """
+
+    document_id: str  # Primary key
     vector: Vector(EMBEDDING_DIM)  # type: ignore[valid-type]
-    metadata_json: str  # JSON-serialized metadata for flexibility
+    # Serialize full document as JSON for complete roundtrip
+    document_json: str
 
 
 class LanceDBVectorStore:
-    """LanceDB-based RAG backend.
+    """LanceDB-based vector store for V3.
 
-    Responsibilities:
-        - Convert Documents to chunks using ingestion module
-        - Compute embeddings with provided embed_fn
-        - Upsert into LanceDB table
-        - Run vector search and return RAGHit objects
-
-    Architecture:
-        - Uses LanceDB for vector storage and search
-        - Stores chunks with embeddings, metadata, and full-text
-        - Supports both ANN and exact similarity search
+    Simplified implementation that stores full documents (not chunks).
+    Supports indexing and semantic search.
     """
 
     def __init__(
@@ -65,245 +50,176 @@ class LanceDBVectorStore:
         db_dir: Path,
         table_name: str,
         embed_fn: EmbedFn,
-        indexable_types: set[Any] | None = None,
     ) -> None:
-        """Initialize LanceDB RAG backend.
+        """Initialize LanceDB vector store.
 
         Args:
             db_dir: Directory for LanceDB database
-            table_name: Name of the table to store embeddings
+            table_name: Name of the table to store vectors
             embed_fn: Function that takes texts and returns embeddings
-            indexable_types: Set of DocumentType values to index (optional)
+
         """
-        self._db_dir = db_dir
+        self._db_dir = Path(db_dir)
         self._table_name = table_name
         self._embed_fn = embed_fn
-        self._indexable_types = indexable_types
 
         # Initialize LanceDB connection
-        db_dir.mkdir(parents=True, exist_ok=True)
-        self._db = lancedb.connect(str(db_dir))
+        self._db_dir.mkdir(parents=True, exist_ok=True)
+        self._db = lancedb.connect(str(self._db_dir))
 
         # Create or open table using Pydantic schema
         if table_name not in self._db.table_names():
             logger.info("Creating new LanceDB table: %s", table_name)
-            # Use Pydantic schema for type-safe table creation
+            # Create empty table with schema
             self._table = self._db.create_table(
                 table_name,
-                schema=RagChunkModel,
+                schema=DocumentVectorModel,
                 mode="overwrite",
             )
         else:
             logger.info("Opening existing LanceDB table: %s", table_name)
             self._table = self._db.open_table(table_name)
 
-    def add(self, documents: Sequence[Any]) -> int:
-        """Add documents to the store.
-
-        Implementation:
-            1. Convert Documents to chunks using ingestion module
-            2. Compute embeddings for all chunk texts
-            3. Atomic upsert into LanceDB (merge_insert with update/insert)
+    def index_documents(self, docs: list[Document]) -> None:
+        """Index documents into the vector store.
 
         Args:
-            documents: Sequence of Document instances to index
+            docs: List of documents to index
 
-        Returns:
-            Number of documents successfully indexed
+        Each document is embedded based on its content and stored with
+        its full metadata for retrieval.
+
         """
-        # Convert documents to chunks
-        chunks = chunks_from_documents(documents, indexable_types=self._indexable_types)
+        if not docs:
+            logger.info("No documents to index")
+            return
 
-        if not chunks:
-            logger.info("No chunks to index (empty or filtered documents)")
-            return 0
+        logger.info("Indexing %d documents", len(docs))
 
-        logger.info("Indexing %d chunks from %d documents", len(chunks), len(documents))
+        # Extract texts for embedding (use title + content)
+        texts = [f"{doc.title}\n\n{doc.content or ''}" for doc in docs]
 
-        # Extract texts for embedding
-        texts = [c.text for c in chunks]
-
-        # Compute embeddings with RETRIEVAL_DOCUMENT task type
+        # Compute embeddings
         try:
             embeddings = self._embed_fn(texts, "RETRIEVAL_DOCUMENT")
         except Exception as e:
             msg = f"Failed to compute embeddings: {e}"
             raise RuntimeError(msg) from e
 
-        if len(embeddings) != len(chunks):
-            msg = f"Embedding count mismatch: got {len(embeddings)}, expected {len(chunks)}"
+        if len(embeddings) != len(docs):
+            msg = f"Embedding count mismatch: got {len(embeddings)}, expected {len(docs)}"
             raise RuntimeError(msg)
 
-        # Prepare rows using Pydantic models (ensures schema consistency)
-        rows: list[RagChunkModel] = []
-        for chunk, emb in zip(chunks, embeddings, strict=True):
+        # Prepare rows using Pydantic models
+        rows: list[DocumentVectorModel] = []
+        for doc, emb in zip(docs, embeddings, strict=True):
+            # Serialize document to JSON for storage
+            doc_json = doc.model_dump_json()
+
             rows.append(
-                RagChunkModel(
-                    chunk_id=chunk.chunk_id,
-                    document_id=chunk.document_id,
-                    text=chunk.text,
+                DocumentVectorModel(
+                    document_id=doc.id,
                     vector=np.asarray(emb, dtype=np.float32),
-                    metadata_json=_json_serialize_metadata(chunk.metadata),
+                    document_json=doc_json,
                 )
             )
 
-        # Atomic upsert using merge_insert (no race conditions)
+        # Upsert documents (update if exists, insert if not)
         try:
+            # Use merge_insert for atomic upsert
             self._table.merge_insert(
-                "chunk_id"
+                "document_id"
             ).when_matched_update_all().when_not_matched_insert_all().execute(rows)
-            logger.info("Successfully indexed %d chunks (atomic upsert)", len(rows))
-            return len(documents)
+            logger.info("Successfully indexed %d documents", len(rows))
         except Exception as e:
-            msg = f"Failed to upsert chunks to LanceDB: {e}"
+            msg = f"Failed to upsert documents to LanceDB: {e}"
             raise RuntimeError(msg) from e
 
-    # Alias for V3 naming convention
-    def index_documents(self, docs: Sequence[Any]) -> None:
-        self.add(docs)
-
-    def query(self, request: RAGQueryRequest) -> RAGQueryResponse:
-        """Execute vector search in the knowledge base.
+    def search(self, query: str, top_k: int = 5) -> list[Document]:
+        """Search for documents using semantic similarity.
 
         Args:
-            request: Query parameters (text, top_k, filters)
+            query: Search query text
+            top_k: Maximum number of results to return
 
         Returns:
-            Response containing ranked RAGHit results
-        """
-        top_k = request.top_k
+            List of Document objects ranked by relevance
 
-        # Embed query with RETRIEVAL_QUERY task type
+        """
+        # Check if table is empty
         try:
-            query_emb = self._embed_fn([request.text], "RETRIEVAL_QUERY")[0]
+            # Try to count rows - if table doesn't exist or is empty, return empty list
+            if self._table_name not in self._db.table_names():
+                return []
+
+            # Quick check for empty table
+            arrow_table = self._table.search().limit(1).to_arrow()
+            if len(arrow_table) == 0:
+                return []
+        except Exception:  # noqa: BLE001
+            # Table might not exist yet
+            return []
+
+        # Embed query
+        try:
+            query_emb = self._embed_fn([query], "RETRIEVAL_QUERY")[0]
         except Exception as e:
             msg = f"Failed to embed query: {e}"
             raise RuntimeError(msg) from e
 
         query_vec = np.asarray(query_emb, dtype=np.float32)
 
-        # Execute search using Arrow (zero-copy, no Pandas)
+        # Execute search
         try:
             q = self._table.search(query_vec).metric("cosine").limit(top_k)
-
-            # Apply filters if provided
-            if request.filters:
-                q = q.where(request.filters)
-
-            # Execute and get results as Arrow table (zero-copy)
             arrow_table = q.to_arrow()
         except Exception as e:
             msg = f"LanceDB search failed: {e}"
             raise RuntimeError(msg) from e
 
-        # Convert Arrow table to Python dicts (fast native method)
-        hits: list[RAGHit] = []
+        # Convert Arrow table to Documents
+        documents: list[Document] = []
         for row in arrow_table.to_pylist():
-            # LanceDB exposes a distance column (usually "_distance")
-            distance = float(row.get("_distance", 0.0))
-
-            # Convert distance to similarity score
-            score = 1.0 - distance
-
-            # Extract and deserialize metadata
-            metadata_json = row.get("metadata_json", "{}")
+            # Deserialize document from JSON
+            doc_json = row.get("document_json", "{}")
             try:
-                meta = json.loads(metadata_json) if metadata_json else {}
-            except json.JSONDecodeError:
-                logger.warning("Failed to decode metadata JSON, using empty dict")
-                meta = {}
-
-            hits.append(
-                RAGHit(
-                    document_id=row["document_id"],
-                    chunk_id=row["chunk_id"],
-                    text=row["text"],
-                    metadata=meta,
-                    score=score,
+                doc_dict = json.loads(doc_json)
+                # Reconstruct Document from dict
+                doc = self._reconstruct_document(doc_dict)
+                documents.append(doc)
+            except Exception as e:  # noqa: BLE001
+                logger.warning(
+                    "Failed to deserialize document %s: %s",
+                    row.get("document_id", "unknown"),
+                    e,
                 )
-            )
+                continue
 
-        logger.info("Found %d hits for query (top_k=%d)", len(hits), top_k)
-        return RAGQueryResponse(hits=hits)
+        logger.info("Found %d documents for query (top_k=%d)", len(documents), top_k)
+        return documents
 
-    # V3 might call this search
-    def search(self, query: str, top_k: int = 5) -> list[Any]:
-        """Search for documents (V3 shim returning Documents).
+    def _reconstruct_document(self, doc_dict: dict) -> Document:
+        """Reconstruct a Document from a dictionary.
 
-        Note: This returns list[Document] but constructed from chunks.
-        It's better to use query() which returns RAGHits.
-        """
-        req = RAGQueryRequest(text=query, top_k=top_k)
-        res = self.query(req)
-        # Convert hits to simple Documents if needed, but for now just warn or return hits?
-        # V3 interface expects list[Document].
-        # We'll construct minimal documents.
-        from egregora_v3.core.types import Document, DocumentType
-
-        docs = []
-        for hit in res.hits:
-            doc = Document.create(
-                content=hit.text,
-                doc_type=DocumentType.POST, # Guessing
-                title="RAG Result",
-                internal_metadata=hit.metadata,
-                id_override=hit.document_id
-            )
-            docs.append(doc)
-        return docs
-
-    def delete(self, document_ids: list[str]) -> int:
-        """Delete documents from the store."""
-        if not document_ids:
-            return 0
-
-        ids_str = ", ".join(f"'{did}'" for did in document_ids)
-        filter_expr = f"document_id IN ({ids_str})"
-
-        try:
-            self._table.delete(filter_expr)
-            return len(document_ids)
-        except Exception as e:
-            logger.exception("Failed to delete documents: %s", e)
-            msg = f"Delete failed: {e}"
-            raise RuntimeError(msg) from e
-
-    def count(self) -> int:
-        """Count total chunks in the store."""
-        return self._table.count_rows()
-
-    def get_all_post_vectors(self) -> tuple[list[str], np.ndarray]:
-        """Retrieve IDs and Centroid Vectors for all indexed posts.
+        Args:
+            doc_dict: Dictionary containing document data
 
         Returns:
-            (doc_ids, vectors_matrix)
+            Reconstructed Document object
+
         """
-        # Fetch all vectors (Zero-copy Arrow)
-        arrow_table = self._table.search().limit(None).to_arrow()
+        # Convert enum strings back to enums
+        if "doc_type" in doc_dict:
+            doc_dict["doc_type"] = DocumentType(doc_dict["doc_type"])
+        if "status" in doc_dict:
+            doc_dict["status"] = DocumentStatus(doc_dict["status"])
 
-        doc_vectors: dict[str, list[np.ndarray]] = {}
+        # Convert nested objects
+        if doc_dict.get("authors"):
+            doc_dict["authors"] = [Author(**a) for a in doc_dict["authors"]]
+        if doc_dict.get("categories"):
+            doc_dict["categories"] = [Category(**c) for c in doc_dict["categories"]]
+        if doc_dict.get("links"):
+            doc_dict["links"] = [Link(**link) for link in doc_dict["links"]]
 
-        # Aggregate chunks by document ID
-        for batch in arrow_table.to_batches():
-            d = batch.to_pydict()
-            ids = d["document_id"]
-            vecs = d["vector"]
-
-            for i, doc_id in enumerate(ids):
-                if doc_id not in doc_vectors:
-                    doc_vectors[doc_id] = []
-                doc_vectors[doc_id].append(vecs[i])
-
-        if not doc_vectors:
-            return [], np.array([])
-
-        # Compute centroids (Mean of chunk vectors)
-        final_ids = []
-        final_vecs = []
-
-        for doc_id, vec_list in doc_vectors.items():
-            centroid = np.mean(np.stack(vec_list), axis=0)
-            final_ids.append(doc_id)
-            final_vecs.append(centroid)
-
-        return final_ids, np.array(final_vecs)
+        return Document(**doc_dict)

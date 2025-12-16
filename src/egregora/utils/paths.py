@@ -1,8 +1,9 @@
 """Path safety utilities for secure file operations."""
 
 from pathlib import Path
+from unicodedata import normalize
 
-from egregora_v3.core.utils import slugify as _v3_slugify
+from pymdownx.slugs import slugify as _md_slugify
 
 
 class PathTraversalError(Exception):
@@ -37,7 +38,14 @@ def slugify(text: str, max_len: int = 60, *, lowercase: bool = True) -> str:
         'aaaaaaaaaaaaaaaaaaaa'
 
     """
-    return _v3_slugify(text, max_len=max_len, lowercase=lowercase, default="post")
+    normalized = normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    slugifier = _md_slugify(case="lower" if lowercase else None, separator="-")
+    slug = slugifier(normalized, sep="-")
+    if not slug:
+        return "post"
+    if len(slug) > max_len:
+        slug = slug[:max_len].rstrip("-")
+    return slug
 
 
 def safe_path_join(base_dir: Path, *parts: str) -> Path:
