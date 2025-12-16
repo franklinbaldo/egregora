@@ -190,8 +190,8 @@ class MkDocsSiteScaffolder:
         for directory in (posts_dir, media_dir):
             directory.mkdir(parents=True, exist_ok=True)
 
-        # Create media subdirectories
-        for subdir in ["images", "videos", "audio", "documents"]:
+        # Create media subdirectories (ADR-0004: urls for URL enrichments)
+        for subdir in ["images", "videos", "audio", "documents", "urls"]:
             media_subdir = media_dir / subdir
             media_subdir.mkdir(exist_ok=True)
             (media_subdir / ".gitkeep").touch()
