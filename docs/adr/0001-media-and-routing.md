@@ -24,12 +24,12 @@ All generated content (Posts, Profiles, Journal Entries) resides in the `docs/po
 
 ### 3. Media Storage
 Media files are stored separately from posts to allow for clean separation of assets and content.
-*   **Location**: `docs/media/`
+*   **Location**: `docs/post/media/`
 *   **Subdirectories**:
-    *   `docs/media/images/`
-    *   `docs/media/videos/`
-    *   `docs/media/audio/`
-    *   `docs/media/files/`
+    *   `docs/post/media/images/`
+    *   `docs/post/media/videos/`
+    *   `docs/post/media/audio/`
+    *   `docs/post/media/files/`
 *   **Naming**: Content-addressed UUIDs or Semantic Slugs (preferred for SEO).
     *   Format: `{slug}.{ext}` (e.g., `2025-01-01-sunset.jpg`)
 
@@ -37,7 +37,7 @@ Media files are stored separately from posts to allow for clean separation of as
 To handle large files without memory exhaustion:
 *   Media is extracted from ZIPs to a temporary disk directory (`tempfile`).
 *   Files > 20MB are uploaded via File API (not inline base64).
-*   Files are atomically moved (`shutil.move`) to `docs/media/` upon successful processing.
+*   Files are atomically moved (`shutil.move`) to `docs/post/media/` upon successful processing.
 
 ## Consequences
 *   **Pros**:

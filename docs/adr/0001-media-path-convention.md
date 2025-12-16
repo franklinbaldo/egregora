@@ -11,33 +11,33 @@ Media files (images, videos) uploaded by users need a consistent storage locatio
 The URL routing and filesystem paths must be consistent.
 
 ## Decision
-Media files go **inside** the posts directory:
+We adopt **`docs/post/media/`** as the single global root for assets.
 
-**URL**: `/posts/media/{filename}`
-**Filesystem**: `docs/posts/media/{filename}`
+**URL**: `/post/media/{filename}`
+**Filesystem**: `docs/post/media/{filename}`
 
 ### Configuration
 ```python
 # conventions.py
-media_prefix: str = "posts/media"
+media_prefix: str = "post/media"
 
-# paths.py  
-media_dir = posts_dir / "media"
+# paths.py
+media_dir = docs_dir / "post" / "media"
 ```
 
 ### Rationale
-1. **Logical grouping**: Media is primarily associated with blog posts
-2. **URL clarity**: `/posts/media/image.jpg` clearly indicates it belongs to posts
-3. **MkDocs compatibility**: Keeps all content under one subdirectory
+1. **Standardization**: Singular "post" directory for consistent media assets.
+2. **Simplification**: Unified path resolution across the codebase.
+3. **MkDocs compatibility**: Explicit asset root.
 
 ## Consequences
 
 ### Easier
-- Clear ownership: media belongs to posts section
-- Single content root for backup/migration
+- Consistent path resolution.
+- Clear separation of media assets.
 
 ### Harder
-- If media needs to be shared across sections, URLs will include "posts/"
+- Migration of existing paths required.
 
 ## Related
 - ADR-002: Profile Path Convention

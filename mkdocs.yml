@@ -68,6 +68,7 @@ theme:
   custom_dir: docs/overrides
 
 plugins:
+  - glightbox
   - search:
       separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
   - mkdocstrings:

@@ -211,7 +211,6 @@ class MkDocsSiteScaffolder:
             (docs_dir / "journal" / "index.md", "docs/journal/index.md.jinja"),
             (profiles_dir / "index.md", "docs/profiles/index.md.jinja"),
             (media_dir / "index.md", "docs/media/index.md.jinja"),
-            (media_dir / "index.md", "docs/media/index.md.jinja"),
             (site_paths["blog_root_dir"] / "index.md", "docs/posts/index.md.jinja"),
             (site_paths["blog_root_dir"] / "tags.md", "docs/posts/tags.md.jinja"),
             (site_paths["egregora_dir"] / "main.py", "main.py.jinja"),
@@ -223,13 +222,6 @@ class MkDocsSiteScaffolder:
         custom_css_dest = stylesheets_dir / "custom.css"
         if custom_css_src.exists() and not custom_css_dest.exists():
             shutil.copy(custom_css_src, custom_css_dest)
-
-        javascripts_dir = docs_dir / "javascripts"
-        javascripts_dir.mkdir(parents=True, exist_ok=True)
-        carousel_js_src = Path(env.loader.searchpath[0]) / "docs" / "javascripts" / "media_carousel.js"
-        carousel_js_dest = javascripts_dir / "media_carousel.js"
-        if carousel_js_src.exists() and not carousel_js_dest.exists():
-            shutil.copy(carousel_js_src, carousel_js_dest)
 
         for target_path, template_name in templates_to_render:
             if not target_path.exists():
