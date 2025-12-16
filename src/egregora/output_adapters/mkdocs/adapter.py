@@ -780,13 +780,23 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         return self.site_root / f"{url_path}.md"
 
     def _strip_media_prefix(self, url_path: str) -> str:
-        """Helper to strip media prefixes from URL path."""
+        """Helper to strip media prefixes from URL path.
+
+        Handles the configured media prefix (e.g., 'posts/media') from the URL convention
+        to extract the relative path within the media directory.
+        """
         rel_path = url_path
-        media_prefix = self._ctx.site_prefix + "/media" if self._ctx.site_prefix else "media"
-        if rel_path.startswith(media_prefix):
-            rel_path = rel_path[len(media_prefix) :].strip("/")
+
+        # Get the actual media prefix from the URL convention (e.g., 'posts/media')
+        configured_prefix = self._url_convention.routes.media_prefix.strip("/")
+        if rel_path.startswith(configured_prefix + "/"):
+            rel_path = rel_path[len(configured_prefix) + 1:]
+        elif rel_path.startswith(configured_prefix):
+            rel_path = rel_path[len(configured_prefix):].lstrip("/")
+        # Legacy fallback: handle plain 'media/' prefix
         elif rel_path.startswith("media/"):
             rel_path = rel_path[6:]
+
         return rel_path
 
     def _parse_frontmatter(self, path: Path) -> dict:
