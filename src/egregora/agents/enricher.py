@@ -1501,7 +1501,7 @@ class EnrichmentWorker(BaseWorker):
             )
             response_text = response.text if response.text else ""
 
-        logger.debug("[MediaEnricher] Single-call response: %s", response_text[:500])
+        logger.debug("[MediaEnricher] Single-call response received. Length: %d characters.", len(response_text))
 
         try:
             results_dict = json.loads(response_text)
