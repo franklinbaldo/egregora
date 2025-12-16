@@ -1386,8 +1386,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             for author in authors:
                 if isinstance(author, dict):
                     author_uuid_in_post = author.get("uuid", "")
-                    # Support both full UUID match and prefix match for flexibility
-                    if author_uuid_in_post.startswith(author_uuid):
+                    # Use exact match now that we use full UUIDs everywhere.
+                    # Legacy deployments with truncated UUIDs in frontmatter will need
+                    # to update their markdown files during migration.
+                    if author_uuid_in_post == author_uuid:
                         # Sequential merge: later values win
                         if "name" in author:
                             profile["name"] = author["name"]
