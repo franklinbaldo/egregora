@@ -223,7 +223,7 @@ class LanceDBRAGBackend(VectorStore):
 
         # Embed query with RETRIEVAL_QUERY task type
         try:
-            query_emb = self._embed_fn([request.text], "RETRIEVAL_QUERY")[0]
+            query_emb = self._embed_fn((request.text,), "RETRIEVAL_QUERY")[0]
         except Exception as e:
             msg = f"Failed to embed query: {e}"
             raise RuntimeError(msg) from e
