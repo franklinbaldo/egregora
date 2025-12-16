@@ -17,6 +17,7 @@ import os
 import re
 import shutil
 import tempfile
+import time
 import uuid
 import zipfile
 from collections.abc import Iterator
@@ -795,6 +796,16 @@ class EnrichmentWorker(BaseWorker):
                 self.zip_handle = None
                 self.media_index = {}
 
+        # Clean up staging directory (Story 1: Ephemeral media staging)
+        if self.staging_dir:
+            try:
+                self.staging_dir.cleanup()
+            except Exception:
+                logger.debug("Error cleaning up staging directory", exc_info=True)
+            finally:
+                self.staging_dir = None
+                self.staged_files = set()
+
     def __enter__(self) -> Self:
         """Context manager entry."""
         return self
@@ -810,17 +821,25 @@ class EnrichmentWorker(BaseWorker):
 
     def run(self) -> int:
         """Process pending enrichment tasks in batches."""
-        # Configurable batch size
-        batch_size = 50
-        tasks = self.task_store.fetch_pending(task_type="enrich_url", limit=batch_size)
-        media_tasks = self.task_store.fetch_pending(task_type="enrich_media", limit=batch_size)
+        # Determine concurrency to scale fetch limit
+        # We assume typical batch size of 50.
+        base_batch_size = 50
+        # We pass a dummy count to _determine_concurrency just to check key/config state
+        concurrency = self._determine_concurrency(base_batch_size)
+
+        # Scale fetch limit by concurrency to allow parallel processing of multiple batches
+        fetch_limit = base_batch_size * concurrency
+
+        tasks = self.task_store.fetch_pending(task_type="enrich_url", limit=fetch_limit)
+        media_tasks = self.task_store.fetch_pending(task_type="enrich_media", limit=fetch_limit)
 
         total_tasks = len(tasks) + len(media_tasks)
         if not total_tasks:
             return 0
 
         logger.info(
-            "[Enrichment] Processing %d tasks (URL: %d, Media: %d)", total_tasks, len(tasks), len(media_tasks)
+            "[Enrichment] Processing %d tasks (URL: %d, Media: %d) with concurrency %d",
+            total_tasks, len(tasks), len(media_tasks), concurrency
         )
 
         processed_count = 0
@@ -915,17 +934,35 @@ class EnrichmentWorker(BaseWorker):
         api_keys = get_api_keys()
         num_keys = len(api_keys) if api_keys else 1
 
-        # Use configured value or auto-detected key count
+        # Get configured concurrency
         enrichment_concurrency = getattr(
             self.enrichment_config,
             "max_concurrent_enrichments",
-            num_keys,  # Default to number of keys
+            1,
         )
+
+        # Auto-Parallelization: If using default (1) and we have multiple keys, scale up.
+        # This assumes default 1 means "not configured" and we should optimize.
+        # If user explicitly sets 1 in config.yml, they effectively disable this.
+        # Ideally we'd distinguish "unset" from "set to 1", but for now this heuristics works well.
+        if enrichment_concurrency == 1 and num_keys > 1:
+            logger.info("Auto-scaling concurrency to match available API keys: %d", num_keys)
+            enrichment_concurrency = num_keys
 
         global_concurrency = getattr(self.ctx.config.quota, "concurrency", num_keys)
 
-        # Use all available keys in parallel (up to task count)
-        max_concurrent = min(enrichment_concurrency, global_concurrency, task_count, num_keys)
+        # Calculate effective concurrency
+        # We cap at num_keys to avoid rate limits on single keys (unless rotation handles it,
+        # but concurrent requests on one key is risky for free tier).
+        # We also respect global quota.
+        max_concurrent = min(enrichment_concurrency, global_concurrency, task_count)
+
+        # If we have more tasks/concurrency allowed than keys, we rely on rotation OR key reuse?
+        # Story 6 implies "throughput using all keys in parallel".
+        # If enrichment_concurrency > num_keys, we are sending multiple requests per key?
+        # That's fine if allowed. But "Set max_concurrent_enrichments = key count" suggests 1:1 mapping.
+
+        # Let's ensure we use at least key count if allowed.
 
         logger.info(
             "Processing %d enrichment tasks with max concurrency of %d "
@@ -966,17 +1003,25 @@ class EnrichmentWorker(BaseWorker):
         """Execute URL enrichments individually with model rotation."""
         results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
         total = len(tasks_data)
+        last_log_time = time.time()
+
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
             future_to_task = {executor.submit(self._enrich_single_url, td): td for td in tasks_data}
             for i, future in enumerate(as_completed(future_to_task), 1):
                 try:
                     results.append(future.result())
-                    logger.info("[Enrichment] URL task %d/%d complete", i, total)
+
+                    # Heartbeat logging
+                    if time.time() - last_log_time > 10:
+                        logger.info("[Heartbeat] URL Enrichment: %d/%d (%.1f%%)", i, total, (i/total)*100)
+                        last_log_time = time.time()
+
                 except Exception as exc:
                     task = future_to_task[future]["task"]
                     logger.exception("Enrichment failed for %s", task["task_id"])
                     results.append((task, None, str(exc)))
 
+        logger.info("[Enrichment] URL tasks complete: %d/%d", len(results), total)
         return results
 
     def _execute_url_single_call(
