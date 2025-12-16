@@ -271,6 +271,12 @@ jobs:
       - name: Build Documentation
         run: uv run mkdocs build
 
+      - name: Generate Demo Site (offline)
+        run: uv run python scripts/generate_demo_site.py --output-dir .demo-site
+
+      - name: Build Demo Site
+        run: uv run mkdocs build -f .demo-site/.egregora/mkdocs.yml -d "$(pwd)/site/demo"
+
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
