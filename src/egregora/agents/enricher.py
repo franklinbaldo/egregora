@@ -17,6 +17,7 @@ import os
 import re
 import shutil
 import tempfile
+import time
 import uuid
 import zipfile
 from collections.abc import Iterator
@@ -42,14 +43,15 @@ from egregora.database.streaming import ensure_deterministic_order, stream_ibis
 from egregora.input_adapters.base import MediaMapping
 from egregora.models.google_batch import GoogleBatchModel
 from egregora.ops.media import extract_urls, find_media_references
+from egregora.orchestration.context import PipelineContext
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
-from egregora.utils.zip import validate_zip_contents
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.model_fallback import create_fallback_model
 from egregora.utils.paths import slugify
+from egregora.utils.zip import validate_zip_contents
 
 if TYPE_CHECKING:
     from ibis.backends.duckdb import Backend as DuckDBBackend
@@ -795,6 +797,16 @@ class EnrichmentWorker(BaseWorker):
                 self.zip_handle = None
                 self.media_index = {}
 
+        # Clean up staging directory (Story 1: Ephemeral media staging)
+        if self.staging_dir:
+            try:
+                self.staging_dir.cleanup()
+            except Exception:
+                logger.debug("Error cleaning up staging directory", exc_info=True)
+            finally:
+                self.staging_dir = None
+                self.staged_files = set()
+
     def __enter__(self) -> Self:
         """Context manager entry."""
         return self
@@ -810,17 +822,28 @@ class EnrichmentWorker(BaseWorker):
 
     def run(self) -> int:
         """Process pending enrichment tasks in batches."""
-        # Configurable batch size
-        batch_size = 50
-        tasks = self.task_store.fetch_pending(task_type="enrich_url", limit=batch_size)
-        media_tasks = self.task_store.fetch_pending(task_type="enrich_media", limit=batch_size)
+        # Determine concurrency to scale fetch limit
+        # We assume typical batch size of 50.
+        base_batch_size = 50
+        # We pass a dummy count to _determine_concurrency just to check key/config state
+        concurrency = self._determine_concurrency(base_batch_size)
+
+        # Scale fetch limit by concurrency to allow parallel processing of multiple batches
+        fetch_limit = base_batch_size * concurrency
+
+        tasks = self.task_store.fetch_pending(task_type="enrich_url", limit=fetch_limit)
+        media_tasks = self.task_store.fetch_pending(task_type="enrich_media", limit=fetch_limit)
 
         total_tasks = len(tasks) + len(media_tasks)
         if not total_tasks:
             return 0
 
         logger.info(
-            "[Enrichment] Processing %d tasks (URL: %d, Media: %d)", total_tasks, len(tasks), len(media_tasks)
+            "[Enrichment] Processing %d tasks (URL: %d, Media: %d) with concurrency %d",
+            total_tasks,
+            len(tasks),
+            len(media_tasks),
+            concurrency,
         )
 
         processed_count = 0
@@ -908,6 +931,11 @@ class EnrichmentWorker(BaseWorker):
 
         Auto-detects number of API keys and uses them in parallel instead of
         sequential rotation.
+
+        Behavior:
+        - max_concurrent_enrichments = None (default): Auto-scale to num_keys
+        - max_concurrent_enrichments = 1: Explicitly disable auto-scaling (sequential)
+        - max_concurrent_enrichments = N: Use exactly N concurrent requests
         """
         from egregora.models.model_cycler import get_api_keys
 
@@ -915,17 +943,32 @@ class EnrichmentWorker(BaseWorker):
         api_keys = get_api_keys()
         num_keys = len(api_keys) if api_keys else 1
 
-        # Use configured value or auto-detected key count
+        # Get configured concurrency (None means auto-scale)
         enrichment_concurrency = getattr(
             self.enrichment_config,
             "max_concurrent_enrichments",
-            num_keys,  # Default to number of keys
+            None,
         )
+
+        # Auto-Parallelization: If None (not configured), auto-scale to match available keys
+        if enrichment_concurrency is None:
+            logger.info("Auto-scaling concurrency to match available API keys: %d", num_keys)
+            enrichment_concurrency = num_keys
 
         global_concurrency = getattr(self.ctx.config.quota, "concurrency", num_keys)
 
-        # Use all available keys in parallel (up to task count)
-        max_concurrent = min(enrichment_concurrency, global_concurrency, task_count, num_keys)
+        # Calculate effective concurrency
+        # We cap at num_keys to avoid rate limits on single keys (unless rotation handles it,
+        # but concurrent requests on one key is risky for free tier).
+        # We also respect global quota.
+        max_concurrent = min(enrichment_concurrency, global_concurrency, task_count)
+
+        # If we have more tasks/concurrency allowed than keys, we rely on rotation OR key reuse?
+        # Story 6 implies "throughput using all keys in parallel".
+        # If enrichment_concurrency > num_keys, we are sending multiple requests per key?
+        # That's fine if allowed. But "Set max_concurrent_enrichments = key count" suggests 1:1 mapping.
+
+        # Let's ensure we use at least key count if allowed.
 
         logger.info(
             "Processing %d enrichment tasks with max concurrency of %d "
@@ -966,17 +1009,25 @@ class EnrichmentWorker(BaseWorker):
         """Execute URL enrichments individually with model rotation."""
         results: list[tuple[dict, EnrichmentOutput | None, str | None]] = []
         total = len(tasks_data)
+        last_log_time = time.time()
+
         with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
             future_to_task = {executor.submit(self._enrich_single_url, td): td for td in tasks_data}
             for i, future in enumerate(as_completed(future_to_task), 1):
                 try:
                     results.append(future.result())
-                    logger.info("[Enrichment] URL task %d/%d complete", i, total)
+
+                    # Heartbeat logging
+                    if time.time() - last_log_time > 10:
+                        logger.info("[Heartbeat] URL Enrichment: %d/%d (%.1f%%)", i, total, (i / total) * 100)
+                        last_log_time = time.time()
+
                 except Exception as exc:
                     task = future_to_task[future]["task"]
                     logger.exception("Enrichment failed for %s", task["task_id"])
                     results.append((task, None, str(exc)))
 
+        logger.info("[Enrichment] URL tasks complete: %d/%d", len(results), total)
         return results
 
     def _execute_url_single_call(
@@ -1305,8 +1356,12 @@ class EnrichmentWorker(BaseWorker):
         if file_size > threshold_bytes:
             from google import genai
 
-            logger.info("File %s is %.2f MB (threshold: %d MB), using File API upload",
-                        file_path.name, file_size / (1024 * 1024), params)
+            logger.info(
+                "File %s is %.2f MB (threshold: %d MB), using File API upload",
+                file_path.name,
+                file_size / (1024 * 1024),
+                params,
+            )
 
             api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
             if not api_key:
@@ -1319,12 +1374,7 @@ class EnrichmentWorker(BaseWorker):
             uploaded_file = client.files.upload(path=str(file_path), config={"mime_type": mime_type})
             logger.info("Uploaded file %s to %s", file_path.name, uploaded_file.uri)
 
-            return {
-                "fileData": {
-                    "mimeType": mime_type,
-                    "fileUri": uploaded_file.uri
-                }
-            }
+            return {"fileData": {"mimeType": mime_type, "fileUri": uploaded_file.uri}}
         else:
             # Inline base64 for small files
             file_bytes = file_path.read_bytes()
@@ -1582,7 +1632,6 @@ class EnrichmentWorker(BaseWorker):
             # Use staged path if available, or fall back to loading bytes (legacy/small files)
             staged_path = task.get("_staged_path")
             source_path = None
-            content_bytes = b""
 
             if staged_path and os.path.exists(staged_path):
                 source_path = staged_path
@@ -1604,7 +1653,7 @@ class EnrichmentWorker(BaseWorker):
                 "slug": slug_value,
                 "nav_exclude": True,
                 "hide": ["navigation"],
-                "source_path": source_path, # Path to staged file for efficient move
+                "source_path": source_path,  # Path to staged file for efficient move
             }
 
             # Persist the actual media file

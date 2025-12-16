@@ -384,7 +384,7 @@ class PathsSettings(BaseModel):
     )
 
     # V3 compatibility additions
-    site_root: Path | None = Field(default=None, exclude=True) # Runtime only
+    site_root: Path = Field(default_factory=Path.cwd, exclude=True)  # Runtime only, defaults to CWD
 
     @property
     def abs_posts_dir(self) -> Path:
@@ -406,8 +406,7 @@ class PathsSettings(BaseModel):
         path = Path(path_str)
         if path.is_absolute():
             return path
-        root = self.site_root or Path.cwd()
-        return root / path
+        return self.site_root / path
 
     @field_validator(
         "egregora_dir", "rag_dir", "lancedb_dir", "cache_dir", "prompts_dir",
@@ -802,3 +801,36 @@ class PipelineEnrichmentConfig:
 
 # Model type literal
 ModelType = Literal["writer", "enricher", "enricher_vision", "ranking", "editor", "banner", "embedding"]
+
+
+__all__ = [
+    "DEFAULT_BANNER_MODEL",
+    "DEFAULT_EMBEDDING_MODEL",
+    "DEFAULT_MODEL",
+    "DEFAULT_PIPELINE_DB",
+    "DEFAULT_RUNS_DB",
+    "EMBEDDING_DIM",
+    "EgregoraConfig",
+    "EnrichmentRuntimeConfig",
+    "EnrichmentSettings",
+    "FeaturesSettings",
+    "MediaEnrichmentContext",
+    "ModelSettings",
+    "ModelType",
+    "OutputSettings",
+    "PathsSettings",
+    "PipelineEnrichmentConfig",
+    "PipelineSettings",
+    "PrivacySettings",
+    "RAGSettings",
+    "ReaderSettings",
+    "RuntimeContext",
+    "WriterAgentSettings",
+    "WriterRuntimeConfig",
+    "create_default_config",
+    "find_egregora_config",
+    "load_egregora_config",
+    "save_egregora_config",
+    "get_openrouter_api_key",
+    "openrouter_api_key_status",
+]

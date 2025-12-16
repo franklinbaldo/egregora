@@ -21,4 +21,3 @@ class UsageTracker:
         max_history = 50
         if len(self.history) > max_history:
             self.history.popleft()
-

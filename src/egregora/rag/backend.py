@@ -67,5 +67,4 @@ class VectorStore(Protocol):
         ...
 
 
-
 __all__ = ["VectorStore"]

@@ -575,8 +575,12 @@ def _process_single_window(
             # However, `schedule_enrichment` takes `ctx.config.enrichment` as an argument.
             # So we can just pass the modified config object there.
 
-            logger.info("%s✨ [cyan]Scheduling enrichment (Economic Batch)[/] for window %s", indent, window_label)
-            enriched_table = _perform_enrichment(window_table_processed, media_mapping, ctx, override_config=enrichment_config)
+            logger.info(
+                "%s✨ [cyan]Scheduling enrichment (Economic Batch)[/] for window %s", indent, window_label
+            )
+            enriched_table = _perform_enrichment(
+                window_table_processed, media_mapping, ctx, override_config=enrichment_config
+            )
         else:
             logger.info("%s✨ [cyan]Scheduling enrichment[/] for window %s", indent, window_label)
             enriched_table = _perform_enrichment(window_table_processed, media_mapping, ctx)
@@ -1142,14 +1146,18 @@ def _create_gemini_client() -> genai.Client:
     """Create a Gemini client with retry configuration.
 
     The client reads the API key from GOOGLE_API_KEY environment variable automatically.
+
+    We disable retries for 429 (Resource Exhausted) to allow our application-level
+    Model/Key rotator to handle it immediately (Story 8).
+    We still retry 503 (Service Unavailable).
     """
     http_options = genai.types.HttpOptions(
         retryOptions=genai.types.HttpRetryOptions(
-            attempts=15,
-            initialDelay=2.0,
-            maxDelay=60.0,
+            attempts=3,  # Reduced from 15
+            initialDelay=1.0,
+            maxDelay=10.0,
             expBase=2.0,
-            httpStatusCodes=[429, 503],
+            httpStatusCodes=[503],  # Only retry 503 at client level. 429 handled by app.
         )
     )
     return genai.Client(http_options=http_options)

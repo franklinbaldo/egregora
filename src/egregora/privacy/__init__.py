@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import uuid
-import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -13,8 +13,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Basic PII patterns
-EMAIL_PATTERN = re.compile(r'[\w\.-]+@[\w\.-]+\.\w+')
-PHONE_PATTERN = re.compile(r'(\+\d{1,2}\s?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}')
+EMAIL_PATTERN = re.compile(r"[\w\.-]+@[\w\.-]+\.\w+")
+PHONE_PATTERN = re.compile(r"(\+\d{1,2}\s?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}")
+
 
 def scrub_pii(text: str, config: EgregoraConfig | None = None) -> str:
     """Scrub PII from text."""
@@ -27,10 +28,11 @@ def scrub_pii(text: str, config: EgregoraConfig | None = None) -> str:
     do_phone = config.privacy.scrub_phones if config else True
 
     if do_email:
-        text = EMAIL_PATTERN.sub('<EMAIL_REDACTED>', text)
+        text = EMAIL_PATTERN.sub("<EMAIL_REDACTED>", text)
     if do_phone:
-        text = PHONE_PATTERN.sub('<PHONE_REDACTED>', text)
+        text = PHONE_PATTERN.sub("<PHONE_REDACTED>", text)
     return text
+
 
 def anonymize_author(author_key: str, namespace: uuid.UUID) -> str:
     """Generate a consistent UUID for an author name/key."""
