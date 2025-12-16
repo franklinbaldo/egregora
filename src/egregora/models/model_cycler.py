@@ -10,6 +10,8 @@ import os
 from collections.abc import Callable
 from typing import Any
 
+from egregora.utils.rate_limit import get_rate_limiter
+
 logger = logging.getLogger(__name__)
 
 
@@ -147,6 +149,10 @@ class GeminiKeyRotator:
                 if is_rate_limit_error(exc):
                     masked = api_key[:8] + "..." + api_key[-4:]
                     logger.warning("[KeyRotator] Rate limit on key %s: %s", masked, str(exc)[:100])
+
+                    # Refund token for immediate retry
+                    get_rate_limiter().refund()
+
                     next_key = self.next_key()
                     if next_key is None:
                         logger.exception("[KeyRotator] All API keys rate-limited")
@@ -256,6 +262,10 @@ class GeminiModelCycler:
 
                 if is_rate_limit_error(exc):
                     logger.warning("[ModelCycler] Rate limit on %s: %s", model, str(exc)[:100])
+
+                    # Refund token for immediate retry
+                    get_rate_limiter().refund()
+
                     next_model = self.next_model()
                     if next_model is None:
                         logger.exception("[ModelCycler] All models rate-limited")
