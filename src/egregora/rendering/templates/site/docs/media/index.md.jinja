@@ -14,6 +14,13 @@ description: Shared content with AI enrichment
 
 Click on any item to view details or visit the link.
 
+<!--
+GLightbox Integration Note:
+The mkdocs-glightbox plugin automatically enhances links to image and video files.
+- If an item below is an image/video (e.g. ends in .jpg, .mp4), GLightbox will open it in a lightbox.
+- If an item is a standard web page (Enrichment URL), it will open as a normal link.
+-->
+
 | Title | Summary |
 |-------|---------|
 {% for item in recent_media %}
