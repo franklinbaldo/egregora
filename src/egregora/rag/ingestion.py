@@ -7,11 +7,13 @@ Uses simple whitespace-based chunking for reliability and simplicity.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from egregora.data_primitives.document import Document, DocumentType
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 logger = logging.getLogger(__name__)
 

@@ -17,17 +17,19 @@ import logging
 import queue
 import threading
 import time
-from collections.abc import Sequence
 from concurrent.futures import Future
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import httpx
 
 from egregora.config import EMBEDDING_DIM
 from egregora.models.model_cycler import get_api_keys
 from egregora.utils.env import get_google_api_key
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -316,7 +318,7 @@ class EndpointQueue:
                     req.future.set_result(embeddings[offset : offset + count])
                     offset += count
 
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 # Propagate error to all waiting futures
                 for req in group_requests:
                     if not req.future.done():
@@ -560,7 +562,7 @@ def get_router(
     Prefer :func:`create_embedding_router` when the caller owns lifecycle
     management. This helper is kept for backwards compatibility.
     """
-    global _router  # noqa: PLW0603
+    global _router
     with _router_lock:
         if _router is None:
             _router = create_embedding_router(
@@ -578,7 +580,7 @@ get_embedding_router = get_router
 
 def shutdown_router() -> None:
     """Shutdown global router (for cleanup)."""
-    global _router  # noqa: PLW0603
+    global _router
     with _router_lock:
         if _router is not None:
             _router.stop()

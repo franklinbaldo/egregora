@@ -312,17 +312,16 @@ jobs:
             const minorMatch = review.match(/\*\*Recommendation:\*\*\s*MERGE WITH MINOR FIXES\s*⚠️/i);
             const needsMatch = review.match(/\*\*Recommendation:\*\*\s*NEEDS CHANGES\s*❌/i);
 
+            let recommendation = 'UNKNOWN';
             if (lgtmMatch) {
-              core.setOutput('recommendation', 'LGTM');
+              recommendation = 'LGTM';
             } else if (minorMatch) {
-              core.setOutput('recommendation', 'MINOR_FIXES');
+              recommendation = 'MINOR_FIXES';
             } else if (needsMatch) {
-              core.setOutput('recommendation', 'NEEDS_CHANGES');
-            } else {
-              core.setOutput('recommendation', 'UNKNOWN');
+              recommendation = 'NEEDS_CHANGES';
             }
-
-            console.log(`Parsed recommendation: ${core.getOutput('recommendation')}`);
+            core.setOutput('recommendation', recommendation);
+            console.log(`Parsed recommendation: ${recommendation}`);
 
       - name: Post review as PR comment
         if: always()
@@ -425,7 +424,7 @@ jobs:
             echo "❌ PR needs changes before merge"
             exit 1
           fi
-          
+
           echo "✅ Review gate passed ($RECOMMENDATION)"
           exit 0
         env:

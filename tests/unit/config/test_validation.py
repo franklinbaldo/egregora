@@ -16,22 +16,19 @@ from egregora.config.settings import (
 
 def test_config_validate_with_valid_config(tmp_path: Path):
     """Test config validation with a valid configuration."""
-    # Create config directory
-    config_dir = tmp_path / ".egregora"
-    config_dir.mkdir()
-    config_file = config_dir / "config.yml"
+    config_file = tmp_path / ".egregora.toml"
 
     # Write valid config using defaults
     config_file.write_text(
         f"""
-models:
-  writer: {DEFAULT_MODEL}
-  embedding: {DEFAULT_EMBEDDING_MODEL}
+[models]
+writer = "{DEFAULT_MODEL}"
+embedding = "{DEFAULT_EMBEDDING_MODEL}"
 
-rag:
-  enabled: true
-  top_k: 5
-"""
+[rag]
+enabled = true
+top_k = 5
+""".lstrip()
     )
 
     # Load and validate
@@ -42,16 +39,14 @@ rag:
 
 def test_config_validate_with_invalid_model_format(tmp_path: Path):
     """Test config validation catches invalid model format."""
-    config_dir = tmp_path / ".egregora"
-    config_dir.mkdir()
-    config_file = config_dir / "config.yml"
+    config_file = tmp_path / ".egregora.toml"
 
     # Write invalid config (missing google-gla: prefix)
     config_file.write_text(
         """
-models:
-  writer: gemini-flash-latest
-"""
+[models]
+writer = "gemini-flash-latest"
+""".lstrip()
     )
 
     # Should create default config on validation error
@@ -107,7 +102,7 @@ def test_config_rag_top_k_bounds():
 
 def test_config_creates_default_if_missing(tmp_path: Path):
     """Test config loader creates default if file missing."""
-    # No .egregora directory
+    # No config file present
     config = load_egregora_config(tmp_path)
 
     # Should return default config
@@ -116,11 +111,11 @@ def test_config_creates_default_if_missing(tmp_path: Path):
     assert config.rag.enabled is True
 
     # Should have created the file
-    config_file = tmp_path / ".egregora" / "config.yml"
+    config_file = tmp_path / ".egregora.toml"
     assert config_file.exists()
 
 
-def test_config_yaml_roundtrip(tmp_path: Path):
+def test_config_toml_roundtrip(tmp_path: Path):
     """Test config can be saved and loaded."""
     # Create config with non-default values
     custom_model = "google-gla:gemini-pro-latest"
@@ -143,16 +138,15 @@ def test_config_yaml_roundtrip(tmp_path: Path):
 def test_config_load_from_cwd(tmp_path: Path, monkeypatch):
     """Test loading config from current working directory."""
     # Create config in tmp_path
-    config_dir = tmp_path / ".egregora"
-    config_dir.mkdir()
-    config_file = config_dir / "config.yml"
+    config_file = tmp_path / ".egregora.toml"
     config_file.write_text(
         """
-models:
-  writer: google-gla:gemini-pro-latest
-rag:
-  enabled: false
-"""
+[models]
+writer = "google-gla:gemini-pro-latest"
+
+[rag]
+enabled = false
+""".lstrip()
     )
 
     # Change to tmp_path directory
@@ -170,10 +164,8 @@ def test_config_env_var_override_string(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("EGREGORA_MODELS__WRITER", "google-gla:gemini-experimental")
 
     # Create minimal config file
-    config_dir = tmp_path / ".egregora"
-    config_dir.mkdir()
-    config_file = config_dir / "config.yml"
-    config_file.write_text("models:\n  writer: google-gla:gemini-flash-latest\n")
+    config_file = tmp_path / ".egregora.toml"
+    config_file.write_text('[models]\nwriter = "google-gla:gemini-flash-latest"\n')
 
     config = load_egregora_config(tmp_path)
 
@@ -185,10 +177,8 @@ def test_config_env_var_override_boolean(tmp_path: Path, monkeypatch):
     """Test environment variable override for boolean values."""
     monkeypatch.setenv("EGREGORA_RAG__ENABLED", "false")
 
-    config_dir = tmp_path / ".egregora"
-    config_dir.mkdir()
-    config_file = config_dir / "config.yml"
-    config_file.write_text("rag:\n  enabled: true\n")
+    config_file = tmp_path / ".egregora.toml"
+    config_file.write_text("[rag]\nenabled = true\n")
 
     config = load_egregora_config(tmp_path)
 
@@ -200,10 +190,8 @@ def test_config_env_var_override_integer(tmp_path: Path, monkeypatch):
     """Test environment variable override for integer values."""
     monkeypatch.setenv("EGREGORA_RAG__TOP_K", "15")
 
-    config_dir = tmp_path / ".egregora"
-    config_dir.mkdir()
-    config_file = config_dir / "config.yml"
-    config_file.write_text("rag:\n  top_k: 5\n")
+    config_file = tmp_path / ".egregora.toml"
+    config_file.write_text("[rag]\ntop_k = 5\n")
 
     config = load_egregora_config(tmp_path)
 

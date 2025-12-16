@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from egregora.utils.rate_limit import get_rate_limiter
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +135,7 @@ class GeminiKeyRotator:
 
         """
         if is_rate_limit_error is None:
-            is_rate_limit_error = _default_rate_limit_check
+            is_rate_limit_error = default_rate_limit_check
 
         self.reset()
 
@@ -245,7 +247,7 @@ class GeminiModelCycler:
 
         """
         if is_rate_limit_error is None:
-            is_rate_limit_error = _default_rate_limit_check
+            is_rate_limit_error = default_rate_limit_check
 
         self.reset()
 
@@ -275,7 +277,7 @@ class GeminiModelCycler:
         return None  # Unreachable, but satisfies type checker
 
 
-def _default_rate_limit_check(exc: Exception) -> bool:
+def default_rate_limit_check(exc: Exception) -> bool:
     """Default check for rate limit errors."""
     msg = str(exc).lower()
     return "429" in msg or "too many requests" in msg or "rate limit" in msg

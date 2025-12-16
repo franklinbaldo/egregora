@@ -24,14 +24,15 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import date
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
 from uuid import UUID
 
 from egregora.data_primitives.document import Document
 
 if TYPE_CHECKING:
+    from datetime import date
+    from pathlib import Path
+
     from ibis.expr.types import Table
 
 

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tests.e2e.test_config import DateConfig, TimezoneConfig, TimeoutConfig, WindowConfig
+from tests.e2e.test_config import DateConfig, TimeoutConfig, TimezoneConfig, WindowConfig
 
 # Suppress Pydantic V2 warnings about fields not being initialized
 # (Common in tests when using mocks or partial models)

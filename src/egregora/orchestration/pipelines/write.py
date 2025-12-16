@@ -16,7 +16,6 @@ import json
 import logging
 import math
 import os
-import uuid
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -50,7 +49,6 @@ from egregora.database.run_store import RunStore
 from egregora.database.task_store import TaskStore
 from egregora.init import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
-from egregora.input_adapters.base import MediaMapping
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.media import process_media_for_window
@@ -79,7 +77,11 @@ except ImportError:
     dotenv = None
 
 if TYPE_CHECKING:
+    import uuid
+
     import ibis.expr.types as ir
+
+    from egregora.input_adapters.base import MediaMapping
 
 
 logger = logging.getLogger(__name__)
@@ -1682,7 +1684,7 @@ def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
             tagged_count = generate_semantic_taxonomy(dataset.context.output_format, dataset.context.config)
             if tagged_count > 0:
                 logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # Non-critical failure
             logger.warning("Auto-taxonomy failed: %s", e)
 

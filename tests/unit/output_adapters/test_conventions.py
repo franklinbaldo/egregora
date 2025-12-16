@@ -101,10 +101,10 @@ class TestStandardUrlConventionPurity:
         doc = Document(
             type=DocumentType.PROFILE,
             content="Profile content",
-            metadata={"uuid": "abc123"},
+            metadata={"uuid": "abc123", "subject": "abc123", "slug": "bio"},
         )
         url = convention.canonical_url(doc, ctx)
-        assert url == "https://example.com/blog/profiles/abc123/"
+        assert url == "https://example.com/blog/profiles/abc123/bio/"
         assert isinstance(url, str)
 
     def test_journal_url_generation(self, convention, ctx):

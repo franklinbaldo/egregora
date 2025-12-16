@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from datetime import UTC, date, datetime, tzinfo
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from dateutil import parser as dateutil_parser
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 
 def parse_datetime_flexible(

@@ -13,10 +13,12 @@ import logging
 from dataclasses import dataclass
 from enum import Enum
 from hashlib import sha256
-from pathlib import Path
-from typing import Annotated, Any, Protocol
+from typing import TYPE_CHECKING, Annotated, Any, Protocol
 
 import diskcache
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

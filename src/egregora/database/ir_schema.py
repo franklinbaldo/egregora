@@ -643,30 +643,23 @@ def ensure_lineage_table_exists(conn: Any) -> None:
 # ============================================================================
 
 __all__ = [
-    # Annotations schema
     "ANNOTATIONS_SCHEMA",
-    # Elo schemas
     "ELO_HISTORY_SCHEMA",
     "ELO_RATINGS_SCHEMA",
     "IR_MESSAGE_SCHEMA",
-    "UNIFIED_SCHEMA",
-    # RAG schemas
     "RAG_CHUNKS_METADATA_SCHEMA",
     "RAG_CHUNKS_SCHEMA",
     "RAG_INDEX_META_SCHEMA",
     "RAG_SEARCH_RESULT_SCHEMA",
-    # Runs schema
     "RUNS_TABLE_SCHEMA",
     "TASKS_SCHEMA",
-    # General utilities
+    "UNIFIED_SCHEMA",
     "add_primary_key",
     "create_index",
-    # Runs utilities
     "create_runs_table",
     "create_table_if_not_exists",
     "drop_runs_table",
     "ensure_identity_column",
-    # Message schema utilities
     "ensure_runs_table_exists",
     "quote_identifier",
 ]
