@@ -31,7 +31,7 @@ def test_init_creates_all_template_files(tmp_path: Path):
         "docs/index.md",
         "docs/about.md",
         "docs/profiles/index.md",
-        "docs/posts/media/index.md",
+        "docs/media/index.md",
     ]
 
     for expected_path in expected_files:
@@ -52,11 +52,11 @@ def test_init_directory_structure(tmp_path: Path):
     expected_dirs = [
         "docs/posts",
         "docs/profiles",
-        "docs/posts/media",
-        "docs/posts/media/images",
-        "docs/posts/media/videos",
-        "docs/posts/media/audio",
-        "docs/posts/media/documents",
+        "docs/media",
+        "docs/media/images",
+        "docs/media/videos",
+        "docs/media/audio",
+        "docs/media/documents",
         "docs/journal",
     ]
 
@@ -66,7 +66,7 @@ def test_init_directory_structure(tmp_path: Path):
 
     # Verify .gitkeep files in media subdirectories
     for subdir in ["images", "videos", "audio", "documents"]:
-        gitkeep = tmp_path / "docs" / "posts" / "media" / subdir / ".gitkeep"
+        gitkeep = tmp_path / "docs" / "media" / subdir / ".gitkeep"
         assert gitkeep.exists(), f".gitkeep missing in media/{subdir}"
 
     journal_gitkeep = tmp_path / "docs" / "journal" / ".gitkeep"

@@ -327,10 +327,9 @@ def run_cli_flow(
     # The original CLI `_ensure_mkdocs_scaffold` handled prompting.
     # Let's import `ensure_mkdocs_project` and do a basic check.
 
-    config_path = output_dir / ".egregora" / "config.yml"
-    config_path_alt = output_dir / ".egregora" / "config.yaml"
+    config_path = output_dir / ".egregora.toml"
 
-    if not (config_path.exists() or config_path_alt.exists()):
+    if not config_path.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Initializing site in %s", output_dir)
         ensure_mkdocs_project(output_dir)

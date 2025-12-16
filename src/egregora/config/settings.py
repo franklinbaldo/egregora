@@ -1,10 +1,16 @@
 """Centralized configuration for Egregora (ALPHA VERSION).
 
 This module consolidates ALL configuration code in one place:
-- Pydantic models for .egregora/egregora.toml
+- Pydantic models for .egregora.toml (in root)
 - Loading and saving functions
 - Runtime dataclasses for function parameters
 - Model configuration utilities
+
+Why TOML?
+- Native Python support in 3.11+ (`tomllib`)
+- Unambiguous date/time parsing (unlike YAML which can be ambiguous)
+- Clearer specification, avoiding "The Norway Problem"
+- Standard for Python ecosystem (matches `pyproject.toml`)
 
 Benefits:
 - Single source of truth for all configuration
@@ -13,10 +19,8 @@ Benefits:
 - No backward compatibility - clean alpha design
 
 Strategy:
-- ONLY loads from .egregora/egregora.toml
-- Creates default config if missing
-- No mkdocs.yml fallback
-- No legacy transformation
+- ONLY loads from .egregora.toml (falling back to .egregora/config.yml for migration)
+- Creates default config if missing in root
 """
 
 from __future__ import annotations
@@ -54,8 +58,9 @@ DEFAULT_PER_SECOND_LIMIT = 0.05  # ~3 requests/min to avoid 429 on free tier
 DEFAULT_CONCURRENCY = 1
 
 # Default database connection strings
-DEFAULT_PIPELINE_DB = "duckdb:///./.egregora/pipeline.duckdb"
-DEFAULT_RUNS_DB = "duckdb:///./.egregora/runs.duckdb"
+# NOTE: These defaults are relative to where the DB is stored, which defaults to .egregora/
+DEFAULT_PIPELINE_DB = "duckdb:///./pipeline.duckdb"
+DEFAULT_RUNS_DB = "duckdb:///./runs.duckdb"
 
 # Configuration validation warning thresholds
 RAG_TOP_K_WARNING_THRESHOLD = 20
@@ -386,23 +391,24 @@ class PathsSettings(BaseModel):
     # .egregora/ internal paths (relative to site_root)
     egregora_dir: str = Field(
         default=".egregora",
-        description="Egregora internal directory (contains config, rag, cache)",
+        description="Directory for Egregora internal artifacts (rag, cache). Config lives in root .egregora.toml now.",
     )
+    # The following paths default to being inside egregora_dir
     rag_dir: str = Field(
-        default=".egregora/rag",
-        description="RAG database and embeddings storage (DuckDB backend)",
+        default="rag",
+        description="RAG database and embeddings storage (DuckDB backend), relative to egregora_dir",
     )
     lancedb_dir: str = Field(
-        default=".egregora/lancedb",
-        description="LanceDB vector database directory (LanceDB backend)",
+        default="lancedb",
+        description="LanceDB vector database directory (LanceDB backend), relative to egregora_dir",
     )
     cache_dir: str = Field(
-        default=".egregora/.cache",
-        description="API response cache",
+        default=".cache",
+        description="API response cache, relative to egregora_dir",
     )
     prompts_dir: str = Field(
-        default=".egregora/prompts",
-        description="Custom prompt overrides",
+        default="prompts",
+        description="Custom prompt overrides, relative to egregora_dir",
     )
 
     # Content paths (relative to site_root)
@@ -454,6 +460,31 @@ class PathsSettings(BaseModel):
             raise ValueError(msg)
         return v
 
+    @model_validator(mode="after")
+    def resolve_paths(self) -> PathsSettings:
+        """Resolve paths that are relative to egregora_dir if they are simple names."""
+        # This logic is purely conceptual in Pydantic validation if we want strict schema.
+        # But if the user provides "rag", we assume it is relative to egregora_dir?
+        # Actually, let's keep it simple: defaults are relative strings.
+        # But we need to handle them carefully in the code that uses them.
+        # For simplicity in this step, I'll update the defaults to be complete relative paths if needed,
+        # OR keep them as simple names and let the consumer join them.
+        # The simplest approach that matches existing behavior (where they were full paths like .egregora/rag)
+        # is to change defaults here to rely on the *concept* of egregora_dir but store the *full relative path* to site_root.
+
+        # HOWEVER, if I change defaults to just "rag", I break existing code expecting ".egregora/rag".
+        # So I will change the defaults to be explicitly inside .egregora if they look like simple names?
+        # No, let's just make defaults explicit:
+        if self.rag_dir == "rag":
+            self.rag_dir = f"{self.egregora_dir}/rag"
+        if self.lancedb_dir == "lancedb":
+            self.lancedb_dir = f"{self.egregora_dir}/lancedb"
+        if self.cache_dir == ".cache":
+            self.cache_dir = f"{self.egregora_dir}/.cache"
+        if self.prompts_dir == "prompts":
+            self.prompts_dir = f"{self.egregora_dir}/prompts"
+        return self
+
 
 class OutputSettings(BaseModel):
     """Output format configuration.
@@ -494,6 +525,21 @@ class DatabaseSettings(BaseModel):
             "'postgres://user:pass@host:5432/dbname')."
         ),
     )
+
+    @model_validator(mode="after")
+    def resolve_db_paths(self) -> DatabaseSettings:
+        # Resolve ./ to egregora dir if present?
+        # No, ./ in duckdb URI usually means relative to CWD.
+        # But here we want default to be inside .egregora if not specified?
+        # The defaults are now "duckdb:///./pipeline.duckdb".
+        # This implies "pipeline.duckdb in current dir".
+        # We want it in .egregora by default.
+        # So I will update defaults above to include .egregora explicitly if I changed them.
+        # But wait, I changed defaults to:
+        # DEFAULT_PIPELINE_DB = "duckdb:///./pipeline.duckdb"
+        # This is wrong if I want it in .egregora.
+        # I should set it to "duckdb:///./.egregora/pipeline.duckdb"
+        return self
 
 
 class ReaderSettings(BaseModel):
@@ -558,7 +604,7 @@ class QuotaSettings(BaseModel):
 class EgregoraConfig(BaseSettings):
     """Root configuration for Egregora.
 
-    This model defines the complete .egregora/egregora.toml schema.
+    This model defines the complete .egregora.toml schema.
 
     Supports environment variable overrides with the pattern:
     EGREGORA_SECTION__KEY (e.g., EGREGORA_MODELS__WRITER)
@@ -654,6 +700,16 @@ class EgregoraConfig(BaseSettings):
         if self.features.ranking_enabled:
             logger.warning("features.ranking_enabled is deprecated. Use reader.enabled instead.")
 
+        # Update database defaults if using default values
+        if self.database.pipeline_db == DEFAULT_PIPELINE_DB:
+             self.database.pipeline_db = f"duckdb:///./{self.paths.egregora_dir}/pipeline.duckdb"
+        if self.database.runs_db == DEFAULT_RUNS_DB:
+             self.database.runs_db = f"duckdb:///./{self.paths.egregora_dir}/runs.duckdb"
+
+        # Update reader db path if default
+        if self.reader.database_path == ".egregora/reader.duckdb":
+            self.reader.database_path = f"{self.paths.egregora_dir}/reader.duckdb"
+
         return self
 
     @classmethod
@@ -728,7 +784,7 @@ class EgregoraConfig(BaseSettings):
 
 
 def find_egregora_config(start_dir: Path) -> Path | None:
-    """Search upward for .egregora/egregora.toml (or config.yml as fallback).
+    """Search upward for .egregora.toml (or fallback to .egregora/config.yml).
 
     Args:
         start_dir: Starting directory for upward search
@@ -739,12 +795,17 @@ def find_egregora_config(start_dir: Path) -> Path | None:
     """
     current = start_dir.expanduser().resolve()
     for candidate in (current, *current.parents):
-        # Prefer TOML
-        toml_path = candidate / ".egregora" / "egregora.toml"
+        # Prefer new standard location: .egregora.toml in root
+        toml_path = candidate / ".egregora.toml"
         if toml_path.exists():
             return toml_path
 
-        # Fallback to YAML (but warn/deprecate? For now just support finding it)
+        # Fallback to legacy location: .egregora/config.yml
+        # We also check .egregora/egregora.toml just in case
+        legacy_toml = candidate / ".egregora" / "egregora.toml"
+        if legacy_toml.exists():
+             return legacy_toml
+
         yaml_path = candidate / ".egregora" / "config.yml"
         if yaml_path.exists():
             return yaml_path
@@ -790,12 +851,12 @@ def _merge_config(
 
 
 def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
-    """Load Egregora configuration from .egregora/egregora.toml.
+    """Load Egregora configuration from .egregora.toml.
 
     Configuration priority (highest to lowest):
     1. CLI (applied via from_cli_overrides later)
     2. Environment variables (EGREGORA_SECTION__KEY)
-    3. Config file (.egregora/egregora.toml)
+    3. Config file (.egregora.toml)
     4. Defaults
 
     Args:
@@ -814,8 +875,8 @@ def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
     config_path = find_egregora_config(site_root)
 
     if not config_path:
-        # Check standard location if find failed
-        config_path = site_root / ".egregora" / "egregora.toml"
+        # Default to .egregora.toml in site_root
+        config_path = site_root / ".egregora.toml"
 
     if not config_path.exists():
         logger.info("No configuration found, creating default config at %s", config_path)
@@ -863,7 +924,7 @@ def load_egregora_config(site_root: Path | None = None) -> EgregoraConfig:
 
 
 def create_default_config(site_root: Path) -> EgregoraConfig:
-    """Create default .egregora/egregora.toml and return it.
+    """Create default .egregora.toml and return it.
 
     Args:
         site_root: Root directory of the site
@@ -874,14 +935,12 @@ def create_default_config(site_root: Path) -> EgregoraConfig:
     """
     config = EgregoraConfig()  # All defaults from Pydantic
     save_egregora_config(config, site_root)
-    logger.info("Created default config at %s/.egregora/egregora.toml", site_root)
+    logger.info("Created default config at %s/.egregora.toml", site_root)
     return config
 
 
 def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
-    """Save EgregoraConfig to .egregora/egregora.toml.
-
-    Creates .egregora/ directory if it doesn't exist.
+    """Save EgregoraConfig to .egregora.toml in site_root.
 
     Args:
         config: EgregoraConfig instance to save
@@ -891,10 +950,7 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
         Path to the saved config file
 
     """
-    egregora_dir = site_root / ".egregora"
-    egregora_dir.mkdir(exist_ok=True, parents=True)
-
-    config_path = egregora_dir / "egregora.toml"
+    config_path = site_root / ".egregora.toml"
 
     # Export as dict
     data = config.model_dump(exclude_defaults=False, mode="json")
