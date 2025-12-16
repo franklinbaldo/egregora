@@ -300,11 +300,15 @@ class EnrichmentSettings(BaseModel):
         le=200,
         description="Maximum number of enrichments per run",
     )
-    max_concurrent_enrichments: int = Field(
-        default=1,
+    max_concurrent_enrichments: int | None = Field(
+        default=None,
         ge=1,
         le=20,
-        description="Maximum concurrent enrichment requests (default 1 to match global rate limit)",
+        description=(
+            "Maximum concurrent enrichment requests. "
+            "None (default) enables auto-scaling based on available API keys. "
+            "Set to 1 to explicitly disable auto-scaling and use sequential processing."
+        ),
     )
 
 

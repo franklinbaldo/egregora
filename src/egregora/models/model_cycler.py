@@ -145,7 +145,6 @@ class GeminiKeyRotator:
                 self.reset()
                 return result
             except Exception as exc:
-
                 if is_rate_limit_error(exc):
                     masked = api_key[:8] + "..." + api_key[-4:]
                     logger.warning("[KeyRotator] Rate limit on key %s: %s", masked, str(exc)[:100])
@@ -259,7 +258,6 @@ class GeminiModelCycler:
                 self.reset()
                 return result
             except Exception as exc:
-
                 if is_rate_limit_error(exc):
                     logger.warning("[ModelCycler] Rate limit on %s: %s", model, str(exc)[:100])
 

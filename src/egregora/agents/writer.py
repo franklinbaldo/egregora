@@ -924,8 +924,8 @@ def _execute_economic_writer(
     # deps.resources.client should be a genai.Client
     client = deps.resources.client
     if not client:
-         # Fallback creation if not in deps
-         client = genai.Client()
+        # Fallback creation if not in deps
+        client = genai.Client()
 
     # We need to render system instructions (including RAG etc)
     # The current prompt variable contains the USER prompt (conversation XML).
@@ -957,7 +957,7 @@ def _execute_economic_writer(
             config=genai.types.GenerateContentConfig(
                 system_instruction=system_instruction,
                 temperature=temperature,
-            )
+            ),
         )
 
         content = response.text or ""
@@ -983,7 +983,7 @@ def _execute_economic_writer(
                 "date": deps.window_start.strftime("%Y-%m-%d"),
                 "title": title,
             },
-            source_window=deps.window_label
+            source_window=deps.window_label,
         )
 
         deps.resources.output.persist(doc)

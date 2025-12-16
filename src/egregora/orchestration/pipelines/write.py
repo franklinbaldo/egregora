@@ -575,8 +575,12 @@ def _process_single_window(
             # However, `schedule_enrichment` takes `ctx.config.enrichment` as an argument.
             # So we can just pass the modified config object there.
 
-            logger.info("%s✨ [cyan]Scheduling enrichment (Economic Batch)[/] for window %s", indent, window_label)
-            enriched_table = _perform_enrichment(window_table_processed, media_mapping, ctx, override_config=enrichment_config)
+            logger.info(
+                "%s✨ [cyan]Scheduling enrichment (Economic Batch)[/] for window %s", indent, window_label
+            )
+            enriched_table = _perform_enrichment(
+                window_table_processed, media_mapping, ctx, override_config=enrichment_config
+            )
         else:
             logger.info("%s✨ [cyan]Scheduling enrichment[/] for window %s", indent, window_label)
             enriched_table = _perform_enrichment(window_table_processed, media_mapping, ctx)
@@ -1149,11 +1153,11 @@ def _create_gemini_client() -> genai.Client:
     """
     http_options = genai.types.HttpOptions(
         retryOptions=genai.types.HttpRetryOptions(
-            attempts=3, # Reduced from 15
+            attempts=3,  # Reduced from 15
             initialDelay=1.0,
             maxDelay=10.0,
             expBase=2.0,
-            httpStatusCodes=[503], # Only retry 503 at client level. 429 handled by app.
+            httpStatusCodes=[503],  # Only retry 503 at client level. 429 handled by app.
         )
     )
     return genai.Client(http_options=http_options)
