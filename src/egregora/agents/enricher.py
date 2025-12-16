@@ -939,10 +939,10 @@ class EnrichmentWorker(BaseWorker):
         - max_concurrent_enrichments = 1: Explicitly disable auto-scaling (sequential)
         - max_concurrent_enrichments = N: Use exactly N concurrent requests
         """
-        from egregora.models.model_cycler import get_api_keys
+        from egregora.utils.env import get_google_api_keys
 
-        # Auto-detect available API keys
-        api_keys = get_api_keys()
+        # Get API keys
+        api_keys = get_google_api_keys()
         num_keys = len(api_keys) if api_keys else 1
 
         # Get configured concurrency (None means auto-scale)

@@ -9,6 +9,7 @@ import logging
 import os
 from typing import TYPE_CHECKING, Any
 
+from egregora.utils.env import get_google_api_keys
 from egregora.utils.rate_limit import get_rate_limiter
 
 if TYPE_CHECKING:
@@ -27,32 +28,7 @@ DEFAULT_GEMINI_MODELS = [
 ]
 
 
-def get_api_keys() -> list[str]:
-    """Load API keys from environment.
 
-    Supports multiple keys via:
-    - GEMINI_API_KEYS (comma-separated)
-    - GEMINI_API_KEY (single key, fallback)
-    - GOOGLE_API_KEY (single key, fallback)
-
-    Returns:
-        List of API keys, or empty list if none found.
-
-    """
-    # Check for comma-separated list first
-    keys_str = os.environ.get("GEMINI_API_KEYS", "")
-    if keys_str:
-        keys = [k.strip() for k in keys_str.split(",") if k.strip()]
-        if keys:
-            logger.debug("[KeyRotator] Loaded %d API keys from GEMINI_API_KEYS", len(keys))
-            return keys
-
-    # Fall back to single key
-    single_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if single_key:
-        return [single_key]
-
-    return []
 
 
 class GeminiKeyRotator:
@@ -72,7 +48,7 @@ class GeminiKeyRotator:
             api_keys: List of API keys. If None, loads from environment.
 
         """
-        self.api_keys = api_keys or get_api_keys()
+        self.api_keys = api_keys or get_google_api_keys()
         if not self.api_keys:
             msg = "No API keys found. Set GEMINI_API_KEYS or GEMINI_API_KEY."
             raise ValueError(msg)

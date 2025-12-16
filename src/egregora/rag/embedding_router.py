@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 import httpx
 
 from egregora.config import EMBEDDING_DIM
-from egregora.models.model_cycler import get_api_keys
+from egregora.utils.env import get_google_api_keys
 from egregora.utils.env import get_google_api_key
 
 if TYPE_CHECKING:
@@ -179,7 +179,7 @@ class EndpointQueue:
 
     def __post_init__(self) -> None:
         """Initialize API keys list for cycling."""
-        self._api_keys = get_api_keys()
+        self._api_keys = get_google_api_keys()
         if not self._api_keys and self.api_key:
             self._api_keys = [self.api_key]
         if self._api_keys:
