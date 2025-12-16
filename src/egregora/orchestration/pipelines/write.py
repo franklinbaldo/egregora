@@ -41,8 +41,7 @@ from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
-from egregora.config.config_validation import parse_date_arg, validate_timezone
-from egregora.config.settings import EgregoraConfig
+from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import SourceType, WindowUnit
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
@@ -328,10 +327,9 @@ def run_cli_flow(
     # The original CLI `_ensure_mkdocs_scaffold` handled prompting.
     # Let's import `ensure_mkdocs_project` and do a basic check.
 
-    config_path = output_dir / ".egregora" / "config.yml"
-    config_path_alt = output_dir / ".egregora" / "config.yaml"
+    config_path = output_dir / ".egregora.toml"
 
-    if not (config_path.exists() or config_path_alt.exists()):
+    if not config_path.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Initializing site in %s", output_dir)
         ensure_mkdocs_project(output_dir)
