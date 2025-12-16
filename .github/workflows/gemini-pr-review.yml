@@ -407,6 +407,13 @@ jobs:
           echo "Review outcome: $OUTCOME"
           echo "Review recommendation: $RECOMMENDATION"
 
+          # Don't hard-block merges if the repo isn't configured with a Gemini API key yet.
+          # (In that case the review job can't possibly succeed.)
+          if [ -z "${GEMINI_API_KEY:-}" ]; then
+            echo "::notice::GEMINI_API_KEY secret is not set; skipping Gemini review gate."
+            exit 0
+          fi
+
           # Hard gate: API failures block the PR
           if [ "$OUTCOME" != "success" ]; then
             echo "::error::Gemini review failed - blocking merge until review succeeds"
@@ -425,3 +432,5 @@ jobs:
             echo "::error::Comment '@gemini' to get a proper review verdict"
             exit 1
           fi
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
