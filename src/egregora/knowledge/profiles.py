@@ -868,7 +868,9 @@ def sync_all_profiles(profiles_dir: Path = Path("output/profiles")) -> int:
             try:
                 metadata = _extract_profile_metadata(profile_path)
                 relative_url = f"posts/profiles/{author_dir.name}/{profile_path.stem}.md"
-                entry = _build_author_entry(profile_path, metadata, author_uuid=author_dir.name, url=relative_url)
+                entry = _build_author_entry(
+                    profile_path, metadata, author_uuid=author_dir.name, url=relative_url
+                )
                 authors[author_dir.name] = entry
                 count += 1
             except (OSError, yaml.YAMLError) as e:

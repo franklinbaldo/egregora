@@ -759,7 +759,7 @@ class EnrichmentWorker(BaseWorker):
         self,
         ctx: PipelineContext | EnrichmentRuntimeContext,
         enrichment_config: EnrichmentSettings | None = None,
-    ):
+    ) -> None:
         super().__init__(ctx)
         self._enrichment_config_override = enrichment_config
         self.zip_handle: zipfile.ZipFile | None = None
@@ -1331,7 +1331,7 @@ class EnrichmentWorker(BaseWorker):
 
             # ZipFile.extract expects a member name, not just path
             # We can use zf.open and shutil.copyfileobj to stream it
-            with zf.open(full_path) as source, open(target_path, "wb") as dest:
+            with zf.open(full_path) as source, target_path.open("wb") as dest:
                 shutil.copyfileobj(source, dest)
 
             self.staged_files.add(str(target_path))
@@ -1375,16 +1375,15 @@ class EnrichmentWorker(BaseWorker):
             logger.info("Uploaded file %s to %s", file_path.name, uploaded_file.uri)
 
             return {"fileData": {"mimeType": mime_type, "fileUri": uploaded_file.uri}}
-        else:
-            # Inline base64 for small files
-            file_bytes = file_path.read_bytes()
-            b64_data = base64.b64encode(file_bytes).decode("utf-8")
-            return {
-                "inlineData": {
-                    "mimeType": mime_type,
-                    "data": b64_data,
-                }
+        # Inline base64 for small files
+        file_bytes = file_path.read_bytes()
+        b64_data = base64.b64encode(file_bytes).decode("utf-8")
+        return {
+            "inlineData": {
+                "mimeType": mime_type,
+                "data": b64_data,
             }
+        }
 
     def _execute_media_batch(
         self, requests: list[dict[str, Any]], task_map: dict[str, dict[str, Any]]
@@ -1501,7 +1500,9 @@ class EnrichmentWorker(BaseWorker):
             )
             response_text = response.text if response.text else ""
 
-        logger.debug("[MediaEnricher] Single-call response received. Length: %d characters.", len(response_text))
+        logger.debug(
+            "[MediaEnricher] Single-call response received. Length: %d characters.", len(response_text)
+        )
 
         try:
             results_dict = json.loads(response_text)
@@ -1633,7 +1634,7 @@ class EnrichmentWorker(BaseWorker):
             staged_path = task.get("_staged_path")
             source_path = None
 
-            if staged_path and os.path.exists(staged_path):
+            if staged_path and Path(staged_path).exists():
                 source_path = staged_path
             else:
                 # Fallback to re-extraction (should be rare if staging works)

@@ -993,7 +993,8 @@ def _execute_economic_writer(
 
     except Exception as e:
         logger.exception("Economic writer failed")
-        raise RuntimeError(f"Economic writer failed: {e}") from e
+        msg = f"Economic writer failed: {e}"
+        raise RuntimeError(msg) from e
 
 
 def load_format_instructions(site_root: Path | None, *, registry: OutputSinkRegistry | None = None) -> str:

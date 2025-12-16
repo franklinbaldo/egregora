@@ -17,6 +17,7 @@ import logging
 import shutil
 from collections import Counter
 from collections.abc import Iterator
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -127,7 +128,7 @@ class MkDocsAdapter(BaseOutputSink):
         author_dir.mkdir(parents=True, exist_ok=True)
         return author_dir
 
-    def persist(self, document: Document) -> None:  # noqa: C901
+    def persist(self, document: Document) -> None:
         doc_id = document.document_id
         url = self._url_convention.canonical_url(document, self._ctx)
         path = self._url_to_path(url, document)
@@ -167,7 +168,7 @@ class MkDocsAdapter(BaseOutputSink):
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
 
-    def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path | None:  # noqa: PLR0911
+    def _resolve_document_path(self, doc_type: DocumentType, identifier: str) -> Path | None:
         """Resolve filesystem path for a document based on its type.
 
         UNIFIED: Posts, profiles, journals, and enrichment URLs all live in posts_dir.
@@ -732,7 +733,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             metadata.setdefault("mtime_ns", 0)
         return Document(content=body.strip(), type=doc_type, metadata=metadata)
 
-    def _url_to_path(self, url: str, document: Document) -> Path:  # noqa: PLR0911
+    def _url_to_path(self, url: str, document: Document) -> Path:
         base = self._ctx.base_url.rstrip("/")
         if url.startswith(base):
             url_path = url[len(base) :]
@@ -989,10 +990,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 except OSError:
                     # Fallback if cross-device or other issue
                     shutil.copy2(src, path)
-                    try:
+                    with suppress(OSError):
                         src.unlink()
-                    except OSError:
-                        pass
                 return
             logger.warning("Source path %s provided but does not exist, falling back to content", source_path)
 
@@ -1448,7 +1447,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             Markdown content for index.md
 
         """
-
         # Generate avatar HTML if available
         avatar_html = ""
         if profile.get("avatar"):
@@ -1481,33 +1479,6 @@ interests: {profile.get("interests", [])}
 
 {", ".join(profile.get("interests", []))}
 """
-
-
-def _sync_author_profiles(self) -> None:
-    """Generate index.md for all authors from derived state."""
-    authors_dir = self.posts_dir / "authors"
-    if not authors_dir.exists():
-        logger.info("No authors directory found, skipping profile sync")
-        return
-
-    authors_synced = 0
-    for author_dir in authors_dir.glob("*/"):
-        uuid = author_dir.name
-        profile = self._build_author_profile(uuid)
-
-        if not profile:
-            logger.warning(f"Skipping author {uuid}: no valid profile data")
-            continue
-
-        # Render and write index.md
-        content = self._render_author_index(profile)
-        index_path = author_dir / "index.md"
-        index_path.write_text(content, encoding="utf-8")
-
-        authors_synced += 1
-        logger.info(f"Generated profile for {profile['name']} ({uuid})")
-
-    logger.info(f"Synced {authors_synced} author profiles")
 
 
 # ============================================================================

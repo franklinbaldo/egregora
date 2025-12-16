@@ -316,7 +316,7 @@ class EndpointQueue:
                     req.future.set_result(embeddings[offset : offset + count])
                     offset += count
 
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 # Propagate error to all waiting futures
                 for req in group_requests:
                     if not req.future.done():
@@ -560,7 +560,7 @@ def get_router(
     Prefer :func:`create_embedding_router` when the caller owns lifecycle
     management. This helper is kept for backwards compatibility.
     """
-    global _router  # noqa: PLW0603
+    global _router
     with _router_lock:
         if _router is None:
             _router = create_embedding_router(
@@ -578,7 +578,7 @@ get_embedding_router = get_router
 
 def shutdown_router() -> None:
     """Shutdown global router (for cleanup)."""
-    global _router  # noqa: PLW0603
+    global _router
     with _router_lock:
         if _router is not None:
             _router.stop()

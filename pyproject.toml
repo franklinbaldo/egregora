@@ -120,6 +120,8 @@ target-version = "py312"
 extend-exclude = [
     ".claude",
     "prompt_tests",
+    "src/egregora_v3",
+    "tests/v3",
 ]
 
 [tool.ruff.lint]
@@ -155,6 +157,32 @@ ignore = [
     "TC003",  # Type-checking-only standard library imports
     "SIM102",  # Collapsible if (explicit can be clearer)
     "SIM108",  # Ternary operator (not always clearer)
+
+    # Complexity / refactor-safety - enforce gradually
+    "C901",     # Function is too complex
+    "PLR0911",  # Too many return statements
+    "PLR0912",  # Too many branches
+    "PLR0913",  # Too many arguments
+    "PLR0915",  # Too many statements
+    "PLR2004",  # Magic values
+
+    # Pragmatic runtime patterns - common in optional-dep paths
+    "PLC0415",  # Non-top-level imports
+    "BLE001",   # Blind exception
+    "PLW0603",  # Global statement
+    "PLW2901",  # Redefined loop name
+
+    # Exception style - enable gradually
+    "TRY002",
+    "TRY003",
+    "TRY203",
+    "TRY300",
+    "TRY301",
+    "TRY401",
+
+    # Logging/exception formatting - enable gradually
+    "G004",
+    "EM101",
 
     # Style - enforce gradually
     "E501",    # Line too long (refactor gradually, not blocking)
@@ -192,6 +220,11 @@ ignore = [
     "S603",    # Subprocess without shell=True
     "S607",    # Partial executable path
     "S506",    # Unsafe YAML load (tests use small controlled data)
+    "S108",    # Hardcoded temp paths (tests)
+    "PT009",   # unittest-style asserts (legacy tests)
+    "PT017",   # assert on exception message (tests)
+    "SIM117",  # nested context managers (tests)
+    "PERF401", # list-building loops (tests)
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]

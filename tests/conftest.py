@@ -167,13 +167,11 @@ def stub_enrichment_agents(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def reset_rag_backend():
-    import egregora.rag as rag
+    from egregora import rag
 
     rag.reset_backend()
     yield
     rag.reset_backend()
-
-
 
 
 @pytest.fixture

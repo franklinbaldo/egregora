@@ -119,7 +119,7 @@ def init(
 
 
 @app.command()
-def write(  # noqa: PLR0913
+def write(
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     output: Annotated[

@@ -78,7 +78,7 @@ def _remove_url_extension(url_path: str) -> str:
     # Split on last slash to get the last segment
     parts = url_path.rsplit("/", 1)
 
-    if len(parts) == 2 and "." in parts[1]:  # noqa: PLR2004
+    if len(parts) == 2 and "." in parts[1]:
         # Has a path and a filename with extension
         # Remove extension from the filename only
         basename_without_ext = parts[1].rsplit(".", 1)[0]
@@ -198,10 +198,16 @@ class StandardUrlConvention(UrlConvention):
         return self._join(ctx, "documents", document.document_id)
 
     def _format_profile_url(self, ctx: UrlContext, document: Document) -> str:
-        subject_uuid = document.metadata.get("subject") or document.metadata.get("uuid") or document.metadata.get(
-            "author_uuid"
+        subject_uuid = (
+            document.metadata.get("subject")
+            or document.metadata.get("uuid")
+            or document.metadata.get("author_uuid")
         )
-        slug_value = document.metadata.get("slug") or document.metadata.get("profile_aspect") or document.document_id[:8]
+        slug_value = (
+            document.metadata.get("slug")
+            or document.metadata.get("profile_aspect")
+            or document.document_id[:8]
+        )
         if not subject_uuid:
             return self._join(ctx, self.routes.posts_prefix, slugify(str(slug_value)))
         return self._join(ctx, self.routes.profiles_prefix, str(subject_uuid), slugify(str(slug_value)))

@@ -18,11 +18,11 @@ MIN_DOCS_FOR_CLUSTERING = 5
 
 def generate_semantic_taxonomy(output_sink: OutputSink, config: EgregoraConfig) -> int:
     try:
-        from sklearn.cluster import KMeans  # noqa: PLC0415
+        from sklearn.cluster import KMeans
     except ModuleNotFoundError as exc:
         logger.warning("scikit-learn missing (pandas dependency unresolved). Skipping taxonomy: %s", exc)
         return 0
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("Failed to import scikit-learn dependencies. Skipping taxonomy: %s", exc)
         return 0
 
@@ -119,7 +119,7 @@ def _process_batches(agent: Any, batches: list[list[str]]) -> list[Any]:
         try:
             result = agent.run_sync(prompt)
             batch_results.append(result.data.mappings)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             logger.warning("Batch taxonomy generation failed: %s", e)
             batch_results.append([])
     return batch_results

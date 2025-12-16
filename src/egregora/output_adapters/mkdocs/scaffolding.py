@@ -186,7 +186,6 @@ class MkDocsSiteScaffolder:
         for directory in (posts_dir, profiles_dir, media_dir, journal_dir):
             directory.mkdir(parents=True, exist_ok=True)
 
-
         # Create media subdirectories (ADR-0004: urls for URL enrichments)
         for subdir in ["images", "videos", "audio", "documents", "urls"]:
             media_subdir = media_dir / subdir

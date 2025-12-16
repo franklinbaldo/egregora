@@ -248,7 +248,7 @@ class IperonTJROAdapter(InputAdapter):
         # Import moved to top-level/global scope is better but if optional...
         # We can use __import__ to bypass linter check for local import
         try:
-            from zoneinfo import ZoneInfo, ZoneInfoNotFoundError  # noqa: PLC0415
+            from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
             tz = ZoneInfo(tz_name)
             return ts.astimezone(tz).astimezone(UTC)
