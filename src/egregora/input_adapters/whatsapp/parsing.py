@@ -264,13 +264,7 @@ def _parse_whatsapp_lines(
 
     # Re-open source to read from start
     for line in source.lines():
-        # Performance optimization: The regex pattern usually starts with a digit (\d) or bracket ([).
-        # We can skip the expensive regex match for lines that don't start with these characters
-        # (which is the majority of lines in a chat export - continuation lines).
-        if line and (line[0].isdigit() or line[0] == "["):
-            match = line_pattern.match(line)
-        else:
-            match = None
+        match = line_pattern.match(line)  # Use dynamic pattern
 
         if match:
             # ... rest of existing logic ...
