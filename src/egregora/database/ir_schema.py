@@ -26,13 +26,9 @@ import duckdb
 import ibis
 import ibis.expr.datatypes as dt
 
-from egregora.database.sql import SQLManager
 from egregora.database.utils import quote_identifier
 
 logger = logging.getLogger(__name__)
-
-# Single, module-level instance of the SQL manager
-sql_manager = SQLManager()
 
 
 # ============================================================================
@@ -391,13 +387,10 @@ def add_primary_key(conn: duckdb.DuckDBPyConnection, table_name: str, column_nam
 
     """
     try:
-        sql = sql_manager.render(
-            "ddl/add_constraints.sql.jinja",
-            constraint_type="primary_key",
-            table_name=table_name,
-            column_name=column_name,
-            constraint_name=f"pk_{table_name}",
-        )
+        quoted_table = quote_identifier(table_name)
+        quoted_column = quote_identifier(column_name)
+        constraint_name = quote_identifier(f"pk_{table_name}")
+        sql = f"ALTER TABLE {quoted_table} ADD CONSTRAINT {constraint_name} PRIMARY KEY ({quoted_column})"
         conn.execute(sql)
     except duckdb.Error as e:
         # Constraint may already exist - log and continue
@@ -446,13 +439,15 @@ def create_index(
         Uses CREATE INDEX IF NOT EXISTS to handle already-existing indexes.
 
     """
-    sql = sql_manager.render(
-        "ddl/create_index.sql.jinja",
-        index_name=index_name,
-        table_name=table_name,
-        column_name=column_name,
-        index_type=index_type,
-    )
+    quoted_index = quote_identifier(index_name)
+    quoted_table = quote_identifier(table_name)
+    quoted_column = quote_identifier(column_name)
+
+    if index_type == "HNSW":
+        sql = f"CREATE INDEX IF NOT EXISTS {quoted_index} ON {quoted_table} USING HNSW ({quoted_column}) WITH (metric = 'cosine')"
+    else:
+        sql = f"CREATE INDEX IF NOT EXISTS {quoted_index} ON {quoted_table} ({quoted_column})"
+
     conn.execute(sql)
 
 

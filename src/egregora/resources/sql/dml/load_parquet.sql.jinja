@@ -1,6 +1,0 @@
-{% if mode == 'replace' %}
-CREATE OR REPLACE TABLE {{ table_name | quote }} AS SELECT * FROM read_parquet(?);
-{% else %}
-CREATE TABLE IF NOT EXISTS {{ table_name | quote }} AS SELECT * FROM read_parquet(?) WHERE 1=0;
-INSERT INTO {{ table_name | quote }} SELECT * FROM read_parquet(?);
-{% endif %}
