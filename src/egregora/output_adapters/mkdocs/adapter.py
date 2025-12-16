@@ -115,15 +115,14 @@ class MkDocsAdapter(BaseOutputSink):
         """Get or create author's folder in posts/authors/{uuid}/.
 
         Args:
-            author_uuid: Full or partial UUID of the author
+            author_uuid: Full UUID of the author
 
         Returns:
             Path to author's folder (created if doesn't exist)
 
         """
-        # Use first 16 chars of UUID for shorter folder names
-        short_uuid = author_uuid[:16] if len(author_uuid) > 16 else author_uuid
-        author_dir = self.posts_dir / "authors" / short_uuid
+        # Use full UUID for consistency and unambiguous identification
+        author_dir = self.posts_dir / "authors" / author_uuid
         author_dir.mkdir(parents=True, exist_ok=True)
         return author_dir
 
@@ -195,8 +194,8 @@ class MkDocsAdapter(BaseOutputSink):
                 # Journals: simple filename with slug
                 return self.posts_dir / f"{identifier.replace('/', '-')}.md"
             case DocumentType.ENRICHMENT_URL:
-                # Enrichment URLs: now in posts_dir (unified)
-                return self.posts_dir / f"{identifier}.md"
+                # Enrichment URLs: inside media_dir/urls (ADR-0004)
+                return self.media_dir / "urls" / f"{identifier}.md"
             case DocumentType.ENRICHMENT_MEDIA:
                 # Enrichment media: stays in media_dir
                 return self.media_dir / f"{identifier}.md"
@@ -763,10 +762,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                     return self.docs_dir / "journal.md"
                 return self.posts_dir / f"{slug}.md"
             case DocumentType.ENRICHMENT_URL:
-                # url_path might be 'media/urls/slug' -> we want 'slug.md' inside urls_dir
-                # UNIFIED: Enrichment URLs -> posts_dir
+                # url_path might be 'posts/media/urls/slug' -> we want 'slug.md' inside media_dir/urls
+                # ADR-0004: URL enrichments go to posts/media/urls/
                 slug = url_path.split("/")[-1]
-                return self.posts_dir / f"{slug}.md"
+                return self.media_dir / "urls" / f"{slug}.md"
             case DocumentType.ENRICHMENT_MEDIA:
                 # url_path is like 'media/images/foo' -> we want 'docs/media/images/foo.md'
                 rel_path = self._strip_media_prefix(url_path)
@@ -781,20 +780,24 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         return self.site_root / f"{url_path}.md"
 
     def _strip_media_prefix(self, url_path: str) -> str:
-        """Helper to strip media prefixes from URL path."""
+        """Helper to strip media prefixes from URL path.
+
+        Handles the configured media prefix (e.g., 'posts/media') from the URL convention
+        to extract the relative path within the media directory.
+        """
         rel_path = url_path
-        media_prefix = self._ctx.site_prefix + "/media" if self._ctx.site_prefix else "media"
-        if rel_path.startswith(media_prefix):
-            rel_path = rel_path[len(media_prefix) :].strip("/")
+
+        # Get the actual media prefix from the URL convention (e.g., 'posts/media')
+        configured_prefix = self._url_convention.routes.media_prefix.strip("/")
+        if rel_path.startswith(configured_prefix + "/"):
+            rel_path = rel_path[len(configured_prefix) + 1:]
+        elif rel_path.startswith(configured_prefix):
+            rel_path = rel_path[len(configured_prefix):].lstrip("/")
+        # Legacy fallback: handle plain 'media/' prefix
         elif rel_path.startswith("media/"):
             rel_path = rel_path[6:]
-        return rel_path
 
-    def _get_author_dir(self, author_uuid: str) -> Path:
-        """Get the directory for a given author UUID."""
-        author_dir = self.posts_dir / "authors" / author_uuid
-        author_dir.mkdir(parents=True, exist_ok=True)
-        return author_dir
+        return rel_path
 
     def _parse_frontmatter(self, path: Path) -> dict:
         """Extract YAML frontmatter from markdown file.
@@ -1366,7 +1369,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             Profile dictionary with derived state, or None if no posts found
 
         """
-        author_dir = self.posts_dir / "authors" / author_uuid[:16]
+        # Use full UUID for consistency
+        author_dir = self.posts_dir / "authors" / author_uuid
         if not author_dir.exists():
             return None
 
@@ -1392,7 +1396,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             for author in authors:
                 if isinstance(author, dict):
                     author_uuid_in_post = author.get("uuid", "")
-                    if author_uuid_in_post.startswith(author_uuid[:16]):
+                    # Use exact match now that we use full UUIDs everywhere.
+                    # Legacy deployments with truncated UUIDs in frontmatter will need
+                    # to update their markdown files during migration.
+                    if author_uuid_in_post == author_uuid:
                         # Sequential merge: later values win
                         if "name" in author:
                             profile["name"] = author["name"]
