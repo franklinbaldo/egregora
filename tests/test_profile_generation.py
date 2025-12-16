@@ -121,12 +121,15 @@ class TestProfileGeneration:
     @pytest.mark.asyncio
     async def test_llm_decides_content(self):
         """LLM analyzes history and decides what to write about."""
-        from egregora.agents.profile.generator import _generate_profile_content
+        from egregora.agents.profile.generator import ProfileUpdateDecision, _generate_profile_content
 
         ctx = Mock()
         ctx.config = Mock()
         ctx.config.models = Mock()
         ctx.config.models.writer = "gemini-2.0-flash"
+        # Mock output format to avoid TypeError in _build_profile_prompt when accessing existing profile
+        ctx.output_format = Mock()
+        ctx.output_format.get_author_profile.return_value = None
 
         author_messages = [
             {"text": "I'm interested in AI safety", "timestamp": "2025-03-01"},
@@ -135,8 +138,11 @@ class TestProfileGeneration:
         ]
 
         # Mock LLM response
-        with patch("egregora.agents.profile.generator._call_llm") as mock_llm:
-            mock_llm.return_value = "# John's AI Safety Focus\n\nJohn shows deep concern for AI alignment..."
+        with patch("egregora.agents.profile.generator._call_llm_decision") as mock_llm:
+            mock_llm.return_value = ProfileUpdateDecision(
+                significant=True,
+                content="# John's AI Safety Focus\n\nJohn shows deep concern for AI alignment...",
+            )
 
             content = await _generate_profile_content(
                 ctx=ctx, author_messages=author_messages, author_name="John", author_uuid="john-uuid"

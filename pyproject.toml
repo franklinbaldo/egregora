@@ -118,6 +118,7 @@ target-version = "py312"
 extend-exclude = [
     ".claude",
     "prompt_tests",
+    "vulture_whitelist.py",
 ]
 
 [tool.ruff.lint]

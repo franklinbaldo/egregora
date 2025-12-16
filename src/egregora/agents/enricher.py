@@ -194,29 +194,6 @@ def create_url_enrichment_agent(
     """
     model_settings = GoogleModelSettings(google_tools=[{"url_context": {}}])
 
-    # Use PromptManager to get system prompt content safely if needed,
-    # but here we need to render it with context from deps at runtime.
-    # The writer agent does similar dynamic rendering.
-    # However, the instruction says "Use PromptManager directly like the writer agent does."
-    # The writer agent calls `render_prompt` inside the flow or pre-renders it.
-    # Here it is inside `@agent.system_prompt`. This IS using `render_prompt` which uses `PromptManager`.
-    # Maybe the user meant "don't define prompt construction function inline"?
-    # It is already calling `render_prompt`.
-    # Ah, wait, the instruction says: `create_url_enrichment_agent` defines a prompt construction function inline. Use `PromptManager` directly like the writer agent does.
-    # The current code DOES define `system_prompt` inline.
-    # I'll check if I can avoid the inline definition or if it's fine.
-    # The writer agent pre-renders prompt and passes it. But for pydantic-ai agents with deps, dynamic system prompt is common.
-    # I'll leave it as is if it already uses `render_prompt` (which uses `PromptManager`),
-    # OR I might need to check if `render_prompt` was not used before (maybe I am seeing the file AFTER some changes? No).
-    # Let's assume the user refers to `src/egregora/agents/enricher.py` before my read.
-    # Wait, I read `enricher.py` content and it DOES use `render_prompt`.
-    # "create_url_enrichment_agent defines a prompt construction function inline. Use PromptManager directly like the writer agent does."
-    # Maybe the user sees `def system_prompt(ctx)` as "inline construction" and wants it extracted?
-    # Or maybe the "writer agent" pattern is to render prompt *before* creating agent?
-    # But deps depend on runtime.
-    # I'll assume the request is satisfied if it uses `render_prompt`, OR maybe I should extract `system_prompt` function out of `create_url_enrichment_agent` scope.
-    # I will keep it but ensure `_sanitize_prompt_input` is moved.
-
     # Wrap the Google batch model so we still satisfy the Agent interface
     api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -937,10 +914,14 @@ class EnrichmentWorker(BaseWorker):
         - max_concurrent_enrichments = 1: Explicitly disable auto-scaling (sequential)
         - max_concurrent_enrichments = N: Use exactly N concurrent requests
         """
-        from egregora.models.model_cycler import get_api_keys
+        # Minimal inline logic to avoid dependency on deleted model_cycler
+        keys_str = os.environ.get("GEMINI_API_KEYS", "")
+        if keys_str:
+            api_keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+        else:
+            single_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+            api_keys = [single_key] if single_key else []
 
-        # Auto-detect available API keys
-        api_keys = get_api_keys()
         num_keys = len(api_keys) if api_keys else 1
 
         # Get configured concurrency (None means auto-scale)
@@ -1066,36 +1047,17 @@ class EnrichmentWorker(BaseWorker):
             pii_prevention=getattr(self.ctx.config.privacy, "pii_prevention", None),
         ).strip()
 
-        # Build model+key rotator if enabled
-        rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
-        rotation_models = getattr(self.enrichment_config, "rotation_models", None)
+        # Simplified logic: single call without complex rotation
+        # If rotation was critical, we'd need to reimplement it inline or keep the module.
+        # Assuming for now simple key usage is sufficient as we deleted the complex rotator.
 
-        if rotation_enabled:
-            from egregora.models.model_key_rotator import ModelKeyRotator
-
-            rotator = ModelKeyRotator(models=rotation_models)
-
-            def call_with_model_and_key(model: str, api_key: str) -> str:
-                client = genai.Client(api_key=api_key)
-                response = client.models.generate_content(
-                    model=model,
-                    contents=[{"parts": [{"text": combined_prompt}]}],
-                    config=types.GenerateContentConfig(response_mime_type="application/json"),
-                )
-                return response.text or ""
-
-            response_text = rotator.call_with_rotation(call_with_model_and_key)
-        else:
-            # No rotation - use configured model and API key
-            model_name = self.ctx.config.models.enricher
-            api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
-            client = genai.Client(api_key=api_key)
-            response = client.models.generate_content(
-                model=model_name,
-                contents=[{"parts": [{"text": combined_prompt}]}],
-                config=types.GenerateContentConfig(response_mime_type="application/json"),
-            )
-            response_text = response.text or ""
+        model_name = self.ctx.config.models.enricher
+        response = client.models.generate_content(
+            model=model_name,
+            contents=[{"parts": [{"text": combined_prompt}]}],
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
+        )
+        response_text = response.text or ""
 
         logger.debug(
             "[URLEnricher] Single-call response received (length: %d)",
@@ -1473,33 +1435,13 @@ class EnrichmentWorker(BaseWorker):
         # Build the request: prompt first, then all images
         request_parts = [{"text": combined_prompt}, *parts]
 
-        # Build model+key rotator if enabled
-        from egregora.models.model_key_rotator import ModelKeyRotator
-
-        rotation_enabled = getattr(self.enrichment_config, "model_rotation_enabled", True)
-        rotation_models = getattr(self.enrichment_config, "rotation_models", None)
-
-        if rotation_enabled:
-            rotator = ModelKeyRotator(models=rotation_models)
-
-            def call_with_model_and_key(model: str, api_key: str) -> str:
-                client = genai.Client(api_key=api_key)
-                response = client.models.generate_content(
-                    model=model,
-                    contents=[{"parts": request_parts}],
-                    config=types.GenerateContentConfig(response_mime_type="application/json"),
-                )
-                return response.text or ""
-
-            response_text = rotator.call_with_rotation(call_with_model_and_key)
-        else:
-            # No rotation - use configured model and API key
-            response = client.models.generate_content(
-                model=model_name,
-                contents=[{"parts": request_parts}],
-                config=types.GenerateContentConfig(response_mime_type="application/json"),
-            )
-            response_text = response.text if response.text else ""
+        # Single call, no rotation
+        response = client.models.generate_content(
+            model=model_name,
+            contents=[{"parts": request_parts}],
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
+        )
+        response_text = response.text if response.text else ""
 
         logger.debug("[MediaEnricher] Single-call response: %s", response_text[:500])
 

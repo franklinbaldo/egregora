@@ -26,8 +26,28 @@ from typing import Annotated, Any
 import httpx
 
 from egregora.config import EMBEDDING_DIM
-from egregora.models.model_cycler import get_api_keys
 from egregora.utils.env import get_google_api_key
+
+# Minimal inline definition to avoid circular import dependency on deleted file
+# We only need `get_api_keys` here.
+import os
+def get_api_keys() -> list[str]:
+    """Load API keys from environment.
+
+    Supports multiple keys via:
+    - GEMINI_API_KEYS (comma-separated)
+    - GEMINI_API_KEY (single key, fallback)
+    - GOOGLE_API_KEY (single key, fallback)
+    """
+    keys_str = os.environ.get("GEMINI_API_KEYS", "")
+    if keys_str:
+        keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+        if keys:
+            return keys
+    single_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if single_key:
+        return [single_key]
+    return []
 
 logger = logging.getLogger(__name__)
 

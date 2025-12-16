@@ -129,115 +129,6 @@ class BaseOutputSink(OutputSink, ABC):
     def initialize(self, site_root: Path) -> None:
         """Initialize internal state for a specific site."""
 
-    # ===== Common Utility Methods (Concrete) =====
-
-    def _scan_directory_for_documents(
-        self,
-        directory: Path,
-        site_root: Path,
-        pattern: str = "*.md",
-        *,
-        recursive: bool = False,
-        exclude_names: set[str] | None = None,
-    ) -> list[dict[str, Any]]:
-        """Scan a directory for documents and return metadata."""
-        if not directory.exists():
-            return []
-
-        exclude_names = exclude_names or set()
-        documents = []
-
-        glob_func = directory.rglob if recursive else directory.glob
-        for file_path in glob_func(pattern):
-            if not file_path.is_file():
-                continue
-            if file_path.name in exclude_names:
-                continue
-
-            try:
-                relative_path = str(file_path.relative_to(site_root))
-                mtime_ns = file_path.stat().st_mtime_ns
-                documents.append({"storage_identifier": relative_path, "mtime_ns": mtime_ns})
-            except (OSError, ValueError):
-                continue
-
-        return documents
-
-    def _empty_document_table(self) -> Table:
-        """Return an empty Ibis table with the document listing schema."""
-        return ibis.memtable([], schema=ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"}))
-
-    def _documents_to_table(self, documents: list[dict[str, Any]]) -> Table:
-        """Convert list of document dicts to Ibis table."""
-        schema = ibis.schema({"storage_identifier": "string", "mtime_ns": "int64"})
-        return ibis.memtable(documents, schema=schema)
-
-    @staticmethod
-    def normalize_slug(slug: str) -> str:
-        """Normalize slug to be URL-safe and filesystem-safe."""
-        return slugify(slug)
-
-    @staticmethod
-    def extract_date_prefix(date_str: str) -> str:
-        """Extract clean YYYY-MM-DD date from various formats."""
-        if not date_str:
-            return datetime.date.today().isoformat()
-
-        date_str = date_str.strip()
-
-        # Try ISO date first (YYYY-MM-DD)
-        if len(date_str) == ISO_DATE_LENGTH and date_str[4] == "-" and date_str[7] == "-":
-            try:
-                datetime.date.fromisoformat(date_str)
-            except (ValueError, AttributeError):
-                pass
-            else:
-                return date_str
-
-        # Extract YYYY-MM-DD pattern from longer strings
-        match = re.match(r"(\d{4}-\d{2}-\d{2})", date_str)
-        if match:
-            clean_date = match.group(1)
-            try:
-                datetime.date.fromisoformat(clean_date)
-            except (ValueError, AttributeError):
-                pass
-            else:
-                return clean_date
-
-        # Fallback: use today's date
-        return datetime.date.today().isoformat()
-
-    @staticmethod
-    def generate_unique_filename(base_dir: Path, filename_pattern: str, max_attempts: int = 1000) -> Path:
-        """Generate unique filename by adding suffix if file exists."""
-        # Try original filename first
-        if "{suffix}" not in filename_pattern:
-            # Add suffix placeholder before extension
-            parts = filename_pattern.rsplit(".", 1)
-            if len(parts) == FILENAME_PARTS_WITH_EXTENSION:
-                filename_pattern = f"{parts[0]}{{suffix}}.{parts[1]}"
-            else:
-                filename_pattern = f"{filename_pattern}{{suffix}}"
-
-        # Try without suffix first
-        original_filename = filename_pattern.replace("{suffix}", "")
-        filepath = safe_path_join(base_dir, original_filename)
-
-        if not filepath.exists():
-            return filepath
-
-        # Generate with suffix
-        for suffix in range(2, max_attempts + 2):
-            filename = filename_pattern.replace("{suffix}", f"-{suffix}")
-            filepath = safe_path_join(base_dir, filename)
-
-            if not filepath.exists():
-                return filepath
-
-        msg = f"Could not generate unique filename after {max_attempts} attempts: {filename_pattern}"
-        raise RuntimeError(msg)
-
     def parse_frontmatter(self, content: str) -> tuple[dict, str]:
         """Parse frontmatter from markdown content."""
         if not content.startswith("---\n"):
@@ -259,13 +150,6 @@ class BaseOutputSink(OutputSink, ABC):
             raise ValueError(msg) from e
 
         return metadata, body
-
-    def prepare_window(
-        self, window_label: str, _window_data: dict[str, Any] | None = None
-    ) -> dict[str, Any] | None:
-        """Pre-processing hook called before writer agent processes a window."""
-        # Base implementation does nothing - subclasses override for specific tasks
-        return None
 
     def finalize_window(
         self,
@@ -310,10 +194,6 @@ class OutputSinkRegistry:
             if instance.supports_site(site_root):
                 return instance
         return None
-
-    def list_formats(self) -> list[str]:
-        """List all registered output format types."""
-        return list(self._formats.keys())
 
 
 def create_output_registry() -> OutputSinkRegistry:

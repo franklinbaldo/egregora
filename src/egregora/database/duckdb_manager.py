@@ -301,6 +301,22 @@ class DuckDBStorageManager:
         params = params or []
         return self._conn.execute(sql, params).fetchone()
 
+    def execute(self, sql: str, params: Sequence | None = None) -> duckdb.DuckDBPyConnection:
+        """Compatibility wrapper for raw execute.
+
+        This method is deprecated but kept for compatibility with tests that
+        assume a direct connection interface.
+
+        Args:
+            sql: SQL query string
+            params: Optional list of parameters
+
+        Returns:
+            The raw cursor/connection for chaining
+
+        """
+        return self._conn.execute(sql, params or [])
+
     def replace_rows(
         self,
         table: str,

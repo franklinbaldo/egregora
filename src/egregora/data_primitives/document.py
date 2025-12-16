@@ -156,23 +156,6 @@ class Document:
         content_hash = hashlib.sha256(payload).hexdigest()
         return str(uuid5(NAMESPACE_DOCUMENT, content_hash))[:8]
 
-    def with_parent(self, parent: Document | str) -> Document:
-        """Return new document with parent relationship."""
-        parent_id = parent.document_id if isinstance(parent, Document) else parent
-        parent_obj = parent if isinstance(parent, Document) else self.parent
-        cls = self.__class__
-        return cls(
-            content=self.content,
-            type=self.type,
-            metadata=self.metadata.copy(),
-            id=self.id,
-            parent_id=parent_id,
-            parent=parent_obj,
-            created_at=self.created_at,
-            source_window=self.source_window,
-            suggested_path=self.suggested_path,
-        )
-
     def with_metadata(self, **updates: Any) -> Document:
         """Return new document with updated metadata."""
         new_metadata = self.metadata.copy()
@@ -197,18 +180,6 @@ class DocumentCollection:
 
     documents: list[Document]
     window_label: str | None = None
-
-    def by_type(self, doc_type: DocumentType) -> list[Document]:
-        return [doc for doc in self.documents if doc.type == doc_type]
-
-    def find_children(self, parent_id: str) -> list[Document]:
-        return [doc for doc in self.documents if doc.parent_id == parent_id]
-
-    def find_by_id(self, document_id: str) -> Document | None:
-        for doc in self.documents:
-            if doc.document_id == document_id:
-                return doc
-        return None
 
     def __len__(self) -> int:
         return len(self.documents)

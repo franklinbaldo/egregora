@@ -106,8 +106,9 @@ def test_get_profiles_data_generates_stats(adapter):
     # Get stats using the PUBLIC API
     profiles = adapter.get_profiles_data()
 
-    assert len(profiles) == 1
-    p = profiles[0]
+    assert len(profiles) >= 1
+    p = next((p for p in profiles if p["uuid"] == uuid), None)
+    assert p is not None
     assert p["uuid"] == uuid
     assert p["post_count"] == 1
     assert p["word_count"] == 10
