@@ -113,7 +113,12 @@ class EloStore:
 
         """
         ratings_table = self.storage.read_table("elo_ratings")
-        result = ratings_table.filter(ratings_table.post_slug == post_slug).limit(1).execute()
+        result = (
+            ratings_table.filter(ratings_table.post_slug == post_slug)
+            .order_by(ratings_table.last_updated.desc())
+            .limit(1)
+            .execute()
+        )
 
         if result.empty:
             # Return default rating for new posts

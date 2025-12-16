@@ -196,7 +196,6 @@ class DuckDBStorageManager:
             instance.db_path = None
             logger.debug("Could not determine db_path from backend connection")
 
-        instance.sql = SQLManager()
         instance._table_info_cache = {}
         instance._lock = threading.Lock()
         logger.debug("DuckDBStorageManager created from existing Ibis backend (db_path=%s)", instance.db_path)
@@ -367,7 +366,7 @@ class DuckDBStorageManager:
                     # Append mode: use insert
                     # Ensure table exists first? Ibis insert usually requires table to exist.
                     if not self.table_exists(name):
-                         self.ibis_conn.create_table(name, parquet_table)
+                        self.ibis_conn.create_table(name, parquet_table)
                     else:
                         self.ibis_conn.insert(name, parquet_table)
 
