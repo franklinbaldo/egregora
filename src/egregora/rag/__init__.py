@@ -118,5 +118,15 @@ def embed_fn(
         List of embedding vectors
 
     """
-    router = get_embedding_router()
+    from egregora.config import load_egregora_config
+
+    if model is None:
+        try:
+            config = load_egregora_config()
+            model = config.models.embedding
+        except Exception:  # noqa: BLE001
+            # Fallback if config fails
+            model = "models/gemini-embedding-001"
+
+    router = get_embedding_router(model=model)
     return router.embed(list(texts), task_type=task_type)
