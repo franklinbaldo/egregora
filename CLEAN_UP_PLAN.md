@@ -2,20 +2,7 @@
 
 This document outlines a detailed and actionable plan to reduce complexity, eliminate duplication, and standardize infrastructure in the Egregora codebase, based on the Code Quality Report.
 
-## 1) Architecture: Resolve V3 Duplication
-
-**Problem:** Two architectures (`src/egregora` and `src/egregora_v3`) coexist with duplicated concepts (templates, prompts, tests), incurring a "duplication tax".
-
-**Actionable Steps:**
-
-*   [ ] **Strategic Decision:** Adopt **Option B (Strict Boundary)** immediately to stop the bleed.
-    *   Ensure `src/egregora_v3` is self-contained and does not import from `src/egregora`.
-    *   Treat `egregora_v3` as the "incubator" for the next version.
-*   [ ] **Extraction (Optional but Recommended):** Evaluate moving `src/egregora_v3` to a separate distribution extra or a temporary isolated package structure if the codebase size becomes unmanageable.
-*   [ ] **Deduplication:** Identify shared utilities (e.g., `slugify`, template loading) that are implemented twice.
-    *   Create a strictly shared `egregora.common` module if necessary, or consciously prefer the V3 implementation and deprecate the V2 one.
-
-## 2) Configuration: Simplify and Consolidate
+## 1) Configuration: Simplify and Consolidate
 
 **Problem:** The config system is over-engineered with multiple layers (`settings.py`, `overrides.py`, `config_validation.py`) and unused validators.
 
@@ -31,7 +18,7 @@ This document outlines a detailed and actionable plan to reduce complexity, elim
     *   Ensure `pydantic-settings` is the primary driver.
     *   (Optional) Add `python-dotenv` if explicit `.env` file support is required beyond Pydantic's default.
 
-## 3) Infrastructure: Modernize Rate Limiting & Routing
+## 2) Infrastructure: Modernize Rate Limiting & Routing
 
 **Problem:** Custom `GlobalRateLimiter`, "len(text)//4" token estimation, and complex threading-based embedding routers are reinventing standard wheels and introducing race conditions.
 
@@ -48,7 +35,7 @@ This document outlines a detailed and actionable plan to reduce complexity, elim
     *   **Remove Complexity:** Delete the custom thread-based queuing and "best-effort" batching logic.
     *   If a queue is absolutely necessary, use a standard `asyncio.Queue` with a single consumer task.
 
-## 4) Caching: Remove Abstractions
+## 3) Caching: Remove Abstractions
 
 **Problem:** `src/egregora/utils/cache.py` is an over-abstracted wrapper around `diskcache` with unnecessary complexity (e.g., XML-based hashing).
 
@@ -60,7 +47,7 @@ This document outlines a detailed and actionable plan to reduce complexity, elim
     *   (Optional) Add `orjson` for faster, deterministic JSON serialization.
 *   [ ] **Flatten Tiers:** Remove the "Tiered Cache" logic (Memory -> Disk) unless metrics prove it provides a significant performance benefit over pure DiskCache (which is already fast).
 
-## 5) Database: Drop Jinja2 for SQL
+## 4) Database: Drop Jinja2 for SQL
 
 **Problem:** `SQLManager` (`src/egregora/database/sql.py`) uses Jinja2 templates for SQL generation, which is essentially a homegrown, risky query builder.
 
@@ -72,7 +59,7 @@ This document outlines a detailed and actionable plan to reduce complexity, elim
 *   [ ] **Delete:** Remove `src/egregora/database/sql.py` and delete the `src/egregora/resources/sql/` directory once migration is complete.
 *   [ ] **Dependencies:** Verify `ibis-framework` and `duckdb` are properly pinned.
 
-## 6) Documentation: Unify Conventions
+## 5) Documentation: Unify Conventions
 
 **Problem:** Inconsistent paths for media (`docs/media` vs `docs/posts/.../media`) and ADRs (`docs/adr` vs `docs/adrs`).
 
@@ -87,7 +74,7 @@ This document outlines a detailed and actionable plan to reduce complexity, elim
     *   Replace custom JavaScript carousels with `mkdocs-glightbox` for image handling.
     *   Use `mkdocs-gen-files` if dynamic index generation is needed.
 
-## 7) Cleanup: Dead Code Elimination
+## 6) Cleanup: Dead Code Elimination
 
 **Problem:** `vulture` reports numerous unused classes, variables, and methods.
 
@@ -107,4 +94,3 @@ It is recommended to tackle these in the following order:
 1.  **Dead Code & Config:** Quick wins, reduces noise.
 2.  **Infrastructure (Rate Limit/Cache):** Reduces runtime complexity.
 3.  **Database/SQL:** Improves safety and maintainability.
-4.  **Architecture (V3):** Long-term structural fix.
