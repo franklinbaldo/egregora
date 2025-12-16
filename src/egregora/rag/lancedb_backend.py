@@ -163,7 +163,7 @@ class LanceDBRAGBackend(VectorStore):
 
         # Compute embeddings with RETRIEVAL_DOCUMENT task type
         try:
-            embeddings = self._embed_fn(texts, "RETRIEVAL_DOCUMENT")
+            embeddings = self._embed_fn(tuple(texts), "RETRIEVAL_DOCUMENT")
         except Exception as e:
             msg = f"Failed to compute embeddings: {e}"
             raise RuntimeError(msg) from e
