@@ -3,7 +3,7 @@ import uuid
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
-from xml.etree.ElementTree import Element
+from xml.etree.ElementTree import Element  # nosec B405
 
 from pydantic import BaseModel, Field
 
@@ -210,7 +210,7 @@ class Feed(BaseModel):
         """
         # Note: Imports are inside method to keep types.py lightweight and free of global side-effects
         # We suppress the lint warning as this is a deliberate design choice for core types.
-        from xml.etree.ElementTree import SubElement, tostring  # noqa: PLC0415
+        from xml.etree.ElementTree import SubElement, tostring  # noqa: PLC0415 # nosec B405
 
         # Create root feed element with Atom namespace
         feed = Element("feed", xmlns="http://www.w3.org/2005/Atom")
@@ -254,7 +254,7 @@ class Feed(BaseModel):
 
     def _add_entry_to_feed(self, feed_elem: Element, entry: Entry) -> None:  # noqa: C901, PLR0912, PLR0915
         """Add an Entry to the feed XML element."""
-        from xml.etree.ElementTree import SubElement  # noqa: PLC0415
+        from xml.etree.ElementTree import SubElement  # noqa: PLC0415 # nosec B405
 
         entry_elem = SubElement(feed_elem, "entry")
 

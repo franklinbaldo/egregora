@@ -42,7 +42,7 @@ class TemplateLoader:
         # Create Jinja2 environment
         self.env = Environment(
             loader=FileSystemLoader(self.template_dir),
-            autoescape=False,  # Prompts are not HTML
+            autoescape=False,  # Prompts are not HTML # nosec B701
             trim_blocks=True,
             lstrip_blocks=True,
         )
