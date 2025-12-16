@@ -162,8 +162,9 @@ class LanceDBRAGBackend(VectorStore):
         texts = [c.text for c in chunks]
 
         # Compute embeddings with RETRIEVAL_DOCUMENT task type
+        # Convert to tuple for lru_cache compatibility (lists are not hashable)
         try:
-            embeddings = self._embed_fn(texts, "RETRIEVAL_DOCUMENT")
+            embeddings = self._embed_fn(tuple(texts), "RETRIEVAL_DOCUMENT")
         except Exception as e:
             msg = f"Failed to compute embeddings: {e}"
             raise RuntimeError(msg) from e
@@ -222,8 +223,9 @@ class LanceDBRAGBackend(VectorStore):
         top_k = request.top_k
 
         # Embed query with RETRIEVAL_QUERY task type
+        # Convert to tuple for lru_cache compatibility (lists are not hashable)
         try:
-            query_emb = self._embed_fn([request.text], "RETRIEVAL_QUERY")[0]
+            query_emb = self._embed_fn((request.text,), "RETRIEVAL_QUERY")[0]
         except Exception as e:
             msg = f"Failed to embed query: {e}"
             raise RuntimeError(msg) from e
