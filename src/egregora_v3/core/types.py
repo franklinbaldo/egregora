@@ -86,6 +86,7 @@ class DocumentType(str, Enum):
     MEDIA = "media"
     PROFILE = "profile"
     ENRICHMENT = "enrichment"
+    CONCEPT = "concept"
 
 
 class DocumentStatus(str, Enum):
