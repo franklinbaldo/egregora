@@ -932,14 +932,10 @@ class EnrichmentWorker(BaseWorker):
         Auto-detects number of API keys and uses them in parallel instead of
         sequential rotation.
 
-        Note: Currently cannot distinguish between max_concurrent_enrichments
-        being unset (should auto-scale) vs explicitly set to 1 (disable auto-scale).
-        The heuristic treats default value of 1 as "not configured" and auto-scales
-        when multiple keys are detected. To explicitly disable auto-scaling with
-        multiple keys, set max_concurrent_enrichments to 1 in config.yml and ensure
-        it's the only key detection remains at 1.
-
-        Future improvement: Use Optional[int] = None to distinguish unset from explicit 1.
+        Behavior:
+        - max_concurrent_enrichments = None (default): Auto-scale to num_keys
+        - max_concurrent_enrichments = 1: Explicitly disable auto-scaling (sequential)
+        - max_concurrent_enrichments = N: Use exactly N concurrent requests
         """
         from egregora.models.model_cycler import get_api_keys
 
@@ -947,18 +943,15 @@ class EnrichmentWorker(BaseWorker):
         api_keys = get_api_keys()
         num_keys = len(api_keys) if api_keys else 1
 
-        # Get configured concurrency
+        # Get configured concurrency (None means auto-scale)
         enrichment_concurrency = getattr(
             self.enrichment_config,
             "max_concurrent_enrichments",
-            1,
+            None,
         )
 
-        # Auto-Parallelization: If using default (1) and we have multiple keys, scale up.
-        # This assumes default 1 means "not configured" and we should optimize.
-        # If user explicitly sets 1 in config.yml, they effectively disable this.
-        # Ideally we'd distinguish "unset" from "set to 1", but for now this heuristics works well.
-        if enrichment_concurrency == 1 and num_keys > 1:
+        # Auto-Parallelization: If None (not configured), auto-scale to match available keys
+        if enrichment_concurrency is None:
             logger.info("Auto-scaling concurrency to match available API keys: %d", num_keys)
             enrichment_concurrency = num_keys
 
