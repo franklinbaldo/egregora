@@ -421,25 +421,6 @@ def schedule_enrichment(
     logger.info("Scheduled %d URL tasks and %d Media tasks", url_count, media_count)
 
 
-def _persist_enrichments(combined: Table, context: EnrichmentRuntimeContext) -> None:
-    # Persistence logic copied from runners.py
-    duckdb_connection = context.duckdb_connection
-    target_table = context.target_table
-
-    if (duckdb_connection is None) != (target_table is None):
-        msg = "duckdb_connection and target_table must be provided together when persisting"
-        raise ValueError(msg)
-
-    if duckdb_connection and target_table:
-        try:
-            raw_conn = duckdb_connection.con
-            storage = DuckDBStorageManager.from_connection(raw_conn)
-            storage.persist_atomic(combined, target_table, schema=IR_MESSAGE_SCHEMA)
-        except Exception:
-            logger.exception("Failed to persist enrichments using DuckDBStorageManager")
-            raise
-
-
 def _enqueue_url_enrichments(
     messages_table: Table,
     max_enrichments: int,

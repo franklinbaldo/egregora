@@ -66,25 +66,6 @@ class StorageProtocol(Protocol):
         """
         ...
 
-    def persist_atomic(
-        self,
-        table: Table,
-        name: str,
-        schema: ibis.Schema | None = None,
-    ) -> None:
-        """Persist an Ibis table atomically using a transaction.
-
-        This preserves existing table properties (like indexes) by performing a
-        DELETE + INSERT transaction instead of dropping and recreating the table.
-
-        Args:
-            table: Ibis table to persist
-            name: Target table name
-            schema: Optional schema to validate against
-
-        """
-        ...
-
     def table_exists(self, name: str) -> bool:
         """Check if table exists.
 

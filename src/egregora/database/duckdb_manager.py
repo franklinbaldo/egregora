@@ -295,43 +295,6 @@ class DuckDBStorageManager:
         params = params or []
         return self._conn.execute(sql, params).fetchone()
 
-    def replace_rows(
-        self,
-        table: str,
-        rows: Table,
-        *,
-        by_keys: dict[str, Any],
-    ) -> None:
-        """Delete matching rows and insert replacements (UPSERT simulation).
-
-        Simulates UPSERT by deleting rows matching the provided key-value pairs
-        and then inserting the new rows. This prevents SQL injection by rigidly
-        structuring the DELETE clause.
-
-        Args:
-            table: Target table name
-            rows: Ibis table expression containing new rows
-            by_keys: Dictionary of column_name -> value to match for deletion
-
-        """
-        if not by_keys:
-            msg = "replace_rows requires at least one key for deletion safety"
-            raise ValueError(msg)
-
-        quoted_table = quote_identifier(table)
-
-        # Build parameterized WHERE clause
-        conditions = []
-        params = []
-        for col, val in by_keys.items():
-            conditions.append(f"{quote_identifier(col)} = ?")
-            params.append(val)
-
-        where_clause = " AND ".join(conditions)
-        sql = f"DELETE FROM {quoted_table} WHERE {where_clause}"
-
-        self.execute_sql(sql, params)
-        self.ibis_conn.insert(table, rows)
 
     def read_table(self, name: str) -> Table:
         """Read table as Ibis expression.
@@ -393,75 +356,39 @@ class DuckDBStorageManager:
                 logger.debug("Writing checkpoint: %s", parquet_path)
                 table.to_parquet(str(parquet_path))
 
-                # Load into DuckDB from parquet
-                quoted_name = quote_identifier(name)
-                parquet_path_str = str(parquet_path)
+                # Load into DuckDB from parquet using pure Ibis
+                # read_parquet is lazy, so we just define the table
+                parquet_table = self.ibis_conn.read_parquet(str(parquet_path))
 
                 if mode == "replace":
-                    sql = f"CREATE OR REPLACE TABLE {quoted_name} AS SELECT * FROM read_parquet(?)"
-                    self._conn.execute(sql, [parquet_path_str])
+                    # overwrite=True maps to CREATE OR REPLACE TABLE in DuckDB backend
+                    self.ibis_conn.create_table(name, parquet_table, overwrite=True)
                 else:
-                    # Append mode: Ensure table exists, then insert
-                    create_sql = f"CREATE TABLE IF NOT EXISTS {quoted_name} AS SELECT * FROM read_parquet(?) WHERE 1=0"
-                    self._conn.execute(create_sql, [parquet_path_str])
-                    insert_sql = f"INSERT INTO {quoted_name} SELECT * FROM read_parquet(?)"
-                    self._conn.execute(insert_sql, [parquet_path_str])
+                    # Append mode: use insert
+                    # Ensure table exists first? Ibis insert usually requires table to exist.
+                    if not self.table_exists(name):
+                         self.ibis_conn.create_table(name, parquet_table)
+                    else:
+                        self.ibis_conn.insert(name, parquet_table)
 
                 logger.info("Table '%s' written with checkpoint (%s)", name, mode)
 
         # Direct write without checkpoint (faster but no persistence)
         elif mode == "replace":
             with self._lock:
-                # Use Ibis to_sql for direct write
-                # Note: This requires executing the table first
-                dataframe = table.execute()
-                self._conn.register(name, dataframe)
+                # Use Ibis create_table directly with memtable/expression
+                # This avoids register() which is DuckDB-specific
+                try:
+                    self.ibis_conn.create_table(name, table, overwrite=True)
+                except Exception:
+                    # Fallback for backends/expressions that struggle with create_table from expr
+                    dataframe = table.execute()
+                    self.ibis_conn.create_table(name, dataframe, overwrite=True)
                 logger.info("Table '%s' written without checkpoint (%s)", name, mode)
         else:
             msg = "Append mode requires checkpoint=True"
             raise ValueError(msg)
 
-    def persist_atomic(self, table: Table, name: str, schema: ibis.Schema) -> None:
-        """Persist an Ibis table to a DuckDB table atomically using a transaction.
-
-        This preserves existing table properties (like indexes) by performing a
-        DELETE + INSERT transaction instead of dropping and recreating the table.
-
-        Args:
-            table: Ibis table to persist
-            name: Target table name (must be valid SQL identifier)
-            schema: Table schema to use for validation and column selection
-
-        """
-        if not re.fullmatch("[A-Za-z_][A-Za-z0-9_]*", name):
-            msg = "target_table must be a valid DuckDB identifier"
-            raise ValueError(msg)
-
-        target_schema = schema
-        schemas.create_table_if_not_exists(self._conn, name, target_schema)
-
-        temp_view = f"_egregora_persist_{uuid.uuid4().hex}"
-        self._conn.create_view(temp_view, table.to_pyarrow(), overwrite=True)
-
-        try:
-            quoted_target = quote_identifier(name)
-            quoted_source = quote_identifier(temp_view)
-            quoted_columns = ", ".join(quote_identifier(col) for col in target_schema.names)
-
-            # Atomic swap via transaction
-            self._conn.begin()
-            try:
-                self._conn.execute(f"DELETE FROM {quoted_target}")
-                self._conn.execute(
-                    f"INSERT INTO {quoted_target} ({quoted_columns}) SELECT {quoted_columns} FROM {quoted_source}"
-                )
-                self._conn.commit()
-            except Exception:
-                self._conn.rollback()
-                raise
-        finally:
-            with contextlib.suppress(Exception):
-                self._conn.unregister(temp_view)
 
     def get_table_columns(self, table_name: str, *, refresh: bool = False) -> set[str]:
         """Return cached column names for ``table_name``.

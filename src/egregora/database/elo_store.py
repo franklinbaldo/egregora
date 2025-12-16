@@ -218,7 +218,7 @@ class EloStore:
         )
 
     def _upsert_rating(self, rating_data: EloRating) -> None:
-        """Insert or update a rating record."""
+        """Insert a new rating record (append-only)."""
         new_row = ibis.memtable(
             [
                 {
@@ -235,11 +235,7 @@ class EloStore:
             schema=ELO_RATINGS_SCHEMA,
         )
 
-        self.storage.replace_rows(
-            "elo_ratings",
-            new_row,
-            by_keys={"post_slug": rating_data.post_slug},
-        )
+        self.storage.ibis_conn.insert("elo_ratings", new_row)
 
     def _record_comparison(self, record: ComparisonRecord) -> None:
         """Record a comparison in history."""
@@ -273,10 +269,16 @@ class EloStore:
             Ibis table with top posts sorted by rating
 
         """
-        ratings_table = self.storage.ibis_conn.table("elo_ratings")
+        t = self.storage.ibis_conn.table("elo_ratings")
+        # Filter for latest version of each post
+        latest = (
+            t.group_by("post_slug")
+            .mutate(is_latest=t.last_updated == t.last_updated.max())
+            .filter(ibis._.is_latest)
+        )
         return (
-            ratings_table.filter(ratings_table.comparisons > 0)
-            .order_by(ratings_table.rating.desc())
+            latest.filter(latest.comparisons > 0)
+            .order_by(latest.rating.desc())
             .limit(limit)
         )
 
