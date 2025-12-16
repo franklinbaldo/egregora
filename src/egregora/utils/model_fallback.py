@@ -182,19 +182,18 @@ def create_fallback_model(  # noqa: C901, PLR0912
                     provider=provider,
                 )
             elif model_def.startswith("openrouter:"):
-                # OpenRouter needs base_url and API key configured
-                from pydantic_ai.providers.openai import OpenAIProvider  # noqa: PLC0415
+                # Use pydantic-ai's dedicated OpenRouter support
+                # See: https://ai.pydantic.dev/models/openrouter/
+                from pydantic_ai.models.openrouter import OpenRouterModel  # noqa: PLC0415
+                from pydantic_ai.providers.openrouter import OpenRouterProvider  # noqa: PLC0415
 
                 openrouter_api_key = os.environ.get("OPENROUTER_API_KEY")
                 if not openrouter_api_key:
                     msg = "OPENROUTER_API_KEY environment variable required for OpenRouter models"
                     raise ValueError(msg)
 
-                openrouter_provider = OpenAIProvider(
-                    base_url="https://openrouter.ai/api/v1",
-                    api_key=openrouter_api_key,
-                )
-                model = OpenAIModel(
+                openrouter_provider = OpenRouterProvider(api_key=openrouter_api_key)
+                model = OpenRouterModel(
                     model_def.removeprefix("openrouter:"),
                     provider=openrouter_provider,
                 )
