@@ -10,8 +10,6 @@ import os
 from collections.abc import Callable
 from typing import Any
 
-from egregora.utils.rate_limit import get_rate_limiter
-
 logger = logging.getLogger(__name__)
 
 
@@ -54,14 +52,7 @@ def get_api_keys() -> list[str]:
 
 
 class GeminiKeyRotator:
-    """Cycle through Gemini API keys on 429 errors.
-
-    Usage:
-        rotator = GeminiKeyRotator()
-        result = rotator.call_with_rotation(
-            lambda key: client_with_key(key).generate(...),
-        )
-    """
+    """Cycle through Gemini API keys on 429 errors."""
 
     def __init__(self, api_keys: list[str] | None = None) -> None:
         """Initialize the key rotator.
@@ -119,19 +110,7 @@ class GeminiKeyRotator:
         call_fn: Callable[[str], Any],
         is_rate_limit_error: Callable[[Exception], bool] | None = None,
     ) -> Any:
-        """Call a function with automatic key rotation on rate limit errors.
-
-        Args:
-            call_fn: Function that takes an API key and makes the API call.
-            is_rate_limit_error: Function to check if an exception is a rate limit error.
-
-        Returns:
-            The result from call_fn on success.
-
-        Raises:
-            Exception: The last exception if all keys fail.
-
-        """
+        """Call a function with automatic key rotation on rate limit errors."""
         if is_rate_limit_error is None:
             is_rate_limit_error = _default_rate_limit_check
 
@@ -149,8 +128,7 @@ class GeminiKeyRotator:
                     masked = api_key[:8] + "..." + api_key[-4:]
                     logger.warning("[KeyRotator] Rate limit on key %s: %s", masked, str(exc)[:100])
 
-                    # Refund token for immediate retry
-                    get_rate_limiter().refund()
+                    # No refund needed with reactive strategy
 
                     next_key = self.next_key()
                     if next_key is None:
@@ -159,33 +137,18 @@ class GeminiKeyRotator:
                     continue
                 raise
 
-        return None  # Unreachable, but satisfies type checker
+        return None  # Unreachable
 
 
 class GeminiModelCycler:
-    """Cycle through Gemini models on 429 errors.
-
-    Usage:
-        cycler = GeminiModelCycler()
-        result = cycler.call_with_rotation(
-            lambda model: client.generate(model=model, ...),
-            is_rate_limit_error=lambda e: "429" in str(e),
-        )
-    """
+    """Cycle through Gemini models on 429 errors."""
 
     def __init__(
         self,
         models: list[str] | None = None,
         max_retries_per_model: int = 1,
     ) -> None:
-        """Initialize the model cycler.
-
-        Args:
-            models: List of Gemini model names to cycle through.
-                   Defaults to DEFAULT_GEMINI_MODELS.
-            max_retries_per_model: Max retries per model before rotating.
-
-        """
+        """Initialize the model cycler."""
         self.models = models or DEFAULT_GEMINI_MODELS.copy()
         self.max_retries_per_model = max_retries_per_model
         self.current_idx = 0
@@ -230,20 +193,7 @@ class GeminiModelCycler:
         call_fn: Callable[[str], Any],
         is_rate_limit_error: Callable[[Exception], bool] | None = None,
     ) -> Any:
-        """Call a function with automatic model rotation on rate limit errors.
-
-        Args:
-            call_fn: Function that takes a model name and makes the API call.
-            is_rate_limit_error: Function to check if an exception is a rate limit error.
-                                Defaults to checking for "429" or "Too Many Requests" in message.
-
-        Returns:
-            The result from call_fn on success.
-
-        Raises:
-            Exception: The last exception if all models fail.
-
-        """
+        """Call a function with automatic model rotation on rate limit errors."""
         if is_rate_limit_error is None:
             is_rate_limit_error = _default_rate_limit_check
 
@@ -261,8 +211,7 @@ class GeminiModelCycler:
                 if is_rate_limit_error(exc):
                     logger.warning("[ModelCycler] Rate limit on %s: %s", model, str(exc)[:100])
 
-                    # Refund token for immediate retry
-                    get_rate_limiter().refund()
+                    # No refund needed with reactive strategy
 
                     next_model = self.next_model()
                     if next_model is None:
@@ -272,7 +221,7 @@ class GeminiModelCycler:
                 # Non-rate-limit error - propagate
                 raise
 
-        return None  # Unreachable, but satisfies type checker
+        return None  # Unreachable
 
 
 def _default_rate_limit_check(exc: Exception) -> bool:
@@ -284,28 +233,12 @@ def _default_rate_limit_check(exc: Exception) -> bool:
 def create_model_cycler(
     config_models: list[str] | None = None,
 ) -> GeminiModelCycler:
-    """Create a model cycler from config.
-
-    Args:
-        config_models: Models from config, or None to use defaults.
-
-    Returns:
-        Configured GeminiModelCycler instance.
-
-    """
+    """Create a model cycler from config."""
     return GeminiModelCycler(models=config_models)
 
 
 def create_key_rotator(
     api_keys: list[str] | None = None,
 ) -> GeminiKeyRotator:
-    """Create a key rotator from config or environment.
-
-    Args:
-        api_keys: API keys, or None to load from environment.
-
-    Returns:
-        Configured GeminiKeyRotator instance.
-
-    """
+    """Create a key rotator from config or environment."""
     return GeminiKeyRotator(api_keys=api_keys)
