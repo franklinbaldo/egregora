@@ -4,26 +4,23 @@ Provides vector storage and similarity search using LanceDB with native Python.
 Uses Arrow for zero-copy data transfer (no Pandas dependency).
 """
 
-from __future__ import annotations
-
 import json
 import logging
 from collections.abc import Callable, Sequence
 from datetime import date, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import lancedb
 import numpy as np
 from lancedb.pydantic import LanceModel, Vector
 
+from egregora.config import EMBEDDING_DIM
 from egregora.rag.backend import VectorStore
 from egregora.rag.ingestion import chunks_from_documents
 from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
-    from egregora.config import EMBEDDING_DIM
     from egregora.data_primitives.document import Document
 
 logger = logging.getLogger(__name__)
@@ -133,7 +130,7 @@ class LanceDBRAGBackend(VectorStore):
             logger.info("Opening existing LanceDB table: %s", table_name)
             self._table = self._db.open_table(table_name)
 
-    def add(self, documents: Sequence[Document]) -> int:
+    def add(self, documents: Sequence["Document"]) -> int:
         """Add documents to the store.
 
         Implementation:
@@ -200,7 +197,7 @@ class LanceDBRAGBackend(VectorStore):
             raise RuntimeError(msg) from e
 
     # Alias for backward compatibility if needed, though we should use add()
-    def index_documents(self, docs: Sequence[Document]) -> None:
+    def index_documents(self, docs: Sequence["Document"]) -> None:
         self.add(docs)
 
     def query(self, request: RAGQueryRequest) -> RAGQueryResponse:
