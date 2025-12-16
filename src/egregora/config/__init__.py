@@ -13,53 +13,20 @@ from this facade:
 - **Discoverability**: All config exports visible in one place via `__all__`
 - **IDE support**: Better autocomplete and type hints
 
-**Phase 2 Modernization: Configuration Objects Pattern**
-
-This module is part of the Phase 2 refactoring to replace parameter soup (12-16 params) with
-configuration objects (3-6 params). The pattern includes:
-
-- **Pydantic V2 models** (.schema): Validated, typed config loaded from `.egregora/config.yml`
-- **Runtime contexts** (.settings): Dataclasses and helpers for runtime parameters
-- **Model utilities** (.model): LLM model configuration and defaults
-- **Site paths** (.site): MkDocs site structure and path resolution
-
-**Primary Exports:**
-
-- `EgregoraConfig`: Root Pydantic V2 config model (loads from `.egregora/config.yml`)
-- `load_egregora_config()`: Config loader with validation
-- `EnrichmentSettings`: Enrichment configuration
-- `ModelConfig`: LLM model configuration (backend-agnostic)
-
 **Architecture:**
 
 ```
 config/
 ├── __init__.py          # This facade (re-exports everything)
-├── schema.py            # CONSOLIDATED: All config code (Pydantic models, dataclasses, loading)
-├── config_validation.py # CLI-specific validation utilities
-└── site.py              # MkDocs site paths (DEPRECATED, should move to output_adapters/)
+├── settings.py          # CONSOLIDATED: All config code (Pydantic models, dataclasses, loading)
 ```
-
-**Migration Status:**
-
-- ✅ New system: Pydantic V2 configs in `.egregora/config.yml` (PRIMARY)
-- 🔄 Transitional: Runtime context dataclasses for function signatures
-- ⚠️ Legacy: Older contexts will be migrated to use EgregoraConfig internally
-
-See Also:
-    - `egregora.config.schema`: Pydantic V2 models and validation
-    - `egregora.config.settings`: Runtime context dataclasses and helpers
-    - CLAUDE.md: Configuration section for environment variables and MkDocs config
 
 """
 
 # ==============================================================================
-# All Configuration (from .schema)
+# All Configuration
 # ==============================================================================
-# CONSOLIDATED: Everything is now in schema.py - Pydantic models, dataclasses,
-# loading functions, and model utilities all in one place.
 from egregora.config.settings import (
-    DEFAULT_EMBEDDING_MODEL,
     EMBEDDING_DIM,
     # Pydantic V2 config models (persisted in .egregora/config.yml)
     EgregoraConfig,
@@ -83,7 +50,6 @@ from egregora.config.settings import (
 )
 
 __all__ = [
-    "DEFAULT_EMBEDDING_MODEL",
     "EMBEDDING_DIM",
     "EgregoraConfig",
     "EnrichmentSettings",

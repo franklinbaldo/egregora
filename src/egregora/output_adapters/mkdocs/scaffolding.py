@@ -178,34 +178,28 @@ class MkDocsSiteScaffolder:
         self._create_egregora_config(site_paths, env)
 
     def _create_content_directories(self, site_paths: dict[str, Path]) -> None:
-        """Create content directories.
-
-        Note: profiles and journal content now go into posts_dir,
-        so we no longer create separate directories for them.
-        """
         posts_dir = site_paths["posts_dir"]
+        profiles_dir = site_paths["profiles_dir"]
         media_dir = site_paths["media_dir"]
+        journal_dir = site_paths["journal_dir"]
 
-        # Only create posts and media directories
-        for directory in (posts_dir, media_dir):
+        for directory in (posts_dir, profiles_dir, media_dir, journal_dir):
             directory.mkdir(parents=True, exist_ok=True)
 
-        # Create media subdirectories
         for subdir in ["images", "videos", "audio", "documents"]:
             media_subdir = media_dir / subdir
             media_subdir.mkdir(exist_ok=True)
             (media_subdir / ".gitkeep").touch()
 
+        journal_dir.mkdir(exist_ok=True)
+        (journal_dir / ".gitkeep").touch()
+
     def _create_template_files(
         self, site_paths: dict[str, Path], env: Environment, context: dict[str, Any]
     ) -> None:
-        """Create template-based files for the site.
-
-        Note: journal and profiles index pages are no longer created
-        as separate directories - all content goes into posts/.
-        """
         site_root = site_paths["site_root"]
         docs_dir = site_paths["docs_dir"]
+        profiles_dir = site_paths["profiles_dir"]
         media_dir = site_paths["media_dir"]
 
         templates_to_render = [
@@ -214,6 +208,9 @@ class MkDocsSiteScaffolder:
             (site_root / ".github" / "workflows" / "publish.yml", ".github/workflows/publish.yml.jinja"),
             (docs_dir / "index.md", "docs/index.md.jinja"),
             (docs_dir / "about.md", "docs/about.md.jinja"),
+            (docs_dir / "journal" / "index.md", "docs/journal/index.md.jinja"),
+            (profiles_dir / "index.md", "docs/profiles/index.md.jinja"),
+            (media_dir / "index.md", "docs/media/index.md.jinja"),
             (media_dir / "index.md", "docs/media/index.md.jinja"),
             (site_paths["blog_root_dir"] / "index.md", "docs/posts/index.md.jinja"),
             (site_paths["blog_root_dir"] / "tags.md", "docs/posts/tags.md.jinja"),
