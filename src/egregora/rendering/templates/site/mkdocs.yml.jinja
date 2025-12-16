@@ -86,6 +86,11 @@ plugins:
         - tags
       comments_path: "#__comments"
       use_material_blog: false
+  # Social cards (requires 'imaging' feature: uvx --with mkdocs-material[imaging])
+  # - social:
+  #     cards: true
+  #     cards_layout_options:
+  #       background_color: "#1abc9c"  # Matches primary teal
 
 # Markdown extensions available for posts
 # (This section is automatically sent to the writer agent)
@@ -101,7 +106,9 @@ markdown_extensions:
 
   # Content enhancements
   - admonition
-  - pymdownx.details
+  - pymdownx.details:
+      # Use native details for better accessibility/styling
+      # (Material for MkDocs overrides this automatically)
   - footnotes
   - pymdownx.tasklist:
       custom_checkbox: true
