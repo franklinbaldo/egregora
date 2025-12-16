@@ -23,13 +23,13 @@ All generated content (Posts, Profiles, Journal Entries) resides in the `docs/po
     *   URL: `/posts/announcements/{slug}/`
 
 ### 3. Media Storage
-Media files are stored separately from posts to allow for clean separation of assets and content.
-*   **Location**: `docs/media/`
+Media files are stored inside the posts directory for logical grouping.
+*   **Location**: `docs/posts/media/`
 *   **Subdirectories**:
-    *   `docs/media/images/`
-    *   `docs/media/videos/`
-    *   `docs/media/audio/`
-    *   `docs/media/files/`
+    *   `docs/posts/media/images/`
+    *   `docs/posts/media/videos/`
+    *   `docs/posts/media/audio/`
+    *   `docs/posts/media/documents/`
 *   **Naming**: Content-addressed UUIDs or Semantic Slugs (preferred for SEO).
     *   Format: `{slug}.{ext}` (e.g., `2025-01-01-sunset.jpg`)
 
