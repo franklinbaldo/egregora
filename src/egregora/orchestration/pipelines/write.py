@@ -72,7 +72,7 @@ from egregora.transformations import (
 from egregora.utils.cache import PipelineCache
 from egregora.utils.env import validate_gemini_api_key
 from egregora.utils.metrics import UsageTracker
-from egregora.utils.rate_limit import init_rate_limiter
+from egregora.models.rate_limited import set_global_rate_limit
 
 try:
     import dotenv
@@ -1198,7 +1198,9 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     # Initialize TaskStore for async operations
     task_store = TaskStore(storage)
 
-    _init_global_rate_limiter(run_params.config.quota)
+    # Initialize rate limit
+    quota = run_params.config.quota
+    set_global_rate_limit(max_rate=quota.per_second_limit, time_period=1.0)
 
     output_registry = create_default_output_registry()
 
@@ -1661,14 +1663,6 @@ def _apply_filters(
     # Checkpoint-based resume logic
     return _apply_checkpoint_filter(
         messages_table, checkpoint_path, checkpoint_enabled=options.checkpoint_enabled
-    )
-
-
-def _init_global_rate_limiter(quota_config: any) -> None:
-    """Initialize the global rate limiter."""
-    init_rate_limiter(
-        requests_per_second=quota_config.per_second_limit,
-        max_concurrency=quota_config.concurrency,
     )
 
 

@@ -1,4 +1,4 @@
-"""Rate limited model wrapper for pydantic-ai models."""
+"""Rate limited model wrapper for pydantic-ai models using aiolimiter."""
 
 from __future__ import annotations
 
@@ -6,19 +6,29 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from aiolimiter import AsyncLimiter
 from pydantic_ai.messages import ModelMessage, ModelResponse
 from pydantic_ai.models import Model, ModelRequestParameters, ModelSettings
 
-from egregora.utils.rate_limit import get_rate_limiter
-
 logger = logging.getLogger(__name__)
+
+# Global limiter: 10 requests per second (adjustable)
+_global_limiter = AsyncLimiter(max_rate=10.0, time_period=1.0)
+
+
+def set_global_rate_limit(max_rate: float, time_period: float = 1.0) -> None:
+    """Configure the global rate limiter."""
+    global _global_limiter
+    _global_limiter = AsyncLimiter(max_rate=max_rate, time_period=time_period)
+    logger.info("Set global rate limit to %.1f req/%.1fs", max_rate, time_period)
 
 
 class RateLimitedModel(Model):
-    """Wraps a pydantic-ai Model to enforce global rate limits."""
+    """Wraps a pydantic-ai Model to enforce global rate limits using aiolimiter."""
 
-    def __init__(self, wrapped_model: Model) -> None:
+    def __init__(self, wrapped_model: Model, limiter: AsyncLimiter | None = None) -> None:
         self.wrapped_model = wrapped_model
+        self.limiter = limiter or _global_limiter
 
     async def request(
         self,
@@ -26,26 +36,9 @@ class RateLimitedModel(Model):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
     ) -> ModelResponse:
-        """Make a rate-limited request."""
-        limiter = get_rate_limiter()
-
-        # Acquire slot (blocks if needed)
-        # Note: limiter.acquire() is blocking (sync).
-        # Since we are in async method, this blocks the event loop if not careful.
-        # But we are moving to synchronous execution mostly.
-        # However, pydantic-ai Agent calls this async method.
-        # If we block here, we block the loop.
-        # But since we are de-asyncing, maybe we should use run_in_executor?
-        # Or just accept blocking if we are running in a thread (run_sync does that).
-
-        # If running via agent.run_sync(), we are in a dedicated thread/loop.
-        # Blocking here is fine.
-
-        limiter.acquire()
-        try:
+        """Make a rate-limited request using async context manager."""
+        async with self.limiter:
             return await self.wrapped_model.request(messages, model_settings, model_request_parameters)
-        finally:
-            limiter.release()
 
     @asynccontextmanager
     async def request_stream(
@@ -54,16 +47,12 @@ class RateLimitedModel(Model):
         model_settings: ModelSettings | None,
         model_request_parameters: ModelRequestParameters,
     ) -> AsyncIterator[ModelResponse]:
-        """Make a rate-limited stream request."""
-        limiter = get_rate_limiter()
-        limiter.acquire()
-        try:
+        """Make a rate-limited stream request using async context manager."""
+        async with self.limiter:
             async with self.wrapped_model.request_stream(
                 messages, model_settings, model_request_parameters
             ) as stream:
                 yield stream
-        finally:
-            limiter.release()
 
     @property
     def model_name(self) -> str:
