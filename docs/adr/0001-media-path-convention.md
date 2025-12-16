@@ -11,22 +11,22 @@ Media files (images, videos) uploaded by users need a consistent storage locatio
 The URL routing and filesystem paths must be consistent.
 
 ## Decision
-We adopt **`docs/post/media/`** as the single global root for assets.
+We adopt **`docs/posts/media/`** as the single global root for assets.
 
-**URL**: `/post/media/{filename}`
-**Filesystem**: `docs/post/media/{filename}`
+**URL**: `/posts/media/{filename}`
+**Filesystem**: `docs/posts/media/{filename}`
 
 ### Configuration
 ```python
 # conventions.py
-media_prefix: str = "post/media"
+media_prefix: str = "posts/media"
 
 # paths.py
-media_dir = docs_dir / "post" / "media"
+media_dir = docs_dir / "posts" / "media"
 ```
 
 ### Rationale
-1. **Standardization**: Singular "post" directory for consistent media assets.
+1. **Standardization**: Singular "posts" directory for consistent media assets.
 2. **Simplification**: Unified path resolution across the codebase.
 3. **MkDocs compatibility**: Explicit asset root.
 
