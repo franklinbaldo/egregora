@@ -74,8 +74,6 @@ class PipelineFactory:
         db_file = site_paths.egregora_dir / "app.duckdb"
         storage = DuckDBStorageManager(db_path=db_file)
 
-        annotations_store = AnnotationStore(storage)
-
         output_registry = create_default_output_registry()
 
         url_ctx = UrlContext(
@@ -83,6 +81,16 @@ class PipelineFactory:
             site_prefix=site_paths.docs_prefix,
             base_path=site_paths.site_root,
         )
+
+        adapter = PipelineFactory.create_output_adapter(
+            config=run_params.config,
+            output_dir=resolved_output,
+            site_root=site_paths.site_root,
+            registry=output_registry,
+            url_context=url_ctx,
+        )
+
+        annotations_store = AnnotationStore(storage, output_sink=adapter)
 
         config_obj = PipelineConfig(
             config=run_params.config,
@@ -109,6 +117,8 @@ class PipelineFactory:
         )
 
         ctx = PipelineContext(config_obj, state)
+        # Inject the already created adapter into the context
+        ctx.output_format = adapter
 
         return ctx, pipeline_backend, runs_backend
 

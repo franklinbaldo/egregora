@@ -282,6 +282,7 @@ def annotate_conversation_impl(
         raise RuntimeError(msg)
 
     try:
+        # Persistence to OutputSink is now handled internally by AnnotationStore
         annotation = ctx.annotations_store.save_annotation(
             parent_id=parent_id, parent_type=parent_type, commentary=commentary
         )
@@ -294,7 +295,7 @@ def annotate_conversation_impl(
     except (RuntimeError, ValueError, OSError, AttributeError) as exc:
         # We catch expected persistence exceptions here to prevent a single
         # annotation failure from crashing the entire writer agent process.
-        logger.warning("Failed to persist annotation, continuing without it: %s", exc)
+        logger.warning("Failed to save annotation: %s", exc)
         return AnnotationResult(
             status="failed",
             annotation_id="annotation-error",

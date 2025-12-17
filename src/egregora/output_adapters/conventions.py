@@ -184,6 +184,9 @@ class StandardUrlConvention(UrlConvention):
 
     def canonical_url(self, document: Document, ctx: UrlContext) -> str:
         """Generate a canonical URL based on the standard convention."""
+        if document.type == DocumentType.ANNOTATION:
+            return self._format_annotation_url(document, ctx)
+
         handlers = {
             DocumentType.POST: self._format_post_url,
             DocumentType.PROFILE: self._format_profile_url,
@@ -208,6 +211,19 @@ class StandardUrlConvention(UrlConvention):
 
         # Fallback
         return self._join(ctx, "documents", document.document_id)
+
+    def _format_annotation_url(self, document: Document, ctx: UrlContext) -> str:
+        """Format URL for an annotation document."""
+        # Annotations don't have public URLs in the current static site model,
+        # but we assign them a logical location for consistency.
+        # Format: /annotations/{parent_id}/{annotation_id}/
+        annotation_id = document.metadata.get("annotation_id", document.document_id)
+        parent_id = document.metadata.get("parent_id", "unknown")
+
+        url_path = f"annotations/{parent_id}/{annotation_id}/"
+        if ctx.site_prefix:
+            return f"{ctx.base_url}/{ctx.site_prefix}/{url_path}"
+        return f"{ctx.base_url}/{url_path}"
 
     def _format_profile_url(self, ctx: UrlContext, document: Document) -> str:
         subject_uuid = (

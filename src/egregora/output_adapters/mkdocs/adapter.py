@@ -102,6 +102,15 @@ class MkDocsAdapter(BaseOutputSink):
         )
         self._url_convention = StandardUrlConvention(routes)
 
+        # Internal dispatch for writers and path resolvers
+        self._writers = {
+            DocumentType.POST: self._write_post_doc,
+            DocumentType.PROFILE: self._write_profile_doc,
+            DocumentType.MEDIA: self._write_media_doc,
+            DocumentType.ENRICHMENT: self._write_enrichment_doc,
+            DocumentType.ANNOTATION: self._write_annotation_doc,
+        }
+
         self._initialized = True
 
     @property
@@ -155,19 +164,9 @@ class MkDocsAdapter(BaseOutputSink):
 
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        match document.type:
-            case DocumentType.POST:
-                self._write_post_doc(document, path)
-            case DocumentType.JOURNAL:
-                self._write_journal_doc(document, path)
-            case DocumentType.PROFILE:
-                self._write_profile_doc(document, path)
-            case DocumentType.ENRICHMENT_URL | DocumentType.ENRICHMENT_MEDIA:
-                self._write_enrichment_doc(document, path)
-            case DocumentType.MEDIA:
-                self._write_media_doc(document, path)
-            case _:
-                self._write_generic_doc(document, path)
+        # Dispatch to specific writer if available, else generic
+        writer = self._writers.get(document.type, self._write_generic_doc)
+        writer(document, path)
 
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
@@ -226,8 +225,19 @@ class MkDocsAdapter(BaseOutputSink):
             case DocumentType.MEDIA:
                 # Media files: stay in media_dir
                 return self.media_dir / identifier
+            case DocumentType.ANNOTATION:
+                return self._resolve_annotation_path(identifier)
             case _:
                 return None
+
+    def _resolve_annotation_path(self, identifier: str) -> Path | None:
+        """Resolve path for annotation documents."""
+        # Annotations are stored in a dedicated 'annotations' folder
+        # Structure: docs/annotations/{parent_id}/{annotation_id}.md
+        # If identifier contains parent/id, use it.
+        # But wait, identifier resolution is tricky.
+        # Let's assume identifier is "parent_id/annotation_id" or similar relative path.
+        return self.docs_dir / "annotations" / identifier
 
     def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
         path = self._resolve_document_path(doc_type, identifier)
@@ -925,6 +935,12 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
+
+    def _write_annotation_doc(self, document: Document, path: Path) -> None:
+        """Write an annotation document."""
+        # Annotations are written as Markdown files, typically in a hidden directory
+        # or separate storage, but for MkDocs adapter we place them in the structure.
+        self._write_generic_doc(document, path)
 
     def _write_journal_doc(self, document: Document, path: Path) -> None:
         metadata = self._ensure_hidden(dict(document.metadata or {}))
