@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 
 import ibis
-import pandas as pd
 
 from egregora.orchestration.pipelines.write import _process_all_windows, _apply_checkpoint_filter
 from egregora.transformations.windowing import Window, load_checkpoint, save_checkpoint
@@ -98,22 +97,28 @@ def test_apply_checkpoint_filter_skips_old_messages(tmp_path):
     checkpoint_time = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     save_checkpoint(checkpoint_path, checkpoint_time, 1)
 
-    # Create a sample ibis table
+    # Use an in-memory duckdb backend to avoid pandas dependency
+    ibis.duckdb.connect()
+
+    # Create a sample ibis table using a dictionary of lists
     data = {
         'ts': [
-            pd.Timestamp('2023-01-01 11:00:00+00:00'), # Before checkpoint
-            pd.Timestamp('2023-01-01 12:00:00+00:00'), # At checkpoint
-            pd.Timestamp('2023-01-01 13:00:00+00:00'), # After checkpoint
+            datetime(2023, 1, 1, 11, 0, 0, tzinfo=timezone.utc), # Before checkpoint
+            datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc), # At checkpoint
+            datetime(2023, 1, 1, 13, 0, 0, tzinfo=timezone.utc), # After checkpoint
         ],
         'text': ['msg1', 'msg2', 'msg3']
     }
-    df = pd.DataFrame(data)
-    table = ibis.memtable(df)
+    table = ibis.memtable(data)
 
     # 2. Execute
     filtered_table = _apply_checkpoint_filter(table, checkpoint_path, checkpoint_enabled=True)
 
     # 3. Verify
-    result_df = filtered_table.to_pandas()
-    assert len(result_df) == 1
-    assert result_df['text'].iloc[0] == 'msg3'
+    # DuckDB backend can return pyarrow table which has .to_pylist()
+    pyarrow_table = filtered_table.to_pyarrow()
+    assert pyarrow_table.num_rows == 1
+
+    result_list = pyarrow_table.to_pylist()
+    assert len(result_list) == 1
+    assert result_list[0]['text'] == 'msg3'
