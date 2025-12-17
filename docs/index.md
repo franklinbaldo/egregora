@@ -46,7 +46,7 @@ Welcome to the Egregora documentation! Transform your WhatsApp group chats into 
 
     Contributing guidelines and development setup instructions
 
-    [:octicons-arrow-right-24: Development](development/contributing/)
+    [:octicons-arrow-right-24: Development](development/)
 
 -   :material-package-down:{ .lg .middle } __Repomix Bundles__
 
