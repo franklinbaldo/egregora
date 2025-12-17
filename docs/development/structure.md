@@ -11,4 +11,3 @@
 ## Output sites
 
 Egregora generates MkDocs sites. The canonical directories are configured via `.egregora.toml` and resolved by `MkDocsPaths`.
-

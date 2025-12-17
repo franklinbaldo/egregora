@@ -20,4 +20,3 @@ CI enforces Ruff formatting and linting:
 uv run ruff format --check src/ tests/
 uv run ruff check src/ tests/
 ```
-

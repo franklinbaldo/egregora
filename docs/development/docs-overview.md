@@ -12,4 +12,3 @@ uv run mkdocs serve
 ## Demo site
 
 The CI workflow also generates an offline demo site (published under `/demo/`).
-
