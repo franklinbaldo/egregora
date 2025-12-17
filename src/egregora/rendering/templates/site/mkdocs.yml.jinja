@@ -150,6 +150,15 @@ nav:
 extra:
   # Disable MkDocs generator notice
   generator: false
+  # Add social links to the footer for a more professional look.
+  # These are placeholders and will need to be configured by the user in their .egregora.toml
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/{{ github_user | default('your_user') }}
+    - icon: fontawesome/brands/x-twitter
+      link: https://twitter.com/{{ twitter_handle | default('your_handle') }}
+    - icon: fontawesome/brands/linkedin
+      link: https://linkedin.com/in/{{ linkedin_user | default('your_user') }}
 
 # Custom CSS for improved UX
 extra_css:
