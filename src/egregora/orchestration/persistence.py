@@ -59,7 +59,7 @@ def persist_profile_document(
     doc = Document(
         content=content,
         type=DocumentType.PROFILE,
-        metadata={"uuid": author_uuid},
+        metadata={"uuid": author_uuid, "subject": author_uuid},
         source_window=source_window,
     )
     output_sink.persist(doc)

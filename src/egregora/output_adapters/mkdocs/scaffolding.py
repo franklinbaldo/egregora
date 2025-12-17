@@ -98,6 +98,8 @@ class MkDocsSiteScaffolder:
                 "overrides_dir": Path(
                     os.path.relpath(site_paths.egregora_dir / "overrides", mkdocs_config_dir)
                 ).as_posix(),
+                # Posts list - empty on scaffold, populated by write pipeline updating index
+                "posts": [],
             }
 
             new_mkdocs_path = site_paths.mkdocs_config_path
@@ -240,6 +242,9 @@ class MkDocsSiteScaffolder:
             overrides_src = Path(env.loader.searchpath[0]) / "overrides"
             if overrides_src.exists():
                 shutil.copytree(overrides_src, overrides_dest)
+            else:
+                # Always create overrides dir to prevent MkDocs config errors
+                overrides_dest.mkdir(parents=True, exist_ok=True)
 
     def _create_egregora_config(self, site_paths: MkDocsPaths, env: Environment) -> None:
         config_path = site_paths.config_path

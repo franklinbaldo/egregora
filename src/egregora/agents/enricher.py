@@ -1692,9 +1692,17 @@ class EnrichmentWorker(BaseWorker):
                 "hide": ["navigation"],
             }
 
+            # Map media_type to specific DocumentType for folder organization
+            media_type_to_doc_type = {
+                "image": DocumentType.ENRICHMENT_IMAGE,
+                "video": DocumentType.ENRICHMENT_VIDEO,
+                "audio": DocumentType.ENRICHMENT_AUDIO,
+            }
+            doc_type = media_type_to_doc_type.get(media_type, DocumentType.ENRICHMENT_MEDIA)
+
             doc = Document(
                 content=markdown,
-                type=DocumentType.ENRICHMENT_MEDIA,
+                type=doc_type,
                 metadata=enrichment_metadata,
                 id=slug_value,
                 parent_id=slug_value,
