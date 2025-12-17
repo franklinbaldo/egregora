@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock, MagicMock, patch
 import json
 import os
 
@@ -55,6 +55,21 @@ class TestAtomicCheckpointSaving:
 
         assert checkpoint_path.exists()
 
+    def test_save_checkpoint_handles_os_error(self, tmp_path: Path) -> None:
+        """Checkpoint should handle OSError gracefully."""
+        checkpoint_path = tmp_path / "readonly" / "checkpoint.json"
+        checkpoint_path.parent.mkdir(parents=True)
+        # Make parent directory read-only to trigger OSError on write/rename
+        os.chmod(checkpoint_path.parent, 0o500)
+
+        try:
+            timestamp = datetime.now(timezone.utc)
+            # This should log a warning but not raise exception
+            save_checkpoint_atomic(checkpoint_path, timestamp, messages_processed=10)
+        finally:
+             # Cleanup: restore permissions
+             os.chmod(checkpoint_path.parent, 0o700)
+
 
 class TestCheckpointLoadAndTimezone:
     """Tests for loading checkpoints with correct timezone handling."""
@@ -63,11 +78,6 @@ class TestCheckpointLoadAndTimezone:
         """Loaded timestamps must always be timezone-aware UTC."""
         checkpoint_path = tmp_path / "checkpoint.json"
         original_ts = datetime(2025, 6, 15, 14, 30, 0, tzinfo=timezone.utc)
-
-        # We need save_checkpoint_atomic to work for this setup, or we manually write it
-        # Since we are TDDing, save_checkpoint_atomic might not exist yet when running this test
-        # but the prompt asks to define tests first.
-        # Ideally we implement save_checkpoint_atomic right after.
 
         save_checkpoint_atomic(checkpoint_path, original_ts, messages_processed=50)
         data = load_checkpoint(checkpoint_path)
@@ -79,6 +89,14 @@ class TestCheckpointLoadAndTimezone:
     def test_load_checkpoint_returns_none_for_missing_file(self, tmp_path: Path) -> None:
         """Load should return None if checkpoint file doesn't exist."""
         checkpoint_path = tmp_path / "nonexistent.json"
+        result = load_checkpoint(checkpoint_path)
+        assert result is None
+
+    def test_load_checkpoint_handles_json_decode_error(self, tmp_path: Path) -> None:
+        """Load should return None if checkpoint file contains invalid JSON."""
+        checkpoint_path = tmp_path / "corrupt.json"
+        checkpoint_path.write_text("{invalid_json")
+
         result = load_checkpoint(checkpoint_path)
         assert result is None
 
@@ -122,12 +140,7 @@ class TestIncrementalCheckpointInPipeline:
         monkeypatch.setattr("egregora.orchestration.pipelines.write._validate_window_size", lambda window, max_size: None)
         monkeypatch.setattr("egregora.orchestration.pipelines.write._process_background_tasks", lambda ctx: None)
 
-        # NOTE: calling with checkpoint_path, which doesn't exist in signature yet.
-        # This will fail until implemented.
-        try:
-             _process_all_windows(iter(windows), mock_context, checkpoint_path=checkpoint_path)
-        except TypeError:
-             pytest.fail("Current implementation of _process_all_windows does not accept checkpoint_path")
+        _process_all_windows(iter(windows), mock_context, checkpoint_path=checkpoint_path)
 
         assert checkpoint_path.exists()
         data = load_checkpoint(checkpoint_path)
@@ -158,11 +171,9 @@ class TestIncrementalCheckpointInPipeline:
         monkeypatch.setattr("egregora.orchestration.pipelines.write._process_background_tasks", lambda ctx: None)
 
         with pytest.raises(RuntimeError, match="Simulated failure"):
-            try:
-                _process_all_windows(iter(windows), mock_context, checkpoint_path=checkpoint_path)
-            except TypeError:
-                 pytest.fail("Current implementation of _process_all_windows does not accept checkpoint_path")
+            _process_all_windows(iter(windows), mock_context, checkpoint_path=checkpoint_path)
 
         assert checkpoint_path.exists()
         data = load_checkpoint(checkpoint_path)
+        # It processed 1 window successfully
         assert data["messages_processed"] == 1
