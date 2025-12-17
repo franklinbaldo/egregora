@@ -169,6 +169,8 @@ class MkDocsAdapter(BaseOutputSink):
                 self._write_enrichment_doc(document, path)
             case DocumentType.MEDIA:
                 self._write_media_doc(document, path)
+            case DocumentType.ANNOTATION:
+                self._write_annotation_doc(document, path)
             case _:
                 self._write_generic_doc(document, path)
 
@@ -211,6 +213,10 @@ class MkDocsAdapter(BaseOutputSink):
             case DocumentType.JOURNAL:
                 # Journals: simple filename with slug
                 return self.posts_dir / f"{identifier.replace('/', '-')}.md"
+            case DocumentType.ANNOTATION:
+                # Annotations: posts/annotations/{id}.md
+                # Identifier is likely the annotation ID or slug
+                return self.posts_dir / "annotations" / f"{identifier}.md"
             case DocumentType.ENRICHMENT_URL:
                 # Enrichment URLs: inside media_dir/urls (ADR-0004)
                 return self.media_dir / "urls" / f"{identifier}.md"
@@ -1029,6 +1035,29 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             document.content if isinstance(document.content, bytes) else document.content.encode("utf-8")
         )
         path.write_bytes(payload)
+
+    def _write_annotation_doc(self, document: Document, path: Path) -> None:
+        """Write an annotation document with proper frontmatter."""
+        metadata = dict(document.metadata or {})
+
+        # Ensure type is set for categorization
+        metadata["type"] = "annotation"
+
+        # Add Annotation category
+        metadata = self._ensure_category(metadata, "Annotation")
+
+        # Strip HTML comment header if present, as we are adding YAML frontmatter
+        content = document.content
+        if content.startswith("<!--") and "annotation_id:" in content:
+            # Simple heuristic to strip the header added by Annotation.to_document
+            # It ends with -->\n\n
+            parts = content.split("-->\n\n", 1)
+            if len(parts) > 1:
+                content = parts[1]
+
+        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        full_content = f"---\n{yaml_front}---\n\n{content}"
+        path.write_text(full_content, encoding="utf-8")
 
     def _write_generic_doc(self, document: Document, path: Path) -> None:
         if isinstance(document.content, bytes):
