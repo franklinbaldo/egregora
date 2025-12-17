@@ -4,10 +4,17 @@ site_url: {{ site_url }}  # Update with your deployment URL (e.g., https://examp
 docs_dir: {{ docs_dir }}
 site_dir: ../site  # Output to site root level (not inside .egregora/)
 
+# Copyright Footer
+copyright: Copyright &copy; {{ generated_date.split('-')[0] }} {{ site_name }}
+
 theme:
   name: material
   custom_dir: {{ overrides_dir }}
   language: en
+  # Default logo (can be overridden by placing a logo.png in docs/assets/ and updating this)
+  icon:
+    logo: material/book-open-page-variant
+  # favicon: assets/favicon.png  # Uncomment if you add a favicon
   font:
     text: Roboto
     code: Roboto Mono
@@ -37,6 +44,7 @@ theme:
     - navigation.footer
     - toc.integrate
     - header.autohide
+    - search.suggest
     - search.highlight
     - search.share
     - content.code.copy
