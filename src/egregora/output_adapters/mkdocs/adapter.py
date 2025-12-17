@@ -27,6 +27,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
+from egregora.metadata.minimum import ensure_minimum_metadata
 from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.markdown.frontmatter import parse_frontmatter
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
@@ -132,6 +133,9 @@ class MkDocsAdapter(BaseOutputSink):
         return author_dir
 
     def persist(self, document: Document) -> None:
+        # First, ensure the document has the minimum required metadata.
+        document = ensure_minimum_metadata(document)
+
         doc_id = document.document_id
         url = self._url_convention.canonical_url(document, self._ctx)
         path = self._url_to_path(url, document)
