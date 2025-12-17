@@ -25,6 +25,7 @@ def adapter():
     adapter = MkDocsAdapter()
     adapter._ctx = mock_ctx
     adapter.posts_dir = mock_ctx.output_dir / "docs" / "posts"
+    adapter.profiles_dir = mock_ctx.output_dir / "docs" / "posts" / "profiles"
     adapter.docs_dir = mock_ctx.output_dir / "docs"
 
     return adapter
@@ -90,8 +91,8 @@ class TestProfileRouting:
         url = f"/profiles/{doc.metadata['slug']}"
         path = adapter._url_to_path(url, doc)
 
-        # Should be in author's folder
-        assert "authors" in str(path)
+        # Should be in author's folder (now located under profiles/, not posts/authors/)
+        assert "profiles" in str(path)
         assert "john-uuid-12345678"[:16] in str(path)  # Shortened UUID
         assert path.name == "john-interests.md"
 
@@ -199,7 +200,7 @@ class TestRoutingIntegration:
 
         # Verify structure
         assert post_path == adapter.posts_dir / "regular.md"
-        assert "authors" in str(profile_path)
+        assert "profiles" in str(profile_path)
         assert "announcements" in str(announcement_path)
 
     def test_metadata_requirements(self, adapter):
