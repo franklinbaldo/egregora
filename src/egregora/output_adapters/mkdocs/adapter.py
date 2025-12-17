@@ -211,8 +211,17 @@ class MkDocsAdapter(BaseOutputSink):
                 # Enrichment URLs: inside media_dir/urls (ADR-0004)
                 return self.media_dir / "urls" / f"{identifier}.md"
             case DocumentType.ENRICHMENT_MEDIA:
-                # Enrichment media: stays in media_dir
+                # Enrichment media: stays in media_dir (fallback)
                 return self.media_dir / f"{identifier}.md"
+            case DocumentType.ENRICHMENT_IMAGE:
+                # Image descriptions: media_dir/images/
+                return self.media_dir / "images" / f"{identifier}.md"
+            case DocumentType.ENRICHMENT_VIDEO:
+                # Video descriptions: media_dir/videos/
+                return self.media_dir / "videos" / f"{identifier}.md"
+            case DocumentType.ENRICHMENT_AUDIO:
+                # Audio descriptions: media_dir/audio/
+                return self.media_dir / "audio" / f"{identifier}.md"
             case DocumentType.MEDIA:
                 # Media files: stay in media_dir
                 return self.media_dir / identifier
@@ -786,9 +795,21 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 slug = url_path.split("/")[-1]
                 return self.media_dir / "urls" / f"{slug}.md"
             case DocumentType.ENRICHMENT_MEDIA:
-                # url_path is like 'media/images/foo' -> we want 'docs/media/images/foo.md'
+                # url_path is like 'media/images/foo' -> we want 'docs/media/images/foo.md' (fallback)
                 rel_path = self._strip_media_prefix(url_path)
                 return self.media_dir / f"{rel_path}.md"
+            case DocumentType.ENRICHMENT_IMAGE:
+                # Images: url_path ends with slug -> media_dir/images/slug.md
+                slug = url_path.split("/")[-1]
+                return self.media_dir / "images" / f"{slug}.md"
+            case DocumentType.ENRICHMENT_VIDEO:
+                # Videos: url_path ends with slug -> media_dir/videos/slug.md
+                slug = url_path.split("/")[-1]
+                return self.media_dir / "videos" / f"{slug}.md"
+            case DocumentType.ENRICHMENT_AUDIO:
+                # Audio: url_path ends with slug -> media_dir/audio/slug.md
+                slug = url_path.split("/")[-1]
+                return self.media_dir / "audio" / f"{slug}.md"
             case DocumentType.MEDIA:
                 rel_path = self._strip_media_prefix(url_path)
                 return self.media_dir / rel_path
