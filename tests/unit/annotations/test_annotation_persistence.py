@@ -44,7 +44,8 @@ class TestAnnotationStorePersistence:
 
         mock_output_sink.persist.assert_called_once()
         persisted_doc = mock_output_sink.persist.call_args[0][0]
-        assert persisted_doc.type == DocumentType.ANNOTATION
+        assert persisted_doc.type == DocumentType.POST
+        assert persisted_doc.metadata["categories"] == ["Annotations"]
 
     def test_save_annotation_works_without_sink(self, mock_db) -> None:
         store = AnnotationStore(storage=mock_db, output_sink=None)
@@ -86,5 +87,6 @@ class TestAnnotationDocumentConversion:
 
         doc = annotation.to_document()
 
-        assert doc.type == DocumentType.ANNOTATION
+        assert doc.type == DocumentType.POST
         assert doc.metadata["annotation_id"] == "42"
+        assert doc.metadata["categories"] == ["Annotations"]

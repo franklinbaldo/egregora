@@ -108,7 +108,9 @@ class MkDocsAdapter(BaseOutputSink):
             DocumentType.PROFILE: self._write_profile_doc,
             DocumentType.MEDIA: self._write_media_doc,
             DocumentType.ENRICHMENT: self._write_enrichment_doc,
-            DocumentType.ANNOTATION: self._write_annotation_doc,
+            DocumentType.JOURNAL: self._write_journal_doc,
+            DocumentType.ENRICHMENT_URL: self._write_enrichment_doc,
+            DocumentType.ENRICHMENT_MEDIA: self._write_enrichment_doc,
         }
 
         self._initialized = True
@@ -225,19 +227,8 @@ class MkDocsAdapter(BaseOutputSink):
             case DocumentType.MEDIA:
                 # Media files: stay in media_dir
                 return self.media_dir / identifier
-            case DocumentType.ANNOTATION:
-                return self._resolve_annotation_path(identifier)
             case _:
                 return None
-
-    def _resolve_annotation_path(self, identifier: str) -> Path | None:
-        """Resolve path for annotation documents."""
-        # Annotations are stored in a dedicated 'annotations' folder
-        # Structure: docs/annotations/{parent_id}/{annotation_id}.md
-        # If identifier contains parent/id, use it.
-        # But wait, identifier resolution is tricky.
-        # Let's assume identifier is "parent_id/annotation_id" or similar relative path.
-        return self.docs_dir / "annotations" / identifier
 
     def get(self, doc_type: DocumentType, identifier: str) -> Document | None:
         path = self._resolve_document_path(doc_type, identifier)
@@ -936,11 +927,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
-    def _write_annotation_doc(self, document: Document, path: Path) -> None:
-        """Write an annotation document."""
-        # Annotations are written as Markdown files, typically in a hidden directory
-        # or separate storage, but for MkDocs adapter we place them in the structure.
-        self._write_generic_doc(document, path)
 
     def _write_journal_doc(self, document: Document, path: Path) -> None:
         metadata = self._ensure_hidden(dict(document.metadata or {}))

@@ -131,22 +131,27 @@ class Annotation:
     def to_document(self) -> Document:
         """Convert this annotation into a lightweight :class:`Document` instance.
 
-        Annotations already carry stable identity, authorship, and parent references.
-        Exposing them as documents lets downstream components (output adapters,
-        enrichment pipelines, retrieval) treat annotations just like any other
-        publishable content without special cases.
+        Annotations are treated as Posts in the "Annotations" category to leverage
+        existing blog infrastructure. They carry stable identity, authorship, and
+        parent references.
 
         Returns:
             Document representation of the annotation ready for serving/indexing.
 
         """
+        # Ensure title and slug for Post compatibility
+        slug = f"annotation-{self.id}"
         metadata = {
             "annotation_id": str(self.id),
             "title": f"Annotation {self.id}",
             "parent_id": self.parent_id,
             "parent_type": self.parent_type,
-            "author": self.author,
+            "author": self.author,  # Defaults to "egregora"
+            "categories": ["Annotations"],
+            "slug": slug,
+            "date": self.created_at,
         }
+
         identity_header = (
             "<!--\n"
             f"annotation_id: {self.id}\n"
@@ -157,7 +162,7 @@ class Annotation:
 
         return Document(
             content=f"{identity_header}{self.commentary}",
-            type=DocumentType.ANNOTATION,
+            type=DocumentType.POST,
             metadata=metadata,
             created_at=self.created_at,
         )
