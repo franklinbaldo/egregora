@@ -74,9 +74,9 @@ def init(
         typer.Option(
             "--interactive/--no-interactive",
             "-i",
-            help="Prompt for site settings (auto-disabled in non-TTY environments)",
+            help="Prompt for site settings (disabled by default)",
         ),
-    ] = True,
+    ] = False,
 ) -> None:
     """Initialize a new MkDocs site scaffold for serving Egregora posts."""
     site_root = output_dir.resolve()

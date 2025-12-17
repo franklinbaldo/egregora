@@ -30,8 +30,7 @@ from egregora.output_adapters import (
     create_default_output_registry,
     create_output_sink,
 )
-from egregora.output_adapters.mkdocs import derive_mkdocs_paths
-from egregora.output_adapters.mkdocs.paths import compute_site_prefix
+from egregora.output_adapters.mkdocs import MkDocsPaths
 from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
 
@@ -60,19 +59,19 @@ class PipelineFactory:
 
         refresh_tiers = {r.strip().lower() for r in (run_params.refresh or "").split(",") if r.strip()}
         site_paths = PipelineFactory.resolve_site_paths_or_raise(resolved_output, run_params.config)
-
+        
         _runtime_db_uri, pipeline_backend, runs_backend = PipelineFactory.create_database_backends(
-            site_paths["site_root"], run_params.config
+            site_paths.site_root, run_params.config
         )
 
         # Initialize database tables (CREATE TABLE IF NOT EXISTS)
         initialize_database(pipeline_backend)
 
         client_instance = run_params.client or PipelineFactory.create_gemini_client()
-        cache_dir = Path(".egregora-cache") / site_paths["site_root"].name
+        cache_dir = Path(".egregora-cache") / site_paths.site_root.name
         cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
-        site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
-        db_file = site_paths["egregora_dir"] / "app.duckdb"
+        site_paths.egregora_dir.mkdir(parents=True, exist_ok=True)
+        db_file = site_paths.egregora_dir / "app.duckdb"
         storage = DuckDBStorageManager(db_path=db_file)
 
         annotations_store = AnnotationStore(storage)
@@ -81,18 +80,18 @@ class PipelineFactory:
 
         url_ctx = UrlContext(
             base_url="",
-            site_prefix=compute_site_prefix(site_paths["site_root"], site_paths["docs_dir"]),
-            base_path=site_paths["site_root"],
+            site_prefix=site_paths.docs_prefix,
+            base_path=site_paths.site_root,
         )
 
         config_obj = PipelineConfig(
             config=run_params.config,
             output_dir=resolved_output,
-            site_root=site_paths["site_root"],
-            docs_dir=site_paths["docs_dir"],
-            posts_dir=site_paths["posts_dir"],
-            profiles_dir=site_paths["profiles_dir"],
-            media_dir=site_paths["media_dir"],
+            site_root=site_paths.site_root,
+            docs_dir=site_paths.docs_dir,
+            posts_dir=site_paths.posts_dir,
+            profiles_dir=site_paths.profiles_dir,
+            media_dir=site_paths.media_dir,
             url_context=url_ctx,
         )
 
@@ -179,13 +178,13 @@ class PipelineFactory:
         return runtime_db_uri, pipeline_backend, runs_backend
 
     @staticmethod
-    def resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> dict[str, any]:
+    def resolve_site_paths_or_raise(output_dir: Path, config: EgregoraConfig) -> MkDocsPaths:
         """Resolve site paths for the configured output format and validate structure."""
         output_dir = output_dir.expanduser().resolve()
-        site_paths = derive_mkdocs_paths(output_dir, config=config)
+        site_paths = MkDocsPaths(output_dir, config=config)
 
         # Default validation for MkDocs/standard structure
-        mkdocs_path = site_paths.get("mkdocs_path")
+        mkdocs_path = site_paths.mkdocs_path
         if not mkdocs_path or not mkdocs_path.exists():
             msg = (
                 f"No mkdocs.yml found for site at {output_dir}. "
@@ -193,7 +192,7 @@ class PipelineFactory:
             )
             raise ValueError(msg)
 
-        docs_dir = site_paths["docs_dir"]
+        docs_dir = site_paths.docs_dir
         if not docs_dir.exists():
             msg = f"Docs directory not found: {docs_dir}. Re-run 'egregora init' to scaffold the MkDocs project."
             raise ValueError(msg)
@@ -211,9 +210,9 @@ class PipelineFactory:
     ) -> Any:
         """Create and initialize the output adapter for the pipeline."""
         resolved_output = output_dir.expanduser().resolve()
-        site_paths = derive_mkdocs_paths(resolved_output, config=config)
+        site_paths = MkDocsPaths(resolved_output, config=config)
 
-        root = site_root or site_paths["site_root"]
+        root = site_root or site_paths.site_root
 
         registry = registry or create_default_output_registry()
 
