@@ -423,16 +423,16 @@ class PathsSettings(BaseModel):
         description="Blog posts directory (Section Root)",
     )
     profiles_dir: str = Field(
-        default="docs/posts",
-        description="Author profiles directory (Consolidated into blog section)",
+        default="docs/posts/profiles",
+        description="Author profiles directory (subtree under posts/)",
     )
     media_dir: str = Field(
         default="docs/posts/media",
         description="Media files (images, videos) directory",
     )
     journal_dir: str = Field(
-        default="docs/posts",
-        description="Agent execution journals directory (Consolidated into blog section)",
+        default="docs/journal",
+        description="Agent execution journals directory",
     )
 
     @field_validator(

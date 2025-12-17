@@ -76,8 +76,9 @@ class MkDocsAdapter(BaseOutputSink):
         self.site_root = site_paths.site_root
         self._site_root = self.site_root
         self.docs_dir = site_paths.docs_dir
-        prefix = site_paths.docs_prefix
-        self._ctx = url_context or UrlContext(base_url="", site_prefix=prefix, base_path=self.site_root)
+        # `site_prefix` is a URL hosting prefix (e.g. '/egregora'), not a filesystem directory like `docs/`.
+        # Default to empty unless explicitly provided by the caller.
+        self._ctx = url_context or UrlContext(base_url="", site_prefix="", base_path=self.site_root)
         self.posts_dir = site_paths.posts_dir
         self.profiles_dir = site_paths.profiles_dir
         # Journal entries are stored in the configured journal directory (defaults to posts/journal)

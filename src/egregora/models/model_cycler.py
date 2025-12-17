@@ -27,9 +27,6 @@ DEFAULT_GEMINI_MODELS = [
 ]
 
 
-
-
-
 class GeminiKeyRotator:
     """Cycle through Gemini API keys on 429 errors.
 

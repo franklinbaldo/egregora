@@ -59,7 +59,7 @@ class PipelineFactory:
 
         refresh_tiers = {r.strip().lower() for r in (run_params.refresh or "").split(",") if r.strip()}
         site_paths = PipelineFactory.resolve_site_paths_or_raise(resolved_output, run_params.config)
-        
+
         _runtime_db_uri, pipeline_backend, runs_backend = PipelineFactory.create_database_backends(
             site_paths.site_root, run_params.config
         )

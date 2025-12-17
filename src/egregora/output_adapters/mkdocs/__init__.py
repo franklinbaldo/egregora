@@ -19,7 +19,7 @@ from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
 
 __all__ = [
     "MkDocsAdapter",
-    "MkDocsSiteScaffolder",
     "MkDocsPaths",
+    "MkDocsSiteScaffolder",
     "secure_path_join",
 ]

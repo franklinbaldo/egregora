@@ -190,9 +190,15 @@ class StandardUrlConvention(UrlConvention):
             DocumentType.JOURNAL: self._format_journal_url,
             DocumentType.MEDIA: self._format_media_url,
             DocumentType.ENRICHMENT_MEDIA: self._format_media_enrichment_url,
-            DocumentType.ENRICHMENT_IMAGE: lambda ctx, doc: self._format_typed_media_enrichment_url(ctx, doc, "images"),
-            DocumentType.ENRICHMENT_VIDEO: lambda ctx, doc: self._format_typed_media_enrichment_url(ctx, doc, "videos"),
-            DocumentType.ENRICHMENT_AUDIO: lambda ctx, doc: self._format_typed_media_enrichment_url(ctx, doc, "audio"),
+            DocumentType.ENRICHMENT_IMAGE: lambda ctx, doc: self._format_typed_media_enrichment_url(
+                ctx, doc, "images"
+            ),
+            DocumentType.ENRICHMENT_VIDEO: lambda ctx, doc: self._format_typed_media_enrichment_url(
+                ctx, doc, "videos"
+            ),
+            DocumentType.ENRICHMENT_AUDIO: lambda ctx, doc: self._format_typed_media_enrichment_url(
+                ctx, doc, "audio"
+            ),
             DocumentType.ENRICHMENT_URL: self._format_url_enrichment_url,
         }
 
@@ -282,7 +288,7 @@ class StandardUrlConvention(UrlConvention):
             media_prefix = self.routes.media_prefix.strip("/")
             for prefix in [f"{site_prefix}/{media_prefix}", site_prefix, media_prefix]:
                 if prefix and enrichment_path.startswith(prefix + "/"):
-                    enrichment_path = enrichment_path[len(prefix) + 1:]
+                    enrichment_path = enrichment_path[len(prefix) + 1 :]
                     break
             return self._join(ctx, self.routes.media_prefix, enrichment_path, trailing_slash=True)
 
@@ -301,6 +307,7 @@ class StandardUrlConvention(UrlConvention):
             ctx: URL context
             document: The enrichment document
             subfolder: Target subfolder (e.g., "images", "videos", "audio")
+
         """
         slug = self._slug_with_identifier(document)
         return self._join(ctx, self.routes.media_prefix, subfolder, slug, trailing_slash=True)
