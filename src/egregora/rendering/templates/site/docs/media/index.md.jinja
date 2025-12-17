@@ -9,51 +9,24 @@ description: Shared content with AI enrichment
 > Images, videos, audio, and URLs from conversations—each with AI-generated summaries and analysis.
 
 {% if recent_media and recent_media|length > 0 %}
-<script>
-// Media data from enrichment files
-window.MEDIA_DATA = [
+
+## 🎬 Recent Media
+
+Click on any item to view details or visit the link.
+
+<!--
+GLightbox Integration Note:
+The mkdocs-glightbox plugin automatically enhances links to image and video files.
+- If an item below is an image/video (e.g. ends in .jpg, .mp4), GLightbox will open it in a lightbox.
+- If an item is a standard web page (Enrichment URL), it will open as a normal link.
+-->
+
+| Title | Summary |
+|-------|---------|
 {% for item in recent_media %}
-  {
-    title: "{{ item.title|replace('"', '\\"') }}",
-    url: "{{ item.url }}",
-    slug: "{{ item.slug }}",
-    summary: "{{ item.summary|replace('"', '\\"')|replace('\n', ' ') }}",
-    tags: {{ item.tags|default([])|tojson }},
-    date: "{{ item.date|default('') }}"
-  },
+| [{{ item.title }}]({{ item.url }}) | {{ item.summary }} |
 {% endfor %}
-];
-</script>
 
----
-
-## 🎬 Media Carousel
-
-<div class="media-carousel-container">
-  <!-- Filters -->
-  <div class="media-filters">
-    <select id="media-type-filter" class="media-filter-select">
-      <option value="all">All Types</option>
-      <option value="youtube">Videos</option>
-      <option value="card">Articles</option>
-    </select>
-
-    <select id="media-tag-filter" class="media-filter-select">
-      <option value="all">All Tags</option>
-      <option value="AI">AI</option>
-      <option value="geopolitics">Geopolitics</option>
-      <option value="genetics">Genetics</option>
-      <option value="astronomy">Astronomy</option>
-    </select>
-
-    <input type="text" id="media-search" class="media-search-input" placeholder="Search media...">
-  </div>
-
-  <!-- Carousel Root -->
-  <div id="media-carousel-root"></div>
-</div>
-
-<script src="../javascripts/media_carousel.js"></script>
 {% endif %}
 
 ---

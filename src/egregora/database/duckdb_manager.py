@@ -40,17 +40,20 @@ import re
 import tempfile
 import threading
 import uuid
-from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, Self
+from typing import TYPE_CHECKING, Any, Literal, Self
 
 import duckdb
 import ibis
-from ibis.expr.types import Table
 
 from egregora.database import schemas
 from egregora.database.ir_schema import quote_identifier
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)
 
@@ -502,25 +505,22 @@ class DuckDBStorageManager:
         return values[0]
 
     def next_sequence_values(self, sequence_name: str, *, count: int = 1) -> list[int]:
-        """Return ``count`` sequential values from ``sequence_name``."""
+        """Return ``count`` sequential values from ``sequence_name``.
+
+        Note: We avoid explicit begin()/commit() calls because they conflict
+        with Ibis's transaction management, causing "read-only but has made changes"
+        errors. Instead, we let DuckDB handle nextval() in auto-commit mode.
+        """
         if count <= 0:
             msg = "count must be positive"
             raise ValueError(msg)
 
         with self._lock:
             try:
-                # Rollback any pending transaction, then start a fresh write transaction
-                try:
-                    self._conn.rollback()
-                except duckdb.Error:
-                    pass  # Rollback may fail if no transaction is active
-
-                # Explicitly begin a write transaction before nextval() to avoid
-                # "read-only transaction but has made changes" error
-                self._conn.begin()
+                # Execute nextval in auto-commit mode (no explicit transaction)
+                # This avoids conflicts with Ibis transaction management
                 cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
                 values = [int(row[0]) for row in cursor.fetchall()]
-                self._conn.commit()
             except duckdb.Error as exc:
                 if not self._is_invalidated_error(exc):
                     raise
@@ -539,10 +539,8 @@ class DuckDBStorageManager:
                     self.ensure_sequence(sequence_name)
 
                 try:
-                    self._conn.begin()
                     cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
                     values = [int(row[0]) for row in cursor.fetchall()]
-                    self._conn.commit()
                 except duckdb.Error as retry_exc:
                     logger.exception("Retry after connection reset also failed: %s", retry_exc)
                     raise

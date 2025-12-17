@@ -5,9 +5,8 @@ from __future__ import annotations
 import base64
 import json
 import logging
-from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from google import genai
@@ -17,6 +16,9 @@ from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models import Model, ModelRequestParameters, ModelSettings
 from pydantic_ai.usage import RequestUsage
 from tenacity import RetryError, retry, retry_if_result, stop_after_delay, wait_fixed
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +199,7 @@ class GoogleBatchModel(Model):
                 return self._download_results(genai.Client(api_key=self.api_key), job.output_uri, requests)
 
             # No results available
-            for idx, req in enumerate(requests):
+            for _idx, req in enumerate(requests):
                 results.append(
                     BatchResult(
                         tag=req["tag"], response=None, error={"message": "No inline response available"}
@@ -219,11 +221,11 @@ class GoogleBatchModel(Model):
                 if hasattr(cand, "content") and cand.content:
                     content_dict: dict[str, Any] = {}
                     if hasattr(cand.content, "parts"):
-                        parts = []
-                        for part in cand.content.parts or []:
-                            if hasattr(part, "text"):
-                                parts.append({"text": part.text})
-                        content_dict["parts"] = parts
+                        content_dict["parts"] = [
+                            {"text": part.text}
+                            for part in (cand.content.parts or [])
+                            if hasattr(part, "text")
+                        ]
                     if hasattr(cand.content, "role"):
                         content_dict["role"] = cand.content.role
                     cand_dict["content"] = content_dict

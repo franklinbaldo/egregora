@@ -17,7 +17,6 @@ from __future__ import annotations
 import json
 import uuid
 import zipfile
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import ibis
@@ -34,6 +33,8 @@ from egregora.transformations.windowing import Window
 from egregora.utils.zip import ZipValidationError, validate_zip_contents
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from conftest import WhatsAppFixture
 
 
@@ -237,6 +238,8 @@ def test_media_references_replaced_in_messages(
     # Mock URL convention/context
     class MockUrlConvention(UrlConvention):
         def canonical_url(self, doc: Document, context: UrlContext) -> str:
+            if getattr(doc, "suggested_path", None):
+                return str(doc.suggested_path)
             return f"media/{doc.metadata['filename']}"
 
     url_context = UrlContext(base_path=tmp_path)
@@ -258,7 +261,7 @@ def test_media_references_replaced_in_messages(
     # The fixture contains "IMG-20251028-WA0035.jpg (arquivo anexado)"
     # It should be converted to "![Image](/media/img-20251028-wa0035-....jpg)"
     # Note: The URL is slugified and may contain a hash suffix
-    assert "![Image](/media/img-20251028-wa0035" in combined_text
+    assert "![Image](/media/images/IMG-20251028-WA0035.jpg)" in combined_text
 
     # Verify raw "arquivo anexado" text is removed or replaced
     # Note: The regex replacement might leave some whitespace, but the marker itself should be gone/replaced

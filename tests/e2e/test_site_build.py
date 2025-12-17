@@ -21,13 +21,20 @@ from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
 def test_sync_authors_from_posts(tmp_path: Path):
     """Test that sync_all_profiles correctly syncs authors from profiles directory."""
     docs_dir = tmp_path / "docs"
-    profiles_dir = docs_dir / "profiles"
+    profiles_dir = docs_dir / "posts" / "profiles"
     profiles_dir.mkdir(parents=True, exist_ok=True)
 
     # Create profiles
-    (profiles_dir / "author-uuid-1.md").write_text("---\nname: Author One\n---\n# Author One", encoding="utf-8")
-    (profiles_dir / "author-uuid-2.md").write_text("---\nname: Author Two\n---\n# Author Two", encoding="utf-8")
-    (profiles_dir / "author-uuid-3.md").write_text("---\nname: Author Three\n---\n# Author Three", encoding="utf-8")
+    for author_id, author_name in [
+        ("author-uuid-1", "Author One"),
+        ("author-uuid-2", "Author Two"),
+        ("author-uuid-3", "Author Three"),
+    ]:
+        author_dir = profiles_dir / author_id
+        author_dir.mkdir(parents=True, exist_ok=True)
+        (author_dir / "bio.md").write_text(
+            f"---\nname: {author_name}\n---\n# {author_name}", encoding="utf-8"
+        )
 
     # Sync authors from profiles directory
     # Note: sync_all_profiles expects profiles directory as input
@@ -48,7 +55,7 @@ def test_sync_authors_from_posts(tmp_path: Path):
     for author_id in ["author-uuid-1", "author-uuid-2", "author-uuid-3"]:
         assert "name" in authors[author_id]
         assert "url" in authors[author_id]
-        assert authors[author_id]["url"] == f"profiles/{author_id}.md"
+        assert authors[author_id]["url"] == f"posts/profiles/{author_id}/bio.md"
 
 
 def test_generated_site_scaffolds_correctly(tmp_path: Path):
@@ -62,7 +69,7 @@ def test_generated_site_scaffolds_correctly(tmp_path: Path):
     assert (site_root / ".egregora" / "mkdocs.yml").exists()
     assert (site_root / "docs").exists()
     assert (site_root / "docs" / "posts").exists()
-    assert (site_root / "docs" / "profiles").exists()
+    assert (site_root / "docs" / "posts" / "profiles").exists()
 
 
 def test_mkdocs_build_with_material(tmp_path: Path):

@@ -62,7 +62,7 @@ def test_model_key_rotator_fails_when_all_exhausted():
         msg = "429 Too Many Requests"
         raise Exception(msg)
 
-    # Should try all 4 combinations (2 models × 2 keys) then raise
+    # Should try all 4 combinations (2 models x 2 keys) then raise
     try:
         rotator.call_with_rotation(always_fails)
         msg = "Should have raised exception"

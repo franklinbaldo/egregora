@@ -9,7 +9,6 @@ import re
 import unicodedata
 import uuid
 import zipfile
-from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from functools import lru_cache
@@ -28,6 +27,8 @@ from egregora.privacy import anonymize_author, scrub_pii
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from ibis.expr.types import Table
 
     from egregora.config.settings import EgregoraConfig
@@ -264,13 +265,7 @@ def _parse_whatsapp_lines(
 
     # Re-open source to read from start
     for line in source.lines():
-        # Performance optimization: The regex pattern usually starts with a digit (\d) or bracket ([).
-        # We can skip the expensive regex match for lines that don't start with these characters
-        # (which is the majority of lines in a chat export - continuation lines).
-        if line and (line[0].isdigit() or line[0] == "["):
-            match = line_pattern.match(line)
-        else:
-            match = None
+        match = line_pattern.match(line)  # Use dynamic pattern
 
         if match:
             # ... rest of existing logic ...

@@ -23,12 +23,13 @@ LEGACY:
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from pathlib import Path
+
     from ibis.expr.types import Table
 
     from egregora.data_primitives.document import Document, DocumentType

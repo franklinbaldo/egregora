@@ -8,14 +8,16 @@ the summary of the sub-agent's work, keeping context clean and focused.
 from __future__ import annotations
 
 import logging
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
-from pydantic_ai.models import Model
 
 from egregora.agents.tools.skill_loader import get_skill_loader
 from egregora.resources.prompts import render_prompt
+
+if TYPE_CHECKING:
+    from pydantic_ai.models import Model
 
 logger = logging.getLogger(__name__)
 

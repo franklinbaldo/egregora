@@ -6,8 +6,12 @@ enriched message data.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import ibis
-from ibis.expr.types import Table
+
+if TYPE_CHECKING:
+    from ibis.expr.types import Table
 
 
 def combine_with_enrichment_rows(

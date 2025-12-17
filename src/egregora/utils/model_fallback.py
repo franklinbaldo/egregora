@@ -31,7 +31,7 @@ GOOGLE_FALLBACK_MODELS = [
 ]
 
 
-def get_openrouter_free_models(modality: str = "text") -> list[str]:  # noqa: C901
+def get_openrouter_free_models(modality: str = "text") -> list[str]:
     """Fetch list of free OpenRouter models from their API.
 
     Args:
@@ -44,7 +44,7 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:  # noqa: C9
         List of model names in pydantic-ai format (e.g., 'openrouter:model/name')
 
     """
-    global _free_models_cache, _cache_timestamp  # noqa: PLW0602, PLW0603
+    global _free_models_cache, _cache_timestamp  # noqa: PLW0602
 
     current_time = time.time()
 
@@ -98,7 +98,7 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:  # noqa: C9
     return free_models
 
 
-def create_fallback_model(  # noqa: C901, PLR0912
+def create_fallback_model(
     primary_model: str | Model,
     fallback_models: list[str | Model] | None = None,
     *,
@@ -160,11 +160,10 @@ def create_fallback_model(  # noqa: C901, PLR0912
         # Imports moved here to avoid top-level circular dependencies,
         # but ruff complains. We suppress the warning as this is intentional
         # for lazy loading heavy model dependencies only when needed.
-        from pydantic_ai.models.gemini import GeminiModel  # noqa: PLC0415
-        from pydantic_ai.models.openai import OpenAIModel  # noqa: PLC0415
-        from pydantic_ai.providers.google_gla import GoogleGLAProvider  # noqa: PLC0415
+        from pydantic_ai.models.gemini import GeminiModel
+        from pydantic_ai.providers.google_gla import GoogleGLAProvider
 
-        from egregora.models.rate_limited import RateLimitedModel  # noqa: PLC0415
+        from egregora.models.rate_limited import RateLimitedModel
 
         if isinstance(model_def, RateLimitedModel):
             return model_def
@@ -182,19 +181,18 @@ def create_fallback_model(  # noqa: C901, PLR0912
                     provider=provider,
                 )
             elif model_def.startswith("openrouter:"):
-                # OpenRouter needs base_url and API key configured
-                from pydantic_ai.providers.openai import OpenAIProvider  # noqa: PLC0415
+                # Use pydantic-ai's dedicated OpenRouter support
+                # See: https://ai.pydantic.dev/models/openrouter/
+                from pydantic_ai.models.openrouter import OpenRouterModel
+                from pydantic_ai.providers.openrouter import OpenRouterProvider
 
                 openrouter_api_key = os.environ.get("OPENROUTER_API_KEY")
                 if not openrouter_api_key:
                     msg = "OPENROUTER_API_KEY environment variable required for OpenRouter models"
                     raise ValueError(msg)
 
-                openrouter_provider = OpenAIProvider(
-                    base_url="https://openrouter.ai/api/v1",
-                    api_key=openrouter_api_key,
-                )
-                model = OpenAIModel(
+                openrouter_provider = OpenRouterProvider(api_key=openrouter_api_key)
+                model = OpenRouterModel(
                     model_def.removeprefix("openrouter:"),
                     provider=openrouter_provider,
                 )
@@ -214,7 +212,7 @@ def create_fallback_model(  # noqa: C901, PLR0912
     # Prepare models - get API key for batch models
     api_key = get_google_api_key()
 
-    from egregora.models.rate_limited import RateLimitedModel  # noqa: PLC0415
+    from egregora.models.rate_limited import RateLimitedModel
 
     # 1. Prepare Primary
     primary: Model

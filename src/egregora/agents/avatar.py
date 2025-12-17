@@ -11,7 +11,6 @@ import io
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -32,6 +31,8 @@ from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.network import SSRFValidationError, validate_public_url
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from ibis.expr.types import Table
 
 logger = logging.getLogger(__name__)

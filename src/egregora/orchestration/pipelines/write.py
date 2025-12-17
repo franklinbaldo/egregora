@@ -16,7 +16,6 @@ import json
 import logging
 import math
 import os
-import uuid
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -41,8 +40,7 @@ from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
-from egregora.config.config_validation import parse_date_arg, validate_timezone
-from egregora.config.settings import EgregoraConfig
+from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import SourceType, WindowUnit
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.database import initialize_database
@@ -51,7 +49,6 @@ from egregora.database.run_store import RunStore
 from egregora.database.task_store import TaskStore
 from egregora.init import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
-from egregora.input_adapters.base import MediaMapping
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
 from egregora.ops.media import process_media_for_window
@@ -80,7 +77,11 @@ except ImportError:
     dotenv = None
 
 if TYPE_CHECKING:
+    import uuid
+
     import ibis.expr.types as ir
+
+    from egregora.input_adapters.base import MediaMapping
 
 
 logger = logging.getLogger(__name__)
@@ -328,10 +329,9 @@ def run_cli_flow(
     # The original CLI `_ensure_mkdocs_scaffold` handled prompting.
     # Let's import `ensure_mkdocs_project` and do a basic check.
 
-    config_path = output_dir / ".egregora" / "config.yml"
-    config_path_alt = output_dir / ".egregora" / "config.yaml"
+    config_path = output_dir / ".egregora.toml"
 
-    if not (config_path.exists() or config_path_alt.exists()):
+    if not config_path.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Initializing site in %s", output_dir)
         ensure_mkdocs_project(output_dir)
@@ -1186,7 +1186,11 @@ def _create_pipeline_context(run_params: PipelineRunParams) -> tuple[PipelineCon
     initialize_database(pipeline_backend)
 
     client_instance = run_params.client or _create_gemini_client()
-    cache_dir = Path(".egregora-cache") / site_paths["site_root"].name
+    cache_path = Path(run_params.config.paths.cache_dir)
+    if cache_path.is_absolute():
+        cache_dir = cache_path
+    else:
+        cache_dir = site_paths["site_root"] / cache_path
     cache = PipelineCache(cache_dir, refresh_tiers=refresh_tiers)
     site_paths["egregora_dir"].mkdir(parents=True, exist_ok=True)
 
@@ -1680,7 +1684,7 @@ def _generate_taxonomy(dataset: PreparedPipelineData) -> None:
             tagged_count = generate_semantic_taxonomy(dataset.context.output_format, dataset.context.config)
             if tagged_count > 0:
                 logger.info("[green]✓ Applied semantic tags to %d posts[/]", tagged_count)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # Non-critical failure
             logger.warning("Auto-taxonomy failed: %s", e)
 

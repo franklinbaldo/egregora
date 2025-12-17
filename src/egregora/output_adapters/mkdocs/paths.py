@@ -134,15 +134,10 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
     # So `paths.py` is creating the extra nesting.
 
     blog_root_dir = resolve_content_path(paths_settings.posts_dir)
-    # UNIFIED: No more nested structure. Everything goes into blog_root_dir.
     posts_dir = blog_root_dir
-    # CONSOLIDATED: profiles and journal content now go into posts_dir
-    # This aligns with what MkDocsAdapter already does at runtime (lines 80-81)
-    profiles_dir = posts_dir
-    journal_dir = posts_dir
-    # ADR-001: Media goes inside posts directory (docs/posts/media/)
-    # URL routing: /posts/media/filename.jpg
-    media_dir = posts_dir / "media"
+    profiles_dir = resolve_content_path(paths_settings.profiles_dir)
+    media_dir = resolve_content_path(paths_settings.media_dir)
+    journal_dir = _resolve_journal_dir(paths_settings, resolve_content_path)
 
     try:
         blog_relative = blog_root_dir.relative_to(docs_dir).as_posix()
@@ -157,7 +152,7 @@ def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[s
         "site_root": resolved_root,
         "mkdocs_path": mkdocs_path,
         "egregora_dir": egregora_dir,
-        "config_path": egregora_dir / "config.yml",
+        "config_path": resolved_root / ".egregora.toml",
         "mkdocs_config_path": preferred_path,
         "prompts_dir": resolve_path(paths_settings.prompts_dir),
         "rag_dir": resolve_path(paths_settings.rag_dir),

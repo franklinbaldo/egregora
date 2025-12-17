@@ -6,11 +6,13 @@ Defines the interface that all RAG backends must implement.
 from __future__ import annotations
 
 from abc import abstractmethod
-from collections.abc import Sequence
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from egregora.data_primitives.document import Document
-from egregora.rag.models import RAGQueryRequest, RAGQueryResponse
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from egregora.data_primitives.document import Document
+    from egregora.rag.models import RAGQueryRequest, RAGQueryResponse
 
 
 @runtime_checkable

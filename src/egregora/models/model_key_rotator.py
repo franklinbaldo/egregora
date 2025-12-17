@@ -7,14 +7,16 @@ Only falls back to alternative providers after exhausting all Gemini models+keys
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from egregora.models.model_cycler import (
     DEFAULT_GEMINI_MODELS,
     GeminiKeyRotator,
-    _default_rate_limit_check,
+    default_rate_limit_check,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +115,7 @@ class ModelKeyRotator:
 
         """
         if is_rate_limit_error is None:
-            is_rate_limit_error = _default_rate_limit_check
+            is_rate_limit_error = default_rate_limit_check
 
         self.reset()
 

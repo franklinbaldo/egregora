@@ -1,7 +1,5 @@
-
-import pytest
-from pathlib import Path
 from egregora.markdown.frontmatter import read_frontmatter_only
+
 
 def test_read_frontmatter_only_basic(tmp_path):
     p = tmp_path / "test.md"
@@ -10,6 +8,7 @@ def test_read_frontmatter_only_basic(tmp_path):
     fm = read_frontmatter_only(p)
     assert fm["title"] == "Hello"
     assert fm["authors"] == ["a", "b"]
+
 
 def test_read_frontmatter_only_large_file(tmp_path):
     p = tmp_path / "large.md"
@@ -20,17 +19,20 @@ def test_read_frontmatter_only_large_file(tmp_path):
     fm = read_frontmatter_only(p)
     assert fm["title"] == "Large"
 
+
 def test_read_frontmatter_only_no_frontmatter(tmp_path):
     p = tmp_path / "no_fm.md"
     p.write_text("Just content", encoding="utf-8")
     fm = read_frontmatter_only(p)
     assert fm == {}
 
+
 def test_read_frontmatter_only_invalid_yaml(tmp_path):
     p = tmp_path / "invalid.md"
     p.write_text("---\ntitle: [unclosed list\n---\n", encoding="utf-8")
     fm = read_frontmatter_only(p)
     assert fm == {}
+
 
 def test_read_frontmatter_only_empty_file(tmp_path):
     p = tmp_path / "empty.md"

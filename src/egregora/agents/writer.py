@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING, Any
 import ibis
 import ibis.common.exceptions
 from google import genai
-from ibis.expr.types import Table
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja2.exceptions import TemplateError, TemplateNotFound
 from pydantic_ai import UsageLimits
@@ -46,14 +45,13 @@ from egregora.agents.types import (
     WriterResources,
 )
 from egregora.agents.writer_helpers import (
-    _process_tool_result,
+    process_tool_result,
 )
 from egregora.agents.writer_setup import (
     configure_writer_capabilities,
     create_writer_model,
     setup_writer_agent,
 )
-from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.infra.retry import RETRY_IF, RETRY_STOP, RETRY_WAIT
 from egregora.knowledge.profiles import get_active_authors
@@ -62,11 +60,14 @@ from egregora.rag import index_documents, reset_backend
 from egregora.resources.prompts import PromptManager, render_prompt
 from egregora.transformations.windowing import generate_window_signature
 from egregora.utils.cache import CacheTier, PipelineCache
-from egregora.utils.metrics import UsageTracker
 
 if TYPE_CHECKING:
+    from ibis.expr.types import Table
+
+    from egregora.config.settings import EgregoraConfig
     from egregora.data_primitives.protocols import OutputSink
     from egregora.orchestration.context import PipelineContext
+    from egregora.utils.metrics import UsageTracker
 
 logger = logging.getLogger(__name__)
 
@@ -399,7 +400,7 @@ def _process_single_tool_result(
     content: Any, tool_name: str | None, saved_posts: list[str], saved_profiles: list[str]
 ) -> None:
     """Process a single tool result and append to the appropriate list."""
-    data = _process_tool_result(content)
+    data = process_tool_result(content)
     if not data or data.get("status") not in ("success", "scheduled") or "path" not in data:
         return
 
@@ -993,7 +994,8 @@ def _execute_economic_writer(
 
     except Exception as e:
         logger.exception("Economic writer failed")
-        raise RuntimeError(f"Economic writer failed: {e}") from e
+        msg = f"Economic writer failed: {e}"
+        raise RuntimeError(msg) from e
 
 
 def load_format_instructions(site_root: Path | None, *, registry: OutputSinkRegistry | None = None) -> str:

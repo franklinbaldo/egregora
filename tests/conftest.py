@@ -119,12 +119,6 @@ def stub_enrichment_agents(monkeypatch):
     def _stub_media_agent(model, prompts_dir=None):
         return object()
 
-    def _stub_url_run(agent, url, prompts_dir=None):
-        return f"Stub enrichment for {url}"
-
-    def _stub_media_run(agent, media_path, **kwargs):
-        return f"Stub enrichment for {media_path}"
-
     monkeypatch.setattr(
         "egregora.agents.enricher.create_url_enrichment_agent",
         lambda model, _simple=True: _stub_url_agent(model),
@@ -171,6 +165,13 @@ def stub_enrichment_agents(monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def reset_rag_backend():
+    from egregora import rag
+
+    rag.reset_backend()
+    yield
+    rag.reset_backend()
 
 
 @pytest.fixture

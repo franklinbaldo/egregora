@@ -1,14 +1,13 @@
-
-import unittest
-from unittest.mock import MagicMock, patch, ANY
-import tempfile
-import zipfile
 import os
+import tempfile
+import unittest
+import zipfile
 from pathlib import Path
-import shutil
+from unittest.mock import MagicMock, patch
 
-from egregora.agents.enricher import EnrichmentWorker, EnrichmentRuntimeContext
+from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker
 from egregora.config.settings import EgregoraConfig, EnrichmentSettings
+
 
 class TestEnrichmentWorkerStaging(unittest.TestCase):
     def setUp(self):
@@ -16,9 +15,9 @@ class TestEnrichmentWorkerStaging(unittest.TestCase):
         self.input_zip = Path(self.temp_dir.name) / "input.zip"
 
         # Create a dummy zip file
-        with zipfile.ZipFile(self.input_zip, 'w') as zf:
-            zf.writestr('small.txt', 'small content')
-            zf.writestr('large.mp4', 'dummy content')
+        with zipfile.ZipFile(self.input_zip, "w") as zf:
+            zf.writestr("small.txt", "small content")
+            zf.writestr("large.mp4", "dummy content")
 
         self.mock_ctx = MagicMock(spec=EnrichmentRuntimeContext)
         self.mock_ctx.input_path = self.input_zip
@@ -36,13 +35,13 @@ class TestEnrichmentWorkerStaging(unittest.TestCase):
         self.env_patcher.stop()
         self.temp_dir.cleanup()
 
-    @patch('egregora.agents.enricher.zipfile.ZipFile')
+    @patch("egregora.agents.enricher.zipfile.ZipFile")
     def test_staging_and_large_file_handling(self, mock_zip_cls):
         mock_zf = MagicMock()
         mock_zip_cls.return_value = mock_zf
 
-        info_small = zipfile.ZipInfo('small.txt')
-        info_large = zipfile.ZipInfo('large.mp4')
+        info_small = zipfile.ZipInfo("small.txt")
+        info_large = zipfile.ZipInfo("large.mp4")
         mock_zf.infolist.return_value = [info_small, info_large]
 
         # Mock open context manager
@@ -59,12 +58,20 @@ class TestEnrichmentWorkerStaging(unittest.TestCase):
         tasks = [
             {
                 "task_id": "task_small",
-                "payload": {"filename": "small.txt", "media_type": "text/plain", "original_filename": "small.txt"}
+                "payload": {
+                    "filename": "small.txt",
+                    "media_type": "text/plain",
+                    "original_filename": "small.txt",
+                },
             },
             {
                 "task_id": "task_large",
-                "payload": {"filename": "large.mp4", "media_type": "video/mp4", "original_filename": "large.mp4"}
-            }
+                "payload": {
+                    "filename": "large.mp4",
+                    "media_type": "video/mp4",
+                    "original_filename": "large.mp4",
+                },
+            },
         ]
 
         # To avoid FileNotFoundError, we need _stage_file to actually create files.
@@ -91,16 +98,16 @@ class TestEnrichmentWorkerStaging(unittest.TestCase):
             # For small, we let it be 0 (or real size), which is < 20MB.
             return s
 
-        with patch('pathlib.Path.stat', side_effect=fake_stat, autospec=True):
-             with patch('google.genai.Client') as MockClient:
-                mock_client_instance = MockClient.return_value
-                mock_client_instance.files.upload.return_value = MagicMock(uri='http://file-uri')
+        with patch("pathlib.Path.stat", side_effect=fake_stat, autospec=True):
+            with patch("google.genai.Client") as mock_client:
+                mock_client_instance = mock_client.return_value
+                mock_client_instance.files.upload.return_value = MagicMock(uri="http://file-uri")
 
-                requests, task_map = worker._prepare_media_requests(tasks)
+                requests, _task_map = worker._prepare_media_requests(tasks)
 
                 self.assertEqual(len(requests), 2)
 
-                req_large = next(r for r in requests if r['tag'] == 'task_large')
-                self.assertTrue(any('fileData' in p for p in req_large['contents'][0]['parts']))
+                req_large = next(r for r in requests if r["tag"] == "task_large")
+                self.assertTrue(any("fileData" in p for p in req_large["contents"][0]["parts"]))
 
                 mock_client_instance.files.upload.assert_called()
