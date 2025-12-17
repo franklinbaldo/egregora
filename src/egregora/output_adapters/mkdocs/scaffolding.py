@@ -98,11 +98,8 @@ class MkDocsSiteScaffolder:
                 "overrides_dir": Path(
                     os.path.relpath(site_paths.egregora_dir / "overrides", mkdocs_config_dir)
                 ).as_posix(),
-                # Stats for homepage - will be 0 on scaffold, updated by write pipeline
-                "post_count": 0,
-                "profile_count": 0,
-                "media_count": 0,
-                "journal_count": 0,
+                # Posts list - empty on scaffold, populated by write pipeline updating index
+                "posts": [],
             }
 
             new_mkdocs_path = site_paths.mkdocs_config_path
