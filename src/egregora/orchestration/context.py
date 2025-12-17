@@ -28,7 +28,7 @@ from egregora.config.settings import EgregoraConfig
 from egregora.data_primitives.protocols import OutputSink, UrlContext
 from egregora.output_adapters import OutputSinkRegistry
 from egregora.rag.embedding_router import EmbeddingRouter
-from egregora.utils.cache import EnrichmentCache, PipelineCache
+from egregora.utils.cache import PipelineCache
 from egregora.utils.metrics import UsageTracker
 
 __all__ = [
@@ -215,7 +215,7 @@ class PipelineContext:
         return self.state.cache
 
     @property
-    def enrichment_cache(self) -> EnrichmentCache:
+    def enrichment_cache(self) -> Any:
         """Backward compatibility shim for enrichment cache."""
         return self.state.cache.enrichment
 

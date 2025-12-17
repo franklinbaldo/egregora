@@ -28,7 +28,7 @@ from egregora.agents.enricher import (
 from egregora.input_adapters.whatsapp.commands import extract_commands
 from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
 from egregora.ops.media import detect_media_type, extract_urls
-from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
+from egregora.utils.cache import make_enrichment_cache_key
 from egregora.utils.network import SSRFValidationError, validate_public_url
 
 if TYPE_CHECKING:
@@ -349,7 +349,7 @@ class AvatarContext:
     media_dir: Path
     profiles_dir: Path
     vision_model: str
-    cache: EnrichmentCache | None = None
+    cache: Any | None = None  # diskcache.Cache
 
 
 def _enrich_avatar(
@@ -361,7 +361,7 @@ def _enrich_avatar(
     """Enrich avatar with LLM description using the media enrichment agent."""
     cache_key = make_enrichment_cache_key(kind="media", identifier=str(avatar_path))
     if context.cache:
-        cached = context.cache.load(cache_key)
+        cached = context.cache.get(cache_key)
         if cached and cached.get("markdown"):
             logger.info("Using cached enrichment for avatar: %s", avatar_path.name)
             enrichment_path = avatar_path.with_suffix(avatar_path.suffix + ".md")
@@ -414,7 +414,7 @@ def _enrich_avatar(
         logger.info("Saved avatar enrichment to: %s", enrichment_path)
 
         if context.cache:
-            context.cache.store(cache_key, {"markdown": markdown_content, "type": "media"})
+            context.cache.set(cache_key, {"markdown": markdown_content, "type": "media"})
 
     except (httpx.HTTPError, OSError, ValueError, RuntimeError) as exc:
         # We catch all exceptions here because avatar enrichment is an optional enhancement.
