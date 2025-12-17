@@ -911,6 +911,8 @@ def save_egregora_config(config: EgregoraConfig, site_root: Path) -> Path:
                 continue
             if isinstance(v, dict):
                 v = _clean_nones(v)
+            elif isinstance(v, list):
+                v = [_clean_nones(item) if isinstance(item, dict) else item for item in v if item is not None]
             cleaned[k] = v
         return cleaned
 
