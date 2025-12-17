@@ -1,0 +1,82 @@
+name: Docs (GitHub Pages)
+
+concurrency:
+  group: docs-pages
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: "3.12"
+  ARTIFACT_RETENTION_DAYS: "7"
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: "Enable debug logging"
+        type: boolean
+        default: false
+
+jobs:
+  pages:
+    name: Build & Deploy Docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Enable debug logging
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled == 'true' }}
+        run: |
+          echo "ACTIONS_STEP_DEBUG=true" >> $GITHUB_ENV
+          echo "ACTIONS_RUNNER_DEBUG=true" >> $GITHUB_ENV
+          echo "::notice::Debug logging enabled"
+
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-uv
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          extras: "--extra docs"
+
+      - name: Build Documentation
+        run: uv run mkdocs build
+
+      - name: Generate Demo Site (offline)
+        run: uv run python scripts/generate_demo_site.py --output-dir .demo-site
+
+      - name: Build Demo Site
+        run: uv run mkdocs build -f .demo-site/.egregora/mkdocs.yml -d "$(pwd)/site/demo"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Generate Repomix bundles
+        run: |
+          mkdir -p /tmp/bundles
+          npx repomix -c repomix-docs.json --output /tmp/bundles/docs.bundle.md
+          npx repomix -c repomix-tests.json --output /tmp/bundles/tests.bundle.md
+          npx repomix -c repomix-code.json --output /tmp/bundles/code.bundle.md
+          mkdir -p site/bundles
+          cp /tmp/bundles/*.bundle.md site/bundles/
+
+      - name: Deploy to GitHub Pages
+        if: github.repository == 'franklinbaldo/egregora'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+
+      - name: Upload bundles artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: bundles
+          path: /tmp/bundles/
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+
