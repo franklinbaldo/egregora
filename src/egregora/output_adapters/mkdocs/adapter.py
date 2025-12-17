@@ -171,7 +171,8 @@ class MkDocsAdapter(BaseOutputSink):
             case DocumentType.MEDIA:
                 self._write_media_doc(document, meta, path)
             case _:
-                self._write_generic_doc(document, meta, path)
+                msg = f"Unsupported document type for MkDocs adapter: {document.type}"
+                raise ValueError(msg)
 
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
@@ -819,10 +820,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 rel_path = self._strip_media_prefix(url_path)
                 return self.media_dir / rel_path
             case _:
-                return self._resolve_generic_path(url_path)
-
-    def _resolve_generic_path(self, url_path: str) -> Path:
-        return self.site_root / f"{url_path}.md"
+                # Unsupported type path resolution relies on site root fallback or raises
+                # Since generic docs are removed, we can just return a fallback path
+                # but better to let it be handled by caller or specific types.
+                # For compatibility with potential path lookups that aren't strictly typed:
+                return self.site_root / f"{url_path.strip('/')}.md"
 
     def _strip_media_prefix(self, url_path: str) -> str:
         """Helper to strip media prefixes from URL path."""
@@ -1031,12 +1033,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             document.content if isinstance(document.content, bytes) else document.content.encode("utf-8")
         )
         path.write_bytes(payload)
-
-    def _write_generic_doc(self, document: Document, meta: PublishableMetadata, path: Path) -> None:
-        if isinstance(document.content, bytes):
-            path.write_bytes(document.content)
-        else:
-            path.write_text(document.content, encoding="utf-8")
 
     @staticmethod
     def _ensure_hidden(metadata: dict[str, Any]) -> dict[str, Any]:

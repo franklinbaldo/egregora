@@ -191,8 +191,8 @@ class EndpointQueue:
             return None
         self._current_key_idx = (self._current_key_idx + 1) % len(self._api_keys)
         self.api_key = self._api_keys[self._current_key_idx]
-        # For security, do not log any portion of the API key.
-        logger.info("[EmbeddingRouter] Rotated to next API key (index %d)", self._current_key_idx)
+        masked = self.api_key[:8] + "..." + self.api_key[-4:]
+        logger.info("[EmbeddingRouter] Rotating to key: %s", masked)
         return self.api_key
 
     def start(self) -> None:

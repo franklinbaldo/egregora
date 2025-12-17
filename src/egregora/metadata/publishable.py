@@ -80,7 +80,13 @@ class PublishableMetadata:
         # Extract or compute values
         title = meta.get("title") or _get_fallback_title(doc.type)
         slug = meta.get("slug") or doc.slug
-        date = meta.get("date") or doc.created_at.isoformat()
+
+        # Ensure date defaults are timezone-aware (assume UTC if naive)
+        created_at = doc.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+
+        date = meta.get("date") or created_at.isoformat()
         updated = meta.get("updated") or date
 
         # Convert lists to tuples for immutability
