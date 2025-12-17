@@ -24,7 +24,6 @@ CACHE_TTL = 3600  # Cache for 1 hour
 
 # Priority order for Google models
 GOOGLE_FALLBACK_MODELS = [
-    "google-gla:gemini-3-flash",
     "google-gla:gemini-2.5-pro",
     "google-gla:gemini-2.5-flash",
     "google-gla:gemini-2.0-flash",
