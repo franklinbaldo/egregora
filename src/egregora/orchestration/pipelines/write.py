@@ -63,6 +63,7 @@ from egregora.transformations import (
     create_windows,
     load_checkpoint,
     save_checkpoint,
+    save_checkpoint_atomic,
     split_window_into_n_parts,
 )
 from egregora.utils.cache import PipelineCache
@@ -895,13 +896,14 @@ def _validate_window_size(window: any, max_size: int) -> None:
 
 
 def _process_all_windows(
-    windows_iterator: any, ctx: PipelineContext
+    windows_iterator: any, ctx: PipelineContext, checkpoint_path: Path | None = None
 ) -> tuple[dict[str, dict[str, list[str]]], datetime | None]:
     """Process all windows with tracking and error handling.
 
     Args:
         windows_iterator: Iterator of Window objects
         ctx: Pipeline context
+        checkpoint_path: Optional path to save incremental checkpoints
 
     Returns:
         Tuple of (results dict, max_processed_timestamp)
@@ -969,6 +971,14 @@ def _process_all_windows(
         # Track max processed timestamp for checkpoint
         if max_processed_timestamp is None or window.end_time > max_processed_timestamp:
             max_processed_timestamp = window.end_time
+
+        # INCREMENTAL CHECKPOINTING
+        # Save checkpoint immediately after successful window processing
+        if checkpoint_path and max_processed_timestamp:
+            # We count total posts so far for the checkpoint stats
+            # This is cumulative for the current run
+            current_total_posts = sum(len(r.get("posts", [])) for r in results.values())
+            save_checkpoint_atomic(checkpoint_path, max_processed_timestamp, current_total_posts)
 
         # Process accumulated background tasks periodically or after each window?
         # Processing after each window keeps the queue small and provides incremental progress.
@@ -1835,7 +1845,9 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
 
         try:
             dataset = _prepare_pipeline_data(adapter, run_params, ctx)
-            results, max_processed_timestamp = _process_all_windows(dataset.windows_iterator, dataset.context)
+            results, max_processed_timestamp = _process_all_windows(
+                dataset.windows_iterator, dataset.context, checkpoint_path=dataset.checkpoint_path
+            )
             _index_media_into_rag(
                 enable_enrichment=dataset.enable_enrichment,
                 results=results,
