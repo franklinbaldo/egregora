@@ -270,7 +270,15 @@ class StandardUrlConvention(UrlConvention):
         if parent_path:
             # Pure string manipulation - no Path operations
             enrichment_path = _remove_url_extension(parent_path.strip("/"))
-            return self._join(ctx, enrichment_path, trailing_slash=True)
+            # Strip any existing site_prefix or media_prefix to avoid duplication
+            # when _join adds them again
+            site_prefix = (ctx.site_prefix or "").strip("/")
+            media_prefix = self.routes.media_prefix.strip("/")
+            for prefix in [f"{site_prefix}/{media_prefix}", site_prefix, media_prefix]:
+                if prefix and enrichment_path.startswith(prefix + "/"):
+                    enrichment_path = enrichment_path[len(prefix) + 1:]
+                    break
+            return self._join(ctx, self.routes.media_prefix, enrichment_path, trailing_slash=True)
 
         if document.suggested_path:
             # Pure string manipulation - no Path operations
