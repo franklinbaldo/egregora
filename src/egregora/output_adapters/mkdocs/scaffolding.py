@@ -94,9 +94,7 @@ class MkDocsSiteScaffolder:
                 "default_writer_model": EgregoraConfig().models.writer,
                 "media_counts": {"urls": 0, "images": 0, "videos": 0, "audio": 0},
                 "recent_media": [],
-                "overrides_dir": Path(
-                    os.path.relpath(site_paths["egregora_dir"] / "overrides", mkdocs_config_dir)
-                ).as_posix(),
+                "overrides_dir": "overrides",
             }
 
             new_mkdocs_path = site_paths["mkdocs_config_path"]
@@ -238,7 +236,7 @@ class MkDocsSiteScaffolder:
                 content = template.render(**context)
                 target_path.write_text(content, encoding="utf-8")
 
-        overrides_dest = site_paths["egregora_dir"] / "overrides"
+        overrides_dest = site_paths["site_root"] / "overrides"
         if not overrides_dest.exists():
             overrides_src = Path(env.loader.searchpath[0]) / "overrides"
             if overrides_src.exists():

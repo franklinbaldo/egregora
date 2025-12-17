@@ -45,8 +45,6 @@ theme:
 plugins:
   - search:
       lang: en
-  - macros
-  - glightbox
   - blog:
       blog_dir: posts
       # post_dir defaults to "{blog}" - posts are directly in docs/posts/
@@ -151,14 +149,22 @@ extra:
   # Disable MkDocs generator notice
   generator: false
   # Add social links to the footer for a more professional look.
-  # These are placeholders and will need to be configured by the user in their .egregora.toml
+  # These will only appear if the corresponding variables are set in the user's config.
+  {% if github_user or twitter_handle or linkedin_user %}
   social:
+    {% if github_user %}
     - icon: fontawesome/brands/github
-      link: https://github.com/{{ github_user | default('your_user') }}
+      link: https://github.com/{{ github_user }}
+    {% endif %}
+    {% if twitter_handle %}
     - icon: fontawesome/brands/x-twitter
-      link: https://twitter.com/{{ twitter_handle | default('your_handle') }}
+      link: https://twitter.com/{{ twitter_handle }}
+    {% endif %}
+    {% if linkedin_user %}
     - icon: fontawesome/brands/linkedin
-      link: https://linkedin.com/in/{{ linkedin_user | default('your_user') }}
+      link: https://linkedin.com/in/{{ linkedin_user }}
+    {% endif %}
+  {% endif %}
 
 # Custom CSS for improved UX
 extra_css:
