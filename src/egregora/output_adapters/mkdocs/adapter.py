@@ -826,8 +826,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         try:
             content = path.read_text(encoding="utf-8")
             if content.startswith("---"):
+                # Expecting at least 3 parts: empty string, frontmatter, content
+                min_parts_count = 3
                 parts = content.split("---", 2)
-                if len(parts) >= 3:
+                if len(parts) >= min_parts_count:
                     return yaml.safe_load(parts[1]) or {}
         except Exception as e:
             logger.warning(f"Failed to parse frontmatter from {path}: {e}")

@@ -25,8 +25,7 @@ from typing import TYPE_CHECKING, Annotated, Any
 import httpx
 
 from egregora.config import EMBEDDING_DIM
-from egregora.utils.env import get_google_api_keys
-from egregora.utils.env import get_google_api_key
+from egregora.utils.env import get_google_api_key, get_google_api_keys
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

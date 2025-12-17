@@ -162,7 +162,6 @@ ignore = [
     "PLR0912",  # Too many branches
     "PLR0913",  # Too many arguments
     "PLR0915",  # Too many statements
-    "PLR2004",  # Magic values
 
     # Pragmatic runtime patterns - common in optional-dep paths
     "PLC0415",  # Non-top-level imports
