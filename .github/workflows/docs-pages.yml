@@ -79,4 +79,3 @@ jobs:
           name: bundles
           path: /tmp/bundles/
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
-
