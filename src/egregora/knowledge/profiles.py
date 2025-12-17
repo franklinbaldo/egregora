@@ -173,6 +173,7 @@ def write_profile(
     # Create front-matter with metadata
     front_matter = {
         "uuid": author_uuid,
+        "subject": author_uuid,
         "name": metadata.get("name", author_uuid),  # Default to UUID if no alias set
     }
 
