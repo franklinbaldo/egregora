@@ -895,13 +895,14 @@ def _validate_window_size(window: any, max_size: int) -> None:
 
 
 def _process_all_windows(
-    windows_iterator: any, ctx: PipelineContext
+    windows_iterator: any, ctx: PipelineContext, checkpoint_path: Path | None = None
 ) -> tuple[dict[str, dict[str, list[str]]], datetime | None]:
     """Process all windows with tracking and error handling.
 
     Args:
         windows_iterator: Iterator of Window objects
         ctx: Pipeline context
+        checkpoint_path: Optional path to save checkpoints incrementally.
 
     Returns:
         Tuple of (results dict, max_processed_timestamp)
@@ -933,6 +934,7 @@ def _process_all_windows(
     total_windows = max_windows if max_windows else "unlimited"
     logger.info("Processing windows (limit: %s)", total_windows)
 
+    total_posts_processed = 0
     for window in windows_iterator:
         # Check if we've hit the max_windows limit
         if max_windows is not None and windows_processed >= max_windows:
@@ -983,6 +985,14 @@ def _process_all_windows(
             posts_count,
             profiles_count,
         )
+        total_posts_processed += posts_count
+
+        if checkpoint_path and max_processed_timestamp:
+            save_checkpoint(checkpoint_path, max_processed_timestamp, total_posts_processed)
+            logger.info(
+                "💾 [cyan]Checkpoint saved:[/] processed up to %s",
+                max_processed_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            )
 
         # Update counter
         windows_processed += 1
@@ -1835,7 +1845,9 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
 
         try:
             dataset = _prepare_pipeline_data(adapter, run_params, ctx)
-            results, max_processed_timestamp = _process_all_windows(dataset.windows_iterator, dataset.context)
+            results, max_processed_timestamp = _process_all_windows(
+                dataset.windows_iterator, dataset.context, dataset.checkpoint_path
+            )
             _index_media_into_rag(
                 enable_enrichment=dataset.enable_enrichment,
                 results=results,
@@ -1845,8 +1857,11 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
 
             _generate_taxonomy(dataset)
 
-            # Save checkpoint first (critical path)
-            _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
+            if not results:
+                logger.warning(
+                    "⚠️  [yellow]No windows processed[/] - checkpoint not saved. "
+                    "All windows may have been empty or filtered out."
+                )
 
             # Process remaining background tasks after all windows are done
             # (In case there are stragglers)

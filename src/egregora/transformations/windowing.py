@@ -71,8 +71,10 @@ def load_checkpoint(checkpoint_path: Path) -> dict | None:
         return None
 
 
+import os
+
 def save_checkpoint(checkpoint_path: Path, last_timestamp: datetime, messages_processed: int) -> None:
-    """Save processing checkpoint to sentinel file.
+    """Save processing checkpoint to sentinel file atomically.
 
     Args:
         checkpoint_path: Path to .egregora/checkpoint.json
@@ -94,10 +96,12 @@ def save_checkpoint(checkpoint_path: Path, last_timestamp: datetime, messages_pr
         "schema_version": "1.0",
     }
 
+    temp_path = checkpoint_path.with_suffix(".tmp")
     try:
-        with checkpoint_path.open("w") as f:
+        with temp_path.open("w") as f:
             json.dump(checkpoint, f, indent=2)
-        logger.info("Checkpoint saved: %s", checkpoint_path)
+        os.replace(temp_path, checkpoint_path)
+        logger.debug("Checkpoint saved: %s", checkpoint_path)
     except OSError as e:
         logger.warning("Failed to save checkpoint to %s: %s", checkpoint_path, e)
 
