@@ -187,6 +187,9 @@ class StandardUrlConvention(UrlConvention):
             DocumentType.JOURNAL: self._format_journal_url,
             DocumentType.MEDIA: self._format_media_url,
             DocumentType.ENRICHMENT_MEDIA: self._format_media_enrichment_url,
+            DocumentType.ENRICHMENT_IMAGE: lambda ctx, doc: self._format_typed_media_enrichment_url(ctx, doc, "images"),
+            DocumentType.ENRICHMENT_VIDEO: lambda ctx, doc: self._format_typed_media_enrichment_url(ctx, doc, "videos"),
+            DocumentType.ENRICHMENT_AUDIO: lambda ctx, doc: self._format_typed_media_enrichment_url(ctx, doc, "audio"),
             DocumentType.ENRICHMENT_URL: self._format_url_enrichment_url,
         }
 
@@ -287,6 +290,17 @@ class StandardUrlConvention(UrlConvention):
 
         fallback = f"{self._slug_with_identifier(document)}"
         return self._join(ctx, self.routes.media_prefix, fallback, trailing_slash=True)
+
+    def _format_typed_media_enrichment_url(self, ctx: UrlContext, document: Document, subfolder: str) -> str:
+        """Format URL for typed media enrichment (images, videos, audio).
+
+        Args:
+            ctx: URL context
+            document: The enrichment document
+            subfolder: Target subfolder (e.g., "images", "videos", "audio")
+        """
+        slug = self._slug_with_identifier(document)
+        return self._join(ctx, self.routes.media_prefix, subfolder, slug, trailing_slash=True)
 
     def _slug_with_identifier(self, document: Document) -> str:
         """Return slug augmented with a deterministic identifier."""

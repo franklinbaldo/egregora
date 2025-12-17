@@ -38,7 +38,10 @@ class DocumentType(Enum):
     ANNOUNCEMENT = "announcement"  # System events (/egregora commands)
     JOURNAL = "journal"  # Agent execution journals
     ENRICHMENT_URL = "enrichment_url"  # URL descriptions
-    ENRICHMENT_MEDIA = "enrichment_media"  # Media file descriptions
+    ENRICHMENT_MEDIA = "enrichment_media"  # Media file descriptions (generic fallback)
+    ENRICHMENT_IMAGE = "enrichment_image"  # Image descriptions
+    ENRICHMENT_VIDEO = "enrichment_video"  # Video descriptions
+    ENRICHMENT_AUDIO = "enrichment_audio"  # Audio descriptions
     MEDIA = "media"  # Downloaded media files (images, videos, audio)
     ANNOTATION = "annotation"  # Conversation annotations captured during writing
 
