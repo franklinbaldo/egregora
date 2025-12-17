@@ -31,7 +31,7 @@ from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.markdown.frontmatter import parse_frontmatter
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
-from egregora.output_adapters.mkdocs.paths import compute_site_prefix, derive_mkdocs_paths
+from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder, safe_yaml_load
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.filesystem import ensure_author_entries
@@ -72,23 +72,24 @@ class MkDocsAdapter(BaseOutputSink):
 
     def initialize(self, site_root: Path, url_context: UrlContext | None = None) -> None:
         """Initializes the adapter with all necessary paths and dependencies."""
-        site_paths = derive_mkdocs_paths(site_root)
-        self.site_root = site_paths["site_root"]
+        site_paths = MkDocsPaths(site_root)
+        self.site_root = site_paths.site_root
         self._site_root = self.site_root
-        self.docs_dir = site_paths["docs_dir"]
-        prefix = compute_site_prefix(self.site_root, site_paths["docs_dir"])
+        self.docs_dir = site_paths.docs_dir
+        prefix = site_paths.docs_prefix
         self._ctx = url_context or UrlContext(base_url="", site_prefix=prefix, base_path=self.site_root)
-        self.posts_dir = site_paths["posts_dir"]
-        self.profiles_dir = site_paths["profiles_dir"]
-        # Journal entries are stored as posts; the journal index page lives under docs/journal/.
-        self.journal_dir = self.posts_dir
-        self.media_dir = site_paths["media_dir"]
+        self.posts_dir = site_paths.posts_dir
+        self.profiles_dir = site_paths.profiles_dir
+        # Journal entries are stored in the configured journal directory (defaults to posts/journal)
+        self.journal_dir = site_paths.journal_dir
+        self.media_dir = site_paths.media_dir
         self.urls_dir = self.media_dir / "urls"
 
         self.posts_dir.mkdir(parents=True, exist_ok=True)
         self.profiles_dir.mkdir(parents=True, exist_ok=True)
         self.media_dir.mkdir(parents=True, exist_ok=True)
         self.urls_dir.mkdir(parents=True, exist_ok=True)
+        self.journal_dir.mkdir(parents=True, exist_ok=True)
 
         # Configure URL convention to match filesystem layout
         # This ensures that generated URLs align with where files are actually stored
@@ -96,7 +97,7 @@ class MkDocsAdapter(BaseOutputSink):
             posts_prefix=self.posts_dir.relative_to(self.docs_dir).as_posix(),
             profiles_prefix=self.profiles_dir.relative_to(self.docs_dir).as_posix(),
             media_prefix=self.media_dir.relative_to(self.docs_dir).as_posix(),
-            journal_prefix="journal",
+            journal_prefix=self.journal_dir.relative_to(self.docs_dir).as_posix(),
         )
         self._url_convention = StandardUrlConvention(routes)
 
@@ -281,9 +282,9 @@ class MkDocsAdapter(BaseOutputSink):
             ValueError: If config is invalid
 
         """
-        # Use derive_mkdocs_paths to find mkdocs.yml (checks .egregora/, root)
-        site_paths = derive_mkdocs_paths(site_root)
-        mkdocs_path = site_paths.get("mkdocs_path")
+        # Use MkDocsPaths to find mkdocs.yml (checks .egregora/, root)
+        site_paths = MkDocsPaths(site_root)
+        mkdocs_path = site_paths.mkdocs_path
         if not mkdocs_path:
             msg = f"No mkdocs.yml found in {site_root}"
             raise FileNotFoundError(msg)

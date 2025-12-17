@@ -419,20 +419,20 @@ class PathsSettings(BaseModel):
         description="Documentation/content directory",
     )
     posts_dir: str = Field(
-        default="posts",
-        description="Blog posts directory",
+        default="docs/posts",
+        description="Blog posts directory (Section Root)",
     )
     profiles_dir: str = Field(
-        default="posts/profiles",
-        description="Author profiles directory",
+        default="docs/posts",
+        description="Author profiles directory (Consolidated into blog section)",
     )
     media_dir: str = Field(
-        default="posts/media",
+        default="docs/posts/media",
         description="Media files (images, videos) directory",
     )
     journal_dir: str = Field(
-        default="journal",
-        description="Agent execution journals directory",
+        default="docs/posts",
+        description="Agent execution journals directory (Consolidated into blog section)",
     )
 
     @field_validator(
@@ -462,20 +462,33 @@ class PathsSettings(BaseModel):
         return v
 
 
-class OutputSettings(BaseModel):
-    """Output format configuration.
+class OutputAdapterConfig(BaseModel):
+    """Configuration for a single output adapter.
 
-    Specifies which output format to use for generated content.
+    Each adapter represents a target format (e.g., MkDocs, Hugo) with
+    its own configuration file.
     """
 
-    format: Literal["mkdocs", "hugo"] = Field(
+    type: Literal["mkdocs", "hugo"] = Field(
         default="mkdocs",
-        description="Output format: 'mkdocs' (default), 'hugo', or future formats (database, s3)",
+        description="Adapter type: 'mkdocs' (default) or 'hugo'",
+    )
+    config_path: str | None = Field(
+        default=None,
+        description="Path to adapter-specific config file (e.g., 'mkdocs.yml'), relative to site root. If None, uses default location.",
     )
 
-    mkdocs_config_path: str | None = Field(
-        default=None,
-        description="Path to mkdocs.yml config file, relative to site root. If None, defaults to '.egregora/mkdocs.yml'",
+
+class OutputSettings(BaseModel):
+    """Output adapter registry.
+
+    Registers all output adapters used for this site.
+    Each adapter has a type and optional config path.
+    """
+
+    adapters: list[OutputAdapterConfig] = Field(
+        default_factory=lambda: [OutputAdapterConfig()],
+        description="List of output adapters configured for this site. First adapter is primary.",
     )
 
 

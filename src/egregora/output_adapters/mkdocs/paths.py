@@ -2,182 +2,102 @@
 
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import Any
 
 from egregora.config import load_egregora_config
 
-logger = logging.getLogger(__name__)
+__all__ = ["MkDocsPaths"]
 
 
-__all__ = [
-    "compute_site_prefix",
-    "derive_mkdocs_paths",
-]
+class MkDocsPaths:
+    """Resolved MkDocs paths configuration (Config Over Code)."""
 
+    def __init__(self, site_root: Path, *, config: Any | None = None) -> None:
+        self.site_root = site_root.expanduser().resolve()
+        
+        if config is None:
+            config = load_egregora_config(self.site_root)
+        
+        self.config = config
+        p = config.paths
 
-def _resolve_mkdocs_yml_path(resolved_root: Path, egregora_dir: Path) -> tuple[Path | None, Path]:
-    """Find the mkdocs.yml file path."""
-    mkdocs_path: Path | None = None
-    preferred_path = egregora_dir / "mkdocs.yml"
-    legacy_path = resolved_root / "mkdocs.yml"
+        self.egregora_dir = (self.site_root / p.egregora_dir).resolve()
+        self.config_path = self.site_root / ".egregora.toml"
 
-    if preferred_path.exists():
-        mkdocs_path = preferred_path
-    elif legacy_path.exists():
-        mkdocs_path = legacy_path
-    return mkdocs_path, preferred_path
+        # Content content
+        self.docs_dir = (self.site_root / p.docs_dir).resolve()
+        self.posts_dir = (self.site_root / p.posts_dir).resolve()
+        self.profiles_dir = (self.site_root / p.profiles_dir).resolve()
+        self.media_dir = (self.site_root / p.media_dir).resolve()
+        self.journal_dir = (self.site_root / p.journal_dir).resolve()
 
+        # Internals
+        self.prompts_dir = (self.site_root / p.prompts_dir).resolve()
+        self.rag_dir = (self.site_root / p.rag_dir).resolve()
+        self.cache_dir = (self.site_root / p.cache_dir).resolve()
+        self.rankings_dir = (self.egregora_dir / "rankings").resolve()
+        self.enriched_dir = (self.egregora_dir / "enriched").resolve()
 
-def _resolve_journal_dir(
-    paths_settings: Any,
-    resolve_content_path: Any,
-) -> Path:
-    """Resolve journal directory, handling legacy path normalization logic."""
+    # MkDocs-specific Helpers
+    
+    @property
+    def mkdocs_path(self) -> Path:
+        """Locate the active mkdocs.yml file.
+        
+        Uses config.output.adapters[0].config_path if set,
+        otherwise falls back to .egregora/mkdocs.yml or root mkdocs.yml.
+        """
+        # Check if config specifies a path via the adapter registry
+        adapters = getattr(self.config.output, "adapters", [])
+        if adapters:
+            adapter_config_path = adapters[0].config_path
+            if adapter_config_path:
+                return (self.site_root / adapter_config_path).resolve()
+        
+        # Fallback: prefer .egregora/mkdocs.yml, then root mkdocs.yml
+        preferred = (self.site_root / ".egregora" / "mkdocs.yml").resolve()
+        legacy = (self.site_root / "mkdocs.yml").resolve()
+        
+        if not preferred.exists() and legacy.exists():
+            return legacy
+        return preferred
 
-    def normalize_path_str(path_value: str) -> str:
-        return path_value.replace("\\", "/").strip("./")
+    @property
+    def mkdocs_config_path(self) -> Path:
+        """Preferred location for creating new mkdocs.yml.
+        
+        Uses config.output.adapters[0].config_path if set,
+        otherwise defaults to .egregora/mkdocs.yml.
+        """
+        adapters = getattr(self.config.output, "adapters", [])
+        if adapters:
+            adapter_config_path = adapters[0].config_path
+            if adapter_config_path:
+                return (self.site_root / adapter_config_path).resolve()
+        
+        return (self.egregora_dir / "mkdocs.yml").resolve()
 
-    journal_setting = paths_settings.journal_dir
-    posts_norm = normalize_path_str(paths_settings.posts_dir)
-    journal_norm = normalize_path_str(journal_setting)
-    legacy_norm = f"{posts_norm}/journal".strip("./")
-    if journal_norm == legacy_norm:
-        journal_setting = "journal"
-    return resolve_content_path(journal_setting)
-
-
-def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[str, Path | str | None]:
-    """Derive MkDocs paths from configuration settings.
-
-    This is a simplified alternative to load_site_paths() that:
-    - Uses paths directly from EgregoraConfig settings
-    - No filesystem searching or YAML parsing
-    - Returns a dictionary instead of a dataclass
-    - Simple, predictable path resolution
-
-    Args:
-        site_root: Root directory of the MkDocs site
-        config: EgregoraConfig instance (optional, loads from site_root if not provided)
-
-    Returns:
-        Dictionary with path keys matching SitePaths attributes
-
-    """
-    resolved_root = site_root.expanduser().resolve()
-
-    # Load config if not provided
-    if config is None:
-        config = load_egregora_config(resolved_root)
-
-    # Resolve all paths from config settings (relative to site_root)
-    def resolve_path(path_str: str) -> Path:
-        """Resolve a path string relative to site_root."""
-        path = Path(path_str)
-        if path.is_absolute():
-            return path.resolve()
-        return (resolved_root / path).resolve()
-
-    paths_settings = config.paths
-    egregora_dir = resolve_path(paths_settings.egregora_dir)
-    mkdocs_path, preferred_path = _resolve_mkdocs_yml_path(resolved_root, egregora_dir)
-    docs_dir = resolve_path(paths_settings.docs_dir)
-
-    def resolve_content_path(path_str: str) -> Path:
-        """Resolve a content path relative to docs_dir when not absolute."""
-        path_obj = Path(path_str)
-        if path_obj.is_absolute():
-            return path_obj.resolve()
-
-        candidate = (resolved_root / path_obj).resolve()
-        try:
-            candidate.relative_to(docs_dir)
-        except ValueError:
-            pass
-        else:
-            return candidate
-
-        return (docs_dir / path_obj).resolve()
-
-    # blog_root_dir is where blog artifacts go (e.g., docs/posts/)
-    # Material blog plugin expects posts in {blog}/posts/ subdirectory,
-    # but ONLY if the blog_dir itself is not the source.
-    # The current code seems to assume a nested "posts/posts" structure.
-    # Let's revert to using posts_dir directly as the posts directory,
-    # and assume blog_root_dir is the same or parent.
-    #
-    # Wait, the comment says "Material blog plugin expects posts in {blog}/posts/ subdirectory".
-    # If paths_settings.posts_dir is "posts", then blog_root_dir is "docs/posts".
-    # And posts_dir becomes "docs/posts/posts".
-    # This matches the failure "docs/posts/posts".
-    # The tests expect "docs/posts".
-    #
-    # If I change it back to just resolve_content_path(paths_settings.posts_dir),
-    # does it break Material blog plugin compatibility?
-    # The tests `test_scaffold_site_creates_expected_layout` verify layout.
-    #
-    # Let's see `test_scaffolding.py`:
-    # assert site_config.posts_dir == site_config.docs_dir / "posts"
-    #
-    # If I change this line in paths.py:
-    # posts_dir = blog_root_dir / "posts"
-    # to:
-    # posts_dir = blog_root_dir
-    #
-    # Then `posts_dir` will be `docs/posts`.
-    #
-    # However, `blog_root_dir` is used as `blog_dir`.
-    #
-    # Let's assume the tests are correct and the code in `paths.py` was recently changed or incorrect.
-    # The test failure shows that the test EXPECTS `docs/posts` but got `docs/posts/posts`.
-    # So `paths.py` is creating the extra nesting.
-
-    blog_root_dir = resolve_content_path(paths_settings.posts_dir)
-    posts_dir = blog_root_dir
-    profiles_dir = resolve_content_path(paths_settings.profiles_dir)
-    media_dir = resolve_content_path(paths_settings.media_dir)
-    journal_dir = _resolve_journal_dir(paths_settings, resolve_content_path)
-
-    try:
-        blog_relative = blog_root_dir.relative_to(docs_dir).as_posix()
-    except ValueError as exc:  # pragma: no cover - enforced earlier
-        msg = (
-            "Posts directory must reside inside the MkDocs docs_dir. "
-            f"docs_dir={docs_dir}, blog_root_dir={blog_root_dir}"
-        )
-        raise ValueError(msg) from exc
-
-    return {
-        "site_root": resolved_root,
-        "mkdocs_path": mkdocs_path,
-        "egregora_dir": egregora_dir,
-        "config_path": resolved_root / ".egregora.toml",
-        "mkdocs_config_path": preferred_path,
-        "prompts_dir": resolve_path(paths_settings.prompts_dir),
-        "rag_dir": resolve_path(paths_settings.rag_dir),
-        "cache_dir": resolve_path(paths_settings.cache_dir),
-        "docs_dir": docs_dir,
-        "blog_dir": blog_relative,
-        "blog_root_dir": blog_root_dir,  # Where tags.md and blog artifacts go
-        "posts_dir": posts_dir,  # Where actual post files go (posts/posts/)
-        "profiles_dir": profiles_dir,
-        "media_dir": media_dir,
-        "journal_dir": journal_dir,
-        "rankings_dir": egregora_dir / "rankings",
-        "enriched_dir": egregora_dir / "enriched",
-    }
-
-
-def compute_site_prefix(site_root: Path, docs_dir: Path) -> str:
-    """Return docs_dir relative to site_root for URL generation."""
-    try:
-        docs_dir.relative_to(site_root)
-    except ValueError:
+    @property
+    def blog_dir(self) -> str:
+        """Return the blog path relative to docs_dir, or empty string."""
+        if self.posts_dir.is_relative_to(self.docs_dir):
+            return self.posts_dir.relative_to(self.docs_dir).as_posix()
         return ""
 
-    # MkDocs serves content from the docs_dir as the site root; the docs_dir
-    # itself should not appear in canonical URLs. Returning an empty prefix
-    # keeps generated URLs aligned with MkDocs' served paths while still
-    # allowing callers to validate the docs_dir relationship to site_root.
-    return ""
+    @property
+    def blog_root_dir(self) -> Path:
+        """Alias for posts_dir for clarity in some contexts."""
+        return self.posts_dir
+    
+    @property
+    def docs_prefix(self) -> str:
+        """Return docs_dir relative to site_root for URL generation."""
+        if self.docs_dir.is_relative_to(self.site_root):
+            return self.docs_dir.relative_to(self.site_root).as_posix()
+        return ""
+    
+    # Dictionary compatibility for simpler migration if needed (optional)
+    def to_dict(self) -> dict[str, Any]:
+        return {k: getattr(self, k) for k in dir(self) 
+                if not k.startswith("_") and not callable(getattr(self, k))}

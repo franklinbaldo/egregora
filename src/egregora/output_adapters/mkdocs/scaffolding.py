@@ -20,7 +20,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 
 from egregora.config.settings import EgregoraConfig, create_default_config
 from egregora.output_adapters.base import SiteConfiguration
-from egregora.output_adapters.mkdocs.paths import derive_mkdocs_paths
+from egregora.output_adapters.mkdocs.paths import MkDocsPaths
 from egregora.resources.prompts import PromptManager
 
 logger = logging.getLogger(__name__)
@@ -62,9 +62,9 @@ class MkDocsSiteScaffolder:
         site_root = site_root.expanduser().resolve()
         site_root.mkdir(parents=True, exist_ok=True)
 
-        site_paths = derive_mkdocs_paths(site_root)
+        site_paths = MkDocsPaths(site_root)
 
-        mkdocs_path = site_paths.get("mkdocs_path")
+        mkdocs_path = site_paths.mkdocs_path
         site_exists = False
         if mkdocs_path and mkdocs_path.exists():
             logger.info("MkDocs site already exists at %s (config: %s)", site_root, mkdocs_path)
@@ -79,25 +79,28 @@ class MkDocsSiteScaffolder:
             templates_dir = Path(__file__).resolve().parents[2] / "rendering" / "templates" / "site"
             env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
 
-            mkdocs_config_dir = site_paths["mkdocs_config_path"].parent
-            docs_dir = site_paths["docs_dir"]
+            mkdocs_config_dir = site_paths.mkdocs_config_path.parent
+            docs_dir = site_paths.docs_dir
             docs_relative = Path(os.path.relpath(docs_dir, mkdocs_config_dir)).as_posix()
-            blog_relative = Path(os.path.relpath(site_paths["posts_dir"], docs_dir)).as_posix()
+            blog_relative = Path(os.path.relpath(site_paths.posts_dir, docs_dir)).as_posix()
 
             context = {
                 "site_name": site_name or site_root.name or "Egregora Archive",
                 "site_root": site_root,
                 "blog_dir": blog_relative,
+                "media_dir": Path(os.path.relpath(site_paths.media_dir, docs_dir)).as_posix(),
                 "docs_dir": docs_relative,
                 "site_url": "https://example.com",  # Placeholder - update with actual deployment URL
                 "generated_date": datetime.now(UTC).strftime("%Y-%m-%d"),
                 "default_writer_model": EgregoraConfig().models.writer,
                 "media_counts": {"urls": 0, "images": 0, "videos": 0, "audio": 0},
                 "recent_media": [],
-                "overrides_dir": "overrides",
+                "overrides_dir": Path(
+                    os.path.relpath(site_paths.egregora_dir / "overrides", mkdocs_config_dir)
+                ).as_posix(),
             }
 
-            new_mkdocs_path = site_paths["mkdocs_config_path"]
+            new_mkdocs_path = site_paths.mkdocs_config_path
             if not site_exists:
                 mkdocs_template = env.get_template("mkdocs.yml.jinja")
                 mkdocs_content = mkdocs_template.render(**context)
@@ -137,12 +140,12 @@ class MkDocsSiteScaffolder:
             msg = f"{site_root} is not a valid MkDocs site (no mkdocs.yml found)"
             raise ValueError(msg)
         try:
-            site_paths = derive_mkdocs_paths(site_root)
+            site_paths = MkDocsPaths(site_root)
         except Exception as e:
             msg = f"Failed to resolve site paths: {e}"
             raise RuntimeError(msg) from e
-        config_file = site_paths.get("mkdocs_path")
-        mkdocs_path = site_paths.get("mkdocs_path")
+        config_file = site_paths.mkdocs_path
+        mkdocs_path = site_paths.mkdocs_path
         if mkdocs_path:
             try:
                 mkdocs_config = safe_yaml_load(mkdocs_path.read_text(encoding="utf-8"))
@@ -153,35 +156,36 @@ class MkDocsSiteScaffolder:
             logger.debug("mkdocs.yml not found in %s", site_root)
             mkdocs_config = {}
         return SiteConfiguration(
-            site_root=site_paths["site_root"],
+            site_root=site_paths.site_root,
             site_name=mkdocs_config.get("site_name", "Egregora Site"),
-            docs_dir=site_paths["docs_dir"],
-            posts_dir=site_paths["posts_dir"],
-            profiles_dir=site_paths["profiles_dir"],
-            media_dir=site_paths["media_dir"],
+            docs_dir=site_paths.docs_dir,
+            posts_dir=site_paths.posts_dir,
+            profiles_dir=site_paths.profiles_dir,
+            media_dir=site_paths.media_dir,
             config_file=config_file,
             additional_paths={
-                "rag_dir": site_paths["rag_dir"],
-                "enriched_dir": site_paths["enriched_dir"],
-                "rankings_dir": site_paths["rankings_dir"],
+                "rag_dir": site_paths.rag_dir,
+                "enriched_dir": site_paths.enriched_dir,
+                "rankings_dir": site_paths.rankings_dir,
             },
         )
 
     def _create_site_structure(
-        self, site_paths: dict[str, Path], env: Environment, context: dict[str, Any]
+        self, site_paths: MkDocsPaths, env: Environment, context: dict[str, Any]
     ) -> None:
         self._create_egregora_structure(site_paths, env)
         self._create_content_directories(site_paths)
         self._create_template_files(site_paths, env, context)
         self._create_egregora_config(site_paths, env)
 
-    def _create_content_directories(self, site_paths: dict[str, Path]) -> None:
-        posts_dir = site_paths["posts_dir"]
-        profiles_dir = site_paths["profiles_dir"]
-        media_dir = site_paths["media_dir"]
-        journal_dir = site_paths["journal_dir"]
-
-        for directory in (posts_dir, profiles_dir, media_dir, journal_dir):
+    def _create_content_directories(self, site_paths: MkDocsPaths) -> None:
+        posts_dir = site_paths.posts_dir
+        media_dir = site_paths.media_dir
+        
+        # We only explicitly scaffold the posts and media directories.
+        # Journal and profiles are now treated as subsets of posts or rely on
+        # the writer agent to place them correctly if configured otherwise.
+        for directory in (posts_dir, media_dir):
             directory.mkdir(parents=True, exist_ok=True)
 
         # Create media subdirectories (ADR-0004: urls for URL enrichments)
@@ -190,16 +194,12 @@ class MkDocsSiteScaffolder:
             media_subdir.mkdir(exist_ok=True)
             (media_subdir / ".gitkeep").touch()
 
-        journal_dir.mkdir(exist_ok=True)
-        (journal_dir / ".gitkeep").touch()
-
     def _create_template_files(
-        self, site_paths: dict[str, Path], env: Environment, context: dict[str, Any]
+        self, site_paths: MkDocsPaths, env: Environment, context: dict[str, Any]
     ) -> None:
-        site_root = site_paths["site_root"]
-        docs_dir = site_paths["docs_dir"]
-        profiles_dir = site_paths["profiles_dir"]
-        media_dir = site_paths["media_dir"]
+        site_root = site_paths.site_root
+        docs_dir = site_paths.docs_dir
+        media_dir = site_paths.media_dir
 
         templates_to_render = [
             (site_root / "README.md", "README.md.jinja"),
@@ -207,12 +207,11 @@ class MkDocsSiteScaffolder:
             (site_root / ".github" / "workflows" / "publish.yml", ".github/workflows/publish.yml.jinja"),
             (docs_dir / "index.md", "docs/index.md.jinja"),
             (docs_dir / "about.md", "docs/about.md.jinja"),
-            (docs_dir / "journal" / "index.md", "docs/journal/index.md.jinja"),
-            (profiles_dir / "index.md", "docs/profiles/index.md.jinja"),
+            # Journal and Profiles indices are removed (Consolidated Structure)
             (media_dir / "index.md", "docs/media/index.md.jinja"),
-            (site_paths["blog_root_dir"] / "index.md", "docs/posts/index.md.jinja"),
-            (site_paths["blog_root_dir"] / "tags.md", "docs/posts/tags.md.jinja"),
-            (site_paths["egregora_dir"] / "main.py", "main.py.jinja"),
+            (site_paths.blog_root_dir / "index.md", "docs/posts/index.md.jinja"),
+            (site_paths.blog_root_dir / "tags.md", "docs/posts/tags.md.jinja"),
+            (site_paths.egregora_dir / "main.py", "main.py.jinja"),
         ]
 
         stylesheets_dir = docs_dir / "stylesheets"
@@ -236,26 +235,26 @@ class MkDocsSiteScaffolder:
                 content = template.render(**context)
                 target_path.write_text(content, encoding="utf-8")
 
-        overrides_dest = site_paths["site_root"] / "overrides"
+        overrides_dest = site_paths.egregora_dir / "overrides"
         if not overrides_dest.exists():
             overrides_src = Path(env.loader.searchpath[0]) / "overrides"
             if overrides_src.exists():
                 shutil.copytree(overrides_src, overrides_dest)
 
-    def _create_egregora_config(self, site_paths: dict[str, Path], env: Environment) -> None:
-        config_path = site_paths["config_path"]
+    def _create_egregora_config(self, site_paths: MkDocsPaths, env: Environment) -> None:
+        config_path = site_paths.config_path
         if not config_path.exists():
-            create_default_config(site_paths["site_root"])
+            create_default_config(site_paths.site_root)
 
-    def _create_egregora_structure(self, site_paths: dict[str, Path], env: Any | None = None) -> None:
-        egregora_dir = site_paths["egregora_dir"]
+    def _create_egregora_structure(self, site_paths: MkDocsPaths, env: Any | None = None) -> None:
+        egregora_dir = site_paths.egregora_dir
         egregora_dir.mkdir(parents=True, exist_ok=True)
 
         if env is None:
             templates_dir = Path(__file__).resolve().parent.parent / "rendering" / "templates" / "site"
             env = Environment(loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape())
 
-        prompts_dir = site_paths["prompts_dir"]
+        prompts_dir = site_paths.prompts_dir
         prompts_dir.mkdir(exist_ok=True)
 
         PromptManager.copy_defaults(prompts_dir)

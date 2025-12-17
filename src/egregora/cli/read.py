@@ -14,7 +14,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - optional legacy path
     run_reader_evaluation = None
 from egregora.config import load_egregora_config
-from egregora.output_adapters.mkdocs import derive_mkdocs_paths
+from egregora.output_adapters.mkdocs import MkDocsPaths
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -96,8 +96,8 @@ def main(
         raise typer.Exit(1)
 
     # Get posts directory from config using standard resolution logic
-    paths = derive_mkdocs_paths(site_root, config=config)
-    posts_dir = paths["posts_dir"]
+    paths = MkDocsPaths(site_root, config=config)
+    posts_dir = paths.posts_dir
 
     if not posts_dir.exists():
         console.print(f"[red]Posts directory not found: {posts_dir}[/red]")
