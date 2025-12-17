@@ -42,6 +42,9 @@ if TYPE_CHECKING:
     from egregora.data_primitives.protocols import UrlContext
 
 
+EXPECTED_PARTS_WITH_PATH = 2
+
+
 def _remove_url_extension(url_path: str) -> str:
     """Remove file extension from URL path segment.
 
@@ -78,7 +81,7 @@ def _remove_url_extension(url_path: str) -> str:
     # Split on last slash to get the last segment
     parts = url_path.rsplit("/", 1)
 
-    if len(parts) == 2 and "." in parts[1]:
+    if len(parts) == EXPECTED_PARTS_WITH_PATH and "." in parts[1]:
         # Has a path and a filename with extension
         # Remove extension from the filename only
         basename_without_ext = parts[1].rsplit(".", 1)[0]
