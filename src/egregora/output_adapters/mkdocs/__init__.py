@@ -13,13 +13,13 @@ from egregora.output_adapters.mkdocs.adapter import (
     secure_path_join,
 )
 from egregora.output_adapters.mkdocs.paths import (
-    derive_mkdocs_paths,
+    MkDocsPaths,
 )
 from egregora.output_adapters.mkdocs.scaffolding import MkDocsSiteScaffolder
 
 __all__ = [
     "MkDocsAdapter",
     "MkDocsSiteScaffolder",
-    "derive_mkdocs_paths",
+    "MkDocsPaths",
     "secure_path_join",
 ]

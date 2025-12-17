@@ -221,7 +221,7 @@ def create_fallback_model(
     # Helper to create model variations for all keys
     def _create_variations(model_def: str | Model) -> list[Model]:
         variations: list[Model] = []
-        
+
         # If it's a string definition for a Google model, create one variation per key
         if isinstance(model_def, str) and model_def.startswith("google-gla:"):
             for key in api_keys:
@@ -238,10 +238,10 @@ def create_fallback_model(
                  # If we reach here with string, it's not starting with google-gla?
                  # Wait, logic above handles google-gla.
                  pass
-            
+
             # Use first key as default if needed, or environment
             variations.append(_resolve_and_wrap(model_def, api_key=api_keys[0]))
-            
+
         return variations
 
     # 1. Prepare Primary Variations
@@ -250,7 +250,7 @@ def create_fallback_model(
     if not primary_variations:
         # Should not happen given logic above
         raise ValueError("Failed to create primary model")
-        
+
     primary_instance = primary_variations[0]
     remaining_primaries = primary_variations[1:]
 

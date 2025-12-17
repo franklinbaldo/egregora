@@ -42,6 +42,9 @@ if TYPE_CHECKING:
     from egregora.data_primitives.protocols import UrlContext
 
 
+EXPECTED_PARTS_WITH_PATH = 2
+
+
 def _remove_url_extension(url_path: str) -> str:
     """Remove file extension from URL path segment.
 
@@ -78,7 +81,7 @@ def _remove_url_extension(url_path: str) -> str:
     # Split on last slash to get the last segment
     parts = url_path.rsplit("/", 1)
 
-    if len(parts) == 2 and "." in parts[1]:
+    if len(parts) == EXPECTED_PARTS_WITH_PATH and "." in parts[1]:
         # Has a path and a filename with extension
         # Remove extension from the filename only
         basename_without_ext = parts[1].rsplit(".", 1)[0]
@@ -187,6 +190,9 @@ class StandardUrlConvention(UrlConvention):
             DocumentType.JOURNAL: self._format_journal_url,
             DocumentType.MEDIA: self._format_media_url,
             DocumentType.ENRICHMENT_MEDIA: self._format_media_enrichment_url,
+            DocumentType.ENRICHMENT_IMAGE: lambda ctx, doc: self._format_typed_media_enrichment_url(ctx, doc, "images"),
+            DocumentType.ENRICHMENT_VIDEO: lambda ctx, doc: self._format_typed_media_enrichment_url(ctx, doc, "videos"),
+            DocumentType.ENRICHMENT_AUDIO: lambda ctx, doc: self._format_typed_media_enrichment_url(ctx, doc, "audio"),
             DocumentType.ENRICHMENT_URL: self._format_url_enrichment_url,
         }
 
@@ -270,7 +276,15 @@ class StandardUrlConvention(UrlConvention):
         if parent_path:
             # Pure string manipulation - no Path operations
             enrichment_path = _remove_url_extension(parent_path.strip("/"))
-            return self._join(ctx, enrichment_path, trailing_slash=True)
+            # Strip any existing site_prefix or media_prefix to avoid duplication
+            # when _join adds them again
+            site_prefix = (ctx.site_prefix or "").strip("/")
+            media_prefix = self.routes.media_prefix.strip("/")
+            for prefix in [f"{site_prefix}/{media_prefix}", site_prefix, media_prefix]:
+                if prefix and enrichment_path.startswith(prefix + "/"):
+                    enrichment_path = enrichment_path[len(prefix) + 1:]
+                    break
+            return self._join(ctx, self.routes.media_prefix, enrichment_path, trailing_slash=True)
 
         if document.suggested_path:
             # Pure string manipulation - no Path operations
@@ -279,6 +293,17 @@ class StandardUrlConvention(UrlConvention):
 
         fallback = f"{self._slug_with_identifier(document)}"
         return self._join(ctx, self.routes.media_prefix, fallback, trailing_slash=True)
+
+    def _format_typed_media_enrichment_url(self, ctx: UrlContext, document: Document, subfolder: str) -> str:
+        """Format URL for typed media enrichment (images, videos, audio).
+
+        Args:
+            ctx: URL context
+            document: The enrichment document
+            subfolder: Target subfolder (e.g., "images", "videos", "audio")
+        """
+        slug = self._slug_with_identifier(document)
+        return self._join(ctx, self.routes.media_prefix, subfolder, slug, trailing_slash=True)
 
     def _slug_with_identifier(self, document: Document) -> str:
         """Return slug augmented with a deterministic identifier."""

@@ -12,7 +12,7 @@ from typing import cast
 
 from egregora.data_primitives.protocols import SiteScaffolder
 from egregora.output_adapters import create_default_output_registry, create_output_sink
-from egregora.output_adapters.mkdocs import derive_mkdocs_paths
+from egregora.output_adapters.mkdocs import MkDocsPaths
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +47,8 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
         logger.info("Output format %s does not support scaffolding", output_format)
         # Fallback for non-scaffolding adapters
         try:
-            site_paths = derive_mkdocs_paths(site_root)
-            return (site_paths["docs_dir"], False)
+            site_paths = MkDocsPaths(site_root)
+            return (site_paths.docs_dir, False)
         except (ValueError, KeyError, OSError) as e:
             logger.debug("Failed to derive MkDocs paths, falling back to default: %s", e)
             return (site_root / "docs", False)
@@ -69,8 +69,8 @@ def ensure_mkdocs_project(site_root: Path, site_name: str | None = None) -> tupl
         raise
 
     # Return docs_dir for backward compatibility
-    site_paths = derive_mkdocs_paths(site_root)
-    docs_dir = site_paths["docs_dir"]
+    site_paths = MkDocsPaths(site_root)
+    docs_dir = site_paths.docs_dir
     docs_dir.mkdir(parents=True, exist_ok=True)
 
     return (docs_dir, created)

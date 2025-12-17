@@ -6,7 +6,6 @@ Rotates through Gemini models and API keys on 429 errors to avoid rate limiting.
 from __future__ import annotations
 
 import logging
-import os
 from typing import TYPE_CHECKING, Any
 
 from egregora.utils.env import get_google_api_keys

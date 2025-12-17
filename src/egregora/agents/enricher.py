@@ -65,6 +65,8 @@ logger = logging.getLogger(__name__)
 # Constants & Patterns
 # ---------------------------------------------------------------------------
 
+HEARTBEAT_INTERVAL = 10  # Seconds for heartbeat logging
+
 _MARKDOWN_LINK_PATTERN = re.compile(r"(?:!\[|\[)[^\]]*\]\([^)]*?([^/)]+\.\w+)\)")
 _UUID_PATTERN = re.compile(r"\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.\w+)")
 
@@ -1020,7 +1022,7 @@ class EnrichmentWorker(BaseWorker):
                     results.append(future.result())
 
                     # Heartbeat logging
-                    if time.time() - last_log_time > 10:
+                    if time.time() - last_log_time > HEARTBEAT_INTERVAL:
                         logger.info("[Heartbeat] URL Enrichment: %d/%d (%.1f%%)", i, total, (i / total) * 100)
                         last_log_time = time.time()
 
@@ -1690,9 +1692,17 @@ class EnrichmentWorker(BaseWorker):
                 "hide": ["navigation"],
             }
 
+            # Map media_type to specific DocumentType for folder organization
+            media_type_to_doc_type = {
+                "image": DocumentType.ENRICHMENT_IMAGE,
+                "video": DocumentType.ENRICHMENT_VIDEO,
+                "audio": DocumentType.ENRICHMENT_AUDIO,
+            }
+            doc_type = media_type_to_doc_type.get(media_type, DocumentType.ENRICHMENT_MEDIA)
+
             doc = Document(
                 content=markdown,
-                type=DocumentType.ENRICHMENT_MEDIA,
+                type=doc_type,
                 metadata=enrichment_metadata,
                 id=slug_value,
                 parent_id=slug_value,
