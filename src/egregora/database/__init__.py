@@ -22,6 +22,7 @@ from egregora.database.ir_schema import (
     create_runs_table,
     ensure_runs_table_exists,
 )
+from egregora.database.migration import migrate_database
 from egregora.database.streaming import (
     copy_expr_to_ndjson,
     copy_expr_to_parquet,
@@ -77,6 +78,7 @@ __all__ = [
     "list_common_views",
     "messages_with_media_view",
     "messages_with_text_view",
+    "migrate_database",
     "record_lineage",
     "record_run",
     "run_stage_with_tracking",
