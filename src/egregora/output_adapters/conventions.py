@@ -194,6 +194,7 @@ class StandardUrlConvention(UrlConvention):
             DocumentType.ENRICHMENT_VIDEO: lambda ctx, doc: self._format_typed_media_enrichment_url(ctx, doc, "videos"),
             DocumentType.ENRICHMENT_AUDIO: lambda ctx, doc: self._format_typed_media_enrichment_url(ctx, doc, "audio"),
             DocumentType.ENRICHMENT_URL: self._format_url_enrichment_url,
+            DocumentType.ANNOTATION: self._format_annotation_url,
         }
 
         handler = handlers.get(document.type)
@@ -242,6 +243,12 @@ class StandardUrlConvention(UrlConvention):
             "urls",
             url_slug,
         )
+
+    def _format_annotation_url(self, ctx: UrlContext, document: Document) -> str:
+        # Annotations get their own dedicated URL space or live under posts/annotations
+        # Using document_id as identifier since they might not have user-friendly slugs
+        identifier = document.metadata.get("annotation_id", document.document_id)
+        return self._join(ctx, self.routes.posts_prefix, "annotations", str(identifier))
 
     def _format_post_url(self, ctx: UrlContext, document: Document) -> str:
         slug = document.metadata.get("slug", document.document_id[:8])
