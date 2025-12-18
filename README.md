@@ -51,6 +51,7 @@ egregora write path/to/chat_export.zip --output=.
 uvx --with mkdocs-material \
     --with mkdocs-macros-plugin \
     --with mkdocs-rss-plugin \
+    --with mkdocs-blogging-plugin \
     mkdocs serve -f .egregora/mkdocs.yml
 ```
 *Visit http://localhost:8000 to read your new blog.*
