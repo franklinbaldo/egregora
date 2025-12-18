@@ -17,7 +17,7 @@ def test_write_pipeline_importable():
 @patch("egregora.orchestration.pipelines.write.load_egregora_config")
 @patch("egregora.orchestration.pipelines.write._validate_api_key")
 @patch("egregora.orchestration.pipelines.write.ensure_mkdocs_project")
-def test_run_cli_flow(mock_ensure_mkdocs, mock_validate_key, mock_load_config, mock_run):
+def test_run_cli_flow(_mock_ensure_mkdocs, _mock_validate_key, mock_load_config, mock_run):
     """
     GREEN TEST: Verify run_cli_flow executes the pipeline logic.
     """
