@@ -309,6 +309,8 @@ class PipelineContext:
 
         """
         self.state.output_format = output_format
+        if self.state.annotations_store:
+            self.state.annotations_store.output_sink = output_format
         if url_context:
             # Create new config object since it's immutable
             new_config = replace(self.config_obj, url_context=url_context)
