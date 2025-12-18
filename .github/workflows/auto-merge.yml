@@ -1,7 +1,7 @@
 name: Auto-merge dependency updates
 
 on:
-  pull_request_target:
+  pull_request:  # Changed from pull_request_target for security
     types: [opened, synchronize, reopened]
 
 permissions:
@@ -18,6 +18,46 @@ jobs:
       github.actor == 'renovate[bot]'
 
     steps:
+      # SECURITY: Validate that PR only modifies dependency files
+      - name: Validate PR changes
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+
+            // Only allow changes to dependency files
+            const allowedPatterns = [
+              /^package\.json$/,
+              /^package-lock\.json$/,
+              /^pyproject\.toml$/,
+              /^uv\.lock$/,
+              /^requirements.*\.txt$/,
+              /^\.github\/workflows\/.*\.yml$/  // Allow workflow updates from bots
+            ];
+
+            const unauthorizedFiles = files.filter(file =>
+              !allowedPatterns.some(pattern => pattern.test(file.filename))
+            );
+
+            if (unauthorizedFiles.length > 0) {
+              const fileList = unauthorizedFiles.map(f => f.filename).join(', ');
+              core.setFailed(`PR contains unauthorized file changes: ${fileList}`);
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `⚠️ **Auto-merge blocked**: This PR modifies files outside of dependency files.\n\nUnauthorized files: ${fileList}\n\nPlease review manually.`
+              });
+            } else {
+              console.log('✅ All file changes are in allowed dependency files');
+            }
+
+
       - name: Get PR metadata
         id: metadata
         uses: dependabot/fetch-metadata@v2
