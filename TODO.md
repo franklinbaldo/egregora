@@ -74,6 +74,10 @@ This backlog directs the engineering team on *what* to build next to stabilize t
         - Create a pipeable function `anonymize_stream(stream: Iterator[Entry]) -> Iterator[Entry]`.
     - **Goal**: Make privacy a pure, composable transformation.
 
+- [ ] **[Refactor] Restore Ibis Table in Write Pipeline**
+    - **Context**: `run_cli_flow` converts Ibis table to list for command processing but passes it to writer as is (which might be a list now, breaking expectations if writer needs a table).
+    - **Task**: `src/egregora/orchestration/pipelines/write.py`: Convert filtered messages list back to ibis table using `ibis.memtable()` before passing to writer.
+
 ## 🟢 Low Priority (Cleanup)
 
 - [ ] **[CLI] Refactor Command Organization**
@@ -98,3 +102,8 @@ This backlog directs the engineering team on *what* to build next to stabilize t
 - [ ] **[Testing] Add Architecture Tests**
     - **Task**: Add a test that fails if `agents` import `cli` or `orchestration`.
     - **Goal**: Prevent dependency inversion violations.
+
+- [ ] **[Refactor] Use Jinja2 Templates in Enricher Agent**
+    - **Context**: `EnricherAgent` in `src/egregora_v3/engine/agents/enricher.py` uses hardcoded strings.
+    - **Task**: Replace `_get_default_system_prompt` and `_build_prompt` with Jinja2 templates.
+    - **Goal**: Align with Phase 3.4 architecture.
