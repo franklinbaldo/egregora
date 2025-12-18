@@ -1470,7 +1470,7 @@ class EnrichmentWorker(BaseWorker):
                 type=DocumentType.MEDIA,
                 metadata=media_metadata,
                 id=media_id if media_id else str(uuid.uuid4()),
-                parent_id=media_id,  # Link to original placeholder ID if exists
+                parent_id=None,  # Media files have no parent document
             )
 
             try:
@@ -1486,7 +1486,8 @@ class EnrichmentWorker(BaseWorker):
 
             # Create and persist the enrichment text document (description)
             enrichment_metadata = {
-                "filename": filename,
+                "filename": f"{slug_value}{Path(filename).suffix}",  # New slug-based filename
+                "original_filename": payload.get("original_filename"),  # Preserve original
                 "media_type": media_type,
                 "parent_path": payload.get("suggested_path"),
                 "slug": slug_value,
@@ -1507,7 +1508,7 @@ class EnrichmentWorker(BaseWorker):
                 type=doc_type,
                 metadata=enrichment_metadata,
                 id=slug_value,
-                parent_id=slug_value,
+                parent_id=None,  # No parent document needed - slug + filename uniquely identify media
             )
 
             if self.ctx.library:
