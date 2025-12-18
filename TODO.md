@@ -76,7 +76,7 @@ This backlog directs the engineering team on *what* to build next to stabilize t
 
 - [ ] **[Refactor] Restore Ibis Table in Write Pipeline**
     - **Context**: `run_cli_flow` converts Ibis table to list for command processing but passes it to writer as is (which might be a list now, breaking expectations if writer needs a table).
-    - **Task**: `src/egregora/orchestration/pipelines/write.py`: Convert filtered messages list back to ibis table using `ibis.memtable()` before passing to writer.
+    - **Task**: `src/egregora/orchestration/pipelines/write.py`: Filter commands directly using Ibis expressions to avoid round-trip conversion to list.
 
 ## 🟢 Low Priority (Cleanup)
 
