@@ -30,7 +30,7 @@ jobs:
   tick:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v5
       - name: Run Jules Scheduler
         env:
@@ -51,4 +51,8 @@ jobs:
             fi
           fi
 
+          # SECURITY WARNING: This runs code from an external repository without version pinning
+          # Consider pinning to a specific commit SHA or tag instead of @main
+          # Example: git+https://github.com/franklinbaldo/jules_scheduler@v1.2.3
+          # or git+https://github.com/franklinbaldo/jules_scheduler@abc123def456
           uvx --from git+https://github.com/franklinbaldo/jules_scheduler@main jules-scheduler "${args[@]}"
