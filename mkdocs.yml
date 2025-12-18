@@ -65,7 +65,6 @@ theme:
     repo: fontawesome/brands/github
     edit: material/pencil
     view: material/eye
-  custom_dir: docs/overrides
 
 plugins:
   - search:
@@ -175,27 +174,13 @@ nav:
       - RAG: api/knowledge/rag.md
       - Annotations: api/knowledge/annotations.md
       - Ranking: api/knowledge/ranking.md
-    - Generation:
-      - Writer: api/generation/writer.md
-      - Editor: api/generation/editor.md
     - Publication:
       - Scaffolding: api/init/scaffolding.md
     - Core:
-      - Schema: api/core/schema.md
-      - Models: api/core/models.md
-      - Types: api/core/types.md
       - Data Primitives: api/data-primitives.md
-    - Orchestration:
-      - Pipeline: api/orchestration/pipeline.md
-      - CLI: api/orchestration/cli.md
   - Architecture:
       - Protocols: architecture/protocols.md
       - URL Conventions: architecture/url-conventions.md
-  - Development:
-    - Contributing: development/contributing.md
-    - Testing: development/testing.md
-    - Project Structure: development/structure.md
-    - Documentation Overview: development/docs-overview.md
 
 extra:
   social:
@@ -229,10 +214,6 @@ extra:
     new: Recently added
     deprecated: Deprecated
 
-extra_css:
-  - stylesheets/extra.css
-
 extra_javascript:
-  - javascripts/bundle-download.js
   - javascripts/mathjax.js
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
