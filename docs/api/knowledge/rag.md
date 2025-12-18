@@ -81,6 +81,38 @@ rag:
       show_root_heading: true
       heading_level: 3
 
+## Data Models
+
+### Query Request
+
+::: egregora.rag.models.RAGQueryRequest
+    options:
+      show_source: true
+      show_root_heading: true
+      show_category_heading: true
+      members_order: source
+      heading_level: 3
+
+### Query Response
+
+::: egregora.rag.models.RAGQueryResponse
+    options:
+      show_source: true
+      show_root_heading: true
+      show_category_heading: true
+      members_order: source
+      heading_level: 3
+
+### Retrieval Hit
+
+::: egregora.rag.models.RAGHit
+    options:
+      show_source: true
+      show_root_heading: true
+      show_category_heading: true
+      members_order: source
+      heading_level: 3
+
 ## Architecture
 
 ### Dual-Queue Embedding Router
