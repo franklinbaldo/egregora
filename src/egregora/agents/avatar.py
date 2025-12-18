@@ -16,18 +16,20 @@ from typing import TYPE_CHECKING
 
 import httpx
 from PIL import Image
+from pydantic_ai import Agent
 from ratelimit import limits, sleep_and_retry
 
 from egregora.agents.enricher import (
-    MediaEnrichmentDeps,
-    create_media_enrichment_agent,
+    EnrichmentOutput,
     ensure_datetime,
     load_file_as_binary_content,
 )
 from egregora.input_adapters.whatsapp.commands import extract_commands
 from egregora.knowledge.profiles import remove_profile_avatar, update_profile_avatar
 from egregora.ops.media import detect_media_type, extract_urls
+from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
+from egregora.utils.model_fallback import create_fallback_model
 from egregora.utils.network import SSRFValidationError, validate_public_url
 
 if TYPE_CHECKING:
@@ -369,8 +371,6 @@ def _enrich_avatar(
             enrichment_path.write_text(cached["markdown"], encoding="utf-8")
             return
 
-    media_enrichment_agent = create_media_enrichment_agent(context.vision_model)
-
     try:
         binary_content = load_file_as_binary_content(avatar_path)
     except (OSError, ValueError) as exc:
@@ -387,7 +387,12 @@ def _enrich_avatar(
     except ValueError:
         media_path = avatar_path
 
-    enrichment_context = MediaEnrichmentDeps(
+    # Prepare dependencies manually since MediaEnrichmentDeps is removed
+    # Render prompt directly
+    prompt = render_prompt(
+        "enrichment.jinja",
+        mode="media",
+        prompts_dir=None,  # Not easily available here, but render_prompt has defaults
         media_type=media_type,
         media_filename=avatar_path.name,
         media_path=str(media_path),
@@ -395,16 +400,20 @@ def _enrich_avatar(
         sender_uuid=author_uuid,
         date=timestamp.strftime("%Y-%m-%d"),
         time=timestamp.strftime("%H:%M"),
-    )
+    ).strip()
 
-    message_content = [
-        "Analyze and enrich this avatar image. Provide a detailed description in markdown format.",
-        binary_content,
-    ]
-
+    # Create local agent
     try:
-        result = media_enrichment_agent.run_sync(message_content, deps=enrichment_context)
-        output = getattr(result, "output", getattr(result, "data", result))
+        model = create_fallback_model(context.vision_model)
+        agent = Agent(model=model, output_type=EnrichmentOutput)
+
+        message_content = [
+            prompt,
+            binary_content,
+        ]
+
+        result = agent.run_sync(message_content)
+        output = result.data  # pydantic-ai 0.18+ uses .data for output
         markdown_content = output.markdown.strip()
 
         if not markdown_content:

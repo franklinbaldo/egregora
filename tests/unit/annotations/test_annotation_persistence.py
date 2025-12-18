@@ -1,8 +1,9 @@
-import pytest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
-from egregora.agents.shared.annotations import AnnotationStore, Annotation
+import pytest
+
+from egregora.agents.shared.annotations import Annotation, AnnotationStore
 from egregora.data_primitives.document import DocumentType
 
 
@@ -61,7 +62,7 @@ class TestAnnotationStorePersistence:
     def test_persist_failure_does_not_fail_save(
         self, mock_db, mock_output_sink
     ) -> None:
-        mock_output_sink.persist.side_effect = IOError("Disk full")
+        mock_output_sink.persist.side_effect = OSError("Disk full")
         store = AnnotationStore(storage=mock_db, output_sink=mock_output_sink)
 
         annotation = store.save_annotation(
@@ -82,7 +83,7 @@ class TestAnnotationDocumentConversion:
             parent_type="message",
             author="egregora",
             commentary="Test commentary",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         doc = annotation.to_document()
