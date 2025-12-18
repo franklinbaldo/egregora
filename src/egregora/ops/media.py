@@ -284,7 +284,7 @@ def process_media_for_window(
     adapter: InputAdapter,
     url_convention: UrlConvention,
     url_context: UrlContext,
-    **adapter_kwargs: object,
+    **_adapter_kwargs: object,
 ) -> tuple[Table, MediaMapping]:
     """High-level pipeline to process media for a window."""
     media_refs = extract_media_references(window_table)
