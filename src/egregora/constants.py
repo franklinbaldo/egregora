@@ -7,41 +7,6 @@ and numbers scattered throughout the codebase.
 from enum import Enum
 
 
-class EgregoraCommand(str, Enum):
-    """User commands recognized by the system."""
-
-    OPT_OUT = "/egregora opt-out"
-    OPT_IN = "/egregora opt-in"
-    HELP = "/egregora help"
-    STATUS = "/egregora status"
-
-
-class PluginType(str, Enum):
-    """Available plugin types."""
-
-    BLOG = "blog"
-    FORUM = "forum"
-    WIKI = "wiki"
-
-
-class PipelineStep(str, Enum):
-    """Pipeline step names."""
-
-    ENRICHMENT = "enrichment"
-    WRITING = "writing"
-    PROFILES = "profiles"
-    RAG = "rag"
-
-
-class StepStatus(str, Enum):
-    """Pipeline step statuses."""
-
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-
 class FileFormat(str, Enum):
     """Supported file formats and extensions."""
 
