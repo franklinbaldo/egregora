@@ -216,7 +216,7 @@ class PipelineContext:
         return self.state.cache
 
     @property
-    def enrichment_cache(self) -> EnrichmentCache:
+    def enrichment_cache(self) -> Any:
         """Backward compatibility shim for enrichment cache."""
         return self.state.cache.enrichment
 

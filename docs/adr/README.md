@@ -6,7 +6,7 @@ This directory contains Architecture Decision Records (ADRs) documenting signifi
 
 | ADR | Title | Status |
 |-----|-------|--------|
-| [ADR-001](0001-media-path-convention.md) | Media Path Convention | Proposed |
+| [ADR-001](0001-media-and-routing.md) | Media & Routing Convention | Proposed |
 | [ADR-002](0002-profile-path-convention.md) | Profile Path Convention | Proposed |
 
 ## Template

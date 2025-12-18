@@ -21,7 +21,9 @@ class TestMediaSpecificEnrichmentTypes:
     def ctx(self) -> UrlContext:
         return UrlContext(base_url="", site_prefix="")
 
-    def test_enrichment_image_url_goes_to_images_subfolder(self, convention: StandardUrlConvention, ctx: UrlContext) -> None:
+    def test_enrichment_image_url_goes_to_images_subfolder(
+        self, convention: StandardUrlConvention, ctx: UrlContext
+    ) -> None:
         """ENRICHMENT_IMAGE documents should generate URLs under media/images/."""
         doc = Document(
             content="A beautiful sunset photo",
@@ -33,7 +35,9 @@ class TestMediaSpecificEnrichmentTypes:
         assert "/posts/media/images/" in url
         assert "sunset-photo" in url
 
-    def test_enrichment_video_url_goes_to_videos_subfolder(self, convention: StandardUrlConvention, ctx: UrlContext) -> None:
+    def test_enrichment_video_url_goes_to_videos_subfolder(
+        self, convention: StandardUrlConvention, ctx: UrlContext
+    ) -> None:
         """ENRICHMENT_VIDEO documents should generate URLs under media/videos/."""
         doc = Document(
             content="A tutorial video",
@@ -45,7 +49,9 @@ class TestMediaSpecificEnrichmentTypes:
         assert "/posts/media/videos/" in url
         assert "tutorial-video" in url
 
-    def test_enrichment_audio_url_goes_to_audio_subfolder(self, convention: StandardUrlConvention, ctx: UrlContext) -> None:
+    def test_enrichment_audio_url_goes_to_audio_subfolder(
+        self, convention: StandardUrlConvention, ctx: UrlContext
+    ) -> None:
         """ENRICHMENT_AUDIO documents should generate URLs under media/audio/."""
         doc = Document(
             content="A podcast episode",
@@ -57,7 +63,9 @@ class TestMediaSpecificEnrichmentTypes:
         assert "/posts/media/audio/" in url
         assert "podcast-episode" in url
 
-    def test_enrichment_media_fallback_still_works(self, convention: StandardUrlConvention, ctx: UrlContext) -> None:
+    def test_enrichment_media_fallback_still_works(
+        self, convention: StandardUrlConvention, ctx: UrlContext
+    ) -> None:
         """ENRICHMENT_MEDIA (generic) should still work as fallback."""
         doc = Document(
             content="Unknown media type",
@@ -87,7 +95,7 @@ class TestMkDocsAdapterMediaSpecificPaths:
             id="sunset-photo",
         )
         adapter.persist(doc)
-        
+
         # Check the path was stored correctly
         stored_path = adapter._index[doc.document_id]
         assert stored_path.exists()
@@ -104,7 +112,7 @@ class TestMkDocsAdapterMediaSpecificPaths:
             id="tutorial-video",
         )
         adapter.persist(doc)
-        
+
         stored_path = adapter._index[doc.document_id]
         assert stored_path.exists()
         assert "videos" in stored_path.parts
@@ -120,7 +128,7 @@ class TestMkDocsAdapterMediaSpecificPaths:
             id="podcast-episode",
         )
         adapter.persist(doc)
-        
+
         stored_path = adapter._index[doc.document_id]
         assert stored_path.exists()
         assert "audio" in stored_path.parts
@@ -130,29 +138,26 @@ class TestMkDocsAdapterMediaSpecificPaths:
     def test_all_media_types_organize_into_separate_folders(self, adapter: MkDocsAdapter) -> None:
         """Multiple media types should each go to their own subfolder."""
         image_doc = Document(
-            content="Image", type=DocumentType.ENRICHMENT_IMAGE, 
-            metadata={"slug": "img1"}, id="img1"
+            content="Image", type=DocumentType.ENRICHMENT_IMAGE, metadata={"slug": "img1"}, id="img1"
         )
         video_doc = Document(
-            content="Video", type=DocumentType.ENRICHMENT_VIDEO,
-            metadata={"slug": "vid1"}, id="vid1"
+            content="Video", type=DocumentType.ENRICHMENT_VIDEO, metadata={"slug": "vid1"}, id="vid1"
         )
         audio_doc = Document(
-            content="Audio", type=DocumentType.ENRICHMENT_AUDIO,
-            metadata={"slug": "aud1"}, id="aud1"
+            content="Audio", type=DocumentType.ENRICHMENT_AUDIO, metadata={"slug": "aud1"}, id="aud1"
         )
-        
+
         for doc in (image_doc, video_doc, audio_doc):
             adapter.persist(doc)
-        
+
         image_path = adapter._index["img1"]
         video_path = adapter._index["vid1"]
         audio_path = adapter._index["aud1"]
-        
+
         # All paths should be distinct subfolders
         assert image_path.parent.name == "images"
         assert video_path.parent.name == "videos"
         assert audio_path.parent.name == "audio"
-        
+
         # All under the same media directory
         assert image_path.parent.parent == video_path.parent.parent == audio_path.parent.parent
