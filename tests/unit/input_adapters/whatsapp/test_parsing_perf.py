@@ -1,7 +1,9 @@
 """Tests for parser performance improvements."""
 
 from datetime import time
+
 from egregora.input_adapters.whatsapp.parsing import _parse_message_time
+
 
 def test_parse_message_time_common_formats():
     """Verify common formats are parsed correctly."""

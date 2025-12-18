@@ -299,8 +299,8 @@ class DuckDBStorageManager:
 
         Returns:
             The DuckDB relation produced by the statement (if any).
-        """
 
+        """
         return self._conn.execute(sql, params or [])
 
     def execute_sql(self, sql: str, params: Sequence | None = None) -> None:

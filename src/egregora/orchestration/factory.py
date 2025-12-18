@@ -170,7 +170,11 @@ class PipelineFactory:
 
             if parsed.scheme == "duckdb" and not parsed.netloc:
                 path_value = parsed.path
-                if path_value and path_value not in {"/:memory:", ":memory:", "memory", "memory:"}:
+                if path_value == "/:memory:":
+                    # Normalize /:memory: to :memory: for Ibis/DuckDB compatibility
+                    # to prevent it from trying to open a file at /:memory:
+                    normalized_value = "duckdb://:memory:"
+                elif path_value and path_value not in {":memory:", "memory", "memory:"}:
                     if path_value.startswith("/./"):
                         fs_path = (site_root / Path(path_value[3:])).resolve()
                     else:
