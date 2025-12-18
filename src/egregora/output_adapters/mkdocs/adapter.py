@@ -102,6 +102,20 @@ class MkDocsAdapter(BaseOutputSink):
         )
         self._url_convention = StandardUrlConvention(routes)
 
+        # Internal dispatch for writers and path resolvers
+        self._writers = {
+            DocumentType.POST: self._write_post_doc,
+            DocumentType.PROFILE: self._write_profile_doc,
+            DocumentType.MEDIA: self._write_media_doc,
+            DocumentType.JOURNAL: self._write_journal_doc,
+            DocumentType.ENRICHMENT_URL: self._write_enrichment_doc,
+            DocumentType.ENRICHMENT_MEDIA: self._write_enrichment_doc,
+            DocumentType.ENRICHMENT_IMAGE: self._write_enrichment_doc,
+            DocumentType.ENRICHMENT_VIDEO: self._write_enrichment_doc,
+            DocumentType.ENRICHMENT_AUDIO: self._write_enrichment_doc,
+            DocumentType.ANNOTATION: self._write_annotation_doc,
+        }
+
         self._initialized = True
 
     @property
@@ -155,19 +169,9 @@ class MkDocsAdapter(BaseOutputSink):
 
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        match document.type:
-            case DocumentType.POST:
-                self._write_post_doc(document, path)
-            case DocumentType.JOURNAL:
-                self._write_journal_doc(document, path)
-            case DocumentType.PROFILE:
-                self._write_profile_doc(document, path)
-            case DocumentType.ENRICHMENT_URL | DocumentType.ENRICHMENT_MEDIA:
-                self._write_enrichment_doc(document, path)
-            case DocumentType.MEDIA:
-                self._write_media_doc(document, path)
-            case _:
-                self._write_generic_doc(document, path)
+        # Dispatch to specific writer if available, else generic
+        writer = self._writers.get(document.type, self._write_generic_doc)
+        writer(document, path)
 
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
@@ -635,6 +639,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             return DocumentType.ENRICHMENT_URL
         if parts[:1] == ("media",):
             return DocumentType.ENRICHMENT_MEDIA
+        if parts[:2] == ("annotations",):
+            return DocumentType.ANNOTATION
 
         try:
             content = path.read_text(encoding="utf-8")
@@ -646,6 +652,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             categories = []
         if "Journal" in categories:
             return DocumentType.JOURNAL
+        if "Annotations" in categories:
+            return DocumentType.ANNOTATION
         return DocumentType.POST
 
     def _list_from_unified_dir(
@@ -814,6 +822,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             case DocumentType.MEDIA:
                 rel_path = self._strip_media_prefix(url_path)
                 return self.media_dir / rel_path
+            case DocumentType.ANNOTATION:
+                # Annotations: inside posts_dir/annotations (by default)
+                slug = url_path.split("/")[-1]
+                return self.posts_dir / "annotations" / f"{slug}.md"
             case _:
                 return self._resolve_generic_path(url_path)
 
@@ -926,6 +938,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
+
     def _write_journal_doc(self, document: Document, path: Path) -> None:
         metadata = self._ensure_hidden(dict(document.metadata or {}))
 
@@ -934,6 +947,19 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
         # Add Journal category using helper (handles malformed data)
         metadata = self._ensure_category(metadata, "Journal")
+
+        yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        full_content = f"---\n{yaml_front}---\n\n{document.content}"
+        path.write_text(full_content, encoding="utf-8")
+
+    def _write_annotation_doc(self, document: Document, path: Path) -> None:
+        metadata = self._ensure_hidden(dict(document.metadata or {}))
+
+        # Add type for categorization
+        metadata["type"] = "annotation"
+
+        # Add Annotations category using helper (handles malformed data)
+        metadata = self._ensure_category(metadata, "Annotations")
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"

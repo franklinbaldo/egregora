@@ -69,6 +69,7 @@ Note:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
@@ -76,12 +77,15 @@ from typing import TYPE_CHECKING, Any, Literal
 import ibis
 
 from egregora.data_primitives.document import Document, DocumentType
+from egregora.data_primitives.protocols import OutputSink
 from egregora.database import ir_schema as database_schema
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
     from egregora.database.protocols import SequenceStorageProtocol, StorageProtocol
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -127,22 +131,26 @@ class Annotation:
     def to_document(self) -> Document:
         """Convert this annotation into a lightweight :class:`Document` instance.
 
-        Annotations already carry stable identity, authorship, and parent references.
-        Exposing them as documents lets downstream components (output adapters,
-        enrichment pipelines, retrieval) treat annotations just like any other
-        publishable content without special cases.
+        Annotations are treated as dedicated :class:`DocumentType.ANNOTATION` documents.
+        They carry stable identity, authorship, and parent references.
 
         Returns:
             Document representation of the annotation ready for serving/indexing.
 
         """
+        # Ensure title and slug for Post compatibility
+        slug = f"annotation-{self.id}"
         metadata = {
             "annotation_id": str(self.id),
             "title": f"Annotation {self.id}",
             "parent_id": self.parent_id,
             "parent_type": self.parent_type,
-            "author": self.author,
+            "author": self.author,  # Defaults to "egregora"
+            "categories": ["Annotations"],
+            "slug": slug,
+            "date": self.created_at,
         }
+
         identity_header = (
             "<!--\n"
             f"annotation_id: {self.id}\n"
@@ -183,14 +191,20 @@ class AnnotationStore:
         - Sequences: annotations_id_seq for auto-increment
     """
 
-    def __init__(self, storage: StorageProtocol & SequenceStorageProtocol) -> None:  # type: ignore[misc]
+    def __init__(
+        self,
+        storage: StorageProtocol & SequenceStorageProtocol,  # type: ignore[misc]
+        output_sink: OutputSink | None = None,
+    ) -> None:
         """Initialize annotation store.
 
         Args:
             storage: Storage backend implementing both StorageProtocol and SequenceStorageProtocol
+            output_sink: Optional sink for persisting annotations as documents
 
         """
         self.storage = storage
+        self.output_sink = output_sink
         self._backend = storage.ibis_conn
         self._sequence_name = f"{ANNOTATIONS_TABLE}_id_seq"
         self._initialize()
@@ -282,7 +296,7 @@ class AnnotationStore:
             ]
         )
         self._backend.insert(ANNOTATIONS_TABLE, insert_row)
-        return Annotation(
+        annotation = Annotation(
             id=annotation_id,
             parent_id=parent_id,
             parent_type=parent_type,
@@ -290,6 +304,14 @@ class AnnotationStore:
             commentary=commentary,
             created_at=created_at,
         )
+
+        if self.output_sink:
+            try:
+                self.output_sink.persist(annotation.to_document())
+            except Exception as e:
+                logger.warning("Failed to persist annotation %s: %s", annotation.id, e)
+
+        return annotation
 
     # ========================================================================
     # Query Operations

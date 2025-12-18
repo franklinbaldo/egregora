@@ -251,6 +251,7 @@ class WriterDeps:
             raise RuntimeError(msg)
 
         try:
+            # Persistence to OutputSink is now handled internally by AnnotationStore
             annotation = self.resources.annotations_store.save_annotation(
                 parent_id=parent_id, parent_type=parent_type, commentary=commentary
             )
@@ -264,7 +265,7 @@ class WriterDeps:
             # We catch broad exceptions here intentionally to prevent a single
             # annotation failure from crashing the entire writer agent process.
             # The agent should be able to continue writing even if one annotation fails.
-            logger.warning("Failed to persist annotation, continuing without it: %s", exc)
+            logger.warning("Failed to save annotation: %s", exc)
             return AnnotationResult(
                 status="failed",
                 annotation_id="annotation-error",

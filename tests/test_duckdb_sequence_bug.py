@@ -9,6 +9,7 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+import duckdb
 import pytest
 
 from egregora.database.duckdb_manager import DuckDBStorageManager
@@ -20,8 +21,8 @@ def test_sequence_values_single_thread():
         db_path = Path(tmpdir) / "test.duckdb"
         manager = DuckDBStorageManager(db_path)
 
-        # Create a sequence
-        manager.execute("CREATE SEQUENCE IF NOT EXISTS test_seq START 1")
+        # Create a sequence via the public helper
+        manager.ensure_sequence("test_seq", start=1)
 
         # Get multiple batches of sequence values
         for _ in range(10):
@@ -45,8 +46,8 @@ def test_sequence_values_concurrent_threads():
         db_path = Path(tmpdir) / "test.duckdb"
         manager = DuckDBStorageManager(db_path)
 
-        # Create a sequence
-        manager.execute("CREATE SEQUENCE IF NOT EXISTS test_seq START 1")
+        # Create a sequence via the public helper
+        manager.ensure_sequence("test_seq", start=1)
 
         def get_sequence_batch(thread_id: int) -> list[int]:
             """Get a batch of sequence values in a thread."""
@@ -91,8 +92,8 @@ def test_sequence_values_with_explicit_transactions():
         db_path = Path(tmpdir) / "test.duckdb"
         manager = DuckDBStorageManager(db_path)
 
-        # Create a sequence
-        manager.execute("CREATE SEQUENCE IF NOT EXISTS test_seq START 1")
+        # Create a sequence via the public helper
+        manager.ensure_sequence("test_seq", start=1)
 
         # Get sequence values with explicit transaction control
         for i in range(10):
@@ -118,8 +119,8 @@ def test_sequence_values_rapid_fire():
         db_path = Path(tmpdir) / "test.duckdb"
         manager = DuckDBStorageManager(db_path)
 
-        # Create a sequence
-        manager.execute("CREATE SEQUENCE IF NOT EXISTS test_seq START 1")
+        # Create a sequence via the public helper
+        manager.ensure_sequence("test_seq", start=1)
 
         errors = []
 
@@ -153,8 +154,8 @@ def test_sequence_after_connection_reset():
         db_path = Path(tmpdir) / "test.duckdb"
         manager = DuckDBStorageManager(db_path)
 
-        # Create a sequence
-        manager.execute("CREATE SEQUENCE IF NOT EXISTS test_seq START 1")
+        # Create a sequence via the public helper
+        manager.ensure_sequence("test_seq", start=1)
 
         # Get some values
         values1 = manager.next_sequence_values("test_seq", count=5)
@@ -171,6 +172,50 @@ def test_sequence_after_connection_reset():
         assert values2[0] > values1[-1]
 
         manager.close()
+
+
+def test_next_sequence_handles_invalidation(tmp_path):
+    """Ensure connection reset path still returns sequence values."""
+
+    manager = DuckDBStorageManager(tmp_path / "invalidated.duckdb")
+    manager.ensure_sequence("test_seq", start=1)
+
+    class FlakyProxy:
+        def __init__(self, conn: duckdb.DuckDBPyConnection):
+            self.conn = conn
+            self.calls = 0
+
+        def execute(self, sql: str, params=None):  # type: ignore[override]
+            if "nextval" in sql.lower():
+                self.calls += 1
+                if self.calls == 1:
+                    raise duckdb.Error("database has been invalidated")
+            return self.conn.execute(sql, params)
+
+        def __getattr__(self, name):
+            return getattr(self.conn, name)
+
+    proxy = FlakyProxy(manager._conn)
+    manager._conn = proxy
+
+    values = manager.next_sequence_values("test_seq", count=2)
+
+    assert values == sorted(values)
+    assert proxy.calls >= 1
+
+    manager.close()
+
+
+def test_next_sequence_rejects_non_positive_count(tmp_path):
+    """Guard against invalid sequence batch sizes."""
+
+    manager = DuckDBStorageManager(tmp_path / "reject.duckdb")
+    manager.ensure_sequence("test_seq", start=1)
+
+    with pytest.raises(ValueError):
+        manager.next_sequence_values("test_seq", count=0)
+
+    manager.close()
 
 
 if __name__ == "__main__":
