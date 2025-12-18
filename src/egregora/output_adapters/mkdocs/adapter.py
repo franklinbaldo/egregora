@@ -27,6 +27,7 @@ from jinja2 import Environment, FileSystemLoader, TemplateError, select_autoesca
 from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
+from egregora.metadata.publishable import PublishableMetadata
 from egregora.knowledge.profiles import generate_fallback_avatar_url
 from egregora.markdown.frontmatter import parse_frontmatter
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
@@ -144,6 +145,9 @@ class MkDocsAdapter(BaseOutputSink):
         return author_dir
 
     def persist(self, document: Document) -> None:
+        # First, ensure the document has the minimum required metadata.
+        document = ensure_minimum_metadata(document)
+
         doc_id = document.document_id
         url = self._url_convention.canonical_url(document, self._ctx)
         path = self._url_to_path(url, document)
@@ -166,9 +170,23 @@ class MkDocsAdapter(BaseOutputSink):
 
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Dispatch to specific writer if available, else generic
-        writer = self._writers.get(document.type, self._write_generic_doc)
-        writer(document, path)
+        # Create structured metadata for consistent handling
+        meta = PublishableMetadata.from_document(document)
+
+        match document.type:
+            case DocumentType.POST:
+                self._write_post_doc(document, meta, path)
+            case DocumentType.JOURNAL:
+                self._write_journal_doc(document, meta, path)
+            case DocumentType.PROFILE:
+                self._write_profile_doc(document, meta, path)
+            case DocumentType.ENRICHMENT_URL | DocumentType.ENRICHMENT_MEDIA:
+                self._write_enrichment_doc(document, meta, path)
+            case DocumentType.MEDIA:
+                self._write_media_doc(document, meta, path)
+            case _:
+                msg = f"Unsupported document type for MkDocs adapter: {document.type}"
+                raise ValueError(msg)
 
         self._index[doc_id] = path
         logger.debug("Served document %s at %s", doc_id, path)
@@ -209,6 +227,10 @@ class MkDocsAdapter(BaseOutputSink):
             case DocumentType.JOURNAL:
                 # Journals: simple filename with slug
                 return self.posts_dir / f"{identifier.replace('/', '-')}.md"
+            case DocumentType.ANNOTATION:
+                # Annotations: posts/annotations/{id}.md
+                # Identifier is likely the annotation ID or slug
+                return self.posts_dir / "annotations" / f"{identifier}.md"
             case DocumentType.ENRICHMENT_URL:
                 # Enrichment URLs: inside media_dir/urls (ADR-0004)
                 return self.media_dir / "urls" / f"{identifier}.md"
@@ -816,10 +838,11 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
                 rel_path = self._strip_media_prefix(url_path)
                 return self.media_dir / rel_path
             case _:
-                return self._resolve_generic_path(url_path)
-
-    def _resolve_generic_path(self, url_path: str) -> Path:
-        return self.site_root / f"{url_path}.md"
+                # Unsupported type path resolution relies on site root fallback or raises
+                # Since generic docs are removed, we can just return a fallback path
+                # but better to let it be handled by caller or specific types.
+                # For compatibility with potential path lookups that aren't strictly typed:
+                return self.site_root / f"{url_path.strip('/')}.md"
 
     def _strip_media_prefix(self, url_path: str) -> str:
         """Helper to strip media prefixes from URL path."""
@@ -881,15 +904,10 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         metadata["categories"] = categories
         return metadata
 
-    def _write_post_doc(self, document: Document, path: Path) -> None:
-        metadata = dict(document.metadata or {})
+    def _write_post_doc(self, document: Document, meta: PublishableMetadata, path: Path) -> None:
+        metadata = meta.to_dict()
 
-        # Posts don't need a forced category - Material blog shows uncategorized posts in main feed
-        # But ensure categories is a list if present
-        if "categories" in metadata and not isinstance(metadata["categories"], list):
-            metadata["categories"] = []
-
-        if "date" in metadata:
+        if "date" in metadata and isinstance(metadata["date"], str):
             # Parse to datetime object for proper YAML serialization (unquoted)
             # Material blog plugin requires native datetime type, not string
             dt = parse_datetime_flexible(metadata["date"])
@@ -899,8 +917,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             ensure_author_entries(path.parent, metadata.get("authors"))
 
         # Add related posts based on shared tags
-        current_tags = set(metadata.get("tags", []))
-        current_slug = metadata.get("slug")
+        current_tags = set(meta.tags)
+        current_slug = meta.slug
         if current_tags and current_slug:
             all_posts = list(self.documents())
             related_posts_list = []
@@ -927,38 +945,39 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
-
-    def _write_journal_doc(self, document: Document, path: Path) -> None:
-        metadata = self._ensure_hidden(dict(document.metadata or {}))
+    def _write_journal_doc(self, document: Document, meta: PublishableMetadata, path: Path) -> None:
+        metadata = meta.to_dict()
+        metadata = self._ensure_hidden(metadata)
 
         # Add type for categorization
         metadata["type"] = "journal"
 
-        # Add Journal category using helper (handles malformed data)
+        # Add Journal category using helper
         metadata = self._ensure_category(metadata, "Journal")
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
-    def _write_profile_doc(self, document: Document, path: Path) -> None:
+    def _write_profile_doc(self, document: Document, meta: PublishableMetadata, path: Path) -> None:
         # Ensure UUID is in metadata
-        author_uuid = document.metadata.get("uuid", document.metadata.get("author_uuid"))
+        author_uuid = meta.extra.get("uuid", meta.extra.get("author_uuid"))
         if not author_uuid:
             msg = "Profile document must have 'uuid' or 'author_uuid' in metadata"
             raise ValueError(msg)
 
         # Use standard frontmatter writing logic
-        metadata = dict(document.metadata or {})
+        metadata = meta.to_dict()
 
         # Add type for categorization
         metadata["type"] = "profile"
 
         # Ensure avatar is present (fallback if needed)
+        # Note: PublishableMetadata doesn't track avatar directly, so check extra
         if "avatar" not in metadata:
             metadata["avatar"] = generate_fallback_avatar_url(author_uuid)
 
-        # Add Authors category using helper (handles malformed data)
+        # Add Authors category using helper
         metadata = self._ensure_category(metadata, "Authors")
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
@@ -984,30 +1003,34 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         full_content = f"---\n{yaml_front}---\n\n{content_with_avatar}"
         path.write_text(full_content, encoding="utf-8")
 
-    def _write_enrichment_doc(self, document: Document, path: Path) -> None:
-        metadata = self._ensure_hidden(document.metadata.copy())
+    def _write_enrichment_doc(self, document: Document, meta: PublishableMetadata, path: Path) -> None:
+        metadata = meta.to_dict()
+        metadata = self._ensure_hidden(metadata)
+
+        # PublishableMetadata handles slug and type, but we ensure document_type matches
         metadata.setdefault("document_type", document.type.value)
-        metadata.setdefault("slug", document.slug)
+
+        # Handle parent linkage (often in extra)
         if document.parent_id:
             metadata.setdefault("parent_id", document.parent_id)
         if document.parent and document.parent.metadata.get("slug"):
             metadata.setdefault("parent_slug", document.parent.metadata.get("slug"))
 
-        # Add Enrichment category using helper (handles malformed data)
+        # Add Enrichment category using helper
         metadata = self._ensure_category(metadata, "Enrichment")
 
         yaml_front = yaml.dump(metadata, default_flow_style=False, allow_unicode=True, sort_keys=False)
         full_content = f"---\n{yaml_front}---\n\n{document.content}"
         path.write_text(full_content, encoding="utf-8")
 
-    def _write_media_doc(self, document: Document, path: Path) -> None:
-        if document.metadata.get("pii_deleted"):
+    def _write_media_doc(self, document: Document, meta: PublishableMetadata, path: Path) -> None:
+        if meta.extra.get("pii_deleted"):
             logger.info("Skipping persistence of PII-containing media: %s", path.name)
             return
 
         # V3 Large File Support: If source_path is present, move/copy from there
         # instead of loading content into memory.
-        source_path = document.metadata.get("source_path")
+        source_path = meta.extra.get("source_path")
         if source_path:
             src = Path(source_path)
             if src.exists():
@@ -1028,12 +1051,6 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             document.content if isinstance(document.content, bytes) else document.content.encode("utf-8")
         )
         path.write_bytes(payload)
-
-    def _write_generic_doc(self, document: Document, path: Path) -> None:
-        if isinstance(document.content, bytes):
-            path.write_bytes(document.content)
-        else:
-            path.write_text(document.content, encoding="utf-8")
 
     @staticmethod
     def _ensure_hidden(metadata: dict[str, Any]) -> dict[str, Any]:

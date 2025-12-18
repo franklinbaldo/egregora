@@ -46,7 +46,18 @@ Welcome to the Egregora documentation! Transform your WhatsApp group chats into 
 
     Contributing guidelines and development setup instructions
 
-    [:octicons-arrow-right-24: Development](development/contributing.md)
+    [:octicons-arrow-right-24: Development](development/)
+
+-   :material-package-down:{ .lg .middle } __Repomix Bundles__
+
+    ---
+
+    Download consolidated markdown bundles generated from the repository:
+
+    - [Everything bundle](bundles/all.bundle.md){: download="egregora-all.md" data-bundle-name="all" }
+    - [Full code bundle](bundles/code.bundle.md){: download="egregora-code.md" data-bundle-name="code" }
+    - [Tests bundle](bundles/tests.bundle.md){: download="egregora-tests.md" data-bundle-name="tests" }
+    - [Documentation bundle](bundles/docs.bundle.md){: download="egregora-docs.md" data-bundle-name="docs" }
 
 </div>
 

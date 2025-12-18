@@ -60,6 +60,7 @@ from egregora.transformations.windowing import (
     create_windows,
     load_checkpoint,
     save_checkpoint,
+    save_checkpoint_atomic,
     split_window_into_n_parts,
 )
 
@@ -73,5 +74,6 @@ __all__ = [
     "process_media_for_window",
     "replace_media_references",
     "save_checkpoint",
+    "save_checkpoint_atomic",
     "split_window_into_n_parts",
 ]
