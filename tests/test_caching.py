@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from egregora.utils.cache import PipelineCache, make_enrichment_cache_key
+from egregora.utils.cache import CacheTier, PipelineCache, make_enrichment_cache_key
 
 
 @pytest.fixture
@@ -22,12 +22,12 @@ def test_enrichment_persistence(temp_cache_dir):
     payload = {"markdown": "Cached content", "slug": "cached-slug", "type": "url"}
 
     # Store in cache
-    cache.enrichment.set(key, payload)
+    cache.enrichment.store(key, payload)
     cache.close()
 
     # Re-open cache
     new_cache = PipelineCache(temp_cache_dir)
-    loaded = new_cache.enrichment.get(key)
+    loaded = new_cache.enrichment.load(key)
 
     assert loaded is not None
     assert loaded["markdown"] == "Cached content"
@@ -67,16 +67,16 @@ def test_force_refresh(temp_cache_dir):
     # Should ignore existing value (conceptually, though diskcache might still return it if we ask directly,
     # the wrapper logic in write_pipeline uses should_refresh to skip checking).
     # So we test should_refresh here.
-    assert refresh_cache.should_refresh("writer")
+    assert refresh_cache.should_refresh(CacheTier.WRITER)
 
     # 3. Open with specific tier refresh
     writer_refresh_cache = PipelineCache(temp_cache_dir, refresh_tiers={"writer"})
-    assert writer_refresh_cache.should_refresh("writer")
+    assert writer_refresh_cache.should_refresh(CacheTier.WRITER)
 
     # 4. Open with enrichment tier refresh
     enrichment_refresh_cache = PipelineCache(temp_cache_dir, refresh_tiers={"enrichment"})
-    assert enrichment_refresh_cache.should_refresh("enrichment")
-    assert not enrichment_refresh_cache.should_refresh("writer")
+    assert enrichment_refresh_cache.should_refresh(CacheTier.ENRICHMENT)
+    assert not enrichment_refresh_cache.should_refresh(CacheTier.WRITER)
 
     writer_refresh_cache.close()
     enrichment_refresh_cache.close()

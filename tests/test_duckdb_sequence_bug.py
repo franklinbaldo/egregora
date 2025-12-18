@@ -21,7 +21,7 @@ def test_sequence_values_single_thread():
         manager = DuckDBStorageManager(db_path)
 
         # Create a sequence
-        manager.execute_sql("CREATE SEQUENCE IF NOT EXISTS test_seq START 1")
+        manager.execute("CREATE SEQUENCE IF NOT EXISTS test_seq START 1")
 
         # Get multiple batches of sequence values
         for _ in range(10):
@@ -46,7 +46,7 @@ def test_sequence_values_concurrent_threads():
         manager = DuckDBStorageManager(db_path)
 
         # Create a sequence
-        manager.execute_sql("CREATE SEQUENCE IF NOT EXISTS test_seq START 1")
+        manager.execute("CREATE SEQUENCE IF NOT EXISTS test_seq START 1")
 
         def get_sequence_batch(thread_id: int) -> list[int]:
             """Get a batch of sequence values in a thread."""
@@ -92,7 +92,7 @@ def test_sequence_values_with_explicit_transactions():
         manager = DuckDBStorageManager(db_path)
 
         # Create a sequence
-        manager.execute_sql("CREATE SEQUENCE IF NOT EXISTS test_seq START 1")
+        manager.execute("CREATE SEQUENCE IF NOT EXISTS test_seq START 1")
 
         # Get sequence values with explicit transaction control
         for i in range(10):
@@ -119,7 +119,7 @@ def test_sequence_values_rapid_fire():
         manager = DuckDBStorageManager(db_path)
 
         # Create a sequence
-        manager.execute_sql("CREATE SEQUENCE IF NOT EXISTS test_seq START 1")
+        manager.execute("CREATE SEQUENCE IF NOT EXISTS test_seq START 1")
 
         errors = []
 
@@ -154,7 +154,7 @@ def test_sequence_after_connection_reset():
         manager = DuckDBStorageManager(db_path)
 
         # Create a sequence
-        manager.execute_sql("CREATE SEQUENCE IF NOT EXISTS test_seq START 1")
+        manager.execute("CREATE SEQUENCE IF NOT EXISTS test_seq START 1")
 
         # Get some values
         values1 = manager.next_sequence_values("test_seq", count=5)

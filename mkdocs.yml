@@ -149,9 +149,6 @@ markdown_extensions:
       clickable_checkbox: false
   - pymdownx.tilde
 
-extra_javascript:
-  - javascripts/bundle-download.js
-
 nav:
   - Home: index.md
   - Demo: https://franklinbaldo.github.io/egregora/demo/
@@ -195,7 +192,6 @@ nav:
       - Protocols: architecture/protocols.md
       - URL Conventions: architecture/url-conventions.md
   - Development:
-    - Overview: development/index.md
     - Contributing: development/contributing.md
     - Testing: development/testing.md
     - Project Structure: development/structure.md
@@ -237,5 +233,6 @@ extra_css:
   - stylesheets/extra.css
 
 extra_javascript:
+  - javascripts/bundle-download.js
   - javascripts/mathjax.js
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js

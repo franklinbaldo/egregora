@@ -27,7 +27,6 @@ import hashlib
 import json
 import logging
 import math
-import os
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -75,28 +74,11 @@ def load_checkpoint(checkpoint_path: Path) -> dict | None:
 def save_checkpoint(checkpoint_path: Path, last_timestamp: datetime, messages_processed: int) -> None:
     """Save processing checkpoint to sentinel file.
 
-    DEPRECATED: Use save_checkpoint_atomic instead.
-
     Args:
         checkpoint_path: Path to .egregora/checkpoint.json
         last_timestamp: Timestamp of last processed message
         messages_processed: Total count of messages processed
 
-    """
-    save_checkpoint_atomic(checkpoint_path, last_timestamp, messages_processed)
-
-
-def save_checkpoint_atomic(
-    checkpoint_path: Path,
-    last_timestamp: datetime,
-    messages_processed: int,
-) -> None:
-    """Save checkpoint atomically using temp file + rename.
-
-    Args:
-        checkpoint_path: Path to the checkpoint file.
-        last_timestamp: Timestamp of the last processed message.
-        messages_processed: Total number of messages processed.
     """
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -106,21 +88,18 @@ def save_checkpoint_atomic(
     else:
         last_timestamp = last_timestamp.astimezone(utc_zone)
 
-    checkpoint_data = {
+    checkpoint = {
         "last_processed_timestamp": last_timestamp.isoformat(),
-        "messages_processed": messages_processed,
+        "messages_processed": int(messages_processed),
         "schema_version": "1.0",
     }
 
-    temp_path = checkpoint_path.with_suffix(".tmp")
     try:
-        with temp_path.open("w") as f:
-            json.dump(checkpoint_data, f, indent=2)
-        os.replace(temp_path, checkpoint_path)
-        logger.debug("Checkpoint saved: %s", checkpoint_path)
+        with checkpoint_path.open("w") as f:
+            json.dump(checkpoint, f, indent=2)
+        logger.info("Checkpoint saved: %s", checkpoint_path)
     except OSError as e:
-        logger.warning("Failed to save checkpoint: %s", e)
-        temp_path.unlink(missing_ok=True)
+        logger.warning("Failed to save checkpoint to %s: %s", checkpoint_path, e)
 
 
 # ============================================================================
@@ -588,11 +567,12 @@ def generate_window_signature(
     window_table: Table,
     config: EgregoraConfig,
     prompt_template: str,
+    xml_content: str | None = None,
 ) -> str:
     """Generate a deterministic signature for a processing window.
 
     Components:
-    1. DATA: Hash of message IDs and timestamps in the window (serialized as JSON).
+    1. DATA: Hash of message IDs in the window (derived from XML if provided, else computed).
     2. LOGIC: Hash of the prompt template + custom instructions.
     3. ENGINE: Model ID.
 
@@ -600,22 +580,17 @@ def generate_window_signature(
         window_table: The window's data table.
         config: Pipeline configuration.
         prompt_template: Raw template string for the writer prompt.
+        xml_content: Optional pre-computed XML content to hash (avoid re-generating).
 
     """
     # 1. Data Hash
-    # Extract IDs and timestamps to form a canonical representation of the data
-    # We serialize to JSON to ensure deterministic output
-    identifiers = (
-        window_table.select("event_id", "ts")
-        .order_by("ts", "event_id")
-        .mutate(ts_str=window_table.ts.cast("string"))
-        .select("event_id", "ts_str")
-        .to_pyarrow()
-        .to_pylist()
-    )
-    # Use standard json with sort_keys for determinism
-    data_json = json.dumps(identifiers, sort_keys=True)
-    data_hash = hashlib.sha256(data_json.encode()).hexdigest()
+    if xml_content:
+        data_hash = hashlib.sha256(xml_content.encode()).hexdigest()
+    else:
+        # Fallback to generating XML for hash consistency
+        # (We use XML because that's what the LLM sees)
+        xml_content = build_conversation_xml(window_table.to_pyarrow(), None)
+        data_hash = hashlib.sha256(xml_content.encode()).hexdigest()
 
     # 2. Logic Hash
     # Combine template and user instructions

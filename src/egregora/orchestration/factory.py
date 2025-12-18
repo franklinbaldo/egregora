@@ -17,7 +17,7 @@ from google import genai
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.types import WriterResources
 from egregora.data_primitives.protocols import UrlContext
-from egregora.database import initialize_database, migrate_database
+from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.orchestration.context import (
     PipelineConfig,
@@ -73,11 +73,6 @@ class PipelineFactory:
         site_paths.egregora_dir.mkdir(parents=True, exist_ok=True)
         db_file = site_paths.egregora_dir / "app.duckdb"
         storage = DuckDBStorageManager(db_path=db_file)
-
-        # Run migrations to ensure schema is up to date (V3 Entry Migration)
-        migrate_database(storage)
-
-        annotations_store = AnnotationStore(storage)
 
         output_registry = create_default_output_registry()
 
