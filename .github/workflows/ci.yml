@@ -276,6 +276,9 @@ jobs:
         continue-on-error: true
         run: uv run xenon src/ --max-absolute B --max-modules B --max-average B
 
+      - name: Run vulture (dead code detection)
+        run: uv run vulture src tests vulture_whitelist.py --min-confidence=80
+
   summary:
     name: Workflow Summary
     runs-on: ubuntu-latest

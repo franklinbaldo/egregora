@@ -37,7 +37,7 @@ class TestAnnotationStorePersistence:
     ) -> None:
         store = AnnotationStore(storage=mock_db, output_sink=mock_output_sink)
 
-        annotation = store.save_annotation(
+        store.save_annotation(
             parent_id="msg-123",
             parent_type="message",
             commentary="Important observation.",
