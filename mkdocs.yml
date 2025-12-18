@@ -4,7 +4,9 @@ site_url: https://franklinbaldo.github.io/egregora/
 repo_url: https://github.com/franklinbaldo/egregora
 repo_name: franklinbaldo/egregora
 edit_uri: edit/main/docs/
-copyright: Copyright &copy; 2025 Egregora - MIT License
+copyright: |
+  Copyright &copy; 2025 Egregora - MIT License<br>
+  <small>Last generated: !ENV [BUILD_TIMESTAMP, "Unknown"]</small>
 
 theme:
   name: material
@@ -183,6 +185,11 @@ nav:
       - URL Conventions: architecture/url-conventions.md
 
 extra:
+  # Build information (set by CI/CD workflow)
+  build:
+    timestamp: !ENV [BUILD_TIMESTAMP, "Unknown"]
+    commit: !ENV [BUILD_COMMIT, "Unknown"]
+    workflow_url: !ENV [BUILD_WORKFLOW_URL, ""]
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/franklinbaldo/egregora
