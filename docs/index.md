@@ -40,14 +40,6 @@ Welcome to the Egregora documentation! Transform your WhatsApp group chats into 
 
     [:octicons-arrow-right-24: API Reference](api/index.md)
 
--   :material-hammer-wrench:{ .lg .middle } __Development__
-
-    ---
-
-    Contributing guidelines and development setup instructions
-
-    [:octicons-arrow-right-24: Development](development/contributing.md)
-
 </div>
 
 ## Architecture Overview
