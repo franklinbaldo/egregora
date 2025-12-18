@@ -144,7 +144,7 @@ class TestProfileGeneration:
         with patch("egregora.agents.profile.generator._call_llm_decision") as mock_llm:
             mock_llm.return_value = ProfileUpdateDecision(
                 significant=True,
-                content="# John's AI Safety Focus\n\nJohn shows deep concern for AI alignment..."
+                content="# John's AI Safety Focus\n\nJohn shows deep concern for AI alignment...",
             )
 
             content = await _generate_profile_content(

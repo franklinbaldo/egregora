@@ -7,7 +7,7 @@ from typing import Any
 
 from egregora.config import load_egregora_config
 
-__all__ = ["MkDocsPaths"]
+__all__ = ["MkDocsPaths", "derive_mkdocs_paths"]
 
 
 class MkDocsPaths:
@@ -15,10 +15,10 @@ class MkDocsPaths:
 
     def __init__(self, site_root: Path, *, config: Any | None = None) -> None:
         self.site_root = site_root.expanduser().resolve()
-        
+
         if config is None:
             config = load_egregora_config(self.site_root)
-        
+
         self.config = config
         p = config.paths
 
@@ -40,11 +40,11 @@ class MkDocsPaths:
         self.enriched_dir = (self.egregora_dir / "enriched").resolve()
 
     # MkDocs-specific Helpers
-    
+
     @property
     def mkdocs_path(self) -> Path:
         """Locate the active mkdocs.yml file.
-        
+
         Uses config.output.adapters[0].config_path if set,
         otherwise falls back to .egregora/mkdocs.yml or root mkdocs.yml.
         """
@@ -54,11 +54,11 @@ class MkDocsPaths:
             adapter_config_path = adapters[0].config_path
             if adapter_config_path:
                 return (self.site_root / adapter_config_path).resolve()
-        
+
         # Fallback: prefer .egregora/mkdocs.yml, then root mkdocs.yml
         preferred = (self.site_root / ".egregora" / "mkdocs.yml").resolve()
         legacy = (self.site_root / "mkdocs.yml").resolve()
-        
+
         if not preferred.exists() and legacy.exists():
             return legacy
         return preferred
@@ -66,7 +66,7 @@ class MkDocsPaths:
     @property
     def mkdocs_config_path(self) -> Path:
         """Preferred location for creating new mkdocs.yml.
-        
+
         Uses config.output.adapters[0].config_path if set,
         otherwise defaults to .egregora/mkdocs.yml.
         """
@@ -75,7 +75,7 @@ class MkDocsPaths:
             adapter_config_path = adapters[0].config_path
             if adapter_config_path:
                 return (self.site_root / adapter_config_path).resolve()
-        
+
         return (self.egregora_dir / "mkdocs.yml").resolve()
 
     @property
@@ -89,15 +89,35 @@ class MkDocsPaths:
     def blog_root_dir(self) -> Path:
         """Alias for posts_dir for clarity in some contexts."""
         return self.posts_dir
-    
+
     @property
     def docs_prefix(self) -> str:
         """Return docs_dir relative to site_root for URL generation."""
         if self.docs_dir.is_relative_to(self.site_root):
             return self.docs_dir.relative_to(self.site_root).as_posix()
         return ""
-    
+
     # Dictionary compatibility for simpler migration if needed (optional)
     def to_dict(self) -> dict[str, Any]:
-        return {k: getattr(self, k) for k in dir(self) 
-                if not k.startswith("_") and not callable(getattr(self, k))}
+        return {
+            k: getattr(self, k) for k in dir(self) if not k.startswith("_") and not callable(getattr(self, k))
+        }
+
+
+def derive_mkdocs_paths(site_root: Path, *, config: Any | None = None) -> dict[str, Path]:
+    """Backwards-compatible helper returning common MkDocs paths.
+
+    Prefer using :class:`MkDocsPaths` directly in new code.
+    """
+    paths = MkDocsPaths(site_root, config=config)
+    return {
+        "site_root": paths.site_root,
+        "egregora_dir": paths.egregora_dir,
+        "docs_dir": paths.docs_dir,
+        "posts_dir": paths.posts_dir,
+        "profiles_dir": paths.profiles_dir,
+        "media_dir": paths.media_dir,
+        "journal_dir": paths.journal_dir,
+        "mkdocs_path": paths.mkdocs_path,
+        "mkdocs_config_path": paths.mkdocs_config_path,
+    }

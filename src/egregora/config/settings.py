@@ -47,7 +47,7 @@ logger = logging.getLogger(__name__)
 # Constants
 # ============================================================================
 
-DEFAULT_MODEL = "google-gla:gemini-flash-latest"  # More reliable availability
+DEFAULT_MODEL = "google-gla:gemini-3-flash"  # New highest priority model
 DEFAULT_EMBEDDING_MODEL = "models/gemini-embedding-001"
 DEFAULT_BANNER_MODEL = "models/gemini-2.5-flash-image"
 EMBEDDING_DIM = 768  # Embedding vector dimensions
@@ -129,6 +129,7 @@ class ModelSettings(BaseModel):
                 f"Invalid Pydantic-AI model format: {v!r}\n"
                 f"Expected format: 'google-gla:<model-name>'\n"
                 f"Examples:\n"
+                f"  - google-gla:gemini-3-flash\n"
                 f"  - google-gla:gemini-flash-latest\n"
                 f"  - google-gla:gemini-2.0-flash-exp\n"
                 f"  - google-gla:gemini-1.5-pro"
@@ -291,6 +292,7 @@ class EnrichmentSettings(BaseModel):
     )
     rotation_models: list[str] = Field(
         default=[
+            "gemini-3-flash",
             "gemini-2.5-flash-lite",
             "gemini-2.0-flash",
             "gemini-2.5-flash",
@@ -423,16 +425,16 @@ class PathsSettings(BaseModel):
         description="Blog posts directory (Section Root)",
     )
     profiles_dir: str = Field(
-        default="docs/posts",
-        description="Author profiles directory (Consolidated into blog section)",
+        default="docs/posts/profiles",
+        description="Author profiles directory (subtree under posts/)",
     )
     media_dir: str = Field(
         default="docs/posts/media",
         description="Media files (images, videos) directory",
     )
     journal_dir: str = Field(
-        default="docs/posts",
-        description="Agent execution journals directory (Consolidated into blog section)",
+        default="docs/journal",
+        description="Agent execution journals directory",
     )
 
     @field_validator(

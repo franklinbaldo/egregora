@@ -182,12 +182,11 @@ class MkDocsSiteScaffolder:
 
     def _create_content_directories(self, site_paths: MkDocsPaths) -> None:
         posts_dir = site_paths.posts_dir
+        profiles_dir = site_paths.profiles_dir
         media_dir = site_paths.media_dir
-        
-        # We only explicitly scaffold the posts and media directories.
-        # Journal and profiles are now treated as subsets of posts or rely on
-        # the writer agent to place them correctly if configured otherwise.
-        for directory in (posts_dir, media_dir):
+        journal_dir = site_paths.journal_dir
+
+        for directory in (posts_dir, profiles_dir, media_dir, journal_dir):
             directory.mkdir(parents=True, exist_ok=True)
 
         # Create media subdirectories (ADR-0004: urls for URL enrichments)
@@ -195,6 +194,8 @@ class MkDocsSiteScaffolder:
             media_subdir = media_dir / subdir
             media_subdir.mkdir(exist_ok=True)
             (media_subdir / ".gitkeep").touch()
+
+        (journal_dir / ".gitkeep").touch()
 
     def _create_template_files(
         self, site_paths: MkDocsPaths, env: Environment, context: dict[str, Any]
@@ -209,10 +210,11 @@ class MkDocsSiteScaffolder:
             (site_root / ".github" / "workflows" / "publish.yml", ".github/workflows/publish.yml.jinja"),
             (docs_dir / "index.md", "docs/index.md.jinja"),
             (docs_dir / "about.md", "docs/about.md.jinja"),
-            # Journal and Profiles indices are removed (Consolidated Structure)
             (media_dir / "index.md", "docs/media/index.md.jinja"),
             (site_paths.blog_root_dir / "index.md", "docs/posts/index.md.jinja"),
             (site_paths.blog_root_dir / "tags.md", "docs/posts/tags.md.jinja"),
+            (site_paths.profiles_dir / "index.md", "docs/profiles/index.md.jinja"),
+            (site_paths.journal_dir / "index.md", "docs/journal/index.md.jinja"),
             (site_paths.egregora_dir / "main.py", "main.py.jinja"),
         ]
 

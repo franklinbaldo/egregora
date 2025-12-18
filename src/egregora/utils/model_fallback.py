@@ -24,6 +24,7 @@ CACHE_TTL = 3600  # Cache for 1 hour
 
 # Priority order for Google models
 GOOGLE_FALLBACK_MODELS = [
+    "google-gla:gemini-3-flash",
     "google-gla:gemini-2.5-pro",
     "google-gla:gemini-2.5-flash",
     "google-gla:gemini-2.0-flash",
@@ -234,10 +235,10 @@ def create_fallback_model(
         # (We assume non-Google models handle their own auth or don't use these keys)
         else:
             if use_google_batch and isinstance(model_def, str) and model_def.startswith("google-gla:"):
-                 # Should be covered above, but just in case logic flow changes
-                 # If we reach here with string, it's not starting with google-gla?
-                 # Wait, logic above handles google-gla.
-                 pass
+                # Should be covered above, but just in case logic flow changes
+                # If we reach here with string, it's not starting with google-gla?
+                # Wait, logic above handles google-gla.
+                pass
 
             # Use first key as default if needed, or environment
             variations.append(_resolve_and_wrap(model_def, api_key=api_keys[0]))
@@ -268,4 +269,3 @@ def create_fallback_model(
         *all_fallbacks,
         fallback_on=(ModelAPIError, UsageLimitExceeded, ValidationError),
     )
-
