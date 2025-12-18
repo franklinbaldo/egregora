@@ -286,6 +286,23 @@ class DuckDBStorageManager:
         params = params or []
         return self._conn.execute(sql, params).fetchall()
 
+    def execute(self, sql: str, params: Sequence | None = None) -> duckdb.DuckDBPyRelation:
+        """Execute a raw SQL statement via the managed connection.
+
+        This provides backward compatibility for callers expecting a direct
+        ``execute`` method on the storage manager while keeping connection
+        handling centralized.
+
+        Args:
+            sql: SQL query or statement to execute.
+            params: Optional sequence of parameters for prepared execution.
+
+        Returns:
+            The DuckDB relation produced by the statement (if any).
+        """
+
+        return self._conn.execute(sql, params or [])
+
     def execute_sql(self, sql: str, params: Sequence | None = None) -> None:
         """Execute a raw SQL statement without returning results."""
         self._conn.execute(sql, params or [])
@@ -582,11 +599,23 @@ class DuckDBStorageManager:
             raise ValueError(msg)
 
         with self._lock:
+            # Fetch sequence values one at a time to avoid DuckDB internal errors
+            # triggered by batching ``nextval`` in a single query.
+            def _fetch_values() -> list[int]:
+                results: list[int] = []
+                sequence_literal = f"'{sequence_name.replace("'", "''")}'"
+                for _ in range(count):
+                    row = self._conn.execute(
+                        f"SELECT nextval({sequence_literal})"
+                    ).fetchone()
+                    if row is None:
+                        msg = f"Failed to fetch next value for sequence '{sequence_name}'"
+                        raise RuntimeError(msg)
+                    results.append(int(row[0]))
+                return results
+
             try:
-                # Execute nextval in auto-commit mode (no explicit transaction)
-                # This avoids conflicts with Ibis transaction management
-                cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
-                values = [int(row[0]) for row in cursor.fetchall()]
+                values = _fetch_values()
             except duckdb.Error as exc:
                 if not self._is_invalidated_error(exc):
                     raise
@@ -605,8 +634,7 @@ class DuckDBStorageManager:
                     self.ensure_sequence(sequence_name)
 
                 try:
-                    cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
-                    values = [int(row[0]) for row in cursor.fetchall()]
+                    values = _fetch_values()
                 except duckdb.Error as retry_exc:
                     logger.exception("Retry after connection reset also failed: %s", retry_exc)
                     raise
@@ -620,8 +648,14 @@ class DuckDBStorageManager:
                 logger.warning("Sequence '%s' not found, creating it", sequence_name)
                 self.ensure_sequence(sequence_name)
                 # Retry the query
-                cursor = self._conn.execute("SELECT nextval(?) FROM range(?)", [sequence_name, count])
-                values = [int(row[0]) for row in cursor.fetchall()]
+                values = [
+                    int(
+                        self._conn.execute(
+                            f"SELECT nextval('{sequence_name.replace("'", "''")}')"
+                        ).fetchone()[0]
+                    )
+                    for _ in range(count)
+                ]
             else:
                 # Sequence exists but query returned empty - this is unexpected
                 msg = f"Sequence '{sequence_name}' exists but nextval query returned no results"
