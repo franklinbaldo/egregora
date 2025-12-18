@@ -16,13 +16,11 @@ Usage:
 """
 
 import logging
-from contextlib import suppress
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
-from egregora.config.settings import RAGSettings
 from egregora.rag.backend import VectorStore
-from egregora.rag.embedding_router import EmbeddingRouter, TaskType, get_embedding_router
+from egregora.rag.embedding_router import TaskType, get_embedding_router
 from egregora.rag.lancedb_backend import LanceDBRAGBackend
 from egregora.rag.models import RAGQueryRequest, RAGQueryResponse
 
@@ -48,7 +46,7 @@ def get_backend() -> VectorStore:
         try:
             config = load_egregora_config()
             lancedb_path = Path(config.paths.lancedb_dir)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.warning("Could not load RAG config, using defaults")
             # Default fallback matching PathsSettings
             lancedb_path = Path(".egregora/lancedb")
@@ -118,5 +116,15 @@ def embed_fn(
         List of embedding vectors
 
     """
-    router = get_embedding_router()
+    from egregora.config import load_egregora_config
+
+    if model is None:
+        try:
+            config = load_egregora_config()
+            model = config.models.embedding
+        except Exception:
+            # Fallback if config fails
+            model = "models/gemini-embedding-001"
+
+    router = get_embedding_router(model=model)
     return router.embed(list(texts), task_type=task_type)

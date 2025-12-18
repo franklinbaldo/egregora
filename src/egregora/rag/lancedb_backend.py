@@ -4,24 +4,24 @@ Provides vector storage and similarity search using LanceDB with native Python.
 Uses Arrow for zero-copy data transfer (no Pandas dependency).
 """
 
-from __future__ import annotations
-
 import json
 import logging
 from collections.abc import Callable, Sequence
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import lancedb
 import numpy as np
 from lancedb.pydantic import LanceModel, Vector
 
 from egregora.config import EMBEDDING_DIM
-from egregora.data_primitives.document import Document
 from egregora.rag.backend import VectorStore
 from egregora.rag.ingestion import chunks_from_documents
 from egregora.rag.models import RAGHit, RAGQueryRequest, RAGQueryResponse
+
+if TYPE_CHECKING:
+    from egregora.data_primitives.document import Document
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +130,7 @@ class LanceDBRAGBackend(VectorStore):
             logger.info("Opening existing LanceDB table: %s", table_name)
             self._table = self._db.open_table(table_name)
 
-    def add(self, documents: Sequence[Document]) -> int:
+    def add(self, documents: Sequence["Document"]) -> int:
         """Add documents to the store.
 
         Implementation:
@@ -163,7 +163,7 @@ class LanceDBRAGBackend(VectorStore):
 
         # Compute embeddings with RETRIEVAL_DOCUMENT task type
         try:
-            embeddings = self._embed_fn(texts, "RETRIEVAL_DOCUMENT")
+            embeddings = self._embed_fn(tuple(texts), "RETRIEVAL_DOCUMENT")
         except Exception as e:
             msg = f"Failed to compute embeddings: {e}"
             raise RuntimeError(msg) from e
@@ -197,7 +197,7 @@ class LanceDBRAGBackend(VectorStore):
             raise RuntimeError(msg) from e
 
     # Alias for backward compatibility if needed, though we should use add()
-    def index_documents(self, docs: Sequence[Document]) -> None:
+    def index_documents(self, docs: Sequence["Document"]) -> None:
         self.add(docs)
 
     def query(self, request: RAGQueryRequest) -> RAGQueryResponse:
@@ -223,7 +223,7 @@ class LanceDBRAGBackend(VectorStore):
 
         # Embed query with RETRIEVAL_QUERY task type
         try:
-            query_emb = self._embed_fn([request.text], "RETRIEVAL_QUERY")[0]
+            query_emb = self._embed_fn((request.text,), "RETRIEVAL_QUERY")[0]
         except Exception as e:
             msg = f"Failed to embed query: {e}"
             raise RuntimeError(msg) from e

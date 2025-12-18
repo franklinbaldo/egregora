@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import uuid
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from egregora.config.settings import EgregoraConfig

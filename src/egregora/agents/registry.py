@@ -16,7 +16,6 @@ import hashlib
 import logging
 import re
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import frontmatter
@@ -25,6 +24,8 @@ import yaml
 from egregora.agents.models import AgentConfig
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from egregora.agents.models import AgentTools
 
 logger = logging.getLogger(__name__)

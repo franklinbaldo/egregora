@@ -7,10 +7,7 @@ composition and capability implementations.
 from __future__ import annotations
 
 import logging
-import uuid
 from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
@@ -21,6 +18,10 @@ from egregora.orchestration.persistence import persist_banner_document, persist_
 from egregora.rag import RAGQueryRequest, search
 
 if TYPE_CHECKING:
+    import uuid
+    from datetime import datetime
+    from pathlib import Path
+
     from google import genai
     from ibis.expr.types import Table
 

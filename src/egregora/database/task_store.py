@@ -11,10 +11,12 @@ import json
 import logging
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.ir_schema import TASKS_SCHEMA, quote_identifier
+
+if TYPE_CHECKING:
+    from egregora.database.duckdb_manager import DuckDBStorageManager
 
 logger = logging.getLogger(__name__)
 

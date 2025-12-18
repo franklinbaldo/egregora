@@ -6,15 +6,18 @@ import json
 import logging
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from egregora.agents.reader.agent import compare_posts
 from egregora.agents.reader.elo import calculate_elo_update
 from egregora.agents.reader.models import EvaluationRequest, RankingResult
-from egregora.config.settings import ReaderSettings
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloStore
 from egregora.utils.paths import slugify
+
+if TYPE_CHECKING:
+    from egregora.config.settings import ReaderSettings
 
 logger = logging.getLogger(__name__)
 MIN_POSTS_FOR_COMPARISON = 2

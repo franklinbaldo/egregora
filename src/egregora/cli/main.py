@@ -74,9 +74,9 @@ def init(
         typer.Option(
             "--interactive/--no-interactive",
             "-i",
-            help="Prompt for site settings (auto-disabled in non-TTY environments)",
+            help="Prompt for site settings (disabled by default)",
         ),
-    ] = True,
+    ] = False,
 ) -> None:
     """Initialize a new MkDocs site scaffold for serving Egregora posts."""
     site_root = output_dir.resolve()
@@ -119,7 +119,7 @@ def init(
 
 
 @app.command()
-def write(  # noqa: PLR0913
+def write(
     input_file: Annotated[Path, typer.Argument(help="Path to chat export file (ZIP, JSON, etc.)")],
     *,
     output: Annotated[

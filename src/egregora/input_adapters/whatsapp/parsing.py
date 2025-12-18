@@ -9,7 +9,6 @@ import re
 import unicodedata
 import uuid
 import zipfile
-from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from functools import lru_cache
@@ -28,6 +27,8 @@ from egregora.privacy import anonymize_author, scrub_pii
 from egregora.utils.zip import ZipValidationError, ensure_safe_member_size, validate_zip_contents
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from ibis.expr.types import Table
 
     from egregora.config.settings import EgregoraConfig

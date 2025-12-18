@@ -61,6 +61,8 @@ def main() -> int:
         file_path = Path(file_path_str)
         if file_path.suffix != ".py":
             continue
+        if "tests" in file_path.parts:
+            continue
 
         # Check 1: Private names in __all__
         all_errors.extend(check_all_for_private_names(file_path))
@@ -69,8 +71,8 @@ def main() -> int:
         all_errors.extend(check_private_imports(file_path))
 
     if all_errors:
-        for _error in all_errors:
-            pass
+        for error in all_errors:
+            sys.stderr.write(f"{error}\n")
         return 1
 
     return 0

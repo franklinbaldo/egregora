@@ -8,10 +8,9 @@ import logging
 import tempfile
 import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
-from google import genai
 from google.genai import types
 
 from egregora.agents.banner.image_generation import (
@@ -19,6 +18,9 @@ from egregora.agents.banner.image_generation import (
     ImageGenerationRequest,
     ImageGenerationResult,
 )
+
+if TYPE_CHECKING:
+    from google import genai
 
 logger = logging.getLogger(__name__)
 

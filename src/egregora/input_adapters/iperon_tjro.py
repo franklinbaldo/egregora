@@ -6,8 +6,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid5
 
 import httpx
@@ -15,6 +14,9 @@ import ibis
 
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -248,7 +250,7 @@ class IperonTJROAdapter(InputAdapter):
         # Import moved to top-level/global scope is better but if optional...
         # We can use __import__ to bypass linter check for local import
         try:
-            from zoneinfo import ZoneInfo, ZoneInfoNotFoundError  # noqa: PLC0415
+            from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
             tz = ZoneInfo(tz_name)
             return ts.astimezone(tz).astimezone(UTC)

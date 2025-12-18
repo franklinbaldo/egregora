@@ -149,12 +149,9 @@ markdown_extensions:
       clickable_checkbox: false
   - pymdownx.tilde
 
-extra_javascript:
-  - javascripts/bundle-download.js
-
 nav:
   - Home: index.md
-  - Demo: demo/
+  - Demo: https://franklinbaldo.github.io/egregora/demo/
   - Getting Started:
     - Installation: getting-started/installation.md
     - Quick Start: getting-started/quickstart.md
@@ -236,5 +233,6 @@ extra_css:
   - stylesheets/extra.css
 
 extra_javascript:
+  - javascripts/bundle-download.js
   - javascripts/mathjax.js
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js

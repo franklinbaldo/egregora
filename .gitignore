@@ -37,6 +37,8 @@ htmlcov/
 
 # Egregora-specific
 .egregora-cache/
+.demo-site/
+.egregora.toml
 # Ignore generated MkDocs sites, but not source templates
 /site/
 **/output/site/

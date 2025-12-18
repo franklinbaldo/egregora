@@ -6,11 +6,13 @@ Rotates through Gemini models and API keys on 429 errors to avoid rate limiting.
 from __future__ import annotations
 
 import logging
-import os
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from egregora.utils.env import get_google_api_keys
 from egregora.utils.rate_limit import get_rate_limiter
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -23,34 +25,6 @@ DEFAULT_GEMINI_MODELS = [
     "gemini-flash-latest",
     "gemini-2.5-pro",
 ]
-
-
-def get_api_keys() -> list[str]:
-    """Load API keys from environment.
-
-    Supports multiple keys via:
-    - GEMINI_API_KEYS (comma-separated)
-    - GEMINI_API_KEY (single key, fallback)
-    - GOOGLE_API_KEY (single key, fallback)
-
-    Returns:
-        List of API keys, or empty list if none found.
-
-    """
-    # Check for comma-separated list first
-    keys_str = os.environ.get("GEMINI_API_KEYS", "")
-    if keys_str:
-        keys = [k.strip() for k in keys_str.split(",") if k.strip()]
-        if keys:
-            logger.debug("[KeyRotator] Loaded %d API keys from GEMINI_API_KEYS", len(keys))
-            return keys
-
-    # Fall back to single key
-    single_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if single_key:
-        return [single_key]
-
-    return []
 
 
 class GeminiKeyRotator:
@@ -70,7 +44,7 @@ class GeminiKeyRotator:
             api_keys: List of API keys. If None, loads from environment.
 
         """
-        self.api_keys = api_keys or get_api_keys()
+        self.api_keys = api_keys or get_google_api_keys()
         if not self.api_keys:
             msg = "No API keys found. Set GEMINI_API_KEYS or GEMINI_API_KEY."
             raise ValueError(msg)
@@ -133,7 +107,7 @@ class GeminiKeyRotator:
 
         """
         if is_rate_limit_error is None:
-            is_rate_limit_error = _default_rate_limit_check
+            is_rate_limit_error = default_rate_limit_check
 
         self.reset()
 
@@ -146,8 +120,8 @@ class GeminiKeyRotator:
                 return result
             except Exception as exc:
                 if is_rate_limit_error(exc):
-                    masked = api_key[:8] + "..." + api_key[-4:]
-                    logger.warning("[KeyRotator] Rate limit on key %s: %s", masked, str(exc)[:100])
+                    # Log only the key index to avoid exposing sensitive data
+                    logger.warning("[KeyRotator] Rate limit encountered on API key index %d: %s", self.key_index, str(exc)[:100])
 
                     # Refund token for immediate retry
                     get_rate_limiter().refund()
@@ -245,7 +219,7 @@ class GeminiModelCycler:
 
         """
         if is_rate_limit_error is None:
-            is_rate_limit_error = _default_rate_limit_check
+            is_rate_limit_error = default_rate_limit_check
 
         self.reset()
 
@@ -275,7 +249,7 @@ class GeminiModelCycler:
         return None  # Unreachable, but satisfies type checker
 
 
-def _default_rate_limit_check(exc: Exception) -> bool:
+def default_rate_limit_check(exc: Exception) -> bool:
     """Default check for rate limit errors."""
     msg = str(exc).lower()
     return "429" in msg or "too many requests" in msg or "rate limit" in msg

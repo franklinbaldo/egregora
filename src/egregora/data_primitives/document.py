@@ -10,14 +10,16 @@ Core has no opinions about storage - output formats decide paths and filenames.
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid5
 
 from egregora.utils.paths import slugify as _slugify
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 # Well-known namespace for Egregora documents
 # Based on DNS namespace but specific to Egregora
@@ -36,7 +38,10 @@ class DocumentType(Enum):
     ANNOUNCEMENT = "announcement"  # System events (/egregora commands)
     JOURNAL = "journal"  # Agent execution journals
     ENRICHMENT_URL = "enrichment_url"  # URL descriptions
-    ENRICHMENT_MEDIA = "enrichment_media"  # Media file descriptions
+    ENRICHMENT_MEDIA = "enrichment_media"  # Media file descriptions (generic fallback)
+    ENRICHMENT_IMAGE = "enrichment_image"  # Image descriptions
+    ENRICHMENT_VIDEO = "enrichment_video"  # Video descriptions
+    ENRICHMENT_AUDIO = "enrichment_audio"  # Audio descriptions
     MEDIA = "media"  # Downloaded media files (images, videos, audio)
     ANNOTATION = "annotation"  # Conversation annotations captured during writing
 

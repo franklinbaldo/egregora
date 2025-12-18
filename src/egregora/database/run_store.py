@@ -7,14 +7,15 @@ generic storage manager.
 
 from __future__ import annotations
 
-import uuid
-from datetime import datetime
 from typing import TYPE_CHECKING, Self
 
 from egregora.database.tracking import RunMetadata, record_run
 
 if TYPE_CHECKING:
     # Use Protocol for abstraction instead of concrete implementation
+    import uuid
+    from datetime import datetime
+
     from egregora.database.protocols import StorageProtocol
 
 

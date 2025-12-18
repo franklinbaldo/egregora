@@ -187,7 +187,7 @@ def check_duckdb_zipfs() -> DiagnosticResult:
         finally:
             conn.close()
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         # Diagnostic check failure shouldn't crash the tool, just report as INFO/ERROR
         return DiagnosticResult(
             check="DuckDB ZipFS Extension",
@@ -203,7 +203,7 @@ def check_git() -> DiagnosticResult:
         git_path = shutil.which("git")
         if not git_path:
             msg = "git executable not found"
-            raise FileNotFoundError(msg)  # noqa: TRY301
+            raise FileNotFoundError(msg)
 
         result = subprocess.run(  # noqa: S603
             [git_path, "--version"],
@@ -299,7 +299,7 @@ def check_egregora_config() -> DiagnosticResult:
             },
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         # Catch configuration loading errors (validation, parsing, etc.)
         return DiagnosticResult(
             check="Egregora Config",
@@ -327,7 +327,7 @@ def check_adapters() -> DiagnosticResult:
             message="No adapters registered",
         )
 
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         # Adapter listing failure shouldn't crash diagnostics
         return DiagnosticResult(
             check="Source Adapters",
@@ -364,7 +364,7 @@ def run_diagnostics() -> list[DiagnosticResult]:
         try:
             result = check_func()
             results.append(result)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # Catch-all for unexpected check failures to ensure report is generated
             check_name = getattr(check_func, "__name__", "Unknown Check")
             check_name = check_name.replace("check_", "").replace("_", " ").title()

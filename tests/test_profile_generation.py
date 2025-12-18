@@ -67,6 +67,8 @@ class TestProfileGeneration:
         ctx.config = Mock()
         ctx.config.models = Mock()
         ctx.config.models.writer = "gemini-2.0-flash"
+        # Ensure get_author_profile returns a dict with 'interests' as iterable or None handling
+        ctx.output_format.get_author_profile.return_value = {"bio": "Test Bio", "interests": []}
 
         # Mock messages from 2 authors
         messages = [
@@ -127,6 +129,8 @@ class TestProfileGeneration:
         ctx.config = Mock()
         ctx.config.models = Mock()
         ctx.config.models.writer = "gemini-2.0-flash"
+        # Mock existing profile response
+        ctx.output_format.get_author_profile.return_value = {"bio": "Old Bio", "interests": ["Old Interest"]}
 
         author_messages = [
             {"text": "I'm interested in AI safety", "timestamp": "2025-03-01"},
@@ -134,9 +138,14 @@ class TestProfileGeneration:
             {"text": "We need better alignment", "timestamp": "2025-03-03"},
         ]
 
+        from egregora.agents.profile.generator import ProfileUpdateDecision
+
         # Mock LLM response
-        with patch("egregora.agents.profile.generator._call_llm") as mock_llm:
-            mock_llm.return_value = "# John's AI Safety Focus\n\nJohn shows deep concern for AI alignment..."
+        with patch("egregora.agents.profile.generator._call_llm_decision") as mock_llm:
+            mock_llm.return_value = ProfileUpdateDecision(
+                significant=True,
+                content="# John's AI Safety Focus\n\nJohn shows deep concern for AI alignment...",
+            )
 
             content = await _generate_profile_content(
                 ctx=ctx, author_messages=author_messages, author_name="John", author_uuid="john-uuid"

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from egregora.input_adapters.self_reflection import SelfInputAdapter
 from egregora.output_adapters import create_default_output_registry, create_output_sink
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _write_markdown(path: Path, title: str, slug: str, body: str) -> None:

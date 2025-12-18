@@ -27,20 +27,20 @@ def _execute_media_batch_single_call(self, tasks: list[dict]) -> dict[str, Media
     """Send all images in one API call, return dict by filename."""
     # Load all image bytes
     images = [(task["filename"], self._load_media_bytes(task)) for task in tasks]
-    
+
     # Build prompt with all images
     prompt = """For each image, provide:
     - slug: short descriptive slug (e.g., "sunset-beach")
     - description: 2-3 sentence description
     - alt_text: accessibility description
-    
+
     Return JSON dict where keys are filenames:
     {"image1.jpg": {"slug": "...", "description": "...", "alt_text": "..."}, ...}
     """
-    
+
     # Single API call with all images as BinaryContent
     result = genai_client.generate_content([prompt] + [BinaryContent(data=img) for _, img in images])
-    
+
     return json.loads(result.text)
 ```
 
@@ -98,12 +98,12 @@ class ModelCycler:
     def __init__(self, models: list[str]):
         self.models = models
         self.current_idx = 0
-    
+
     def next_model(self) -> str:
         model = self.models[self.current_idx]
         self.current_idx = (self.current_idx + 1) % len(self.models)
         return model
-    
+
     async def call_with_fallback(self, prompt, **kwargs):
         for _ in range(len(self.models)):
             try:
@@ -134,7 +134,7 @@ Instead of fetching URL content as text, screenshot the page and use vision mode
 async def screenshot_url(url: str) -> bytes:
     """Capture URL screenshot for vision enrichment."""
     from playwright.async_api import async_playwright
-    
+
     async with async_playwright() as p:
         browser = await p.chromium.launch()
         page = await browser.new_page()

@@ -46,9 +46,11 @@ plugins:
   - search:
       lang: en
   - macros
+  - glightbox
   - blog:
-      blog_dir: posts
-      # post_dir defaults to "{blog}" - posts are directly in docs/posts/
+      blog_dir: {{ blog_dir }}
+      post_dir: .
+      # post_dir: . means posts are directly in {{ blog_dir }}/ (Standard Structure)
       # Post URL structure (uses date and slug)
       post_url_format: "{date}/{slug}"
       post_url_date_format: yyyy/MM/dd
@@ -77,7 +79,7 @@ plugins:
       draft_on_serve: true
       draft_if_future_date: true
   - rss:
-      match_path: "posts/.*"
+      match_path: "{{ blog_dir }}/.*"
       date_from_meta:
         as_creation: date
         as_update: date
@@ -86,11 +88,6 @@ plugins:
         - tags
       comments_path: "#__comments"
       use_material_blog: false
-  # Social cards (requires 'imaging' feature: uvx --with mkdocs-material[imaging])
-  # - social:
-  #     cards: true
-  #     cards_layout_options:
-  #       background_color: "#1abc9c"  # Matches primary teal
 
 # Markdown extensions available for posts
 # (This section is automatically sent to the writer agent)
@@ -106,9 +103,7 @@ markdown_extensions:
 
   # Content enhancements
   - admonition
-  - pymdownx.details:
-      # Use native details for better accessibility/styling
-      # (Material for MkDocs overrides this automatically)
+  - pymdownx.details
   - footnotes
   - pymdownx.tasklist:
       custom_checkbox: true
@@ -143,19 +138,34 @@ validation:
 nav:
   - Home: index.md
   - Blog:
-      - Latest: posts/index.md
-      - Tags & Topics: posts/tags.md
-  - Journal: journal/index.md
-  - Profiles: profiles/index.md
-  - Media: posts/media/index.md
+      - Latest: {{ blog_dir }}/index.md
+      - Tags & Topics: {{ blog_dir }}/tags.md
+  - Media: {{ media_dir }}/index.md
   - About: about.md
 
 
-# Egregora configuration moved to .egregora/config.yml
+# Egregora configuration lives in .egregora.toml at the site root
 # (Separation allows supporting multiple rendering backends: MkDocs, Hugo, Astro, etc.)
 extra:
   # Disable MkDocs generator notice
   generator: false
+  # Add social links to the footer for a more professional look.
+  # These will only appear if the corresponding variables are set in the user's config.
+  {% if github_user or twitter_handle or linkedin_user %}
+  social:
+    {% if github_user %}
+    - icon: fontawesome/brands/github
+      link: https://github.com/{{ github_user }}
+    {% endif %}
+    {% if twitter_handle %}
+    - icon: fontawesome/brands/x-twitter
+      link: https://twitter.com/{{ twitter_handle }}
+    {% endif %}
+    {% if linkedin_user %}
+    - icon: fontawesome/brands/linkedin
+      link: https://linkedin.com/in/{{ linkedin_user }}
+    {% endif %}
+  {% endif %}
 
 # Custom CSS for improved UX
 extra_css:

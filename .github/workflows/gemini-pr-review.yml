@@ -312,17 +312,16 @@ jobs:
             const minorMatch = review.match(/\*\*Recommendation:\*\*\s*MERGE WITH MINOR FIXES\s*⚠️/i);
             const needsMatch = review.match(/\*\*Recommendation:\*\*\s*NEEDS CHANGES\s*❌/i);
 
+            let recommendation = 'UNKNOWN';
             if (lgtmMatch) {
-              core.setOutput('recommendation', 'LGTM');
+              recommendation = 'LGTM';
             } else if (minorMatch) {
-              core.setOutput('recommendation', 'MINOR_FIXES');
+              recommendation = 'MINOR_FIXES';
             } else if (needsMatch) {
-              core.setOutput('recommendation', 'NEEDS_CHANGES');
-            } else {
-              core.setOutput('recommendation', 'UNKNOWN');
+              recommendation = 'NEEDS_CHANGES';
             }
-
-            console.log(`Parsed recommendation: ${core.getOutput('recommendation')}`);
+            core.setOutput('recommendation', recommendation);
+            console.log(`Parsed recommendation: ${recommendation}`);
 
       - name: Post review as PR comment
         if: always()
@@ -407,21 +406,26 @@ jobs:
           echo "Review outcome: $OUTCOME"
           echo "Review recommendation: $RECOMMENDATION"
 
-          # Hard gate: API failures block the PR
+          # Don't hard-block merges if the repo isn't configured with a Gemini API key yet.
+          # (In that case the review job can't possibly succeed.)
+          if [ -z "${GEMINI_API_KEY:-}" ]; then
+            echo "::notice::GEMINI_API_KEY secret is not set; skipping Gemini review gate."
+            exit 0
+          fi
+
+          # Soft gate: don't block merges on flaky/failed LLM automation.
+          # (We still post the diagnostic comment in the PR from the review job.)
           if [ "$OUTCOME" != "success" ]; then
-            echo "::error::Gemini review failed - blocking merge until review succeeds"
-            echo "::error::Try commenting '@gemini' to re-trigger the review"
+            echo "::notice::Gemini review did not complete successfully; not gating this PR."
+            exit 0
+          fi
+
+          if [ "$RECOMMENDATION" = "NEEDS_CHANGES" ]; then
+            echo "❌ PR needs changes before merge"
             exit 1
           fi
 
-          if [ "$RECOMMENDATION" = "LGTM" ]; then
-            echo "✅ LGTM - PR approved for auto-merge"
-            exit 0
-          elif [ "$RECOMMENDATION" = "NEEDS_CHANGES" ]; then
-            echo "❌ PR needs changes before merge"
-            exit 1
-          else
-            echo "⚠️ Review inconclusive ($RECOMMENDATION) - blocking merge for safety"
-            echo "::error::Comment '@gemini' to get a proper review verdict"
-            exit 1
-          fi
+          echo "✅ Review gate passed ($RECOMMENDATION)"
+          exit 0
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

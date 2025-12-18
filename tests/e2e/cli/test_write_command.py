@@ -405,7 +405,7 @@ class TestWriteCommandWithMocks:
             f"posts directory not found at {posts_dir}. docs dir contents: {list(docs_dir.iterdir())}"
         )
 
-        profiles_dir = docs_dir / "profiles"
+        profiles_dir = posts_dir / "profiles"
         assert profiles_dir.exists(), (
             f"profiles directory not found at {profiles_dir}. docs dir contents: {list(docs_dir.iterdir())}"
         )
@@ -414,7 +414,7 @@ class TestWriteCommandWithMocks:
         if result.exit_code == 0:
             # Look for any generated files (posts or profiles)
             post_files = list(posts_dir.glob("*.md"))
-            profile_files = list(profiles_dir.glob("*.md"))
+            profile_files = list(profiles_dir.rglob("*.md"))
             # At least one of these should have content if pipeline succeeded
             # Exclude index files and tags files
             content_posts = [p for p in post_files if p.name not in ("index.md", "tags.md")]
