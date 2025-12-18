@@ -41,7 +41,7 @@ uvx --from git+https://github.com/franklinbaldo/egregora egregora write export.z
 ### From PyPI
 
 ```bash
-pip install egregora
+uv tool install egregora
 ```
 
 ### From Source
@@ -56,7 +56,7 @@ cd egregora
 python dev_tools/setup_hooks.py
 
 # Or manual setup
-uv sync --extra lint --extra test
+uv sync --all-extras
 uv run pre-commit install
 
 # Run tests
@@ -96,8 +96,8 @@ egregora --version
 To build the documentation locally:
 
 ```bash
-pip install 'egregora[docs]'
-mkdocs serve
+uv sync --extra docs
+uv run mkdocs serve
 ```
 
 ### Linting
@@ -105,8 +105,8 @@ mkdocs serve
 For development and code quality:
 
 ```bash
-pip install 'egregora[lint]'
-ruff check src/
+uv sync --extra lint
+uv run ruff check src/
 ```
 
 ## Next Steps

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -29,7 +29,7 @@ def make_resources(tmp_path: Path) -> WriterResources:
 
 
 def make_deps(tmp_path: Path) -> WriterDeps:
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     return WriterDeps(
         resources=make_resources(tmp_path),
         window_start=now - timedelta(hours=1),

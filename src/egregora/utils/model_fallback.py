@@ -161,8 +161,8 @@ def create_fallback_model(
         # Imports moved here to avoid top-level circular dependencies,
         # but ruff complains. We suppress the warning as this is intentional
         # for lazy loading heavy model dependencies only when needed.
-        from pydantic_ai.models.gemini import GeminiModel
-        from pydantic_ai.providers.google_gla import GoogleGLAProvider
+        from pydantic_ai.models.google import GoogleModel
+        from pydantic_ai.providers.google import GoogleProvider
 
         from egregora.models.rate_limited import RateLimitedModel
 
@@ -176,8 +176,8 @@ def create_fallback_model(
             model = model_def
         elif isinstance(model_def, str):
             if model_def.startswith("google-gla:"):
-                provider = GoogleGLAProvider(api_key=api_key or get_google_api_key())
-                model = GeminiModel(
+                provider = GoogleProvider(api_key=api_key or get_google_api_key())
+                model = GoogleModel(
                     model_def.removeprefix("google-gla:"),
                     provider=provider,
                 )
@@ -198,9 +198,9 @@ def create_fallback_model(
                     provider=openrouter_provider,
                 )
             else:
-                # Default to Gemini for unknown strings in this context
-                provider = GoogleGLAProvider(api_key=api_key or get_google_api_key())
-                model = GeminiModel(
+                # Default to Google for unknown strings in this context
+                provider = GoogleProvider(api_key=api_key or get_google_api_key())
+                model = GoogleModel(
                     model_def,
                     provider=provider,
                 )

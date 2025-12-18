@@ -3,11 +3,23 @@ import uuid
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
-from xml.etree.ElementTree import Element
+from xml.etree.ElementTree import Element, register_namespace, SubElement, tostring
 
 from pydantic import BaseModel, Field
 
 from egregora_v3.core.utils import slugify
+
+# --- XML Configuration ---
+
+# Register namespaces globally to ensure pretty prefixes in all XML output
+# This is a module-level side effect, but necessary for clean Atom feeds.
+try:
+    register_namespace("", "http://www.w3.org/2005/Atom")
+    register_namespace("thr", "http://purl.org/syndication/thread/1.0")
+except Exception:  # pragma: no cover
+    # Best effort registration; may fail in some environments or if already registered
+    pass
+
 
 # --- Atom Core Domain ---
 
@@ -157,18 +169,19 @@ class Document(Entry):
                 internal_metadata["slug"] = clean_slug
 
         # Determine ID
-        doc_id = None
-        if id_override:
-            doc_id = id_override
-        elif clean_slug and doc_type in semantic_types:
-            # Semantic Identity
+        doc_id = id_override
+        if not doc_id and clean_slug and doc_type in semantic_types:
+            # Semantic Identity: The slug IS the ID
             doc_id = clean_slug
 
-        # Fallback to UUIDv5
+        # Fallback to UUIDv5 (Content Addressed)
         if not doc_id:
             hasher = hashlib.sha256()
             hasher.update(content.encode("utf-8"))
             hasher.update(doc_type.value.encode("utf-8"))
+            # If we have a slug but not strictly "semantic type" (edge case), include it in hash
+            if clean_slug:
+                hasher.update(clean_slug.encode("utf-8"))
             doc_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, hasher.hexdigest()))
 
         return cls(
@@ -199,12 +212,8 @@ class Feed(BaseModel):
             Valid Atom 1.0 XML string
 
         """
-        # Note: Imports are inside method to keep types.py lightweight and free of global side-effects
-        # We suppress the lint warning as this is a deliberate design choice for core types.
-        from xml.etree.ElementTree import SubElement, tostring  # noqa: PLC0415
-
         # Create root feed element with Atom namespace
-        feed = Element("feed", xmlns="http://www.w3.org/2005/Atom")
+        feed = Element("feed", {"xmlns": "http://www.w3.org/2005/Atom"})
 
         # Required feed elements
         SubElement(feed, "id").text = self.id
@@ -245,8 +254,6 @@ class Feed(BaseModel):
 
     def _add_entry_to_feed(self, feed_elem: Element, entry: Entry) -> None:  # noqa: C901, PLR0912, PLR0915
         """Add an Entry to the feed XML element."""
-        from xml.etree.ElementTree import SubElement  # noqa: PLC0415
-
         entry_elem = SubElement(feed_elem, "entry")
 
         # Specific Logic for Documents
@@ -330,6 +337,7 @@ class Feed(BaseModel):
                 cat_elem.set("label", category.label)
 
         # Threading (RFC 4685)
+        # Using the thr namespace prefix we defined in root
         if entry.in_reply_to:
             in_reply_to_elem = SubElement(entry_elem, "{http://purl.org/syndication/thread/1.0}in-reply-to")
             in_reply_to_elem.set("ref", entry.in_reply_to.ref)
