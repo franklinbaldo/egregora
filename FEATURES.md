@@ -14,7 +14,7 @@ Parse and ingest data from various sources into egregora.
 - Support for group chats and direct messages
 - Media file extraction from `.zip` archives
 
-### Slack Adapter  
+### Slack Adapter
 - Parse Slack export archives
 - Thread reconstruction
 - User mapping and profile extraction
@@ -73,7 +73,7 @@ AI-powered workers that process and generate content.
 - **Media enrichment** - generate descriptions for images/videos
 - **3 enrichment strategies**:
   - `batch_all` - all items in one API call (default)
-  - `batch_api` - Gemini Batch API  
+  - `batch_api` - Gemini Batch API
   - `individual` - one call per item
 - **ModelKeyRotator** - exhausts all API keys for each model before rotating
   - Rotation: Model1+Key1→Key2→Key3, then Model2+Key1→Key2→Key3, etc.
@@ -105,7 +105,7 @@ Advanced model management and API resilience.
   1. gemini-2.5-flash-lite
   2. gemini-2.0-flash
   3. gemini-2.5-flash
-  4. gemini-flash-latest  
+  4. gemini-flash-latest
   5. gemini-2.5-pro
 - Load multiple API keys from `GEMINI_API_KEYS` env var
 - Automatic retry with next key/model on 429 errors
@@ -167,11 +167,11 @@ authors:
 
 ### Benefits
 
-✅ **Pure append-only** - only add post files  
-✅ **Sequential updates** - later posts override earlier  
-✅ **Self-healing** - rebuild profiles anytime  
-✅ **Git-friendly** - every change is a new file  
-✅ **No duplication** - single source (posts)  
+✅ **Pure append-only** - only add post files
+✅ **Sequential updates** - later posts override earlier
+✅ **Self-healing** - rebuild profiles anytime
+✅ **Git-friendly** - every change is a new file
+✅ **No duplication** - single source (posts)
 
 ---
 
@@ -272,7 +272,7 @@ Content generation and formatting.
 
 ### Media Handling
 - Image optimization
-- Video thumbnail generation  
+- Video thumbnail generation
 - Media type detection
 - Responsive embeds
 
@@ -332,7 +332,7 @@ Structured knowledge extraction.
 - Key events extraction
 - Timeline reconstruction
 
-### Semantic Taxonomy  
+### Semantic Taxonomy
 - Clustering analysis
 - Topic modeling
 - Tag generation

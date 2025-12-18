@@ -4,8 +4,6 @@ import sys
 import types
 from unittest.mock import Mock
 
-import pytest
-
 # Provide lightweight stubs so rag imports don't pull heavy optional deps.
 if "lance_namespace" not in sys.modules:
     sys.modules["lance_namespace"] = types.SimpleNamespace()
@@ -32,8 +30,13 @@ if "lancedb" not in sys.modules:
     lancedb_module.connect = _connect
     sys.modules["lancedb"] = lancedb_module
 
+from typing import TYPE_CHECKING
+
 from egregora import config as egregora_config
 from egregora import rag
+
+if TYPE_CHECKING:
+    import pytest
 
 
 def test_embed_fn_uses_rag_settings_for_router(

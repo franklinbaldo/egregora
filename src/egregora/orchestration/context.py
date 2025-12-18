@@ -12,24 +12,25 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from google import genai
 
     from egregora.agents.shared.annotations import AnnotationStore
+    from egregora.config.settings import EgregoraConfig
+    from egregora.data_primitives.protocols import OutputSink, UrlContext
     from egregora.database.protocols import StorageProtocol
     from egregora.database.task_store import TaskStore
+    from egregora.output_adapters import OutputSinkRegistry
+    from egregora.rag.embedding_router import EmbeddingRouter
+    from egregora.utils.cache import EnrichmentCache, PipelineCache
+    from egregora.utils.metrics import UsageTracker
     from egregora_v3.core.catalog import ContentLibrary
 
-from egregora.config.settings import EgregoraConfig
-from egregora.data_primitives.protocols import OutputSink, UrlContext
-from egregora.output_adapters import OutputSinkRegistry
-from egregora.rag.embedding_router import EmbeddingRouter
-from egregora.utils.cache import PipelineCache
-from egregora.utils.metrics import UsageTracker
 
 __all__ = [
     "PipelineConfig",

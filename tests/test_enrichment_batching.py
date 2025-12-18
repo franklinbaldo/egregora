@@ -86,7 +86,6 @@ def test_batch_all_accumulates_before_calling_api():
     assert items_per_call[0] == 5, f"Expected 5 items in batch, got {items_per_call[0]}"
 
 
-
 def test_individual_strategy_makes_separate_calls():
     """Test that individual strategy makes one call per URL."""
     ctx = MockPipelineContext(strategy="individual")
@@ -115,17 +114,14 @@ def test_individual_strategy_makes_separate_calls():
         # Run enrichment
         worker._process_url_batch(tasks)
 
-
     # Individual strategy should make 5 separate calls
     assert api_call_count == 5, f"Expected 5 API calls, got {api_call_count}"
-
 
 
 def test_batching_efficiency_comparison():
     """Compare API usage between batching strategies."""
 
     test_sizes = [1, 5, 10, 20, 50]
-
 
     for size in test_sizes:
         # batch_all: 1 call regardless of size
@@ -138,11 +134,7 @@ def test_batching_efficiency_comparison():
         concurrency = 5
         (size + concurrency - 1) // concurrency
 
-        (
-            ((individual_calls - batch_calls) / individual_calls * 100) if individual_calls > 0 else 0
-        )
-
-
+        (((individual_calls - batch_calls) / individual_calls * 100) if individual_calls > 0 else 0)
 
 
 def test_concurrent_batching():
@@ -155,7 +147,6 @@ def test_concurrent_batching():
     # With max_concurrent=5, we expect tasks to be split into groups
     # However, batch_all tries to process all in one call first
     # This test verifies the fallback to parallel execution
-
 
 
 def test_verify_batching_logs():
@@ -197,7 +188,6 @@ def test_verify_batching_logs():
 
 
 if __name__ == "__main__":
-
     test_batch_all_accumulates_before_calling_api()
 
     test_individual_strategy_makes_separate_calls()
@@ -207,4 +197,3 @@ if __name__ == "__main__":
     test_concurrent_batching()
 
     test_verify_batching_logs()
-

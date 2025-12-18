@@ -6,8 +6,9 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
-from pydantic_ai import RunContext
+from pydantic_ai import Agent, RunContext
 
+from egregora.agents.capabilities import AgentCapability
 from egregora.agents.model_limits import (
     PromptTooLargeError,
     get_model_context_limit,
@@ -21,24 +22,19 @@ from egregora.agents.types import (
     ReadProfileResult,
     WritePostResult,
     WriteProfileResult,
+    WriterAgentReturn,
     WriterDeps,
 )
 from egregora.data_primitives.document import DocumentType
 from egregora.rag import RAGQueryRequest, reset_backend, search
 
 if TYPE_CHECKING:
-    from pydantic_ai import Agent
-
-    from egregora.agents.capabilities import AgentCapability
-    from egregora.agents.types import (
-        WriterAgentReturn,
-    )
     from egregora.config.settings import EgregoraConfig
 
 logger = logging.getLogger(__name__)
 
 
-def _process_tool_result(content: Any) -> dict[str, Any] | None:
+def process_tool_result(content: Any) -> dict[str, Any] | None:
     """Parse tool result content into a dictionary if valid."""
     if isinstance(content, str):
         try:

@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import logging
 from hashlib import sha256
-from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated, Any, Protocol
 
 import diskcache
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

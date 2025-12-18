@@ -14,7 +14,7 @@ Design principles:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from egregora.database.ir_schema import IR_MESSAGE_SCHEMA, create_table_if_not_exists
 
@@ -93,9 +93,6 @@ def initialize_database(backend: BaseBackend) -> None:
     )
 
     logger.info("✓ Database tables initialized successfully")
-
-
-from typing import Any
 
 
 def _execute_sql(conn: Any, sql: str) -> None:

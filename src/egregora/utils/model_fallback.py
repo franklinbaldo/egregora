@@ -13,7 +13,7 @@ from pydantic_ai.models.fallback import FallbackModel
 from pydantic_core import ValidationError
 
 from egregora.models import GoogleBatchModel
-from egregora.utils.env import get_google_api_key
+from egregora.utils.env import get_google_api_key, get_google_api_keys
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ CACHE_TTL = 3600  # Cache for 1 hour
 
 # Priority order for Google models
 GOOGLE_FALLBACK_MODELS = [
+    "google-gla:gemini-3-flash",
     "google-gla:gemini-2.5-pro",
     "google-gla:gemini-2.5-flash",
     "google-gla:gemini-2.0-flash",
@@ -31,7 +32,7 @@ GOOGLE_FALLBACK_MODELS = [
 ]
 
 
-def get_openrouter_free_models(modality: str = "text") -> list[str]:  # noqa: C901
+def get_openrouter_free_models(modality: str = "text") -> list[str]:
     """Fetch list of free OpenRouter models from their API.
 
     Args:
@@ -44,7 +45,7 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:  # noqa: C9
         List of model names in pydantic-ai format (e.g., 'openrouter:model/name')
 
     """
-    global _free_models_cache, _cache_timestamp  # noqa: PLW0602, PLW0603
+    global _free_models_cache, _cache_timestamp  # noqa: PLW0602
 
     current_time = time.time()
 
@@ -98,7 +99,7 @@ def get_openrouter_free_models(modality: str = "text") -> list[str]:  # noqa: C9
     return free_models
 
 
-def create_fallback_model(  # noqa: C901, PLR0912
+def create_fallback_model(
     primary_model: str | Model,
     fallback_models: list[str | Model] | None = None,
     *,
@@ -156,15 +157,14 @@ def create_fallback_model(  # noqa: C901, PLR0912
         elif include_openrouter:
             logger.debug("OPENROUTER_API_KEY not set, skipping OpenRouter fallback models")
 
-    def _resolve_and_wrap(model_def: str | Model) -> Model:
+    def _resolve_and_wrap(model_def: str | Model, api_key: str | None = None) -> Model:
         # Imports moved here to avoid top-level circular dependencies,
         # but ruff complains. We suppress the warning as this is intentional
         # for lazy loading heavy model dependencies only when needed.
-        from pydantic_ai.models.gemini import GeminiModel  # noqa: PLC0415
-        from pydantic_ai.models.openai import OpenAIModel  # noqa: PLC0415
-        from pydantic_ai.providers.google_gla import GoogleGLAProvider  # noqa: PLC0415
+        from pydantic_ai.models.gemini import GeminiModel
+        from pydantic_ai.providers.google_gla import GoogleGLAProvider
 
-        from egregora.models.rate_limited import RateLimitedModel  # noqa: PLC0415
+        from egregora.models.rate_limited import RateLimitedModel
 
         if isinstance(model_def, RateLimitedModel):
             return model_def
@@ -176,19 +176,30 @@ def create_fallback_model(  # noqa: C901, PLR0912
             model = model_def
         elif isinstance(model_def, str):
             if model_def.startswith("google-gla:"):
-                provider = GoogleGLAProvider(api_key=get_google_api_key())
+                provider = GoogleGLAProvider(api_key=api_key or get_google_api_key())
                 model = GeminiModel(
                     model_def.removeprefix("google-gla:"),
                     provider=provider,
                 )
             elif model_def.startswith("openrouter:"):
-                model = OpenAIModel(
+                # Use pydantic-ai's dedicated OpenRouter support
+                # See: https://ai.pydantic.dev/models/openrouter/
+                from pydantic_ai.models.openrouter import OpenRouterModel
+                from pydantic_ai.providers.openrouter import OpenRouterProvider
+
+                openrouter_api_key = os.environ.get("OPENROUTER_API_KEY")
+                if not openrouter_api_key:
+                    msg = "OPENROUTER_API_KEY environment variable required for OpenRouter models"
+                    raise ValueError(msg)
+
+                openrouter_provider = OpenRouterProvider(api_key=openrouter_api_key)
+                model = OpenRouterModel(
                     model_def.removeprefix("openrouter:"),
-                    provider="openrouter",
+                    provider=openrouter_provider,
                 )
             else:
                 # Default to Gemini for unknown strings in this context
-                provider = GoogleGLAProvider(api_key=get_google_api_key())
+                provider = GoogleGLAProvider(api_key=api_key or get_google_api_key())
                 model = GeminiModel(
                     model_def,
                     provider=provider,
@@ -199,31 +210,62 @@ def create_fallback_model(  # noqa: C901, PLR0912
 
         return RateLimitedModel(model)
 
-    # Prepare models - get API key for batch models
-    api_key = get_google_api_key()
+    # Prepare models - get all available API keys
+    api_keys = get_google_api_keys()
+    if not api_keys:
+        # Should get_google_api_keys raise if none? It's typed to return list.
+        # Fallback to single getter which raises if missing
+        api_keys = [get_google_api_key()]
 
-    from egregora.models.rate_limited import RateLimitedModel  # noqa: PLC0415
+    from egregora.models.rate_limited import RateLimitedModel
 
-    # 1. Prepare Primary
-    primary: Model
-    if use_google_batch and isinstance(primary_model, str) and primary_model.startswith("google-gla:"):
-        primary = GoogleBatchModel(api_key=api_key, model_name=primary_model)
-        # GoogleBatchModel is already a Model, wrap it
-        primary = RateLimitedModel(primary)
-    else:
-        primary = _resolve_and_wrap(primary_model)
+    # Helper to create model variations for all keys
+    def _create_variations(model_def: str | Model) -> list[Model]:
+        variations: list[Model] = []
 
-    # 2. Prepare fallback models
-    wrapped_fallbacks = []
-    for m in fallback_models:
-        if use_google_batch and isinstance(m, str) and m.startswith("google-gla:"):
-            batch_model = GoogleBatchModel(api_key=api_key, model_name=m)
-            wrapped_fallbacks.append(RateLimitedModel(batch_model))
+        # If it's a string definition for a Google model, create one variation per key
+        if isinstance(model_def, str) and model_def.startswith("google-gla:"):
+            for key in api_keys:
+                if use_google_batch:
+                    batch_model = GoogleBatchModel(api_key=key, model_name=model_def)
+                    variations.append(RateLimitedModel(batch_model))
+                else:
+                    variations.append(_resolve_and_wrap(model_def, api_key=key))
+        # For non-Google models or instances, just return single item
+        # (We assume non-Google models handle their own auth or don't use these keys)
         else:
-            wrapped_fallbacks.append(_resolve_and_wrap(m))
+            if use_google_batch and isinstance(model_def, str) and model_def.startswith("google-gla:"):
+                # Should be covered above, but just in case logic flow changes
+                # If we reach here with string, it's not starting with google-gla?
+                # Wait, logic above handles google-gla.
+                pass
+
+            # Use first key as default if needed, or environment
+            variations.append(_resolve_and_wrap(model_def, api_key=api_keys[0]))
+
+        return variations
+
+    # 1. Prepare Primary Variations
+    # We want to try Primary with Key 1, then Primary with Key 2, etc.
+    primary_variations = _create_variations(primary_model)
+    if not primary_variations:
+        # Should not happen given logic above
+        raise ValueError("Failed to create primary model")
+
+    primary_instance = primary_variations[0]
+    remaining_primaries = primary_variations[1:]
+
+    # 2. Prepare Fallback Variations
+    # For each fallback model, we try all keys
+    fallback_variations = []
+    for m in fallback_models:
+        fallback_variations.extend(_create_variations(m))
+
+    # Combine: Rest of primaries + All fallbacks
+    all_fallbacks = remaining_primaries + fallback_variations
 
     return FallbackModel(
-        primary,
-        *wrapped_fallbacks,
+        primary_instance,
+        *all_fallbacks,
         fallback_on=(ModelAPIError, UsageLimitExceeded, ValidationError),
     )

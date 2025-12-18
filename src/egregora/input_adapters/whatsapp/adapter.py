@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 import logging
-import uuid
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, TypedDict, Unpack
-
-import ibis
+from typing import TYPE_CHECKING, Any, TypedDict, Unpack
 
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.input_adapters.base import AdapterMeta, InputAdapter
@@ -19,6 +16,11 @@ from egregora.input_adapters.whatsapp.utils import discover_chat_file
 from egregora.ops.media import detect_media_type
 from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents
+
+if TYPE_CHECKING:
+    import uuid
+
+    import ibis
 
 logger = logging.getLogger(__name__)
 

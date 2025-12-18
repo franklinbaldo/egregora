@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.elo_store import EloRating, EloStore
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_replace_rows_prevents_duplicate_ratings(tmp_path: Path) -> None:

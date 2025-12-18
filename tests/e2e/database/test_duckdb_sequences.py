@@ -8,13 +8,16 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.database.tracking import RunMetadata, record_run
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_annotation_store_initialization(tmp_path: Path):

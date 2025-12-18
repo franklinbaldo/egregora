@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
-from pydantic_ai.messages import ModelMessage, ModelResponse
 from pydantic_ai.models import Model, ModelRequestParameters, ModelSettings
 
 from egregora.utils.rate_limit import get_rate_limiter
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    from pydantic_ai.messages import ModelMessage, ModelResponse
 
 logger = logging.getLogger(__name__)
 

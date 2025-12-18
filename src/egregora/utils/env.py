@@ -89,6 +89,34 @@ def validate_gemini_api_key(api_key: str | None = None) -> None:
 
 __all__ = [
     "get_google_api_key",
+    "get_google_api_keys",
     "google_api_key_available",
     "validate_gemini_api_key",
 ]
+
+
+def get_google_api_keys() -> list[str]:
+    """Get list of Google API keys from environment.
+
+    Supports multiple keys via:
+    - GEMINI_API_KEYS (comma-separated)
+    - GEMINI_API_KEY (single key, fallback)
+    - GOOGLE_API_KEY (single key, fallback)
+
+    Returns:
+        List of API keys, or empty list if none found.
+
+    """
+    # Check for comma-separated list first
+    keys_str = os.environ.get("GEMINI_API_KEYS", "")
+    if keys_str:
+        keys = [k.strip() for k in keys_str.split(",") if k.strip()]
+        if keys:
+            return keys
+
+    # Fall back to single key
+    single_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if single_key:
+        return [single_key]
+
+    return []
