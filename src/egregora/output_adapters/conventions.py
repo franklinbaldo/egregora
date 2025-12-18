@@ -111,6 +111,7 @@ class RouteConfig:
     # ADR-001: Media goes inside posts directory
     media_prefix: str = "posts/media"
     journal_prefix: str = "journal"
+    annotations_prefix: str = "posts/annotations"
     # Defines if dates should be part of the URL structure: /2025-01-01-slug/ vs /slug/
     date_in_url: bool = True
 
@@ -200,6 +201,7 @@ class StandardUrlConvention(UrlConvention):
                 ctx, doc, "audio"
             ),
             DocumentType.ENRICHMENT_URL: self._format_url_enrichment_url,
+            DocumentType.ANNOTATION: self._format_annotation_url,
         }
 
         handler = handlers.get(document.type)
@@ -248,6 +250,10 @@ class StandardUrlConvention(UrlConvention):
             "urls",
             url_slug,
         )
+
+    def _format_annotation_url(self, ctx: UrlContext, document: Document) -> str:
+        slug = document.metadata.get("slug", document.document_id[:8])
+        return self._join(ctx, self.routes.annotations_prefix, slugify(slug))
 
     def _format_post_url(self, ctx: UrlContext, document: Document) -> str:
         slug = document.metadata.get("slug", document.document_id[:8])

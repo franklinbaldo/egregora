@@ -131,9 +131,8 @@ class Annotation:
     def to_document(self) -> Document:
         """Convert this annotation into a lightweight :class:`Document` instance.
 
-        Annotations are treated as Posts in the "Annotations" category to leverage
-        existing blog infrastructure. They carry stable identity, authorship, and
-        parent references.
+        Annotations are treated as dedicated :class:`DocumentType.ANNOTATION` documents.
+        They carry stable identity, authorship, and parent references.
 
         Returns:
             Document representation of the annotation ready for serving/indexing.
@@ -162,7 +161,7 @@ class Annotation:
 
         return Document(
             content=f"{identity_header}{self.commentary}",
-            type=DocumentType.POST,
+            type=DocumentType.ANNOTATION,
             metadata=metadata,
             created_at=self.created_at,
         )

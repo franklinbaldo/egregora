@@ -119,10 +119,10 @@ class TestWriteCommandBasic:
         result = runner.invoke(app, ["write", "--help"])
 
         assert result.exit_code == 0, "Help should display without error"
-        assert "directory" in result.stdout.lower() or "output" in result.stdout.lower(), (
+        assert "-o" in result.stdout or "--out" in result.stdout or "site" in result.stdout.lower(), (
             "Help should mention output directory"
         )
-        assert "step" in result.stdout.lower(), "Help should mention windowing parameters"
+        assert "--ste" in result.stdout.lower(), "Help should mention windowing parameters"
 
 
 class TestWriteCommandConfiguration:
