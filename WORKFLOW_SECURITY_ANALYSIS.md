@@ -24,7 +24,7 @@ This analysis identified **15 security issues**, **8 performance issues**, and *
 
 #### 🟡 Issue #1: Hardcoded Repository References
 **Severity:** Medium
-**Locations:** Lines 118, 166, 70
+**Locations:** Lines 118, 166
 **Impact:** Workflow won't work correctly in forks or repository transfers
 
 **Current Code:**
@@ -34,11 +34,18 @@ if: github.repository == 'franklinbaldo/egregora'
 
 **Fix:**
 ```yaml
-if: github.repository == github.event.repository.full_name
-# Or simply remove this condition if artifact upload should always work
+# Cannot use secrets context in if conditions, so use !cancelled() instead
+# The codecov action will handle missing tokens gracefully
+if: ${{ !cancelled() }}
 ```
 
-**Reasoning:** Using dynamic repository references makes workflows portable and fork-friendly.
+**Reasoning:**
+- The `secrets` context cannot be evaluated in `if` conditions in GitHub Actions
+- Using `!cancelled()` allows the step to run unless explicitly cancelled
+- The `codecov-action` with `fail_ci_if_error: false` handles missing tokens gracefully
+- This makes the workflow portable and fork-friendly
+
+**Status:** ✅ FIXED (commit f44f021)
 
 ---
 
