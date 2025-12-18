@@ -22,7 +22,6 @@ from pydantic_ai import ModelRetry
 
 from egregora.agents.banner.agent import generate_banner
 from egregora.data_primitives.document import Document, DocumentType
-from egregora.data_primitives.protocols import OutputSink
 from egregora.orchestration.persistence import persist_banner_document, persist_profile_document
 from egregora.rag import search
 from egregora.rag.models import RAGQueryRequest
@@ -30,6 +29,7 @@ from egregora.rag.models import RAGQueryRequest
 if TYPE_CHECKING:
     from egregora.agents.capabilities import AsyncProfileCapability, BackgroundBannerCapability
     from egregora.database.annotations_store import AnnotationsStore
+    from egregora.output_adapters.base import OutputSink
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,6 @@ class AnnotationContext:
     """Context for annotation operations."""
 
     annotations_store: AnnotationsStore | None
-    output_sink: OutputSink | None = None
 
 
 @dataclass
@@ -283,28 +282,20 @@ def annotate_conversation_impl(
         raise RuntimeError(msg)
 
     try:
+        # Persistence to OutputSink is now handled internally by AnnotationStore
         annotation = ctx.annotations_store.save_annotation(
             parent_id=parent_id, parent_type=parent_type, commentary=commentary
         )
-
-        # Persist annotation as a document if output sink is available
-        if ctx.output_sink:
-            try:
-                doc = annotation.to_document()
-                ctx.output_sink.persist(doc)
-            except Exception as e:
-                logger.warning("Failed to persist annotation document: %s", e)
-
         return AnnotationResult(
             status="success",
-            annotation_id=str(annotation.id),
+            annotation_id=annotation.id,
             parent_id=annotation.parent_id,
             parent_type=annotation.parent_type,
         )
     except (RuntimeError, ValueError, OSError, AttributeError) as exc:
         # We catch expected persistence exceptions here to prevent a single
         # annotation failure from crashing the entire writer agent process.
-        logger.warning("Failed to persist annotation, continuing without it: %s", exc)
+        logger.warning("Failed to save annotation: %s", exc)
         return AnnotationResult(
             status="failed",
             annotation_id="annotation-error",

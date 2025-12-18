@@ -17,7 +17,7 @@ from google import genai
 from egregora.agents.shared.annotations import AnnotationStore
 from egregora.agents.types import WriterResources
 from egregora.data_primitives.protocols import UrlContext
-from egregora.database import initialize_database, migrate_database
+from egregora.database import initialize_database
 from egregora.database.duckdb_manager import DuckDBStorageManager
 from egregora.orchestration.context import (
     PipelineConfig,
@@ -74,11 +74,6 @@ class PipelineFactory:
         db_file = site_paths.egregora_dir / "app.duckdb"
         storage = DuckDBStorageManager(db_path=db_file)
 
-        # Run migrations to ensure schema is up to date (V3 Entry Migration)
-        migrate_database(storage)
-
-        annotations_store = AnnotationStore(storage)
-
         output_registry = create_default_output_registry()
 
         url_ctx = UrlContext(
@@ -86,6 +81,16 @@ class PipelineFactory:
             site_prefix=site_paths.docs_prefix,
             base_path=site_paths.site_root,
         )
+
+        adapter = PipelineFactory.create_output_adapter(
+            config=run_params.config,
+            output_dir=resolved_output,
+            site_root=site_paths.site_root,
+            registry=output_registry,
+            url_context=url_ctx,
+        )
+
+        annotations_store = AnnotationStore(storage, output_sink=adapter)
 
         config_obj = PipelineConfig(
             config=run_params.config,
@@ -112,6 +117,8 @@ class PipelineFactory:
         )
 
         ctx = PipelineContext(config_obj, state)
+        # Inject the already created adapter into the context
+        ctx.output_format = adapter
 
         return ctx, pipeline_backend, runs_backend
 

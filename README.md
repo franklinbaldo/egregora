@@ -106,26 +106,6 @@ We use **Ibis** and **DuckDB** to handle large datasets efficiently.
 ### Adding New Adapters
 You can extend Egregora to read from other sources (e.g., Slack, Telegram) by implementing the `InputAdapter` protocol in `src/egregora/input_adapters/base.py`.
 
-### Metadata Contract
-To ensure consistency and enable reliable features like RSS feeds and social cards, Egregora enforces a minimum metadata schema for all document types. Before any document is written, a normalization layer ensures the following keys are present in its frontmatter:
-
-| Key          | Type                | Description                                                                                               |
-|--------------|---------------------|-----------------------------------------------------------------------------------------------------------|
-| `title`      | `string`            | The title of the document. Falls back to a generated title if not present (e.g., "Untitled Post").        |
-| `slug`       | `string`            | A URL-friendly identifier. Falls back to the document's slug property.                                    |
-| `date`       | `string` (ISO 8601) | The creation date of the document. Defaults to the document's `created_at` timestamp.                     |
-| `updated`    | `string` (ISO 8601) | The last updated date. Defaults to the `date` value if not specified.                                     |
-| `summary`    | `string`            | A short summary of the content. Defaults to an empty string.                                              |
-| `tags`       | `list[string]`      | A list of tags for categorization. Defaults to an empty list.                                             |
-| `categories` | `list[string]`      | A list of categories. Defaults to an empty list.                                                          |
-| `authors`    | `list[string]`      | A list of author UUIDs. Defaults to an empty list.                                                        |
-| `draft`      | `bool`              | A flag to indicate if the document is a draft. Defaults to `false`.                                       |
-| `type`       | `string`            | The `DocumentType` of the content (e.g., "post", "profile").                                              |
-| `doc_id`     | `string`            | The unique identifier of the document.                                                                    |
-| `source`     | `dict`              | Provenance information, including the source `adapter` and `window_label`.                                |
-
-This contract guarantees that themes and plugins can reliably access essential metadata across all generated content.
-
 ---
 
 ## 🤝 Contributing

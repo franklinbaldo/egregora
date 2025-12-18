@@ -604,7 +604,7 @@ def _check_writer_cache(
         Cached result if found, None otherwise
 
     """
-    if cache.should_refresh("writer"):
+    if cache.should_refresh(CacheTier.WRITER):
         return None
 
     cached_result = cache.writer.get(signature)
@@ -701,25 +701,36 @@ def _prepare_writer_dependencies(params: WriterDepsParams) -> WriterDeps:
     )
 
 
-def _calculate_signature(
+def _build_context_and_signature(
     params: WriterContextParams,
     prompts_dir: Path | None,
-) -> str:
-    """Calculate cache signature without building full context.
+) -> tuple[WriterContext, str]:
+    """Build writer context and calculate cache signature.
 
     Returns:
-        cache_signature
+        Tuple of (writer_context, cache_signature)
 
     """
     table_with_str_uuids = _cast_uuid_columns_to_str(params.table)
+
+    # Generate context for both prompt and signature
+    # This now just generates the base context (XML, Journal) which is cheap(er)
+    # We update params with casted table
+    params.table = table_with_str_uuids
+    writer_context = _build_writer_context(params)
+
+    # Get template content for signature calculation
     template_content = PromptManager.get_template_content("writer.jinja", custom_prompts_dir=prompts_dir)
 
-    # Calculate signature using data (ID list) + logic (template) + engine
-    return generate_window_signature(
+    # Calculate signature using data (XML) + logic (template) + engine
+    signature = generate_window_signature(
         table_with_str_uuids,
         params.config,
         template_content,
+        xml_content=writer_context.conversation_xml,
     )
+
+    return writer_context, signature
 
 
 def _execute_writer_with_error_handling(
@@ -819,8 +830,9 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str
         # Create new resources with run_id
         resources = dataclasses.replace(resources, run_id=params.run_id)
 
-    # 2. Calculate signature first (fast, no XML building)
-    signature = _calculate_signature(
+    # 2. Build context and calculate signature
+    # We need to build context first to get XML for signature
+    writer_context, signature = _build_context_and_signature(
         WriterContextParams(
             table=params.table,
             resources=resources,
@@ -843,22 +855,9 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str
     if cached_result:
         return cached_result
 
-    # 4. Build context (only if cache miss)
-    writer_context = _build_writer_context(
-        WriterContextParams(
-            table=_cast_uuid_columns_to_str(params.table),
-            resources=resources,
-            cache=params.cache,
-            config=params.config,
-            window_label=f"{params.window_start:%Y-%m-%d %H:%M} to {params.window_end:%H:%M}",
-            adapter_content_summary=params.adapter_content_summary,
-            adapter_generation_instructions=params.adapter_generation_instructions,
-        )
-    )
-
     logger.info("Using Pydantic AI backend for writer")
 
-    # 5. Create Deps with the generated context
+    # 4. Create Deps with the generated context
     deps = _prepare_writer_dependencies(
         WriterDepsParams(
             window_start=params.window_start,
