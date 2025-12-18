@@ -28,7 +28,7 @@ from egregora.data_primitives import DocumentMetadata
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.data_primitives.protocols import UrlContext, UrlConvention
 from egregora.knowledge.profiles import generate_fallback_avatar_url
-from egregora.markdown.frontmatter import parse_frontmatter
+from egregora.markdown.frontmatter import parse_frontmatter, read_frontmatter_only
 from egregora.output_adapters.base import BaseOutputSink, SiteConfiguration
 from egregora.output_adapters.conventions import RouteConfig, StandardUrlConvention
 from egregora.output_adapters.mkdocs.paths import MkDocsPaths
@@ -642,11 +642,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         if parts[:2] == ("annotations",):
             return DocumentType.ANNOTATION
 
-        try:
-            content = path.read_text(encoding="utf-8")
-        except OSError:
-            return DocumentType.POST
-        metadata, _ = parse_frontmatter(content)
+        metadata = read_frontmatter_only(path)
         categories = (metadata or {}).get("categories", [])
         if not isinstance(categories, list):
             categories = []
@@ -858,17 +854,7 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
             Dictionary of frontmatter metadata (empty if none found)
 
         """
-        try:
-            content = path.read_text(encoding="utf-8")
-            if content.startswith("---"):
-                # Expecting at least 3 parts: empty string, frontmatter, content
-                min_parts_count = 3
-                parts = content.split("---", 2)
-                if len(parts) >= min_parts_count:
-                    return yaml.safe_load(parts[1]) or {}
-        except Exception as e:
-            logger.warning(f"Failed to parse frontmatter from {path}: {e}")
-        return {}
+        return read_frontmatter_only(path)
 
     # Document Writing Strategies ---------------------------------------------
 
