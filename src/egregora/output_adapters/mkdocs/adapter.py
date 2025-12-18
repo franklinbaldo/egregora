@@ -216,6 +216,10 @@ class MkDocsAdapter(BaseOutputSink):
             case DocumentType.JOURNAL:
                 # Journals: simple filename with slug
                 return self.posts_dir / f"{identifier.replace('/', '-')}.md"
+            case DocumentType.ANNOTATION:
+                # Annotations: posts/annotations/{id}.md
+                # Identifier is likely the annotation ID or slug
+                return self.posts_dir / "annotations" / f"{identifier}.md"
             case DocumentType.ENRICHMENT_URL:
                 # Enrichment URLs: inside media_dir/urls (ADR-0004)
                 return self.media_dir / "urls" / f"{identifier}.md"
