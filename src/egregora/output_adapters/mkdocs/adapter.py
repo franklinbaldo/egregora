@@ -107,10 +107,12 @@ class MkDocsAdapter(BaseOutputSink):
             DocumentType.POST: self._write_post_doc,
             DocumentType.PROFILE: self._write_profile_doc,
             DocumentType.MEDIA: self._write_media_doc,
-            DocumentType.ENRICHMENT: self._write_enrichment_doc,
             DocumentType.JOURNAL: self._write_journal_doc,
             DocumentType.ENRICHMENT_URL: self._write_enrichment_doc,
             DocumentType.ENRICHMENT_MEDIA: self._write_enrichment_doc,
+            DocumentType.ENRICHMENT_IMAGE: self._write_enrichment_doc,
+            DocumentType.ENRICHMENT_VIDEO: self._write_enrichment_doc,
+            DocumentType.ENRICHMENT_AUDIO: self._write_enrichment_doc,
         }
 
         self._initialized = True
