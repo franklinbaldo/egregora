@@ -315,3 +315,10 @@ dev = [
     "mkdocs-blogging-plugin>=2.2.11",
     "pytest-socket>=0.7.0",
 ]
+
+[tool.vulture]
+paths = ["src", "tests"]
+min_confidence = 80
+sort_by_size = true
+exclude = []
+ignore_names = []
