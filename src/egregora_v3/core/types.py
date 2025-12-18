@@ -169,10 +169,8 @@ class Document(Entry):
                 internal_metadata["slug"] = clean_slug
 
         # Determine ID
-        doc_id = None
-        if id_override:
-            doc_id = id_override
-        elif clean_slug and doc_type in semantic_types:
+        doc_id = id_override
+        if not doc_id and clean_slug and doc_type in semantic_types:
             # Semantic Identity: The slug IS the ID
             doc_id = clean_slug
 
