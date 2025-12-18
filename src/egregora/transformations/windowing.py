@@ -27,6 +27,7 @@ import hashlib
 import json
 import logging
 import math
+import os
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -74,11 +75,28 @@ def load_checkpoint(checkpoint_path: Path) -> dict | None:
 def save_checkpoint(checkpoint_path: Path, last_timestamp: datetime, messages_processed: int) -> None:
     """Save processing checkpoint to sentinel file.
 
+    DEPRECATED: Use save_checkpoint_atomic instead.
+
     Args:
         checkpoint_path: Path to .egregora/checkpoint.json
         last_timestamp: Timestamp of last processed message
         messages_processed: Total count of messages processed
 
+    """
+    save_checkpoint_atomic(checkpoint_path, last_timestamp, messages_processed)
+
+
+def save_checkpoint_atomic(
+    checkpoint_path: Path,
+    last_timestamp: datetime,
+    messages_processed: int,
+) -> None:
+    """Save checkpoint atomically using temp file + rename.
+
+    Args:
+        checkpoint_path: Path to the checkpoint file.
+        last_timestamp: Timestamp of the last processed message.
+        messages_processed: Total number of messages processed.
     """
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -88,18 +106,21 @@ def save_checkpoint(checkpoint_path: Path, last_timestamp: datetime, messages_pr
     else:
         last_timestamp = last_timestamp.astimezone(utc_zone)
 
-    checkpoint = {
+    checkpoint_data = {
         "last_processed_timestamp": last_timestamp.isoformat(),
-        "messages_processed": int(messages_processed),
+        "messages_processed": messages_processed,
         "schema_version": "1.0",
     }
 
+    temp_path = checkpoint_path.with_suffix(".tmp")
     try:
-        with checkpoint_path.open("w") as f:
-            json.dump(checkpoint, f, indent=2)
-        logger.info("Checkpoint saved: %s", checkpoint_path)
+        with temp_path.open("w") as f:
+            json.dump(checkpoint_data, f, indent=2)
+        os.replace(temp_path, checkpoint_path)
+        logger.debug("Checkpoint saved: %s", checkpoint_path)
     except OSError as e:
-        logger.warning("Failed to save checkpoint to %s: %s", checkpoint_path, e)
+        logger.warning("Failed to save checkpoint: %s", e)
+        temp_path.unlink(missing_ok=True)
 
 
 # ============================================================================
