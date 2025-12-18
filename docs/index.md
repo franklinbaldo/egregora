@@ -46,7 +46,7 @@ Welcome to the Egregora documentation! Transform your WhatsApp group chats into 
 
     Contributing guidelines and development setup instructions
 
-    [:octicons-arrow-right-24: Development](development/contributing.md)
+    [:octicons-arrow-right-24: Development](development/)
 
 -   :material-package-down:{ .lg .middle } __Repomix Bundles__
 
@@ -60,11 +60,6 @@ Welcome to the Egregora documentation! Transform your WhatsApp group chats into 
     - [Documentation bundle](bundles/docs.bundle.md){: download="egregora-docs.md" data-bundle-name="docs" }
 
 </div>
-
-!!! tip "🌟 Try the Live Demo"
-    **See Egregora in action!** Check out our [**live demo blog**](demo/) generated from real WhatsApp conversations.
-
-    [:octicons-arrow-right-24: Explore the Demo](demo/){ .md-button .md-button--primary }
 
 ## Architecture Overview
 

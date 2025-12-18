@@ -588,12 +588,11 @@ def generate_window_signature(
     window_table: Table,
     config: EgregoraConfig,
     prompt_template: str,
-    xml_content: str | None = None,
 ) -> str:
     """Generate a deterministic signature for a processing window.
 
     Components:
-    1. DATA: Hash of message IDs in the window (derived from XML if provided, else computed).
+    1. DATA: Hash of message IDs and timestamps in the window (serialized as JSON).
     2. LOGIC: Hash of the prompt template + custom instructions.
     3. ENGINE: Model ID.
 
@@ -601,17 +600,22 @@ def generate_window_signature(
         window_table: The window's data table.
         config: Pipeline configuration.
         prompt_template: Raw template string for the writer prompt.
-        xml_content: Optional pre-computed XML content to hash (avoid re-generating).
 
     """
     # 1. Data Hash
-    if xml_content:
-        data_hash = hashlib.sha256(xml_content.encode()).hexdigest()
-    else:
-        # Fallback to generating XML for hash consistency
-        # (We use XML because that's what the LLM sees)
-        xml_content = build_conversation_xml(window_table.to_pyarrow(), None)
-        data_hash = hashlib.sha256(xml_content.encode()).hexdigest()
+    # Extract IDs and timestamps to form a canonical representation of the data
+    # We serialize to JSON to ensure deterministic output
+    identifiers = (
+        window_table.select("event_id", "ts")
+        .order_by("ts", "event_id")
+        .mutate(ts_str=window_table.ts.cast("string"))
+        .select("event_id", "ts_str")
+        .to_pyarrow()
+        .to_pylist()
+    )
+    # Use standard json with sort_keys for determinism
+    data_json = json.dumps(identifiers, sort_keys=True)
+    data_hash = hashlib.sha256(data_json.encode()).hexdigest()
 
     # 2. Logic Hash
     # Combine template and user instructions

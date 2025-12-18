@@ -41,7 +41,7 @@ from egregora.models.google_batch import GoogleBatchModel
 from egregora.ops.media import extract_urls, find_media_references
 from egregora.orchestration.worker_base import BaseWorker
 from egregora.resources.prompts import render_prompt
-from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
+from egregora.utils.cache import make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.model_fallback import create_fallback_model
 from egregora.utils.paths import slugify
@@ -172,7 +172,7 @@ class MediaEnrichmentDeps(BaseModel):
 class EnrichmentRuntimeContext:
     """Runtime context for enrichment execution."""
 
-    cache: EnrichmentCache
+    cache: Any  # diskcache.Cache
     output_format: Any
     site_root: Path | None = None
     duckdb_connection: DuckDBBackend | None = None
@@ -459,7 +459,7 @@ def _enqueue_url_enrichments(
     scheduled = 0
     for url, metadata in candidates:
         cache_key = make_enrichment_cache_key(kind="url", identifier=url)
-        if context.cache.load(cache_key) is not None:
+        if context.cache.get(cache_key) is not None:
             continue
 
         payload = {
@@ -494,7 +494,7 @@ def _enqueue_media_enrichments(
     scheduled = 0
     for ref, media_doc, metadata in candidates:
         cache_key = make_enrichment_cache_key(kind="media", identifier=media_doc.document_id)
-        if context.cache.load(cache_key) is not None:
+        if context.cache.get(cache_key) is not None:
             continue
 
         payload = {
