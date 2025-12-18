@@ -61,11 +61,6 @@ Welcome to the Egregora documentation! Transform your WhatsApp group chats into 
 
 </div>
 
-!!! tip "🌟 Try the Live Demo"
-    **See Egregora in action!** Check out our [**live demo blog**](demo/) generated from real WhatsApp conversations.
-
-    [:octicons-arrow-right-24: Explore the Demo](demo/){ .md-button .md-button--primary }
-
 ## Architecture Overview
 
 ```mermaid

@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Default rotation order: cheaper/faster models first
 DEFAULT_GEMINI_MODELS = [
+    "gemini-3-flash",
     "gemini-2.5-flash-lite",
     "gemini-2.0-flash",
     "gemini-2.5-flash",

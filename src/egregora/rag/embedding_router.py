@@ -18,6 +18,7 @@ import queue
 import threading
 import time
 from concurrent.futures import Future
+import hashlib
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Annotated, Any
@@ -191,8 +192,9 @@ class EndpointQueue:
             return None
         self._current_key_idx = (self._current_key_idx + 1) % len(self._api_keys)
         self.api_key = self._api_keys[self._current_key_idx]
-        masked = self.api_key[:8] + "..." + self.api_key[-4:]
-        logger.info("[EmbeddingRouter] Rotating to key: %s", masked)
+        # Log only the key index and a short hash prefix, never any key material itself
+        key_hash = hashlib.sha256(self.api_key.encode()).hexdigest()[:8]
+        logger.info("[EmbeddingRouter] Rotating to API key #%d (SHA256 prefix: %s)", self._current_key_idx, key_hash)
         return self.api_key
 
     def start(self) -> None:
