@@ -1,17 +1,19 @@
-# Curator TODO - UX/UI Task List
+# UX/UI TODO
 
 Last updated: 2025-12-19
-Demo version: Current main branch
 
-**📖 Vision Document:** See **[docs/ux-vision.md](docs/ux-vision.md)** for strategic vision, design principles, and excellence criteria.
+**📖 Vision:** [docs/ux-vision.md](docs/ux-vision.md) - Curator develops this over time through evaluation
+
+**⚠️ Template Location:** Changes must be made to templates in `src/` (not `demo/` output). Find template location and document in vision.
 
 **Workflow:**
-1. **Curator** 🎭 evaluates UX/UI against [vision](docs/ux-vision.md) and updates this TODO
-2. **Forge** 🔨 implements items from this TODO, guided by [vision](docs/ux-vision.md)
+1. **Curator** 🎭 evaluates blogs, updates vision & TODO
+2. **Forge** 🔨 implements by editing `src/` templates
 
 ## High Priority (Critical for Excellence)
 
 ### 🛠️ Infrastructure & Tooling
+- [ ] **Find MkDocs template location** in `src/` - document in vision.md (DO THIS FIRST)
 - [ ] Add `egregora demo` CLI command for easy demo generation
 - [ ] Create test to ensure demo/ stays updated with code changes
 - [ ] Set up automated Lighthouse CI for regression detection
