@@ -48,3 +48,9 @@ repos:
         language: system
         types: [python]
         files: ^src/
+      - id: validate-todo-ux
+        name: Validate TODO.ux.toml structure
+        entry: python .jules/scripts/validate_todo.py
+        language: system
+        files: ^TODO\.ux\.toml$
+        pass_filenames: false
