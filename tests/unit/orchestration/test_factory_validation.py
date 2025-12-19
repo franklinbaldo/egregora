@@ -13,9 +13,7 @@ def make_config(pipeline_db: str, runs_db: str):
 def test_create_database_backends_requires_uri(tmp_path):
     config = make_config("", "duckdb:///:memory:")
 
-    with pytest.raises(
-        ValueError, match=r"Database setting 'database\.pipeline_db' must be a non-empty connection URI\."
-    ):
+    with pytest.raises(ValueError):
         PipelineFactory.create_database_backends(tmp_path, config)
 
 

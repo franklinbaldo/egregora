@@ -63,10 +63,6 @@ _DATE_PARSING_STRATEGIES = [
     lambda x: date_parser.parse(x, dayfirst=False),
 ]
 
-TIME_STR_LEN = 5
-HOURS_IN_HALF_DAY = 12
-PARTS_IN_TIME_STR = 2
-
 
 def _normalize_text(value: str, config: EgregoraConfig | None = None) -> str:
     """Normalize unicode text and sanitize HTML.
@@ -128,14 +124,7 @@ def _parse_message_time(time_token: str) -> time | None:
 
     # Fast path for standard HH:MM (e.g., "12:30", "09:15")
     # Checks length and digit presence to avoid splitting/parsing invalid strings
-    if (
-        len(token) == TIME_STR_LEN
-        and token[2] == ":"
-        and token[0].isdigit()
-        and token[1].isdigit()
-        and token[3].isdigit()
-        and token[4].isdigit()
-    ):
+    if len(token) == 5 and token[2] == ":" and token[0].isdigit() and token[1].isdigit() and token[3].isdigit() and token[4].isdigit():
         try:
             # Direct slicing is faster than splitting
             return time(int(token[:2]), int(token[3:]))
@@ -171,15 +160,15 @@ def _parse_message_time(time_token: str) -> time | None:
                 h = int(h_str)
                 m = int(m_str)
 
-                if is_pm and h != HOURS_IN_HALF_DAY:
-                    h += HOURS_IN_HALF_DAY
-                elif not is_pm and h == HOURS_IN_HALF_DAY:
+                if is_pm and h != 12:
+                    h += 12
+                elif not is_pm and h == 12:
                     h = 0
                 return time(h, m)
         elif ":" in token:
-            # Standard "H:MM" or fallback for "HH:MM" that failed fast path
+             # Standard "H:MM" or fallback for "HH:MM" that failed fast path
             parts = token.split(":")
-            if len(parts) == PARTS_IN_TIME_STR:
+            if len(parts) == 2:
                 return time(int(parts[0]), int(parts[1]))
     except ValueError:
         pass
