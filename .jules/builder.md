@@ -1,29 +1,5 @@
 # Builder's Journal
 
-## 2025-05-23 - Unify Data Model
-**Obstacle:** The task is to "Migrate the DuckDB `documents` table to fully support the V3 `Entry` schema".
-I need to check if the `UNIFIED_SCHEMA` in `src/egregora/database/ir_schema.py` matches `Entry` in `src/egregora_v3/core/types.py`.
-It seems `UNIFIED_SCHEMA` already has `doc_type` and `extensions`.
-However, the `doc_type` in `UNIFIED_SCHEMA` is `dt.String`, while `Entry` has `doc_type: DocumentType`.
-`Entry` also has `extensions: dict[str, Any]` and `internal_metadata: dict[str, Any]`.
-`UNIFIED_SCHEMA` has them as `dt.JSON`.
-
-The task specifically asks to:
-1. Add `doc_type` column (ENUM) to distinguish `message`, `post`, `profile`, `log`.
-2. Add `extensions` column (JSON) for Atom extensions.
-3. Create a migration script to alter existing tables.
-
-Since `UNIFIED_SCHEMA` seems to be updated already (based on the `[x]` checkmark in TODO.md for the first subtask), the remaining work is likely to ensure the actual DuckDB table matches this schema if it was created with an older schema.
-
-The "Create a migration script" part is key. I need to verify if the existing `documents` table (if any) is being migrated or if I need to write a migration.
-
-Also, the TODO mentions "Add `doc_type` column (ENUM)". `UNIFIED_SCHEMA` uses `dt.String`. I should verify if I can/should use an ENUM type in DuckDB via Ibis, or if String is the intended implementation for the ENUM. Given DuckDB supports ENUMs, maybe I should try to use that if possible, but Ibis might abstract it. The task might effectively mean "ensure the column exists and stores these values".
-
-My plan:
-1.  Verify `UNIFIED_SCHEMA` correctness against `Entry` fields.
-2.  Create a test that attempts to insert an `Entry` object into a table created with `UNIFIED_SCHEMA`.
-3.  Implement/Check the migration logic. If `create_table_if_not_exists` doesn't handle schema evolution (it usually doesn't), I might need a migration function.
-
-**Solution:**
-I will create a test `tests/test_schema_migration.py` that simulates an old schema (without `doc_type` and `extensions`) and tries to migrate it to the new `UNIFIED_SCHEMA`.
-This will reveal if I have a migration mechanism. If not, I will implement one.
+## 2025-05-18 - [Refactor] Extract `write_pipeline.py` to `PipelineRunner`
+**Obstacle:** Mocking the frozen dataclass `Window` using `Mock(spec=Window)` failed because `Mock` by default doesn't allow setting attributes that don't exist on the spec if they are not standard, and more importantly, my test setup tried to set attributes on the mock instance which failed because I likely didn't configure the spec correctly for a dataclass or encountered an issue with how `Mock` handles `spec` for frozen dataclasses (which don't allow setting attributes on instances).
+**Solution:** I switched to using a plain `Mock()` without a strict spec, manually configuring the necessary attributes (`size`, `start_time`, `end_time`, etc.) and ensuring dunder methods like `__gt__` were defined for timestamp comparisons. This provided the necessary behavior for the test without the rigidity of the frozen dataclass spec during the mocking phase.

@@ -19,7 +19,7 @@ This backlog directs the engineering team on *what* to build next to stabilize t
     *   [x] Add `extensions` column (JSON) for Atom extensions.
     *   [x] Create a migration script to alter existing tables.
 
-- [ ] **[Refactor] Extract `write_pipeline.py` to `PipelineRunner`**
+- [x] **[Refactor] Extract `write_pipeline.py` to `PipelineRunner`**
     - **Context**: `write_pipeline.py` is a procedural script that mixes high-level orchestration with low-level details.
     - **Task**: Create a `PipelineRunner` class in `src/egregora/orchestration/runner.py`.
     - **Action**: Move the `run()` loop and window processing logic into this class. Use Dependency Injection to pass `PipelineContext` and `OutputSink`.

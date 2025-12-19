@@ -14,9 +14,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
-import math
 import os
-from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -33,12 +31,8 @@ from rich.console import Console
 from rich.panel import Panel
 
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
-from egregora.agents.banner.worker import BannerWorker
-from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
-from egregora.agents.model_limits import PromptTooLargeError, get_model_context_limit
-from egregora.agents.profile.worker import ProfileWorker
+from egregora.agents.model_limits import get_model_context_limit
 from egregora.agents.shared.annotations import AnnotationStore
-from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
 from egregora.constants import SourceType, WindowUnit
@@ -51,10 +45,10 @@ from egregora.init import ensure_mkdocs_project
 from egregora.input_adapters import ADAPTER_REGISTRY
 from egregora.input_adapters.whatsapp.commands import extract_commands, filter_egregora_messages
 from egregora.knowledge.profiles import filter_opted_out_authors, process_commands
-from egregora.ops.media import process_media_for_window
 from egregora.ops.taxonomy import generate_semantic_taxonomy
 from egregora.orchestration.context import PipelineConfig, PipelineContext, PipelineRunParams, PipelineState
 from egregora.orchestration.factory import PipelineFactory
+from egregora.orchestration.runner import PipelineRunner
 from egregora.output_adapters import create_default_output_registry
 from egregora.output_adapters.mkdocs import MkDocsPaths
 from egregora.rag import index_documents, reset_backend
@@ -63,7 +57,6 @@ from egregora.transformations import (
     create_windows,
     load_checkpoint,
     save_checkpoint,
-    split_window_into_n_parts,
 )
 from egregora.utils.cache import PipelineCache
 from egregora.utils.env import validate_gemini_api_key
@@ -79,8 +72,6 @@ if TYPE_CHECKING:
     import uuid
 
     import ibis.expr.types as ir
-
-    from egregora.input_adapters.base import MediaMapping
 
 
 logger = logging.getLogger(__name__)
@@ -318,16 +309,6 @@ def run_cli_flow(
 
     output_dir = parsed_options.output.expanduser().resolve()
 
-    # Ensure MkDocs project exists (imported logic)
-    # Reimplementing simplified version of _ensure_mkdocs_scaffold to avoid circular imports if it was in CLI
-    # But we can import it if it is in init.
-    # The original cli code had interactive prompts. Since we moved logic here, we should keep it
-    # or rely on init being run.
-    # For now, let's assume non-interactive or minimal check, or duplicate the check.
-    # However, to be cleaner, we can just check if it exists and warn.
-    # The original CLI `_ensure_mkdocs_scaffold` handled prompting.
-    # Let's import `ensure_mkdocs_project` and do a basic check.
-
     config_path = output_dir / ".egregora.toml"
 
     if not config_path.exists():
@@ -441,612 +422,6 @@ class PreparedPipelineData:
     context: PipelineContext
     enable_enrichment: bool
     embedding_model: str
-
-
-# _create_writer_resources REMOVED - functionality moved to PipelineFactory.create_writer_resources
-
-
-def _extract_adapter_info(ctx: PipelineContext) -> tuple[str, str]:
-    """Extract content summary and generation instructions from adapter."""
-    adapter = getattr(ctx, "adapter", None)
-    if adapter is None:
-        return "", ""
-
-    summary: str | None = ""
-    try:
-        summary = getattr(adapter, "content_summary", "")
-        if callable(summary):
-            summary = summary()
-    except (AttributeError, TypeError) as exc:
-        logger.debug("Adapter %s failed to provide content_summary: %s", adapter, exc)
-        summary = ""
-
-    instructions: str | None = ""
-    try:
-        instructions = getattr(adapter, "generation_instructions", "")
-        if callable(instructions):
-            instructions = instructions()
-    except (AttributeError, TypeError) as exc:
-        logger.warning("Failed to evaluate adapter generation instructions: %s", exc)
-        instructions = ""
-
-    return (summary or "").strip(), (instructions or "").strip()
-
-
-def _process_background_tasks(ctx: PipelineContext) -> None:
-    """Process pending background tasks (banners, profiles, enrichment)."""
-    if not hasattr(ctx, "task_store") or not ctx.task_store:
-        return
-
-    logger.info("⚙️  [bold cyan]Processing background tasks...[/]")
-
-    # Run workers sequentially for now (can be parallelized later)
-    # 1. Banner Generation (Highest priority - visual assets)
-    banner_worker = BannerWorker(ctx)
-    banners_processed = banner_worker.run()
-    if banners_processed > 0:
-        logger.info("Generated %d banners", banners_processed)
-
-    # 2. Profile Updates (Coalescing optimization - OLD SYSTEM)
-    profile_worker = ProfileWorker(ctx)
-    profiles_processed = profile_worker.run()
-    if profiles_processed > 0:
-        logger.info("Updated %d profiles", profiles_processed)
-
-    # NOTE: _sync_author_profiles() REMOVED - replaced by PROFILE post generation
-    # in _process_single_window(). Author folders now contain PROFILE posts ABOUT
-    # authors (written by Egregora), not posts BY authors.
-
-    # 3. Enrichment (Lower priority - can catch up later)
-    enrichment_worker = EnrichmentWorker(ctx)
-    enrichment_processed = enrichment_worker.run()
-    if enrichment_processed > 0:
-        logger.info("Enriched %d items", enrichment_processed)
-
-
-def _process_single_window(
-    window: any, ctx: PipelineContext, *, depth: int = 0
-) -> dict[str, dict[str, list[str]]]:
-    """Process a single window with media extraction, enrichment, and post writing.
-
-    Args:
-        window: Window to process
-        ctx: Pipeline context
-        depth: Current split depth (for logging)
-
-    Returns:
-        Dict mapping window label to {'posts': [...], 'profiles': [...]}
-
-    """
-    indent = "  " * depth
-    window_label = f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
-    window_table = window.table
-    window_count = window.size
-
-    logger.info("%s➡️  [bold]%s[/] — %s messages (depth=%d)", indent, window_label, window_count, depth)
-
-    # Process media
-    output_sink = ctx.output_format
-    if output_sink is None:
-        msg = "Output adapter must be initialized before processing windows."
-        raise RuntimeError(msg)
-
-    url_context = ctx.url_context or UrlContext()
-    window_table_processed, media_mapping = process_media_for_window(
-        window_table=window_table,
-        adapter=ctx.adapter,
-        url_convention=output_sink.url_convention,
-        url_context=url_context,
-        zip_path=ctx.input_path,
-    )
-
-    # Media persistence is now deferred until after enrichment
-    # to allow for proper slug generation and content processing.
-    if media_mapping and not ctx.enable_enrichment:
-        # Only persist immediately if enrichment is disabled (legacy/fallback mode)
-        for media_doc in media_mapping.values():
-            try:
-                output_sink.persist(media_doc)
-            except (OSError, PermissionError):
-                logger.exception("Failed to write media file %s", media_doc.metadata.get("filename"))
-            except ValueError:
-                logger.exception("Invalid media document %s", media_doc.metadata.get("filename"))
-
-    # Enrichment (Schedule tasks)
-    if ctx.enable_enrichment:
-        # Check for economic mode
-        if getattr(ctx.config.pipeline, "economic_mode", False):
-            logger.info("%s💰 [cyan]Economic Mode:[/], forcing batch enrichment", indent)
-            # We can force batch strategy in context or just rely on perform_enrichment logic
-            # For now, let's update _perform_enrichment to respect economic_mode if needed,
-            # but economic_mode primarily affects the WRITER (no tools) and ENRICHER (single batch).
-            # The current _perform_enrichment already schedules and executes.
-            # We need to make sure the strategy is 'batch_all'.
-
-            # Create a modified config for enrichment to force batch_all and disable URLs
-            # to strictly adhere to "two LLM calls" (1 Media + 1 Writer)
-            enrichment_config = ctx.config.enrichment.model_copy(
-                update={"strategy": "batch_all", "enable_url": False}
-            )
-
-            # We need to temporarily patch the config in context or pass it down
-            # Since ctx.config is immutable (pydantic), we might need to handle this carefully.
-            # However, `schedule_enrichment` takes `ctx.config.enrichment` as an argument.
-            # So we can just pass the modified config object there.
-
-            logger.info(
-                "%s✨ [cyan]Scheduling enrichment (Economic Batch)[/] for window %s", indent, window_label
-            )
-            enriched_table = _perform_enrichment(
-                window_table_processed, media_mapping, ctx, override_config=enrichment_config
-            )
-        else:
-            logger.info("%s✨ [cyan]Scheduling enrichment[/] for window %s", indent, window_label)
-            enriched_table = _perform_enrichment(window_table_processed, media_mapping, ctx)
-    else:
-        enriched_table = window_table_processed
-
-    # Write posts
-    resources = PipelineFactory.create_writer_resources(ctx)
-    adapter_summary, adapter_instructions = _extract_adapter_info(ctx)
-
-    # NEW: Process /egregora commands before sending to LLM
-    from egregora.agents.commands import command_to_announcement, extract_commands, filter_commands
-
-    # Convert table to list of messages for command processing
-    # ibis Tables need .execute() before .to_pylist()
-    try:
-        # Try ibis table conversion
-        messages_list = enriched_table.execute().to_pylist()
-    except (AttributeError, TypeError):
-        # Fallback: try direct to_pylist (for arrow tables)
-        try:
-            messages_list = enriched_table.to_pylist()
-        except (AttributeError, TypeError):
-            # Last resort: assume it's already a list
-            messages_list = enriched_table if isinstance(enriched_table, list) else []
-            logger.warning("Could not convert table to list, using fallback")
-
-    # Extract and generate announcements from commands
-    command_messages = extract_commands(messages_list)
-    announcements_generated = 0
-    if command_messages:
-        logger.info(
-            "%s📢 [cyan]Processing %d commands[/] for window %s", indent, len(command_messages), window_label
-        )
-        for cmd_msg in command_messages:
-            try:
-                announcement = command_to_announcement(cmd_msg)
-                output_sink.persist(announcement)
-                announcements_generated += 1
-            except Exception as exc:
-                logger.exception("Failed to generate announcement from command: %s", exc)
-
-    # Filter commands from messages before LLM
-    clean_messages_list = filter_commands(messages_list)
-
-    # Convert back to table if needed (simplified for now - writer accepts lists)
-    # TODO: If writer expects ibis table, convert back using ibis.memtable()
-
-    params = WindowProcessingParams(
-        table=enriched_table,  # Keep original for now; writer filters internally if needed
-        window_start=window.start_time,
-        window_end=window.end_time,
-        resources=resources,
-        config=ctx.config,
-        cache=ctx.cache,
-        adapter_content_summary=adapter_summary,
-        adapter_generation_instructions=adapter_instructions,
-        run_id=str(ctx.run_id) if ctx.run_id else None,
-    )
-    result = write_posts_for_window(params)
-
-    posts = result.get("posts", [])
-    profiles = result.get("profiles", [])
-
-    # NEW: Generate PROFILE posts (Egregora writing ABOUT each author)
-    import asyncio
-
-    from egregora.agents.profile.generator import generate_profile_posts
-
-    window_date = window.start_time.strftime("%Y-%m-%d")
-    try:
-        profile_docs = asyncio.run(
-            generate_profile_posts(ctx=ctx, messages=clean_messages_list, window_date=window_date)
-        )
-
-        # Persist PROFILE documents
-        for profile_doc in profile_docs:
-            try:
-                output_sink.persist(profile_doc)
-                # Track as profile
-                profiles.append(profile_doc.document_id)
-            except Exception as exc:
-                logger.exception("Failed to persist profile: %s", exc)
-
-        if profile_docs:
-            logger.info(
-                "%s👥 [cyan]Generated %d profile posts[/] for window %s",
-                indent,
-                len(profile_docs),
-                window_label,
-            )
-    except Exception as exc:
-        logger.exception("Failed to generate profile posts: %s", exc)
-
-    # Scheduled tasks are returned as "pending:<task_id>"
-    scheduled_posts = sum(1 for p in posts if isinstance(p, str) and p.startswith("pending:"))
-    generated_posts = len(posts) - scheduled_posts
-
-    scheduled_profiles = sum(1 for p in profiles if isinstance(p, str) and p.startswith("pending:"))
-    generated_profiles = len(profiles) - scheduled_profiles
-
-    # Construct status message
-    status_parts = []
-    if generated_posts > 0:
-        status_parts.append(f"{generated_posts} posts")
-    if scheduled_posts > 0:
-        status_parts.append(f"{scheduled_posts} scheduled posts")
-    if generated_profiles > 0:
-        status_parts.append(f"{generated_profiles} profiles")
-    if scheduled_profiles > 0:
-        status_parts.append(f"{scheduled_profiles} scheduled profiles")
-    if announcements_generated > 0:
-        status_parts.append(f"{announcements_generated} announcements")
-
-    status_msg = ", ".join(status_parts) if status_parts else "0 items"
-
-    logger.info(
-        "%s[green]✔ Generated[/] %s for %s",
-        indent,
-        status_msg,
-        window_label,
-    )
-
-    return {window_label: result}
-
-
-def _process_window_with_auto_split(
-    window: any, ctx: PipelineContext, *, depth: int = 0, max_depth: int = 5
-) -> dict[str, dict[str, list[str]]]:
-    """Process a window with automatic splitting if prompt exceeds model limit.
-
-    Args:
-        window: Window to process
-        ctx: Pipeline context
-        depth: Current split depth
-        max_depth: Maximum split depth before failing
-
-    Returns:
-        Dict mapping window labels to {'posts': [...], 'profiles': [...]}
-
-    """
-    min_window_size = 5
-    results: dict[str, dict[str, list[str]]] = {}
-    queue: deque[tuple[any, int]] = deque([(window, depth)])
-
-    while queue:
-        current_window, current_depth = queue.popleft()
-        indent = "  " * current_depth
-        window_label = f"{current_window.start_time:%Y-%m-%d %H:%M} to {current_window.end_time:%H:%M}"
-
-        _warn_if_window_too_small(current_window.size, indent, window_label, min_window_size)
-        _ensure_split_depth(current_depth, max_depth, indent, window_label)
-
-        try:
-            window_results = _process_single_window(current_window, ctx, depth=current_depth)
-        except PromptTooLargeError as error:
-            split_work = _split_window_for_retry(
-                current_window,
-                error,
-                current_depth,
-                indent,
-                split_window_into_n_parts,
-            )
-            queue.extendleft(reversed(split_work))
-            continue
-
-        results.update(window_results)
-
-    return results
-
-
-def _warn_if_window_too_small(size: int, indent: str, label: str, minimum: int) -> None:
-    if size < minimum:
-        logger.warning(
-            "%s⚠️  Window %s too small to split (%d messages) - attempting anyway",
-            indent,
-            label,
-            size,
-        )
-
-
-def _ensure_split_depth(depth: int, max_depth: int, indent: str, label: str) -> None:
-    if depth >= max_depth:
-        error_msg = (
-            f"Max split depth {max_depth} reached for window {label}. "
-            "Window cannot be split enough to fit in model context (possible miscalculation). "
-            "Try increasing --max-prompt-tokens or using --use-full-context-window."
-        )
-        logger.error("%s❌ %s", indent, error_msg)
-        raise RuntimeError(error_msg)
-
-
-def _split_window_for_retry(
-    window: any,
-    error: Exception,
-    depth: int,
-    indent: str,
-    splitter: any,
-) -> list[tuple[any, int]]:
-    estimated_tokens = getattr(error, "estimated_tokens", 0)
-    effective_limit = getattr(error, "effective_limit", 1) or 1
-
-    logger.warning(
-        "%s⚡ [yellow]Splitting window[/] %s (prompt: %dk tokens > %dk limit)",
-        indent,
-        f"{window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}",
-        estimated_tokens // 1000,
-        effective_limit // 1000,
-    )
-
-    num_splits = max(1, math.ceil(estimated_tokens / effective_limit))
-    logger.info("%s↳ [dim]Splitting into %d parts[/]", indent, num_splits)
-
-    split_windows = splitter(window, num_splits)
-    if not split_windows:
-        error_msg = (
-            f"Cannot split window {window.start_time:%Y-%m-%d %H:%M} to {window.end_time:%H:%M}"
-            " - all splits would be empty"
-        )
-        logger.exception("%s❌ %s", indent, error_msg)
-        raise RuntimeError(error_msg) from error
-
-    scheduled: list[tuple[any, int]] = []
-    for index, split_window in enumerate(split_windows, 1):
-        split_label = f"{split_window.start_time:%Y-%m-%d %H:%M} to {split_window.end_time:%H:%M}"
-        logger.info(
-            "%s↳ [dim]Processing part %d/%d: %s[/]",
-            indent,
-            index,
-            len(split_windows),
-            split_label,
-        )
-        scheduled.append((split_window, depth + 1))
-
-    return scheduled
-
-
-# _ensure_run_events_table_exists and _record_run_event - REMOVED (2025-11-17)
-# Per-window event tracking removed in favor of aggregated metrics in runs table
-# See docs/SIMPLIFICATION_PLAN.md for details
-
-
-def _resolve_context_token_limit(config: EgregoraConfig) -> int:
-    """Resolve the effective context window token limit for the writer model.
-
-    Args:
-        config: Egregora configuration with model settings.
-
-    Returns:
-        Maximum number of prompt tokens available for a window.
-
-    """
-    use_full_window = getattr(config.pipeline, "use_full_context_window", False)
-
-    if use_full_window:
-        writer_model = config.models.writer
-        limit = get_model_context_limit(writer_model)
-        logger.debug(
-            "Using full context window for writer model %s (limit=%d tokens)",
-            writer_model,
-            limit,
-        )
-        return limit
-
-    limit = config.pipeline.max_prompt_tokens
-    logger.debug("Using configured max_prompt_tokens cap: %d tokens", limit)
-    return limit
-
-
-def _calculate_max_window_size(config: EgregoraConfig) -> int:
-    """Calculate maximum window size based on LLM context window.
-
-    Uses rough heuristic: 5 tokens per message average.
-    Leaves 20% buffer for prompt overhead (system prompt, tools, etc.).
-
-    Args:
-        config: Egregora configuration with model settings
-
-    Returns:
-        Maximum number of messages per window
-
-    Example:
-        >>> config.pipeline.max_prompt_tokens = 100_000
-        >>> _calculate_max_window_size(config)
-        16000  # (100k * 0.8) / 5
-
-    """
-    max_tokens = _resolve_context_token_limit(config)
-    avg_tokens_per_message = 5  # Conservative estimate
-    buffer_ratio = 0.8  # Leave 20% for system prompt, tools, etc.
-
-    return int((max_tokens * buffer_ratio) / avg_tokens_per_message)
-
-
-def _validate_window_size(window: any, max_size: int) -> None:
-    """Validate window doesn't exceed LLM context limits.
-
-    Args:
-        window: Window object with size attribute
-        max_size: Maximum allowed window size (messages)
-
-    Raises:
-        ValueError: If window exceeds max size
-
-    """
-    if window.size > max_size:
-        msg = (
-            f"Window {window.window_index} has {window.size} messages but max is {max_size}. "
-            f"This limit is based on your model's context window. "
-            f"Reduce --step-size to create smaller windows."
-        )
-        raise ValueError(msg)
-
-
-def _process_all_windows(
-    windows_iterator: any, ctx: PipelineContext
-) -> tuple[dict[str, dict[str, list[str]]], datetime | None]:
-    """Process all windows with tracking and error handling.
-
-    Args:
-        windows_iterator: Iterator of Window objects
-        ctx: Pipeline context
-
-    Returns:
-        Tuple of (results dict, max_processed_timestamp)
-        - results: Dict mapping window labels to {'posts': [...], 'profiles': [...]}
-        - max_processed_timestamp: Latest end_time from successfully processed windows
-
-    """
-    results = {}
-    max_processed_timestamp: datetime | None = None
-
-    # Calculate max window size from LLM context (once)
-    max_window_size = _calculate_max_window_size(ctx.config)
-    effective_token_limit = _resolve_context_token_limit(ctx.config)
-    logger.debug(
-        "Max window size: %d messages (based on %d token context)",
-        max_window_size,
-        effective_token_limit,
-    )
-
-    # Get max_windows limit from config (default 1 for single-window behavior)
-    max_windows = getattr(ctx.config.pipeline, "max_windows", 1)
-    if max_windows == 0:
-        max_windows = None  # 0 means process all windows
-
-    windows_processed = 0
-
-    # Simple progress tracking without Rich progress bar
-    # (Progress bars cause memory leaks and logging noise in long-running tasks)
-    total_windows = max_windows if max_windows else "unlimited"
-    logger.info("Processing windows (limit: %s)", total_windows)
-
-    for window in windows_iterator:
-        # Check if we've hit the max_windows limit
-        if max_windows is not None and windows_processed >= max_windows:
-            logger.info("Reached max_windows limit (%d). Stopping processing.", max_windows)
-            if max_windows < MIN_WINDOWS_WARNING_THRESHOLD:
-                logger.warning(
-                    "⚠️  Processing stopped early due to low 'max_windows' setting (%d). "
-                    "This may result in incomplete data coverage. "
-                    "Use --max-windows 0 or remove the limit to process all data.",
-                    max_windows,
-                )
-            break
-        # Skip empty windows
-        if window.size == 0:
-            logger.debug(
-                "Skipping empty window %d (%s to %s)",
-                window.window_index,
-                window.start_time.strftime("%Y-%m-%d %H:%M"),
-                window.end_time.strftime("%Y-%m-%d %H:%M"),
-            )
-            continue
-
-        # Log current window (simpler than progress bar)
-        window_label = f"{window.start_time.strftime('%Y-%m-%d %H:%M')} - {window.end_time.strftime('%H:%M')}"
-        logger.info("Processing window %d: %s", windows_processed + 1, window_label)
-
-        # Validate window size doesn't exceed LLM context limits
-        _validate_window_size(window, max_window_size)
-
-        # Process window
-        window_results = _process_window_with_auto_split(window, ctx, depth=0, max_depth=5)
-        results.update(window_results)
-
-        # Track max processed timestamp for checkpoint
-        if max_processed_timestamp is None or window.end_time > max_processed_timestamp:
-            max_processed_timestamp = window.end_time
-
-        # Process accumulated background tasks periodically or after each window?
-        # Processing after each window keeps the queue small and provides incremental progress.
-        _process_background_tasks(ctx)
-
-        # Log summary (per-window event tracking removed - see SIMPLIFICATION_PLAN.md)
-        posts_count = sum(len(r.get("posts", [])) for r in window_results.values())
-        profiles_count = sum(len(r.get("profiles", [])) for r in window_results.values())
-        logger.debug(
-            "📊 Window %d: %s posts, %s profiles",
-            window.window_index,
-            posts_count,
-            profiles_count,
-        )
-
-        # Update counter
-        windows_processed += 1
-
-    return results, max_processed_timestamp
-
-
-def _perform_enrichment(
-    window_table: ir.Table,
-    media_mapping: MediaMapping,
-    ctx: PipelineContext,
-    override_config: Any | None = None,
-) -> ir.Table:
-    """Execute enrichment for a window's table.
-
-    Phase 3: Extracted to eliminate duplication in resume/non-resume branches.
-
-    Args:
-        window_table: Table to enrich
-        media_mapping: Media file mapping
-        ctx: Pipeline context
-        override_config: Optional enrichment config override (e.g. for economic mode)
-
-    Returns:
-        Enriched table
-
-    """
-    pii_prevention = None
-
-    enrichment_context = EnrichmentRuntimeContext(
-        cache=ctx.enrichment_cache,
-        output_format=ctx.output_format,
-        site_root=ctx.site_root,
-        usage_tracker=ctx.usage_tracker,
-        pii_prevention=pii_prevention,
-        task_store=ctx.task_store,
-    )
-
-    # Schedule enrichment tasks
-    schedule_enrichment(
-        window_table,
-        media_mapping,
-        override_config or ctx.config.enrichment,
-        enrichment_context,
-        run_id=ctx.run_id,
-    )
-
-    # Execute enrichment immediately (synchronously) to ensure writer has access
-    # to enriched media and updated references.
-    # Using context manager to ensure ZIP resources are properly released.
-    with EnrichmentWorker(ctx, enrichment_config=override_config) as worker:
-        total_processed = 0
-        while True:
-            processed = worker.run()
-            if processed == 0:
-                break
-            total_processed += processed
-            logger.info("Synchronously processed %d enrichment tasks", processed)
-
-        if total_processed > 0:
-            logger.info("Enrichment complete. Processed %d items.", total_processed)
-
-    # Return original table since enrichment happens in background
-    return window_table
 
 
 def _create_database_backends(
@@ -1835,7 +1210,12 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
 
         try:
             dataset = _prepare_pipeline_data(adapter, run_params, ctx)
-            results, max_processed_timestamp = _process_all_windows(dataset.windows_iterator, dataset.context)
+
+            # --- MODIFIED: Use PipelineRunner ---
+            runner = PipelineRunner(dataset.context)
+            results = runner.run(dataset.windows_iterator)
+            max_processed_timestamp = runner.max_processed_timestamp
+
             _index_media_into_rag(
                 enable_enrichment=dataset.enable_enrichment,
                 results=results,
@@ -1849,7 +1229,7 @@ def run(run_params: PipelineRunParams) -> dict[str, dict[str, list[str]]]:
             _save_checkpoint(results, max_processed_timestamp, dataset.checkpoint_path)
 
             # Process remaining background tasks after all windows are done
-            # (In case there are stragglers)
+            # (In case there are stragglers, although runner handles them per-window)
             _process_background_tasks(dataset.context)
 
             # Regenerate tags page with word cloud visualization
