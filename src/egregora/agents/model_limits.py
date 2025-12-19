@@ -85,7 +85,7 @@ def get_model_context_limit(model_name: ModelIdentifier) -> int:
 
     Args:
         model_name: Model identifier or object (e.g., "models/gemini-2.0-flash-exp",
-                    "google-gla:gemini-1.5-pro", "gemini-1.5-flash", or a TestModel instance)
+                    "google-gla:gemini-1.5-pro", "gemini-2.0-flash-exp", or a TestModel instance)
 
     Returns:
         Input token limit for the model. Defaults to conservative 128k if unknown.
@@ -122,7 +122,7 @@ def get_model_context_limit(model_name: ModelIdentifier) -> int:
         logger.debug("Found context limit for %s: %s tokens", model_name, limit)
         return limit
 
-    # Try fuzzy match (e.g., "gemini-1.5-flash-001" → "gemini-1.5-flash")
+    # Try fuzzy match (e.g., "gemini-2.0-flash-exp-001" → "gemini-2.0-flash-exp")
     for known_model, known_limit in KNOWN_MODEL_LIMITS.items():
         if clean_name.startswith(known_model):
             logger.debug(
@@ -162,7 +162,7 @@ def validate_prompt_fits(
         Tuple of (fits, estimated_tokens, effective_limit)
 
     Examples:
-        >>> fits, tokens, limit = validate_prompt_fits("Hello" * 1000, "gemini-1.5-flash")
+        >>> fits, tokens, limit = validate_prompt_fits("Hello" * 1000, "gemini-2.0-flash-exp")
         >>> fits
         True
         >>> tokens

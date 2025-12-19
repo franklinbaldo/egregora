@@ -228,55 +228,42 @@ def replace_media_references(table: Table, media_mapping: MediaMapping) -> Table
     if not media_mapping:
         return table
 
-    updated_table = table
+    text_col = table.text
+    # Combined pattern for attachment markers to flatten the expression tree
+    markers_pattern = "|".join(re.escape(m) for m in ATTACHMENT_MARKERS)
+
     for original_ref, media_doc in media_mapping.items():
         # Check for PII deletion
         if media_doc.metadata.get("pii_deleted"):
             pii_reason = media_doc.metadata.get("pii_reason", "Contains PII")
             logger.info("Redacting media reference '%s': %s", original_ref, pii_reason)
             replacement = f"[REDACTED: {pii_reason}]"
+            public_url = replacement
+        else:
+            # Get pre-calculated URL from metadata (generated earlier by UrlConvention)
+            public_url = media_doc.metadata.get("public_url")
+            if not public_url:
+                logger.debug("No public URL for media ref '%s', skipping", original_ref)
+                continue
 
-            # Markdown redaction
-            updated_table = updated_table.mutate(
-                text=updated_table.text.replace(f"]({original_ref})", f"]({replacement})")
-            )
-            # Raw redaction (simple string match for now)
-            # Note: This misses regex variations (\s*) but covers standard cases
-            for marker in ATTACHMENT_MARKERS:
-                updated_table = updated_table.mutate(
-                    text=updated_table.text.replace(f"{original_ref} {marker}", replacement)
-                )
-            continue
-
-        # Get pre-calculated URL from metadata (generated earlier by UrlConvention)
-        public_url = media_doc.metadata.get("public_url")
-        if not public_url:
-            logger.debug("No public URL for media ref '%s', skipping", original_ref)
-            continue
-
-        media_type = media_doc.metadata.get("media_type")
-        display_name = media_doc.metadata.get("filename") or original_ref
-        replacement = (
-            f"![Image]({public_url})" if media_type == "image" else f"[{display_name}]({public_url})"
-        )
-
-        # Markdown replacement
-        updated_table = updated_table.mutate(
-            text=updated_table.text.replace(f"]({original_ref})", f"]({public_url})")
-        )
-
-        # Raw replacement
-        for marker in ATTACHMENT_MARKERS:
-            # Try exact match with single space first (most common)
-            updated_table = updated_table.mutate(
-                text=updated_table.text.replace(f"{original_ref} {marker}", replacement)
-            )
-            # Also try without space (some markers might include it or not)
-            updated_table = updated_table.mutate(
-                text=updated_table.text.replace(f"{original_ref}{marker}", replacement)
+            media_type = media_doc.metadata.get("media_type")
+            display_name = media_doc.metadata.get("filename") or original_ref
+            replacement = (
+                f"![Image]({public_url})" if media_type == "image" else f"[{display_name}]({public_url})"
             )
 
-    return updated_table
+        # 1. Markdown replacement: ](filename) -> ](url)
+        text_col = text_col.replace(f"]({original_ref})", f"]({public_url})")
+
+        # 2. Raw replacement: filename [whitespace] marker -> replacement
+        # Combining markers and uses re_replace significantly flattens the expression depth.
+        raw_pattern = rf"{re.escape(original_ref)}\s*(?:{markers_pattern})"
+        text_col = text_col.re_replace(raw_pattern, replacement)
+
+        # 3. Bare filename replacement (safety fallback)
+        text_col = text_col.re_replace(rf"\b{re.escape(original_ref)}\b", replacement)
+
+    return table.mutate(text=text_col)
 
 
 def process_media_for_window(

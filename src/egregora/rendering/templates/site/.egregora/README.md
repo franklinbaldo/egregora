@@ -29,7 +29,7 @@ Agent files use Jinja2 templates with YAML frontmatter for configuration:
 ```jinja
 {#---
 agent_id: writer_v1
-model: gemini-1.5-flash
+model: gemini-2.0-flash-exp
 seed: 42
 ttl: 24h
 variables:
@@ -52,7 +52,7 @@ Use Jinja variables: {{ max_tokens }}
 ### Frontmatter Fields
 
 - **agent_id**: Unique identifier with version (e.g., "writer_v1")
-- **model**: Gemini model to use (e.g., "gemini-1.5-flash", "gemini-1.5-pro")
+- **model**: Gemini model to use (e.g., "gemini-2.0-flash-exp", "gemini-1.5-pro")
 - **seed**: Random seed for reproducibility (null for random)
 - **ttl**: Time-to-live for agent configuration cache
 - **variables**:

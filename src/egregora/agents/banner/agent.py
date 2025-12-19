@@ -1,7 +1,7 @@
 """Pydantic-AI powered banner generation agent.
 
 This module implements banner generation using a single multimodal model
-(gemini-2.5-flash-image) that directly generates images from text prompts.
+(gemini-2.0-flash-exp-image) that directly generates images from text prompts.
 
 No separate "creative director" LLM - the image model handles both creative
 interpretation and generation in a single API call.
@@ -117,7 +117,7 @@ def generate_banner(
 ) -> BannerOutput:
     """Generate a banner image using the Gemini multimodal image model.
 
-    This is a single-model approach: gemini-2.5-flash-image handles both
+    This is a single-model approach: gemini-2.0-flash-exp-image handles both
     creative interpretation and image generation in one API call.
 
     The function returns a Document with binary image content. Filesystem

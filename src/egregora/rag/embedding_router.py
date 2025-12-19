@@ -586,7 +586,7 @@ def shutdown_router() -> None:
             _router = None
 
 
-def validate_api_key(api_key: str | None = None, *, model: str = "models/gemini-1.5-flash") -> None:
+def validate_api_key(api_key: str | None = None, *, model: str = "models/gemini-2.0-flash-exp") -> None:
     """Validate Gemini API key with a lightweight API call.
 
     This function performs a quick validation of the API key by making a
@@ -595,7 +595,7 @@ def validate_api_key(api_key: str | None = None, *, model: str = "models/gemini-
 
     Args:
         api_key: Google API key to validate. If None, uses GOOGLE_API_KEY env var.
-        model: Model to use for validation (default: gemini-1.5-flash).
+        model: Model to use for validation (default: gemini-2.0-flash-exp).
 
     Raises:
         EmbeddingError: If the API key is invalid or expired.

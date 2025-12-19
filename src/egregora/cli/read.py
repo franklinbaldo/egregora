@@ -59,7 +59,7 @@ def main(
     Examples:
         egregora read my-blog/
         egregora read my-blog/ --limit 20
-        egregora read my-blog/ --model google-gla:gemini-2.0-flash-thinking-exp
+        egregora read my-blog/ --model google-gla:gemini-2.0-flash-exp
 
     """
     # If a subcommand is being invoked, don't run this callback

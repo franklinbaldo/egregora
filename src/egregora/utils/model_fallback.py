@@ -24,11 +24,9 @@ CACHE_TTL = 3600  # Cache for 1 hour
 
 # Priority order for Google models
 GOOGLE_FALLBACK_MODELS = [
-    "google-gla:gemini-3-flash",
-    "google-gla:gemini-2.5-pro",
-    "google-gla:gemini-2.5-flash",
-    "google-gla:gemini-2.0-flash",
-    "google-gla:gemini-2.5-flash-lite",
+    "google-gla:gemini-2.0-flash-exp",
+    "google-gla:gemini-2.0-flash-exp",
+    "google-gla:gemini-1.5-pro",
 ]
 
 
@@ -132,7 +130,7 @@ def create_fallback_model(
         for availability over retry persistence.
 
     Example:
-        >>> model = create_fallback_model("google-gla:gemini-2.0-flash")
+        >>> model = create_fallback_model("google-gla:gemini-2.0-flash-exp")
         >>> agent = Agent(model=model)
 
     """
