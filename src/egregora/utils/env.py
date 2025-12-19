@@ -100,23 +100,27 @@ def get_google_api_keys() -> list[str]:
 
     Supports multiple keys via:
     - GEMINI_API_KEYS (comma-separated)
-    - GEMINI_API_KEY (single key, fallback)
-    - GOOGLE_API_KEY (single key, fallback)
+    - GEMINI_API_KEY (single key)
+    - GOOGLE_API_KEY (single key)
 
     Returns:
-        List of API keys, or empty list if none found.
+        List of unique API keys, or empty list if none found.
 
     """
-    # Check for comma-separated list first
+    keys = []
+
+    # 1. Check GEMINI_API_KEYS (comma-separated list)
     keys_str = os.environ.get("GEMINI_API_KEYS", "")
     if keys_str:
-        keys = [k.strip() for k in keys_str.split(",") if k.strip()]
-        if keys:
-            return keys
+        for k in keys_str.split(","):
+            val = k.strip()
+            if val and val not in keys:
+                keys.append(val)
 
-    # Fall back to single key
-    single_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if single_key:
-        return [single_key]
+    # 2. Check individual keys
+    for var in ["GEMINI_API_KEY", "GOOGLE_API_KEY"]:
+        val = os.environ.get(var)
+        if val and val.strip() and val.strip() not in keys:
+            keys.append(val.strip())
 
-    return []
+    return keys

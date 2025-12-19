@@ -78,7 +78,7 @@ class PipelineFactory:
 
         url_ctx = UrlContext(
             base_url="",
-            site_prefix=site_paths.docs_prefix,
+            site_prefix="",  # FIX: Empty prefix because MkDocsAdapter prepends media_dir
             base_path=site_paths.site_root,
         )
 

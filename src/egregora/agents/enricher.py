@@ -1452,16 +1452,29 @@ class EnrichmentWorker(BaseWorker):
                     self.task_store.mark_failed(task["task_id"], "Failed to stage media file")
                     continue
 
+            # Determine subfolder based on media_type
+            from egregora.ops.media import get_media_subfolder
+
+            extension = Path(filename).suffix
+            media_subdir = get_media_subfolder(extension)
+
+            # Use slug-based filename as requested by user
+            final_filename = f"{slug_value}{extension}"
+
             # Create media document with slug-based metadata
             media_metadata = {
                 "original_filename": payload.get("original_filename"),
-                "filename": f"{slug_value}{Path(filename).suffix}",  # Use slug for filename
+                "filename": final_filename,
                 "media_type": media_type,
                 "slug": slug_value,
                 "nav_exclude": True,
                 "hide": ["navigation"],
                 "source_path": source_path,  # Path to staged file for efficient move
+                "media_subdir": media_subdir,
             }
+
+            # V3 Architecture: Set suggested_path to ensure correct filesystem placement
+            suggested_path = f"media/{media_subdir}/{final_filename}"
 
             # Persist the actual media file
             # We pass empty bytes for content because source_path is provided
@@ -1471,6 +1484,7 @@ class EnrichmentWorker(BaseWorker):
                 metadata=media_metadata,
                 id=media_id if media_id else str(uuid.uuid4()),
                 parent_id=None,  # Media files have no parent document
+                suggested_path=suggested_path,
             )
 
             try:
@@ -1486,10 +1500,10 @@ class EnrichmentWorker(BaseWorker):
 
             # Create and persist the enrichment text document (description)
             enrichment_metadata = {
-                "filename": f"{slug_value}{Path(filename).suffix}",  # New slug-based filename
+                "filename": final_filename,
                 "original_filename": payload.get("original_filename"),  # Preserve original
                 "media_type": media_type,
-                "parent_path": payload.get("suggested_path"),
+                "parent_path": suggested_path,
                 "slug": slug_value,
                 "nav_exclude": True,
                 "hide": ["navigation"],
@@ -1541,7 +1555,7 @@ class EnrichmentWorker(BaseWorker):
                 elif media_type and media_type.startswith("audio"):
                     media_subdir = "audio"
 
-                new_path = f"media/{media_subdir}/{slug_value}{Path(filename).suffix}"
+                new_path = f"media/{media_subdir}/{final_filename}"
 
                 # Using SQL replace to update all occurrences
                 try:
@@ -1578,9 +1592,12 @@ class EnrichmentWorker(BaseWorker):
 
             data = json.loads(clean_text.strip())
             slug = data.get("slug")
+            filename_from_llm = data.get("filename")
             markdown = data.get("markdown")
 
             payload = task["_parsed_payload"]
+            if filename_from_llm:
+                payload["filename"] = filename_from_llm
             filename = payload.get("filename", "")
 
             # Fallback logic for missing markdown

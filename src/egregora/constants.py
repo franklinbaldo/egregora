@@ -53,18 +53,21 @@ class WindowUnit(str, Enum):
 KNOWN_MODEL_LIMITS = {
     # Gemini 2.0 family
     "gemini-2.0-flash-exp": 1_048_576,  # 1M tokens
-    "gemini-2.0-flash-exp": 32_768,  # 32k tokens (experimental thinking mode)
-    # Gemini 1.5 family
-    "gemini-2.0-flash-exp": 1_048_576,  # 1M tokens
-    "gemini-1.5-flash-8b": 1_048_576,  # 1M tokens
-    "gemini-2.0-flash-exp": 1_048_576,  # 1M tokens
-    "gemini-1.5-pro": 2_097_152,  # 2M tokens
-    "gemini-1.5-pro-latest": 2_097_152,  # 2M tokens
+    "gemini-2.0-flash": 1_048_576,      # 1M tokens
+    "gemini-2.0-pro-exp": 2_097_152,    # 2M tokens
+    # Gemini 1.5 family & Latest Aliases
+    "gemini-flash-latest": 1_048_576,   # 1M tokens
+    "gemini-pro-latest": 2_097_152,     # 2M tokens
+    "gemini-1.5-flash": 1_048_576,      # 1M tokens
+    "gemini-1.5-flash-8b": 1_048_576,   # 1M tokens
+    "gemini-1.5-pro": 2_097_152,        # 2M tokens
+    "gemini-1.5-pro-latest": 2_097_152, # 2M tokens
     # Gemini 1.0 family (older, smaller limits)
-    "gemini-pro": 32_768,  # 32k tokens
-    "gemini-1.0-pro": 32_768,  # 32k tokens
+    "gemini-pro": 32_768,             # 32k tokens
+    "gemini-1.0-pro": 32_768,         # 32k tokens
     # Embeddings
-    "text-embedding-004": 2048,  # 2k tokens (for embeddings, not generation)
+    "text-embedding-004": 2048,       # 2k tokens
+    "gemini-embedding-001": 2048,     # 2k tokens
 }
 
 
