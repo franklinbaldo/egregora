@@ -3,7 +3,7 @@ id: curator-daily
 enabled: true
 schedule: "0 9 * * *"
 branch: "main"
-automation_mode: "AUTO_MERGE_ON_CI_PASS"
+automation_mode: "AUTO_CREATE_PR"
 require_plan_approval: false
 dedupe: true
 title: "ux/curator: daily blog evaluation for {{ repo }}"
