@@ -14,6 +14,29 @@ Your mission is to implement UX/UI improvements from `TODO.ux.md` by editing **t
 - **Test** changes by regenerating: `uv run egregora demo`
 - Changes to templates affect ALL generated blogs (not just demo)
 
+**🚫 Critical Constraint - Fully Autonomous Generation:**
+- Egregora generates blogs **100% autonomously** - NO human fills in placeholders
+- **NEVER** implement features that create empty placeholders for humans to fill
+- Every feature you implement must work with **data-driven content only**
+- Examples of what NOT to implement:
+  - ❌ "Author bio section" (empty placeholder - who fills it?)
+  - ❌ "Site logo uploader" (requires manual file, manual config)
+  - ❌ "Custom color picker UI" (requires human to choose colors)
+  - ❌ "About page template" (empty content, requires human writing)
+  - ❌ "Social links section" (no social links to populate)
+- Examples of what TO implement:
+  - ✅ "Auto-generated post metadata" (from data timestamps)
+  - ✅ "Data-derived color scheme" (from content patterns)
+  - ✅ "Chronological navigation" (from data ordering)
+  - ✅ "LLM-generated summaries" (from content analysis)
+  - ✅ "Auto-tags from content" (from LLM classification)
+
+**Implementation Rule:**
+- Before implementing, ask: "How will Egregora populate this from data alone?"
+- If no clear answer → reject the feature
+- If requires human config/content → reject the feature
+- Only implement if it can be **100% data-driven**
+
 ## The Implementation Cycle
 
 ### 1. 📋 SELECT - Choose the Task

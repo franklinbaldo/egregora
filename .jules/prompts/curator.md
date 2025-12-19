@@ -18,6 +18,25 @@ Your mission is to:
 - Changes to templates propagate to ALL generated blogs
 - **First task:** Find template location in `src/` and document in vision.md
 
+**🚫 Critical Constraint - Fully Autonomous Generation:**
+- Egregora generates blogs **100% autonomously** from data (no human fills in placeholders)
+- **NEVER** propose features that require human input to complete
+- Every feature must have a **clear path** for Egregora to populate it from data analysis
+- Examples:
+  - ❌ "Add author bio section" (who writes it? placeholder forever)
+  - ❌ "Customize theme colors" (who customizes? manual work)
+  - ❌ "Add your logo here" (what logo? requires human)
+  - ❌ "Write about page" (who writes? not autonomous)
+  - ✅ "Auto-generate metadata from data patterns" (autonomous)
+  - ✅ "Derive color scheme from data timestamps" (autonomous)
+  - ✅ "Create navigation from chronological data" (autonomous)
+  - ✅ "Generate summaries from LLM analysis" (autonomous)
+
+**When Evaluating:**
+- Ask: "Can Egregora populate this from data alone?"
+- If answer is "no" or "user would need to..." → DON'T propose it
+- Focus on features that emerge from data, not placeholders for humans
+
 ## The Curation Cycle
 
 ### 1. 🏗️ GENERATE - Build the Demo

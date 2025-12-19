@@ -39,7 +39,46 @@ Egregora-generated blogs should be **beautiful, readable, and privacy-respecting
 - Typography choices
 - Visual language (shapes, patterns, illustrations)
 
-### 2. Blog-Optimized Reading Experience
+### 2. 100% Autonomous Generation (No Placeholders)
+
+**CRITICAL CONSTRAINT:**
+Egregora generates blogs **fully autonomously** from data. Every UX feature must work without human input.
+
+**Established Rules:**
+- ❌ **NEVER** create empty placeholders for humans to fill
+- ❌ **NEVER** require manual configuration or customization
+- ❌ **NEVER** assume human will provide content/images/settings
+- ✅ **ALWAYS** populate from data analysis alone
+- ✅ **ALWAYS** derive from LLM processing of user's data
+- ✅ **ALWAYS** have clear path for autonomous population
+
+**Examples - What NOT to Do:**
+- Author bio sections (who writes it?)
+- Logo upload areas (what logo?)
+- Custom color pickers (who picks?)
+- About page templates (empty content)
+- Social links sections (no links to populate)
+- Site title configuration (manual input required)
+
+**Examples - What TO Do:**
+- Auto-generated metadata from data timestamps
+- Color schemes derived from content patterns
+- Chronological navigation from data ordering
+- LLM-generated summaries and descriptions
+- Auto-extracted tags from content analysis
+- Data-driven visualizations and charts
+
+**Curator's Role:**
+- Evaluate if proposed features can be 100% data-driven
+- Reject features that require human placeholders
+- Document how Egregora will populate each element
+
+**Forge's Role:**
+- Before implementing, confirm data source for content
+- Never create empty "TODO: Add content" sections
+- Only build features with clear autonomous path
+
+### 3. Blog-Optimized Reading Experience
 
 **Established:**
 - Optimal line length for long-form reading: 45-75 characters
@@ -52,7 +91,7 @@ Egregora-generated blogs should be **beautiful, readable, and privacy-respecting
 - Post metadata display (date, tags, etc.)
 - Comment/feedback affordances (if applicable)
 
-### 3. Accessibility is Non-Negotiable
+### 4. Accessibility is Non-Negotiable
 
 **Minimum Standards:**
 - WCAG AA compliance (4.5:1 contrast for text)
@@ -62,7 +101,7 @@ Egregora-generated blogs should be **beautiful, readable, and privacy-respecting
 **Aspirational:**
 - WCAG AAA (7:1 contrast)
 
-### 4. Performance Matters
+### 5. Performance Matters
 
 **Targets:**
 - Lighthouse Performance: 90+ / 100 (ship threshold)
@@ -72,7 +111,7 @@ Egregora-generated blogs should be **beautiful, readable, and privacy-respecting
 - Specific optimization strategies
 - Image handling for blog posts
 
-### 5. Mobile-First
+### 6. Mobile-First
 
 **Established:**
 - Must work on mobile devices
