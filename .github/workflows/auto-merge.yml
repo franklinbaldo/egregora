@@ -88,6 +88,19 @@ jobs:
           script: |
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
+
+            // Check if PR is a draft
+            if (context.payload.pull_request.draft) {
+              console.log('⚠️ PR is in draft status. Skipping auto-merge.');
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pull_number,
+                body: 'ℹ️ **Auto-merge skipped**\n\nThis PR is currently a draft. Mark it as "Ready for review" to enable auto-merge.'
+              });
+              return;
+            }
+
             const updateType = '${{ steps.metadata.outputs.update-type }}';
 
             console.log(`Update type: ${updateType}`);
