@@ -30,7 +30,7 @@ jobs:
   tick:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v5
       - name: Run Jules Scheduler
         env:
@@ -51,4 +51,5 @@ jobs:
             fi
           fi
 
-          uvx --from git+https://github.com/franklinbaldo/jules_scheduler@main jules-scheduler "${args[@]}"
+          # Pinning to specific commit SHA 4566f12 (2025-12-17) to prevent supply chain attacks
+          uvx --from git+https://github.com/franklinbaldo/jules_scheduler@4566f12c88aabee985865b94bbdbc614d87c82fb jules-scheduler "${args[@]}"
