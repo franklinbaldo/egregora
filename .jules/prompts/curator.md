@@ -215,7 +215,7 @@ Ask: What do they do better than us?
 ## Opinionated TODO Management
 
 ### File Location
-Maintain vision TODO at: `.jules/ux-vision-TODO.md`
+Maintain vision TODO at: `curator.TODO.md`
 
 ### Format
 ```markdown
@@ -374,7 +374,7 @@ Before starting, read `.jules/curator.md` (create if missing).
 - Take screenshots of issues and wins
 
 ### 4. 📋 CURATE - Update Vision TODO:
-- Open `.jules/ux-vision-TODO.md`
+- Open `curator.TODO.md`
 - Add new issues found (be specific and actionable)
 - Reprioritize existing items
 - Move completed items to "Completed ✅" section

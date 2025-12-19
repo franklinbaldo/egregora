@@ -3,6 +3,10 @@
 Last updated: 2025-12-19
 Demo version: Current main branch
 
+**Workflow:**
+1. **Curator** 🎭 evaluates UX/UI and updates this TODO (`.jules/prompts/curator.md`)
+2. **Forge** 🔨 implements items from this TODO (`.jules/prompts/forge.md`)
+
 ## Vision Statement
 
 Egregora-generated MkDocs blogs should be the most beautiful, readable,
