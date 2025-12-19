@@ -605,9 +605,7 @@ class DuckDBStorageManager:
                 results: list[int] = []
                 sequence_literal = f"'{sequence_name.replace("'", "''")}'"
                 for _ in range(count):
-                    row = self._conn.execute(
-                        f"SELECT nextval({sequence_literal})"
-                    ).fetchone()
+                    row = self._conn.execute(f"SELECT nextval({sequence_literal})").fetchone()
                     if row is None:
                         msg = f"Failed to fetch next value for sequence '{sequence_name}'"
                         raise RuntimeError(msg)

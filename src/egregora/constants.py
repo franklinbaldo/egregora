@@ -53,11 +53,7 @@ class WindowUnit(str, Enum):
 KNOWN_MODEL_LIMITS = {
     # Gemini 2.0 family
     "gemini-2.0-flash-exp": 1_048_576,  # 1M tokens
-    "gemini-2.0-flash-exp": 32_768,  # 32k tokens (experimental thinking mode)
-    # Gemini 1.5 family
-    "gemini-2.0-flash-exp": 1_048_576,  # 1M tokens
     "gemini-1.5-flash-8b": 1_048_576,  # 1M tokens
-    "gemini-2.0-flash-exp": 1_048_576,  # 1M tokens
     "gemini-1.5-pro": 2_097_152,  # 2M tokens
     "gemini-1.5-pro-latest": 2_097_152,  # 2M tokens
     # Gemini 1.0 family (older, smaller limits)

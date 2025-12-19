@@ -17,7 +17,7 @@ def mock_httpx(monkeypatch):
 
 
 class _FakeFiles:
-    def upload(self, file, config):  # noqa: ARG002
+    def upload(self, file, config):
         return SimpleNamespace(name="files/123", uri="gs://files/123")
 
 
