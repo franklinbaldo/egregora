@@ -189,6 +189,7 @@ class StandardUrlConvention(UrlConvention):
         handlers = {
             DocumentType.POST: self._format_post_url,
             DocumentType.PROFILE: self._format_profile_url,
+            DocumentType.ANNOUNCEMENT: self._format_announcement_url,
             DocumentType.JOURNAL: self._format_journal_url,
             DocumentType.MEDIA: self._format_media_url,
             DocumentType.ENRICHMENT_MEDIA: self._format_media_enrichment_url,
@@ -224,7 +225,16 @@ class StandardUrlConvention(UrlConvention):
             or document.document_id[:8]
         )
         if not subject_uuid:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "PROFILE document missing 'subject' metadata. Document ID: %s. "
+                "Falling back to posts prefix. This may cause incorrect routing.",
+                document.document_id,
+            )
             return self._join(ctx, self.routes.posts_prefix, slugify(str(slug_value)))
+
         return self._join(ctx, self.routes.profiles_prefix, str(subject_uuid), slugify(str(slug_value)))
 
     def _format_journal_url(self, ctx: UrlContext, document: Document) -> str:
@@ -255,6 +265,43 @@ class StandardUrlConvention(UrlConvention):
     def _format_annotation_url(self, ctx: UrlContext, document: Document) -> str:
         slug = document.metadata.get("slug", document.document_id[:8])
         return self._join(ctx, self.routes.annotations_prefix, slugify(slug))
+
+    def _format_announcement_url(self, ctx: UrlContext, document: Document) -> str:
+        """Format URL for ANNOUNCEMENT documents (user command events).
+
+        ANNOUNCEMENT documents with 'subject' metadata route to the author's profile feed:
+        /profiles/{subject_uuid}/{slug}/
+
+        This creates a unified feed showing both:
+        - PROFILE posts (Egregora's analyses)
+        - ANNOUNCEMENT posts (user actions/commands)
+
+        Args:
+            ctx: URL context
+            document: The ANNOUNCEMENT document
+
+        Returns:
+            URL string for the announcement
+
+        """
+        subject_uuid = document.metadata.get("subject") or document.metadata.get("actor")
+
+        if not subject_uuid:
+            # Fallback: route to announcements directory if no subject
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "ANNOUNCEMENT document missing 'subject' metadata. Document ID: %s. "
+                "Falling back to announcements prefix.",
+                document.document_id,
+            )
+            slug = document.metadata.get("slug", document.document_id[:8])
+            return self._join(ctx, self.routes.posts_prefix, "announcements", slugify(slug))
+
+        # Route to author's profile feed
+        slug_value = document.metadata.get("slug") or document.document_id[:8]
+        return self._join(ctx, self.routes.profiles_prefix, str(subject_uuid), slugify(str(slug_value)))
 
     def _format_post_url(self, ctx: UrlContext, document: Document) -> str:
         slug = document.metadata.get("slug", document.document_id[:8])
