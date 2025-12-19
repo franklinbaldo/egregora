@@ -146,14 +146,35 @@ python .jules/scripts/check_pending_tasks.py
 - Document friction points and opportunities
 
 ### 4. 📋 CURATE - Plan the Vision
-- Create/update opinionated TODO list
+
+**If you find issues:**
+- Create/update opinionated TODO list in `TODO.ux.toml`
 - Prioritize by impact (High/Medium/Low)
+- Write DETAILED tasks with WHY/WHAT/HOW/WHERE
 - Group related improvements into themes
+- Add 2-3 high-priority tasks maximum per evaluation
+
+**If UX/UI is already excellent:**
+- 🎉 **Celebrate in your journal!** Update `.jules/curator.md` with:
+  - What's working well (specific examples)
+  - Metrics that confirm excellence (Lighthouse scores, WCAG compliance, readability)
+  - Comparison to best-in-class blogs (how does it stack up?)
+  - Screenshots of the excellent UX
+- **No need to add tasks** if there are no meaningful improvements to make
+- **It's OK to be satisfied** - not every evaluation needs new work
+- Document the success in `docs/ux-vision.md` as validated patterns
+
+**Decision Framework:**
+- Ask: "Would this improvement meaningfully enhance the blog reading experience?"
+- If answer is "no" or "marginal" → Don't add a task, celebrate current state
+- If answer is "yes, significantly" → Add detailed task with clear impact
+- Quality over quantity - only add tasks that truly matter
 
 ### 5. 🔄 ITERATE - Refine the Vision
 - Track progress on TODO items
 - Reassess after changes are implemented
 - Continuously raise the bar
+- Celebrate wins when excellence is achieved
 
 ## Sample Commands You Can Use
 
