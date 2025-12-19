@@ -1,18 +1,13 @@
-# Egregora MkDocs UX/UI Vision
+# Curator TODO - UX/UI Task List
 
 Last updated: 2025-12-19
 Demo version: Current main branch
 
+**📖 Vision Document:** See **[docs/ux-vision.md](docs/ux-vision.md)** for strategic vision, design principles, and excellence criteria.
+
 **Workflow:**
-1. **Curator** 🎭 evaluates UX/UI and updates this TODO (`.jules/prompts/curator.md`)
-2. **Forge** 🔨 implements items from this TODO (`.jules/prompts/forge.md`)
-
-## Vision Statement
-
-Egregora-generated MkDocs blogs should be the most beautiful, readable,
-and delightful documentation in the privacy-first AI space. Users should
-feel confident, informed, and respected when reading content generated
-from their private data.
+1. **Curator** 🎭 evaluates UX/UI against [vision](docs/ux-vision.md) and updates this TODO
+2. **Forge** 🔨 implements items from this TODO, guided by [vision](docs/ux-vision.md)
 
 ## High Priority (Critical for Excellence)
 
