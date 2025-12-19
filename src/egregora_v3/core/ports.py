@@ -40,40 +40,6 @@ class MediaStore(Protocol):
 
 
 @runtime_checkable
-class WorkspaceService(Protocol):
-    """High-level API for agents to interact with collections."""
-
-    def create_document(self, collection_id: str, doc: Document) -> Document: ...
-    def update_document(self, doc_id: str, doc: Document) -> Document: ...
-    def list_documents(
-        self,
-        collection_id: str,
-        doc_type: DocumentType | None = None,
-    ) -> list[Document]: ...
-
-
-@runtime_checkable
-class WorkspaceServiceWithMedia(WorkspaceService, Protocol):
-    """Extension of WorkspaceService that supports media uploads."""
-
-    def upload_media_document(
-        self,
-        collection_id: str,
-        data: bytes,
-        mime_type: str,
-        title: str,
-        alt_text: str | None = None,
-    ) -> Document:
-        """Upload media and create document.
-
-        1. Uploads binary via MediaStore.
-        2. Creates a Document(doc_type=MEDIA) with link rel="enclosure".
-        3. Persists in the configured collection.
-        """
-        ...
-
-
-@runtime_checkable
 class VectorStore(Protocol):
     """Manages vector embeddings for Documents (RAG)."""
 

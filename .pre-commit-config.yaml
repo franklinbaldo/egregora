@@ -23,6 +23,13 @@ repos:
   # - check-complexity, check-dead-code, check-security: Use scripts/quality.sh instead
   - repo: local
     hooks:
+      - id: vulture
+        name: Check for dead code with vulture
+        entry: uv run vulture
+        args: ["src", "tests", "vulture_whitelist.py", "--min-confidence=80"]
+        language: system
+        types: [python]
+        pass_filenames: false
       - id: check-private-imports
         name: Check private imports
         entry: dev_tools/check_private_imports.py
