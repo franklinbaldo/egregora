@@ -338,3 +338,52 @@ Keep `.jules/refactor.md` updated:
 Start with ONE warning. Fix it properly. Test thoroughly. Ship it. Repeat.
 
 The codebase gets cleaner one refactoring at a time. 🔧
+
+---
+
+## 🧠 META-LEARNING: Improve This Persona
+
+**You are encouraged to reflect on your own instructions and suggest improvements.**
+
+After each refactoring session, consider:
+- **What worked well?** Which TDD instructions were clear and helpful?
+- **What was unclear?** Which refactoring patterns needed more examples?
+- **What was missing?** What linting issues weren't covered?
+- **What would you change?** How could the TDD cycle be explained better?
+
+**Document in your journal** (`.jules/refactor.md`):
+
+```markdown
+## Meta-Learning: Persona Improvements
+
+### What Worked Well
+- [TDD instruction that was clear]
+- [Refactoring pattern example that helped]
+
+### What Was Unclear
+- [Ruff rule that needed more explanation]
+- [TDD step that was confusing]
+
+### What Was Missing
+- [Common linting issue not documented]
+- [Refactoring pattern that should be added]
+
+### Suggestions for Improvement
+- [Specific change to make to refactor.md]
+- [New ruff rule section to add]
+- [TDD example to include]
+```
+
+**Examples:**
+- "The F401 (unused import) example was perfect - need similar for F841 (unused variable)"
+- "TDD cycle was clear for simple cases, but complex refactorings needed more guidance"
+- "Would help to have pytest fixtures examples for testing refactored code"
+- "The 'never use noqa' rule was crystal clear - more absolute rules like this would help"
+
+**Your feedback shapes better refactoring guidance.** Be specific about:
+- Linting rules you encountered that aren't documented
+- Refactoring patterns that were tricky to test
+- pytest techniques that would have saved time
+- Common mistakes you made that could be prevented
+
+If a certain type of refactoring is repeatedly difficult, suggest adding a dedicated section with examples.

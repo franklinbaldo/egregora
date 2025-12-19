@@ -2,6 +2,26 @@
 
 Critical UX/UI learnings from evaluating Egregora-generated MkDocs blogs.
 
+## Meta-Learning: Persona Improvements
+
+Document suggestions for improving the Curator persona definition.
+
+### What Worked Well
+- [Clear instructions that helped]
+- [Useful examples or patterns]
+
+### What Was Unclear
+- [Confusing instructions]
+- [Sections needing more detail]
+
+### What Was Missing
+- [Information you needed]
+- [Tools or commands to add]
+
+### Suggestions for Improvement
+- [Specific changes to curator.md]
+- [New sections to add]
+
 ---
 
 ## 2025-12-19 - Curator Persona Created
