@@ -2065,55 +2065,44 @@ def test_profile_url_uses_full_uuid():
 `````markdown
 # Configuration
 
-**MODERN (Phase 2-4)**: Egregora configuration lives in `.egregora/config.yml`, separate from rendering (MkDocs).
+**MODERN (Phase 2-4)**: Egregora configuration lives in `.egregora.toml`, separate from rendering (MkDocs).
 
 Configuration sources (priority order):
 1. **CLI arguments** - Highest priority (one-time overrides)
-2. **`.egregora/config.yml`** - Main configuration file
-3. **Defaults** - Defined in Pydantic `EgregoraConfig` model
+2. **Environment variables** - `EGREGORA_SECTION__KEY` (e.g., `EGREGORA_MODELS__WRITER`)
+3. **`.egregora.toml`** - Main configuration file
+4. **Defaults** - Defined in Pydantic `EgregoraConfig` model
 
 ## CLI Configuration
 
-The `egregora process` command accepts many options:
+The `egregora write` command accepts many options:
 
 ```bash
-egregora process [OPTIONS] EXPORT_PATH
+egregora write [OPTIONS] EXPORT_PATH
 ```
 
 ### Core Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--output` | Output directory for blog | `.` |
-| `--timezone` | Timezone for message timestamps | System timezone |
+| `--output-dir` | Output directory for blog | `site` |
+| `--timezone` | Timezone for message timestamps | `None` |
 | `--step-size` | Size of each processing window | `1` |
-| `--step-unit` | Unit: `messages`, `hours`, `days` | `days` |
-| `--min-window-size` | Minimum messages per window | `10` |
-| `--from-date` | Start date (YYYY-MM-DD) | First message |
-| `--to-date` | End date (YYYY-MM-DD) | Last message |
+| `--step-unit` | Unit: `messages`, `hours`, `days`, `bytes` | `days` |
+| `--from-date` | Start date (YYYY-MM-DD) | `None` |
+| `--to-date` | End date (YYYY-MM-DD) | `None` |
 
 ### Model Configuration
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--model` | Gemini model for writing | `models/gemini-flash-latest` |
-| `--enricher-model` | Model for URL/media enrichment | `models/gemini-flash-latest` |
-| `--embedding-model` | Model for embeddings | `models/text-embedding-004` |
-
-### RAG Configuration
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--retrieval-mode` | `ann` (approximate) or `exact` | `ann` |
-| `--retrieval-nprobe` | ANN search quality (1-100) | `10` |
-| `--embedding-dimensions` | Embedding dimensions | `768` |
+| `--model` | Override LLM model for all tasks | `None` |
 
 ### Feature Flags
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--enrich/--no-enrich` | Enable URL/media enrichment | `False` |
-| `--profile/--no-profile` | Generate author profiles | `False` |
+| `--enable-enrichment/--no-enable-enrichment` | Enable AI enrichment (images, links) | `True` |
 
 ## Environment Variables
 
@@ -2121,62 +2110,58 @@ egregora process [OPTIONS] EXPORT_PATH
 
 ```bash
 export GOOGLE_API_KEY="your-gemini-api-key"  # Required for Gemini API
+export OPENROUTER_API_KEY="your-openrouter-key"  # Optional
 ```
 
-## .egregora/config.yml
+## .egregora.toml
 
 **MODERN (Phase 2-4)**: Main configuration file (maps to Pydantic `EgregoraConfig` model).
 
-Generated automatically by `egregora init` or `egregora process` on first run:
+Generated automatically by `egregora init` or `egregora write` on first run:
 
-```yaml
+```toml
 # Model configuration (pydantic-ai format: provider:model-name)
-models:
-  writer: google-gla:gemini-flash-latest
-  enricher: google-gla:gemini-flash-latest
-  enricher_vision: google-gla:gemini-flash-latest
-  embedding: google-gla:gemini-embedding-001
-  ranking: google-gla:gemini-flash-latest      # Optional
-  editor: google-gla:gemini-flash-latest       # Optional
+[models]
+writer = "google-gla:gemini-flash-latest"
+enricher = "google-gla:gemini-flash-latest"
+enricher_vision = "google-gla:gemini-flash-latest"
+embedding = "models/text-embedding-004"
+ranking = "google-gla:gemini-flash-latest"      # Optional
+editor = "google-gla:gemini-flash-latest"       # Optional
 
 # RAG (Retrieval-Augmented Generation) settings
-rag:
-  enabled: true
-  top_k: 5                    # Number of results to retrieve
-  min_similarity_threshold: 0.7         # Minimum similarity threshold (0-1)
-  mode: ann                   # "ann" (fast) or "exact" (precise)
-  nprobe: 10                  # ANN quality (higher = better, slower)
-  embedding_dimensions: 768
-  overfetch: null             # Optional overfetch factor
+[rag]
+enabled = true
+top_k = 5                    # Number of results to retrieve
+min_similarity_threshold = 0.7         # Minimum similarity threshold (0-1)
 
 # Writer agent settings
-writer:
-  custom_instructions: |      # Optional custom prompt additions
-    Write in a casual, friendly tone inspired by longform journalism.
-  enable_banners: true        # Generate banner images
-  max_prompt_tokens: 100000   # Token limit per prompt
+[writer]
+custom_instructions = """
+Write in a casual, friendly tone inspired by longform journalism.
+"""
+# enable_banners is now implicitly controlled by availability of 'banner' model and feature flags
 
 # Enrichment settings
-enrichment:
-  enable_url: true
-  enable_media: true
-  max_enrichments: 50
+[enrichment]
+enabled = true
+enable_url = true
+enable_media = true
+max_enrichments = 50
 
 # Pipeline windowing settings
-pipeline:
-  step_size: 1                # Size of each window
-  step_unit: days             # "messages", "hours", "days", "bytes"
-  min_window_size: 10         # Minimum messages per window
-  overlap_ratio: 0.2          # Window overlap (0.0-0.5)
+[pipeline]
+step_size = 1                # Size of each window
+step_unit = "days"           # "messages", "hours", "days", "bytes"
+overlap_ratio = 0.2          # Window overlap (0.0-0.5)
 
 # Feature flags
-features:
-  enable_rag: true
-  enable_profiles: false
-  enable_ranking: false
+[features]
+ranking_enabled = false
+annotations_enabled = true
 ```
 
-**Location**: `.egregora/config.yml` in site root (next to `mkdocs.yml`)
+**Location**: `.egregora.toml` in site root (next to `mkdocs.yml`)
 
 ## Advanced Configuration
 
@@ -2188,13 +2173,13 @@ features:
 
 ```
 site-root/
-├── .egregora/
-│   ├── config.yml
-│   └── prompts/              # Custom prompt overrides (flat directory)
-│       ├── README.md         # Auto-generated usage guide
-│       ├── writer.jinja      # Override writer agent prompt
-│       ├── url_detailed.jinja
-│       └── media_detailed.jinja
+├── .egregora.toml
+└── .egregora/
+    └── prompts/              # Custom prompt overrides (flat directory)
+        ├── README.md         # Auto-generated usage guide
+        ├── writer.jinja      # Override writer agent prompt
+        ├── url_detailed.jinja
+        └── media_detailed.jinja
 ```
 
 **Priority**: Custom prompts (`.egregora/prompts/`) override package defaults (`src/egregora/prompts/`).
@@ -2219,26 +2204,22 @@ INFO:egregora.prompt_templates:Using custom prompts from /path/to/.egregora/prom
 
 Egregora stores persistent data in DuckDB:
 
-- **Location**: `.egregora/egregora.db` (by default)
+- **Location**: `.egregora/pipeline.duckdb` (by default)
 - **Tables**: `rag_chunks`, `annotations`, `elo_ratings`
 
-To use a different database:
-
-```bash
-egregora process export.zip --db-path=/custom/path/egregora.db
-```
+To use a different database, modify the `[database]` section in `.egregora.toml`.
 
 ### Cache Configuration
 
 Egregora caches LLM responses to reduce API costs:
 
-- **Location**: `.egregora/cache/` (by default)
+- **Location**: `.egregora/.cache/` (by default)
 - **Type**: Disk-based LRU cache using `diskcache`
 
 To clear the cache:
 
 ```bash
-rm -rf .egregora/cache/
+rm -rf .egregora/.cache/
 ```
 
 ## Model Selection
@@ -2247,47 +2228,32 @@ rm -rf .egregora/cache/
 
 For blog post generation:
 
-- **`gemini-flash-latest`**: Fast, creative, excellent for blog posts (recommended)
+- **`google-gla:gemini-flash-latest`**: Fast, creative, excellent for blog posts (recommended)
 
 ### Enricher Models
 
 For URL/media descriptions:
 
-- **`gemini-flash-latest`**: Fast, cost-effective (recommended)
+- **`google-gla:gemini-flash-latest`**: Fast, cost-effective (recommended)
 
 ### Embedding Models
 
 For RAG retrieval:
 
-- **`text-embedding-004`**: Latest, 768 dimensions (recommended)
-- **`text-embedding-003`**: Older, 768 dimensions
+- **`models/text-embedding-004`**: Latest, 768 dimensions (recommended)
+- **`models/text-embedding-003`**: Older, 768 dimensions
 
 ## Performance Tuning
 
-### Batch Sizes
-
-Adjust batch sizes in `src/egregora/utils/batch.py` or through configuration:
-
-```yaml
-extra:
-  egregora:
-    batch:
-      embedding_batch_size: 100
-      enrichment_batch_size: 10
-```
-
 ### Rate Limiting
 
-Egregora automatically handles rate limits with exponential backoff. To customize:
+Egregora automatically handles rate limits. To customize quotas, edit the `[quota]` section in `.egregora.toml`:
 
-```python
-from egregora.utils.genai import create_gemini_client
-
-client = create_gemini_client(
-    api_key="your-key",
-    max_retries=5,
-    retry_delay=1.0
-)
+```toml
+[quota]
+daily_llm_requests = 100
+per_second_limit = 0.05  # ~3 requests per minute
+concurrency = 1
 ```
 
 ## Examples
@@ -2296,20 +2262,18 @@ client = create_gemini_client(
 
 ```bash
 egregora write export.zip \
-  --model=models/gemini-flash-latest \
+  --model=google-gla:gemini-flash-latest \
   --step-size=7 --step-unit=days \
-  --enrich \
-  --profile
+  --enable-enrichment
 ```
 
 ### Fast, Cost-Effective
 
 ```bash
 egregora write export.zip \
-  --model=models/gemini-flash-latest \
+  --model=google-gla:gemini-flash-latest \
   --step-size=7 --step-unit=days \
-  --retrieval-mode=exact \
-  --no-enrich
+  --no-enable-enrichment
 ```
 
 ## Next Steps
@@ -2386,7 +2350,7 @@ uv run pre-commit install
 uv run pytest tests/
 ```
 
-See [Contributing Guide](../development/contributing.md) for full development setup.
+See [Contributing Guide](https://github.com/franklinbaldo/egregora/blob/main/CONTRIBUTING.md) for full development setup.
 
 ## API Key Setup
 
@@ -5956,6 +5920,7 @@ uvx --with mkdocs-material \
     --with mkdocs-macros-plugin \
     --with mkdocs-rss-plugin \
     --with mkdocs-blogging-plugin \
+    --with mkdocs-glightbox \
     mkdocs serve -f .egregora/mkdocs.yml
 ```
 *Visit http://localhost:8000 to read your new blog.*
@@ -5964,16 +5929,16 @@ uvx --with mkdocs-material \
 
 ## 🛠️ Configuration
 
-Egregora is highly configurable via the `.egregora/config.yml` file generated in your site directory.
+Egregora is highly configurable via the `.egregora.toml` file generated in your site directory.
 
-*   **Models:** Switch between models (e.g., `google-gla:gemini-2.0-flash`, `google-gla:gemini-1.5-pro`) or use OpenRouter.
+*   **Models:** Switch between models (e.g., `google-gla:gemini-flash-latest`) or use OpenRouter.
 *   **Pipeline:** Adjust how many days of chat form a single post (`step_size`, `step_unit`).
 
 👉 **[Full Configuration Reference](docs/getting-started/configuration.md)**
 
 ### Customizing the AI
 *   **Prompts:** Edit `.egregora/prompts/writer.jinja` to change the tone and style of the writing.
-*   **Instructions:** Add custom instructions in `config.yml` under `writer.custom_instructions`.
+*   **Instructions:** Add custom instructions in `.egregora.toml` under `[writer]` `custom_instructions`.
 
 ---
 
