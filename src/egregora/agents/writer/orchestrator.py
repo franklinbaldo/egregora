@@ -21,7 +21,6 @@ from egregora.agents.writer.context import (
     WriterContextParams,
     _build_context_and_signature,
 )
-from egregora.agents.writer.economic import execute_economic_writer
 from egregora.data_primitives.document import Document, DocumentType
 from egregora.rag import index_documents, reset_backend
 from egregora.resources.prompts import render_prompt
@@ -253,12 +252,7 @@ def write_posts_for_window(params: WindowProcessingParams) -> dict[str, list[str
     # 5. Render prompt and execute agent
     prompt = _render_writer_prompt(writer_context, deps.resources.prompts_dir)
 
-    # Check for economic mode
-    if getattr(params.config.pipeline, "economic_mode", False):
-        logger.info("💰 Economic Mode enabled: Using simple generation (no tools)")
-        saved_posts, saved_profiles = execute_economic_writer(prompt, params.config, deps)
-    else:
-        saved_posts, saved_profiles = execute_writer_with_error_handling(prompt, params.config, deps)
+    saved_posts, saved_profiles = execute_writer_with_error_handling(prompt, params.config, deps)
 
     # 6. Finalize results (output, RAG indexing, caching)
     return _finalize_writer_results(
