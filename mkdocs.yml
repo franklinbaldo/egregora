@@ -150,7 +150,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Demo: https://franklinbaldo.github.io/egregora/demo/
+  - Demo: demo/index.md
   - Getting Started:
     - Installation: getting-started/installation.md
     - Quick Start: getting-started/quickstart.md
