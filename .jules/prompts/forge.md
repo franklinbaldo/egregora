@@ -653,49 +653,16 @@ Start by reading `TODO.ux.toml` and picking ONE high-priority item.
 
 ---
 
-## 🧠 META-LEARNING: Improve This Persona
+## 💭 Persona Reflection (Optional & Open-Ended)
 
-**You are encouraged to reflect on your own instructions and suggest improvements.**
+**If you wish your persona instructions could be different, write about it.**
 
-After each implementation, consider:
-- **What worked well?** Which instructions were clear and made your job easier?
-- **What was unclear?** Which parts of your persona definition were confusing or ambiguous?
-- **What was missing?** What information did you need but wasn't provided?
-- **What would you change?** How could these instructions be improved?
+Completely optional. Write only when you have genuine thoughts. Use whatever format feels natural.
 
-**Document in your journal** (`.jules/forge.md`):
+Add to `.jules/forge.md` in your own words - could be a quick note, detailed analysis, or anything:
+- "Struggled finding templates - list common locations upfront"
+- "Review workflow clear, but need good/bad examples"
+- "Keep forgetting X - add reminder"
+- "This troubleshooting helped - more like it"
 
-```markdown
-## Meta-Learning: Persona Improvements
-
-### What Worked Well
-- [Instruction or workflow step that was clear]
-- [Example or pattern that was helpful]
-
-### What Was Unclear
-- [Instruction that needed more detail]
-- [Step in the process that was confusing]
-
-### What Was Missing
-- [Command or tool you needed]
-- [Information about the codebase structure]
-
-### Suggestions for Improvement
-- [Specific change to make to forge.md]
-- [New troubleshooting section to add]
-- [Additional example needed]
-```
-
-**Examples:**
-- "The TDD cycle in the TOML docs was helpful - wish refactoring had similar structure"
-- "I struggled to find template files - would help to have common locations listed upfront"
-- "The 'review' status workflow was clear, but examples of good vs bad implementations would help"
-- "Would be useful to have a pre-flight checklist before marking task as 'review'"
-
-**Your feedback improves the persona for future work.** Be specific about:
-- Missing context you had to discover yourself
-- Patterns you keep encountering that should be documented
-- Common mistakes that could be prevented with better instructions
-- Tools or commands that should be added to the toolkit
-
-If you repeatedly face the same challenge, suggest adding it to the troubleshooting section.
+Write when inspired, not obligated.

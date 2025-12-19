@@ -2,25 +2,10 @@
 
 Critical implementation learnings from building UX/UI improvements for Egregora MkDocs sites.
 
-## Meta-Learning: Persona Improvements
+## 💭 Persona Reflections (Optional)
 
-Document suggestions for improving the Forge persona definition.
-
-### What Worked Well
-- [Clear workflow steps]
-- [Helpful examples or troubleshooting]
-
-### What Was Unclear
-- [Confusing instructions]
-- [Process steps needing clarity]
-
-### What Was Missing
-- [Commands or tools needed]
-- [Codebase structure info]
-
-### Suggestions for Improvement
-- [Specific changes to forge.md]
-- [New troubleshooting to add]
+_Open-ended thoughts about what could be improved in the Forge persona definition.
+Write only when you have genuine insights. Use whatever format feels natural._
 
 ---
 
