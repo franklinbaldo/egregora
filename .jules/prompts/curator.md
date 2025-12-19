@@ -159,6 +159,10 @@ python .jules/scripts/check_pending_tasks.py
 - Test on different viewport sizes (desktop, tablet, mobile)
 
 ### 3. 👁️ INSPECT - Critical Visual Analysis
+- **REVIEW TASKS:** Check `TODO.ux.toml` for tasks with `status="review"`
+    - Visually inspect the specific changes implemented by Forge
+    - If good: Mark as "completed" (move to `[[tasks.completed]]` with metrics)
+    - If bad: Change status back to "pending" or "in_progress" with feedback in description
 - Navigate through all pages systematically
 - Evaluate against UX/UI excellence criteria
 - Document friction points and opportunities
