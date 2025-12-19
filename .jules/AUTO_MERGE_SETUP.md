@@ -23,28 +23,17 @@ For the `main` branch:
   - ✅ **Require branches to be up to date before merging**
   - ✅ Specify which CI checks must pass (e.g., tests, linting, build)
 
-### 3. Optional: GitHub Action for Auto-Enable
+### 3. GitHub Action (Already Configured)
 
-You can create a GitHub Action that automatically enables auto-merge on Jules PRs:
+This repository includes a GitHub Action at `.github/workflows/jules-auto-merge.yml` that automatically enables auto-merge for PRs created by Jules.
 
-```yaml
-# .github/workflows/jules-auto-merge.yml
-name: Enable Auto-Merge for Jules PRs
+**How it works:**
+- Triggers when a PR is opened or reopened
+- Filters to only Jules PRs: `if: github.actor == 'google-labs-jules[bot]'`
+- Enables auto-merge with squash strategy
+- PR will merge automatically once all required CI checks pass
 
-on:
-  pull_request:
-    types: [opened]
-
-jobs:
-  auto-merge:
-    if: github.actor == 'google-labs-jules[bot]'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Enable auto-merge
-        run: gh pr merge --auto --squash "${{ github.event.pull_request.number }}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
+**No additional setup needed** - this workflow is already in place!
 
 ## Current Jules Personas with AUTO_CREATE_PR
 
