@@ -26,38 +26,38 @@ def xml_safe_text(min_size=0, max_size=None):
 def document_strategy():
     return st.builds(
         Document.create,
-        content=xml_safe_text(min_size=1, max_size=500),
+        content=xml_safe_text(min_size=1, max_size=1000),
         doc_type=st.sampled_from(DocumentType),
-        title=xml_safe_text(min_size=1, max_size=100),
-        slug=st.one_of(st.none(), st.text(min_size=1, max_size=50, alphabet=st.characters(whitelist_categories=('L', 'N')))),
-        id_override=st.one_of(st.none(), st.text(min_size=1, max_size=50, alphabet=st.characters(whitelist_categories=('L', 'N')))),
+        title=xml_safe_text(min_size=1, max_size=200),
+        slug=st.one_of(st.none(), st.text(min_size=1, max_size=100, alphabet=st.characters(whitelist_categories=('L', 'N')))),
+        id_override=st.one_of(st.none(), st.text(min_size=1, max_size=100, alphabet=st.characters(whitelist_categories=('L', 'N')))),
         searchable=st.booleans(),
     )
 
 def author_strategy():
-    return st.builds(Author, name=xml_safe_text(min_size=1, max_size=50), email=st.one_of(st.none(), st.emails()))
+    return st.builds(Author, name=xml_safe_text(min_size=1, max_size=100), email=st.one_of(st.none(), st.emails()))
 
 def entry_strategy():
     return st.builds(
         Entry,
-        id=xml_safe_text(min_size=1, max_size=50),
-        title=xml_safe_text(min_size=1, max_size=100),
+        id=xml_safe_text(min_size=1, max_size=100),
+        title=xml_safe_text(min_size=1, max_size=200),
         updated=st.datetimes(timezones=st.just(timezone.utc)),
-        content=xml_safe_text(max_size=500),
-        authors=st.lists(author_strategy(), max_size=2),
+        content=xml_safe_text(max_size=1000),
+        authors=st.lists(author_strategy(), max_size=5),
         in_reply_to=st.one_of(
             st.none(),
-            st.builds(InReplyTo, ref=xml_safe_text(min_size=1, max_size=50))
+            st.builds(InReplyTo, ref=xml_safe_text(min_size=1, max_size=100))
         )
     )
 
 def feed_strategy():
     return st.builds(
         Feed,
-        id=xml_safe_text(min_size=1, max_size=50),
-        title=xml_safe_text(min_size=1, max_size=100),
+        id=xml_safe_text(min_size=1, max_size=100),
+        title=xml_safe_text(min_size=1, max_size=200),
         updated=st.datetimes(timezones=st.just(timezone.utc)),
-        entries=st.lists(entry_strategy(), max_size=3)
+        entries=st.lists(entry_strategy(), max_size=5)
     )
 
 # --- Tests ---
