@@ -121,11 +121,7 @@ class GeminiKeyRotator:
             except Exception as exc:
                 if is_rate_limit_error(exc):
                     # Log only the key index to avoid exposing sensitive data
-                    logger.warning(
-                        "[KeyRotator] Rate limit encountered on API key index %d: %s",
-                        self.key_index,
-                        str(exc)[:100],
-                    )
+                    logger.warning("[KeyRotator] Rate limit encountered on API key index %d: %s", self.key_index, str(exc)[:100])
 
                     # Refund token for immediate retry
                     get_rate_limiter().refund()

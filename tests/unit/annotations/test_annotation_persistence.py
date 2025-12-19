@@ -8,6 +8,7 @@ from egregora.data_primitives.document import DocumentType
 
 
 class TestAnnotationStorePersistence:
+
     @pytest.fixture
     def mock_output_sink(self):
         sink = MagicMock()
@@ -20,8 +21,8 @@ class TestAnnotationStorePersistence:
         storage = MagicMock()
         # Mocking ibis_conn and other required methods/attributes
         storage.ibis_conn = MagicMock()
-        storage.ibis_conn.table.return_value = MagicMock()  # For table creation checks if any
-        storage.connection = MagicMock()  # For context manager
+        storage.ibis_conn.table.return_value = MagicMock() # For table creation checks if any
+        storage.connection = MagicMock() # For context manager
 
         # Mock context manager return value for connection()
         conn_context = MagicMock()
@@ -31,7 +32,9 @@ class TestAnnotationStorePersistence:
         storage.next_sequence_value.return_value = 1
         return storage
 
-    def test_save_annotation_persists_document_when_sink_provided(self, mock_db, mock_output_sink) -> None:
+    def test_save_annotation_persists_document_when_sink_provided(
+        self, mock_db, mock_output_sink
+    ) -> None:
         store = AnnotationStore(storage=mock_db, output_sink=mock_output_sink)
 
         annotation = store.save_annotation(
@@ -56,7 +59,9 @@ class TestAnnotationStorePersistence:
 
         assert annotation is not None
 
-    def test_persist_failure_does_not_fail_save(self, mock_db, mock_output_sink) -> None:
+    def test_persist_failure_does_not_fail_save(
+        self, mock_db, mock_output_sink
+    ) -> None:
         mock_output_sink.persist.side_effect = OSError("Disk full")
         store = AnnotationStore(storage=mock_db, output_sink=mock_output_sink)
 
@@ -70,6 +75,7 @@ class TestAnnotationStorePersistence:
 
 
 class TestAnnotationDocumentConversion:
+
     def test_to_document_creates_annotation_type(self) -> None:
         annotation = Annotation(
             id=42,
