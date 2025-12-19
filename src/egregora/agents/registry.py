@@ -18,10 +18,10 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+import frontmatter
 import yaml
 
 from egregora.agents.models import AgentConfig
-from egregora.markdown.frontmatter import read_frontmatter_only
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -116,14 +116,14 @@ def load_agent(agent_name: str, egregora_path: Path) -> tuple[AgentConfig, str]:
 
 def resolve_agent_name(post_path: Path, docs_path: Path) -> str:
     """Resolves the agent name based on post, section, and default fallbacks."""
-    post = read_frontmatter_only(post_path)
+    post = frontmatter.load(str(post_path))
     if "egregora" in post and "agent" in post["egregora"]:
         return post["egregora"]["agent"]
     current_dir = post_path.parent
     while current_dir != docs_path.parent:
         agent_md_path = current_dir / "_agent.md"
         if agent_md_path.exists():
-            agent_md = read_frontmatter_only(agent_md_path)
+            agent_md = frontmatter.load(str(agent_md_path))
             if "egregora" in agent_md and "agent" in agent_md["egregora"]:
                 return agent_md["egregora"]["agent"]
         if current_dir == docs_path:
@@ -137,7 +137,7 @@ def merge_variables(agent_config: AgentConfig, post_path: Path) -> dict[str, Any
 
     respecting the allowlist.
     """
-    post = read_frontmatter_only(post_path)
+    post = frontmatter.load(str(post_path))
     post_vars = post.get("egregora", {}).get("variables", {})
     merged_vars = agent_config.variables.defaults.copy()
     allowed_vars = agent_config.variables.allowed
