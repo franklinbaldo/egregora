@@ -349,8 +349,11 @@ def _save_journal_to_file(params: JournalEntryParams) -> str | None:
     journal_slug = now_utc.strftime("%Y-%m-%d-%H-%M-%S")
 
     try:
+        # Security: Enable autoescape for markdown/jinja templates to prevent XSS in journals
+        # This ensures that if the LLM outputs <script> tags, they are escaped in the rendered markdown
         env = Environment(
-            loader=FileSystemLoader(str(templates_dir)), autoescape=select_autoescape(enabled_extensions=())
+            loader=FileSystemLoader(str(templates_dir)),
+            autoescape=select_autoescape(["html", "htm", "xml", "jinja", "md"]),
         )
         template = env.get_template(JOURNAL_TEMPLATE_NAME)
         journal_content = template.render(

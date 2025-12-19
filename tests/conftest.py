@@ -133,7 +133,7 @@ def stub_enrichment_agents(monkeypatch):
     async def _stub_url_enrichment_async(agent, url, prompts_dir=None):
         return f"Stub enrichment for {url}"
 
-    async def _stub_media_enrichment_async(agent, file_path, mime_hint=None, prompts_dir=None):
+    async def _stub_media_enrichment_async(agent, file_path, _mime_hint=None, prompts_dir=None):
         return f"Stub enrichment for {file_path}"
 
     monkeypatch.setattr(
