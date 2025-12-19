@@ -34,7 +34,7 @@ class TestAnnotationStorePersistence:
     def test_save_annotation_persists_document_when_sink_provided(self, mock_db, mock_output_sink) -> None:
         store = AnnotationStore(storage=mock_db, output_sink=mock_output_sink)
 
-        store.save_annotation(
+        annotation = store.save_annotation(
             parent_id="msg-123",
             parent_type="message",
             commentary="Important observation.",

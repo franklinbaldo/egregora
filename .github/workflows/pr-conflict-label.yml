@@ -1,7 +1,7 @@
 name: PR Conflict Labeler
 
 on:
-  pull_request:  # Changed from pull_request_target for security
+  pull_request_target:
     types:
       - opened
       - reopened
@@ -9,7 +9,6 @@ on:
       - ready_for_review
 
 permissions:
-  contents: write  # Needed for branch updates
   issues: write
   pull-requests: write
 
@@ -22,21 +21,11 @@ jobs:
       pull-requests: write
       issues: write
     steps:
-      - name: Check if fork PR
-        id: check_fork
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const isFork = context.payload.pull_request.head.repo.full_name !== context.payload.pull_request.base.repo.full_name;
-            console.log(`Is fork PR: ${isFork}`);
-            core.setOutput('is_fork', isFork.toString());
-
       - name: Check conflicts and auto-update branch
         uses: actions/github-script@v8
         with:
           script: |
             const labelName = 'has-conflicts';
-            const isFork = '${{ steps.check_fork.outputs.is_fork }}' === 'true';
             const labelColor = 'd73a4a';
             const labelDescription = 'Pull request has merge conflicts';
             const { owner, repo } = context.repo;
@@ -146,8 +135,7 @@ jobs:
             }
 
             // Step 3: Auto-update branch if behind and no conflicts
-            // SECURITY: Skip auto-update for fork PRs to prevent potential security issues
-            if (isBehind && prData.mergeable !== false && !isFork) {
+            if (isBehind && prData.mergeable !== false) {
               try {
                 console.log('Branch is behind and has no conflicts - updating...');
 
