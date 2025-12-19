@@ -97,6 +97,15 @@ class SearchMediaResult(BaseModel):
     results: list[MediaItem]
 
 
+class PromptTooLargeError(Exception):
+    """Exception raised when a prompt exceeds model context limits."""
+
+    def __init__(self, limit: int, actual: int):
+        self.limit = limit
+        self.actual = actual
+        super().__init__(f"Prompt too large: {actual} tokens (limit: {limit})")
+
+
 class AnnotationResult(BaseModel):
     """Result from creating an annotation."""
 

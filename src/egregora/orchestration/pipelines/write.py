@@ -35,9 +35,9 @@ from rich.panel import Panel
 from egregora.agents.avatar import AvatarContext, process_avatar_commands
 from egregora.agents.banner.worker import BannerWorker
 from egregora.agents.enricher import EnrichmentRuntimeContext, EnrichmentWorker, schedule_enrichment
-from egregora.agents.model_limits import PromptTooLargeError, get_model_context_limit
 from egregora.agents.profile.worker import ProfileWorker
 from egregora.agents.shared.annotations import AnnotationStore
+from egregora.agents.types import PromptTooLargeError
 from egregora.agents.writer import WindowProcessingParams, write_posts_for_window
 from egregora.config import RuntimeContext, load_egregora_config
 from egregora.config.settings import EgregoraConfig, parse_date_arg, validate_timezone
@@ -639,7 +639,8 @@ def _process_single_window(
         adapter_generation_instructions=adapter_instructions,
         run_id=str(ctx.run_id) if ctx.run_id else None,
     )
-    result = write_posts_for_window(params)
+    import asyncio
+    result = asyncio.run(write_posts_for_window(params))
 
     posts = result.get("posts", [])
     profiles = result.get("profiles", [])
@@ -836,7 +837,16 @@ def _resolve_context_token_limit(config: EgregoraConfig) -> int:
 
     if use_full_window:
         writer_model = config.models.writer
-        limit = get_model_context_limit(writer_model)
+        # Use KNOWN_MODEL_LIMITS from constants if available, else conservative 128k
+        from egregora.constants import KNOWN_MODEL_LIMITS
+
+        clean_name = writer_model.replace("models/", "").replace("google-gla:", "").replace("google-vertex:", "")
+        limit = 128_000
+        for known_model, known_limit in KNOWN_MODEL_LIMITS.items():
+            if clean_name.startswith(known_model):
+                limit = known_limit
+                break
+
         logger.debug(
             "Using full context window for writer model %s (limit=%d tokens)",
             writer_model,
