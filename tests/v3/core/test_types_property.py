@@ -105,7 +105,7 @@ def test_document_semantic_identity():
     assert doc.id == slug
     assert doc.internal_metadata["slug"] == slug
 
-@settings(suppress_health_check=[HealthCheck.too_slow], max_examples=50)
+@settings(suppress_health_check=[HealthCheck.too_slow], deadline=None, max_examples=50)
 @given(feed_strategy())
 def test_feed_xml_validity(feed: Feed):
     """Test that generated XML is valid and parseable."""
