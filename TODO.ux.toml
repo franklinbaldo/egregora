@@ -1,0 +1,515 @@
+# UX/UI TODO - Structured format for programmatic task management
+# Last updated: 2025-12-19
+
+[metadata]
+version = "1.0"
+last_updated = "2025-12-19T00:00:00Z"
+vision_doc = "docs/ux-vision.md"
+template_location = "src/"  # To be documented by Forge
+
+[workflow]
+curator_persona = ".jules/prompts/curator.md"
+forge_persona = ".jules/prompts/forge.md"
+description = "Curator evaluates blogs and updates TODO. Forge implements items from high_priority."
+
+# High Priority - Critical for Excellence
+[[tasks.high_priority]]
+id = "find-templates"
+title = "Find MkDocs template location in src/"
+description = "Document exact template location in vision.md (DO THIS FIRST)"
+status = "pending"
+category = "infrastructure"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "demo-cli"
+title = "Add egregora demo CLI command"
+description = "Easy demo generation command"
+status = "pending"
+category = "infrastructure"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "demo-test"
+title = "Create test to ensure demo/ stays updated"
+description = "Automated test for demo freshness"
+status = "pending"
+category = "infrastructure"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "lighthouse-ci"
+title = "Set up automated Lighthouse CI"
+description = "Regression detection for performance/a11y"
+status = "pending"
+category = "infrastructure"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "visual-regression"
+title = "Add visual regression testing"
+description = "Percy or similar for visual changes"
+status = "pending"
+category = "infrastructure"
+assignee = "forge"
+
+[[tasks.high_priority]]
+id = "baseline-lighthouse"
+title = "Generate demo and run Lighthouse audit"
+description = "Document baseline scores (Performance, A11y, Best Practices, SEO)"
+status = "pending"
+category = "baseline"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "baseline-screenshots"
+title = "Take screenshots of current state"
+description = "Before/after comparison baseline"
+status = "pending"
+category = "baseline"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "baseline-mobile"
+title = "Test on actual mobile devices"
+description = "Not just DevTools - real phones"
+status = "pending"
+category = "baseline"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "color-wcag"
+title = "Audit color palette against WCAG AA"
+description = "Ensure 4.5:1 contrast ratio minimum"
+status = "pending"
+category = "visual"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "typography-audit"
+title = "Evaluate typography scale and hierarchy"
+description = "Review font sizes, weights, line heights"
+status = "pending"
+category = "visual"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "line-length"
+title = "Measure line length"
+description = "Should be 45-75 characters for readability"
+status = "pending"
+category = "visual"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "spacing-system"
+title = "Check spacing consistency"
+description = "Is there a spacing system in place?"
+status = "pending"
+category = "visual"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "mobile-responsive"
+title = "Review mobile responsive behavior"
+description = "Test all breakpoints and interactions"
+status = "pending"
+category = "visual"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "readability-score"
+title = "Test readability with Flesch-Kincaid"
+description = "Target: 60+ score"
+status = "pending"
+category = "content"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "heading-hierarchy"
+title = "Check heading hierarchy"
+description = "Proper H1→H2→H3 nesting"
+status = "pending"
+category = "content"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "scannability"
+title = "Evaluate scannability"
+description = "Can you skim and find info quickly?"
+status = "pending"
+category = "content"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "code-highlighting"
+title = "Review code block syntax highlighting"
+description = "Is it readable and well-styled?"
+status = "pending"
+category = "content"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "search-functionality"
+title = "Test search functionality"
+description = "Does it return relevant results?"
+status = "pending"
+category = "content"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "axe-audit"
+title = "Run axe DevTools audit"
+description = "Fix all critical/serious accessibility issues"
+status = "pending"
+category = "accessibility"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "keyboard-nav"
+title = "Test keyboard navigation"
+description = "Can you tab through everything?"
+status = "pending"
+category = "accessibility"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "screen-reader"
+title = "Verify screen reader compatibility"
+description = "Test with NVDA/JAWS/VoiceOver"
+status = "pending"
+category = "accessibility"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "color-contrast"
+title = "Check color contrast"
+description = "WCAG AA minimum (4.5:1), AAA target (7:1)"
+status = "pending"
+category = "accessibility"
+assignee = "curator"
+
+[[tasks.high_priority]]
+id = "image-alt"
+title = "Ensure all images have descriptive alt text"
+description = "No missing or generic alt attributes"
+status = "pending"
+category = "accessibility"
+assignee = "curator"
+
+# Medium Priority - Refinement & Polish
+[[tasks.medium_priority]]
+id = "breadcrumbs"
+title = "Add breadcrumbs to all pages"
+status = "pending"
+category = "navigation"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "active-state"
+title = "Implement 'you are here' active state styling"
+status = "pending"
+category = "navigation"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "related-content"
+title = "Create related content suggestions"
+status = "pending"
+category = "navigation"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "toc-improvements"
+title = "Improve table of contents"
+description = "Consider sticky positioning and collapsible sections"
+status = "pending"
+category = "navigation"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "anchor-links"
+title = "Add anchor links to all headings"
+status = "pending"
+category = "navigation"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "font-optimization"
+title = "Optimize font loading"
+description = "Subset, preload, font-display: swap"
+status = "pending"
+category = "performance"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "lazy-images"
+title = "Implement lazy loading for images"
+status = "pending"
+category = "performance"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "css-bundle"
+title = "Minimize CSS bundle size"
+status = "pending"
+category = "performance"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "js-audit"
+title = "Audit JavaScript usage"
+description = "Can we remove any unnecessary JS?"
+status = "pending"
+category = "performance"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "service-worker"
+title = "Add service worker for offline support"
+status = "pending"
+category = "performance"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "smooth-scroll"
+title = "Add smooth scroll behavior"
+status = "pending"
+category = "ux"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "loading-states"
+title = "Improve loading states"
+description = "Consider skeleton screens"
+status = "pending"
+category = "ux"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "error-pages"
+title = "Better error pages"
+description = "Custom 404, 500 pages"
+status = "pending"
+category = "ux"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "print-stylesheet"
+title = "Add print stylesheet"
+status = "pending"
+category = "ux"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "code-copy"
+title = "Copy button for code blocks"
+status = "pending"
+category = "ux"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "search-ranking"
+title = "Enhance search with better ranking"
+status = "pending"
+category = "discovery"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "search-shortcuts"
+title = "Add search keyboard shortcuts"
+description = "Press / to focus search"
+status = "pending"
+category = "discovery"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "topic-tags"
+title = "Create topic tags/categories"
+status = "pending"
+category = "discovery"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "last-updated"
+title = "Add 'Last updated' dates to pages"
+status = "pending"
+category = "discovery"
+assignee = "forge"
+
+[[tasks.medium_priority]]
+id = "reading-time"
+title = "Show estimated reading time"
+status = "pending"
+category = "discovery"
+assignee = "forge"
+
+# Low Priority - Delight & Differentiation
+[[tasks.low_priority]]
+id = "custom-illustrations"
+title = "Add custom illustrations for privacy concepts"
+status = "pending"
+category = "visual-delight"
+assignee = "forge"
+
+[[tasks.low_priority]]
+id = "favicon-social"
+title = "Design custom favicon and social cards"
+status = "pending"
+category = "visual-delight"
+assignee = "forge"
+
+[[tasks.low_priority]]
+id = "transitions"
+title = "Create animated transitions"
+description = "Subtle and purposeful only"
+status = "pending"
+category = "visual-delight"
+assignee = "forge"
+
+[[tasks.low_priority]]
+id = "dark-mode"
+title = "Add dark mode toggle"
+status = "pending"
+category = "visual-delight"
+assignee = "forge"
+
+[[tasks.low_priority]]
+id = "microcopy"
+title = "Personalized microcopy and error messages"
+status = "pending"
+category = "visual-delight"
+assignee = "forge"
+
+[[tasks.low_priority]]
+id = "color-palette"
+title = "Develop privacy-focused color palette"
+description = "Deep blues, warm grays"
+status = "pending"
+category = "brand"
+assignee = "curator"
+
+[[tasks.low_priority]]
+id = "typefaces"
+title = "Choose brand typefaces"
+description = "Consider IBM Plex Sans/Mono"
+status = "pending"
+category = "brand"
+assignee = "curator"
+
+[[tasks.low_priority]]
+id = "visual-language"
+title = "Create visual language"
+description = "Shapes, icons, patterns"
+status = "pending"
+category = "brand"
+assignee = "curator"
+
+[[tasks.low_priority]]
+id = "diagram-style"
+title = "Design custom diagram style"
+status = "pending"
+category = "brand"
+assignee = "curator"
+
+[[tasks.low_priority]]
+id = "imagery-guidelines"
+title = "Photography/imagery guidelines"
+description = "Avoid surveillance vibes"
+status = "pending"
+category = "brand"
+assignee = "curator"
+
+[[tasks.low_priority]]
+id = "version-switcher"
+title = "Version switcher for docs"
+status = "pending"
+category = "advanced"
+assignee = "forge"
+
+[[tasks.low_priority]]
+id = "interactive-examples"
+title = "Interactive examples"
+description = "Live demos embedded in pages"
+status = "pending"
+category = "advanced"
+assignee = "forge"
+
+[[tasks.low_priority]]
+id = "feedback-widget"
+title = "Feedback widget"
+description = "Was this helpful?"
+status = "pending"
+category = "advanced"
+assignee = "forge"
+
+[[tasks.low_priority]]
+id = "social-sharing"
+title = "Social sharing (privacy-respecting)"
+status = "pending"
+category = "advanced"
+assignee = "forge"
+
+[[tasks.low_priority]]
+id = "easter-eggs"
+title = "Privacy-themed easter eggs"
+status = "pending"
+category = "advanced"
+assignee = "forge"
+
+# Completed tasks will be moved here
+# Example format when tasks are completed:
+# [[tasks.completed]]
+# id = "setup-personas"
+# title = "Create Curator and Forge personas"
+# status = "completed"
+# completed_date = "2025-12-19T00:00:00Z"
+# completed_by = "claude"
+# metrics = "N/A - foundational work"
+
+# Lighthouse score tracking
+[lighthouse.baseline]
+performance = 0  # Measure first
+accessibility = 0
+best_practices = 0
+seo = 0
+measured_date = ""
+
+[lighthouse.target]
+performance = 95
+accessibility = 100
+best_practices = 100
+seo = 100
+
+[lighthouse.current]
+performance = 0
+accessibility = 0
+best_practices = 0
+seo = 0
+last_measured = ""
+
+# Reference examples for comparison
+[[references]]
+name = "Stripe Docs"
+url = "https://stripe.com/docs"
+strength = "Search, clarity, hierarchy"
+
+[[references]]
+name = "Tailwind CSS"
+url = "https://tailwindcss.com/docs"
+strength = "Visual design, typography"
+
+[[references]]
+name = "Astro Docs"
+url = "https://docs.astro.build"
+strength = "Navigation, personality"
+
+[[references]]
+name = "MDN"
+url = "https://developer.mozilla.org"
+strength = "Information architecture"
+
+[[references]]
+name = "Linear Docs"
+url = "https://linear.app/docs"
+strength = "Minimalist elegance"
