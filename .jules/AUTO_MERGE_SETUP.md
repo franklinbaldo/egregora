@@ -39,6 +39,7 @@ This repository includes a GitHub Action at `.github/workflows/jules-auto-merge.
 
 - **Curator** (daily at 9 AM): Creates UX evaluation PRs
 - **Forge** (hourly): Creates UX implementation PRs
+- **Refactor** (hourly): Creates linting fix PRs using TDD
 - **Artisan** (Tuesdays at 10 AM): Creates improvement PRs
 - **Janitor** (daily at 8 AM): Creates cleanup PRs
 
