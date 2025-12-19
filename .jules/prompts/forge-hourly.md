@@ -3,7 +3,7 @@ id: forge-hourly
 enabled: true
 schedule: "0 * * * *"
 branch: "main"
-automation_mode: "AUTO_CREATE_PR"
+automation_mode: "AUTO_MERGE_ON_CI_PASS"
 require_plan_approval: false
 dedupe: true
 title: "ux/forge: implement TODO.ux.md item for {{ repo }}"
