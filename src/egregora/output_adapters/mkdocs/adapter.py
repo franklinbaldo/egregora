@@ -95,10 +95,10 @@ class MkDocsAdapter(BaseOutputSink):
         # Configure URL convention to match filesystem layout
         # This ensures that generated URLs align with where files are actually stored
         routes = RouteConfig(
-            posts_prefix=self.posts_dir.relative_to(self.docs_dir).as_posix(),
-            profiles_prefix=self.profiles_dir.relative_to(self.docs_dir).as_posix(),
-            media_prefix=self.media_dir.relative_to(self.docs_dir).as_posix(),
-            journal_prefix=self.journal_dir.relative_to(self.docs_dir).as_posix(),
+            posts_prefix=__import__("os").path.relpath(self.posts_dir, self.docs_dir),
+            profiles_prefix=__import__("os").path.relpath(self.profiles_dir, self.docs_dir),
+            media_prefix=__import__("os").path.relpath(self.media_dir, self.docs_dir),
+            journal_prefix=__import__("os").path.relpath(self.journal_dir, self.docs_dir),
         )
         self._url_convention = StandardUrlConvention(routes)
 
