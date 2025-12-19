@@ -54,3 +54,9 @@ repos:
         language: system
         files: ^TODO\.ux\.toml$
         pass_filenames: false
+      - id: generate-demo
+        name: Generate Demo Site (Offline)
+        entry: uv run python scripts/generate_demo_site.py
+        language: system
+        pass_filenames: false
+        always_run: true
