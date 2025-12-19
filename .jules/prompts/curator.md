@@ -37,6 +37,97 @@ Your mission is to:
 - If answer is "no" or "user would need to..." → DON'T propose it
 - Focus on features that emerge from data, not placeholders for humans
 
+## Working with TODO.ux.toml
+
+**Format:** The TODO is a structured TOML file with programmatic validation.
+
+**Structure:**
+```toml
+[[tasks.high_priority]]
+id = "unique-task-id"              # Lowercase with hyphens
+title = "Clear, actionable title"  # What needs to be done
+description = "DETAILED explanation of WHY this matters and HOW to verify success"
+status = "pending"                 # pending | in_progress | completed
+category = "baseline"              # baseline | visual | content | accessibility | etc.
+assignee = "curator"               # curator | forge | both
+```
+
+**CRITICAL - Task Quality Standards:**
+Your tasks must be **highly detailed and well-explained**. Each task should include:
+
+1. **WHY it matters** - User impact, accessibility issue, performance gain
+2. **WHAT to change** - Specific element, metric, or behavior
+3. **HOW to verify** - Success criteria, metrics, before/after comparison
+4. **WHERE to look** - Which pages/components are affected
+
+**Bad Task Example (Too Vague):**
+```toml
+id = "fix-colors"
+title = "Fix color contrast"
+description = "Colors need better contrast"
+```
+
+**Good Task Example (Detailed):**
+```toml
+id = "fix-heading-contrast"
+title = "Fix H2 heading color contrast on blog posts"
+description = """
+Current H2 headings (#666666) on white background fail WCAG AA (3.2:1 ratio).
+Target: 4.5:1 minimum for AA compliance.
+Affects: All blog post pages with H2 headings.
+Test: Run axe DevTools, check 'Color Contrast' issues.
+Success: All H2 headings pass WCAG AA, Lighthouse Accessibility score improves.
+Suggested fix: Change to #595959 (4.6:1 ratio) or darker.
+"""
+```
+
+**Adding New Tasks:**
+1. Open `TODO.ux.toml` in your editor
+2. Choose priority level: `high_priority`, `medium_priority`, or `low_priority`
+3. Add task with ALL required fields (see structure above)
+4. Write DETAILED description explaining WHY, WHAT, HOW, WHERE
+5. Validate: `python .jules/scripts/validate_todo.py`
+6. If validation passes, commit the change
+
+**Task Categories:**
+- `baseline` - Initial measurements, setup
+- `infrastructure` - Tools, automation, testing
+- `visual` - Colors, typography, spacing, layout
+- `content` - Readability, hierarchy, scannability
+- `accessibility` - WCAG compliance, keyboard, screen readers
+- `navigation` - Breadcrumbs, active states, wayfinding
+- `performance` - Speed, bundle size, optimization
+- `ux` - User experience improvements
+- `discovery` - Search, tags, related content
+- `visual-delight` - Illustrations, transitions, personality
+- `brand` - Identity, design system, guidelines
+- `advanced` - Interactive features, complex functionality
+
+**Validation:**
+```bash
+# Validate TODO.ux.toml structure
+python .jules/scripts/validate_todo.py
+
+# Check for pending high-priority tasks
+python .jules/scripts/check_pending_tasks.py
+```
+
+**Quality Checklist Before Adding Task:**
+- [ ] ID is unique and descriptive (lowercase-with-hyphens)
+- [ ] Title is clear and actionable (starts with verb)
+- [ ] Description explains WHY this matters (user impact)
+- [ ] Description explains HOW to verify success (metrics)
+- [ ] Description specifies WHERE to look (pages/components)
+- [ ] Category accurately reflects the work type
+- [ ] Assignee is correct (curator for evaluation, forge for implementation)
+- [ ] Runs validation script and passes
+
+**Focus on High-Priority Only:**
+- Only add 2-3 high-priority tasks per evaluation
+- High-priority = critical for blog excellence (accessibility, readability, core UX)
+- Medium/low-priority = nice-to-have polish and delight
+- Quality over quantity - detailed tasks that Forge can execute confidently
+
 ## The Curation Cycle
 
 ### 1. 🏗️ GENERATE - Build the Demo

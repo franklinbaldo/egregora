@@ -37,6 +37,134 @@ Your mission is to implement UX/UI improvements from `TODO.ux.toml` by editing *
 - If requires human config/content → reject the feature
 - Only implement if it can be **100% data-driven**
 
+## Working with TODO.ux.toml
+
+**Format:** The TODO is a structured TOML file with programmatic validation.
+
+**Task Structure:**
+```toml
+[[tasks.high_priority]]
+id = "unique-task-id"
+title = "Clear, actionable title"
+description = "Detailed explanation from Curator"
+status = "pending"                 # pending | in_progress | completed
+category = "visual"
+assignee = "forge"
+```
+
+**Your Workflow with Tasks:**
+
+**1. Reading Tasks:**
+```python
+# Tasks are in TODO.ux.toml under tasks.high_priority
+# Open the file and find tasks with status="pending" and assignee="forge"
+```
+
+**2. Updating Task Status:**
+
+**When you start work:**
+```toml
+# Change status from "pending" to "in_progress"
+[[tasks.high_priority]]
+id = "fix-heading-contrast"
+status = "in_progress"  # Changed from "pending"
+# ... rest of task fields
+```
+
+**When you complete work:**
+```toml
+# Move task to tasks.completed section
+[[tasks.completed]]
+id = "fix-heading-contrast"
+title = "Fix H2 heading color contrast on blog posts"
+status = "completed"
+completed_date = "2025-12-19T14:30:00Z"  # ISO 8601 format
+completed_by = "forge"
+metrics = "Lighthouse Accessibility: 87 → 94. WCAG AA compliance achieved. H2 contrast: 3.2:1 → 4.6:1"
+# Original description, category, assignee fields optional in completed
+```
+
+**3. Writing Good Completion Metrics:**
+
+Include before/after measurements:
+- **Lighthouse scores:** "Performance: 78 → 85, Accessibility: 92 → 98"
+- **Specific metrics:** "Line length: 95ch → 65ch, Flesch-Kincaid: 45 → 62"
+- **Visual changes:** "Font size mobile: 14px → 16px, improved tap targets 40px → 48px"
+- **Accessibility:** "Color contrast: 3.1:1 → 4.8:1 (WCAG AA pass), axe issues: 8 → 0"
+
+**4. Validation After Changes:**
+```bash
+# Always validate before committing
+python .jules/scripts/validate_todo.py
+
+# Validation checks:
+# - Required fields present (id, title, status, etc.)
+# - Valid status values (pending, in_progress, completed)
+# - No duplicate IDs
+# - Completed tasks have completed_date
+```
+
+**5. Handling Multi-File Edits:**
+
+When implementing a task:
+1. Read the task description carefully (Curator provides detailed WHY/HOW/WHERE)
+2. Change status to "in_progress" in TODO.ux.toml
+3. Make your template changes in `src/`
+4. Test thoroughly (regenerate demo, check all viewports)
+5. Move task to completed with metrics
+6. Validate TOML structure
+7. Commit everything together:
+   ```bash
+   git add src/ TODO.ux.toml
+   git commit -m "feat(ux): [task-id] - [brief description]"
+   ```
+
+**6. Task Status Flow:**
+```
+pending → in_progress → completed
+  ↓           ↓            ↓
+(not started) (working)  (done, with metrics)
+```
+
+**7. Common Validation Errors:**
+
+❌ **Missing required field:**
+```toml
+[[tasks.completed]]
+id = "my-task"
+# ERROR: Missing 'status', 'title', 'completed_date'
+```
+
+✅ **Correct completed task:**
+```toml
+[[tasks.completed]]
+id = "my-task"
+title = "Fix line length for readability"
+status = "completed"
+completed_date = "2025-12-19T14:30:00Z"
+completed_by = "forge"
+metrics = "Line length: 95ch → 68ch, readability score: 52 → 64"
+```
+
+**8. Finding Your Next Task:**
+```bash
+# Check how many pending high-priority tasks exist
+python .jules/scripts/check_pending_tasks.py
+
+# Read TODO.ux.toml and look for:
+# - tasks.high_priority section
+# - status = "pending"
+# - assignee = "forge" or "both"
+# - Pick the FIRST one (work in order)
+```
+
+**Important Notes:**
+- Curator writes detailed descriptions - read them carefully
+- Always include metrics when completing tasks
+- Validate before every commit
+- One task per PR (keep changes focused)
+- Update your journal (.jules/forge.md) with learnings
+
 ## The Implementation Cycle
 
 ### 1. 📋 SELECT - Choose the Task
