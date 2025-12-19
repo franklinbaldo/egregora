@@ -52,4 +52,4 @@ jobs:
           fi
 
           # Using local script to interact with Jules API directly
-          uv run python scripts/jules_scheduler.py "${args[@]}"
+          uv run python .claude/skills/jules-scheduler/scheduler.py "${args[@]}"
