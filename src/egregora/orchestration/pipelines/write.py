@@ -66,7 +66,7 @@ from egregora.transformations import (
     split_window_into_n_parts,
 )
 from egregora.utils.cache import PipelineCache
-from egregora.utils.env import validate_gemini_api_key
+from egregora.utils.env import get_google_api_keys, validate_gemini_api_key
 from egregora.utils.metrics import UsageTracker
 from egregora.utils.rate_limit import init_rate_limiter
 
@@ -144,30 +144,46 @@ def _load_dotenv_if_available(output_dir: Path) -> None:
 
 def _validate_api_key(output_dir: Path) -> None:
     """Validate that API key is set and valid."""
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        _load_dotenv_if_available(output_dir)
-        api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    skip_validation = os.getenv("EGREGORA_SKIP_API_KEY_VALIDATION", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "y",
+        "on",
+    }
 
-    if not api_key:
+    api_keys = get_google_api_keys()
+    if not api_keys:
+        _load_dotenv_if_available(output_dir)
+        api_keys = get_google_api_keys()
+
+    if not api_keys:
         console.print("[red]Error: GOOGLE_API_KEY (or GEMINI_API_KEY) environment variable not set[/red]")
-        console.print(
-            "Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key"
-        )
+        console.print("Set GOOGLE_API_KEY or GEMINI_API_KEY environment variable with your Google Gemini API key")
         console.print("You can also create a .env file in the output directory or current directory.")
         raise SystemExit(1)
 
-    # Validate the API key with a lightweight call
+    if skip_validation:
+        os.environ["GOOGLE_API_KEY"] = api_keys[0]
+        return
+
     console.print("[cyan]Validating Gemini API key...[/cyan]")
-    try:
-        validate_gemini_api_key(api_key)
-        console.print("[green]✓ API key validated successfully[/green]")
-    except ValueError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise SystemExit(1) from e
-    except ImportError as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise SystemExit(1) from e
+    validation_errors: list[str] = []
+    for key in api_keys:
+        try:
+            validate_gemini_api_key(key)
+            os.environ["GOOGLE_API_KEY"] = key
+            console.print("[green]✓ API key validated successfully[/green]")
+            return
+        except ValueError as e:
+            validation_errors.append(str(e))
+        except ImportError as e:
+            console.print(f"[red]Error: {e}[/red]")
+            raise SystemExit(1) from e
+
+    joined = "\n\n".join(validation_errors)
+    console.print(f"[red]Error: {joined}[/red]")
+    raise SystemExit(1)
 
 
 def _prepare_write_config(

@@ -210,6 +210,7 @@ def execute_writer_with_error_handling(
         if isinstance(exc, PromptTooLargeError):
             raise
 
-        msg = f"Writer agent failed for {deps.window_label}"
+        cause = f"{type(exc).__name__}: {exc}".strip()
+        msg = f"Writer agent failed for {deps.window_label} ({cause})"
         logger.exception(msg)
         raise RuntimeError(msg) from exc

@@ -41,6 +41,7 @@ from egregora.resources.prompts import render_prompt
 from egregora.utils.cache import EnrichmentCache, make_enrichment_cache_key
 from egregora.utils.datetime_utils import parse_datetime_flexible
 from egregora.utils.model_fallback import create_fallback_model
+from egregora.utils.model_names import to_google_genai_model_name
 from egregora.utils.paths import slugify
 from egregora.utils.zip import validate_zip_contents
 
@@ -884,7 +885,7 @@ class EnrichmentWorker(BaseWorker):
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
-                    model=model,
+                    model=to_google_genai_model_name(model),
                     contents=[{"parts": [{"text": combined_prompt}]}],
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
@@ -897,7 +898,7 @@ class EnrichmentWorker(BaseWorker):
             api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
             client = genai.Client(api_key=api_key)
             response = client.models.generate_content(
-                model=model_name,
+                model=to_google_genai_model_name(model_name),
                 contents=[{"parts": [{"text": combined_prompt}]}],
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
@@ -1195,7 +1196,7 @@ class EnrichmentWorker(BaseWorker):
         self, requests: list[dict[str, Any]], task_map: dict[str, dict[str, Any]]
     ) -> list[Any]:
         """Execute media enrichments based on configured strategy."""
-        model_name = self.ctx.config.models.enricher_vision
+        model_name = to_google_genai_model_name(self.ctx.config.models.enricher_vision)
         api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if not api_key:
             msg = "GOOGLE_API_KEY or GEMINI_API_KEY required for media enrichment"
@@ -1290,7 +1291,7 @@ class EnrichmentWorker(BaseWorker):
             def call_with_model_and_key(model: str, api_key: str) -> str:
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
-                    model=model,
+                    model=to_google_genai_model_name(model),
                     contents=[{"parts": request_parts}],
                     config=types.GenerateContentConfig(response_mime_type="application/json"),
                 )
@@ -1300,7 +1301,7 @@ class EnrichmentWorker(BaseWorker):
         else:
             # No rotation - use configured model and API key
             response = client.models.generate_content(
-                model=model_name,
+                model=to_google_genai_model_name(model_name),
                 contents=[{"parts": request_parts}],
                 config=types.GenerateContentConfig(response_mime_type="application/json"),
             )
@@ -1383,7 +1384,7 @@ class EnrichmentWorker(BaseWorker):
 
                 # Call Gemini API directly
                 response = client.models.generate_content(
-                    model=model_name,
+                    model=to_google_genai_model_name(model_name),
                     contents=contents,
                     config=types.GenerateContentConfig(**config) if config else None,
                 )
