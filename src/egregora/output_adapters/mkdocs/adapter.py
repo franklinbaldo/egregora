@@ -830,18 +830,20 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
 
     def _strip_media_prefix(self, url_path: str) -> str:
         """Helper to strip media prefixes from URL path."""
-        rel_path = url_path
-        media_prefixes: list[str] = []
+        rel_path = url_path.strip("/")
+        media_prefixes: set[str] = set()
         if hasattr(self._url_convention, "routes"):
-            media_prefixes.append(str(getattr(self._url_convention.routes, "media_prefix", "")).strip("/"))
-        media_prefixes.extend(["media", "posts/media"])
-        for prefix in [p for p in media_prefixes if p]:
+            prefix = str(getattr(self._url_convention.routes, "media_prefix", "")).strip("/")
+            if prefix:
+                media_prefixes.add(prefix)
+        media_prefixes.update(["media", "posts/media"])
+        
+        # Sort by length descending to match longest prefix first
+        for prefix in sorted(media_prefixes, key=len, reverse=True):
             if rel_path == prefix:
-                rel_path = ""
-                break
+                return ""
             if rel_path.startswith(prefix + "/"):
-                rel_path = rel_path[len(prefix) + 1 :]
-                break
+                return rel_path[len(prefix) + 1 :]
         return rel_path
 
     def _parse_frontmatter(self, path: Path) -> dict:
@@ -1039,6 +1041,8 @@ Use consistent, meaningful tags across posts to build a useful taxonomy.
         path.write_bytes(payload)
 
     def _write_generic_doc(self, document: Document, path: Path) -> None:
+        """Write a generic document (binary or text) to the given path."""
+        logger.info("Writing document %s to %s (type=%s)", document.document_id[:8], path, document.type)
         if isinstance(document.content, bytes):
             path.write_bytes(document.content)
         else:

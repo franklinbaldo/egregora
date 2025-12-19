@@ -183,6 +183,15 @@ def validate_prompt_fits(
 
     fits = estimated_tokens <= effective_limit
 
+    logger.debug(
+        "Token check for %s: estimated=%d, limit=%d, effective=%d, fits=%s",
+        model_name,
+        estimated_tokens,
+        context_limit,
+        effective_limit,
+        fits,
+    )
+
     if not fits:
         logger.warning(
             "Prompt exceeds context limit: %d tokens > %d effective limit (%d total - %d%% margin) for model %s",

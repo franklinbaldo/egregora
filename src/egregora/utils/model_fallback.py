@@ -24,9 +24,9 @@ CACHE_TTL = 3600  # Cache for 1 hour
 
 # Priority order for Google models
 GOOGLE_FALLBACK_MODELS = [
-    "google-gla:gemini-2.0-flash-exp",
-    "google-gla:gemini-2.0-flash-exp",
-    "google-gla:gemini-1.5-pro",
+    "gemini-flash-latest",
+    "gemini-2.0-flash-exp",
+    "gemini-pro-latest",
 ]
 
 
@@ -173,10 +173,11 @@ def create_fallback_model(
         if isinstance(model_def, Model):
             model = model_def
         elif isinstance(model_def, str):
-            if model_def.startswith("google-gla:"):
+            if model_def.startswith("google-gla:") or model_def.startswith("gemini-"):
                 provider = GoogleProvider(api_key=api_key or get_google_api_key())
+                model_name = model_def.removeprefix("google-gla:")
                 model = GoogleModel(
-                    model_def.removeprefix("google-gla:"),
+                    model_name,
                     provider=provider,
                 )
             elif model_def.startswith("openrouter:"):
@@ -215,6 +216,8 @@ def create_fallback_model(
         # Fallback to single getter which raises if missing
         api_keys = [get_google_api_key()]
 
+    logger.info("Creating fallback model with %d model(s) and %d API key(s)", len(fallback_models) + 1, len(api_keys))
+
     from egregora.models.rate_limited import RateLimitedModel
 
     # Helper to create model variations for all keys
@@ -222,7 +225,7 @@ def create_fallback_model(
         variations: list[Model] = []
 
         # If it's a string definition for a Google model, create one variation per key
-        if isinstance(model_def, str) and model_def.startswith("google-gla:"):
+        if isinstance(model_def, str) and (model_def.startswith("google-gla:") or model_def.startswith("gemini-")):
             for key in api_keys:
                 if use_google_batch:
                     batch_model = GoogleBatchModel(api_key=key, model_name=model_def)

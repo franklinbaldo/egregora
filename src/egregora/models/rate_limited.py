@@ -6,6 +6,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
+from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.models import Model, ModelRequestParameters, ModelSettings
 
 from egregora.utils.rate_limit import get_rate_limiter
@@ -48,6 +49,13 @@ class RateLimitedModel(Model):
         limiter.acquire()
         try:
             return await self.wrapped_model.request(messages, model_settings, model_request_parameters)
+        except Exception as exc:
+            msg = str(exc).lower()
+            if "429" in msg or "resource_exhausted" in msg or "too many requests" in msg:
+                logger.warning("Rate limit hit on %s, refunding and failing fast for rotation", self.model_name)
+                limiter.refund()
+                raise UsageLimitExceeded(str(exc)) from exc
+            raise
         finally:
             limiter.release()
 
@@ -66,6 +74,13 @@ class RateLimitedModel(Model):
                 messages, model_settings, model_request_parameters
             ) as stream:
                 yield stream
+        except Exception as exc:
+            msg = str(exc).lower()
+            if "429" in msg or "resource_exhausted" in msg or "too many requests" in msg:
+                logger.warning("Rate limit hit on %s (stream), refunding and failing fast for rotation", self.model_name)
+                limiter.refund()
+                raise UsageLimitExceeded(str(exc)) from exc
+            raise
         finally:
             limiter.release()
 
